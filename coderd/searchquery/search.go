@@ -499,11 +499,13 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 // Supported query parameters:
 //   - title: case-insensitive title substring match via ILIKE (bare terms
 //     are rejected; use title:<value> for title filtering)
-//   - archived: boolean (default: false, excludes archived chats unless
-//     explicitly set)
+//   - archived: boolean, or any to include archived and active chats
+//     (default: false, excludes archived chats unless explicitly set)
 //   - has_unread: nullable boolean (filter by unread message status)
+//   - status: repeated or comma-separated chat_status enum value:
+//     waiting, running, error, requires_action, or interrupting
 //   - pr_status: repeated or comma-separated list of draft, open,
-//     merged, closed
+//     merged, closed, or none (no pull request)
 //   - diff_url: string (matches chats whose linked diff URL equals the
 //     given value, case-insensitively; URLs typically contain ':' so
 //     they must be quoted, e.g. q=diff_url:"https://github.com/o/r/pull/1")
@@ -539,12 +541,26 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	}
 
 	parser := httpapi.NewQueryParamParser()
-	filter.Archived = parser.NullableBoolean(values, filter.Archived, "archived")
+	if archived := values["archived"]; len(archived) == 1 && strings.EqualFold(archived[0], "any") {
+		// A null filter matches archived and active chats. Deleting the
+		// term keeps ErrorExcessParams from rejecting it as unparsed.
+		filter.Archived = sql.NullBool{}
+		values.Del("archived")
+	} else {
+		filter.Archived = parser.NullableBoolean(values, filter.Archived, "archived")
+	}
 	filter.HasUnread = parser.NullableBoolean(values, filter.HasUnread, "has_unread")
+	filter.ChatStatuses = httpapi.ParseCustomList(parser, values, nil, "status", func(v string) (string, error) {
+		status := database.ChatStatus(strings.ToLower(strings.TrimSpace(v)))
+		if !status.Valid() {
+			return "", xerrors.Errorf("%q is not a valid value", v)
+		}
+		return string(status), nil
+	})
 	filter.PullRequestStatuses = httpapi.ParseCustomList(parser, values, nil, "pr_status", func(v string) (string, error) {
 		normalizedPRStatus := strings.ToLower(strings.TrimSpace(v))
 		switch normalizedPRStatus {
-		case "draft", "open", "merged", "closed":
+		case "draft", "open", "merged", "closed", "none":
 			return normalizedPRStatus, nil
 		default:
 			return "", xerrors.Errorf("%q is not a valid value", v)

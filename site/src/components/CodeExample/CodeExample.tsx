@@ -19,6 +19,8 @@ type CodeExampleProps = {
 	redactReplacement?: string;
 	/** Show a button to reveal the redacted parts of the code */
 	showRevealButton?: boolean;
+	/** Accessible name of the copy button. */
+	copyLabel?: string;
 	className?: string;
 };
 
@@ -32,6 +34,7 @@ export const CodeExample: React.FC<CodeExampleProps> = ({
 	redactPattern,
 	redactReplacement = "********",
 	showRevealButton,
+	copyLabel = "Copy code",
 }) => {
 	const [showFullValue, setShowFullValue] = useState(false);
 
@@ -102,7 +105,7 @@ export const CodeExample: React.FC<CodeExampleProps> = ({
 						<TooltipContent>{showButtonLabel}</TooltipContent>
 					</Tooltip>
 				)}
-				<CopyButton text={code} label="Copy code" />
+				<CopyButton text={code} label={copyLabel} />
 			</div>
 		</div>
 	);

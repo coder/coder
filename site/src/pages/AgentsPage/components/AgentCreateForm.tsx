@@ -41,6 +41,7 @@ import {
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
 import { AgentChatInput } from "./AgentChatInput";
+import { useAutomationsEnabled } from "./Automations/automationsFlag";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
@@ -73,6 +74,7 @@ export type CreateChatOptions = {
 	mcpServerIds?: string[];
 	organizationId: string;
 	planMode?: TypesGen.ChatPlanMode;
+	manageAutomationsEnabled: boolean;
 	// When present, the submit carries files destined for the chat's
 	// workspace. The page creates the chat without content, runs this
 	// callback to upload against the new chat ID, then sends the first
@@ -84,16 +86,18 @@ export type CreateChatOptions = {
 
 /**
  * Prefilled content for a chat opened from a deep link. The form reads it on
- * mount (remount with a new `key` to change it), uploads the attachment
+ * mount (remount with a new `key` to change it), uploads any attachment
  * without sending, and neither reads nor writes the saved draft or
  * attachments.
  */
 export type AgentCreatePrefill = {
 	message: string;
-	attachment: {
+	attachment?: {
 		name: string;
 		text: string;
 	};
+	/** Shown in the composer until the user edits the message or sends it. */
+	warning?: string;
 };
 
 /**
@@ -206,6 +210,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		submitDraft,
 		resetDraft,
 	} = useEmptyStateDraft(prefill?.message);
+	const [isPrefillEdited, setIsPrefillEdited] = useState(false);
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and
@@ -428,6 +433,9 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 			)
 		: undefined;
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
+	const automationsExperimentEnabled = useAutomationsEnabled();
+	const [manageAutomationsEnabled, setManageAutomationsEnabled] =
+		useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	// Treat the unsettled-organization window as pending so the model selector
@@ -587,6 +595,10 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 					? [...effectiveMCPServerIds]
 					: undefined,
 			planMode: planModeEnabled ? "plan" : undefined,
+			// The experiments query refetches while the form stays mounted, so the
+			// experiment can turn off after the user enabled the toggle.
+			manageAutomationsEnabled:
+				automationsExperimentEnabled && manageAutomationsEnabled,
 			uploadWorkspaceFiles,
 		}).catch((err) => {
 			resetDraft();
@@ -703,7 +715,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	};
 
 	const [prefillFile] = useState(() =>
-		prefill
+		prefill?.attachment
 			? new File([prefill.attachment.text], prefill.attachment.name, {
 					type: "text/plain",
 				})
@@ -825,7 +837,13 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						isLoading={isSubmitPending}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}
-						onContentChange={handleContentChange}
+						onContentChange={(content, serializedEditorState, hasRefs) => {
+							if (content !== prefill?.message) {
+								setIsPrefillEdited(true);
+							}
+							handleContentChange(content, serializedEditorState, hasRefs);
+						}}
+						warning={isPrefillEdited ? undefined : prefill?.warning}
 						selectedModel={selectedModel}
 						onModelChange={handleModelChange}
 						modelOptions={modelOptions}
@@ -836,6 +854,12 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}
 						onPlanModeToggle={setPlanModeEnabled}
+						manageAutomationsEnabled={manageAutomationsEnabled}
+						onManageAutomationsToggle={
+							automationsExperimentEnabled
+								? setManageAutomationsEnabled
+								: undefined
+						}
 						attachments={attachments}
 						// Files attached before org adoption cannot upload and would be discarded
 						// when restoration completes.

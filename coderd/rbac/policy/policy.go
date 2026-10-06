@@ -55,8 +55,8 @@ var workspaceActions = map[Action]ActionDefinition{
 
 	// Workspace provisioning. Start & stop are different so dormant workspaces can be
 	// stopped, but not stared.
-	ActionWorkspaceStart: "allows starting a workspace",
-	ActionWorkspaceStop:  "allows stopping a workspace",
+	ActionWorkspaceStart: "start a workspace",
+	ActionWorkspaceStop:  "stop a workspace",
 
 	// Running a workspace
 	ActionSSH:                "ssh into a given workspace",
@@ -76,6 +76,26 @@ var chatActions = map[Action]ActionDefinition{
 	ActionUpdate: "update chat title or settings",
 	ActionDelete: "delete a chat",
 	ActionShare:  "share a chat with other users or groups",
+}
+
+var chatAutomationActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new chat automation",
+	ActionRead:   "read chat automations",
+	ActionUpdate: "update a chat automation",
+	ActionDelete: "delete a chat automation",
+}
+
+var chatProjectActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new chat project",
+	ActionRead:   "read chat projects",
+	ActionUpdate: "update a chat project",
+	ActionDelete: "delete a chat project",
+}
+
+var chatProjectMemoryActions = map[Action]ActionDefinition{
+	ActionCreate: "create a chat project memory",
+	ActionRead:   "read chat project memories",
+	ActionDelete: "delete a chat project memory",
 }
 
 var mcpServerConfigActions = map[Action]ActionDefinition{
@@ -120,8 +140,17 @@ var RBACPermissions = map[string]PermissionDefinition{
 	"chat": {
 		Actions: chatActions,
 	},
+	"chat_project": {
+		Actions: chatProjectActions,
+	},
+	"chat_project_memory": {
+		Actions: chatProjectMemoryActions,
+	},
 	"chat_model_config": {
 		Actions: chatModelConfigActions,
+	},
+	"chat_automation": {
+		Actions: chatAutomationActions,
 	},
 	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {
@@ -276,7 +305,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: "create an api key",
 			ActionRead:   "read api key details (secrets are not stored)",
 			ActionDelete: "delete an api key",
-			ActionUpdate: "update an api key, eg expires",
+			ActionUpdate: "update an api key, for example its expiry",
 		},
 	},
 	"tailnet_coordinator": {

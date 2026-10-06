@@ -19,6 +19,8 @@ import {
 } from "#/pages/AIBridgePage/filters/ProviderFilter";
 import { spendQuickPresets } from "../spendPeriod";
 
+// Flex basis for each dimension dropdown. The organization picker repeats
+// this value as `basis-[150px]`, so change both together.
 const FILTER_WIDTH = 150;
 
 export type SpendFilterMenus = {

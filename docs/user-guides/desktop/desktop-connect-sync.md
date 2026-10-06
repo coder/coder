@@ -98,7 +98,9 @@ If you encounter a synchronization conflict, delete the conflicting file that co
 
 ## Troubleshooting
 
-### Accessing web apps in a secure browser context
+<a id="accessing-web-apps-in-a-secure-browser-context"></a>
+
+### Access web apps in a secure browser context
 
 Some web applications require a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts) to function correctly.
 A browser typically considers an origin secure if the connection is to `localhost`, or over `HTTPS`.

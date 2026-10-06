@@ -16,6 +16,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
@@ -30,16 +32,18 @@ func TestRecordTokenUsage(t *testing.T) {
 	id := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	tests := []struct {
-		name        string
-		msgID       string
-		usage       openai.CompletionUsage
-		serviceTier string
-		expected    *recorder.TokenUsageRecord
+		name          string
+		msgID         string
+		providerModel string
+		usage         openai.CompletionUsage
+		serviceTier   string
+		expected      *recorder.TokenUsageRecord
 	}{
 		{
-			name:        "with_all_token_details",
-			msgID:       "cmpl_full",
-			serviceTier: "default",
+			name:          "with_all_token_details",
+			msgID:         "cmpl_full",
+			providerModel: "provider-model",
+			serviceTier:   "default",
 			usage: openai.CompletionUsage{
 				PromptTokens:     100,
 				CompletionTokens: 50,
@@ -59,6 +63,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "cmpl_full",
+				ProviderModel:         "provider-model",
 				Input:                 35, // 100 prompt - 40 cache read - 25 cache write
 				Output:                50,
 				CacheReadInputTokens:  40,
@@ -74,8 +79,9 @@ func TestRecordTokenUsage(t *testing.T) {
 			},
 		},
 		{
-			name:  "all_tokens_cached",
-			msgID: "cmpl_cached",
+			name:          "all_tokens_cached",
+			msgID:         "cmpl_cached",
+			providerModel: "provider-model",
 			usage: openai.CompletionUsage{
 				PromptTokens:     100,
 				CompletionTokens: 20,
@@ -86,6 +92,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:       id.String(),
 				MsgID:                "cmpl_cached",
+				ProviderModel:        "provider-model",
 				Input:                0, // 100 prompt - 100 cached
 				Output:               20,
 				CacheReadInputTokens: 100,
@@ -143,7 +150,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				logger:   slog.Make(),
 			}
 
-			base.recordTokenUsage(t.Context(), tc.msgID, tc.usage, tc.serviceTier)
+			base.recordTokenUsage(t.Context(), tc.msgID, tc.providerModel, tc.usage, tc.serviceTier)
 
 			tokens := rec.RecordedTokenUsages()
 			require.Len(t, tokens, 1)
@@ -330,7 +337,7 @@ func TestMarkKeyOnError(t *testing.T) {
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)
 
-			base := &interceptionBase{cred: &intercept.CentralizedPool{Pool: pool}, logger: slog.Make()}
+			base := &interceptionBase{cred: &credential.CentralizedPool{Pool: pool}, logger: slog.Make()}
 
 			got := base.markKeyOnError(context.Background(), key, tc.err)
 			assert.Equal(t, tc.expectedReturn, got)
@@ -422,13 +429,13 @@ func TestNewCompletionsServiceBedrockAuth(t *testing.T) {
 
 	tests := []struct {
 		name string
-		cred intercept.Credential
+		cred credential.Credential
 		// check asserts on the Authorization header the upstream received.
 		check func(t *testing.T, header http.Header)
 	}{
 		{
 			name: "byok uses bearer token",
-			cred: intercept.BYOK{Secret: userKey, Header: intercept.AuthHeaderAuthorization},
+			cred: credential.BYOK{Secret: userKey, Header: aibheaders.AuthHeaderAuthorization},
 			check: func(t *testing.T, header http.Header) {
 				require.Equal(t, "Bearer "+userKey, header.Get("Authorization"))
 				require.Empty(t, header.Get("X-Amz-Date"))
@@ -436,7 +443,7 @@ func TestNewCompletionsServiceBedrockAuth(t *testing.T) {
 		},
 		{
 			name: "centralized uses sigv4",
-			cred: intercept.AWSSigV4{AccessKey: "AKID"},
+			cred: credential.AWSSigV4{AccessKey: "AKID"},
 			check: func(t *testing.T, header http.Header) {
 				require.Contains(t, header.Get("Authorization"), "AWS4-HMAC-SHA256")
 				require.Contains(t, header.Get("Authorization"), "/bedrock-mantle/aws4_request")

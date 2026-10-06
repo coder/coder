@@ -32,13 +32,14 @@ You will then be taken to the AWS Management Console, CloudFormation `Create sta
 
 ![AWS Marketplace Stack](../../../images/platforms/aws/marketplace-stack.png)
 
-The default parameters will support POCs and small team deployments of Coder using `t3.large` (2 cores and 8 GB memory) Nodes.  While the deployment uses EKS Auto-mode and will scale using Karpenter, keep in mind this platforms is intended for proof-of-concept
-deployments. You should adjust your infrastructure when preparing for
-production use. See: [Scaling Coder](../../plan/index.md)
+The default parameters will support POCs and small team deployments of Coder using `t3.large` (2&nbsp;cores and 8&nbsp;GB memory) Nodes.
+While the deployment uses EKS Auto-mode and will scale using Karpenter, keep in mind this platforms is intended for proof-of-concept deployments.
+You should adjust your infrastructure when preparing for production use.
+See: [Scaling Coder](../../plan/index.md)
 
 ![AWS Marketplace Parameters](../../../images/platforms/aws/marketplace-parm.png)
 
-Select `Next` and follow the prompts to submit the CloudFormation Stack.  Deployment of the Stack can take 10-20 minutes, and will create EKS related sub-stacks and a CodeBuild pipeline that automates the initial Helm deployment of Coder and final AWS network services integration.  Once the Stack successfully creates, access the `Outputs` as shown below:
+Select `Next` and follow the prompts to submit the CloudFormation Stack.  Deployment of the Stack can take 10-20&nbsp;minutes, and will create EKS related sub-stacks and a CodeBuild pipeline that automates the initial Helm deployment of Coder and final AWS network services integration.  Once the Stack successfully creates, access the `Outputs` as shown below:
 
 ![AWS Marketplace Outputs](../../../images/platforms/aws/marketplace-output.png)
 

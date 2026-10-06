@@ -131,6 +131,7 @@ type AgentChatPageViewProps = {
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	onManageAutomationsToggle?: (enabled: boolean) => void;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
@@ -154,7 +155,6 @@ type AgentChatPageViewProps = {
 
 	// Workspace action handlers.
 	sshCommand: string | undefined;
-	handleCommit: (repoRoot: string) => void;
 
 	// Chat action handlers.
 	handleInterrupt: () => void;
@@ -294,6 +294,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	onPlanModeToggle,
+	onManageAutomationsToggle,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
@@ -304,7 +305,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	debugLoggingEnabled,
 	gitWatcher,
 	sshCommand,
-	handleCommit,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
@@ -441,11 +441,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		};
 	})();
 
-	// Desktop is only available when the workspace and agent are ready;
-	// offer it as a singleton panel on that same condition to avoid
-	// selecting "desktop" when no desktop panel is rendered.
-	const availableDesktopChatId =
-		workspace && workspaceAgent ? desktopChatId : undefined;
+	// The desktop panel owns the stopped and starting states, so it only
+	// needs a workspace to render; the agent arrives once the build runs.
+	const availableDesktopChatId = workspace ? desktopChatId : undefined;
 
 	const availableBrowserApp = workspace
 		? getAgentBrowserApp(workspaceAgent)
@@ -686,7 +684,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							!gitWatcher.hasReceivedChanges
 						}
 						onRefresh={handleRefresh}
-						onCommit={handleCommit}
 						isExpanded={visualExpanded}
 						remoteDiffStats={chat.diff_status}
 						chatInputRef={editing.chatInputRef}
@@ -701,9 +698,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					/>
 				) : null;
 			case "desktop":
-				return availableDesktopChatId ? (
+				return workspace && availableDesktopChatId ? (
 					<DesktopPanel
 						chatId={availableDesktopChatId}
+						workspace={workspace}
+						workspaceAgent={workspaceAgent}
 						isVisible={effectiveSidebarTabId === "desktop"}
 					/>
 				) : null;
@@ -971,6 +970,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										reasoningEffort={reasoningEffort}
 										onReasoningEffortChange={onReasoningEffortChange}
 										onPlanModeToggle={onPlanModeToggle}
+										onManageAutomationsToggle={onManageAutomationsToggle}
 										isModelCatalogLoading={isModelCatalogLoading}
 										onWorkspaceChange={onWorkspaceChange}
 										isWorkspaceLoading={isWorkspaceLoading}

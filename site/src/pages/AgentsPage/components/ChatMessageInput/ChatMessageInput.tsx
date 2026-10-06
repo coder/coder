@@ -572,6 +572,7 @@ type ChatMessageInputProps = Omit<
 	 */
 	skillsMenuAnchor?: HTMLElement | null;
 	"aria-label"?: string;
+	"aria-describedby"?: string;
 };
 
 // Keeps the Lexical editor's editable state in sync with the
@@ -640,6 +641,7 @@ const ChatMessageInput = ({
 	slashCommands,
 	skillsMenuAnchor,
 	"aria-label": ariaLabel,
+	"aria-describedby": ariaDescribedBy,
 	ref,
 	...props
 }: ChatMessageInputProps & { ref?: React.Ref<ChatMessageInputRef> }) => {
@@ -995,6 +997,7 @@ const ChatMessageInput = ({
 							data-testid="chat-message-input"
 							style={{ minHeight: "inherit" }}
 							aria-label={ariaLabel}
+							aria-describedby={ariaDescribedBy}
 							aria-disabled={disabled}
 						/>
 					}

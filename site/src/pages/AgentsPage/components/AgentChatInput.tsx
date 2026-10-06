@@ -6,6 +6,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	LockIcon,
+	type LucideIcon,
 	MicIcon,
 	MonitorIcon,
 	PaperclipIcon,
@@ -13,11 +14,13 @@ import {
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
+	TriangleAlertIcon,
 	UnlinkIcon,
 	XIcon,
+	ZapIcon,
 } from "lucide-react";
 import type React from "react";
-import { useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -89,6 +92,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import type { ChatAutomationNames } from "./ChatConversation/AutomationLabel";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -163,6 +167,8 @@ type AgentChatInputProps = {
 	onReasoningEffortChange?: (value: string) => void;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	manageAutomationsEnabled?: boolean;
+	onManageAutomationsToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
@@ -183,8 +189,12 @@ type AgentChatInputProps = {
 	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
+	// Composers without a queue have no automation inputs to label.
+	automationNames?: ChatAutomationNames;
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	// Caution shown at the top of the composer, owned by the parent.
+	warning?: string;
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
@@ -243,6 +253,11 @@ export type AttachedWorkspaceInfo = {
 	statusIcon: React.ReactNode;
 	statusLabel: string;
 };
+const NO_AUTOMATION_NAMES: ChatAutomationNames = {
+	names: new Map(),
+	status: "settled",
+};
+
 // Shared pill sizing: flex-basis sets a ~8ch floor (shrink-0 enforces
 // it), grow expands into free row space, and max-w-max caps at the
 // label's natural width. Below the floor the +N overflow takes over.
@@ -490,6 +505,52 @@ const ToolBadge: React.FC<{
 	);
 };
 
+type PlusMenuCheckboxItemProps = {
+	icon: LucideIcon;
+	label: string;
+	description?: string;
+	checked: boolean;
+	onToggle: () => void;
+	disabled: boolean;
+};
+
+const PlusMenuCheckboxItem: React.FC<PlusMenuCheckboxItemProps> = ({
+	icon: Icon,
+	label,
+	description,
+	checked,
+	onToggle,
+	disabled,
+}) => {
+	const id = useId();
+	return (
+		<button
+			type="button"
+			role="menuitemcheckbox"
+			aria-checked={checked}
+			aria-labelledby={`${id}-label`}
+			aria-describedby={description ? `${id}-description` : undefined}
+			onClick={onToggle}
+			disabled={disabled}
+			className={cn(
+				"flex w-full cursor-pointer gap-1.5 border-none bg-transparent px-1 text-left text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50",
+				description ? "items-start py-1.5" : "h-8 items-center",
+			)}
+		>
+			<Icon className={cn("size-3.5 shrink-0", description && "mt-px")} />
+			<span className="flex min-w-0 flex-col gap-0.5">
+				<span id={`${id}-label`}>{label}</span>
+				{description && (
+					<span id={`${id}-description`} className="max-w-48 text-2xs">
+						{description}
+					</span>
+				)}
+			</span>
+			{checked && <CheckIcon className="ml-auto size-icon-sm shrink-0" />}
+		</button>
+	);
+};
+
 export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onSend,
 	placeholder = "Type a message...",
@@ -510,6 +571,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onReasoningEffortChange,
 	planModeEnabled = false,
 	onPlanModeToggle,
+	manageAutomationsEnabled = false,
+	onManageAutomationsToggle,
 	isModelCatalogLoading = false,
 	isStreaming = false,
 	onInterrupt,
@@ -520,8 +583,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	chatOrganizationId,
 	isWorkspaceLoading,
 	queuedMessages = [],
+	automationNames = NO_AUTOMATION_NAMES,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	warning,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
 	userPromptHistory = [],
@@ -554,6 +619,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
+	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
 		preferencesQuery.data?.agent_chat_send_shortcut,
@@ -788,6 +854,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	};
 
 	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
+
+	const handleManageAutomationsToggle = () => {
+		onManageAutomationsToggle?.(!manageAutomationsEnabled);
+		setPlusMenuOpen(false);
+	};
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
@@ -1322,6 +1393,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
+					automationNames={automationNames}
 					onDelete={(id) => onDeleteQueuedMessage?.(id)}
 					onPromote={(id) => onPromoteQueuedMessage?.(id)}
 					className="mb-2"
@@ -1359,7 +1431,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
-					isEditingHistoryMessage &&
+					(isEditingHistoryMessage || warning) &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
 				onKeyDown={handleComposerKeyDown}
@@ -1367,6 +1439,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
 			>
+				{warning && (
+					<div
+						id={warningId}
+						className="flex items-start gap-1.5 border-b border-border-default/70 px-3 py-1.5 text-xs font-medium text-content-warning"
+					>
+						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
+						{warning}
+					</div>
+				)}
 				{isEditingHistoryMessage && (
 					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
@@ -1411,6 +1492,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
 					onPaste={resetPromptCycle}
 					aria-label="Chat message"
+					aria-describedby={warning ? warningId : undefined}
 					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
 					initialValue={initialValue}
@@ -1536,20 +1618,23 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 											</button>
 										)}
 										{onPlanModeToggle && (
-											<button
-												type="button"
-												role="menuitemcheckbox"
-												aria-checked={planModeEnabled}
-												onClick={handlePlanModeToggle}
+											<PlusMenuCheckboxItem
+												icon={PencilIcon}
+												label="Plan first"
+												checked={planModeEnabled}
+												onToggle={handlePlanModeToggle}
 												disabled={isDisabled}
-												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												<PencilIcon className="size-3.5 shrink-0" />
-												<span>Plan first</span>
-												{planModeEnabled && (
-													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-												)}
-											</button>
+											/>
+										)}
+										{onManageAutomationsToggle && (
+											<PlusMenuCheckboxItem
+												icon={ZapIcon}
+												label="Manage automations"
+												description="Let the agent create and manage automations for you."
+												checked={manageAutomationsEnabled}
+												onToggle={handleManageAutomationsToggle}
+												disabled={isDisabled}
+											/>
 										)}
 										{workspaceOptions &&
 											onWorkspaceChange &&

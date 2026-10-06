@@ -1,4 +1,6 @@
-# Setting up a Coder deployment
+<a id="setting-up-a-coder-deployment"></a>
+
+# Set up a Coder deployment
 
 For day-zero Coder users, we recommend following this guide to set up a local
 Coder deployment from our

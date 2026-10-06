@@ -48,6 +48,8 @@ type ModelSelectorProps = {
 	 * by the selected model's display name or the placeholder.
 	 */
 	triggerAriaLabel?: string;
+	triggerAriaInvalid?: boolean;
+	triggerAriaDescribedBy?: string;
 	disabled?: boolean;
 	placeholder?: string;
 	/**
@@ -98,6 +100,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 	value,
 	onValueChange,
 	triggerAriaLabel,
+	triggerAriaInvalid,
+	triggerAriaDescribedBy,
 	disabled = false,
 	placeholder = "Select model",
 	unsetLabel,
@@ -157,6 +161,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 							? `${triggerAriaLabel}, ${triggerLabel}`
 							: triggerLabel
 					}
+					aria-invalid={triggerAriaInvalid}
+					aria-describedby={triggerAriaDescribedBy}
 					aria-expanded={open}
 					aria-haspopup="listbox"
 					aria-controls={open ? listboxId : undefined}
@@ -374,8 +380,21 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 				max={selectableEfforts.length - 1}
 				step={1}
 			/>
-			<span className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary">
-				{formatReasoningEffort(value)}
+			{/* Rendering every label in one grid cell keeps this slot at the width
+			    of the longest label, so the slider does not resize while dragging.
+			    The badge itself hugs its text and sits at the right edge. */}
+			<span className="grid shrink-0 justify-items-end">
+				{selectableEfforts.map((effort, index) => (
+					<span
+						key={effort}
+						className={cn(
+							"[grid-area:1/1] rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary",
+							index !== effortIndex && "invisible",
+						)}
+					>
+						{formatReasoningEffort(effort)}
+					</span>
+				))}
 			</span>
 		</div>
 	);

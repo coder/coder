@@ -315,6 +315,13 @@ fields appear dynamically in the admin UI when you select a provider.
 > Bedrock uses the same model configuration options as Anthropic (thinking
 > budget, reasoning effort).
 
+### Prompt caching
+
+Coder Agents adds Anthropic prompt cache breakpoints automatically; there's nothing to configure.
+Claude models receive them on the Anthropic and AWS Bedrock providers.
+They also receive them on OpenRouter, Vercel AI Gateway, and OpenAI Compatible providers when the model identifier is Anthropic-family, for example `anthropic/claude-haiku-4.5` or `claude-sonnet-4-5`.
+Cached tokens are reported as `cache_read_tokens` in each assistant message's usage and as cache-read input tokens in AI Gateway session usage, where they're priced at the model's cache-read rate.
+
 ## How developers select models
 
 Developers see a model selector dropdown when starting or continuing a chat on the Agents page.
@@ -397,7 +404,9 @@ When [AI Gateway BYOK](../ai-gateway/auth.md#bring-your-own-key-byok) is
 enabled, developers can supply personal API keys for any enabled AI provider
 from the Agents settings page.
 
-### Managing personal API keys
+<a id="managing-personal-api-keys"></a>
+
+### Manage personal API keys
 
 1. Navigate to the **Agents** page in the Coder dashboard.
 1. Open **Settings** and select the **API Keys** tab.
@@ -414,13 +423,17 @@ Personal API keys are encrypted at rest using the same database encryption
 used for deployment-managed provider secrets. The dashboard never displays a
 saved key, only whether one is set.
 
-### Removing a personal key
+<a id="removing-a-personal-key"></a>
+
+### Remove a personal key
 
 Select **Remove** on the provider card in the API Keys settings tab.
 Subsequent requests use deployment-managed credentials when they are configured for that provider.
 If no deployment-managed credential is available, add a new personal key before you use models from that provider.
 
-## Using an LLM proxy
+<a id="using-an-llm-proxy"></a>
+
+## Use an LLM proxy
 
 Organizations that route LLM traffic through a centralized proxy, such as
 LiteLLM or an internal gateway, can point a provider's **Endpoint** or **Base

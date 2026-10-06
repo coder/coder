@@ -51,7 +51,8 @@ const activeFilters = {
 	archiveStatus: "archived",
 	groupBy: "chat_status",
 	prStatuses: ["draft", "open"],
-	chatStatuses: ["unread"],
+	chatStatuses: ["running"],
+	unread: true,
 	sources: ["shared_with_me"],
 } satisfies AgentSidebarFilters;
 
@@ -61,6 +62,17 @@ export const ActiveFilters: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await openFilterMenu(canvasElement);
+	},
+};
+
+export const ChatStatusSubmenu: Story = {
+	play: async ({ canvasElement }) => {
+		const user = await openFilterMenu(canvasElement);
+		await user.click(
+			await within(canvasElement.ownerDocument.body).findByRole("menuitem", {
+				name: "Status",
+			}),
+		);
 	},
 };
 

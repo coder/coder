@@ -812,12 +812,18 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "chatd"},
 				DisplayName: "Chat Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceAIProvider.Type:       {policy.ActionRead},
-					rbac.ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceChatModelConfig.Type:  {policy.ActionRead},
-					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
-					rbac.ResourceMCPServerConfig.Type:  {policy.ActionRead},
+					rbac.ResourceAIProvider.Type: {policy.ActionRead},
+					rbac.ResourceChat.Type:       {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					// Update lets the schedule loop move automation cursors
+					// (AdvanceChatAutomationScheduleCursor). Owner-only
+					// changes are enforced by the chatd automation service.
+					rbac.ResourceChatAutomation.Type:    {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceChatProject.Type:       {policy.ActionRead},
+					rbac.ResourceChatProjectMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
+					rbac.ResourceChatModelConfig.Type:   {policy.ActionRead},
+					rbac.ResourceWorkspace.Type:         {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceDeploymentConfig.Type:  {policy.ActionRead},
+					rbac.ResourceMCPServerConfig.Type:   {policy.ActionRead},
 					// Site-wide UpdatePersonal would let chatd write any
 					// user's personal data; token writes use the per-user
 					// AsChatdTokenOwner subject instead.
@@ -1773,6 +1779,27 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
+// authorizeChatProjectMemories authorizes an action on the memory set of a
+// project. Memory permissions derive from the project's owner and ACL.
+func (q *querier) authorizeChatProjectMemories(ctx context.Context, action policy.Action, projectID uuid.UUID) (database.ChatProject, error) {
+	project, err := q.db.GetChatProjectByID(ctx, projectID)
+	if err != nil {
+		return database.ChatProject{}, err
+	}
+	if err := q.authorizeContext(ctx, action, database.ChatProjectMemoryRBACObject(project)); err != nil {
+		return database.ChatProject{}, err
+	}
+	return project, nil
+}
+
+func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.Action, memory database.ChatProjectMemory) error {
+	project, err := q.db.GetChatProjectByID(ctx, memory.ProjectID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, memory.RBACObject(project))
+}
+
 func (q *querier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
@@ -1814,6 +1841,17 @@ func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.Activi
 		return q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	}
 	return update(q.log, q.auth, fetch, q.db.ActivityBumpWorkspace)(ctx, arg)
+}
+
+func (q *querier) AdvanceChatAutomationScheduleCursor(ctx context.Context, arg database.AdvanceChatAutomationScheduleCursorParams) (int64, error) {
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return 0, err
+	}
+	return q.db.AdvanceChatAutomationScheduleCursor(ctx, arg)
 }
 
 func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
@@ -1901,13 +1939,6 @@ func (q *querier) BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg datab
 		return err
 	}
 	return q.db.BatchUpdateWorkspaceNextStartAt(ctx, arg)
-}
-
-func (q *querier) BatchUpsertChatHeartbeats(ctx context.Context, arg database.BatchUpsertChatHeartbeatsParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
-		return err
-	}
-	return q.db.BatchUpsertChatHeartbeats(ctx, arg)
 }
 
 func (q *querier) BatchUpsertConnectionLogs(ctx context.Context, arg database.BatchUpsertConnectionLogsParams) error {
@@ -1998,6 +2029,17 @@ func (q *querier) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearC
 	return q.db.ClearChatDiffStatusPR(ctx, arg)
 }
 
+func (q *querier) ConsumeChatAutomationWebhookByID(ctx context.Context, arg database.ConsumeChatAutomationWebhookByIDParams) (int64, error) {
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return 0, err
+	}
+	return q.db.ConsumeChatAutomationWebhookByID(ctx, arg)
+}
+
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -2020,6 +2062,15 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
 }
 
+// CountChatAutomationsByOwnerID counts rows across every organization, so it
+// requires site-wide read on chat automations rather than per-row checks.
+func (q *querier) CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatAutomation); err != nil {
+		return 0, err
+	}
+	return q.db.CountChatAutomationsByOwnerID(ctx, ownerID)
+}
+
 func (q *querier) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return database.CountChatCapacityActiveByPoolRow{}, err
@@ -2032,6 +2083,22 @@ func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSecond
 		return database.CountChatCapacityQueuedByPoolRow{}, err
 	}
 	return q.db.CountChatCapacityQueuedByPool(ctx, staleSeconds)
+}
+
+func (q *querier) CountChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) (int64, error) {
+	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionRead, projectID); err != nil {
+		return 0, err
+	}
+	return q.db.CountChatProjectMemoriesByProjectID(ctx, projectID)
+}
+
+// CountChatProjectsByOwnerID counts a user's projects across organizations,
+// so it requires deployment-wide chat project read.
+func (q *querier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatProject); err != nil {
+		return 0, err
+	}
+	return q.db.CountChatProjectsByOwnerID(ctx, ownerID)
 }
 
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
@@ -2203,6 +2270,10 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
+func (q *querier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetChatAutomationByID, q.db.DeleteChatAutomationByID)(ctx, id)
+}
+
 func (q *querier) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -2268,6 +2339,32 @@ func (q *querier) DeleteChatOrganizationModelOverride(ctx context.Context, arg d
 		return err
 	}
 	return q.db.DeleteChatOrganizationModelOverride(ctx, arg)
+}
+
+func (q *querier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetChatProjectByID, q.db.DeleteChatProjectByID)(ctx, id)
+}
+
+func (q *querier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
+	row, err := q.db.GetChatProjectMemoryByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeChatProjectMemory(ctx, policy.ActionDelete, row.ChatProjectMemory); err != nil {
+		return err
+	}
+	return q.db.DeleteChatProjectMemoryByID(ctx, id)
+}
+
+func (q *querier) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
+	row, err := q.db.GetChatProjectMemoryByName(ctx, database.GetChatProjectMemoryByNameParams(arg))
+	if err != nil {
+		return database.ChatProjectMemory{}, err
+	}
+	if err := q.authorizeChatProjectMemory(ctx, policy.ActionDelete, row.ChatProjectMemory); err != nil {
+		return database.ChatProjectMemory{}, err
+	}
+	return q.db.DeleteChatProjectMemoryByName(ctx, arg)
 }
 
 func (q *querier) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
@@ -3146,6 +3243,13 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
+func (q *querier) GetAutoArchiveInactiveChatCandidateByID(ctx context.Context, arg database.GetAutoArchiveInactiveChatCandidateByIDParams) (database.GetAutoArchiveInactiveChatCandidateByIDRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return database.GetAutoArchiveInactiveChatCandidateByIDRow{}, err
+	}
+	return q.db.GetAutoArchiveInactiveChatCandidateByID(ctx, arg)
+}
+
 func (q *querier) GetAutoArchiveInactiveChatCandidates(ctx context.Context, arg database.GetAutoArchiveInactiveChatCandidatesParams) ([]database.GetAutoArchiveInactiveChatCandidatesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
@@ -3198,6 +3302,22 @@ func (q *querier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchive
 		return 0, ErrNoActor
 	}
 	return q.db.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
+}
+
+func (q *querier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
+	return fetch(q.log, q.auth, q.db.GetChatAutomationByID)(ctx, id)
+}
+
+func (q *querier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids []uuid.UUID) ([]database.ChatAutomation, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatAutomationsByIDsForUpdate)(ctx, ids)
+}
+
+func (q *querier) GetChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatAutomation, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatAutomationsByOrganizationID)(ctx, organizationID)
+}
+
+func (q *querier) GetChatAutomationsByOrganizationIDAndOwnerID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDAndOwnerIDParams) ([]database.ChatAutomation, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatAutomationsByOrganizationIDAndOwnerID)(ctx, arg)
 }
 
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
@@ -3299,21 +3419,21 @@ func (q *querier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	return q.db.GetChatDesktopEnabled(ctx)
 }
 
-func (q *querier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
-	// Authorize read on the parent chat.
-	_, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
-		return database.ChatDiffStatus{}, err
-	}
-	return q.db.GetChatDiffStatusByChatID(ctx, chatID)
-}
-
 func (q *querier) GetChatDiffStatusSummary(ctx context.Context) (database.GetChatDiffStatusSummaryRow, error) {
 	// Telemetry queries are called from system contexts only.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetChatDiffStatusSummaryRow{}, err
 	}
 	return q.db.GetChatDiffStatusSummary(ctx)
+}
+
+func (q *querier) GetChatDiffStatusesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatDiffStatus, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatDiffStatusesByChatID(ctx, chatID)
 }
 
 func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) ([]database.ChatDiffStatus, error) {
@@ -3634,6 +3754,43 @@ func (q *querier) GetChatPlanModeInstructions(ctx context.Context) (string, erro
 	return q.db.GetChatPlanModeInstructions(ctx)
 }
 
+func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	return fetch(q.log, q.auth, q.db.GetChatProjectByID)(ctx, id)
+}
+
+func (q *querier) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
+	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionRead, projectID); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatProjectMemoriesByProjectID(ctx, projectID)
+}
+
+func (q *querier) GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (database.GetChatProjectMemoryByIDRow, error) {
+	row, err := q.db.GetChatProjectMemoryByID(ctx, id)
+	if err != nil {
+		return database.GetChatProjectMemoryByIDRow{}, err
+	}
+	if err := q.authorizeChatProjectMemory(ctx, policy.ActionRead, row.ChatProjectMemory); err != nil {
+		return database.GetChatProjectMemoryByIDRow{}, err
+	}
+	return row, nil
+}
+
+func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.GetChatProjectMemoryByNameParams) (database.GetChatProjectMemoryByNameRow, error) {
+	row, err := q.db.GetChatProjectMemoryByName(ctx, arg)
+	if err != nil {
+		return database.GetChatProjectMemoryByNameRow{}, err
+	}
+	if err := q.authorizeChatProjectMemory(ctx, policy.ActionRead, row.ChatProjectMemory); err != nil {
+		return database.GetChatProjectMemoryByNameRow{}, err
+	}
+	return row, nil
+}
+
+func (q *querier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOwnerID)(ctx, ownerID)
+}
+
 func (q *querier) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
 	// The pool-fullness derivation counts other users' chats, so require
 	// deployment-wide chat read rather than per-chat authorization.
@@ -3665,6 +3822,15 @@ func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (
 		return nil, err
 	}
 	return q.db.GetChatQueuedMessages(ctx, chatID)
+}
+
+func (q *querier) GetChatQueuedMessagesByAutomationBelowGeneration(ctx context.Context, arg database.GetChatQueuedMessagesByAutomationBelowGenerationParams) ([]database.GetChatQueuedMessagesByAutomationBelowGenerationRow, error) {
+	// The rows span every chat the automation delivered to, so reading
+	// them requires reading all chats.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatQueuedMessagesByAutomationBelowGeneration(ctx, arg)
 }
 
 func (q *querier) GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
@@ -3894,6 +4060,15 @@ func (q *querier) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaul
 	return q.db.GetDefaultProxyConfig(ctx)
 }
 
+func (q *querier) GetDeletedChatMessagesFromLastAssistant(ctx context.Context, arg database.GetDeletedChatMessagesFromLastAssistantParams) ([]database.ChatMessage, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetDeletedChatMessagesFromLastAssistant(ctx, arg)
+}
+
 func (q *querier) GetDeploymentID(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetDeploymentID(ctx)
@@ -3909,6 +4084,10 @@ func (q *querier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, cre
 
 func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	return q.db.GetDeploymentWorkspaceStats(ctx)
+}
+
+func (q *querier) GetDueChatAutomationSchedules(ctx context.Context, arg database.GetDueChatAutomationSchedulesParams) ([]database.ChatAutomation, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetDueChatAutomationSchedules)(ctx, arg)
 }
 
 func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIDs []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
@@ -3967,6 +4146,20 @@ func (q *querier) GetEnabledMCPServerConfigsByOrganization(ctx context.Context, 
 
 func (q *querier) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEnabledMCPServerConfigsByOrganizationAndIDs)(ctx, arg)
+}
+
+func (q *querier) GetExperimentRule(ctx context.Context, experiment string) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return "", err
+	}
+	return q.db.GetExperimentRule(ctx, experiment)
+}
+
+func (q *querier) GetExperimentRules(ctx context.Context) ([]database.GetExperimentRulesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetExperimentRules(ctx)
 }
 
 // GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the
@@ -6198,6 +6391,46 @@ func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams)
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChat)(ctx, arg)
 }
 
+// InsertChatAutomation also authorizes the chats and model the automation
+// references: it delivers prompts into the target chat, so the caller must
+// be able to update it; it records the creating chat, so the caller must be
+// able to read it; and new chats use the model config, so the caller must
+// be able to read it. The automation check runs first so an unauthorized
+// caller learns nothing about the referenced rows.
+func (q *querier) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
+	obj := rbac.ResourceChatAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
+	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
+		return database.ChatAutomation{}, err
+	}
+	if arg.TargetChatID.Valid {
+		chat, err := q.db.GetChatByID(ctx, arg.TargetChatID.UUID)
+		if err != nil {
+			return database.ChatAutomation{}, err
+		}
+		if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	if arg.CreatedByChatID.Valid {
+		chat, err := q.db.GetChatByID(ctx, arg.CreatedByChatID.UUID)
+		if err != nil {
+			return database.ChatAutomation{}, err
+		}
+		if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	if arg.NewChatModelConfigID.Valid {
+		// New chats use this model, so the caller must pass the model
+		// config's user and group ACL, the same read check chat creation
+		// applies when it looks the model up.
+		if _, err := q.GetChatModelConfigByID(ctx, arg.NewChatModelConfigID.UUID); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	return q.db.InsertChatAutomation(ctx, arg)
+}
+
 func (q *querier) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -6244,6 +6477,17 @@ func (q *querier) InsertChatMessages(ctx context.Context, arg database.InsertCha
 
 func (q *querier) InsertChatModelConfig(ctx context.Context, arg database.InsertChatModelConfigParams) (database.ChatModelConfig, error) {
 	return insert(q.log, q.auth, rbac.ResourceChatModelConfig.InOrg(arg.OrganizationID), q.db.InsertChatModelConfig)(ctx, arg)
+}
+
+func (q *querier) InsertChatProject(ctx context.Context, arg database.InsertChatProjectParams) (database.ChatProject, error) {
+	return insert(q.log, q.auth, rbac.ResourceChatProject.InOrg(arg.OrganizationID).WithOwner(arg.OwnerID.String()), q.db.InsertChatProject)(ctx, arg)
+}
+
+func (q *querier) InsertChatProjectMemory(ctx context.Context, arg database.InsertChatProjectMemoryParams) (database.ChatProjectMemory, error) {
+	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionCreate, arg.ProjectID); err != nil {
+		return database.ChatProjectMemory{}, err
+	}
+	return q.db.InsertChatProjectMemory(ctx, arg)
 }
 
 func (q *querier) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
@@ -7246,6 +7490,13 @@ func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveU
 	return q.db.RemoveUserFromGroups(ctx, arg)
 }
 
+func (q *querier) RenewChatHeartbeats(ctx context.Context, arg database.RenewChatHeartbeatsParams) ([]database.RenewChatHeartbeatsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.RenewChatHeartbeats(ctx, arg)
+}
+
 func (q *querier) ReorderChatQueuedMessageToFront(ctx context.Context, arg database.ReorderChatQueuedMessageToFrontParams) (int64, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7293,6 +7544,12 @@ func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetCh
 		return err
 	}
 	return q.db.SetChatContextSnapshot(ctx, arg)
+}
+
+// SetTransactionLockTimeout changes a session setting of the current
+// transaction and reads no data, like AcquireLock.
+func (q *querier) SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error {
+	return q.db.SetTransactionLockTimeout(ctx, lockTimeoutMs)
 }
 
 func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
@@ -7496,6 +7753,52 @@ func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChat
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatACLByID)(ctx, arg)
 }
 
+// UpdateChatAutomationByID authorizes update on the automation and, like
+// InsertChatAutomation, authorizes a newly referenced target chat (update)
+// or model config (read). Unchanged references are not checked again.
+func (q *querier) UpdateChatAutomationByID(ctx context.Context, arg database.UpdateChatAutomationByIDParams) (database.ChatAutomation, error) {
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
+	if err != nil {
+		return database.ChatAutomation{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return database.ChatAutomation{}, err
+	}
+	if arg.TargetChatID.Valid && arg.TargetChatID != automation.TargetChatID {
+		chat, err := q.db.GetChatByID(ctx, arg.TargetChatID.UUID)
+		if err != nil {
+			return database.ChatAutomation{}, err
+		}
+		if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	if arg.NewChatModelConfigID.Valid && arg.NewChatModelConfigID != automation.NewChatModelConfigID {
+		if _, err := q.GetChatModelConfigByID(ctx, arg.NewChatModelConfigID.UUID); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	return q.db.UpdateChatAutomationByID(ctx, arg)
+}
+
+func (q *querier) UpdateChatAutomationIDByID(ctx context.Context, arg database.UpdateChatAutomationIDByIDParams) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateChatAutomationIDByID(ctx, arg)
+}
+
+func (q *querier) UpdateChatAutomationWebhookSecretByID(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
+	fetch := func(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
+		return q.db.GetChatAutomationByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateChatAutomationWebhookSecretByID)(ctx, arg)
+}
+
 func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
@@ -7506,17 +7809,6 @@ func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.
 	}
 
 	return q.db.UpdateChatBuildAgentBinding(ctx, arg)
-}
-
-func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
-	}
-	return q.db.UpdateChatByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatDebugRun(ctx context.Context, arg database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
@@ -7539,6 +7831,17 @@ func (q *querier) UpdateChatDebugStep(ctx context.Context, arg database.UpdateCh
 		return database.ChatDebugStep{}, err
 	}
 	return q.db.UpdateChatDebugStep(ctx, arg)
+}
+
+func (q *querier) UpdateChatDiffStatusReferenceURL(ctx context.Context, arg database.UpdateChatDiffStatusReferenceURLParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatDiffStatusReferenceURL(ctx, arg)
 }
 
 func (q *querier) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.Chat, error) {
@@ -7619,6 +7922,17 @@ func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.Updat
 	return q.db.UpdateChatMCPServerIDs(ctx, arg)
 }
 
+func (q *querier) UpdateChatManageAutomationsEnabledByID(ctx context.Context, arg database.UpdateChatManageAutomationsEnabledByIDParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.UpdateChatManageAutomationsEnabledByID(ctx, arg)
+}
+
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {
 	existing, err := q.db.GetChatModelConfigByID(ctx, arg.ID)
 	if err != nil {
@@ -7671,6 +7985,12 @@ func (q *querier) UpdateChatPlanModeByID(ctx context.Context, arg database.Updat
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatPlanModeByID(ctx, arg)
+}
+
+func (q *querier) UpdateChatProjectByID(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
+	return updateWithReturn(q.log, q.auth, func(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
+		return q.db.GetChatProjectByID(ctx, arg.ID)
+	}, q.db.UpdateChatProjectByID)(ctx, arg)
 }
 
 func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
@@ -9069,7 +9389,6 @@ func (q *querier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bo
 }
 
 func (q *querier) UpsertChatDiffStatus(ctx context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
-	// Authorize update on the parent chat.
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return database.ChatDiffStatus{}, err
@@ -9081,7 +9400,6 @@ func (q *querier) UpsertChatDiffStatus(ctx context.Context, arg database.UpsertC
 }
 
 func (q *querier) UpsertChatDiffStatusReference(ctx context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
-	// Authorize update on the parent chat.
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return database.ChatDiffStatus{}, err
@@ -9188,6 +9506,13 @@ func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDef
 		return err
 	}
 	return q.db.UpsertDefaultProxy(ctx, arg)
+}
+
+func (q *querier) UpsertExperimentRule(ctx context.Context, arg database.UpsertExperimentRuleParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertExperimentRule(ctx, arg)
 }
 
 func (q *querier) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAIBudget, error) {

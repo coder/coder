@@ -95,7 +95,7 @@ external PostgreSQL 13+ database for production deployments.
 A managed PostgreSQL database, with daily backups, is recommended:
 
 - For AWS: Amazon RDS for PostgreSQL (preferably using
-  [RDS IAM authentication](../../reference/cli/server.md#--postgres-auth)).
+  [RDS IAM authentication](../../reference/cli/server/index.md#--postgres-auth)).
 - For Azure: Azure Database for PostgreSQL
 - Flexible Server For GCP: Cloud SQL for PostgreSQL
 
@@ -108,10 +108,10 @@ Users will likely need to pull source code and other artifacts from a git
 provider. The Coder control plane and workspaces will need network connectivity
 to the git provider.
 
-- [GitHub Enterprise](../../admin/external-auth/index.md#github-enterprise)
-- [GitLab](../../admin/external-auth/index.md#gitlab-self-managed)
-- [BitBucket](../../admin/external-auth/index.md#bitbucket-server)
-- [Other Providers](../../admin/external-auth/index.md#self-managed-git-providers)
+- [GitHub Enterprise](../../admin/external-auth.md#github-enterprise)
+- [GitLab](../../admin/external-auth.md#gitlab-self-managed)
+- [BitBucket](../../admin/external-auth.md#bitbucket-server)
+- [Other Providers](../../admin/external-auth.md#self-managed-git-providers)
 
 ### Artifact Manager (Optional)
 

@@ -45,6 +45,7 @@ import {
 	chatCostTreeKey,
 	chatDebugRunKey,
 	chatDebugRunsKey,
+	chatDiffContents,
 	chatDiffContentsKey,
 	chatEntitiesFamilyKey,
 	chatEntityKey,
@@ -112,6 +113,7 @@ import {
 	toChatListParams,
 	unarchiveChat,
 	unpinChat,
+	updateChatManageAutomations,
 	updateChatModel,
 	updateChatModelACL,
 	updateChatPlanMode,
@@ -132,6 +134,7 @@ vi.mock("#/api/api", () => ({
 			getChats: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
 			getChatCost: vi.fn(),
+			getChatDiffContents: vi.fn(),
 			createChatMessage: vi.fn(),
 			editChatMessage: vi.fn(),
 			interruptChat: vi.fn(),
@@ -198,6 +201,8 @@ const makeChat = (
 	mcp_server_ids: [],
 	labels: {},
 	title: `Chat ${id}`,
+	title_source: "generated",
+	title_updated_at: "2025-01-01T00:00:00.000Z",
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
@@ -621,20 +626,53 @@ describe("invalidateChatListQueries", () => {
 		).not.toBe(true);
 	});
 
-	it("prepends new root chats to filtered list caches", () => {
-		const queryClient = createTestQueryClient();
-		const activeChat = makeChat("active-created", { archived: false });
+	it.each<{ status: TypesGen.ChatStatus; matchingFilters: string[] }>([
+		{ status: "waiting", matchingFilters: ["idle"] },
+		{ status: "running", matchingFilters: ["working"] },
+		{ status: "interrupting", matchingFilters: ["working"] },
+		{ status: "error", matchingFilters: ["error", "attention"] },
+		{ status: "requires_action", matchingFilters: ["action", "attention"] },
+	])(
+		"prepends $status root chats only to matching list caches",
+		({ status, matchingFilters }) => {
+			const queryClient = createTestQueryClient();
+			const chat = makeChat("active-created", { archived: false, status });
+			const filters: { name: string; input: ChatListInput }[] = [
+				{ name: "unfiltered", input: {} },
+				{ name: "idle", input: { statuses: ["waiting"] } },
+				{ name: "working", input: { statuses: ["running"] } },
+				{ name: "error", input: { statuses: ["error"] } },
+				{ name: "action", input: { statuses: ["requires_action"] } },
+				{
+					name: "attention",
+					input: { statuses: ["error", "requires_action"] },
+				},
+				{
+					name: "all",
+					input: {
+						statuses: ["requires_action", "error", "running", "waiting"],
+					},
+				},
+				{ name: "archived", input: { archived: true, statuses: [status] } },
+			];
+			for (const { input } of filters) {
+				seedInfiniteChats(queryClient, [], input);
+			}
 
-		seedInfiniteChats(queryClient, [makeChat("active-existing")], {
-			archived: false,
-		});
+			prependToInfiniteChatsCache(queryClient, chat);
+			prependToInfiniteChatsCache(queryClient, chat);
 
-		prependToInfiniteChatsCache(queryClient, activeChat);
-
-		expect(readInfiniteChats(queryClient, { archived: false })?.[0]).toEqual(
-			activeChat,
-		);
-	});
+			for (const { name, input } of filters) {
+				const matches =
+					name === "unfiltered" ||
+					name === "all" ||
+					matchingFilters.includes(name);
+				expect(readInfiniteChats(queryClient, input), name).toEqual(
+					matches ? [chat] : [],
+				);
+			}
+		},
+	);
 });
 
 describe("planModeFieldsForCreateMessage", () => {
@@ -685,6 +723,51 @@ describe("updateChatPlanMode", () => {
 			queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated,
 			"chat list should be invalidated when rollback lacks detail cache",
 		).toBe(true);
+	});
+});
+
+describe("updateChatManageAutomations", () => {
+	it("sends the requested value", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
+		const mutation = updateChatManageAutomations(queryClient);
+
+		await mutation.mutationFn({ chatId: "chat-1", enabled: true });
+		await mutation.mutationFn({ chatId: "chat-1", enabled: false });
+
+		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(1, "chat-1", {
+			manage_automations_enabled: true,
+		});
+		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(2, "chat-1", {
+			manage_automations_enabled: false,
+		});
+	});
+
+	it("updates the caches optimistically and rolls back on error", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const chat = makeChat(chatId);
+		seedInfiniteChats(queryClient, [chat]);
+		queryClient.setQueryData(chatEntityKey(chatId), chat);
+
+		const mutation = updateChatManageAutomations(queryClient);
+		const variables = { chatId, enabled: true };
+		const context = await mutation.onMutate(variables);
+
+		expect(readInfiniteChats(queryClient)?.[0].manage_automations_enabled).toBe(
+			true,
+		);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
+				?.manage_automations_enabled,
+		).toBe(true);
+
+		mutation.onError(new Error("forbidden"), variables, context);
+
+		expect(
+			readInfiniteChats(queryClient)?.[0].manage_automations_enabled,
+		).toBeUndefined();
+		expect(queryClient.getQueryData(chatEntityKey(chatId))).toEqual(chat);
 	});
 });
 
@@ -744,39 +827,6 @@ describe("markChatRead and markChatUnread cache updates", () => {
 });
 
 describe("updateChatTitle cache update", () => {
-	it("patches chat detail and infinite chat list caches after success", () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		queryClient.setQueryData(
-			chatEntityKey(chatId),
-			makeChat(chatId, { title: "Old" }),
-		);
-		seedInfiniteChats(queryClient, [
-			makeChat(chatId, { title: "Old" }),
-			makeChat("chat-2", { title: "Other" }),
-		]);
-		seedInfiniteChats(
-			queryClient,
-			[makeChat(chatId, { archived: true, title: "Old" })],
-			{ archived: true },
-		);
-
-		const mutation = updateChatTitle(queryClient);
-		mutation.onSuccess(undefined, { chatId, title: "New" });
-
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.title,
-		).toBe("New");
-		expect(
-			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId),
-		).toMatchObject({ title: "New" });
-		expect(
-			readInfiniteChats(queryClient, { archived: true })?.find(
-				(chat) => chat.id === chatId,
-			),
-		).toMatchObject({ title: "New" });
-	});
-
 	it("does not return pending invalidation promises from settlement", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -1347,8 +1397,11 @@ describe("chat cost query factories", () => {
 			"tree",
 			chatId,
 		]);
-		await query.queryFn();
-		expect(API.experimental.getChatCost).toHaveBeenCalledWith(chatId);
+		await createTestQueryClient().fetchQuery(query);
+		expect(API.experimental.getChatCost).toHaveBeenCalledWith(
+			chatId,
+			expect.any(AbortSignal),
+		);
 	});
 });
 
@@ -2144,6 +2197,7 @@ describe("chatListKey shape", () => {
 			archived: true,
 			prStatuses: [],
 			status: "all",
+			statuses: [],
 			sources: [],
 		});
 	});
@@ -2167,6 +2221,39 @@ describe("getChatListQueryString", () => {
 		).toBe(
 			"archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
 		);
+		expect(
+			getChatListQueryString(toChatListParams({ prStatuses: ["none"] })),
+		).toBe("archived:false pr_status:none");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					statuses: ["running", "requires_action"],
+				}),
+			),
+		).toBe("archived:false status:requires_action,running,interrupting");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					chatStatus: "unread",
+					statuses: ["running", "requires_action"],
+				}),
+			),
+		).toBe(
+			"archived:false has_unread:true status:requires_action,running,interrupting",
+		);
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					statuses: [
+						"requires_action",
+						"error",
+						"running",
+						"interrupting",
+						"waiting",
+					],
+				}),
+			),
+		).toBe("archived:false");
 	});
 });
 
@@ -2189,115 +2276,92 @@ describe("chatsByWorkspace", () => {
 	it("fetches with the sorted, deduplicated workspace IDs", async () => {
 		const getChatsByWorkspace = vi.mocked(API.experimental.getChatsByWorkspace);
 		getChatsByWorkspace.mockResolvedValue({});
-		await chatsByWorkspace(["ws-b", "ws-a", "ws-b"]).queryFn();
-		expect(getChatsByWorkspace).toHaveBeenCalledWith(["ws-a", "ws-b"]);
+		await createTestQueryClient().fetchQuery(
+			chatsByWorkspace(["ws-b", "ws-a", "ws-b"]),
+		);
+		expect(getChatsByWorkspace).toHaveBeenCalledWith(
+			["ws-a", "ws-b"],
+			expect.any(AbortSignal),
+		);
 	});
 });
 
 describe("infiniteChats", () => {
 	const PAGE_LIMIT = 50;
 
-	describe("getNextPageParam", () => {
-		it("returns undefined when lastPage has fewer items than the limit", () => {
-			const { getNextPageParam } = infiniteChats();
-			const lastPage = Array.from({ length: PAGE_LIMIT - 1 }, (_, i) =>
-				makeChat(`chat-${i}`),
-			);
-			expect(getNextPageParam(lastPage, [lastPage])).toBeUndefined();
+	it("requests the next page only after a full page", async () => {
+		const fullPage = Array.from({ length: PAGE_LIMIT }, (_, i) =>
+			makeChat(`chat-${i}`),
+		);
+		const getChats = vi
+			.mocked(API.experimental.getChats)
+			.mockResolvedValueOnce(fullPage)
+			.mockResolvedValueOnce(fullPage)
+			.mockResolvedValueOnce(fullPage.slice(1));
+
+		await createTestQueryClient().fetchInfiniteQuery({
+			...infiniteChats(),
+			pages: 4,
 		});
 
-		it("returns pages.length + 1 when lastPage has exactly the limit", () => {
-			const { getNextPageParam } = infiniteChats();
-			const lastPage = Array.from({ length: PAGE_LIMIT }, (_, i) =>
-				makeChat(`chat-${i}`),
-			);
-			const pages = [lastPage];
-			expect(getNextPageParam(lastPage, pages)).toBe(pages.length + 1);
-		});
+		expect(getChats).toHaveBeenCalledTimes(3);
+		expect(getChats).toHaveBeenNthCalledWith(
+			1,
+			{ limit: PAGE_LIMIT, offset: 0, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
+		expect(getChats).toHaveBeenNthCalledWith(
+			2,
+			{ limit: PAGE_LIMIT, offset: PAGE_LIMIT, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
+		expect(getChats).toHaveBeenNthCalledWith(
+			3,
+			{ limit: PAGE_LIMIT, offset: PAGE_LIMIT * 2, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
 	});
 
-	describe("queryFn", () => {
-		it("computes offset 0 for pageParam 0", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-			await queryFn({ pageParam: 0 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: 0,
-				q: "archived:false",
-			});
-		});
+	it("builds q from archived, prStatuses, chatStatus, and sources", async () => {
+		vi.mocked(API.experimental.getChats).mockResolvedValue([]);
 
-		it("computes offset 0 for pageParam <= 0", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-			await queryFn({ pageParam: -1 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: 0,
-				q: "archived:false",
-			});
-		});
-
-		it("computes correct offset for subsequent pages", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-
-			await queryFn({ pageParam: 2 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: PAGE_LIMIT,
-				q: "archived:false",
-			});
-
-			await queryFn({ pageParam: 3 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: PAGE_LIMIT * 2,
-				q: "archived:false",
-			});
-		});
-
-		it("builds q from archived, prStatuses, chatStatus, and sources", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats({
+		await createTestQueryClient().fetchInfiniteQuery(
+			infiniteChats({
 				archived: true,
 				prStatuses: ["draft", "open", "merged"],
 				chatStatus: "unread",
 				sources: ["created_by_me", "shared_with_me"],
-			});
+			}),
+		);
 
-			await queryFn({ pageParam: 0 });
-
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			{
 				limit: PAGE_LIMIT,
 				offset: 0,
 				q: "archived:true pr_status:draft,open,merged has_unread:true source:created_by_me,shared_with_me",
-			});
-		});
+			},
+			expect.any(AbortSignal),
+		);
+	});
 
-		it("builds q for read chat status", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats({
+	it("builds q for read chat status", async () => {
+		vi.mocked(API.experimental.getChats).mockResolvedValue([]);
+
+		await createTestQueryClient().fetchInfiniteQuery(
+			infiniteChats({
 				archived: false,
 				chatStatus: "read",
-			});
+			}),
+		);
 
-			await queryFn({ pageParam: 0 });
-
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			{
 				limit: PAGE_LIMIT,
 				offset: 0,
 				q: "archived:false has_unread:false",
-			});
-		});
-
-		it("throws when pageParam is not a number", () => {
-			const { queryFn } = infiniteChats();
-			expect(() => queryFn({ pageParam: "bad" })).toThrow(
-				"pageParam must be a number",
-			);
-		});
+			},
+			expect.any(AbortSignal),
+		);
 	});
 });
 
@@ -2314,10 +2378,25 @@ describe("chatSearch", () => {
 			{ q: "title:fix" },
 		]);
 		await queryClient.fetchQuery(query);
-		expect(API.experimental.getChats).toHaveBeenCalledWith({
-			limit: 50,
-			q: "title:fix",
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			{ limit: 50, q: "title:fix" },
+			expect.any(AbortSignal),
+		);
+	});
+});
+
+describe("chatDiffContents", () => {
+	it("requests the diff of the chat", async () => {
+		vi.mocked(API.experimental.getChatDiffContents).mockResolvedValue({
+			chat_id: "chat-1",
 		});
+
+		await createTestQueryClient().fetchQuery(chatDiffContents("chat-1"));
+
+		expect(API.experimental.getChatDiffContents).toHaveBeenCalledWith(
+			"chat-1",
+			expect.any(AbortSignal),
+		);
 	});
 });
 
@@ -3104,48 +3183,171 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
-	it("merges fresh title updates without clobbering a newer status snapshot", () => {
+	it.each<{
+		name: string;
+		cached?: Partial<TypesGen.Chat>;
+		watched: Partial<TypesGen.Chat>;
+		titleFrom: "watched" | "cached";
+	}>([
+		{
+			name: "applies a newer title even when updated_at is newer",
+			watched: {
+				title: "After",
+				title_updated_at: "2025-01-01T00:00:01.000Z",
+				updated_at: "2025-01-01T00:05:00.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "applies a newer title even when updated_at is older",
+			watched: {
+				title: "After",
+				title_updated_at: "2025-01-01T00:00:01.000Z",
+				updated_at: "2024-12-31T00:00:00.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "applies a newer title whose text is unchanged",
+			watched: {
+				title: "Before",
+				title_updated_at: "2025-01-01T00:00:01.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "ignores an older title",
+			watched: {
+				title: "After",
+				title_updated_at: "2024-12-31T23:59:59.000Z",
+			},
+			titleFrom: "cached",
+		},
+		{
+			name: "ignores a title with the same title_updated_at",
+			watched: {
+				title: "After",
+				title_updated_at: "2025-01-01T00:00:00.000Z",
+			},
+			titleFrom: "cached",
+		},
+		{
+			name: "applies a title written one microsecond later",
+			cached: { title_updated_at: "2025-01-01T00:00:00.000001Z" },
+			watched: {
+				title: "After",
+				title_updated_at: "2025-01-01T00:00:00.000002Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "applies a title when the cached chat has no title_updated_at",
+			cached: { title_updated_at: undefined },
+			watched: {
+				title: "After",
+				title_updated_at: "2024-12-31T23:59:59.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "applies a title event that has no title_updated_at",
+			watched: { title: "After", title_updated_at: undefined },
+			titleFrom: "watched",
+		},
+	])("$name", ({ cached, watched, titleFrom }) => {
 		const cachedChat = makeChat("chat-1", {
 			status: "running",
-			title: "Fresh title",
+			title: "Before",
+			title_source: "user",
+			title_updated_at: "2025-01-01T00:00:00.000Z",
 			updated_at: "2025-01-01T00:00:00.000Z",
+			...cached,
 		});
 		const watchedChat = makeChat("chat-1", {
 			status: "waiting",
-			title: "Updated title",
-			updated_at: "2025-01-01T00:05:00.000Z",
+			title_source: "generated",
+			...watched,
+		});
+		const rows = { watched: watchedChat, cached: cachedChat };
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "title_change",
+		});
+
+		expect(merged).toMatchObject({
+			title: rows[titleFrom].title,
+			title_source: rows[titleFrom].title_source,
+			title_updated_at: rows[titleFrom].title_updated_at,
+			status: cachedChat.status,
+			updated_at: cachedChat.updated_at,
+		});
+		if (titleFrom === "cached") {
+			expect(merged).toBe(cachedChat);
+		}
+	});
+
+	it("changes only the title fields from a title event", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			last_model_config_id: "model-a",
+			updated_at: "2025-01-01T00:00:01.000Z",
+		});
+		const titleEvent = makeChat("chat-1", {
+			status: "waiting",
+			last_model_config_id: "model-b",
+			title: "New title",
+			title_updated_at: "2025-01-01T00:00:03.000Z",
+			updated_at: "2025-01-01T00:00:03.000Z",
+		});
+		const delayedStatus = makeChat("chat-1", {
+			status: "waiting",
+			updated_at: "2025-01-01T00:00:02.000Z",
+		});
+
+		const afterTitle = mergeWatchedChatSummary(cachedChat, titleEvent, {
+			eventKind: "title_change",
+		});
+		expect(afterTitle).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-a",
+			title: "New title",
+			updated_at: "2025-01-01T00:00:01.000Z",
 		});
 
 		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "title_change",
+			mergeWatchedChatSummary(afterTitle, delayedStatus, {
+				eventKind: "status_change",
 			}),
 		).toMatchObject({
-			status: "running",
-			title: "Updated title",
+			status: "waiting",
+			updated_at: "2025-01-01T00:00:02.000Z",
 		});
 	});
 
-	it("merges title updates even when chat updated_at is older", () => {
+	it("does not let an older summary row revert fields a newer event set", () => {
 		const cachedChat = makeChat("chat-1", {
-			status: "running",
-			title: "Fresh title",
-			updated_at: "2025-01-01T00:10:00.000Z",
+			last_model_config_id: "model-a",
+			updated_at: "2025-01-01T00:00:00.000Z",
 		});
-		const watchedChat = makeChat("chat-1", {
-			status: "waiting",
-			title: "Newer generated title",
-			updated_at: "2025-01-01T00:05:00.000Z",
+		const newerSummary = makeChat("chat-1", {
+			last_model_config_id: "model-b",
+			updated_at: "2025-01-01T00:00:02.000Z",
+		});
+		const olderSummary = makeChat("chat-1", {
+			last_model_config_id: "model-a",
+			updated_at: "2025-01-01T00:00:01.000Z",
 		});
 
+		const afterNewer = mergeWatchedChatSummary(cachedChat, newerSummary, {
+			eventKind: "chat_summary_change",
+		});
 		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "title_change",
+			mergeWatchedChatSummary(afterNewer, olderSummary, {
+				eventKind: "summary_change",
 			}),
 		).toMatchObject({
-			status: "running",
-			title: "Newer generated title",
-			updated_at: "2025-01-01T00:10:00.000Z",
+			last_model_config_id: "model-b",
+			updated_at: "2025-01-01T00:00:02.000Z",
 		});
 	});
 

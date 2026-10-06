@@ -70,7 +70,9 @@ Once these steps have completed, your workspace will now be in the `Running`
 state. You can access it via any of the [supported methods](./index.md), stop it
 when you're away, or delete it once it's no longer in use.
 
-## Stopping workspaces
+<a id="stopping-workspaces"></a>
+
+## Stop workspaces
 
 Workspaces may be stopped manually by users and admins in the dashboard, CLI, or
 API. Workspaces may be automatically stopped due to template updates or
@@ -79,7 +81,9 @@ inactivity by [scheduling configuration](./workspace-scheduling.md).
 Once stopped, a workspace may resume running by starting it manually, or via
 user connection if automatic start is enabled.
 
-## Deleting workspaces
+<a id="deleting-workspaces"></a>
+
+## Delete workspaces
 
 Similarly to stopping, workspaces may be deleted manually or automatically by
 Coder through workspace dormancy.

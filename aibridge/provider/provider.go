@@ -9,12 +9,27 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
+// ErrUnknownRoute is returned when a request path does not match any of the
+// provider's routes.
 var ErrUnknownRoute = xerrors.New("unknown route")
+
+// PassthroughTransportWrapper is an optional capability implemented by
+// providers that authenticate by signing requests or by minting tokens rather
+// than by injecting a static key. Passthrough auth is otherwise driven entirely
+// by the key pool, so without this the provider's passthrough routes would be
+// unauthenticated.
+//
+// The returned transport wraps inner and is installed beneath the key failover
+// transport, so BYOK and centralized keys still take precedence.
+type PassthroughTransportWrapper interface {
+	WrapPassthroughTransport(inner http.RoundTripper) http.RoundTripper
+}
 
 // ErrNoCredential is returned when a request resolves to centralized
 // authentication but the provider has no centralized keys configured (and the
@@ -68,6 +83,11 @@ type Provider interface {
 	// CreateInterceptor starts a new [Interceptor] which is responsible for intercepting requests,
 	// communicating with the upstream provider and formulating a response to be sent to the requesting client.
 	CreateInterceptor(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error)
+
+	// ResolveCredential determines the upstream credential for a request.
+	// Coder authentication credentials must already have been removed from it.
+	// Remaining provider authentication headers are interpreted as BYOK credentials.
+	ResolveCredential(*http.Request) (credential.Credential, error)
 
 	// RoutePrefix returns a prefix on which the provider's bridged and passthroguh routes will be registered.
 	// Must be unique across providers to avoid conflicts.

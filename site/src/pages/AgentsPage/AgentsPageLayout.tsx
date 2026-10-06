@@ -66,6 +66,7 @@ import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { AUTOMATIONS_PATH } from "./components/Automations/automationsFlag";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -78,10 +79,17 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import {
+	CHAT_BOARD_PATH,
+	useChatBoardEnabled,
+} from "./exp/chatBoard/chatBoardFlag";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
-import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
+import {
+	AGENT_CHAT_STATUS_ORDER,
+	getAgentSidebarFilters,
+} from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
 	notifyArchiveAndDeleteFailed,
@@ -90,6 +98,7 @@ import {
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
+import { readDeepLinkState } from "./utils/deepLinkState";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
@@ -135,6 +144,12 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
+// The status in other event kinds may be older than the cached status.
+export const shouldEvaluateChime = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean => eventKind === "status_change" && !chat.parent_chat_id;
+
 // Summary and title generation can bill after the turn reports a non-active
 // status, so invalidate the root-keyed cost query when those events arrive.
 const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
@@ -178,6 +193,7 @@ const AgentsPageLayout: React.FC = () => {
 	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
 		searchParams,
 		setSearchParams,
+		location.state,
 	);
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 
@@ -192,15 +208,16 @@ const AgentsPageLayout: React.FC = () => {
 	}, []);
 
 	const archivedFilter = sidebarFilters.archiveStatus === "archived";
-	const chatStatusFilter =
-		sidebarFilters.chatStatuses.length === 1
-			? sidebarFilters.chatStatuses[0]
-			: undefined;
+	const statuses =
+		sidebarFilters.chatStatuses.length === AGENT_CHAT_STATUS_ORDER.length
+			? undefined
+			: sidebarFilters.chatStatuses;
 	const chatsQuery = useInfiniteQuery(
 		infiniteChats({
 			archived: archivedFilter,
 			prStatuses: sidebarFilters.prStatuses,
-			chatStatus: chatStatusFilter,
+			statuses,
+			chatStatus: sidebarFilters.unread ? "unread" : undefined,
 			sources: sidebarFilters.sources,
 		}),
 	);
@@ -515,7 +532,10 @@ const AgentsPageLayout: React.FC = () => {
 		// Only clear the draft when the user is already on the empty
 		// state and explicitly requests a blank slate.  When navigating
 		// back from a conversation the existing draft is preserved.
-		if (!agentId) {
+		// A composer prefilled from a prompt link shows the link's text,
+		// not the draft, so the draft is preserved there too. A debug link
+		// can fall back to the draft-backed composer, so it is not exempt.
+		if (!agentId && readDeepLinkState(location.state).prompt === undefined) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate({ pathname: "/agents", search: location.search });
@@ -573,8 +593,7 @@ const AgentsPageLayout: React.FC = () => {
 					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
 						(chat) => chat.id === updatedChat.id,
 					)?.status;
-					// Only play the chime for top-level chats, not sub-agents.
-					if (!updatedChat.parent_chat_id) {
+					if (shouldEvaluateChime(updatedChat, chatEvent.kind)) {
 						maybePlayChime(
 							prevStatus,
 							updatedChat.status,
@@ -708,6 +727,12 @@ const AgentsPageLayout: React.FC = () => {
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
+	const isBoardRoute =
+		useChatBoardEnabled() && location.pathname.startsWith(CHAT_BOARD_PATH);
+	// On mobile the automations page replaces the sidebar, like a settings
+	// detail page.
+	const isFullPageRoute =
+		isSettingsDetail || location.pathname.startsWith(AUTOMATIONS_PATH);
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.
@@ -755,10 +780,13 @@ const AgentsPageLayout: React.FC = () => {
 						"sm:h-full sm:min-h-0 sm:border-b-0",
 						agentId
 							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-							: isSettingsDetail
+							: isFullPageRoute
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 						isSidebarCollapsed && "sm:hidden",
+						// The board is a full-width view. The frame stays mounted so the
+						// dialogs and handlers it owns keep working behind it.
+						isBoardRoute && "hidden sm:hidden",
 					)}
 				>
 					<ChatsSidebar
@@ -807,7 +835,7 @@ const AgentsPageLayout: React.FC = () => {
 						"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
 						isSettingsIndex ? "hidden sm:flex" : "flex",
 						!agentId &&
-							!isSettingsDetail &&
+							!isFullPageRoute &&
 							sidebarView.panel === "chats" &&
 							"contents sm:flex sm:flex-1 sm:flex-col",
 					)}

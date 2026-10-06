@@ -40,7 +40,9 @@ func (t Transition) String() string { return string(t) }
 // depend on the post-mutation queue cardinality (for example
 // DeleteQueuedMessage from E1 lands in E0 when the deleted row was the
 // last queued message, or stays in E1 otherwise), which is why several
-// entries list more than one output.
+// entries list more than one output. Promotions can also drop queued
+// automation rows that fail the queue promotion guard, which adds the
+// outputs where that guard empties or shrinks the queue.
 //
 // Ownership transitions (Acquire, Abandon) are intentionally not
 // included; they are orthogonal to execution state.
@@ -65,10 +67,10 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	},
 	StateE1: {
 		TransitionSetArchived:          {StateXE1},
-		TransitionSendMessage:          {StateR1},
+		TransitionSendMessage:          {StateR0, StateR1},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateE0, StateE1},
-		TransitionPromoteQueuedMessage: {StateR0, StateR1},
+		TransitionPromoteQueuedMessage: {StateR0, StateR1, StateE0, StateE1},
 		TransitionRequestCompaction:    {StateR1},
 	},
 	StateR0: {
@@ -86,13 +88,13 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionSendMessage:             {StateR1, StateI1},
 		TransitionEditMessage:             {StateR0},
 		TransitionDeleteQueuedMessage:     {StateR0, StateR1},
-		TransitionPromoteQueuedMessage:    {StateI1},
+		TransitionPromoteQueuedMessage:    {StateI1, StateR0, StateR1},
 		TransitionInterrupt:               {StateI1},
 		TransitionRecordGenerationAttempt: {StateR1},
 		TransitionRecordRetryState:        {StateR1},
 		TransitionCommitStep:              {StateR1},
 		TransitionEnterRequiresAction:     {StateA1},
-		TransitionFinishTurn:              {StateR0, StateR1},
+		TransitionFinishTurn:              {StateR0, StateR1, StateW},
 		TransitionFinishError:             {StateE1},
 	},
 	StateI0: {
@@ -104,8 +106,8 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionSendMessage:          {StateI1},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateI0, StateI1},
-		TransitionPromoteQueuedMessage: {StateI1},
-		TransitionFinishInterruption:   {StateR0, StateR1},
+		TransitionPromoteQueuedMessage: {StateI1, StateI0},
+		TransitionFinishInterruption:   {StateR0, StateR1, StateW},
 	},
 	StateA0: {
 		TransitionSendMessage:            {StateA1, StateR1},
@@ -118,7 +120,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionSendMessage:            {StateA1, StateR1},
 		TransitionEditMessage:            {StateR0},
 		TransitionDeleteQueuedMessage:    {StateA0, StateA1},
-		TransitionPromoteQueuedMessage:   {StateR0, StateR1},
+		TransitionPromoteQueuedMessage:   {StateR0, StateR1, StateA0, StateA1},
 		TransitionInterrupt:              {StateR1},
 		TransitionCompleteRequiresAction: {StateR1},
 		TransitionCancelRequiresAction:   {StateR1},

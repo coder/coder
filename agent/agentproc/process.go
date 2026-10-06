@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -25,8 +26,10 @@ var (
 	errProcessNotRunning = xerrors.New("process is not running")
 
 	// exitedProcessReapAge is how long an exited process is
-	// kept before being automatically removed from the map.
-	exitedProcessReapAge = 5 * time.Minute
+	// kept before being automatically removed from the map, so
+	// that a chatd retry of its execute tool call can still read
+	// the output.
+	exitedProcessReapAge = time.Hour
 )
 
 // process represents a running or completed process.
@@ -36,12 +39,13 @@ type process struct {
 	command    string
 	workDir    string
 	background bool
-	chatID     string
 	cmd        *exec.Cmd
 	cancel     context.CancelFunc
 	buf        *HeadTailBuffer
 	logger     slog.Logger
 	running    bool
+	canceled   atomic.Bool // set if its tool call is canceled while it runs
+	waitUntil  time.Time   // when TimeoutMs passes; zero if none
 	exitCode   *int
 	startedAt  int64
 	exitedAt   *int64
@@ -71,6 +75,13 @@ func (p *process) output() (string, *workspacesdk.ProcessTruncation) {
 	return p.buf.Output()
 }
 
+// procKey identifies a process by chat ID and process ID. chatID is
+// uuid.Nil for processes started without a chat.
+type procKey struct {
+	chatID uuid.UUID
+	id     string
+}
+
 // manager tracks processes spawned by the agent.
 type manager struct {
 	mu         sync.Mutex
@@ -78,7 +89,7 @@ type manager struct {
 	execer     agentexec.Execer
 	fs         afero.Fs
 	clock      quartz.Clock
-	procs      map[string]*process
+	procs      map[procKey]*process
 	closed     bool
 	updateEnv  func(current []string) (updated []string, err error)
 	workingDir func() string
@@ -98,7 +109,7 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 		execer:     execer,
 		fs:         fs,
 		clock:      quartz.NewReal(),
-		procs:      make(map[string]*process),
+		procs:      make(map[procKey]*process),
 		updateEnv:  updateEnv,
 		workingDir: workingDir,
 		envInfo:    envInfo,
@@ -109,18 +120,27 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 // processes use a long-lived context so the process survives
 // the HTTP request lifecycle. The background flag only affects
 // client-side polling behavior.
-func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*process, error) {
+//
+// A repeated start with the same chatID and id returns the existing
+// process. The lookup and insert are not atomic; the tool call
+// middleware serializes requests per tool call, and other starts get
+// random IDs.
+func (m *manager) start(req workspacesdk.StartProcessRequest, chatID uuid.UUID, id string) (*process, error) {
+	k := procKey{chatID: chatID, id: id}
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
 		return nil, xerrors.New("manager is closed")
 	}
+	if proc, ok := m.procs[k]; ok {
+		m.mu.Unlock()
+		return proc, nil
+	}
 	m.mu.Unlock()
 
-	id := uuid.New().String()
 	logger := m.logger
-	if chatID != "" {
-		logger = logger.With(slog.F("chat_id", chatID))
+	if chatID != uuid.Nil {
+		logger = logger.With(slog.F("chat_id", chatID.String()))
 	}
 
 	// Use a cancellable context so Close() can terminate
@@ -167,7 +187,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 	}
 	// Propagate the chat ID so child processes (e.g.
 	// GIT_ASKPASS) can send it back to the server.
-	if chatID != "" {
+	if chatID != uuid.Nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("CODER_CHAT_ID=%s", chatID))
 	}
 
@@ -176,20 +196,22 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		return nil, xerrors.Errorf("start process: %w", err)
 	}
 
-	now := m.clock.Now().Unix()
+	now := m.clock.Now()
 	proc := &process{
 		id:         id,
 		command:    req.Command,
 		workDir:    cmd.Dir,
 		background: req.Background,
-		chatID:     chatID,
 		cmd:        cmd,
 		cancel:     cancel,
 		buf:        buf,
 		logger:     logger,
 		running:    true,
-		startedAt:  now,
+		startedAt:  now.Unix(),
 		done:       make(chan struct{}),
+	}
+	if req.TimeoutMs > 0 {
+		proc.waitUntil = now.Add(time.Duration(req.TimeoutMs) * time.Millisecond)
 	}
 
 	m.mu.Lock()
@@ -201,7 +223,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		_ = cmd.Wait()
 		return nil, xerrors.New("manager is closed")
 	}
-	m.procs[id] = proc
+	m.procs[k] = proc
 	m.mu.Unlock()
 
 	go func() {
@@ -240,37 +262,34 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 	return proc, nil
 }
 
-// get returns a process by ID.
-func (m *manager) get(id string) (*process, bool) {
+// get returns chat chatID's process with ID id.
+func (m *manager) get(chatID uuid.UUID, id string) (*process, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	proc, ok := m.procs[id]
+	proc, ok := m.procs[procKey{chatID: chatID, id: id}]
 	return proc, ok
 }
 
-// list returns info about all tracked processes. Exited
-// processes older than exitedProcessReapAge are removed.
-// If chatID is non-empty, only processes belonging to that
-// chat are returned.
-func (m *manager) list(chatID string) []workspacesdk.ProcessInfo {
+// list returns info about chat chatID's processes. It also reaps
+// processes of all chats that exited more than exitedProcessReapAge ago.
+func (m *manager) list(chatID uuid.UUID) []workspacesdk.ProcessInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	now := m.clock.Now()
 	infos := make([]workspacesdk.ProcessInfo, 0, len(m.procs))
-	for id, proc := range m.procs {
+	for k, proc := range m.procs {
 		info := proc.info()
-		// Reap processes that exited more than 5 minutes ago
+		// Reap processes that exited more than exitedProcessReapAge ago
 		// to prevent unbounded map growth.
 		if !info.Running && info.ExitedAt != nil {
 			exitedAt := time.Unix(*info.ExitedAt, 0)
 			if now.Sub(exitedAt) > exitedProcessReapAge {
-				delete(m.procs, id)
+				delete(m.procs, k)
 				continue
 			}
 		}
-		// Filter by chatID if provided.
-		if chatID != "" && proc.chatID != chatID {
+		if k.chatID != chatID {
 			continue
 		}
 		infos = append(infos, info)
@@ -281,10 +300,8 @@ func (m *manager) list(chatID string) []workspacesdk.ProcessInfo {
 // signal sends a signal to a running process. It returns
 // sentinel errors errProcessNotFound and errProcessNotRunning
 // so callers can distinguish failure modes.
-func (m *manager) signal(id string, sig string) error {
-	m.mu.Lock()
-	proc, ok := m.procs[id]
-	m.mu.Unlock()
+func (m *manager) signal(chatID uuid.UUID, id string, sig string) error {
+	proc, ok := m.get(chatID, id)
 
 	if !ok {
 		return errProcessNotFound
