@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatCostIdToInvalidate,
+	shouldEvaluateChime,
 	shouldInvalidateFilteredChatList,
 } from "./AgentsPageLayout";
 import {
@@ -535,11 +536,12 @@ describe("useFileAttachments persistence", () => {
 		expect(result.current.attachments).toHaveLength(1);
 		expect(result.current.attachments[0].name).toBe("a.png");
 
-		// The other org's draft stays in storage for when that org is active.
+		// localStorage should be pruned to only the matching org.
 		const stored = JSON.parse(
 			localStorage.getItem(persistedAttachmentsStorageKey)!,
 		);
-		expect(stored).toHaveLength(2);
+		expect(stored).toHaveLength(1);
+		expect(stored[0].fileId).toBe("f1");
 		unmount();
 	});
 
@@ -929,6 +931,39 @@ describe(shouldInvalidateFilteredChatList.name, () => {
 		expect(shouldInvalidateFilteredChatList(updatedChat, eventKind)).toBe(
 			expected,
 		);
+	});
+});
+
+describe(shouldEvaluateChime.name, () => {
+	it.each<{
+		name: string;
+		updatedChat: TypesGen.Chat;
+		eventKind: TypesGen.ChatWatchEventKind;
+		expected: boolean;
+	}>([
+		{
+			name: "evaluates root chat status changes",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "status_change",
+			expected: true,
+		},
+		{
+			name: "ignores the status of a title event",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "title_change",
+			expected: false,
+		},
+		{
+			name: "excludes child chats",
+			updatedChat: chatForFilterInvalidation({
+				parent_chat_id: "parent-1",
+				status: "waiting",
+			}),
+			eventKind: "status_change",
+			expected: false,
+		},
+	])("$name", ({ updatedChat, eventKind, expected }) => {
+		expect(shouldEvaluateChime(updatedChat, eventKind)).toBe(expected);
 	});
 });
 

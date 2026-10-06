@@ -6,6 +6,7 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/coderd/x/googleopenai"
@@ -133,6 +134,25 @@ func TestGoogleOpenAICompatExtraBodySurvivesParamRoundTrip(t *testing.T) {
 			},
 		},
 	}, payload["extra_body"])
+}
+
+func TestGoogleOpenAICompatExtraBodyAndCacheControlCoexist(t *testing.T) {
+	t.Parallel()
+
+	var req ChatCompletionNewParamsWrapper
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"model":"gemini-3-flash-preview",
+		"extra_body":{"google":{"thinking_config":{"include_thoughts":true}}},
+		"messages":[{"role":"user","content":[{"type":"text","text":"current turn","cache_control":{"type":"ephemeral"}}]}]
+	}`), &req))
+
+	body, err := (&interceptionBase{
+		req: &req,
+		cfg: intercept.Config{BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"},
+	}).chatCompletionRequestBody()
+	require.NoError(t, err)
+	require.True(t, gjson.GetBytes(body, "extra_body.google.thinking_config.include_thoughts").Bool())
+	require.Equal(t, "ephemeral", gjson.GetBytes(body, "messages.0.content.0.cache_control.type").String())
 }
 
 func TestGoogleOpenAICompatExtraBodyNotForwardedToOtherUpstreams(t *testing.T) {

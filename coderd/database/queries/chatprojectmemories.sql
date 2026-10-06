@@ -54,7 +54,8 @@ WHERE project_id = @project_id::uuid;
 DELETE FROM chat_project_memories
 WHERE id = @id::uuid;
 
--- name: DeleteChatProjectMemoryByName :execrows
+-- name: DeleteChatProjectMemoryByName :one
 DELETE FROM chat_project_memories
 WHERE project_id = @project_id::uuid
-    AND lower(name) = lower(@name::text);
+    AND lower(name) = lower(@name::text)
+RETURNING *;
