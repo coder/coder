@@ -340,17 +340,6 @@ func TestResolveWorkspace(t *testing.T) {
 	t.Run("InvalidIdentifier", func(t *testing.T) {
 		t.Parallel()
 
-		var hits atomic.Int64
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			hits.Add(1)
-			t.Errorf("unexpected HTTP request for invalid identifier: %s", req.URL.Path)
-		}))
-		t.Cleanup(srv.Close)
-
-		u, err := url.Parse(srv.URL)
-		require.NoError(t, err)
-		client := codersdk.New(u)
-
 		for _, identifier := range []string{
 			"a/b/c", "me?/workspace", "me#/workspace", "me%3f/workspace",
 			"../workspace", "./workspace", "workspace?after=1", "workspace#fragment",
@@ -358,8 +347,17 @@ func TestResolveWorkspace(t *testing.T) {
 		} {
 			t.Run(identifier, func(t *testing.T) {
 				t.Parallel()
-				_, err := client.ResolveWorkspace(t.Context(), identifier)
-				require.Error(t, err)
+				var hits atomic.Int64
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					hits.Add(1)
+					t.Errorf("unexpected HTTP request for invalid identifier: %s", req.URL.Path)
+				}))
+				t.Cleanup(srv.Close)
+				u, err := url.Parse(srv.URL)
+				require.NoError(t, err)
+				client := codersdk.New(u)
+				_, err = client.ResolveWorkspace(t.Context(), identifier)
+				require.ErrorContains(t, err, "invalid workspace")
 				require.EqualValues(t, 0, hits.Load(), "invalid identifiers should fail before any HTTP request")
 			})
 		}

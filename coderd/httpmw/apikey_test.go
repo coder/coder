@@ -148,6 +148,14 @@ func TestAPIKeyResource(t *testing.T) {
 					rw := httptest.NewRecorder()
 					handler.ServeHTTP(rw, req)
 					require.Equal(t, tc.status, rw.Code)
+					if tc.wrongKey {
+						var response codersdk.Response
+						require.NoError(t, json.NewDecoder(rw.Body).Decode(&response))
+						require.Equal(t, "Delegated requests must use the credential that authenticated the originating request.", response.Message)
+						require.NotContains(t, response.Message, key.ID)
+						require.NotContains(t, response.Message, delegatedID)
+						require.NotContains(t, rw.Header().Get("WWW-Authenticate"), "expired")
+					}
 					require.Equal(t, originalURL, req.URL.String())
 					if tc.status != http.StatusNoContent {
 						require.Contains(t, rw.Header().Get("WWW-Authenticate"), `resource_metadata="`+metadata+`"`)

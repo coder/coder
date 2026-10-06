@@ -328,21 +328,36 @@ func TestMCPHTTP_E2E_ResourcePaths(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: mcpDeploymentValues(t)})
 	coderdtest.CreateFirstUser(t, client)
-	tokens := []string{"", client.SessionToken()}
+	type credential struct {
+		name       string
+		token      string
+		wantStatus int
+	}
+	tokens := []credential{
+		{name: "Unauthenticated", wantStatus: http.StatusUnauthorized},
+		{name: "SessionToken", token: client.SessionToken(), wantStatus: http.StatusOK},
+	}
 	httpClient := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	for _, audience := range []string{client.URL.String(), client.URL.String() + mcpserver.MCPEndpoint} {
+	for _, resource := range []struct {
+		name       string
+		audience   string
+		wantStatus int
+	}{
+		{name: "RootAudience", audience: client.URL.String(), wantStatus: http.StatusForbidden},
+		{name: "MCPAudience", audience: client.URL.String() + mcpserver.MCPEndpoint, wantStatus: http.StatusOK},
+	} {
 		app, secret := oauth2providertest.CreateTestOAuth2App(t, client)
 		verifier, challenge := oauth2providertest.GeneratePKCE(t)
 		code := oauth2providertest.AuthorizeOAuth2App(t, client, client.URL.String(), oauth2providertest.AuthorizeParams{
 			ClientID: app.ID.String(), ResponseType: "code", RedirectURI: oauth2providertest.TestRedirectURI,
 			State: oauth2providertest.GenerateState(t), CodeChallenge: challenge, CodeChallengeMethod: "S256",
-			Resource: audience,
+			Resource: resource.audience,
 		})
 		token := oauth2providertest.ExchangeCodeForToken(t, client.URL.String(), oauth2providertest.TokenExchangeParams{
 			GrantType: "authorization_code", Code: code, ClientID: app.ID.String(), ClientSecret: secret,
-			RedirectURI: oauth2providertest.TestRedirectURI, CodeVerifier: verifier, Resource: audience,
+			RedirectURI: oauth2providertest.TestRedirectURI, CodeVerifier: verifier, Resource: resource.audience,
 		})
-		tokens = append(tokens, token.AccessToken)
+		tokens = append(tokens, credential{name: resource.name, token: token.AccessToken, wantStatus: resource.wantStatus})
 	}
 	for _, path := range []string{
 		"/api//experimental/mcp/http", "/api/experimental//mcp/http",
@@ -353,46 +368,51 @@ func TestMCPHTTP_E2E_ResourcePaths(t *testing.T) {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
 			for _, token := range tokens {
-				req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, client.URL.String()+path,
-					strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
-				require.NoError(t, err)
-				req.Header.Set("Content-Type", "application/json")
-				req.Header.Set("Accept", "application/json, text/event-stream")
-				if token != "" {
-					req.Header.Set("Authorization", "Bearer "+token)
-				}
-				resp, err := httpClient.Do(req)
-				require.NoError(t, err)
-				_ = resp.Body.Close()
-				require.Equal(t, http.StatusNotFound, resp.StatusCode)
-				require.Empty(t, resp.Header.Get("WWW-Authenticate"))
+				t.Run(token.name, func(t *testing.T) {
+					t.Parallel()
+					req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, client.URL.String()+path,
+						strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
+					require.NoError(t, err)
+					req.Header.Set("Content-Type", "application/json")
+					req.Header.Set("Accept", "application/json, text/event-stream")
+					if token.token != "" {
+						req.Header.Set("Authorization", "Bearer "+token.token)
+					}
+					resp, err := httpClient.Do(req)
+					require.NoError(t, err)
+					_ = resp.Body.Close()
+					require.Equal(t, http.StatusNotFound, resp.StatusCode)
+					require.Empty(t, resp.Header.Get("WWW-Authenticate"))
+				})
 			}
 		})
 	}
 	t.Run("CanonicalPaths", func(t *testing.T) {
 		t.Parallel()
 		for _, path := range []string{mcpserver.MCPEndpoint, mcpserver.MCPEndpoint + "/"} {
-			for i, token := range tokens {
-				req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, client.URL.String()+path,
-					strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
-				require.NoError(t, err)
-				req.Header.Set("Content-Type", "application/json")
-				req.Header.Set("Accept", "application/json, text/event-stream")
-				if token != "" {
-					req.Header.Set("Authorization", "Bearer "+token)
-				}
-				resp, err := httpClient.Do(req)
-				require.NoError(t, err)
-				_ = resp.Body.Close()
-				want := []int{http.StatusUnauthorized, http.StatusOK, http.StatusForbidden, http.StatusOK}[i]
-				require.Equal(t, want, resp.StatusCode)
-				if want == http.StatusUnauthorized {
-					metadataURL := client.URL.String() + "/.well-known/oauth-protected-resource" + path
-					require.Contains(t, resp.Header.Get("WWW-Authenticate"), fmt.Sprintf(`resource_metadata=%q`, metadataURL))
-					var metadata codersdk.OAuth2ProtectedResourceMetadata
-					testutil.RequireEventuallyResponseOK(testutil.Context(t, testutil.WaitLong), t, metadataURL, &metadata)
-					require.Equal(t, client.URL.String()+path, metadata.Resource)
-				}
+			for _, token := range tokens {
+				t.Run(path+"/"+token.name, func(t *testing.T) {
+					t.Parallel()
+					req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, client.URL.String()+path,
+						strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
+					require.NoError(t, err)
+					req.Header.Set("Content-Type", "application/json")
+					req.Header.Set("Accept", "application/json, text/event-stream")
+					if token.token != "" {
+						req.Header.Set("Authorization", "Bearer "+token.token)
+					}
+					resp, err := httpClient.Do(req)
+					require.NoError(t, err)
+					_ = resp.Body.Close()
+					require.Equal(t, token.wantStatus, resp.StatusCode)
+					if token.wantStatus == http.StatusUnauthorized {
+						metadataURL := client.URL.String() + "/.well-known/oauth-protected-resource" + path
+						require.Contains(t, resp.Header.Get("WWW-Authenticate"), fmt.Sprintf(`resource_metadata=%q`, metadataURL))
+						var metadata codersdk.OAuth2ProtectedResourceMetadata
+						testutil.RequireEventuallyResponseOK(testutil.Context(t, testutil.WaitLong), t, metadataURL, &metadata)
+						require.Equal(t, client.URL.String()+path, metadata.Resource)
+					}
+				})
 			}
 		}
 	})

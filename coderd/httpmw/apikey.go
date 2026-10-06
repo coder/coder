@@ -293,7 +293,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	if delegation, ok := ctx.Value(apiKeyDelegationContextKey{}).(apiKeyDelegation); ok && delegation.apiKeyID != key.ID {
 		return nil, &ValidateAPIKeyError{
 			Code:     http.StatusUnauthorized,
-			Response: codersdk.Response{Message: SignedOutErrorMessage},
+			Response: codersdk.Response{Message: "Delegated requests must use the credential that authenticated the originating request."},
 		}
 	}
 
