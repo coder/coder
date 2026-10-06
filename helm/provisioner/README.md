@@ -12,7 +12,7 @@ External provisioner daemons are a Premium feature. Contact sales@coder.com.
 > instructions on a tagged release.
 
 View
-[our docs](https://coder.com/docs/admin/provisioners)
+[our docs](https://coder.com/docs/install/operate/provisioners)
 for detailed installation instructions.
 
 ## Values

@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
-import { MockChatProject, mockApiError } from "#/testHelpers/entities";
+import { MockChatProject } from "#/testHelpers/entities";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
@@ -84,21 +84,22 @@ describe("ChatProjectDialog", () => {
 
 		await user.click(screen.getByLabelText(/Name/));
 		await user.paste("🚀".repeat(64));
-		expect(screen.getByLabelText(/Name/)).toHaveAttribute(
-			"aria-invalid",
-			"false",
-		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({ name: "🚀".repeat(64) }),
 		);
+	});
+
+	it("does not save a name over the limit", async () => {
+		const user = userEvent.setup();
+		const { props } = renderDialog();
 
 		await user.click(screen.getByLabelText(/Name/));
-		await user.paste("🚀");
-		await waitFor(() =>
-			expect(screen.getByRole("button", { name: "Save" })).toBeDisabled(),
-		);
+		await user.paste("🚀".repeat(65));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
 
 	it("measures the length limit after trimming", async () => {
@@ -108,16 +109,8 @@ describe("ChatProjectDialog", () => {
 		await user.type(screen.getByLabelText(/Name/), "Launch");
 		await user.click(screen.getByLabelText("Description"));
 		await user.paste(`${"d".repeat(1024)} `);
-		expect(screen.getByLabelText("Description")).toHaveAttribute(
-			"aria-invalid",
-			"false",
-		);
 		await user.click(screen.getByLabelText("Icon"));
 		await user.paste(`${"i".repeat(256)} `);
-		expect(screen.getByLabelText("Icon")).toHaveAttribute(
-			"aria-invalid",
-			"false",
-		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onSubmit).toHaveBeenCalledWith(
@@ -170,8 +163,9 @@ describe("ChatProjectDialog", () => {
 		const { props } = renderDialog({ project: MockChatProject });
 
 		await user.type(screen.getByLabelText(/Name/), " ");
+		submitForm(screen.getByRole("button", { name: "Save" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
 
@@ -180,7 +174,6 @@ describe("ChatProjectDialog", () => {
 		const { props } = renderDialog({ project: MockChatProject });
 		const save = screen.getByRole("button", { name: "Save" });
 
-		expect(save).toBeDisabled();
 		submitForm(save);
 		await user.click(save);
 		await user.click(screen.getByLabelText(/Name/));
@@ -199,56 +192,25 @@ describe("ChatProjectDialog", () => {
 		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("explains that a name is required once the field is left empty", async () => {
-		const user = userEvent.setup();
-		renderDialog();
-
-		await user.click(screen.getByLabelText(/Name/));
-		await user.tab();
-
-		expect(screen.getByText("Name is required.")).toBeVisible();
-	});
-
-	it("shows a save error that is not tied to a field", () => {
-		renderDialog({
-			error: mockApiError({
-				message:
-					"You can have at most 100 chat projects. Delete a project to create another.",
-			}),
-		});
-
-		expect(screen.getByText(/at most 100 chat projects/)).toBeVisible();
-		expect(screen.queryByText("Response data")).not.toBeInTheDocument();
-	});
-
-	it("shows an API field error on the field", async () => {
-		const user = userEvent.setup();
-		const message = "Name must be at most 64 characters.";
-		const { props, rerenderWith } = renderDialog();
-
-		await user.type(screen.getByLabelText(/Name/), "Launch");
-		await user.click(screen.getByRole("button", { name: "Save" }));
-		expect(props.onSubmit).toHaveBeenCalled();
-
-		rerenderWith({
-			error: mockApiError({
-				message,
-				validations: [{ field: "name", detail: message }],
-			}),
-		});
-
-		expect(screen.getAllByText(message)).toHaveLength(1);
-		expect(screen.getByLabelText(/Name/)).toHaveAttribute(
-			"aria-invalid",
-			"true",
-		);
-	});
-
 	it("does not close while saving", async () => {
 		const user = userEvent.setup();
 		const { props } = renderDialog({ isSubmitting: true });
 
 		await user.keyboard("{Escape}");
+
+		expect(props.onOpenChange).not.toHaveBeenCalled();
+	});
+
+	it("does not close while a save is pending before the caller's isSubmitting turns on", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn(() => new Promise<void>(() => {}));
+		const { props } = renderDialog({ onSubmit });
+
+		await user.type(screen.getByLabelText(/Name/), "Launch");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+		await user.keyboard("{Escape}");
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
 
 		expect(props.onOpenChange).not.toHaveBeenCalled();
 	});

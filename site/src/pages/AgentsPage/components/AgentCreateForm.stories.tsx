@@ -369,8 +369,36 @@ export const ProjectComposerOrganizationDenied: Story = {
 			[MockOrganization2.id]: false,
 		});
 	},
-	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByText(/which this project belongs to/);
+};
+
+export const ProjectComposerUnlistedOrganizationDenied: Story = {
+	parameters: ProjectComposerOrganizationDenied.parameters,
+	args: {
+		project: { ...MockChatProject, organization_id: "unlisted-organization" },
+		header: <ProjectComposerHeader project={MockChatProject} />,
+	},
+	beforeEach: () => {
+		mockPermittedOrganizations({ [MockDefaultOrganization.id]: true });
+	},
+};
+
+export const ProjectComposerProductDenied: Story = {
+	parameters: ProjectComposerOrganizationDenied.parameters,
+	args: {
+		...ProjectComposerOrganizationDenied.args,
+		canCreateChat: false,
+	},
+	beforeEach: ProjectComposerOrganizationDenied.beforeEach,
+};
+
+export const ProjectComposerNoOrganizationPermitted: Story = {
+	parameters: ProjectComposerOrganizationDenied.parameters,
+	args: ProjectComposerOrganizationDenied.args,
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: false,
+		});
 	},
 };
 
