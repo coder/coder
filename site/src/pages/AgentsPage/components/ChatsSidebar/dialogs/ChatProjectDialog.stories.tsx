@@ -32,7 +32,7 @@ export const OpenOrganizationDropdown: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
-			await body.findByRole("button", { name: /Organization/ }),
+			await body.findByRole("combobox", { name: /Organization/ }),
 		);
 	},
 };

@@ -342,7 +342,7 @@ describe("ChatsSidebar projects", () => {
 			);
 			if (selectAnotherOrganization) {
 				await user.click(
-					within(dialog).getByRole("button", { name: /Organization/ }),
+					within(dialog).getByRole("combobox", { name: /Organization/ }),
 				);
 				await user.click(
 					screen.getByRole("option", {

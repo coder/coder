@@ -108,7 +108,7 @@ describe("ChatProjectDialog", () => {
 		await user.tab();
 		await user.keyboard("{Enter}");
 		await user.type(
-			screen.getByRole("combobox"),
+			screen.getByPlaceholderText("Find organization…"),
 			MockOrganization2.display_name,
 		);
 		await user.keyboard("{ArrowDown}{Enter}");
@@ -195,7 +195,7 @@ describe("ChatProjectDialog", () => {
 		);
 		await user.click(screen.getByRole("button", { name: "Create project" }));
 		expect(onSubmit).not.toHaveBeenCalled();
-		await user.click(screen.getByRole("button", { name: /Organization/ }));
+		await user.click(screen.getByRole("combobox", { name: /Organization/ }));
 		await user.click(
 			screen.getByRole("option", {
 				name: new RegExp(MockOrganization2.display_name),
@@ -223,7 +223,7 @@ describe("ChatProjectDialog", () => {
 			screen.getByRole("textbox", { name: /Project name/ }),
 			"Abandoned project",
 		);
-		await user.click(screen.getByRole("button", { name: /Organization/ }));
+		await user.click(screen.getByRole("combobox", { name: /Organization/ }));
 		await user.click(
 			screen.getByRole("option", {
 				name: new RegExp(MockOrganization2.display_name),
