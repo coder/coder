@@ -57,11 +57,6 @@ import {
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
 import { AgentCreateFormFrame } from "./AgentCreateFormFrame";
-import {
-	chatProjectDescriptionMaxChars,
-	chatProjectNameMaxChars,
-} from "./ChatsSidebar/dialogs/ChatProjectDialog";
-import { ProjectComposerHeader } from "./ProjectComposerHeader";
 
 let pendingOrganizationAuthorization: Deferred<
 	Awaited<ReturnType<typeof API.checkAuthorization>>
@@ -343,27 +338,6 @@ const mockPermittedOrganizations = (
 
 export const Default: Story = {};
 
-export const ProjectComposer: Story = {
-	args: {
-		project: {
-			...MockChatProject,
-			organization_id: MockDefaultOrganization.id,
-		},
-	},
-	render: (args) => (
-		<div className="flex flex-col gap-2">
-			<ProjectComposerHeader
-				project={{
-					...MockChatProject,
-					name: "N".repeat(chatProjectNameMaxChars),
-					description: "d".repeat(chatProjectDescriptionMaxChars),
-				}}
-			/>
-			<AgentCreateForm {...args} />
-		</div>
-	),
-};
-
 export const ProjectComposerOrganizationDenied: Story = {
 	parameters: {
 		showOrganizations: true,
@@ -373,12 +347,6 @@ export const ProjectComposerOrganizationDenied: Story = {
 	args: {
 		project: { ...MockChatProject, organization_id: MockOrganization2.id },
 	},
-	render: (args) => (
-		<div className="flex flex-col gap-2">
-			<ProjectComposerHeader project={MockChatProject} />
-			<AgentCreateForm {...args} />
-		</div>
-	),
 	beforeEach: () => {
 		mockPermittedOrganizations({
 			[MockDefaultOrganization.id]: true,

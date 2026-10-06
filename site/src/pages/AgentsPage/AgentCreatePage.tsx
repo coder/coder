@@ -41,8 +41,7 @@ import {
 import { AgentCreateFormFrame } from "./components/AgentCreateFormFrame";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
-import { ProjectComposerFooter } from "./components/ProjectComposerFooter";
-import { ProjectComposerHeader } from "./components/ProjectComposerHeader";
+import { ProjectPage } from "./components/ProjectPage/ProjectPage";
 import { WebPushButton } from "./components/WebPushButton";
 import { isAbortError } from "./utils/chatAttachments";
 import { toWorkspaceFileReferencePart } from "./utils/chatInputContent";
@@ -402,6 +401,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 
 	const form = (
 		<AgentCreateForm
+			fillWidth={project !== undefined}
 			key={
 				debugPrefill
 					? debugBuildId
@@ -474,18 +474,10 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 				<Loader className="flex-1" label="Loading project" />
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
+			) : project ? (
+				<ProjectPage project={project}>{form}</ProjectPage>
 			) : (
-				<AgentCreateFormFrame>
-					{project ? (
-						<div className="flex flex-col gap-2">
-							<ProjectComposerHeader project={project} />
-							{form}
-							<ProjectComposerFooter project={project} />
-						</div>
-					) : (
-						form
-					)}
-				</AgentCreateFormFrame>
+				<AgentCreateFormFrame>{form}</AgentCreateFormFrame>
 			)}
 		</>
 	);
