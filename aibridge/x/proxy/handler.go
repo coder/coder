@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -36,6 +37,7 @@ type forwardingHandler struct {
 	logger    slog.Logger
 	tracer    trace.Tracer
 	transport http.RoundTripper
+	failover  keypool.KeyFailoverConfig
 	proxy     *httputil.ReverseProxy
 	inflight  *aibridge.InflightGate
 	recorder  recorder.Recorder
@@ -56,6 +58,7 @@ func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics
 		logger:    logger,
 		tracer:    tracer,
 		transport: apidump.NewPassthroughMiddleware(transport, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
+		failover:  prov.KeyFailoverConfig(logger),
 		inflight:  inflight,
 		recorder:  rec,
 		breaker:   circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
@@ -65,11 +68,17 @@ func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics
 			rewriteForwardingURL(pr, prov.RoutePrefix(), baseURL)
 			pr.Out.Header = prepareForwardingHeaders(pr)
 		},
-		Transport:     h.transport,
+		Transport:     h,
 		FlushInterval: -1,
 		ErrorLog:      slog.Stdlib(context.Background(), logger.With(slog.F("provider", prov.Name())), slog.LevelWarn),
 	}
 	return h, nil
+}
+
+// RoundTrip forwards through the provider's key pool, or uses the selected BYOK
+// credential without retrying against pooled keys.
+func (h *forwardingHandler) RoundTrip(r *http.Request) (*http.Response, error) {
+	return keypool.NewKeyFailoverTransport(h.transport, h.failover).RoundTrip(r)
 }
 
 func rewriteForwardingURL(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.URL) {
