@@ -72,7 +72,7 @@ func TestMigration000614RemoveChatAutomations(t *testing.T) {
 	// The custom roles keep their other permissions.
 	exec(`INSERT INTO custom_roles (id, name, display_name, organization_id, site_permissions, org_permissions, user_permissions, member_permissions)
 		VALUES ($1, 'mixed-role', 'Mixed Role', $2, $3, $4, $5, $6)`,
-		mixedRoleID, orgID, "["+automationPermission+", "+userPermission+"]", "["+automationPermission+"]", "["+userPermission+"]", "["+userPermission+", "+automationPermission+"]")
+		mixedRoleID, orgID, "["+automationPermission+", "+userPermission+"]", "["+automationPermission+"]", "["+automationPermission+", "+userPermission+"]", "["+userPermission+", "+automationPermission+"]")
 	exec(`INSERT INTO custom_roles (id, name, display_name, organization_id, site_permissions, org_permissions, user_permissions, member_permissions)
 		VALUES ($1, 'automation-role', 'Automation Role', $2, $3, '[]', '[]', '[]')`,
 		automationRoleID, orgID, "["+automationPermission+"]")
