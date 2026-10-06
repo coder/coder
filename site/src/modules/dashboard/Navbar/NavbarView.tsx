@@ -74,6 +74,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 			</NavLink>
 
 			<NavItems className="ml-4 hidden md:flex" canCreateChat={canCreateChat} />
+			<span data-testid="eph-uat-marker" className="ml-4 font-mono text-xs">eph-uat F1</span>
 
 			{prerelease && buildInfo?.version && (
 				<a
