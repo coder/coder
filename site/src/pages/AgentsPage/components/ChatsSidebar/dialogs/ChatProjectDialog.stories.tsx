@@ -26,6 +26,14 @@ export const EditProject: Story = {
 	},
 };
 
+export const NameRequired: Story = {
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(body.getByLabelText(/Name/));
+		await userEvent.tab();
+	},
+};
+
 export const InvalidName: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);

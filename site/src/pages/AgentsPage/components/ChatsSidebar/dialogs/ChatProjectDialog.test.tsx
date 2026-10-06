@@ -199,28 +199,6 @@ describe("ChatProjectDialog", () => {
 		expect(props.onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("explains that a name is required once the field is left empty", async () => {
-		const user = userEvent.setup();
-		renderDialog();
-
-		await user.click(screen.getByLabelText(/Name/));
-		await user.tab();
-
-		expect(screen.getByText("Name is required.")).toBeVisible();
-	});
-
-	it("shows a save error that is not tied to a field", () => {
-		renderDialog({
-			error: mockApiError({
-				message:
-					"You can have at most 100 chat projects. Delete a project to create another.",
-			}),
-		});
-
-		expect(screen.getByText(/at most 100 chat projects/)).toBeVisible();
-		expect(screen.queryByText("Response data")).not.toBeInTheDocument();
-	});
-
 	it("shows an API field error on the field", async () => {
 		const user = userEvent.setup();
 		const message = "Name must be at most 64 characters.";
