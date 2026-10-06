@@ -5,17 +5,16 @@ type ProjectComposerHeaderProps = {
 	readonly project: ChatProject;
 };
 
-/** Project name and description shown above the new-chat composer. */
 export const ProjectComposerHeader: React.FC<ProjectComposerHeaderProps> = ({
 	project,
 }) => (
 	<div className="mb-4 min-w-0 text-center">
-		<h1 className="m-0 flex items-center justify-center gap-2 break-words text-2xl font-semibold text-content-primary [overflow-wrap:anywhere]">
+		<h1 className="m-0 flex items-center justify-center gap-2 wrap-anywhere text-2xl font-semibold text-content-primary">
 			<ChatProjectIcon project={project} className="size-7" />
 			<span className="min-w-0">{project.name}</span>
 		</h1>
 		{project.description && (
-			<p className="mx-auto mb-0 mt-2 max-w-xl break-words text-sm text-content-secondary [overflow-wrap:anywhere]">
+			<p className="mx-auto mb-0 mt-2 max-w-xl wrap-anywhere text-sm text-content-secondary">
 				{project.description}
 			</p>
 		)}

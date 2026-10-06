@@ -57,6 +57,10 @@ import {
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
 import { AgentCreateFormFrame } from "./AgentCreateFormFrame";
+import {
+	chatProjectDescriptionMaxChars,
+	chatProjectNameMaxChars,
+} from "./ChatsSidebar/dialogs/ChatProjectDialog";
 import { ProjectComposerHeader } from "./ProjectComposerHeader";
 
 let pendingOrganizationAuthorization: Deferred<
@@ -340,18 +344,50 @@ const mockPermittedOrganizations = (
 export const Default: Story = {};
 
 export const ProjectComposer: Story = {
+	args: {
+		project: {
+			...MockChatProject,
+			organization_id: MockDefaultOrganization.id,
+		},
+	},
 	render: (args) => (
 		<div className="flex flex-col gap-2">
 			<ProjectComposerHeader
 				project={{
 					...MockChatProject,
-					name: "N".repeat(64),
-					description: "d".repeat(1024),
+					name: "N".repeat(chatProjectNameMaxChars),
+					description: "d".repeat(chatProjectDescriptionMaxChars),
 				}}
 			/>
 			<AgentCreateForm {...args} />
 		</div>
 	),
+};
+
+export const ProjectComposerOrganizationDenied: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
+	},
+	args: {
+		project: { ...MockChatProject, organization_id: MockOrganization2.id },
+	},
+	render: (args) => (
+		<div className="flex flex-col gap-2">
+			<ProjectComposerHeader project={MockChatProject} />
+			<AgentCreateForm {...args} />
+		</div>
+	),
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: false,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByText(/which this project belongs to/);
+	},
 };
 
 const submitMessage = async (canvasElement: HTMLElement, message: string) => {

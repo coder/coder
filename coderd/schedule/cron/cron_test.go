@@ -281,3 +281,64 @@ func mustLocation(t *testing.T, s string) *time.Location {
 	require.NoError(t, err)
 	return loc
 }
+
+func TestStandard(t *testing.T) {
+	t.Parallel()
+
+	newYork := mustLocation(t, "America/New_York")
+	testCases := []struct {
+		name          string
+		spec          string
+		timeZone      string
+		at            time.Time
+		expectedNext  time.Time
+		expectedError string
+	}{
+		{
+			// Weekly rejects day-of-month and month restrictions.
+			name:         "day of month and month",
+			spec:         "0 9 15 6 *",
+			timeZone:     "UTC",
+			at:           time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			expectedNext: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC),
+		},
+		{
+			// 09:00 stays 09:00 wall-clock time across the spring DST change.
+			name:         "before spring forward",
+			spec:         "0 9 * * *",
+			timeZone:     "America/New_York",
+			at:           time.Date(2026, 3, 7, 10, 0, 0, 0, newYork),
+			expectedNext: time.Date(2026, 3, 8, 9, 0, 0, 0, newYork),
+		},
+		{
+			name:         "after spring forward",
+			spec:         "0 9 * * *",
+			timeZone:     "America/New_York",
+			at:           time.Date(2026, 3, 8, 10, 0, 0, 0, newYork),
+			expectedNext: time.Date(2026, 3, 9, 9, 0, 0, 0, newYork),
+		},
+		{name: "invalid field", spec: "61 9 * * *", timeZone: "UTC", expectedError: "parse schedule"},
+		{name: "six fields", spec: "0 0 9 * * *", timeZone: "UTC", expectedError: "exactly 5 fields"},
+		{name: "four fields", spec: "0 9 * *", timeZone: "UTC", expectedError: "exactly 5 fields"},
+		{name: "cron tz prefix", spec: "CRON_TZ=UTC 0 9 * *", timeZone: "UTC", expectedError: "not supported"},
+		{name: "descriptor", spec: "@every 1h", timeZone: "UTC", expectedError: "exactly 5 fields"},
+		{name: "missing time zone", spec: "0 9 * * *", timeZone: "", expectedError: "time zone is required"},
+		{name: "local time zone", spec: "0 9 * * *", timeZone: "Local", expectedError: "Local is not supported"},
+		{name: "unknown time zone", spec: "0 9 * * *", timeZone: "Mars/Olympus", expectedError: "invalid time zone"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			sched, err := cron.Standard(testCase.spec, testCase.timeZone)
+			if testCase.expectedError != "" {
+				require.ErrorContains(t, err, testCase.expectedError)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, testCase.timeZone, sched.Location().String())
+			require.Equal(t, testCase.spec, sched.Cron())
+			require.True(t, testCase.expectedNext.Equal(sched.Next(testCase.at)), "expected %s, got %s", testCase.expectedNext, sched.Next(testCase.at))
+		})
+	}
+}

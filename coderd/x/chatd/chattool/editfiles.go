@@ -2,12 +2,10 @@ package chattool
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"charm.land/fantasy"
 
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk/workspacetools"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -29,30 +27,10 @@ const EditFilesToolName = "edit_files"
 func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		EditFilesToolName,
-		"Perform edits on one or more files by replacing old_text with"+
-			" new_text. Each entry in files must include the absolute path"+
-			" of the file to edit and at least one edit. Matching is fuzzy"+
-			" (tolerates whitespace and indentation differences) and preserves"+
-			" the file's existing indentation and line endings. Errors if"+
-			" old_text matches zero locations, or more than one unless"+
-			" replace_all is set. All edits in a batch are validated before"+
-			" any file is written.",
+		workspacetools.EditFilesDescription,
 		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if len(args.Files) == 0 {
-				return fantasy.NewTextErrorResponse("files is required"), nil
-			}
-			for i := range args.Files {
-				args.Files[i].Path = strings.TrimSpace(args.Files[i].Path)
-				if args.Files[i].Path == "" {
-					return fantasy.NewTextErrorResponse(fmt.Sprintf(
-						"files[%d].path is required; provide the absolute path of the file to edit; no files in this batch were applied", i,
-					)), nil
-				}
-				if len(args.Files[i].Edits) == 0 {
-					return fantasy.NewTextErrorResponse(fmt.Sprintf(
-						"files[%d].edits must contain at least one edit; no files in this batch were applied", i,
-					)), nil
-				}
+			if err := workspacetools.ValidateFileEdits(args.Files); err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 			var planPath string
 			if options.IsPlanTurn {
@@ -117,41 +95,16 @@ func executeEditFilesTool(
 		}
 	}
 
-	resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
-		Files:       args.Files,
-		IncludeDiff: true,
-	})
-	return editFilesResponse(resp, err), nil
+	result, err := workspacetools.EditFiles(ctx, conn, args.Files)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(workspacetools.AgentAPIErrorMessage(err)), nil
+	}
+	return marshalToolResponse(result), nil
 }
 
 func editFilesResponse(resp workspacesdk.FileEditResponse, err error) fantasy.ToolResponse {
 	if err != nil {
-		return fantasy.NewTextErrorResponse(agentAPIErrorMessage(err))
+		return fantasy.NewTextErrorResponse(workspacetools.AgentAPIErrorMessage(err))
 	}
-	return toolResponse(map[string]any{
-		"ok":    true,
-		"files": resp.Files,
-	})
-}
-
-// agentAPIErrorMessage preserves the agent's actionable message while
-// dropping the transport metadata (HTTP method, URL, status code) that
-// codersdk.Error.Error() prefixes.
-func agentAPIErrorMessage(err error) string {
-	sdkErr, ok := codersdk.AsError(err)
-	if !ok || sdkErr.Message == "" {
-		return err.Error()
-	}
-	var sb strings.Builder
-	_, _ = sb.WriteString(sdkErr.Message)
-	if sdkErr.Helper != "" {
-		_, _ = sb.WriteString(": " + sdkErr.Helper)
-	}
-	if sdkErr.Detail != "" {
-		_, _ = sb.WriteString(": " + sdkErr.Detail)
-	}
-	for _, v := range sdkErr.Validations {
-		_, _ = sb.WriteString("\n- " + v.Field + ": " + v.Detail)
-	}
-	return sb.String()
+	return marshalToolResponse(workspacetools.EditFilesResult{OK: true, Files: resp.Files})
 }

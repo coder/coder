@@ -6,11 +6,16 @@ import { groupChatsByProject } from "./projectGrouping";
 describe("groupChatsByProject", () => {
 	it("files chats under a loaded project and leaves the rest unfiled", () => {
 		const loose = { ...MockChat, id: "loose" };
-		const filed = { ...MockChat, id: "filed", project_id: MockChatProject.id };
+		const filed = {
+			...MockChat,
+			id: "filed",
+			organization_id: MockChatProject.organization_id,
+			project_id: MockChatProject.id,
+		};
 		const unloaded = {
 			...MockChat,
 			id: "unloaded",
-			project_id: "project-in-another-organization",
+			project_id: "unloaded-project",
 		};
 
 		const grouped = groupChatsByProject(
@@ -23,7 +28,12 @@ describe("groupChatsByProject", () => {
 	});
 
 	it("leaves every chat unfiled when no projects are loaded", () => {
-		const filed = { ...MockChat, id: "filed", project_id: MockChatProject.id };
+		const filed = {
+			...MockChat,
+			id: "filed",
+			organization_id: MockChatProject.organization_id,
+			project_id: MockChatProject.id,
+		};
 
 		const grouped = groupChatsByProject([filed], []);
 
