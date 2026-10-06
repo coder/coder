@@ -477,6 +477,7 @@ function userSecretFromCreateRequest(
 		created_at: now,
 		updated_at: now,
 		source: "user",
+		ephemeral: false,
 	};
 }
 

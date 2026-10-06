@@ -32326,6 +32326,10 @@
 					"type": "string",
 					"format": "uuid"
 				},
+				"ephemeral": {
+					"description": "Ephemeral build secrets are delivered to their build only and not\ncopied to the next one. User secrets are never ephemeral.",
+					"type": "boolean"
+				},
 				"file_path": {
 					"type": "string"
 				},

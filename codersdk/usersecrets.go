@@ -38,6 +38,9 @@ type WorkspaceSecret struct {
 	CreatedAt time.Time             `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time             `json:"updated_at" format:"date-time"`
 	Source    WorkspaceSecretSource `json:"source" enums:"user,build"`
+	// Ephemeral build secrets are delivered to their build only and not
+	// copied to the next one. User secrets are never ephemeral.
+	Ephemeral bool `json:"ephemeral"`
 	// EnvReplacedBy is the ID of the secret delivered on this secret's
 	// env_name instead of it. Only set when listing secrets for a
 	// workspace build.

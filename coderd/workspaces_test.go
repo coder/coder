@@ -6797,6 +6797,7 @@ func TestWorkspaceSecrets(t *testing.T) {
 			req.Secrets = []codersdk.WorkspaceSecretInput{
 				{Name: "build-token", Value: ptr.Ref("b"), EnvName: "TOKEN"},
 				{Name: "build-other", Value: ptr.Ref("o"), EnvName: "OTHER"},
+				{Name: "build-once", Value: ptr.Ref("e"), EnvName: "ONCE", Ephemeral: true},
 			}
 		})
 		build1 := workspace.LatestBuild
@@ -6823,7 +6824,10 @@ func TestWorkspaceSecrets(t *testing.T) {
 		}
 
 		got := listForBuild(build1.ID)
-		require.Len(t, got, 4)
+		require.Len(t, got, 5)
+		require.True(t, got["build-once"].Ephemeral)
+		require.False(t, got["build-token"].Ephemeral)
+		require.False(t, got[overridden.Name].Ephemeral, "user secrets are never ephemeral")
 		buildToken := got["build-token"]
 		require.Equal(t, codersdk.WorkspaceSecretSourceBuild, buildToken.Source)
 		// The user secret loses its env var but keeps its file.
@@ -6836,7 +6840,7 @@ func TestWorkspaceSecrets(t *testing.T) {
 		// secrets are still listed.
 		build2 := coderdtest.CreateWorkspaceBuild(t, member, coderdtest.MustWorkspace(t, member, workspace.ID), database.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build2.ID)
-		require.Len(t, listForBuild(build1.ID), 4)
+		require.Len(t, listForBuild(build1.ID), 5)
 
 		// A build of another user's workspace is rejected once the caller
 		// is authorized to read it.
