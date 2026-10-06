@@ -50,21 +50,25 @@ describe("AgentsPageLayout New chat", () => {
 		},
 	);
 
-	it.each([
-		"/agents/chat-1",
-		"/agents/projects/project-1",
-		"/agents/board",
-	])("keeps the plain composer's draft when leaving %s", async (route) => {
-		vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
-		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
-		const user = userEvent.setup();
+	it.each(["/agents/chat-1", "/agents/projects/project-1", "/agents/board"])(
+		"keeps the plain composer's draft when leaving %s",
+		async (route) => {
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+			localStorage.setItem(
+				emptyInputStorageKey,
+				"draft the user typed earlier",
+			);
+			const user = userEvent.setup();
 
-		const { router } = renderLayout(route);
-		await user.click(await screen.findByRole("link", { name: "New chat" }));
+			const { router } = renderLayout(route);
+			await user.click(await screen.findByRole("link", { name: "New chat" }));
 
-		await waitFor(() => expect(router.state.location.pathname).toBe("/agents"));
-		expect(localStorage.getItem(emptyInputStorageKey)).toBe(
-			"draft the user typed earlier",
-		);
-	});
+			await waitFor(() =>
+				expect(router.state.location.pathname).toBe("/agents"),
+			);
+			expect(localStorage.getItem(emptyInputStorageKey)).toBe(
+				"draft the user typed earlier",
+			);
+		},
+	);
 });
