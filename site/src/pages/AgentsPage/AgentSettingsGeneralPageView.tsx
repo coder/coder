@@ -10,7 +10,6 @@ import {
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingSettings";
-import { ChatBoardSettings } from "./exp/chatBoard/ChatBoardSettings";
 
 export type AgentSettingsGeneralPageViewProps = {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
@@ -31,7 +30,6 @@ export type AgentSettingsGeneralPageViewProps = {
 	>;
 	isSavingUserDebugLogging: boolean;
 	isSaveUserDebugLoggingError: boolean;
-	chatBoardAvailable: boolean;
 };
 
 export const AgentSettingsGeneralPageView: React.FC<
@@ -45,7 +43,6 @@ export const AgentSettingsGeneralPageView: React.FC<
 	onSaveUserDebugLogging,
 	isSavingUserDebugLogging,
 	isSaveUserDebugLoggingError,
-	chatBoardAvailable,
 }) => {
 	return (
 		<div className="flex flex-col gap-8">
@@ -71,7 +68,6 @@ export const AgentSettingsGeneralPageView: React.FC<
 				isSavingUserSetting={isSavingUserDebugLogging}
 				isSaveUserSettingError={isSaveUserDebugLoggingError}
 			/>
-			{chatBoardAvailable && <ChatBoardSettings />}
 		</div>
 	);
 };

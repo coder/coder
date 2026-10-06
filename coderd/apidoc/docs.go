@@ -25546,7 +25546,6 @@ const docTemplate = `{
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
-                "chat-board",
                 "chat-stage-metrics",
                 "chat-automations"
             ],
@@ -25557,7 +25556,6 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatAutomations": "Enables webhook and scheduled automations that deliver prompts to agent chats.",
-                "ExperimentChatBoard": "Offers the Coder Agents chat board as a per-browser opt-in.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
@@ -25590,7 +25588,6 @@ const docTemplate = `{
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
-                "Offers the Coder Agents chat board as a per-browser opt-in.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "Enables webhook and scheduled automations that deliver prompts to agent chats."
             ],
@@ -25612,7 +25609,6 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
-                "ExperimentChatBoard",
                 "ExperimentChatStageMetrics",
                 "ExperimentChatAutomations"
             ]
