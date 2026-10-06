@@ -20,4 +20,4 @@ func apiRoot(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// eph-uat fixture: G1 backend change
+// eph-uat fixture: G3 backend change
