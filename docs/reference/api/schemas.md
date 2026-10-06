@@ -18333,34 +18333,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `user_can_set` | boolean | false    |              | User can set is true if the user is allowed to set their own quiet hours schedule. If false, the user cannot set a custom schedule and the default schedule will always be used. |
 | `user_set`     | boolean | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule.                                                           |
 
-## codersdk.UserSecret
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "description": "string",
-  "enabled": true,
-  "env_name": "string",
-  "file_path": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "updated_at": "2019-08-24T14:15:22Z"
-}
-```
-
-### Properties
-
-| Name          | Type    | Required | Restrictions | Description                                                                                                                                                                                                                          |
-|---------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `created_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
-| `description` | string  | false    |              |                                                                                                                                                                                                                                      |
-| `enabled`     | boolean | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
-| `env_name`    | string  | false    |              |                                                                                                                                                                                                                                      |
-| `file_path`   | string  | false    |              |                                                                                                                                                                                                                                      |
-| `id`          | string  | false    |              |                                                                                                                                                                                                                                      |
-| `name`        | string  | false    |              |                                                                                                                                                                                                                                      |
-| `updated_at`  | string  | false    |              |                                                                                                                                                                                                                                      |
-
 ## codersdk.UserSecretsCapabilities
 
 ```json
@@ -20670,6 +20642,46 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------------------|
 | ``, `admin`, `use` |
 
+## codersdk.WorkspaceSecret
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "enabled": true,
+  "env_name": "string",
+  "env_replaced_by": "36faa5cb-cfc3-47a0-9c3e-df076ae8c261",
+  "file_path": "string",
+  "file_replaced_by": "1c5fa235-bacf-4250-9f02-952c83136140",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "source": "user",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name               | Type                                                             | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|--------------------|------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`       | string                                                           | false    |              |                                                                                                                                                                                                                                      |
+| `description`      | string                                                           | false    |              |                                                                                                                                                                                                                                      |
+| `enabled`          | boolean                                                          | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
+| `env_name`         | string                                                           | false    |              |                                                                                                                                                                                                                                      |
+| `env_replaced_by`  | string                                                           | false    |              | Env replaced by is the ID of the secret delivered on this secret's env_name instead of it. Only set when listing secrets for a workspace build.                                                                                      |
+| `file_path`        | string                                                           | false    |              |                                                                                                                                                                                                                                      |
+| `file_replaced_by` | string                                                           | false    |              | File replaced by is the ID of the secret delivered on this secret's file_path instead of it. Only set when listing secrets for a workspace build.                                                                                    |
+| `id`               | string                                                           | false    |              |                                                                                                                                                                                                                                      |
+| `name`             | string                                                           | false    |              |                                                                                                                                                                                                                                      |
+| `source`           | [codersdk.WorkspaceSecretSource](#codersdkworkspacesecretsource) | false    |              |                                                                                                                                                                                                                                      |
+| `updated_at`       | string                                                           | false    |              |                                                                                                                                                                                                                                      |
+
+#### Enumerated Values
+
+| Property | Value(s)        |
+|----------|-----------------|
+| `source` | `build`, `user` |
+
 ## codersdk.WorkspaceSecretInput
 
 ```json
@@ -20691,6 +20703,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `file_path` | string  | false    |              | File path is the path to write the secret to inside the workspace. Empty means no file is written. Deployments may disable file path delivery. |
 | `name`      | string  | false    |              |                                                                                                                                                |
 | `value`     | string  | false    |              | Value is the plaintext secret. A null value removes the secret. An empty string sets an empty secret.                                          |
+
+## codersdk.WorkspaceSecretSource
+
+```json
+"user"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)        |
+|-----------------|
+| `build`, `user` |
 
 ## codersdk.WorkspaceSharingSettings
 

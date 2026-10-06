@@ -647,6 +647,7 @@ describe("api.ts", () => {
 			enabled: true,
 			created_at: "2026-05-04T00:00:00Z",
 			updated_at: "2026-05-04T00:00:00Z",
+			source: "user",
 		};
 
 		it("lists user secrets with the correct method and URL", async () => {

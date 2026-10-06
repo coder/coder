@@ -96,7 +96,7 @@ RETURNING *;
 -- Returns metadata for every workspace secret row of a workspace, including
 -- cleared rows, so the secrets each build received can be inspected. Values
 -- are never selected. The workspace owner and organization are included for
--- authorization.
+-- authorization. A non-nil workspace_build_id limits the rows to that build.
 SELECT
     ws.id, ws.workspace_id, ws.workspace_build_id, ws.name,
     ws.env_name, ws.file_path, ws.ephemeral, ws.source, ws.created_at, ws.cleared_at,
@@ -105,4 +105,8 @@ SELECT
 FROM workspace_secrets ws
 JOIN workspaces w ON w.id = ws.workspace_id
 WHERE ws.workspace_id = @workspace_id
+    AND (
+        @workspace_build_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+        OR ws.workspace_build_id = @workspace_build_id
+    )
 ORDER BY ws.created_at ASC, ws.name ASC;

@@ -35265,8 +35265,17 @@ SELECT
 FROM workspace_secrets ws
 JOIN workspaces w ON w.id = ws.workspace_id
 WHERE ws.workspace_id = $1
+    AND (
+        $2::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+        OR ws.workspace_build_id = $2
+    )
 ORDER BY ws.created_at ASC, ws.name ASC
 `
+
+type GetWorkspaceSecretsHistoryParams struct {
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+}
 
 type GetWorkspaceSecretsHistoryRow struct {
 	ID                      uuid.UUID             `db:"id" json:"id"`
@@ -35286,9 +35295,9 @@ type GetWorkspaceSecretsHistoryRow struct {
 // Returns metadata for every workspace secret row of a workspace, including
 // cleared rows, so the secrets each build received can be inspected. Values
 // are never selected. The workspace owner and organization are included for
-// authorization.
-func (q *sqlQuerier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]GetWorkspaceSecretsHistoryRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceSecretsHistory, workspaceID)
+// authorization. A non-nil workspace_build_id limits the rows to that build.
+func (q *sqlQuerier) GetWorkspaceSecretsHistory(ctx context.Context, arg GetWorkspaceSecretsHistoryParams) ([]GetWorkspaceSecretsHistoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceSecretsHistory, arg.WorkspaceID, arg.WorkspaceBuildID)
 	if err != nil {
 		return nil, err
 	}

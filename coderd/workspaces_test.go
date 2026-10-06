@@ -6658,7 +6658,7 @@ func TestWorkspaceSecrets(t *testing.T) {
 	clearedRows := func(ctx context.Context, t *testing.T, workspaceID uuid.UUID) map[uuid.UUID]map[string]database.GetWorkspaceSecretsHistoryRow {
 		t.Helper()
 		//nolint:gocritic // Test-only read of every row's metadata.
-		rows, err := db.GetWorkspaceSecretsHistory(dbauthz.AsWorkspaceSecretManager(ctx), workspaceID)
+		rows, err := db.GetWorkspaceSecretsHistory(dbauthz.AsWorkspaceSecretManager(ctx), database.GetWorkspaceSecretsHistoryParams{WorkspaceID: workspaceID})
 		require.NoError(t, err)
 		out := map[uuid.UUID]map[string]database.GetWorkspaceSecretsHistoryRow{}
 		for _, row := range rows {
@@ -6779,6 +6779,79 @@ func TestWorkspaceSecrets(t *testing.T) {
 		require.Equal(t, "d", secrets["new-file"].Value.String)
 	})
 
+	t.Run("ListWithBuild", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		member, memberUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		overridden, err := member.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name: "user-token", Value: "u", EnvName: "TOKEN", FilePath: "/home/coder/.user-token",
+		})
+		require.NoError(t, err)
+		disabled, err := member.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name: "disabled", Value: "d", EnvName: "OTHER", Enabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+			req.Secrets = []codersdk.WorkspaceSecretInput{
+				{Name: "build-token", Value: ptr.Ref("b"), EnvName: "TOKEN"},
+				{Name: "build-other", Value: ptr.Ref("o"), EnvName: "OTHER"},
+			}
+		})
+		build1 := workspace.LatestBuild
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build1.ID)
+
+		listForBuild := func(buildID uuid.UUID) map[string]codersdk.WorkspaceSecret {
+			t.Helper()
+			secrets, err := member.UserSecretsForWorkspaceBuild(ctx, codersdk.Me, buildID)
+			require.NoError(t, err)
+			out := make(map[string]codersdk.WorkspaceSecret, len(secrets))
+			for _, s := range secrets {
+				out[s.Name] = s
+			}
+			return out
+		}
+
+		// Without a build, only user secrets are listed.
+		plain, err := member.UserSecrets(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Len(t, plain, 2)
+		for _, s := range plain {
+			require.Equal(t, codersdk.WorkspaceSecretSourceUser, s.Source)
+			require.Nil(t, s.EnvReplacedBy)
+		}
+
+		got := listForBuild(build1.ID)
+		require.Len(t, got, 4)
+		buildToken := got["build-token"]
+		require.Equal(t, codersdk.WorkspaceSecretSourceBuild, buildToken.Source)
+		// The user secret loses its env var but keeps its file.
+		require.Equal(t, &buildToken.ID, got[overridden.Name].EnvReplacedBy)
+		require.Nil(t, got[overridden.Name].FileReplacedBy)
+		// Disabled secrets are never reported as replaced.
+		require.Nil(t, got[disabled.Name].EnvReplacedBy)
+
+		// After another build, the old build's values are cleared but its
+		// secrets are still listed.
+		build2 := coderdtest.CreateWorkspaceBuild(t, member, coderdtest.MustWorkspace(t, member, workspace.ID), database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build2.ID)
+		require.Len(t, listForBuild(build1.ID), 4)
+
+		// A build of another user's workspace is rejected once the caller
+		// is authorized to read it.
+		_, err = client.UserSecretsForWorkspaceBuild(ctx, codersdk.Me, build1.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+
+		// A build the caller cannot read is not found.
+		ownerBuild := coderdtest.CreateWorkspace(t, client, template.ID).LatestBuild
+		_, err = member.UserSecretsForWorkspaceBuild(ctx, memberUser.Username, ownerBuild.ID)
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
 	t.Run("Validation", func(t *testing.T) {
 		t.Parallel()
 
@@ -6884,7 +6957,7 @@ func TestWorkspaceSecrets(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 			require.Contains(t, apiErr.Message, "exceeds a per-build limit")
 			//nolint:gocritic // Test-only read of every row's metadata.
-			history, err := db.GetWorkspaceSecretsHistory(dbauthz.AsWorkspaceSecretManager(ctx), workspace.ID)
+			history, err := db.GetWorkspaceSecretsHistory(dbauthz.AsWorkspaceSecretManager(ctx), database.GetWorkspaceSecretsHistoryParams{WorkspaceID: workspace.ID})
 			require.NoError(t, err)
 			require.Empty(t, history, "failed build must not persist any secret")
 		})

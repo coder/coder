@@ -6261,9 +6261,9 @@ func (q *querier) GetWorkspaceSecrets(ctx context.Context, arg database.GetWorks
 	return q.db.GetWorkspaceSecrets(ctx, arg)
 }
 
-func (q *querier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]database.GetWorkspaceSecretsHistoryRow, error) {
+func (q *querier) GetWorkspaceSecretsHistory(ctx context.Context, arg database.GetWorkspaceSecretsHistoryParams) ([]database.GetWorkspaceSecretsHistoryRow, error) {
 	// Metadata only; values are never selected.
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetWorkspaceSecretsHistory)(ctx, workspaceID)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetWorkspaceSecretsHistory)(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {

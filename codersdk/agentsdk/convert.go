@@ -87,10 +87,10 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		return nil, xerrors.Errorf("convert workspace apps: %w", err)
 	}
 	return &proto.Manifest{
-		ParentId:      manifest.ParentID[:],
-		AgentId:       manifest.AgentID[:],
-		AgentName:     manifest.AgentName,
-		OwnerUsername: manifest.OwnerName,
+		ParentId:         manifest.ParentID[:],
+		AgentId:          manifest.AgentID[:],
+		AgentName:        manifest.AgentName,
+		OwnerUsername:    manifest.OwnerName,
 		WorkspaceId:      manifest.WorkspaceID[:],
 		WorkspaceName:    manifest.WorkspaceName,
 		WorkspaceBuildId: manifest.WorkspaceBuildID[:],

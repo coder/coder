@@ -4216,7 +4216,7 @@ func (m queryMetricsStore) GetWorkspaceSecrets(ctx context.Context, arg database
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]database.GetWorkspaceSecretsHistoryRow, error) {
+func (m queryMetricsStore) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID database.GetWorkspaceSecretsHistoryParams) ([]database.GetWorkspaceSecretsHistoryRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceSecretsHistory(ctx, workspaceID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceSecretsHistory").Observe(time.Since(start).Seconds())
