@@ -16,11 +16,13 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -200,7 +202,7 @@ func TestWorker_LimitsToNRows(t *testing.T) {
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 		}).Times(numRows)
 
-	pub := func(_ context.Context, _ uuid.UUID) error {
+	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
 		if upsertCount.Load() == numRows {
 			close(tickDone)
 		}
@@ -451,7 +453,7 @@ func TestWorker_RefresherError_BacksOffRow(t *testing.T) {
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 		})
 
-	pub := func(_ context.Context, _ uuid.UUID) error {
+	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
 		// Only the successful row publishes.
 		publishCount.Add(1)
 		signalIfDone()
@@ -540,7 +542,7 @@ func TestWorker_UpsertError_ContinuesNextRow(t *testing.T) {
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 		}).Times(2)
 
-	pub := func(_ context.Context, _ uuid.UUID) error {
+	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
 		publishCount.Add(1)
 		// Terminal event for the successful row.
 		signalIfDone()
@@ -620,6 +622,14 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 				{ID: chat2, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
 			}, nil
 		})
+	store.EXPECT().GetChatDiffStatusesByChatIDs(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, ids []uuid.UUID) ([]database.ChatDiffStatus, error) {
+			require.ElementsMatch(t, []uuid.UUID{chat1, chat2}, ids)
+			return []database.ChatDiffStatus{
+				{ChatID: chat1, GitRemoteOrigin: "https://github.com/owner/repo", GitBranch: "feature"},
+				{ChatID: chat2, GitRemoteOrigin: "https://github.com/owner/repo", GitBranch: "feature"},
+			}, nil
+		})
 	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
 		mu.Lock()
 		upsertRefCalls = append(upsertRefCalls, arg)
@@ -627,7 +637,7 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 	}).Times(2)
 
-	pub := func(_ context.Context, chatID uuid.UUID) error {
+	pub := func(_ context.Context, chatID uuid.UUID, _ codersdk.DiffStatusRef) error {
 		mu.Lock()
 		publishedIDs = append(publishedIDs, chatID)
 		mu.Unlock()
@@ -705,6 +715,11 @@ func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
 			{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
 			{ID: chat2, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
 		}, nil)
+	store.EXPECT().GetChatDiffStatusesByChatIDs(gomock.Any(), gomock.Any()).
+		Return([]database.ChatDiffStatus{
+			{ChatID: chat1, GitRemoteOrigin: "https://github.com/a/b", GitBranch: "dev"},
+			{ChatID: chat2, GitRemoteOrigin: "https://github.com/a/b", GitBranch: "dev"},
+		}, nil)
 	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
 			if arg.ChatID == chat1 {
@@ -713,7 +728,7 @@ func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 		}).Times(2)
 
-	pub := func(_ context.Context, _ uuid.UUID) error {
+	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
 		publishCount.Add(1)
 		return nil
 	}
@@ -880,7 +895,7 @@ func TestWorker_MarkStale_WithChatID(t *testing.T) {
 		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 	}).Times(1)
 
-	pub := func(_ context.Context, chatID uuid.UUID) error {
+	pub := func(_ context.Context, chatID uuid.UUID, _ codersdk.DiffStatusRef) error {
 		mu.Lock()
 		publishedIDs = append(publishedIDs, chatID)
 		mu.Unlock()
@@ -921,6 +936,9 @@ func TestWorker_MarkStale_NilChatID_Broadcasts(t *testing.T) {
 	workspaceID := uuid.New()
 	ownerID := uuid.New()
 	chat1 := uuid.New()
+	otherBranch := uuid.New()
+	otherOrigin := uuid.New()
+	noRefs := uuid.New()
 
 	var mu sync.Mutex
 	var upsertRefCalls []database.UpsertChatDiffStatusReferenceParams
@@ -930,14 +948,24 @@ func TestWorker_MarkStale_NilChatID_Broadcasts(t *testing.T) {
 	store := dbmock.NewMockStore(ctrl)
 
 	// Broadcast path: GetChatsByWorkspaceIDs scopes the query to
-	// the workspace directly; no post-filtering needed.
+	// the workspace directly.
 	store.EXPECT().GetChatsByWorkspaceIDs(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, ids []uuid.UUID) ([]database.Chat, error) {
 			require.Equal(t, []uuid.UUID{workspaceID}, ids)
 			return []database.Chat{
 				{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
+				{ID: otherBranch, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
+				{ID: otherOrigin, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
+				{ID: noRefs, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
 			}, nil
 		})
+	// Only chat1 tracks the reported ref, so only chat1 is upserted.
+	store.EXPECT().GetChatDiffStatusesByChatIDs(gomock.Any(), []uuid.UUID{chat1, otherBranch, otherOrigin, noRefs}).
+		Return([]database.ChatDiffStatus{
+			{ChatID: chat1, GitRemoteOrigin: "https://github.com/org/repo", GitBranch: "main"},
+			{ChatID: otherBranch, GitRemoteOrigin: "https://github.com/org/repo", GitBranch: "feature"},
+			{ChatID: otherOrigin, GitRemoteOrigin: "https://github.com/org/fork", GitBranch: "main"},
+		}, nil)
 	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
 		mu.Lock()
 		upsertRefCalls = append(upsertRefCalls, arg)
@@ -945,7 +973,7 @@ func TestWorker_MarkStale_NilChatID_Broadcasts(t *testing.T) {
 		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 	}).Times(1)
 
-	pub := func(_ context.Context, chatID uuid.UUID) error {
+	pub := func(_ context.Context, chatID uuid.UUID, _ codersdk.DiffStatusRef) error {
 		mu.Lock()
 		publishedIDs = append(publishedIDs, chatID)
 		mu.Unlock()
@@ -1021,7 +1049,7 @@ func TestWorker(t *testing.T) {
 	// 6. Track publish calls.
 	var publishCount atomic.Int32
 	tickDone := make(chan struct{})
-	pub := func(_ context.Context, chatID uuid.UUID) error {
+	pub := func(_ context.Context, chatID uuid.UUID, _ codersdk.DiffStatusRef) error {
 		assert.Equal(t, chat.ID, chatID)
 		if publishCount.Add(1) == 1 {
 			close(tickDone)
@@ -1101,11 +1129,12 @@ func TestWorker_RefreshDoesNotReorderPrimary(t *testing.T) {
 	before, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Len(t, before, 2)
-	require.Equal(t, "new", before[0].GitBranch)
+	require.Equal(t, []string{"old", "new"}, gitBranches(before), "list follows first report")
+	require.Equal(t, "new", db2sdk.PrimaryChatDiffStatus(before).GitBranch)
 
 	// Refresh the old ref only. Both rows are stale, so acquire the
 	// old one explicitly through the sync path.
-	oldRow := before[1]
+	oldRow := before[0]
 	mClock := quartz.NewMock(t)
 	refresher := newTestRefresher(t, mClock)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -1113,13 +1142,37 @@ func TestWorker_RefreshDoesNotReorderPrimary(t *testing.T) {
 	_, err = worker.RefreshChat(ctx, oldRow, user.ID)
 	require.NoError(t, err)
 
-	// The refreshed old ref must not steal the primary position from
-	// the newer report.
+	// The refreshed old ref must not steal the primary from the
+	// newer report.
 	after, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, after, 2)
-	require.Equal(t, "new", after[0].GitBranch, "refresh must not reorder the primary")
-	require.True(t, after[1].RefreshedAt.Valid, "the old ref was refreshed")
+	require.Equal(t, []string{"old", "new"}, gitBranches(after))
+	require.Equal(t, "new", db2sdk.PrimaryChatDiffStatus(after).GitBranch, "refresh must not change the primary")
+	require.True(t, after[0].RefreshedAt.Valid, "the old ref was refreshed")
+
+	// A new git report on the old ref makes it the primary, but the
+	// list order stays the same.
+	_, err = db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+		ChatID:          chat.ID,
+		GitBranch:       "old",
+		GitRemoteOrigin: "https://github.com/o/r",
+		StaleAt:         time.Now().Add(-time.Minute),
+		Url:             sql.NullString{},
+	})
+	require.NoError(t, err)
+
+	reported, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"old", "new"}, gitBranches(reported), "a report must not reorder the list")
+	require.Equal(t, "old", db2sdk.PrimaryChatDiffStatus(reported).GitBranch, "the newest report is the primary")
+}
+
+func gitBranches(statuses []database.ChatDiffStatus) []string {
+	branches := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		branches = append(branches, status.GitBranch)
+	}
+	return branches
 }
 
 func TestRefreshChat_Success(t *testing.T) {
@@ -1152,7 +1205,7 @@ func TestRefreshChat_Success(t *testing.T) {
 		})
 
 	var publishCalled atomic.Bool
-	pub := func(_ context.Context, id uuid.UUID) error {
+	pub := func(_ context.Context, id uuid.UUID, _ codersdk.DiffStatusRef) error {
 		assert.Equal(t, chatID, id)
 		publishCalled.Store(true)
 		return nil
@@ -1189,7 +1242,7 @@ func TestRefreshChat_NoPR(t *testing.T) {
 	// UpsertChatDiffStatus should NOT be called.
 
 	var publishCalled atomic.Bool
-	pub := func(_ context.Context, _ uuid.UUID) error {
+	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
 		publishCalled.Store(true)
 		return nil
 	}
@@ -1266,7 +1319,7 @@ func TestRefreshChat_UpsertError(t *testing.T) {
 		Return(database.ChatDiffStatus{}, fmt.Errorf("db write error"))
 
 	var publishCalled atomic.Bool
-	pub := func(_ context.Context, _ uuid.UUID) error {
+	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
 		publishCalled.Store(true)
 		return nil
 	}
