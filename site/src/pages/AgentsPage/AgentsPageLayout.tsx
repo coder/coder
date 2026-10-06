@@ -9,6 +9,7 @@ import {
 import {
 	Outlet,
 	useLocation,
+	useMatch,
 	useNavigate,
 	useParams,
 	useSearchParams,
@@ -79,10 +80,6 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
-import {
-	CHAT_BOARD_PATH,
-	useChatBoardEnabled,
-} from "./exp/chatBoard/chatBoardFlag";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -178,6 +175,7 @@ const AgentsPageLayout: React.FC = () => {
 	const location = useLocation();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { agentId } = useParams();
+	const isPlainComposerRoute = useMatch("/agents") !== null;
 	const { permissions, user } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
@@ -535,7 +533,11 @@ const AgentsPageLayout: React.FC = () => {
 		// A composer prefilled from a prompt link shows the link's text,
 		// not the draft, so the draft is preserved there too. A debug link
 		// can fall back to the draft-backed composer, so it is not exempt.
-		if (!agentId && readDeepLinkState(location.state).prompt === undefined) {
+		// Other routes, such as a project composer, keep this draft too.
+		if (
+			isPlainComposerRoute &&
+			readDeepLinkState(location.state).prompt === undefined
+		) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate({ pathname: "/agents", search: location.search });
@@ -728,8 +730,6 @@ const AgentsPageLayout: React.FC = () => {
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
-	const isBoardRoute =
-		useChatBoardEnabled() && location.pathname.startsWith(CHAT_BOARD_PATH);
 	// On mobile the automations page replaces the sidebar, like a settings
 	// detail page.
 	const isFullPageRoute =
@@ -785,9 +785,6 @@ const AgentsPageLayout: React.FC = () => {
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 						isSidebarCollapsed && "sm:hidden",
-						// The board is a full-width view. The frame stays mounted so the
-						// dialogs and handlers it owns keep working behind it.
-						isBoardRoute && "hidden sm:hidden",
 					)}
 				>
 					<ChatsSidebar
