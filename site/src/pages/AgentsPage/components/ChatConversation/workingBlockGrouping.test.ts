@@ -107,6 +107,7 @@ const group = (
 	const entries = parseMessagesWithMergedTools(messages);
 	const hasLive = options.isTurnActive ?? false;
 	const rows = assignTimelineRows(buildDisplayMessages(entries), hasLive);
+
 	return {
 		rows,
 		blocks: groupWorkingBlocks(rows, entries, {
@@ -173,6 +174,7 @@ describe("groupWorkingBlocks", () => {
 		const thinking = message("assistant", [reasoning("Just thinking", at(1))]);
 		const answer = message("assistant", [text("Done.")], at(2));
 		const { blocks } = group([prompt, thinking, answer]);
+
 		expect(blocks).toEqual([]);
 	});
 
@@ -359,6 +361,7 @@ describe("groupWorkingBlocks", () => {
 		const prompt = user("Go");
 		const steps = [...step("a"), ...step("b")];
 		const { blocks } = group([prompt, ...steps]);
+
 		expect(blocks[0].startedAt).toBeUndefined();
 		expect(blocks[0].endedAt).toBeUndefined();
 		expect(blocks[0].stepCount).toBe(2);
@@ -395,6 +398,7 @@ describe("groupWorkingBlocks", () => {
 		const prompt = user("Go");
 		const steps = step("a", 1, 2);
 		const { blocks } = group([prompt, ...steps], { hasMoreMessages: true });
+
 		expect(blocks[0].isPartial).toBe(false);
 
 		const hiddenPrompt = message("user", [
@@ -414,6 +418,7 @@ describe("groupWorkingBlocks", () => {
 			options: Partial<GroupWorkingBlocksOptions> = {},
 		) => {
 			const { streamState, streamTools } = buildStreamRenderState(parts);
+
 			return group(messages, {
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
@@ -488,6 +493,7 @@ describe("groupWorkingBlocks", () => {
 
 		it("does not start a block from an idle live row", () => {
 			const { blocks } = groupLive([user("Go")], []);
+
 			expect(blocks).toEqual([]);
 		});
 
@@ -591,15 +597,18 @@ describe("groupWorkingBlocks", () => {
 			const running = groupLive(steps, [call("c", at(5))], {
 				hasMoreMessages: true,
 			});
+
 			expect(running.blocks[0]).toMatchObject({
 				isLive: true,
 				isPartial: true,
 				key: "working:live:head:0",
 				liveKey: "working:live:head:0",
 			});
+
 			const done = group([...steps, ...step("c", 5, 6)], {
 				hasMoreMessages: true,
 			});
+
 			expect(done.blocks[0].liveKey).toBe("working:live:head:0");
 			expect(done.blocks[0].isPartial).toBe(true);
 		});

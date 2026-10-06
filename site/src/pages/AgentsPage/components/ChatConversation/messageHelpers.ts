@@ -86,6 +86,7 @@ export const getVisibleContent = (
 			block.type !== "workspace-file-reference" &&
 			(block.type !== "tool" || visibleToolIds.has(block.id)),
 	);
+
 	return { visibleBlocks, visibleTools };
 };
 

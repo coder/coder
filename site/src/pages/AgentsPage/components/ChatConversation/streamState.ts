@@ -24,6 +24,7 @@ const earliestTimestamp = (
 	if (!current || !candidate) {
 		return current ?? candidate;
 	}
+
 	return Date.parse(candidate) < Date.parse(current) ? candidate : current;
 };
 
@@ -250,12 +251,14 @@ export const applyMessagePartToStreamState = (
 	if (next === prev || !next) {
 		return next;
 	}
+
 	const startedAt =
 		part.type === "reasoning" ||
 		part.type === "tool-call" ||
 		part.type === "tool-result"
 			? earliestTimestamp(next.startedAt, part.created_at)
 			: next.startedAt;
+
 	return startedAt === next.startedAt ? next : { ...next, startedAt };
 };
 

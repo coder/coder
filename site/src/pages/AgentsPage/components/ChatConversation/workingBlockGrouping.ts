@@ -74,10 +74,12 @@ const getStepRowContent = (
 	options: GroupWorkingBlocksOptions,
 ): RowContent | undefined => {
 	let content: RowContent;
+
 	if (row.type === "live") {
 		if (!options.isLiveRowCollapsible) {
 			return undefined;
 		}
+
 		content = getVisibleContent(options.liveBlocks, options.liveTools);
 		if (content.visibleBlocks.length === 0) {
 			return content;
@@ -87,15 +89,19 @@ const getStepRowContent = (
 		if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
 			return undefined;
 		}
+
 		content = getVisibleContent(parsed.blocks, parsed.tools);
 	}
+
 	const { visibleBlocks, visibleTools } = content;
 	if (visibleBlocks.length === 0) {
 		return undefined;
 	}
+
 	if (visibleTools.some((tool) => UNCOLLAPSIBLE_TOOLS.has(tool.name))) {
 		return undefined;
 	}
+
 	// A tool still running while the turn is parked (requires_action) is
 	// waiting on a client, so it stays visible like a question.
 	if (
@@ -104,10 +110,12 @@ const getStepRowContent = (
 	) {
 		return undefined;
 	}
+
 	const last = visibleBlocks[visibleBlocks.length - 1];
 	if (last.type !== "tool" && last.type !== "thinking") {
 		return undefined;
 	}
+
 	return content;
 };
 
@@ -121,6 +129,7 @@ const getPartTimestamps = (entry: ParsedMessageEntry) =>
 		if (part.type === "reasoning") {
 			return [part.created_at, part.completed_at];
 		}
+
 		return part.type === "tool-call" || part.type === "tool-result"
 			? [part.created_at]
 			: [];
@@ -145,16 +154,20 @@ export const groupWorkingBlocks = (
 		ordinal: number;
 		containsLiveRow: boolean;
 	};
+
 	const drafts: Draft[] = [];
 	let current: Draft | undefined;
 	let anchorKey: string | undefined;
 	let ordinal = 0;
+
 	// A user message made only of context files or skills has no row but
 	// still ends the turn before it.
 	const userMessageIds = entries
 		.filter((entry) => entry.message.role === "user")
 		.map((entry) => entry.message.id);
+
 	let lastMessageId = Number.NEGATIVE_INFINITY;
+
 	for (const [index, row] of rows.entries()) {
 		const ids = rowMessageIds(row);
 		const hiddenUserId = userMessageIds.find(
@@ -165,9 +178,11 @@ export const groupWorkingBlocks = (
 			anchorKey = `message:${hiddenUserId}`;
 			ordinal = 0;
 		}
+
 		if (ids.length > 0) {
 			lastMessageId = Math.max(...ids);
 		}
+
 		const content = getStepRowContent(row, options);
 		if (!content) {
 			current = undefined;
@@ -177,6 +192,7 @@ export const groupWorkingBlocks = (
 			}
 			continue;
 		}
+
 		if (!current) {
 			// The stream opens empty before every step. That row extends a
 			// block that is already working but never starts one, so a turn's
@@ -184,6 +200,7 @@ export const groupWorkingBlocks = (
 			if (content.visibleBlocks.length === 0) {
 				continue;
 			}
+
 			current = {
 				rowIndices: [],
 				tools: new Map(),
@@ -194,8 +211,10 @@ export const groupWorkingBlocks = (
 			ordinal += 1;
 			drafts.push(current);
 		}
+
 		current.rowIndices.push(index);
 		current.containsLiveRow ||= row.type === "live";
+
 		for (const tool of content.visibleTools) {
 			current.tools.set(tool.id, tool);
 		}
@@ -213,6 +232,7 @@ export const groupWorkingBlocks = (
 		(row) => row.type === "message",
 	);
 	const lastUserMessageId = Math.max(...userMessageIds);
+
 	const messageIdAfter = (lastRowIndex: number): number => {
 		for (let i = lastRowIndex + 1; i < rows.length; i++) {
 			const ids = rowMessageIds(rows[i]);
@@ -220,6 +240,7 @@ export const groupWorkingBlocks = (
 				return Math.min(...ids);
 			}
 		}
+
 		return Number.POSITIVE_INFINITY;
 	};
 
@@ -227,6 +248,7 @@ export const groupWorkingBlocks = (
 		const firstRowIndex = draft.rowIndices[0];
 		const lastRowIndex = draft.rowIndices[draft.rowIndices.length - 1];
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
+
 		// The newest block is still working unless a prompt, visible or hidden,
 		// follows its last step.
 		const lastMemberId = Math.max(...memberIds);
@@ -256,6 +278,7 @@ export const groupWorkingBlocks = (
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
 		const key = isLive ? liveKey : `working:through:${rows[lastRowIndex].key}`;
 		const tools = Array.from(draft.tools.values());
+
 		return {
 			key,
 			liveKey,
