@@ -405,15 +405,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					),
 				}))
 	).filter((section) => section.chats.length > 0);
-	// Project chats are held back while projects load, so they only count as
-	// filed once their folders can show them.
-	const areAllChatsFiled =
-		visibleRootIDs.length > 0 &&
+	// Project chats live only in their folders, so a Chats section whose
+	// chats are all filed is empty.
+	const isShowingEmptyState =
 		pinnedChats.length === 0 &&
 		sharedWithYouChats.length === 0 &&
-		chatSections.length === 0 &&
-		!isProjectsLoading;
-	const isShowingEmptyState = visibleRootIDs.length === 0 || areAllChatsFiled;
+		chatSections.length === 0;
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
 	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
@@ -614,11 +611,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 								<div className="pb-2">
 									{isShowingEmptyState ? (
 										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-											<p className="m-0">
-												{areAllChatsFiled
-													? "All agents are in projects"
-													: emptyStateMessage}
-											</p>
+											<p className="m-0">{emptyStateMessage}</p>
 											{hasAppliedResultFilters && (
 												<button
 													type="button"

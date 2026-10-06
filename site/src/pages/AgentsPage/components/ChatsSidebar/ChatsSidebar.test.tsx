@@ -212,18 +212,11 @@ describe("ChatsSidebar projects", () => {
 		);
 	});
 
-	it("explains an empty chat list when every chat is in a project", async () => {
-		let resolveProjects: () => void = () => {};
-		const projectsLoaded = new Promise<void>((resolve) => {
-			resolveProjects = resolve;
-		});
-		let projectsRequested = false;
+	it("shows the Chats empty state when every chat is in a project", async () => {
 		server.use(
-			http.get("/api/experimental/chats/projects", async () => {
-				projectsRequested = true;
-				await projectsLoaded;
-				return HttpResponse.json([MockChatProject]);
-			}),
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
 		);
 		const mockProjectChat = buildChat({
 			id: "project-chat",
@@ -238,14 +231,9 @@ describe("ChatsSidebar projects", () => {
 			</Wrapper>,
 		);
 
-		await waitFor(() => expect(projectsRequested).toBe(true));
-		expect(screen.queryByText("All agents are in projects")).toBeNull();
-
-		resolveProjects();
-		expect(
-			await screen.findByText("All agents are in projects"),
-		).toBeInTheDocument();
-		expect(screen.queryByText("No agents yet")).toBeNull();
+		await screen.findByRole("link", { name: MockChatProject.name });
+		expect(screen.getByText("No agents yet")).toBeInTheDocument();
+		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
 	});
 
 	it("keeps project chats out of the chat sections while projects load", async () => {
