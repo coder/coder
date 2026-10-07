@@ -1070,9 +1070,15 @@ Root chats in a project share durable memory; other chats have none. The agent s
 
 <!-- TODO(f0ssel): the memory index no longer lives in the `read_memory` tool description. At turn start the generation loop commits a model-only user row: a full `<project-memory-index>` snapshot when the prompt has none (first turn, or after compaction), otherwise a `<project-memory-index-update>` listing changes since the model last saw it. Tool definitions and the system prompt carry no memory state, so memory writes no longer invalidate the provider's cached prefix. Mid-turn only a snapshot dropped by compaction is restored, and never between an assistant step and its tool results. -->
 
-<!-- TODO(f0ssel): projects can be shared with users, groups, or the Everyone group, with the `use` or `admin` role. Memory tools run as chatd, so `resolveProjectMemory` checks `ChatProjectUsableBy` for the chat owner at each generation. A chat whose owner lost the share, or any non-owner chat under `--disable-chat-sharing`, runs without memory. Administrators' role grants do not count. -->
+###### Project sharing
 
-<!-- TODO(f0ssel): deleting a project deletes its root chats and sub-chats for every user, in batches (`DeleteChatProjectWithChats`), and fails while a worker with a fresh heartbeat holds any of them. -->
+A project owner can share a project with users, groups, or the Everyone group, whose ID is the organization ID. The `use` role lets a sharee view the project and its memories and start chats in it; the `admin` role also lets them edit the project and its memories directly and change its ACL. Only the owner can delete the project. Sharing a project does not share the chats in it: each chat stays private to whoever started it.
+
+A `use` sharee cannot change memories over HTTP, but the agents in their chats can, because memory tools run as chatd. That makes `ChatProjectUsableBy` the only gate on agent memory access. It allows the project owner, or a user whose ACL entry grants read directly, through a group, or through the Everyone group. Role grants, such as an administrator's, do not count, so an administrator cannot bind a chat to a project that was not shared with them. Chat creation checks it before binding a chat to a project, and `resolveProjectMemory` checks it again for the chat owner at every generation. A chat whose owner lost the share, or any chat not owned by the project owner while `--disable-chat-sharing` is set, keeps its project binding but runs without memory, starting with its next turn.
+
+###### Project deletion
+
+Deleting a project deletes its root chats and their sub-chats, including chats started by sharees, instead of detaching them. `DeleteChatProjectWithChats` runs as chatd because those chats belong to other users. It works in batches of 100 root chats, each in its own transaction: lock the project row, which blocks new chats from joining it; lock the batch's chats, roots before sub-chats to match chat archiving; then delete them by ID. The project row is deleted in the first batch that finds no chats. If a worker with a fresh heartbeat holds any locked chat, the call fails with `ErrChatProjectHasRunningChats` and the API returns 409, so an in-flight turn is never cut off. A lease with a stale heartbeat does not block deletion. Earlier batches stay deleted after a 409, and retrying finishes the job. The chat daemon publishes a deleted watch event for each removed chat, and the API audits each deleted root chat.
 
 ##### Reasoning effort
 
