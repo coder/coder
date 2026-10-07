@@ -343,8 +343,8 @@ github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
 github.com/coder/guts v1.7.0 h1:TaZ/PR9wgN8dlbcckaWV1MxkkuEFZRwSRwBBEm8dYXs=
 github.com/coder/guts v1.7.0/go.mod h1:30SShdvpmsauNlsNjECRB5AppScjYk08rf2ZVpH3MFg=
-github.com/coder/gvisor v0.0.0-20260313164934-7a658db7b714 h1:j7tyq3rv0ZXkbyy/BE5K3lYiIqEsV8sDTiTjpLLxjiw=
-github.com/coder/gvisor v0.0.0-20260313164934-7a658db7b714/go.mod h1:sxc3Uvk/vHcd3tj7/DHVBoR5wvWT/MmRq2pj7HRJnwU=
+github.com/coder/gvisor v0.0.0-20261007131627-ebe33a4c2cb5 h1:xQUJEpeX4SGuw2RkoTKIedVgJmlfFkBOn0/p3PXO5qY=
+github.com/coder/gvisor v0.0.0-20261007131627-ebe33a4c2cb5/go.mod h1:sxc3Uvk/vHcd3tj7/DHVBoR5wvWT/MmRq2pj7HRJnwU=
 github.com/coder/openai-go/v3 v3.0.0-20260810175933-92b5addb22d2 h1:84CQp2XsKlhthzgSmAJXJCYqOu3eHS/CWPSDTNFdY24=
 github.com/coder/openai-go/v3 v3.0.0-20260810175933-92b5addb22d2/go.mod h1:Ogjo0gDct+Jm7yCqaCjLGQGygeV8xNfNHV1/yKvCji0=
 github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151 h1:YAxwg3lraGNRwoQ18H7R7n+wsCqNve7Brdvj0F1rDnU=
