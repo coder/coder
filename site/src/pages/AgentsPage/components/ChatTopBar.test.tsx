@@ -91,17 +91,34 @@ describe("ChatTopBar", () => {
 		await expectProjectLinkNavigates();
 	});
 
-	it("links a delegated chat to its root chat's project", async () => {
+	it("links a nested delegated chat to its root chat's project", async () => {
 		const rootChat = {
 			...MockChat,
 			id: "root-chat",
 			project_id: MockChatProject.id,
 		};
-		vi.spyOn(API.experimental, "getChat").mockResolvedValue(rootChat);
+		// Delegated chats do not store project_id, so the parent has none.
+		const parentChat = {
+			...MockChat,
+			id: "parent-chat",
+			parent_chat_id: rootChat.id,
+			root_chat_id: rootChat.id,
+		};
+		const chatsById = new Map([
+			[rootChat.id, rootChat],
+			[parentChat.id, parentChat],
+		]);
+		vi.spyOn(API.experimental, "getChat").mockImplementation(async (id) => {
+			const chat = chatsById.get(id);
+			if (!chat) {
+				throw new Error(`unexpected chat ${id}`);
+			}
+			return chat;
+		});
 		renderTopBar({
 			...MockChat,
 			id: "child-chat",
-			parent_chat_id: rootChat.id,
+			parent_chat_id: parentChat.id,
 			root_chat_id: rootChat.id,
 		});
 		await expectProjectLinkNavigates();
