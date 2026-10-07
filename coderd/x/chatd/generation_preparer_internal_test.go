@@ -2,6 +2,8 @@ package chatd //nolint:testpackage // Exercises unexported re-derivation helpers
 
 import (
 	"encoding/json"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -548,12 +551,24 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	seenAPIKeyID := make(chan string, 1)
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
+		seenAPIKeyID <- apiKeyID
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
 	server := newInternalTestServer(
 		t,
 		db,
 		ps,
 		chatprovider.ProviderAPIKeys{},
-		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+		withInternalTestServerTransportFactory(factory),
 	)
 	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
 		Chat:            created.Chat,
@@ -568,7 +583,12 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		TokenName: GatewayTokenName(user.ID),
 	})
 	require.NoError(t, err)
-	require.Equal(t, gatewayKey.ID, prepared.ModelBuildOptions.ActiveAPIKeyID)
+	_, err = prepared.Model.LanguageModel().Generate(ctx, fantasy.Call{Prompt: []fantasy.Message{{
+		Role:    fantasy.MessageRoleUser,
+		Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+	}}})
+	require.NoError(t, err)
+	require.Equal(t, gatewayKey.ID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
 }
 
 // TestDeriveFinalTurnRunResult exercises the re-derivation path that replaces

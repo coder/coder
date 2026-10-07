@@ -66,7 +66,6 @@ type generationPrepared struct {
 	ActiveTools        []string
 	AllowInactiveTools map[string]bool
 	ProviderTools      []chatloop.ProviderTool
-	ModelBuildOptions  modelBuildOptions
 
 	// ResolvedProvider is the configured provider identity used to label
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.

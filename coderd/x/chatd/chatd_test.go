@@ -12471,8 +12471,8 @@ func TestActiveServer_ChatTurnDebugRunRecordsMCPConnectOnDecisionError(t *testin
 }
 
 // fileReadFailStore wraps a database.Store so GetChatFilesByIDs fails
-// once the test arms it, making a later generation preparation fail
-// after its MCP connect phase has already completed.
+// once the test arms it, making a later generation preparation fail in
+// the same phase as its MCP connects.
 type fileReadFailStore struct {
 	database.Store
 	fail *atomic.Bool

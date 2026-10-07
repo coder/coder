@@ -865,7 +865,6 @@ func (server *Server) prepareGeneration(
 		ActiveTools:          activeToolNames,
 		AllowInactiveTools:   allowInactiveTools,
 		ProviderTools:        providerTools,
-		ModelBuildOptions:    modelOpts,
 		ResolvedProvider:     resolved.resolvedProvider,
 		StageModel:           resolved.stageModel(),
 		ModelConfigID:        modelConfig.ID,
