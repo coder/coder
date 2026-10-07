@@ -102,8 +102,8 @@ func TestResolveProjectMemory(t *testing.T) {
 	})
 }
 
-// IsChatProjectAccessibleByUserID ignores --disable-chat-sharing, so the
-// flag must be checked before it for sharee chats.
+// With sharing disabled, sharee chats lose project memory without an ACL
+// lookup, while the owner's chats keep it.
 //
 //nolint:paralleltest // It toggles the global chat ACL flag.
 func TestResolveProjectMemorySharingDisabled(t *testing.T) {

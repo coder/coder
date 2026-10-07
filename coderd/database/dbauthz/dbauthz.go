@@ -2390,8 +2390,8 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
 }
 
-// DeleteChatsByIDs deletes chats owned by any user, so it requires deleting
-// every chat, as chatd and dbpurge can.
+// DeleteChatsByIDs requires deleting every chat, because a project's chats
+// can belong to its sharees.
 func (q *querier) DeleteChatsByIDs(ctx context.Context, ids []uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
 		return err
@@ -3809,8 +3809,8 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 	return row, nil
 }
 
-func (q *querier) GetChatProjectsAccessibleByUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsAccessibleByUserID)(ctx, userID)
+func (q *querier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsOwnedOrSharedWithUserID)(ctx, userID)
 }
 
 func (q *querier) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
@@ -7169,10 +7169,21 @@ func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatH
 }
 
 // IsChatProjectAccessibleByUserID requires reading every project, because
-// it answers for a user other than the caller.
+// it answers for a user other than the caller. With chat sharing disabled,
+// only the owner has access, matching ChatProject.RBACObject.
 func (q *querier) IsChatProjectAccessibleByUserID(ctx context.Context, arg database.IsChatProjectAccessibleByUserIDParams) (bool, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatProject); err != nil {
 		return false, err
+	}
+	if rbac.ChatACLDisabled() {
+		project, err := q.db.GetChatProjectByID(ctx, arg.ProjectID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return project.OwnerID == arg.UserID, nil
 	}
 	return q.db.IsChatProjectAccessibleByUserID(ctx, arg)
 }

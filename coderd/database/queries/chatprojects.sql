@@ -23,11 +23,12 @@ FROM chat_projects
 WHERE id = @id::uuid
 FOR UPDATE;
 
--- name: GetChatProjectsAccessibleByUserID :many
--- The Everyone group's ID is the organization ID, so the user's
--- organization IDs join their group IDs. As in the RBAC policy, ACL grants
--- count only for members of the project's organization. ACL keys match
--- regardless of the actions they grant; callers authorize each row.
+-- name: GetChatProjectsOwnedOrSharedWithUserID :many
+-- Lists projects the user owns or holds any ACL entry on, directly, through
+-- a group, or through the Everyone group, whose ID is the organization ID.
+-- As in the RBAC policy, ACL entries count only for members of the
+-- project's organization. Entries match regardless of the actions they
+-- grant, so callers must authorize each row.
 SELECT chat_projects.*
 FROM chat_projects
 WHERE chat_projects.owner_id = @user_id::uuid
@@ -54,10 +55,10 @@ WHERE chat_projects.owner_id = @user_id::uuid
 ORDER BY lower(chat_projects.name), chat_projects.id;
 
 -- name: IsChatProjectAccessibleByUserID :one
--- Reports whether the user owns the project or holds a read grant on it
--- directly, through a group, or through the Everyone group. chatd runs
--- memory tools under its own subject, so it checks this for the chat owner
--- to honor revoked shares. Grants count only for organization members.
+-- Reports whether the user owns the project or holds an ACL entry granting
+-- read or '*' on it, directly, through a group, or through the Everyone
+-- group. Entries count only for organization members. It checks a user
+-- other than the caller, for code that runs under a system subject.
 SELECT EXISTS (
     SELECT 1
     FROM chat_projects
@@ -115,7 +116,10 @@ WHERE owner_id = @owner_id::uuid;
 -- Locks up to limit_count of a project's root chats with their sub-chats,
 -- returning the locked rows' current worker fields so callers can tell
 -- whether a worker holds one. Deleting a project in batches keeps each
--- transaction short.
+-- transaction short. Callers must first lock the project row with
+-- GetChatProjectByIDForUpdate in the same transaction, which blocks new
+-- chats from joining the project. Roots lock before sub-chats, the order
+-- chat archiving uses, to avoid deadlocks.
 WITH roots AS (
     SELECT chats.id
     FROM chats
@@ -125,9 +129,11 @@ WITH roots AS (
 )
 SELECT chats.id, chats.worker_id, chats.runner_id
 FROM chats
-WHERE chats.id IN (SELECT id FROM roots)
-    OR chats.root_chat_id IN (SELECT id FROM roots)
-ORDER BY chats.id
+-- ANY(ARRAY(...)) lets each branch use its index; IN (subquery) under OR
+-- scans the table.
+WHERE chats.id = ANY(ARRAY(SELECT id FROM roots))
+    OR chats.root_chat_id = ANY(ARRAY(SELECT id FROM roots))
+ORDER BY (chats.root_chat_id IS NULL) DESC, chats.id
 FOR UPDATE;
 
 -- name: GetChatsByIDs :many

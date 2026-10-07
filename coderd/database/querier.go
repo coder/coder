@@ -571,11 +571,12 @@ type sqlcQuerier interface {
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
-	// The Everyone group's ID is the organization ID, so the user's
-	// organization IDs join their group IDs. As in the RBAC policy, ACL grants
-	// count only for members of the project's organization. ACL keys match
-	// regardless of the actions they grant; callers authorize each row.
-	GetChatProjectsAccessibleByUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error)
+	// Lists projects the user owns or holds any ACL entry on, directly, through
+	// a group, or through the Everyone group, whose ID is the organization ID.
+	// As in the RBAC policy, ACL entries count only for members of the
+	// project's organization. Entries match regardless of the actions they
+	// grant, so callers must authorize each row.
+	GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error)
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
@@ -1343,10 +1344,10 @@ type sqlcQuerier interface {
 	// time. chatstate calls this in a single query so the staleness check
 	// is atomic and does not depend on the caller's local clock.
 	IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbeatStaleParams) (bool, error)
-	// Reports whether the user owns the project or holds a read grant on it
-	// directly, through a group, or through the Everyone group. chatd runs
-	// memory tools under its own subject, so it checks this for the chat owner
-	// to honor revoked shares. Grants count only for organization members.
+	// Reports whether the user owns the project or holds an ACL entry granting
+	// read or '*' on it, directly, through a group, or through the Everyone
+	// group. Entries count only for organization members. It checks a user
+	// other than the caller, for code that runs under a system subject.
 	IsChatProjectAccessibleByUserID(ctx context.Context, arg IsChatProjectAccessibleByUserIDParams) (bool, error)
 	// LinkChatFilesAfterLock requires the chat row lock. When the batch would
 	// exceed the cap, the oldest files on the chat are deleted to make room; the
@@ -1439,7 +1440,12 @@ type sqlcQuerier interface {
 	// Locks up to limit_count of a project's root chats with their sub-chats,
 	// returning the locked rows' current worker fields so callers can tell
 	// whether a worker holds one. Deleting a project in batches keeps each
-	// transaction short.
+	// transaction short. Callers must first lock the project row with
+	// GetChatProjectByIDForUpdate in the same transaction, which blocks new
+	// chats from joining the project. Roots lock before sub-chats, the order
+	// chat archiving uses, to avoid deadlocks.
+	// ANY(ARRAY(...)) lets each branch use its index; IN (subquery) under OR
+	// scans the table.
 	LockChatProjectChatsForDelete(ctx context.Context, arg LockChatProjectChatsForDeleteParams) ([]LockChatProjectChatsForDeleteRow, error)
 	// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
 	// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock

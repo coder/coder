@@ -115,7 +115,8 @@ func chatHeldByLiveWorker(ctx context.Context, db database.Store, row database.L
 // owner always may, and others need a read grant in the project ACL. Role
 // grants, such as an administrator's, do not count, because a chat in a
 // project reads and writes memory its owner was not given. Memory tools run
-// as chatd, so this is the check that honors revoked and disabled sharing.
+// as chatd, so this is the check that honors revoked and disabled sharing;
+// checking the flag first skips the ACL lookup.
 func ChatProjectUsableBy(ctx context.Context, db database.Store, project database.ChatProject, userID uuid.UUID) (bool, error) {
 	if project.OwnerID == userID {
 		return true, nil
