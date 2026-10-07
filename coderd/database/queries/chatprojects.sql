@@ -120,12 +120,8 @@ FROM chat_projects
 WHERE owner_id = @owner_id::uuid;
 
 -- name: LockChatProjectRootChatsForDelete :many
--- Locks a project's root chats; run it through LockChatProjectForDelete,
--- which takes the locks in the required order. Rows lock in index-scan
--- order, not id order, so this can deadlock with another statement that
--- locks some of the same chats in id order, such as the MCP resource sync.
--- Postgres aborts one side, and retrying the delete is the intended
--- recovery.
+-- Locks a project's root chats. Run it through InChatProjectDeleteTx,
+-- which runs each lock as its own statement, in order.
 SELECT chats.id
 FROM chats
 WHERE chats.project_id = @project_id::uuid
@@ -133,8 +129,8 @@ WHERE chats.project_id = @project_id::uuid
 FOR UPDATE;
 
 -- name: LockSubChatsByRootIDsForDelete :many
--- Locks the sub-chats of root chats the caller already locked; run it
--- through LockChatProjectForDelete.
+-- Locks the sub-chats of root chats the caller already locked. Run it
+-- through InChatProjectDeleteTx.
 SELECT chats.id
 FROM chats
 WHERE chats.root_chat_id = ANY(@root_ids::uuid[])

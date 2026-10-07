@@ -8773,12 +8773,8 @@ WHERE chats.project_id = $1::uuid
 FOR UPDATE
 `
 
-// Locks a project's root chats; run it through LockChatProjectForDelete,
-// which takes the locks in the required order. Rows lock in index-scan
-// order, not id order, so this can deadlock with another statement that
-// locks some of the same chats in id order, such as the MCP resource sync.
-// Postgres aborts one side, and retrying the delete is the intended
-// recovery.
+// Locks a project's root chats. Run it through InChatProjectDeleteTx,
+// which runs each lock as its own statement, in order.
 func (q *sqlQuerier) LockChatProjectRootChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, lockChatProjectRootChatsForDelete, projectID)
 	if err != nil {
@@ -8810,8 +8806,8 @@ ORDER BY chats.id
 FOR UPDATE
 `
 
-// Locks the sub-chats of root chats the caller already locked; run it
-// through LockChatProjectForDelete.
+// Locks the sub-chats of root chats the caller already locked. Run it
+// through InChatProjectDeleteTx.
 func (q *sqlQuerier) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, lockSubChatsByRootIDsForDelete, pq.Array(rootIds))
 	if err != nil {
