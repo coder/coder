@@ -2229,6 +2229,68 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{recipientChat.ID}, chatIDs(disabledRows))
 }
 
+func TestGetChatProjectsAccessibleByUserID(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	direct := dbgen.User(t, db, database.User{})
+	groupMember := dbgen.User(t, db, database.User{})
+	orgMember := dbgen.User(t, db, database.User{})
+	outsider := dbgen.User(t, db, database.User{})
+	for _, user := range []database.User{owner, direct, groupMember, orgMember} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	}
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: outsider.ID, OrganizationID: otherOrg.ID})
+	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: groupMember.ID, GroupID: group.ID})
+
+	read := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+	share := func(project database.ChatProject, users, groups database.ChatACL) {
+		t.Helper()
+		require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+			ID: project.ID, UserACL: users, GroupACL: groups,
+		}))
+	}
+	private := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	userShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(userShared, database.ChatACL{direct.ID.String(): read}, database.ChatACL{})
+	groupShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(groupShared, database.ChatACL{}, database.ChatACL{group.ID.String(): read})
+	everyoneShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(everyoneShared, database.ChatACL{}, database.ChatACL{org.ID.String(): read})
+	// User grants only apply to members of the project's organization.
+	outsiderShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(outsiderShared, database.ChatACL{outsider.ID.String(): read}, database.ChatACL{})
+
+	for _, tc := range []struct {
+		name string
+		user database.User
+		want []uuid.UUID
+	}{
+		{"Owner", owner, []uuid.UUID{private.ID, userShared.ID, groupShared.ID, everyoneShared.ID, outsiderShared.ID}},
+		{"Direct", direct, []uuid.UUID{userShared.ID, everyoneShared.ID}},
+		{"Group", groupMember, []uuid.UUID{groupShared.ID, everyoneShared.ID}},
+		{"Everyone", orgMember, []uuid.UUID{everyoneShared.ID}},
+		{"Outsider", outsider, nil},
+	} {
+		projects, err := db.GetChatProjectsAccessibleByUserID(ctx, tc.user.ID)
+		require.NoError(t, err, tc.name)
+		got := make([]uuid.UUID, 0, len(projects))
+		for _, project := range projects {
+			got = append(got, project.ID)
+		}
+		require.ElementsMatch(t, tc.want, got, tc.name)
+	}
+}
+
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
 func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 	if testing.Short() {
@@ -18252,7 +18314,9 @@ func TestGetChatsSearch(t *testing.T) {
 		{"Message/UserVisibilityMatch", database.GetChatsParams{Search: "vault rotation"}, []uuid.UUID{userVisMsgChat.ID}},
 		{"Message/AssistantUserVisibilityMatch", database.GetChatsParams{Search: "redis eviction"}, []uuid.UUID{assistantUserVisMsgChat.ID}},
 		{"PRNumber/Match", database.GetChatsParams{Search: "42"}, []uuid.UUID{prTitleChat.ID}},
-		{"PRNumber/NonNumericNoMatch", database.GetChatsParams{Search: "42abc"}, nil},
+		{"PRNumber/PrefixMatch", database.GetChatsParams{Search: "4"}, []uuid.UUID{prTitleChat.ID}},
+		{"PRNumber/NotSubstringMatch", database.GetChatsParams{Search: "2"}, nil},
+		{"PRNumber/LikeWildcardNoMatch", database.GetChatsParams{Search: "4%"}, nil},
 		{"PRNumber/OversizedDigitsNoError", database.GetChatsParams{Search: "1111111111111111111111111"}, nil},
 		{"NoMatch", database.GetChatsParams{Search: "zzzqqq"}, nil},
 		{"Message/PendingBackfillNoMatch", database.GetChatsParams{Search: "elasticsearch"}, nil},

@@ -14,8 +14,7 @@ const (
 )
 
 type AdvisorArgs struct {
-	Question    string  `json:"question" description:"A brief question for the advisor. Must be 2000 runes or fewer. Summarize context instead of pasting long logs or transcripts."`
-	ModelIntent *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing why you are consulting the advisor. This is shown to the user as the tool row title, so write it as a standalone action. Use plain English with no underscores or technical jargon. Do not restate the question. Keep it under 100 characters. Good examples: \"Weighing a refactor tradeoff\", \"Checking a migration strategy\", \"Planning a safe rollout\"."`
+	Question string `json:"question" description:"A brief question for the advisor. Must be 2000 runes or fewer. Summarize context instead of pasting long logs or transcripts."`
 }
 
 // AdvisorResult is the structured result returned by the advisor runtime.

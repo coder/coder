@@ -168,7 +168,7 @@ const TerminalAlert: React.FC<AlertProps> = (props) => {
 		<Alert
 			{...props}
 			className={cn(
-				"rounded-none border-0 border-b border-l-[3px] border-b-border-default bg-surface-primary mb-px",
+				"rounded-none border-0 border-b border-l-[3px] border-b-border bg-surface-primary mb-px",
 				severityBorderColors[severity],
 			)}
 		/>

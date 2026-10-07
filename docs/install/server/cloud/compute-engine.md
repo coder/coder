@@ -2,13 +2,11 @@
 title: Google Cloud Platform
 ---
 
-In this guide, you will learn how to deploy the Coder control plane instance and
-your first template.
+In this guide, you will learn how to deploy the Coder control plane instance and your first template.
 
 ## Requirements
 
-This guide assumes you have `roles/compute.instanceAdmin.v1` access to your
-Google Cloud Platform project.
+This guide assumes you have `roles/compute.instanceAdmin.v1` access to your Google Cloud Platform project.
 
 ## Launch a Coder instance from the Google Cloud Marketplace
 
@@ -21,8 +19,7 @@ Two SKU's are available via the Google Cloud Marketplace:
 
 ![Coder on GCP Marketplace](../../../images/platforms/gcp/marketplace.png)
 
-Be sure to keep the default firewall options checked so you can connect over
-HTTP, HTTPS, and SSH.
+Be sure to keep the default firewall options checked so you can connect over HTTP, HTTPS, and SSH.
 
 We recommend keeping the default instance type (`e2-standard-4`, 4&nbsp;cores and 16&nbsp;GB memory) if you plan on provisioning Docker containers as workspaces on this VM instance.
 Keep in mind this platforms is intended for proof-of-concept deployments and you should adjust your infrastructure when preparing for production use.
@@ -35,17 +32,16 @@ Your browser does not support the video tag.
 
 This screencast shows launching a Coder VM from the Google Cloud Marketplace.
 
-Be sure to add a keypair so that you can connect over SSH to further
-[configure Coder](../../../admin/setup/index.md).
+Be sure to add a keypair so that you can connect over SSH to further [configure Coder](../../../admin/setup/index.md).
 
 After launching the instance, wait 30&nbsp;seconds and navigate to the public IPv4 address.
 You should be redirected to a public tunnel URL.
 
 ![Coder on GCP Marketplace start](../../../images/platforms/gcp/start.png)
 
-That's all! Use the UI to create your first user, template, and workspace. We
-recommend starting with a Docker template since the instance has Docker
-pre-installed.
+That's all!
+Use the UI to create your first user, template, and workspace.
+We recommend starting with a Docker template since the instance has Docker pre-installed.
 
 ![Coder Workspace and IDE in GCP VM](../../../images/platforms/aws/workspace.png)
 
@@ -54,9 +50,7 @@ pre-installed.
 ## Configure the control plane
 
 Coder is primarily configured by server-side flags and environment variables.
-Given you created or added key-pairs when launching the instance, you can
-[configure your Coder deployment](../../../admin/setup/index.md) by logging in via
-SSH or using the console:
+Given you created or added key-pairs when launching the instance, you can [configure your Coder deployment](../../../admin/setup/index.md) by logging in via SSH or using the console:
 
 ```sh
 ssh ubuntu@<gcp-public-IPv4>
@@ -67,15 +61,10 @@ sudo systemctl restart coder # restart Coder
 
 ## Give developers VM workspaces (optional)
 
-Instead of running containers on the Coder instance, you can offer developers
-full VM instances with the
-[gcp-linux](../../../../examples/templates/gcp-linux/README.md)
-template.
+Instead of running containers on the Coder instance, you can offer developers full VM instances with the [gcp-linux](../../../../examples/templates/gcp-linux/README.md) template.
 
-Before you can use this template, you must authorize Coder to create VM
-instances in your GCP project. Follow the instructions in the
-[gcp-linux template README](../../../../examples/templates/gcp-linux/README.md#authentication)
-to set up authentication.
+Before you can use this template, you must authorize Coder to create VM instances in your GCP project.
+Follow the instructions in the [gcp-linux template README](../../../../examples/templates/gcp-linux/README.md#authentication) to set up authentication.
 
 ### Next Steps
 
