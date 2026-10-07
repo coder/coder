@@ -562,22 +562,14 @@ describe("DynamicParameter", () => {
 					);
 				}
 
-				await act(async () => {
-					render(<ParameterWithExternalUpdate />);
-				});
-				await act(async () => {
-					await user.click(
-						screen.getByRole("button", { name: "Update parameter value" }),
-					);
-				});
+				render(<ParameterWithExternalUpdate />);
+				await user.click(
+					screen.getByRole("button", { name: "Update parameter value" }),
+				);
 				expect(mockOnChange).not.toHaveBeenCalled();
 
-				await act(async () => {
-					await user.click(screen.getByRole("combobox"));
-				});
-				await act(async () => {
-					await user.click(screen.getByRole("option", { name: "Option 2" }));
-				});
+				await user.click(screen.getByRole("combobox"));
+				await user.click(screen.getByRole("option", { name: "Option 2" }));
 
 				expect(mockOnChange).toHaveBeenCalledExactlyOnceWith(expectedValue);
 			},
