@@ -39,11 +39,20 @@ var scopenamesTemplate string
 //go:embed countries.tstmpl
 var countriesTemplate string
 
+//go:embed dbenums.gotmpl
+var dbEnumsTemplate string
+
+// databaseEnums lists the database enums codersdk mirrors under the same name.
+var databaseEnums = []string{
+	"ConnectionLogMethod",
+}
+
 func usage() {
 	_, _ = fmt.Println("Usage: typegen <type> [template]")
 	_, _ = fmt.Println("Types:")
 	_, _ = fmt.Println("  rbac <object|codersdk|typescript> - Generate RBAC related files")
 	_, _ = fmt.Println("  countries              - Generate countries TypeScript")
+	_, _ = fmt.Println("  dbenums                - Generate codersdk mirrors of database enums")
 }
 
 // main will generate a file based on the type and template specified.
@@ -74,6 +83,8 @@ func main() {
 		out, err = generateRBAC(flag.Args()[1])
 	case "countries":
 		out, err = generateCountries()
+	case "dbenums":
+		out, err = generateDatabaseEnums()
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "%q is not a valid type\n", flag.Args()[0])
 		usage()
@@ -129,6 +140,36 @@ func generateCountries() ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+type databaseEnum struct {
+	Name   string
+	Values []EnumValue
+}
+
+func generateDatabaseEnums() ([]byte, error) {
+	f, err := parser.ParseFile(token.NewFileSet(), "./coderd/database/models.go", nil, 0)
+	if err != nil {
+		return nil, xerrors.Errorf("parsing models.go: %w", err)
+	}
+	enums := make([]databaseEnum, 0, len(databaseEnums))
+	for _, name := range databaseEnums {
+		values := enumValues(f, name)
+		if len(values) == 0 {
+			return nil, xerrors.Errorf("enum %s not found in models.go", name)
+		}
+		enums = append(enums, databaseEnum{Name: name, Values: values})
+	}
+
+	tmpl, err := template.New("dbenums.gotmpl").Parse(dbEnumsTemplate)
+	if err != nil {
+		return nil, xerrors.Errorf("parse template: %w", err)
+	}
+	var out bytes.Buffer
+	if err := tmpl.Execute(&out, enums); err != nil {
+		return nil, xerrors.Errorf("execute template: %w", err)
+	}
+	return format.Source(out.Bytes())
+}
+
 func pascalCaseName[T ~string](name T) string {
 	names := strings.Split(string(name), "_")
 	for i := range names {
@@ -149,51 +190,37 @@ func (p Definition) FunctionName() string {
 	return p.Type
 }
 
-// fileActions is required because we cannot get the variable name of the enum
-// at runtime. So parse the package to get it. This is purely to ensure enum
-// names are consistent, which is a bit annoying, but not too bad.
-func fileActions(file *ast.File) map[string]string {
-	// actions is a map from the enum value -> enum name
-	actions := make(map[string]string)
-
-	// Find the action consts
-fileDeclLoop:
+// enumValues returns the constants of the named string type in file, in
+// source order. Constant names are not available at runtime, so parse them.
+func enumValues(file *ast.File, typeName string) []EnumValue {
+	var values []EnumValue
 	for _, decl := range file.Decls {
-		switch typedDecl := decl.(type) {
-		case *ast.GenDecl:
-			if len(typedDecl.Specs) == 0 {
-				continue
-			}
-			// This is the right on, loop over all idents, pull the actions
-			for _, spec := range typedDecl.Specs {
-				vSpec, ok := spec.(*ast.ValueSpec)
-				if !ok {
-					continue fileDeclLoop
-				}
-
-				typeIdent, ok := vSpec.Type.(*ast.Ident)
-				if !ok {
-					continue fileDeclLoop
-				}
-
-				if typeIdent.Name != "Action" || len(vSpec.Values) != 1 || len(vSpec.Names) != 1 {
-					continue fileDeclLoop
-				}
-
-				literal, ok := vSpec.Values[0].(*ast.BasicLit)
-				if !ok {
-					continue fileDeclLoop
-				}
-				actions[strings.Trim(literal.Value, `"`)] = vSpec.Names[0].Name
-			}
-		default:
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.CONST {
 			continue
 		}
+		for _, spec := range genDecl.Specs {
+			vSpec, ok := spec.(*ast.ValueSpec)
+			if !ok || len(vSpec.Names) != 1 || len(vSpec.Values) != 1 {
+				continue
+			}
+			if typeIdent, ok := vSpec.Type.(*ast.Ident); !ok || typeIdent.Name != typeName {
+				continue
+			}
+			literal, ok := vSpec.Values[0].(*ast.BasicLit)
+			if !ok || literal.Kind != token.STRING {
+				continue
+			}
+			values = append(values, EnumValue{
+				Enum:  vSpec.Names[0].Name,
+				Value: strings.Trim(literal.Value, `"`),
+			})
+		}
 	}
-	return actions
+	return values
 }
 
-type ActionDetails struct {
+type EnumValue struct {
 	Enum  string
 	Value string
 }
@@ -206,17 +233,14 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("parsing policy.go: %w", err)
 	}
-	actionMap := fileActions(f)
-	actionList := make([]ActionDetails, 0)
-	for value, enum := range actionMap {
-		actionList = append(actionList, ActionDetails{
-			Enum:  enum,
-			Value: value,
-		})
+	actionList := enumValues(f, "Action")
+	actionMap := make(map[string]string, len(actionList))
+	for _, action := range actionList {
+		actionMap[action.Value] = action.Enum
 	}
 
 	// Sorting actions for auto gen consistency.
-	slices.SortFunc(actionList, func(a, b ActionDetails) int {
+	slices.SortFunc(actionList, func(a, b EnumValue) int {
 		return strings.Compare(a.Enum, b.Enum)
 	})
 
@@ -225,7 +249,7 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 	tpl, err := template.New("object.gotmpl").Funcs(template.FuncMap{
 		"capitalize":     utilstrings.Capitalize,
 		"pascalCaseName": pascalCaseName[string],
-		"actionsList": func() []ActionDetails {
+		"actionsList": func() []EnumValue {
 			return actionList
 		},
 		"actionsOf": func(d Definition) []string {

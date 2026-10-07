@@ -59,6 +59,7 @@ export const PortForwardingAuthenticated: Story = {
 		connectionLog: {
 			...MockWebConnectionLog,
 			type: "port_forwarding",
+			connection_method: "port_forwarding",
 			web_info: {
 				...MockWebConnectionLog.web_info!,
 				slug_or_port: "8080",
@@ -80,20 +81,23 @@ export const AppUnauthenticatedRedirect: Story = {
 	},
 };
 
-export const VSCode: Story = {
+export const SSHWithApp: Story = {
 	args: {
 		connectionLog: {
-			...MockWebConnectionLog,
+			...MockConnectedSSHConnectionLog,
 			type: "vscode",
+			app_name: "cursor",
+			app_display_name: "Cursor",
 		},
 	},
 };
 
-export const JetBrains: Story = {
+export const SSHWithUnknownApp: Story = {
 	args: {
 		connectionLog: {
-			...MockWebConnectionLog,
-			type: "jetbrains",
+			...MockConnectedSSHConnectionLog,
+			app_name: "an_unregistered_ide",
+			app_display_name: "an_unregistered_ide",
 		},
 	},
 };
@@ -129,11 +133,12 @@ export const TunnelDenied: Story = {
 	},
 };
 
-export const WebTerminal: Story = {
+export const ReconnectingPTY: Story = {
 	args: {
 		connectionLog: {
-			...MockWebConnectionLog,
+			...MockConnectedSSHConnectionLog,
 			type: "reconnecting_pty",
+			connection_method: "reconnecting_pty",
 		},
 	},
 };

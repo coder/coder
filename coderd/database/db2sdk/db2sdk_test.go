@@ -1310,3 +1310,30 @@ func TestChatQueuedMessage_MalformedContent(t *testing.T) {
 
 	require.Empty(t, queued.Content)
 }
+
+func TestConnectionLogType(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		method  database.ConnectionLogMethod
+		appName string
+		want    string
+	}{
+		{"VSCodeFamily", database.ConnectionLogMethodSSH, "cursor", "vscode"},
+		{"JetBrainsFamily", database.ConnectionLogMethodSSH, "goland", "jetbrains"},
+		{"Normalized", database.ConnectionLogMethodSSH, "Code-Server", "vscode"},
+		// Every other SSH identity, including an absent one, is plain SSH.
+		{"Absent", database.ConnectionLogMethodSSH, "", "ssh"},
+		{"SSHFamily", database.ConnectionLogMethodSSH, "zed", "ssh"},
+		{"Unregistered", database.ConnectionLogMethodSSH, "an_unregistered_ide", "ssh"},
+		// Other methods report themselves, whatever the app.
+		{"ReconnectingPTY", database.ConnectionLogMethodReconnectingPTY, "cursor", "reconnecting_pty"},
+		{"WorkspaceApp", database.ConnectionLogMethodWorkspaceApp, "vscode", "workspace_app"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, db2sdk.ConnectionLogType(tc.method, tc.appName))
+		})
+	}
+}

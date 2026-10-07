@@ -109,6 +109,33 @@ describe("ConnectionLogPage", () => {
 			});
 		});
 
+		it("sends the selected method to the API", async () => {
+			const getConnectionLogsSpy = vi
+				.spyOn(API, "getConnectionLogs")
+				.mockResolvedValue({
+					connection_logs: [MockConnectedSSHConnectionLog],
+					count: 1,
+					count_cap: 0,
+				});
+			await renderPage();
+
+			const user = userEvent.setup();
+			await user.click(
+				screen.getByRole("button", { name: "Filter by connection method" }),
+			);
+			await user.click(
+				await screen.findByRole("option", { name: "Reconnecting PTY" }),
+			);
+
+			await waitFor(() =>
+				expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: 0,
+					q: "method:reconnecting_pty",
+				}),
+			);
+		});
+
 		it("resets page to 1 when filter is changed", async () => {
 			await renderPage({ page: 2 });
 
