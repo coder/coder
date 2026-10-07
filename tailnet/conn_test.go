@@ -3,6 +3,8 @@ package tailnet_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +17,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tailscale/wireguard-go/tun/tuntest"
 	"go.uber.org/goleak"
+	"gvisor.dev/gvisor/pkg/buffer"
+	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	"gvisor.dev/gvisor/pkg/tcpip/header"
+	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
+	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
+	"gvisor.dev/gvisor/pkg/tcpip/stack"
+	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
@@ -536,6 +547,127 @@ func TestConn_BlockEndpoints(t *testing.T) {
 	require.True(t, ok)
 	require.Empty(t, conn2Status.Addrs)
 	require.Empty(t, conn2Status.CurAddr)
+}
+
+// TestConn_ReusedSourcePortAfterServerClose checks that a SYN reusing a
+// 4-tuple the listener side holds in TIME_WAIT is accepted (PLAT-717).
+//
+//nolint:paralleltest // TUNDev enables the process-global tailscale netns setting, which would leak into parallel NewConn calls.
+func TestConn_ReusedSourcePortAfterServerClose(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+
+	agentIP := tailnet.TailscaleServicePrefix.RandomAddr()
+	agent, err := tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{netip.PrefixFrom(agentIP, 128)},
+		Logger:    logger.Named("agent"),
+		DERPMap:   derpMap,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = agent.Close() })
+
+	// The client is a gVisor stack behind a TUN so it can choose its source
+	// port.
+	clientIP := tailnet.TailscaleServicePrefix.RandomAddr()
+	chTUN := tuntest.NewChannelTUN()
+	client, err := tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{netip.PrefixFrom(clientIP, 128)},
+		Logger:    logger.Named("client"),
+		DERPMap:   derpMap,
+		TUNDev:    chTUN.TUN(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	clientStack := newTUNStack(ctx, t, chTUN, clientIP)
+
+	stitch(t, agent, client)
+	stitch(t, client, agent)
+	require.True(t, client.AwaitReachable(ctx, agentIP))
+
+	const port = 35565
+	ln, err := agent.Listen("tcp", fmt.Sprintf(":%d", port))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			// Close first so the agent holds the 4-tuple in TIME_WAIT.
+			_, _ = c.Write([]byte("x"))
+			_ = c.Close()
+		}
+	}()
+
+	local := tcpip.FullAddress{NIC: 1, Addr: tcpip.AddrFrom16(clientIP.As16()), Port: 40000}
+	remote := tcpip.FullAddress{Addr: tcpip.AddrFrom16(agentIP.As16()), Port: port}
+	for i := range 2 {
+		dialCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
+		c, err := gonet.DialTCPWithBind(dialCtx, clientStack, local, remote, ipv6.ProtocolNumber)
+		cancel()
+		require.NoError(t, err, "dial %d from reused source port %d", i, local.Port)
+		b, err := io.ReadAll(c)
+		require.NoError(t, err)
+		require.Equal(t, "x", string(b))
+		require.NoError(t, c.Close())
+		// The port is free again once the client's LAST_ACK completes, at
+		// which point the agent is in TIME_WAIT.
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			return len(clientStack.RegisteredEndpoints()) == 0
+		}, testutil.IntervalFast)
+	}
+}
+
+// newTUNStack returns a gVisor stack with address addr that exchanges
+// packets through chTUN.
+func newTUNStack(ctx context.Context, t *testing.T, chTUN *tuntest.ChannelTUN, addr netip.Addr) *stack.Stack {
+	s := stack.New(stack.Options{
+		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv6.NewProtocol},
+		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol},
+	})
+	linkEP := channel.New(64, tuntest.DefaultMTU, "")
+	t.Cleanup(func() {
+		linkEP.Close()
+		s.Close()
+		s.Wait()
+	})
+	require.Nil(t, s.CreateNIC(1, linkEP))
+	require.Nil(t, s.AddProtocolAddress(1, tcpip.ProtocolAddress{
+		Protocol:          ipv6.ProtocolNumber,
+		AddressWithPrefix: tcpip.AddrFrom16(addr.As16()).WithPrefix(),
+	}, stack.AddressProperties{}))
+	s.SetRouteTable([]tcpip.Route{{Destination: header.IPv6EmptySubnet, NIC: 1}})
+
+	go func() {
+		for {
+			pkt := linkEP.ReadContext(ctx)
+			if pkt == nil {
+				return
+			}
+			b := pkt.ToView().AsSlice()
+			pkt.DecRef()
+			select {
+			case chTUN.Outbound <- b:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	go func() {
+		for {
+			select {
+			case b := <-chTUN.Inbound:
+				pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{Payload: buffer.MakeWithData(b)})
+				linkEP.InjectInbound(ipv6.ProtocolNumber, pkt)
+				pkt.DecRef()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return s
 }
 
 // stitch sends node updates from src Conn as peer updates to dst Conn.  Sort of
