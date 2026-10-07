@@ -8501,18 +8501,14 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 	return err
 }
 
-const deleteChatProjectChats = `-- name: DeleteChatProjectChats :exec
+const deleteChatsByIDs = `-- name: DeleteChatsByIDs :exec
 DELETE FROM chats
-WHERE project_id = $1::uuid
-    OR root_chat_id IN (
-        SELECT root.id FROM chats root WHERE root.project_id = $1::uuid
-    )
+WHERE id = ANY($1::uuid[])
 `
 
-// Deletes a project's root chats and their sub-chats. Chat-scoped tables
-// cascade.
-func (q *sqlQuerier) DeleteChatProjectChats(ctx context.Context, projectID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatProjectChats, projectID)
+// Chat-scoped tables cascade.
+func (q *sqlQuerier) DeleteChatsByIDs(ctx context.Context, ids []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatsByIDs, pq.Array(ids))
 	return err
 }
 
@@ -8565,100 +8561,6 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 		&i.GroupACL,
 	)
 	return i, err
-}
-
-const getChatProjectChatsForDelete = `-- name: GetChatProjectChatsForDelete :many
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at, automation_id, manage_automations_enabled
-FROM chats_expanded
-WHERE id IN (
-    SELECT chats.id
-    FROM chats
-    WHERE chats.project_id = $1::uuid
-        OR chats.root_chat_id IN (
-            SELECT root.id FROM chats root WHERE root.project_id = $1::uuid
-        )
-    FOR UPDATE
-)
-ORDER BY id
-`
-
-// Returns a project's root chats and their sub-chats. The rows stay locked
-// until the transaction ends, so no worker acquires one before
-// DeleteChatProjectChats runs.
-func (q *sqlQuerier) GetChatProjectChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectChatsForDelete, projectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Chat
-	for rows.Next() {
-		var i Chat
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Status,
-			&i.WorkerID,
-			&i.StartedAt,
-			&i.HeartbeatAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ParentChatID,
-			&i.RootChatID,
-			&i.LastModelConfigID,
-			&i.LastReasoningEffort,
-			&i.Archived,
-			&i.LastError,
-			&i.Mode,
-			pq.Array(&i.MCPServerIDs),
-			&i.Labels,
-			&i.BuildID,
-			&i.AgentID,
-			&i.PinOrder,
-			&i.LastReadMessageID,
-			&i.DynamicTools,
-			&i.OrganizationID,
-			&i.ProjectID,
-			&i.PlanMode,
-			&i.ClientType,
-			&i.LastTurnSummary,
-			&i.Summary,
-			&i.SummaryGeneratedAt,
-			&i.SnapshotVersion,
-			&i.HistoryVersion,
-			&i.QueueVersion,
-			&i.GenerationAttempt,
-			&i.RetryState,
-			&i.RetryStateVersion,
-			&i.RunnerID,
-			&i.RequiresActionDeadlineAt,
-			&i.UserACL,
-			&i.GroupACL,
-			&i.OwnerUsername,
-			&i.OwnerName,
-			&i.ContextAggregateHash,
-			&i.ContextDirtySince,
-			&i.ContextDirtyResources,
-			&i.ContextError,
-			&i.CompactionRequestedAt,
-			&i.TitleSource,
-			&i.TitleUpdatedAt,
-			&i.AutomationID,
-			&i.ManageAutomationsEnabled,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getChatProjectsAccessibleByUserID = `-- name: GetChatProjectsAccessibleByUserID :many
@@ -8767,6 +8669,89 @@ func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.
 	return items, nil
 }
 
+const getChatsByIDs = `-- name: GetChatsByIDs :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at, automation_id, manage_automations_enabled
+FROM chats_expanded
+WHERE id = ANY($1::uuid[])
+ORDER BY id
+`
+
+func (q *sqlQuerier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+			&i.CompactionRequestedAt,
+			&i.TitleSource,
+			&i.TitleUpdatedAt,
+			&i.AutomationID,
+			&i.ManageAutomationsEnabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertChatProject = `-- name: InsertChatProject :one
 INSERT INTO chat_projects (id, organization_id, owner_id, name, description, icon)
 VALUES (
@@ -8857,6 +8842,60 @@ func (q *sqlQuerier) IsChatProjectAccessibleByUserID(ctx context.Context, arg Is
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const lockChatProjectChatsForDelete = `-- name: LockChatProjectChatsForDelete :many
+WITH roots AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.project_id = $1::uuid
+    ORDER BY chats.id
+    LIMIT $2::int
+)
+SELECT chats.id, chats.worker_id, chats.runner_id
+FROM chats
+WHERE chats.id IN (SELECT id FROM roots)
+    OR chats.root_chat_id IN (SELECT id FROM roots)
+ORDER BY chats.id
+FOR UPDATE
+`
+
+type LockChatProjectChatsForDeleteParams struct {
+	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+type LockChatProjectChatsForDeleteRow struct {
+	ID       uuid.UUID     `db:"id" json:"id"`
+	WorkerID uuid.NullUUID `db:"worker_id" json:"worker_id"`
+	RunnerID uuid.NullUUID `db:"runner_id" json:"runner_id"`
+}
+
+// Locks up to limit_count of a project's root chats with their sub-chats,
+// returning the locked rows' current worker fields so callers can tell
+// whether a worker holds one. Deleting a project in batches keeps each
+// transaction short.
+func (q *sqlQuerier) LockChatProjectChatsForDelete(ctx context.Context, arg LockChatProjectChatsForDeleteParams) ([]LockChatProjectChatsForDeleteRow, error) {
+	rows, err := q.db.QueryContext(ctx, lockChatProjectChatsForDelete, arg.ProjectID, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LockChatProjectChatsForDeleteRow
+	for rows.Next() {
+		var i LockChatProjectChatsForDeleteRow
+		if err := rows.Scan(&i.ID, &i.WorkerID, &i.RunnerID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateChatProjectACLByID = `-- name: UpdateChatProjectACLByID :exec

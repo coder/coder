@@ -2328,7 +2328,7 @@ func TestGetChatProjectsAccessibleByUserID(t *testing.T) {
 	}
 }
 
-func TestDeleteChatProjectChats(t *testing.T) {
+func TestChatProjectDeleteQueries(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -2372,15 +2372,32 @@ func TestDeleteChatProjectChats(t *testing.T) {
 	otherProjectChat := newChat(owner.ID, uuid.NullUUID{UUID: otherProject.ID, Valid: true}, nil)
 
 	family := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID}
-	locked, err := db.GetChatProjectChatsForDelete(ctx, project.ID)
+	locked, err := db.LockChatProjectChatsForDelete(ctx, database.LockChatProjectChatsForDeleteParams{ProjectID: project.ID, LimitCount: 10})
 	require.NoError(t, err)
 	got := make([]uuid.UUID, 0, len(locked))
-	for _, chat := range locked {
-		got = append(got, chat.ID)
+	for _, row := range locked {
+		got = append(got, row.ID)
 	}
 	require.ElementsMatch(t, family, got)
 
-	require.NoError(t, db.DeleteChatProjectChats(ctx, project.ID))
+	// The limit counts root chats and brings each root's sub-chats along.
+	locked, err = db.LockChatProjectChatsForDelete(ctx, database.LockChatProjectChatsForDeleteParams{ProjectID: project.ID, LimitCount: 1})
+	require.NoError(t, err)
+	got = got[:0]
+	for _, row := range locked {
+		got = append(got, row.ID)
+	}
+	if slices.Contains(got, ownerRoot.ID) {
+		require.ElementsMatch(t, []uuid.UUID{ownerRoot.ID, ownerChild.ID}, got)
+	} else {
+		require.Equal(t, []uuid.UUID{shareeRoot.ID}, got)
+	}
+
+	chats, err := db.GetChatsByIDs(ctx, family)
+	require.NoError(t, err)
+	require.Len(t, chats, len(family))
+
+	require.NoError(t, db.DeleteChatsByIDs(ctx, family))
 	for _, id := range family {
 		_, err := db.GetChatByID(ctx, id)
 		require.ErrorIs(t, err, sql.ErrNoRows)

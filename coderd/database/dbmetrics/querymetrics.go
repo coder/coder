@@ -608,14 +608,6 @@ func (m queryMetricsStore) DeleteChatProjectByID(ctx context.Context, id uuid.UU
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatProjectChats(ctx context.Context, projectID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteChatProjectChats(ctx, projectID)
-	m.queryLatencies.WithLabelValues("DeleteChatProjectChats").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatProjectChats").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatProjectMemoryByID(ctx, id)
@@ -646,6 +638,14 @@ func (m queryMetricsStore) DeleteChatQueuedMessageReturningCount(ctx context.Con
 	m.queryLatencies.WithLabelValues("DeleteChatQueuedMessageReturningCount").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatQueuedMessageReturningCount").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteChatsByIDs(ctx context.Context, ids []uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatsByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("DeleteChatsByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatsByIDs").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -1920,14 +1920,6 @@ func (m queryMetricsStore) GetChatProjectByIDForUpdate(ctx context.Context, id u
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatProjectChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatProjectChatsForDelete(ctx, projectID)
-	m.queryLatencies.WithLabelValues("GetChatProjectChatsForDelete").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectChatsForDelete").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectMemoriesByProjectID(ctx, projectID)
@@ -2109,6 +2101,14 @@ func (m queryMetricsStore) GetChatsByChatFileID(ctx context.Context, fileID uuid
 	r0, r1 := m.s.GetChatsByChatFileID(ctx, fileID)
 	m.queryLatencies.WithLabelValues("GetChatsByChatFileID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByChatFileID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatsByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetChatsByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByIDs").Inc()
 	return r0, r1
 }
 
@@ -5221,6 +5221,14 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	r0, r1 := m.s.LockChatByID(ctx, id)
 	m.queryLatencies.WithLabelValues("LockChatByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) LockChatProjectChatsForDelete(ctx context.Context, arg database.LockChatProjectChatsForDeleteParams) ([]database.LockChatProjectChatsForDeleteRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockChatProjectChatsForDelete(ctx, arg)
+	m.queryLatencies.WithLabelValues("LockChatProjectChatsForDelete").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatProjectChatsForDelete").Inc()
 	return r0, r1
 }
 

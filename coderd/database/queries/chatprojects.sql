@@ -117,28 +117,32 @@ SELECT COUNT(*)::bigint
 FROM chat_projects
 WHERE owner_id = @owner_id::uuid;
 
--- name: GetChatProjectChatsForDelete :many
--- Returns a project's root chats and their sub-chats. The rows stay locked
--- until the transaction ends, so no worker acquires one before
--- DeleteChatProjectChats runs.
-SELECT *
-FROM chats_expanded
-WHERE id IN (
+-- name: LockChatProjectChatsForDelete :many
+-- Locks up to limit_count of a project's root chats with their sub-chats,
+-- returning the locked rows' current worker fields so callers can tell
+-- whether a worker holds one. Deleting a project in batches keeps each
+-- transaction short.
+WITH roots AS (
     SELECT chats.id
     FROM chats
     WHERE chats.project_id = @project_id::uuid
-        OR chats.root_chat_id IN (
-            SELECT root.id FROM chats root WHERE root.project_id = @project_id::uuid
-        )
-    FOR UPDATE
+    ORDER BY chats.id
+    LIMIT @limit_count::int
 )
+SELECT chats.id, chats.worker_id, chats.runner_id
+FROM chats
+WHERE chats.id IN (SELECT id FROM roots)
+    OR chats.root_chat_id IN (SELECT id FROM roots)
+ORDER BY chats.id
+FOR UPDATE;
+
+-- name: GetChatsByIDs :many
+SELECT *
+FROM chats_expanded
+WHERE id = ANY(@ids::uuid[])
 ORDER BY id;
 
--- name: DeleteChatProjectChats :exec
--- Deletes a project's root chats and their sub-chats. Chat-scoped tables
--- cascade.
+-- name: DeleteChatsByIDs :exec
+-- Chat-scoped tables cascade.
 DELETE FROM chats
-WHERE project_id = @project_id::uuid
-    OR root_chat_id IN (
-        SELECT root.id FROM chats root WHERE root.project_id = @project_id::uuid
-    );
+WHERE id = ANY(@ids::uuid[]);
