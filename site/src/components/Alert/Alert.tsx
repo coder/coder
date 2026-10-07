@@ -28,7 +28,7 @@ const alertVariants = cva(
 		compoundVariants: [
 			{
 				prominent: false,
-				className: "border-border-default bg-surface-secondary",
+				className: "border-border bg-surface-secondary",
 			},
 			{
 				severity: "success",

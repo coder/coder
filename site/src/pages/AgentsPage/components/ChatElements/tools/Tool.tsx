@@ -234,7 +234,6 @@ const ExecuteRenderer: React.FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
-	modelIntent,
 	parsedCommands,
 	startedAt,
 	shellToolDisplayMode,
@@ -250,7 +249,6 @@ const ExecuteRenderer: React.FC<ToolRendererProps> = ({
 			durationMs={data.durationMs}
 			isBackgrounded={data.isBackgrounded}
 			killedBySignal={killedBySignal}
-			modelIntent={modelIntent}
 			parsedCommands={parsedCommands}
 			startedAt={startedAt}
 			shellToolDisplayMode={shellToolDisplayMode}
@@ -263,7 +261,6 @@ const ProcessOutputRenderer: React.FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
-	modelIntent,
 	shellToolDisplayMode,
 }) => {
 	const rec = asRecord(result);
@@ -283,7 +280,6 @@ const ProcessOutputRenderer: React.FC<ToolRendererProps> = ({
 		<ProcessOutputTool
 			output={output}
 			command={command || undefined}
-			modelIntent={modelIntent}
 			status={status}
 			processRunning={processRunning}
 			exitCode={exitCode}
@@ -762,7 +758,6 @@ const AdvisorRenderer: React.FC<ToolRendererProps> = ({
 	result,
 	reasoning,
 	isError,
-	modelIntent,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const question = parsedArgs ? asString(parsedArgs.question) : "";
@@ -798,7 +793,6 @@ const AdvisorRenderer: React.FC<ToolRendererProps> = ({
 			advice={advice}
 			reasoning={reasoning}
 			errorMessage={errorMessage || undefined}
-			modelIntent={modelIntent}
 		/>
 	);
 };
@@ -883,7 +877,7 @@ const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
 			</div>
 		)}
 		<ScrollArea
-			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 			viewportClassName="max-h-64"
 			viewportTabIndex={0}
 			viewportAriaLabel={`Contents of ${file.name}`}

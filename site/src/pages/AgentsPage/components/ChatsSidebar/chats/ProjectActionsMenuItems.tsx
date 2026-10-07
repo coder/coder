@@ -17,8 +17,8 @@ type ProjectActionsMenuSeparator =
 type ProjectActionsMenuItemsProps = {
 	readonly Item: ProjectActionsMenuItem;
 	readonly Separator: ProjectActionsMenuSeparator;
-	/** The project page, linked from the "New chat" item. */
-	readonly projectPath: To;
+	/** Adds a "New chat" item linking here. Omit on the project page itself. */
+	readonly projectPath?: To;
 	readonly onEdit: () => void;
 	readonly onDelete: () => void;
 };
@@ -28,13 +28,17 @@ export const ProjectActionsMenuItems: React.FC<
 	ProjectActionsMenuItemsProps
 > = ({ Item, Separator, projectPath, onEdit, onDelete }) => (
 	<>
-		<Item asChild>
-			<Link to={projectPath}>
-				<SquarePenIcon />
-				New chat
-			</Link>
-		</Item>
-		<Separator />
+		{projectPath !== undefined && (
+			<>
+				<Item asChild>
+					<Link to={projectPath}>
+						<SquarePenIcon />
+						New chat
+					</Link>
+				</Item>
+				<Separator />
+			</>
+		)}
 		<Item onSelect={onEdit}>Edit project</Item>
 		<Item
 			className="text-content-destructive focus:text-content-destructive"

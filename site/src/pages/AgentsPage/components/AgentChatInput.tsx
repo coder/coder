@@ -244,6 +244,7 @@ type AgentChatInputProps = {
 	// Built-in commands offered by the "/" trigger menu ahead of
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
+	fillWidth?: boolean;
 };
 
 export type AttachedWorkspaceInfo = {
@@ -616,6 +617,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	unsupportedProviderNames = [],
 	aiGatewayDisabled,
 	slashCommands,
+	fillWidth = false,
 }) => {
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
@@ -1384,7 +1386,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		<div
 			className={cn(
 				"mx-auto w-full pb-0 sm:pb-4",
-				chatWidthClass(chatFullWidth),
+				fillWidth ? "max-w-full" : chatWidthClass(chatFullWidth),
 				isEditingHistoryMessage && "pt-1",
 			)}
 		>
@@ -1438,14 +1440,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				{warning && (
 					<div
 						id={warningId}
-						className="flex items-start gap-1.5 border-b border-border-default/70 px-3 py-1.5 text-xs font-medium text-content-warning"
+						className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs font-medium text-content-warning"
 					>
 						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
 						{warning}
 					</div>
 				)}
 				{isEditingHistoryMessage && (
-					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
+					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
 							Editing will delete all subsequent messages and restart the

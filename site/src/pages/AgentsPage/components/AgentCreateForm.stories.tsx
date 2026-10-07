@@ -10,6 +10,7 @@ import {
 	spyOn,
 	userEvent,
 	waitFor,
+	waitForElementToBeRemoved,
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -57,11 +58,6 @@ import {
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
 import { AgentCreateFormFrame } from "./AgentCreateFormFrame";
-import {
-	chatProjectDescriptionMaxChars,
-	chatProjectNameMaxChars,
-} from "./ChatsSidebar/dialogs/ChatProjectDialog";
-import { ProjectComposerHeader } from "./ProjectComposerHeader";
 
 let pendingOrganizationAuthorization: Deferred<
 	Awaited<ReturnType<typeof API.checkAuthorization>>
@@ -343,27 +339,6 @@ const mockPermittedOrganizations = (
 
 export const Default: Story = {};
 
-export const ProjectComposer: Story = {
-	args: {
-		project: {
-			...MockChatProject,
-			organization_id: MockDefaultOrganization.id,
-		},
-	},
-	render: (args) => (
-		<div className="flex flex-col gap-2">
-			<ProjectComposerHeader
-				project={{
-					...MockChatProject,
-					name: "N".repeat(chatProjectNameMaxChars),
-					description: "d".repeat(chatProjectDescriptionMaxChars),
-				}}
-			/>
-			<AgentCreateForm {...args} />
-		</div>
-	),
-};
-
 export const ProjectComposerOrganizationDenied: Story = {
 	parameters: {
 		showOrganizations: true,
@@ -373,12 +348,6 @@ export const ProjectComposerOrganizationDenied: Story = {
 	args: {
 		project: { ...MockChatProject, organization_id: MockOrganization2.id },
 	},
-	render: (args) => (
-		<div className="flex flex-col gap-2">
-			<ProjectComposerHeader project={MockChatProject} />
-			<AgentCreateForm {...args} />
-		</div>
-	),
 	beforeEach: () => {
 		mockPermittedOrganizations({
 			[MockDefaultOrganization.id]: true,
@@ -1835,12 +1804,15 @@ export const RevokedSelectionDoesNotResurrect: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: /My Organization 2/ }),
 		);
-		await canvas.findByRole("button", {
+		const revokedPicker = await canvas.findByRole("button", {
 			name: "Organization: My Organization 2",
 		});
 
 		revocablePermissions[MockOrganization2.id] = false;
-		await revocableQueryClient?.invalidateQueries();
+		void revocableQueryClient?.invalidateQueries();
+		// One permitted org hides the picker. Wait for it to unmount so the
+		// re-permit cannot arrive before the revoked selection is cleared.
+		await waitForElementToBeRemoved(revokedPicker);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();

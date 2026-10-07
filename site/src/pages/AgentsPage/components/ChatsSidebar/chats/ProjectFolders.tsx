@@ -255,7 +255,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 			{expanded && (
 				// pl-[7px] and pr-2 offset ChatTreeNode's -mx-2 bleed: rows span the
 				// folder row's width and an active row's border covers the guide line.
-				<div className="ml-3 flex flex-col gap-0.5 border-0 border-l border-solid border-border-default pl-[7px] pr-2">
+				<div className="ml-3 flex flex-col gap-0.5 border-0 border-l border-solid border-border pl-[7px] pr-2">
 					{chats.length === 0 ? (
 						<p className="m-0 px-2 py-1 text-xs text-content-secondary">
 							{emptyMessage}

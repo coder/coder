@@ -4,15 +4,18 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/jwtutils"
@@ -275,4 +278,53 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 			require.Equal(t, jwt.NewNumericDate(clock.Now().Add(-time.Minute)), token.NotBefore)
 		})
 	}
+}
+
+func TestWorkspaceApplicationAuthScoped(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	accessURL, err := url.Parse("https://test.coder.com")
+	require.NoError(t, err)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		AccessURL:   accessURL,
+		AppHostname: "*.test.coder.com",
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	allow := []codersdk.APIAllowListTarget{
+		codersdk.AllowResourceTarget(codersdk.ResourceWorkspace, uuid.New()),
+		codersdk.AllowTypeTarget(codersdk.ResourceApiKey),
+	}
+	authRedirect := func(scopes ...codersdk.APIKeyScope) int {
+		token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{Scopes: scopes, AllowList: allow})
+		require.NoError(t, err)
+		scoped := codersdk.New(client.URL, codersdk.WithSessionToken(token.Key))
+		scoped.HTTPClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		resp, err := scoped.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil, func(req *http.Request) {
+			req.URL.RawQuery = url.Values{"redirect_uri": {"https://app.test.coder.com"}}.Encode()
+		})
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	require.Equal(t, http.StatusNotFound, authRedirect(codersdk.APIKeyScopeApiKeyCreate))
+	require.Equal(t, http.StatusSeeOther, authRedirect(codersdk.APIKeyScopeCoderWorkspacesAccess, codersdk.APIKeyScopeApiKeyCreate))
+	// Unnamed token keys would collide on the per-user name index.
+	require.Equal(t, http.StatusSeeOther, authRedirect(codersdk.APIKeyScopeCoderWorkspacesAccess, codersdk.APIKeyScopeApiKeyCreate))
+
+	//nolint:gocritic // Reading the minted key back.
+	keys, err := api.Database.GetAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), database.GetAPIKeysByUserIDParams{
+		LoginType: database.LoginTypeToken,
+		UserID:    user.UserID,
+	})
+	require.NoError(t, err)
+	idx := slices.IndexFunc(keys, func(k database.APIKey) bool {
+		return k.Scopes.Has(database.ApiKeyScopeCoderApplicationConnect)
+	})
+	require.NotEqual(t, -1, idx, "no application_connect key minted")
+	key, err := client.APIKeyByID(ctx, codersdk.Me, keys[idx].ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, allow, key.AllowList)
 }

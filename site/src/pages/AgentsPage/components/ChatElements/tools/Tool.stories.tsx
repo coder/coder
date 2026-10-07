@@ -25,7 +25,6 @@ import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
-const executeIntentCommand = "npm test";
 const longExecuteCommand =
 	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
 
@@ -65,7 +64,6 @@ type ToolShowcaseItem = {
 	result?: unknown;
 	isError?: boolean;
 	killedBySignal?: "kill" | "terminate";
-	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	subagentVariants?: Map<string, "general" | "explore" | "computer_use">;
 };
@@ -73,8 +71,7 @@ type ToolShowcaseItem = {
 const allToolShowcaseItems: ToolShowcaseItem[] = [
 	{
 		name: "execute",
-		args: { command: "pnpm check", model_intent: "Checking frontend" },
-		modelIntent: "Checking frontend",
+		args: { command: "pnpm check" },
 		parsedCommands: [["pnpm", "check"]],
 		result: {
 			output: "Checked 1799 files.",
@@ -320,51 +317,6 @@ export const ExecuteRunning: Story = {
 	},
 };
 
-export const ExecuteModelIntent: Story = {
-	args: {
-		status: "completed",
-		args: {
-			command: executeIntentCommand,
-			model_intent: "Running tests using npm for 5s",
-		},
-		modelIntent: "Running tests using npm for 5s",
-		result: {
-			output: "",
-			wall_duration_ms: 2300,
-		},
-	},
-};
-
-export const ExecuteModelIntentRunning: Story = {
-	args: {
-		shellToolDisplayMode: "always_expanded",
-		status: "running",
-		args: {
-			command: executeCommand,
-			model_intent: "checking repository state",
-		},
-		modelIntent: "checking repository state",
-		result: {
-			output: "",
-		},
-	},
-};
-
-export const ExecuteModelIntentLeadingUsing: Story = {
-	args: {
-		status: "completed",
-		args: {
-			command: executeCommand,
-			model_intent: "using git fetch origin",
-		},
-		modelIntent: "using git fetch origin",
-		result: {
-			output: "",
-			wall_duration_ms: 2300,
-		},
-	},
-};
-
 export const ExecuteSuccess: Story = {
 	args: {
 		shellToolDisplayMode: "auto",
@@ -572,23 +524,6 @@ export const ProcessOutputExitZeroNoBadge: Story = {
 			command: "npm start",
 			output: "dogfood complete",
 			exit_code: 0,
-		},
-	},
-};
-
-/** A model_intent result replaces the command in the label. */
-export const ProcessOutputModelIntent: Story = {
-	args: {
-		name: "process_output",
-		status: "completed",
-		args: {
-			process_id: "process-123",
-			model_intent: "Waiting for the dev server to be ready",
-		},
-		modelIntent: "Waiting for the dev server to be ready",
-		result: {
-			command: "npm start",
-			output: "> Starting Vite dev server...",
 		},
 	},
 };
@@ -3005,7 +2940,6 @@ export const AllToolIconsTranscript: Story = {
 							result={tool.result}
 							isError={tool.isError ?? false}
 							killedBySignal={tool.killedBySignal}
-							modelIntent={tool.modelIntent}
 							parsedCommands={tool.parsedCommands}
 							subagentTitles={new Map()}
 							subagentVariants={tool.subagentVariants ?? new Map()}
@@ -3081,7 +3015,6 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 								result={tool.result}
 								isError={tool.isError ?? false}
 								killedBySignal={tool.killedBySignal}
-								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
 								subagentTitles={new Map()}
 								subagentVariants={tool.subagentVariants ?? new Map()}
