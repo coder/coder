@@ -147,10 +147,21 @@ func (p *Server) memoryIndexMessage(ctx context.Context, chat database.Chat) (ch
 }
 
 // memoryIndexAfterCompaction returns the memory index snapshot that
-// memoryIndexMessage sends after a compaction drops the earlier one, so
-// the post-compaction estimate can count it. ok is false when no snapshot
-// would be sent or the memories cannot be listed.
-func (p *Server) memoryIndexAfterCompaction(ctx context.Context, chat database.Chat) (msg fantasy.Message, ok bool) {
+// memoryIndexMessage sends after a compaction, so the post-compaction
+// estimate can count it. ok is false when none would be sent: without
+// memories, when they cannot be listed, or when the replayed pending
+// rows already carry a snapshot.
+func (p *Server) memoryIndexAfterCompaction(ctx context.Context, chat database.Chat, pendingRows []database.ChatMessage) (msg fantasy.Message, ok bool) {
+	// Compaction replays the pending rows as model-only rows, which
+	// memoryIndexMessage reads as index messages.
+	replayed := make([]database.ChatMessage, len(pendingRows))
+	for i, row := range pendingRows {
+		row.Visibility = database.ChatMessageVisibilityModel
+		replayed[i] = row
+	}
+	if _, hasSnapshot := chattool.ReplayMemoryIndex(memoryIndexTexts(replayed)); hasSnapshot {
+		return fantasy.Message{}, false
+	}
 	store, _, ok := p.resolveProjectMemory(ctx, chat)
 	if !ok {
 		return fantasy.Message{}, false

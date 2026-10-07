@@ -140,7 +140,8 @@ type CompactionResult struct {
 	ContextTokens    int64
 	ContextLimit     int64
 	// EstimatedContextTokens estimates the prompt of the next request
-	// from SystemSummary and GenerateCompactionOptions.NextPrompt. Hook
+	// from SystemSummary and GenerateCompactionOptions.NextPrompt, or is
+	// zero when that prompt carries media and the size is unknown. Hook
 	// messages committed after the boundary are not included.
 	EstimatedContextTokens int64
 	// Runtime is the wall-clock duration of the summarization model
@@ -491,8 +492,7 @@ func messageTextBytes(msg fantasy.Message) (int, bool) {
 			}
 			hasMedia = true
 		case fantasy.ToolResultPart:
-			if output, media := p.Output.(fantasy.ToolResultOutputContentMedia); media {
-				total += len(output.Text)
+			if _, media := p.Output.(fantasy.ToolResultOutputContentMedia); media {
 				hasMedia = true
 				continue
 			}

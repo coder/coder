@@ -1058,8 +1058,8 @@ func TestCompactionNextPrompt_EstimateTokens(t *testing.T) {
 		Description: strings.Repeat("d", 891),
 		InputSchema: map[string]any{"type": "object"},
 	}
-	// read_file (9) + description (891) + {"type":"object"} (17).
-	const toolBytes = 917
+	// The tool is 917 bytes: read_file (9) + description (891) +
+	// {"type":"object"} (17).
 	tools := []fantasy.Tool{readFile}
 	history := []fantasy.Message{
 		system,
@@ -1074,8 +1074,8 @@ func TestCompactionNextPrompt_EstimateTokens(t *testing.T) {
 		},
 	}
 	pending := []fantasy.Message{textMessage(fantasy.MessageRoleUser, strings.Repeat("p", 100))}
-	// Retained: the system message, the tools and the pending message.
-	const retainedBytes = 3000 + toolBytes + 100
+	// Retained: the system message, the tool and the pending message,
+	// 3000 + 917 + 100 = 4017 bytes.
 	const summaryBytes = 84
 	// 500 prompt tokens over three counters.
 	firstStepUsage := fantasy.Usage{InputTokens: 100, CacheReadTokens: 300, CacheCreationTokens: 100}
@@ -1189,10 +1189,6 @@ func TestRequestTextBytes(t *testing.T) {
 			}},
 		}}
 		require.Zero(t, requestTextBytes(prompt, tools))
-		// The media's text annotation still counts toward retained text.
-		size, hasMedia := messageTextBytes(prompt[0])
-		require.True(t, hasMedia)
-		require.Equal(t, len("screenshot"), size)
 	})
 }
 

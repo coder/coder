@@ -232,7 +232,7 @@ func TestMemoryIndexAfterCompaction(t *testing.T) {
 		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{ID: projectID, Name: "platform"}, nil)
 		db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), projectID).Return(memories, listErr)
 		server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), experiments: codersdk.ExperimentsKnown}
-		return server.memoryIndexAfterCompaction(t.Context(), chat)
+		return server.memoryIndexAfterCompaction(t.Context(), chat, nil)
 	}
 
 	t.Run("Snapshot", func(t *testing.T) {
@@ -259,7 +259,24 @@ func TestMemoryIndexAfterCompaction(t *testing.T) {
 	t.Run("OutsideProject", func(t *testing.T) {
 		t.Parallel()
 		server := &Server{db: dbmock.NewMockStore(gomock.NewController(t)), logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
-		_, ok := server.memoryIndexAfterCompaction(t.Context(), database.Chat{ID: uuid.New()})
+		_, ok := server.memoryIndexAfterCompaction(t.Context(), database.Chat{ID: uuid.New()}, nil)
+		require.False(t, ok)
+	})
+	t.Run("SnapshotInPendingTail", func(t *testing.T) {
+		t.Parallel()
+		// syncMemoryIndex committed a snapshot after the last step, so it
+		// is replayed with the pending tail and nothing more is sent.
+		snapshot := chattool.FormatMemoryIndexSnapshot([]chattool.MemoryIndexEntry{{Name: "alpha", Description: "First"}})
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(snapshot)})
+		require.NoError(t, err)
+		pending := []database.ChatMessage{{
+			Role:           database.ChatMessageRoleUser,
+			Visibility:     database.ChatMessageVisibilityModel,
+			Content:        content,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		}}
+		server := &Server{db: dbmock.NewMockStore(gomock.NewController(t)), logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
+		_, ok := server.memoryIndexAfterCompaction(t.Context(), chat, pending)
 		require.False(t, ok)
 	})
 }

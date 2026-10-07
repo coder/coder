@@ -853,7 +853,7 @@ func (server *Server) prepareGeneration(
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
-	firstStepUsage, firstStepPromptTextBytes := firstStepCalibration(promptRows, modelConfig)
+	firstStepUsage, firstStepPromptTextBytes := firstStepCalibration(promptRows, modelConfig.ID)
 	compactionNextPrompt := chatloop.CompactionNextPrompt{
 		History: compactionPromptMessages,
 		// A nonempty pending tail is kept out of the summarizer input
@@ -962,14 +962,15 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 // firstStepCalibration returns the usage and request text bytes of the
 // first assistant message, the first step since the latest compaction
 // boundary. Both are zero when that step ran on another model config,
-// or on this one before its last update, which may have changed the
-// model and with it the tokenizer.
-func firstStepCalibration(messages []database.ChatMessage, modelConfig database.ChatModelConfig) (fantasy.Usage, int64) {
+// whose tokenizer can differ. A model changed within the same config is
+// not detected: updated_at also moves on unrelated edits such as setting
+// a new default, and skipping calibration then costs up to 27%.
+func firstStepCalibration(messages []database.ChatMessage, modelConfigID uuid.UUID) (fantasy.Usage, int64) {
 	for _, msg := range messages {
 		if msg.Role != database.ChatMessageRoleAssistant {
 			continue
 		}
-		if !msg.ModelConfigID.Valid || msg.ModelConfigID.UUID != modelConfig.ID || msg.CreatedAt.Before(modelConfig.UpdatedAt) {
+		if !msg.ModelConfigID.Valid || msg.ModelConfigID.UUID != modelConfigID {
 			return fantasy.Usage{}, 0
 		}
 		return usageFromMessage(msg), msg.PromptTextBytes.Int64

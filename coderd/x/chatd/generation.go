@@ -1264,7 +1264,7 @@ func (s *taskStarter) generateCompaction(
 	compactionOpts.Source = source
 	compactionOpts.Force = source == chatloop.CompactionSourceManual
 	compactionOpts.Clock = s.opts.Clock
-	if memoryIndex, ok := s.server.memoryIndexAfterCompaction(ctx, prepared.Chat); ok {
+	if memoryIndex, ok := s.server.memoryIndexAfterCompaction(ctx, prepared.Chat, prepared.Compaction.PendingUserRows); ok {
 		compactionOpts.NextPrompt.Pending = append(slices.Clip(compactionOpts.NextPrompt.Pending), memoryIndex)
 	}
 	// Attach the turn debug run so the compaction call records a child
