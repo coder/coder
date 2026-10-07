@@ -21,6 +21,9 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
@@ -31,7 +34,6 @@ import {
 	ChatActionsMenuItems,
 	canManageChat,
 	chatFamilyAllowsArchive,
-	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
@@ -155,14 +157,9 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 			)
 		: false;
 	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
-	// Suppressed when there is no chat to act on (loading and not-found views)
-	// and when the chat has no menu actions (archived child chats and chats
-	// shared by another user).
+	// Suppressed when there is no chat to act on (loading and not-found views).
 	const showActionsMenu =
-		!isEmbedded &&
-		chat !== undefined &&
-		Boolean(chatTitle) &&
-		chatHasMenuActions(chat, { canManage });
+		!isEmbedded && chat !== undefined && Boolean(chatTitle);
 	const diffStatus = chat?.diff_status;
 
 	const prUrl = diffStatus?.url;
@@ -305,6 +302,9 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 								}
 								Item={DropdownMenuItem}
 								Separator={DropdownMenuSeparator}
+								Sub={DropdownMenuSub}
+								SubTrigger={DropdownMenuSubTrigger}
+								SubContent={DropdownMenuSubContent}
 							/>
 						</DropdownMenuContent>
 					</DropdownMenu>
@@ -319,7 +319,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 					target="_blank"
 					rel="noreferrer"
 					className={cn(
-						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
 						panel.showSidebarPanel && "lg:hidden",
 					)}
 				>

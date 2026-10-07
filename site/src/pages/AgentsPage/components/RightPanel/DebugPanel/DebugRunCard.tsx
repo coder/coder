@@ -154,7 +154,7 @@ export const DebugRunCard: React.FC<DebugRunCardProps> = ({
 
 	return (
 		<Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-			<div className="overflow-hidden rounded-lg border border-solid border-border-default/40">
+			<div className="overflow-hidden rounded-lg border border-solid border-border/40">
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
@@ -223,7 +223,7 @@ export const DebugRunCard: React.FC<DebugRunCardProps> = ({
 							{summaryVm.mcpConnect.length > 0 ? (
 								<section
 									aria-labelledby={mcpConnectHeadingId}
-									className="rounded-md border border-solid border-border-default/40 px-2.5 py-1.5"
+									className="rounded-md border border-solid border-border/40 px-2.5 py-1.5"
 								>
 									<h4
 										id={mcpConnectHeadingId}
