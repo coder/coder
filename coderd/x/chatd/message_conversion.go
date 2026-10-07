@@ -896,7 +896,6 @@ func (s *partialMessageConversionState) appendAssistantPart(part codersdk.ChatMe
 	}
 	s.streamedRunIndex = len(s.assistantParts) - 1
 	s.streamedRunOpen = true
-	s.streamedRun.Reset()
 	_, _ = s.streamedRun.WriteString(part.Text)
 }
 
