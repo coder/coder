@@ -2398,7 +2398,6 @@ func UserSecret(secret database.ListUserSecretsRow) codersdk.UserSecret {
 		Enabled:     secret.Enabled,
 		CreatedAt:   secret.CreatedAt,
 		UpdatedAt:   secret.UpdatedAt,
-		Source:      codersdk.WorkspaceSecretSourceUser,
 	}
 }
 
@@ -2414,7 +2413,6 @@ func UserSecretFromFull(secret database.UserSecret) codersdk.UserSecret {
 		Enabled:     secret.Enabled,
 		CreatedAt:   secret.CreatedAt,
 		UpdatedAt:   secret.UpdatedAt,
-		Source:      codersdk.WorkspaceSecretSourceUser,
 	}
 }
 
@@ -2429,20 +2427,26 @@ func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
 }
 
 // WorkspaceBuildSecret converts workspace secret metadata to an SDK
-// WorkspaceSecret. Workspace secrets have no description and cannot be
-// disabled.
+// WorkspaceSecret. Build secrets have no description, cannot be disabled,
+// and are never updated, so Enabled is true and UpdatedAt is CreatedAt.
 func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersdk.WorkspaceSecret {
-	return codersdk.WorkspaceSecret{
-		ID:        secret.ID,
-		Name:      secret.Name,
-		EnvName:   secret.EnvName,
-		FilePath:  secret.FilePath,
-		Enabled:   true,
-		CreatedAt: secret.CreatedAt,
-		UpdatedAt: secret.CreatedAt,
-		Source:    codersdk.WorkspaceSecretSourceBuild,
-		Ephemeral: secret.Ephemeral,
+	out := codersdk.WorkspaceSecret{
+		UserSecret: codersdk.UserSecret{
+			ID:        secret.ID,
+			Name:      secret.Name,
+			EnvName:   secret.EnvName,
+			FilePath:  secret.FilePath,
+			Enabled:   true,
+			CreatedAt: secret.CreatedAt,
+			UpdatedAt: secret.CreatedAt,
+		},
+		WorkspaceBuildID: secret.WorkspaceBuildID,
+		Ephemeral:        secret.Ephemeral,
 	}
+	if secret.ClearedAt.Valid {
+		out.ClearedAt = &secret.ClearedAt.Time
+	}
+	return out
 }
 
 // Skill converts a database Skill to an SDK Skill.

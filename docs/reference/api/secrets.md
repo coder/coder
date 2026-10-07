@@ -18,16 +18,11 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/secrets \
 
 `GET /api/v2/users/{user}/secrets`
 
-With workspace_build set, the response also includes that
-build's workspace secrets, and reports which secrets are
-replaced on their env_name or file_path by another secret.
-
 ### Parameters
 
-| Name              | In    | Type         | Required | Description                          |
-|-------------------|-------|--------------|----------|--------------------------------------|
-| `user`            | path  | string       | true     | User ID, username, or me             |
-| `workspace_build` | query | string(uuid) | false    | Workspace build ID owned by the user |
+| Name   | In   | Type   | Required | Description              |
+|--------|------|--------|----------|--------------------------|
+| `user` | path | string | true     | User ID, username, or me |
 
 ### Example responses
 
@@ -40,13 +35,9 @@ replaced on their env_name or file_path by another secret.
     "description": "string",
     "enabled": true,
     "env_name": "string",
-    "env_replaced_by": "36faa5cb-cfc3-47a0-9c3e-df076ae8c261",
-    "ephemeral": true,
     "file_path": "string",
-    "file_replaced_by": "1c5fa235-bacf-4250-9f02-952c83136140",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
-    "source": "user",
     "updated_at": "2019-08-24T14:15:22Z"
   }
 ]
@@ -54,35 +45,25 @@ replaced on their env_name or file_path by another secret.
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                  |
-|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceSecret](schemas.md#codersdkworkspacesecret) |
+| Status | Meaning                                                 | Description | Schema                                                        |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.UserSecret](schemas.md#codersdkusersecret) |
 
 <h3 id="list-user-secrets-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name                 | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                                                                          |
-|----------------------|----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`       | array                                                                      | false    |              |                                                                                                                                                                                                                                      |
-| `» created_at`       | string(date-time)                                                          | false    |              |                                                                                                                                                                                                                                      |
-| `» description`      | string                                                                     | false    |              |                                                                                                                                                                                                                                      |
-| `» enabled`          | boolean                                                                    | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
-| `» env_name`         | string                                                                     | false    |              |                                                                                                                                                                                                                                      |
-| `» env_replaced_by`  | string(uuid)                                                               | false    |              | Env replaced by is the ID of the secret delivered on this secret's env_name instead of it. Only set when listing secrets for a workspace build.                                                                                      |
-| `» ephemeral`        | boolean                                                                    | false    |              | Ephemeral build secrets are delivered to their build only and not copied to the next one. User secrets are never ephemeral.                                                                                                          |
-| `» file_path`        | string                                                                     | false    |              |                                                                                                                                                                                                                                      |
-| `» file_replaced_by` | string(uuid)                                                               | false    |              | File replaced by is the ID of the secret delivered on this secret's file_path instead of it. Only set when listing secrets for a workspace build.                                                                                    |
-| `» id`               | string(uuid)                                                               | false    |              |                                                                                                                                                                                                                                      |
-| `» name`             | string                                                                     | false    |              |                                                                                                                                                                                                                                      |
-| `» source`           | [codersdk.WorkspaceSecretSource](schemas.md#codersdkworkspacesecretsource) | false    |              |                                                                                                                                                                                                                                      |
-| `» updated_at`       | string(date-time)                                                          | false    |              |                                                                                                                                                                                                                                      |
-
-#### Enumerated Values
-
-| Property | Value(s)        |
-|----------|-----------------|
-| `source` | `build`, `user` |
+| Name            | Type              | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|-----------------|-------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`  | array             | false    |              |                                                                                                                                                                                                                                      |
+| `» created_at`  | string(date-time) | false    |              |                                                                                                                                                                                                                                      |
+| `» description` | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» enabled`     | boolean           | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
+| `» env_name`    | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» file_path`   | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» id`          | string(uuid)      | false    |              |                                                                                                                                                                                                                                      |
+| `» name`        | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» updated_at`  | string(date-time) | false    |              |                                                                                                                                                                                                                                      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -130,24 +111,20 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets \
   "description": "string",
   "enabled": true,
   "env_name": "string",
-  "env_replaced_by": "36faa5cb-cfc3-47a0-9c3e-df076ae8c261",
-  "ephemeral": true,
   "file_path": "string",
-  "file_replaced_by": "1c5fa235-bacf-4250-9f02-952c83136140",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
-  "source": "user",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                          | Description | Schema                                                         |
-|--------|------------------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)     | Created     | [codersdk.WorkspaceSecret](schemas.md#codersdkworkspacesecret) |
-| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Bad Request | [codersdk.Response](schemas.md#codersdkresponse)               |
-| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)    | Conflict    | [codersdk.Response](schemas.md#codersdkresponse)               |
+| Status | Meaning                                                          | Description | Schema                                               |
+|--------|------------------------------------------------------------------|-------------|------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)     | Created     | [codersdk.UserSecret](schemas.md#codersdkusersecret) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Bad Request | [codersdk.Response](schemas.md#codersdkresponse)     |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)    | Conflict    | [codersdk.Response](schemas.md#codersdkresponse)     |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -192,13 +169,9 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets/batch \
     "description": "string",
     "enabled": true,
     "env_name": "string",
-    "env_replaced_by": "36faa5cb-cfc3-47a0-9c3e-df076ae8c261",
-    "ephemeral": true,
     "file_path": "string",
-    "file_replaced_by": "1c5fa235-bacf-4250-9f02-952c83136140",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
-    "source": "user",
     "updated_at": "2019-08-24T14:15:22Z"
   }
 ]
@@ -206,38 +179,28 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets/batch \
 
 ### Responses
 
-| Status | Meaning                                                                 | Description                | Schema                                                                  |
-|--------|-------------------------------------------------------------------------|----------------------------|-------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                    | array of [codersdk.WorkspaceSecret](schemas.md#codersdkworkspacesecret) |
-| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | Bad Request                | [codersdk.Response](schemas.md#codersdkresponse)                        |
-| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)           | Conflict                   | [codersdk.Response](schemas.md#codersdkresponse)                        |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 8 MiB | [codersdk.Response](schemas.md#codersdkresponse)                        |
+| Status | Meaning                                                                 | Description                | Schema                                                        |
+|--------|-------------------------------------------------------------------------|----------------------------|---------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                    | array of [codersdk.UserSecret](schemas.md#codersdkusersecret) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | Bad Request                | [codersdk.Response](schemas.md#codersdkresponse)              |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)           | Conflict                   | [codersdk.Response](schemas.md#codersdkresponse)              |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 8 MiB | [codersdk.Response](schemas.md#codersdkresponse)              |
 
 <h3 id="import-user-secrets-from-a-file-responseschema">Response Schema</h3>
 
 Status Code **201**
 
-| Name                 | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                                                                          |
-|----------------------|----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`       | array                                                                      | false    |              |                                                                                                                                                                                                                                      |
-| `» created_at`       | string(date-time)                                                          | false    |              |                                                                                                                                                                                                                                      |
-| `» description`      | string                                                                     | false    |              |                                                                                                                                                                                                                                      |
-| `» enabled`          | boolean                                                                    | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
-| `» env_name`         | string                                                                     | false    |              |                                                                                                                                                                                                                                      |
-| `» env_replaced_by`  | string(uuid)                                                               | false    |              | Env replaced by is the ID of the secret delivered on this secret's env_name instead of it. Only set when listing secrets for a workspace build.                                                                                      |
-| `» ephemeral`        | boolean                                                                    | false    |              | Ephemeral build secrets are delivered to their build only and not copied to the next one. User secrets are never ephemeral.                                                                                                          |
-| `» file_path`        | string                                                                     | false    |              |                                                                                                                                                                                                                                      |
-| `» file_replaced_by` | string(uuid)                                                               | false    |              | File replaced by is the ID of the secret delivered on this secret's file_path instead of it. Only set when listing secrets for a workspace build.                                                                                    |
-| `» id`               | string(uuid)                                                               | false    |              |                                                                                                                                                                                                                                      |
-| `» name`             | string                                                                     | false    |              |                                                                                                                                                                                                                                      |
-| `» source`           | [codersdk.WorkspaceSecretSource](schemas.md#codersdkworkspacesecretsource) | false    |              |                                                                                                                                                                                                                                      |
-| `» updated_at`       | string(date-time)                                                          | false    |              |                                                                                                                                                                                                                                      |
-
-#### Enumerated Values
-
-| Property | Value(s)        |
-|----------|-----------------|
-| `source` | `build`, `user` |
+| Name            | Type              | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|-----------------|-------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`  | array             | false    |              |                                                                                                                                                                                                                                      |
+| `» created_at`  | string(date-time) | false    |              |                                                                                                                                                                                                                                      |
+| `» description` | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» enabled`     | boolean           | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
+| `» env_name`    | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» file_path`   | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» id`          | string(uuid)      | false    |              |                                                                                                                                                                                                                                      |
+| `» name`        | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» updated_at`  | string(date-time) | false    |              |                                                                                                                                                                                                                                      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -271,22 +234,18 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
   "description": "string",
   "enabled": true,
   "env_name": "string",
-  "env_replaced_by": "36faa5cb-cfc3-47a0-9c3e-df076ae8c261",
-  "ephemeral": true,
   "file_path": "string",
-  "file_replaced_by": "1c5fa235-bacf-4250-9f02-952c83136140",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
-  "source": "user",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                         |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceSecret](schemas.md#codersdkworkspacesecret) |
+| Status | Meaning                                                 | Description | Schema                                               |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserSecret](schemas.md#codersdkusersecret) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -361,23 +320,19 @@ curl -X PATCH http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
   "description": "string",
   "enabled": true,
   "env_name": "string",
-  "env_replaced_by": "36faa5cb-cfc3-47a0-9c3e-df076ae8c261",
-  "ephemeral": true,
   "file_path": "string",
-  "file_replaced_by": "1c5fa235-bacf-4250-9f02-952c83136140",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
-  "source": "user",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                          | Description | Schema                                                         |
-|--------|------------------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | OK          | [codersdk.WorkspaceSecret](schemas.md#codersdkworkspacesecret) |
-| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Bad Request | [codersdk.Response](schemas.md#codersdkresponse)               |
-| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)    | Conflict    | [codersdk.Response](schemas.md#codersdkresponse)               |
+| Status | Meaning                                                          | Description | Schema                                               |
+|--------|------------------------------------------------------------------|-------------|------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | OK          | [codersdk.UserSecret](schemas.md#codersdkusersecret) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Bad Request | [codersdk.Response](schemas.md#codersdkresponse)     |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)    | Conflict    | [codersdk.Response](schemas.md#codersdkresponse)     |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

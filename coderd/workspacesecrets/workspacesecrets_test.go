@@ -7,17 +7,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/workspacesecrets"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestResolve(t *testing.T) {
 	t.Parallel()
 
 	user := func(name, env, file string, enabled bool) workspacesecrets.Secret {
-		return workspacesecrets.Secret{ID: uuid.New(), Source: codersdk.WorkspaceSecretSourceUser, Name: name, EnvName: env, FilePath: file, Enabled: enabled}
+		return workspacesecrets.Secret{ID: uuid.New(), Source: workspacesecrets.SourceUser, Name: name, EnvName: env, FilePath: file, Enabled: enabled}
 	}
 	build := func(name, env, file string) workspacesecrets.Secret {
-		return workspacesecrets.Secret{ID: uuid.New(), Source: codersdk.WorkspaceSecretSourceBuild, Name: name, EnvName: env, FilePath: file, Enabled: true}
+		return workspacesecrets.Secret{ID: uuid.New(), Source: workspacesecrets.SourceBuild, Name: name, EnvName: env, FilePath: file, Enabled: true}
 	}
 
 	var (

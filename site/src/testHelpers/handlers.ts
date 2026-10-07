@@ -476,8 +476,6 @@ function userSecretFromCreateRequest(
 		enabled: request.enabled ?? true,
 		created_at: now,
 		updated_at: now,
-		source: "user",
-		ephemeral: false,
 	};
 }
 

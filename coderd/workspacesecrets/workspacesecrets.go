@@ -5,8 +5,6 @@ package workspacesecrets
 
 import (
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/v2/codersdk"
 )
 
 // FilePathPolicy controls whether secrets may be delivered as files.
@@ -17,11 +15,21 @@ const (
 	FilePathBlocked
 )
 
+// Source identifies where a secret delivered to a workspace comes from.
+type Source int
+
+const (
+	// SourceUser is a user secret, shared by all of the user's workspaces.
+	SourceUser Source = iota
+	// SourceBuild is a workspace secret set on a workspace build.
+	SourceBuild
+)
+
 // Secret is a candidate for delivery to a workspace. Value may be empty when
 // only metadata is needed.
 type Secret struct {
 	ID       uuid.UUID
-	Source   codersdk.WorkspaceSecretSource
+	Source   Source
 	Name     string
 	EnvName  string
 	FilePath string
@@ -61,7 +69,7 @@ func Resolve(secrets []Secret, policy FilePathPolicy) []Resolved {
 	fileOwner := map[string]uuid.UUID{}
 
 	// Claim targets in precedence order: build secrets first.
-	for _, pass := range []codersdk.WorkspaceSecretSource{codersdk.WorkspaceSecretSourceBuild, codersdk.WorkspaceSecretSourceUser} {
+	for _, pass := range []Source{SourceBuild, SourceUser} {
 		for i, s := range secrets {
 			if s.Source != pass {
 				continue
