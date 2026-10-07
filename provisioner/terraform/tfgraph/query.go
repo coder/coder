@@ -6,6 +6,7 @@ import (
 	"iter"
 	"maps"
 	"slices"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -63,7 +64,8 @@ func newQueryWithLimits(index *Index, limits queryLimits) (*Query, error) {
 // ConfigurationNodesForReferences resolves Terraform value references relative
 // to their declaring module. An empty declaringModuleAddress identifies the
 // root module. Each reference resolves to the most specific configuration
-// address present in the index.
+// address present in the index. A whole-module reference resolves to all of the
+// module's output nodes.
 func (q *Query) ConfigurationNodesForReferences(
 	ctx context.Context,
 	moduleAddress string,
@@ -100,6 +102,21 @@ func (q *Query) ConfigurationNodesForReferences(
 				"resolve Terraform reference %q: %w", rawReference, err,
 			)
 		}
+		if moduleAddress, ok := wholeModuleReferenceAddress(
+			reference, moduleConfAddress,
+		); ok {
+			if err := q.consumeReferenceLookups(1); err != nil {
+				return nil, err
+			}
+			nodes := q.index.outputNodesByModuleAddress[moduleAddress]
+			if err := q.consumeNodeVisits(len(nodes)); err != nil {
+				return nil, err
+			}
+			for _, id := range nodes {
+				startNodes[id] = struct{}{}
+			}
+			continue
+		}
 		for address := range reference.ConfigurationAddresses(moduleConfAddress) {
 			if err := q.consumeReferenceLookups(1); err != nil {
 				return nil, err
@@ -120,9 +137,27 @@ func (q *Query) ConfigurationNodesForReferences(
 	return sortedNodeIDs(maps.Keys(startNodes)), nil
 }
 
+// wholeModuleReferenceAddress returns the qualified configuration
+// address when reference selects an entire direct child module.
+func wholeModuleReferenceAddress(
+	reference tfaddr.ConfigurationReference,
+	declaringModuleAddress string,
+) (string, bool) {
+	path, err := tfaddr.ParseModulePath(reference.ConfigurationAddress())
+	if err != nil || len(path.Steps()) != 1 {
+		return "", false
+	}
+	address := path.ConfigurationAddress()
+	if declaringModuleAddress != "" {
+		address = declaringModuleAddress + "." + address
+	}
+	return address, true
+}
+
 // ReachableBoundaryNodes returns nodes matching isBoundary that are reachable
 // by following forward dependencies from startNodes. A matching node ends its
-// dependency path, so matches beyond it are excluded.
+// dependency path, so matches beyond it are excluded. Module-expansion ordering
+// edges are not followed.
 //
 // Each graph node is traversed at most once, so duplicate start nodes and
 // converging paths do not duplicate results. Results are returned in
@@ -139,9 +174,6 @@ func (q *Query) ReachableBoundaryNodes(
 		return nil, xerrors.New("Terraform graph boundary predicate is required")
 	}
 
-	if err := q.consumeNodeVisits(len(startNodes)); err != nil {
-		return nil, err
-	}
 	queued := make(map[NodeID]struct{}, len(startNodes))
 	for _, id := range startNodes {
 		queued[id] = struct{}{}
@@ -153,6 +185,9 @@ func (q *Query) ReachableBoundaryNodes(
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		if err := q.consumeNodeVisits(1); err != nil {
+			return nil, err
+		}
 		id := remaining[i]
 		position, ok := q.index.nodePosition(id)
 		if !ok {
@@ -160,7 +195,8 @@ func (q *Query) ReachableBoundaryNodes(
 				"Terraform graph query references a node outside its index",
 			)
 		}
-		if isBoundary(q.index.nodes[position]) {
+		node := q.index.nodes[position]
+		if isBoundary(node) {
 			boundaries[id] = struct{}{}
 			continue
 		}
@@ -173,11 +209,31 @@ func (q *Query) ReachableBoundaryNodes(
 			if _, ok := queued[dependency]; ok {
 				continue
 			}
+			// Module inputs and outputs do not derive values from
+			// their module's expansion node.
+			if position, ok := q.index.nodePosition(dependency); ok &&
+				isModuleExpansionEdge(node, q.index.nodes[position]) {
+				continue
+			}
 			queued[dependency] = struct{}{}
 			remaining = append(remaining, dependency)
 		}
 	}
 	return sortedNodeIDs(maps.Keys(boundaries)), nil
+}
+
+func isModuleExpansionEdge(source, destination Node) bool {
+	sourceAddress := source.ConfigurationAddress()
+	destinationAddress := destination.ConfigurationAddress()
+	if sourceAddress == "" || destinationAddress == "" {
+		return false
+	}
+	if !strings.HasPrefix(sourceAddress, destinationAddress+".var.") &&
+		!strings.HasPrefix(sourceAddress, destinationAddress+".output.") {
+		return false
+	}
+	_, err := tfaddr.ParseModulePath(destinationAddress)
+	return err == nil
 }
 
 func (q *Query) consumeReferenceLookups(count int) error {

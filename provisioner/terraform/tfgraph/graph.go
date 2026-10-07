@@ -18,6 +18,8 @@ import (
 
 	"github.com/awalterschulze/gographviz"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/provisioner/terraform/tfaddr"
 )
 
 // TODO(PLAT-554): Measure parser time and memory use with
@@ -90,6 +92,7 @@ type Index struct {
 	dependencies                [][]NodeID
 	nodesByConfigurationAddress map[string][]NodeID
 	nodesByInstanceAddress      map[string][]NodeID
+	outputNodesByModuleAddress  map[string][]NodeID
 }
 
 // Node returns one node from the index.
@@ -203,6 +206,7 @@ func parseWithLimits(
 		),
 		nodesByConfigurationAddress: map[string][]NodeID{},
 		nodesByInstanceAddress:      map[string][]NodeID{},
+		outputNodesByModuleAddress:  map[string][]NodeID{},
 	}
 	nodeIDByRawID := make(map[string]NodeID, len(rawNodeIDs))
 	var nodeIDBytes, retainedAddressBytes int
@@ -237,6 +241,11 @@ func parseWithLimits(
 			index.nodesByConfigurationAddress[address] = append(
 				index.nodesByConfigurationAddress[address], id,
 			)
+			if moduleAddress, ok := moduleAddressForOutput(address); ok {
+				index.outputNodesByModuleAddress[moduleAddress] = append(
+					index.outputNodesByModuleAddress[moduleAddress], id,
+				)
+			}
 		}
 		if address := node.InstanceAddress(); address != "" {
 			index.nodesByInstanceAddress[address] = append(
@@ -471,6 +480,18 @@ func parseNode(rawNodeID string) Node {
 		address:   address,
 		operation: operation,
 	}
+}
+
+func moduleAddressForOutput(address string) (string, bool) {
+	separator := strings.LastIndex(address, ".output.")
+	if separator < 0 {
+		return "", false
+	}
+	moduleAddress := address[:separator]
+	if _, err := tfaddr.ParseModulePath(moduleAddress); err != nil {
+		return "", false
+	}
+	return moduleAddress, true
 }
 
 func addressOperation(raw string) (address string, operation string) {

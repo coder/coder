@@ -128,9 +128,9 @@ func (r ConfigurationReference) ConfigurationAddress() string {
 }
 
 // ConfigurationAddresses returns possible Terraform graph configuration
-// addresses for the reference, prefixed by declaringModuleAddress. It yields
-// addresses in resolution order: a child-module output's graph-specific address
-// first, followed by traversal prefixes from most to least specific.
+// addresses for the reference, prefixed by declaringModuleAddress. A
+// child-module output yields its graph-specific address. Other references
+// yield traversal prefixes from most to least specific.
 // The declaring module address must not contain instance keys; use an empty
 // string for the root module.
 func (r ConfigurationReference) ConfigurationAddresses(
@@ -147,9 +147,8 @@ func (r ConfigurationReference) ConfigurationAddresses(
 			address := qualifyConfigurationAddress(
 				declaringModuleAddress, r.moduleOutputAddress,
 			)
-			if !yield(address) {
-				return
-			}
+			yield(address)
+			return
 		}
 
 		address := qualifyConfigurationAddress(declaringModuleAddress, r.address)

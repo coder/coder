@@ -18,6 +18,7 @@ func TestQueryConfigurationNodesForReferences(t *testing.T) {
 		"[root] module.workspace.data.coder_workspace.me (expand)"
 		"[root] module.runtime (expand)"
 		"[root] module.runtime.output.agent_id (expand)"
+		"[root] module.runtime.output.token (expand)"
 	}`)
 	require.NoError(t, err)
 
@@ -37,6 +38,19 @@ func TestQueryConfigurationNodesForReferences(t *testing.T) {
 			name:       "ModuleOutput",
 			references: []string{`module.runtime["primary"].agent_id`},
 			expected:   []string{"module.runtime.output.agent_id"},
+		},
+		{
+			name:       "WholeModule",
+			references: []string{`module.runtime`},
+			expected: []string{
+				"module.runtime.output.agent_id",
+				"module.runtime.output.token",
+			},
+		},
+		{
+			name:       "MissingModuleOutput",
+			references: []string{`module.runtime.missing`},
+			expected:   []string{},
 		},
 		{
 			name:       "MissingReference",
@@ -145,6 +159,59 @@ func TestQueryReachableBoundaryNodes(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(
 				t, test.expected, nodeAddresses(t, index, boundaries),
+			)
+		})
+	}
+}
+
+func TestQuerySkipsModuleExpansionEdges(t *testing.T) {
+	t.Parallel()
+
+	// Terraform connects module inputs and outputs to the module expansion
+	// node. Dependencies of that node do not contribute values.
+	index, err := tfgraph.Parse(t.Context(), `digraph {
+		"[root] module.tool.var.agent_id (expand)"
+		"[root] module.tool.output.agent_id (expand)"
+		"[root] module.tool (expand)"
+		"[root] coder_agent.main (expand)"
+		"[root] coder_agent.other (expand)"
+		"[root] module.tool.var.agent_id (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] module.tool.var.agent_id (expand)" -> "[root] module.tool (expand)"
+		"[root] module.tool.output.agent_id (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] module.tool.output.agent_id (expand)" -> "[root] module.tool (expand)"
+		"[root] module.tool (expand)" -> "[root] coder_agent.other (expand)"
+	}`)
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		name          string
+		moduleAddress string
+		reference     string
+	}{
+		{name: "ModuleInput", moduleAddress: "module.tool", reference: "var.agent_id"},
+		{name: "ModuleOutput", reference: "module.tool.agent_id"},
+		{name: "WholeModule", reference: "module.tool"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			query, err := tfgraph.NewQuery(index)
+			require.NoError(t, err)
+			start, err := query.ConfigurationNodesForReferences(
+				t.Context(), test.moduleAddress, []string{test.reference},
+			)
+			require.NoError(t, err)
+			boundaries, err := query.ReachableBoundaryNodes(
+				t.Context(), start,
+				func(node tfgraph.Node) bool {
+					address := node.ConfigurationAddress()
+					return address == "coder_agent.main" ||
+						address == "coder_agent.other"
+				},
+			)
+			require.NoError(t, err)
+			require.Equal(
+				t, []string{"coder_agent.main"}, nodeAddresses(t, index, boundaries),
 			)
 		})
 	}

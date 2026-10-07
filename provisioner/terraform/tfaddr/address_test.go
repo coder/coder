@@ -190,9 +190,6 @@ func TestConfigurationReferenceAddresses(t *testing.T) {
 			reference:    `module.runtime["primary"].agent.id`,
 			expected: []string{
 				"module.开发.module.runtime.output.agent",
-				"module.开发.module.runtime.agent.id",
-				"module.开发.module.runtime.agent",
-				"module.开发.module.runtime",
 			},
 		},
 	} {

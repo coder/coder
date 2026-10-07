@@ -84,7 +84,7 @@ func TestQueryBoundsWork(t *testing.T) {
 		require.ErrorContains(t, err, "Terraform graph node visits")
 	})
 
-	t.Run("DuplicateStartNodesCountTowardVisitLimit", func(t *testing.T) {
+	t.Run("DuplicateStartNodesConsumeWorkOnce", func(t *testing.T) {
 		t.Parallel()
 
 		start := index.NodesForConfigurationAddress("local.bridge.attribute")
@@ -95,9 +95,70 @@ func TestQueryBoundsWork(t *testing.T) {
 			traversedEdges:   defaultQueryLimits().traversedEdges,
 		})
 		require.NoError(t, err)
-		_, err = query.ReachableBoundaryNodes(
+		boundaries, err := query.ReachableBoundaryNodes(
 			t.Context(), []NodeID{start[0], start[0]},
 			func(Node) bool { return true },
+		)
+		require.NoError(t, err)
+		require.Equal(t, start, boundaries)
+		require.Equal(t, 1, query.nodeVisits)
+	})
+
+	t.Run("ConvergingPathsVisitNodeOnce", func(t *testing.T) {
+		t.Parallel()
+
+		converging, err := Parse(t.Context(), `digraph {
+			"[root] local.start" -> "[root] local.left"
+			"[root] local.start" -> "[root] local.right"
+			"[root] local.left" -> "[root] local.merge"
+			"[root] local.right" -> "[root] local.merge"
+			"[root] local.merge" -> "[root] coder_agent.main"
+		}`)
+		require.NoError(t, err)
+		start := converging.NodesForInstanceAddress("local.start")
+		require.Len(t, start, 1)
+		boundary := converging.NodesForInstanceAddress("coder_agent.main")
+		require.Len(t, boundary, 1)
+
+		// The budget permits each graph edge once. Requeuing local.merge
+		// would traverse its outgoing edge twice and exceed the limit.
+		const edgeCount = 5
+		query, err := newQueryWithLimits(converging, queryLimits{
+			referenceLookups: defaultQueryLimits().referenceLookups,
+			nodeVisits:       defaultQueryLimits().nodeVisits,
+			traversedEdges:   edgeCount,
+		})
+		require.NoError(t, err)
+		boundaries, err := query.ReachableBoundaryNodes(
+			t.Context(), start,
+			func(node Node) bool {
+				return node.InstanceAddress() == "coder_agent.main"
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, boundary, boundaries)
+		require.Equal(t, edgeCount, query.traversedEdges)
+	})
+
+	t.Run("TraversedNodesCountTowardVisitLimit", func(t *testing.T) {
+		t.Parallel()
+
+		chain, err := Parse(t.Context(), `digraph {
+			"[root] local.a" -> "[root] local.b"
+			"[root] local.b" -> "[root] local.c"
+			"[root] local.c" -> "[root] local.d"
+		}`)
+		require.NoError(t, err)
+		start := chain.NodesForInstanceAddress("local.a")
+		require.Len(t, start, 1)
+		query, err := newQueryWithLimits(chain, queryLimits{
+			referenceLookups: defaultQueryLimits().referenceLookups,
+			nodeVisits:       1,
+			traversedEdges:   defaultQueryLimits().traversedEdges,
+		})
+		require.NoError(t, err)
+		_, err = query.ReachableBoundaryNodes(
+			t.Context(), start, func(Node) bool { return false },
 		)
 		require.ErrorContains(t, err, "Terraform graph node visits")
 	})
