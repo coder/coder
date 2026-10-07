@@ -957,11 +957,13 @@ func TestBufferedPartsToPartialMessages_CoalescesStreamedTextDeltas(t *testing.T
 		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageReasoning("think")},
 		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageReasoning("ing")},
 		{Seq: 3, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("Hel")},
-		{Seq: 4, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("lo, ")},
-		{Seq: 5, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("world")},
-		{Seq: 6, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-1", "execute", json.RawMessage(`{"cmd":"pwd"}`))},
-		{Seq: 7, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("after")},
-		{Seq: 8, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText(" the call")},
+		{Seq: 4, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("lo,")},
+		{Seq: 5, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText(" ")},
+		{Seq: 6, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("world")},
+		{Seq: 7, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("\n\n")},
+		{Seq: 8, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-1", "execute", json.RawMessage(`{"cmd":"pwd"}`))},
+		{Seq: 9, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("after")},
+		{Seq: 10, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText(" the call")},
 	}
 	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
 		parts:          parts,
@@ -981,7 +983,7 @@ func TestBufferedPartsToPartialMessages_CoalescesStreamedTextDeltas(t *testing.T
 	}
 	require.Equal(t, []string{
 		"reasoning:thinking",
-		"text:Hello, world",
+		"text:Hello, world\n\n",
 		"tool-call:",
 		"text:after the call",
 	}, summary, "adjacent deltas of the same type must be persisted as one part")
