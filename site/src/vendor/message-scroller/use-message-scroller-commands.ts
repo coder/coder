@@ -47,7 +47,7 @@ function useMessageScrollerCommands({
     spacerRef,
     viewportRef,
     // LOCAL CHANGE
-    followLatchRef,
+    followSuppressedRef,
   } = refs
 
   const setAutoScrolling = React.useCallback(
@@ -103,9 +103,6 @@ function useMessageScrollerCommands({
         autoscrolling?: boolean
       } = {}
     ) => {
-      // LOCAL CHANGE: a scroll command releases the disclosure latch.
-      followLatchRef.current = false
-
       const viewport = viewportRef.current
 
       if (!viewport) {
@@ -141,6 +138,7 @@ function useMessageScrollerCommands({
         return false
       }
 
+      followSuppressedRef.current = false // LOCAL CHANGE
       setTailSpacerHeight(0)
       streamingTurnRef.current = null
       modeRef.current = "free-scrolling"
@@ -160,6 +158,7 @@ function useMessageScrollerCommands({
         return false
       }
 
+      followSuppressedRef.current = false // LOCAL CHANGE
       setTailSpacerHeight(0)
       streamingTurnRef.current = null
       modeRef.current = autoScrollRef.current
@@ -250,19 +249,11 @@ function useMessageScrollerCommands({
 
     // Re-run the placement so the tail spacer is recomputed for the new content
     // height and the turn is held at the reading line.
-    //
-    // LOCAL CHANGE: holding the anchor is not a scroll command, so it keeps
-    // the latch.
-    const latched = followLatchRef.current
-    const handled = scrollToElement(
+    return scrollToElement(
       element,
       { align: "start" },
       { keepPreviousPeek: true }
     )
-
-    followLatchRef.current = latched
-
-    return handled
   }, [scrollToElement])
 
   // The target row may not be mounted yet (e.g. an async-loaded transcript).
@@ -272,6 +263,7 @@ function useMessageScrollerCommands({
   // defaultScrollPosition does not override it.
   const scrollToMessage = React.useCallback(
     (messageId: string, options?: MessageScrollerScrollOptions) => {
+      followSuppressedRef.current = false // LOCAL CHANGE
       const element = messageElementsRef.current.get(messageId)
 
       if (!element) {

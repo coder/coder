@@ -171,7 +171,6 @@ describe("WorkspaceAgentLogSection", () => {
 
 		expect(watchAgentLogs).toHaveBeenCalledTimes(1);
 		expect(socketServer()?.isConnectionOpen).toBe(true);
-		// scrollIntoView also scrolls the chat transcript.
 		expect(scrollIntoView).not.toHaveBeenCalled();
 	});
 

@@ -11,7 +11,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useMessageScrollerLayoutIntent } from "#/vendor/message-scroller";
+import { useMessageScrollerUserLayoutIntent } from "#/vendor/message-scroller";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
 import { ToolIcon } from "./ToolIcon";
@@ -36,7 +36,7 @@ type ToolCallContextValue = {
 	errorMessage?: string;
 	expanded: boolean;
 	failed: boolean;
-	onToggle: () => void;
+	onToggle: (event: React.MouseEvent<HTMLElement>) => void;
 	status: ToolStatus;
 	view: ToolCallView;
 };
@@ -146,11 +146,9 @@ const Root: React.FC<ToolCallRootProps> = ({
 	const collapsible = hasContent;
 	const active = status === "running";
 	const failed = status !== "running" && (isError || status === "error");
-	const userLayoutIntent = useMessageScrollerLayoutIntent();
-	const onToggle = () => {
-		// Before the state update, so the scroller latches before the layout
-		// changes.
-		userLayoutIntent();
+	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
+	const onToggle = (event: React.MouseEvent<HTMLElement>) => {
+		userLayoutIntent(event.currentTarget);
 		const nextView: ToolCallView = expanded ? "collapsed" : "expanded";
 		if (controlledView === undefined) {
 			setUncontrolledView(nextView);

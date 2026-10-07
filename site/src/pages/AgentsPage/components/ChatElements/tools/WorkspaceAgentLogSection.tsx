@@ -71,8 +71,6 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
 
-	// Scrolls only the box. scrollIntoView would also scroll the chat
-	// transcript.
 	const viewportRef = useRef<HTMLDivElement>(null);
 	useLayoutEffect(() => {
 		const viewport = viewportRef.current;

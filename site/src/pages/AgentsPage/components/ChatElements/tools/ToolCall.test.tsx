@@ -18,9 +18,9 @@ import {
 } from "#/vendor/message-scroller";
 import { ToolCall } from "./ToolCall";
 
-// jsdom has no layout. Rows stack by their data-height in a 400px viewport
-// that clamps scrollTop the way a browser does, with a 10px classic
-// scrollbar past its 790px clientWidth.
+// jsdom has no layout. Rows stack by their data-height in a fixed viewport
+// that clamps scrollTop the way a browser does, with a classic scrollbar past
+// its clientWidth.
 const VIEWPORT_HEIGHT = 400;
 const VIEWPORT_WIDTH = 800;
 const SCROLLBAR_WIDTH = 10;
@@ -42,24 +42,19 @@ const contentHeight = (viewport: Element) =>
 const maxScrollTop = (viewport: Element) =>
 	Math.max(0, contentHeight(viewport) - VIEWPORT_HEIGHT);
 
-const history = Array.from({ length: 10 }, (_, index) => (
+const row = (id: string, height: number, scrollAnchor = false) => (
 	<MessageScroller.Item
-		key={index}
-		messageId={`history-${index}`}
-		data-height={100}
-	/>
-));
-const prompt = (
-	<MessageScroller.Item
-		key="prompt"
-		messageId="prompt"
-		scrollAnchor
-		data-height={40}
+		key={id}
+		messageId={id}
+		scrollAnchor={scrollAnchor}
+		data-height={height}
 	/>
 );
-const nextRow = (
-	<MessageScroller.Item key="next" messageId="next" data-height={100} />
+const history = Array.from({ length: 10 }, (_, index) =>
+	row(`history-${index}`, 100),
 );
+const prompt = row("prompt", 40, true);
+const nextRow = row("next", 100);
 
 const ToolRow: React.FC<{
 	defaultExpanded?: boolean;
@@ -93,7 +88,7 @@ const VisibleRows: React.FC = () => {
 	return null;
 };
 
-// Mirrors the agent chat: autoScroll, opening at the end.
+// Same Provider props as AgentChatPage.
 const Transcript: React.FC<{
 	children: React.ReactNode;
 	contentKey: string;
@@ -127,7 +122,7 @@ const renderTranscript = (children: React.ReactNode) => {
 
 // A browser reports layout changes to the scroller's ResizeObservers, and the
 // scroller publishes the rows the reader sees on a later animation frame.
-const readVisibleRows = async () => {
+const visibleRowsAfterLayout = async () => {
 	for (const observer of MockResizeObserver.instances) {
 		observer.simulateResize(0);
 	}
@@ -224,12 +219,12 @@ describe("ToolCall in a MessageScroller", () => {
 	it("keeps the reader in place when a tool expands while following the bottom", async () => {
 		const user = userEvent.setup();
 		const update = renderTranscript([history, <ToolRow key="reply" />]);
-		const before = await readVisibleRows();
+		const before = await visibleRowsAfterLayout();
 
 		await user.click(toggle());
 		await update([history, <ToolRow key="reply" />, nextRow]);
 
-		expect(await readVisibleRows()).toEqual(before);
+		expect(await visibleRowsAfterLayout()).toEqual(before);
 	});
 
 	it("keeps the reader in place when a tool collapses while following the bottom", async () => {
@@ -239,13 +234,11 @@ describe("ToolCall in a MessageScroller", () => {
 			<ToolRow key="reply" defaultExpanded />,
 		]);
 
+		// No scroll event or resize report between the collapse and the output.
 		await user.click(toggle());
-		// The browser reports the collapse's clamp as a scroll.
-		fireEvent.scroll(viewport());
-		const before = await readVisibleRows();
 		await update([history, <ToolRow key="reply" defaultExpanded />, nextRow]);
 
-		expect(await readVisibleRows()).toEqual(before);
+		expect(await visibleRowsAfterLayout()).not.toContain("next");
 	});
 
 	it("holds the anchored prompt when Space collapses a tool", async () => {
@@ -253,28 +246,40 @@ describe("ToolCall in a MessageScroller", () => {
 		const update = renderTranscript([history]);
 		await update([history, prompt, <ToolRow key="reply" />]);
 		await user.click(toggle());
-		const before = await readVisibleRows();
+		const before = await visibleRowsAfterLayout();
 
 		await user.keyboard(" ");
 
-		expect(await readVisibleRows()).toEqual(before);
+		expect(await visibleRowsAfterLayout()).toEqual(before);
 	});
 
-	it("holds the anchored prompt when a collapse ends near the live edge", async () => {
+	it("holds the anchored prompt when the turn overflows the view from the start", async () => {
+		const update = renderTranscript([history]);
+		// The turn ends 24px past the view, inside the handoff band.
+		const tallPrompt = row("prompt", 320, true);
+		await update([history, tallPrompt, <ToolRow key="reply" />]);
+		const before = await visibleRowsAfterLayout();
+
+		await update([history, tallPrompt, <ToolRow key="reply" />, nextRow]);
+
+		expect(await visibleRowsAfterLayout()).toEqual(before);
+	});
+
+	it("holds the anchored prompt when the reply streams past it after a toggle", async () => {
 		const user = userEvent.setup();
 		const update = renderTranscript([history]);
 		await update([history, prompt, <ToolRow key="reply" />]);
 		await user.click(toggle());
-		// The reply streams on, so the collapse leaves it ending 21px below the
-		// view, inside the band where streaming hands off to following.
-		const reply = <ToolRow key="reply" streamedHeight={277} />;
-		await update([history, prompt, reply]);
-		const before = await readVisibleRows();
-
 		await user.click(toggle());
+		const before = await visibleRowsAfterLayout();
+
+		// One line past the room below the prompt.
+		const reply = <ToolRow key="reply" streamedHeight={280} />;
+		await update([history, prompt, reply]);
+		await visibleRowsAfterLayout();
 		await update([history, prompt, reply, nextRow]);
 
-		expect(await readVisibleRows()).toEqual(before);
+		expect(await visibleRowsAfterLayout()).toEqual(before);
 	});
 
 	it("holds the anchored prompt when the content remounts after a toggle", async () => {
@@ -284,11 +289,37 @@ describe("ToolCall in a MessageScroller", () => {
 		await update(rows);
 		await user.click(toggle());
 		await user.click(toggle());
-		const before = await readVisibleRows();
+		const before = await visibleRowsAfterLayout();
 
 		await update(rows, "remounted");
 
-		expect(await readVisibleRows()).toEqual(before);
+		expect(await visibleRowsAfterLayout()).toEqual(before);
+	});
+
+	it("holds the anchored prompt when output lands far past the live edge", async () => {
+		const update = renderTranscript([history]);
+		await update([history, prompt, <ToolRow key="reply" />]);
+		const before = await visibleRowsAfterLayout();
+
+		await update([
+			history,
+			prompt,
+			<ToolRow key="reply" streamedHeight={600} />,
+			nextRow,
+		]);
+
+		expect(await visibleRowsAfterLayout()).toEqual(before);
+	});
+
+	it("keeps a tool above the anchored prompt in view when it expands", async () => {
+		const user = userEvent.setup();
+		const update = renderTranscript([history, <ToolRow key="reply" />]);
+		// The previous turn's tool peeks in above the new prompt.
+		await update([history, <ToolRow key="reply" />, prompt, nextRow]);
+
+		await user.click(toggle());
+
+		expect(await visibleRowsAfterLayout()).toContain("reply");
 	});
 
 	it("resumes following after a scrollbar drag back to the bottom", async () => {
@@ -306,7 +337,7 @@ describe("ToolCall in a MessageScroller", () => {
 		await user.pointer({ keys: "[/MouseLeft]", target: viewport() });
 		await update([history, <ToolRow key="reply" />, nextRow]);
 
-		expect(await readVisibleRows()).toContain("next");
+		expect(await visibleRowsAfterLayout()).toContain("next");
 	});
 
 	it("stays put when a collapse clamps the reader to the bottom", async () => {
@@ -322,9 +353,42 @@ describe("ToolCall in a MessageScroller", () => {
 		await user.click(toggle());
 		// The browser reports the collapse's clamp as a scroll.
 		fireEvent.scroll(viewport());
-		const before = await readVisibleRows();
+		const before = await visibleRowsAfterLayout();
 		await update([history, <ToolRow key="reply" defaultExpanded />, nextRow]);
 
-		expect(await readVisibleRows()).toEqual(before);
+		expect(await visibleRowsAfterLayout()).toEqual(before);
+	});
+
+	it("resumes following in the next turn after a toggle", async () => {
+		const user = userEvent.setup();
+		const turn = [history, <ToolRow key="reply" />];
+		const update = renderTranscript(turn);
+		await user.click(toggle());
+
+		await update([...turn, prompt, row("next-reply", 100)]);
+		// The reply grows past the tail spacer, close enough to the live edge to
+		// hand off to following.
+		await update([...turn, prompt, row("next-reply", 340)]);
+		await visibleRowsAfterLayout();
+		await update([...turn, prompt, row("next-reply", 340), nextRow]);
+
+		expect(await visibleRowsAfterLayout()).toContain("next");
+	});
+
+	it("holds the anchored prompt in the first frame after a collapse", async () => {
+		const user = userEvent.setup();
+		const update = renderTranscript([history]);
+		await update([history, prompt, <ToolRow key="reply" defaultExpanded />]);
+		const before = await visibleRowsAfterLayout();
+
+		await user.click(toggle());
+		// The browser reports the collapse's clamp as a scroll.
+		fireEvent.scroll(viewport());
+		// No resize report: the scroller's ResizeObservers defer their correction
+		// to the next frame, after the browser has painted this one.
+		await act(() => new Promise(requestAnimationFrame));
+		await act(() => new Promise(requestAnimationFrame));
+
+		expect(visibleRows).toEqual(before);
 	});
 });

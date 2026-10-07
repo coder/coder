@@ -99,8 +99,7 @@ export const WorkspaceBuildLogSection: React.FC<
 		return () => clearTimeout(timer);
 	}, [effectiveBuildId, hasLogs]);
 
-	// Scrolls only the box. The autoscroll in WorkspaceBuildLogs uses
-	// scrollIntoView, which also scrolls the chat transcript.
+	// WorkspaceBuildLogs' scrollIntoView would also scroll the chat transcript.
 	const viewportRef = useRef<HTMLDivElement>(null);
 	useLayoutEffect(() => {
 		const viewport = viewportRef.current;

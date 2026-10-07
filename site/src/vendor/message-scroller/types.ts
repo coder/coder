@@ -174,8 +174,8 @@ type MessageScrollerContextValue = {
   handleResize: () => void
   observeVisibility: () => void
   preserveScrollOnPrependRef: React.RefObject<boolean>
-  // LOCAL CHANGE: called by the resize observers, after layout.
-  resetScrollAnchor: () => void
+  // LOCAL CHANGE
+  resetBrowserScrollAnchor: () => void
   scrollToEnd: (options?: MessageScrollerScrollOptions) => boolean
   scrollToMessage: (
     messageId: string,
@@ -190,8 +190,8 @@ type MessageScrollerContextValue = {
   syncAfterScroll: () => void
   unobserveVisibility: () => void
   userScrollIntent: () => void
-  // LOCAL CHANGE: a disclosure toggle inside the transcript.
-  userLayoutIntent: () => void
+  // LOCAL CHANGE
+  userLayoutIntent: (target: Element) => void
   viewportRef: React.RefObject<HTMLDivElement | null>
   visibilityStore: MessageScrollerVisibilityStore
 }

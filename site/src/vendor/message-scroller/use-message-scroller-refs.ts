@@ -58,9 +58,10 @@ type MessageScrollerRefs = {
   visibilityStore: MessageScrollerVisibilityStore
   visibleMessageIdsRef: React.RefObject<Set<string>>
   handledScrollAnchorsRef: React.RefObject<WeakSet<HTMLElement>>
-  // LOCAL CHANGE: set by a disclosure toggle and held until the next user
-  // scroll or scroll command. Suppresses implicit follow re-engagement.
-  followLatchRef: React.RefObject<boolean>
+  // LOCAL CHANGE: set by a user's disclosure toggle, cleared by the next user
+  // scroll, scroll command, or new turn. While set, the view does not start
+  // following.
+  followSuppressedRef: React.RefObject<boolean>
 }
 
 // Builds the per-instance ref bag: the two external stores constructed once, and
@@ -123,7 +124,7 @@ function useMessageScrollerRefs({
   const visibleMessageIdsRef = React.useRef(new Set<string>())
   const handledScrollAnchorsRef = React.useRef(new WeakSet<HTMLElement>())
   // LOCAL CHANGE
-  const followLatchRef = React.useRef(false)
+  const followSuppressedRef = React.useRef(false)
 
   if (stateStoreRef.current === null) {
     stateStoreRef.current = createMessageScrollerStore(
@@ -175,7 +176,7 @@ function useMessageScrollerRefs({
     visibleMessageIdsRef,
     handledScrollAnchorsRef,
     // LOCAL CHANGE
-    followLatchRef,
+    followSuppressedRef,
   }
 }
 

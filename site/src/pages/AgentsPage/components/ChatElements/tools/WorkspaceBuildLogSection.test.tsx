@@ -87,7 +87,6 @@ describe("WorkspaceBuildLogSection", () => {
 		rerender(ui({ status: "completed", buildId }));
 		await screen.findByText(/Apply complete!/);
 
-		// scrollIntoView also scrolls the chat transcript.
 		expect(scrollIntoView).not.toHaveBeenCalled();
 	});
 });

@@ -23,13 +23,20 @@ const MessageScrollerContext =
   React.createContext<MessageScrollerContextValue | null>(null)
 const MessageScrollerItemContext =
   React.createContext<MessageScrollerRegisterMessage | null>(null)
-// LOCAL CHANGE: lets rows inside the Viewport report a disclosure toggle. It is
-// a no-op outside a Viewport, so tool rows also render standalone.
-const MessageScrollerLayoutIntentContext =
-  React.createContext<() => void>(() => {})
+// LOCAL CHANGE: a no-op outside a Viewport, so tool rows also render
+// standalone.
+const MessageScrollerUserLayoutIntentContext = React.createContext<
+  (target: Element) => void
+>(() => {})
 
-function useMessageScrollerLayoutIntent() {
-  return React.useContext(MessageScrollerLayoutIntentContext)
+// LOCAL CHANGE
+/**
+ * Returns the callback for a user's expand or collapse in the transcript. It
+ * stops the view from following new output, so do not call it for layout
+ * changes the user did not make.
+ */
+function useMessageScrollerUserLayoutIntent() {
+  return React.useContext(MessageScrollerUserLayoutIntentContext)
 }
 
 function useMessageScrollerContext() {
@@ -172,7 +179,7 @@ function MessageScrollerViewport({
   const {
     handleResize,
     preserveScrollOnPrependRef,
-    resetScrollAnchor, // LOCAL CHANGE
+    resetBrowserScrollAnchor, // LOCAL CHANGE
     setViewportElement,
     syncAfterScroll,
     // LOCAL CHANGE
@@ -240,7 +247,9 @@ function MessageScrollerViewport({
     let frame = 0
 
     const observer = new ResizeObserver(() => {
-      resetScrollAnchor() // LOCAL CHANGE: not in the rAF. It only scrolls.
+      // LOCAL CHANGE: not in the rAF, so output before the next frame cannot
+      // scroll a clamped view back down. A scroll resizes nothing.
+      resetBrowserScrollAnchor()
       window.cancelAnimationFrame(frame)
       frame = window.requestAnimationFrame(handleResize)
     })
@@ -251,10 +260,11 @@ function MessageScrollerViewport({
       window.cancelAnimationFrame(frame)
       observer.disconnect()
     }
-  }, [handleResize, resetScrollAnchor, viewportRef])
+  }, [handleResize, resetBrowserScrollAnchor, viewportRef]) // LOCAL CHANGE
 
   return (
-    <MessageScrollerLayoutIntentContext.Provider value={userLayoutIntent}>
+    // LOCAL CHANGE: wraps the upstream div.
+    <MessageScrollerUserLayoutIntentContext.Provider value={userLayoutIntent}>
       <div
         ref={setViewportRef}
         role={role ?? "region"}
@@ -269,7 +279,7 @@ function MessageScrollerViewport({
       >
         {children}
       </div>
-    </MessageScrollerLayoutIntentContext.Provider>
+    </MessageScrollerUserLayoutIntentContext.Provider>
   )
 }
 
@@ -284,7 +294,7 @@ function MessageScrollerContent({
   const {
     handleContentChange,
     handleResize,
-    resetScrollAnchor, // LOCAL CHANGE
+    resetBrowserScrollAnchor, // LOCAL CHANGE
     setContentElement,
     setSpacerElement,
   } = useMessageScrollerContext()
@@ -334,7 +344,7 @@ function MessageScrollerContent({
     let frame = 0
 
     const observer = new ResizeObserver(() => {
-      resetScrollAnchor() // LOCAL CHANGE: not in the rAF. It only scrolls.
+      resetBrowserScrollAnchor() // LOCAL CHANGE: as in MessageScrollerViewport.
       window.cancelAnimationFrame(frame)
       frame = window.requestAnimationFrame(handleResize)
     })
@@ -345,7 +355,7 @@ function MessageScrollerContent({
       window.cancelAnimationFrame(frame)
       observer.disconnect()
     }
-  }, [handleResize, resetScrollAnchor])
+  }, [handleResize, resetBrowserScrollAnchor]) // LOCAL CHANGE
 
   return (
     <div
@@ -482,7 +492,7 @@ export {
   MessageScrollerViewport,
   useMessageScroller,
   // LOCAL CHANGE
-  useMessageScrollerLayoutIntent,
+  useMessageScrollerUserLayoutIntent,
   useMessageScrollerScrollable,
   useMessageScrollerVisibility,
 }
