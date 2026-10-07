@@ -173,12 +173,15 @@ type TemplateInsightsResponse struct {
 
 // TemplateInsightsReport is the report from the template insights endpoint.
 type TemplateInsightsReport struct {
-	StartTime       time.Time                `json:"start_time" format:"date-time"`
-	EndTime         time.Time                `json:"end_time" format:"date-time"`
-	TemplateIDs     []uuid.UUID              `json:"template_ids" format:"uuid"`
-	ActiveUsers     int64                    `json:"active_users" example:"22"`
-	AppsUsage       []TemplateAppUsage       `json:"apps_usage"`
-	ParametersUsage []TemplateParameterUsage `json:"parameters_usage"`
+	StartTime   time.Time   `json:"start_time" format:"date-time"`
+	EndTime     time.Time   `json:"end_time" format:"date-time"`
+	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
+	ActiveUsers int64       `json:"active_users" example:"22"`
+	// UsageTotalSeconds counts each user's active minutes once, even when apps
+	// overlap. Summed per-app seconds can exceed this total.
+	UsageTotalSeconds int64                    `json:"usage_total_seconds" example:"120000"`
+	AppsUsage         []TemplateAppUsage       `json:"apps_usage"`
+	ParametersUsage   []TemplateParameterUsage `json:"parameters_usage"`
 }
 
 // TemplateInsightsIntervalReport is the report from the template insights
@@ -204,12 +207,21 @@ const (
 type TemplateAppUsage struct {
 	TemplateIDs []uuid.UUID      `json:"template_ids" format:"uuid"`
 	Type        TemplateAppsType `json:"type" example:"builtin"`
-	DisplayName string           `json:"display_name" example:"Visual Studio Code"`
+	DisplayName string           `json:"display_name" example:"VS Code"`
 	Slug        string           `json:"slug" example:"vscode"`
 	Icon        string           `json:"icon"`
 	Seconds     int64            `json:"seconds" example:"80500"`
 	TimesUsed   int64            `json:"times_used" example:"2"`
+	Family      AppFamilyName    `json:"family" example:"vscode"`
+	// SecondsIsUpperBound marks overflow usage that includes folded apps.
+	// Their overlap is not stored, so Seconds may overestimate active time.
+	SecondsIsUpperBound bool `json:"seconds_is_upper_bound,omitempty" example:"false"`
 }
+
+// TemplateInsightsMaxUnregisteredApps limits individually listed unregistered
+// apps to the busiest names. Registered apps are exempt; the rest fold into
+// overflow.
+const TemplateInsightsMaxUnregisteredApps = 64
 
 // TemplateParameterUsage shows the usage of a parameter for one or more
 // templates.
