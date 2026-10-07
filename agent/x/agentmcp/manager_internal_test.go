@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -268,6 +270,63 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	defer listCancel()
 	result, err := client.ListTools(listCtx, nil)
 	require.NoError(t, err, "ListTools should succeed, server must be alive after connect")
+	require.Len(t, result.Tools, 1)
+	assert.Equal(t, "echo", result.Tools[0].Name)
+}
+
+// TestConnectServer_HTTPIgnoresUnansweredStandaloneSSE verifies that an
+// HTTP server which never answers the standalone SSE GET does not block
+// connect or tool listing.
+func TestConnectServer_HTTPIgnoresUnansweredStandaloneSSE(t *testing.T) {
+	t.Parallel()
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "fake", Version: "1.0.0"}, nil)
+	server.AddTool(&mcp.Tool{
+		Name:        "echo",
+		InputSchema: map[string]any{"type": "object"},
+	}, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{}, nil
+	})
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
+
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	type connectResult struct {
+		client *mcp.ClientSession
+		err    error
+	}
+	done := make(chan connectResult, 1)
+	go func() {
+		client, err := m.connectServer(ctx, ServerConfig{
+			Name:      "fake",
+			Transport: "http",
+			URL:       srv.URL,
+		})
+		done <- connectResult{client: client, err: err}
+	}()
+
+	res := testutil.RequireReceive(ctx, t, done)
+	require.NoError(t, res.err)
+	t.Cleanup(func() { _ = res.client.Close() })
+
+	result, err := res.client.ListTools(ctx, nil)
+	require.NoError(t, err)
 	require.Len(t, result.Tools, 1)
 	assert.Equal(t, "echo", result.Tools[0].Name)
 }

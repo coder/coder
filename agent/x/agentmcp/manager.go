@@ -915,6 +915,9 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Tr
 		return &mcp.StreamableClientTransport{
 			Endpoint:   cfg.URL,
 			HTTPClient: httpClientWithHeaders(cfg.Headers),
+			// Server-initiated messages are unused, and a server that never
+			// answers the standalone GET would block Connect.
+			DisableStandaloneSSE: true,
 		}, nil
 	case "sse":
 		return &mcp.SSEClientTransport{
