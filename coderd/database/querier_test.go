@@ -2229,7 +2229,6 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{recipientChat.ID}, chatIDs(disabledRows))
 }
 
-//nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
 func TestGetChatProjectsAccessibleByUserID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2292,6 +2291,7 @@ func TestGetChatProjectsAccessibleByUserID(t *testing.T) {
 	}
 }
 
+//nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
 func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
