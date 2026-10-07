@@ -5583,9 +5583,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description |
-|-------------------|---------|----------|--------------|-------------|
-| `from_message_id` | integer | false    |              |             |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                     |
+|-------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `from_message_id` | integer | false    |              | From message ID is the lowest message ID the reset replaces. The client keeps its messages with lower IDs and replaces the rest with the message events that follow. A history_reset without ChatStreamHistoryReset replaces the whole history. |
 
 ## codersdk.ChatStreamMessagePart
 

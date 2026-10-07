@@ -23210,6 +23210,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "from_message_id": {
+                    "description": "FromMessageID is the lowest message ID the reset replaces. The client\nkeeps its messages with lower IDs and replaces the rest with the\nmessage events that follow. A history_reset without\nChatStreamHistoryReset replaces the whole history.",
                     "type": "integer"
                 }
             }

@@ -2205,11 +2205,12 @@ type ChatStreamEvent struct {
 }
 
 // ChatStreamHistoryReset is set on the history_reset events of streams
-// opened with history_version. On such a reset, the client keeps its
-// messages with IDs below FromMessageID and replaces the rest with the
-// message events that follow. A history_reset without it replaces the
-// whole history.
+// opened with history_version.
 type ChatStreamHistoryReset struct {
+	// FromMessageID is the lowest message ID the reset replaces. The client
+	// keeps its messages with lower IDs and replaces the rest with the
+	// message events that follow. A history_reset without
+	// ChatStreamHistoryReset replaces the whole history.
 	FromMessageID int64 `json:"from_message_id"`
 }
 

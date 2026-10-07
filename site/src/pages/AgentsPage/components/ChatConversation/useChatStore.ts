@@ -767,8 +767,9 @@ export const useChatStore = (
 		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
-				// Use the latest known message ID so the server only
-				// sends events the client hasn't seen yet.
+				// The server sends only history changed after the history
+				// version. Without one, it skips messages at or below the
+				// latest message ID instead.
 				const socket = watchChat(
 					chatID,
 					lastMessageIdRef.current,
