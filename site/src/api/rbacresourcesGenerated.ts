@@ -71,6 +71,7 @@ export const RBACResourceActions: Partial<
 		delete: "delete a chat",
 		read: "read chat messages and metadata",
 		share: "share a chat with other users or groups",
+		stop: "stop a running chat",
 		update: "update chat title or settings",
 	},
 	chat_automation: {

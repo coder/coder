@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type hasAuthSubjects interface {
@@ -31,6 +32,18 @@ type authSubject struct {
 }
 
 func (a authSubject) Subjects() []authSubject { return []authSubject{a} }
+
+func TestChatStopAction(t *testing.T) {
+	t.Parallel()
+
+	// Both resources share the wire action without removing the existing
+	// generated SDK constant for workspace clients.
+	require.False(t, rbac.IsExternalScope(rbac.ScopeChatStop))
+	require.Equal(t, policy.ActionWorkspaceStop, policy.ActionChatStop)
+	require.Equal(t, "stop", string(codersdk.ActionWorkspaceStop))
+	require.Contains(t, codersdk.RBACResourceActions[codersdk.ResourceChat], codersdk.ActionWorkspaceStop)
+	require.Contains(t, codersdk.RBACResourceActions[codersdk.ResourceWorkspace], codersdk.ActionWorkspaceStop)
+}
 
 // TestBuiltInRoles makes sure our built-in roles are valid by our own policy
 // rules. If this is incorrect, that is a mistake.
@@ -272,7 +285,7 @@ func TestAgentsAccessRole(t *testing.T) {
 	require.Empty(t, role.User)
 	require.Empty(t, role.ByOrgID[orgID.String()].Org)
 	require.ElementsMatch(t, rbac.Permissions(map[string][]policy.Action{
-		rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionUpdate},
+		rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionUpdate, policy.ActionChatStop},
 		rbac.ResourceChatAutomation.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 		rbac.ResourceChatProject.Type:       rbac.ResourceChatProject.AvailableActions(),
 		rbac.ResourceChatProjectMemory.Type: rbac.ResourceChatProjectMemory.AvailableActions(),
@@ -1522,8 +1535,8 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "ChatUsageCreateReadShare",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionShare},
+			Name:     "ChatUsageCreateReadShareStop",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionChatStop},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgAgentsAccessUser},
@@ -1531,13 +1544,22 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			// The owner and org-admin roles do not grant chat update.
+			// Even administrators cannot update another user's chat.
 			Name:     "ChatUsageUpdate",
 			Actions:  []policy.Action{policy.ActionUpdate},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {orgAgentsAccessUser},
 				false: {owner, orgAdmin, setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatAdminOwnUpdate",
+			Actions:  []policy.Action{policy.ActionUpdate},
+			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(adminID.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {orgAgentsAccessUser, orgMemberMe, memberMe, setOtherOrg, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
 			},
 		},
 		{

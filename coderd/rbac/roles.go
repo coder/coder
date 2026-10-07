@@ -404,14 +404,14 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
 			// Owners can inspect and delete personal skills for operability and
 			// abuse handling, but cannot create or edit user-authored instructions.
-			// The Owner role does not grant site-wide chat update.
+			// Chat updates are restricted to the chat owner by the policy.
 			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUserSkill, ResourceChat, ResourceUsageEvent, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceAIGatewayKey),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 				ResourceUserSkill.Type:        {policy.ActionRead, policy.ActionDelete},
-				ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionDelete},
+				ResourceChat.Type:             ResourceChat.AvailableActions(),
 				// Owners manage AI Gateway keys but cannot update them. The
 				// update action records last-used liveness and is reserved
 				// for the system actor authenticating Gateway replicas.
@@ -587,8 +587,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							Permissions(map[string][]policy.Action{
 								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
-								// The org-admin role does not grant organization-wide chat update.
-								ResourceChat.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionDelete},
+								// Chat updates are restricted to the chat owner by the policy.
+								ResourceChat.Type: ResourceChat.AvailableActions(),
 								// PrebuiltWorkspaces are a subset of Workspaces.
 								// Explicitly setting PrebuiltWorkspace permissions for clarity.
 								// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
@@ -752,6 +752,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 								policy.ActionRead,
 								policy.ActionShare,
 								policy.ActionUpdate,
+								policy.ActionChatStop,
 							},
 							ResourceChatAutomation.Type: {
 								policy.ActionCreate,
