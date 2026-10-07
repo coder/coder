@@ -8,20 +8,30 @@ import type {
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxEmpty,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "#/components/Combobox/Combobox";
+import { CommandGroup } from "#/components/Command/Command";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { getFormHelpers } from "#/utils/formUtils";
 import { quietHoursDisplay, timeToCron, validTime } from "#/utils/schedule";
 import { getPreferredTimezone, timeZones } from "#/utils/timeZones";
+
+const timezoneGroups = Object.entries(
+	Object.groupBy(timeZones, (zone) =>
+		zone.includes("/") ? zone.split("/")[0] : "Other",
+	),
+).sort(([a], [b]) => a.localeCompare(b, "en"));
 
 type ScheduleFormValues = {
 	time: string;
@@ -121,24 +131,51 @@ export const ScheduleForm: React.FC<ScheduleFormProps> = ({
 					/>
 					<div className="flex flex-col gap-2 min-w-0">
 						<Label htmlFor={timezoneId}>Timezone</Label>
-						<Select
+						<Combobox
 							value={form.values.timezone}
 							onValueChange={(value) => {
-								void form.setFieldValue("timezone", value);
+								if (value) {
+									void form.setFieldValue("timezone", value);
+								}
 							}}
-							disabled={fieldsDisabled}
 						>
-							<SelectTrigger id={timezoneId}>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{timeZones.map((zone) => (
-									<SelectItem key={zone} value={zone}>
-										{zone}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							<ComboboxTrigger asChild>
+								<ComboboxButton
+									id={timezoneId}
+									type="button"
+									disabled={fieldsDisabled}
+									selectedOption={{
+										value: form.values.timezone,
+										label: form.values.timezone.replaceAll("_", " "),
+									}}
+								/>
+							</ComboboxTrigger>
+							<ComboboxContent
+								label="Search timezones"
+								align="start"
+								className="w-(--radix-popover-trigger-width)"
+							>
+								<ComboboxInput placeholder="Search timezones..." />
+								<ComboboxList className="max-h-72">
+									<ComboboxEmpty>No timezones found.</ComboboxEmpty>
+									{timezoneGroups.map(([region, zones]) => (
+										<CommandGroup key={region} heading={region} className="p-0">
+											{zones?.map((zone) => (
+												<ComboboxItem
+													key={zone}
+													value={zone}
+													keywords={[zone.replaceAll("_", " ")]}
+												>
+													<span className="flex-1 truncate">
+														{zone.replaceAll("_", " ")}
+													</span>
+												</ComboboxItem>
+											))}
+										</CommandGroup>
+									))}
+								</ComboboxList>
+							</ComboboxContent>
+						</Combobox>
 						{timezoneField.error && (
 							<span className="text-xs text-content-destructive">
 								{timezoneField.helperText}
