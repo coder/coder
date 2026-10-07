@@ -225,9 +225,11 @@ func (p *Server) resolveQuickgenModel(
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, error) {
 	override, overrideErr := p.resolveModelOverride(ctx, modelOverrideSpec{
-		context:        titleGenerationOverrideContext,
-		ownerID:        chat.OwnerID,
-		organizationID: chat.OrganizationID,
+		context:             titleGenerationOverrideContext,
+		ownerID:             chat.OwnerID,
+		organizationID:      chat.OrganizationID,
+		failIfUnavailable:   true,
+		failIfNoProviderKey: true,
 	})
 	if overrideErr != nil {
 		if override.Set {

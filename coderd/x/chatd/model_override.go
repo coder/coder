@@ -28,13 +28,13 @@ type modelOverrideSpec struct {
 	context        string
 	ownerID        uuid.UUID
 	organizationID uuid.UUID
-	// ignoreUnavailable resolves no override, instead of an error, when the
+	// failIfUnavailable returns an error, instead of no override, when the
 	// model config or its provider is missing, disabled, not visible to the
 	// owner, or invalid.
-	ignoreUnavailable bool
-	// ignoreMissingCredentials resolves no override, instead of an error,
-	// when the owner has no usable key for the override's provider.
-	ignoreMissingCredentials bool
+	failIfUnavailable bool
+	// failIfNoProviderKey returns an error, instead of no override, when
+	// the owner has no usable key for the override's provider.
+	failIfNoProviderKey bool
 }
 
 type resolvedModelOverride struct {
@@ -75,9 +75,9 @@ func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpe
 		switch {
 		case !modelConfigUnavailable(err):
 			return resolved, xerrors.Errorf("resolve %s model override %s: %w", label, override.ModelConfigID, err)
-		case spec.ignoreUnavailable:
+		case !spec.failIfUnavailable:
 			p.logger.Info(ctx,
-				"model override is unavailable, ignoring",
+				"model override is unavailable, using default model",
 				slog.F("override_context", spec.context),
 				slog.F("model_config_id", override.ModelConfigID),
 				slog.Error(err),
@@ -100,7 +100,7 @@ func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpe
 		return resolvedModelOverride{}, xerrors.Errorf("resolve provider API keys: %w", err)
 	}
 	if !userCanUseProviderKeys(providerKeys, providerName) {
-		if !spec.ignoreMissingCredentials {
+		if spec.failIfNoProviderKey {
 			return resolved, xerrors.Errorf(
 				"%s model override credentials are unavailable for provider %q",
 				label,
@@ -108,7 +108,7 @@ func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpe
 			)
 		}
 		p.logger.Info(ctx,
-			"model override credentials are unavailable, ignoring",
+			"model override credentials are unavailable, using default model",
 			slog.F("override_context", spec.context),
 			slog.F("model_config_id", override.ModelConfigID),
 			slog.F("provider", providerName),

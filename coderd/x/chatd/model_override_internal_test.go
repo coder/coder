@@ -27,35 +27,31 @@ func TestResolveModelOverride(t *testing.T) {
 	}{
 		{
 			name: "Title",
-			spec: modelOverrideSpec{context: titleGenerationOverrideContext},
+			spec: modelOverrideSpec{
+				context:             titleGenerationOverrideContext,
+				failIfUnavailable:   true,
+				failIfNoProviderKey: true,
+			},
 		},
 		{
 			name: "Compaction",
-			spec: modelOverrideSpec{
-				context:                  compactionOverrideContext,
-				ignoreUnavailable:        true,
-				ignoreMissingCredentials: true,
-			},
+			spec: modelOverrideSpec{context: compactionOverrideContext},
 		},
 		{
 			name: "Subagent",
-			spec: modelOverrideSpec{
-				context:                  string(codersdk.ChatModelOverrideContextGeneral),
-				ignoreUnavailable:        true,
-				ignoreMissingCredentials: true,
-			},
+			spec: modelOverrideSpec{context: string(codersdk.ChatModelOverrideContextGeneral)},
 		},
 		{
 			name: "Advisor",
 			spec: modelOverrideSpec{
-				context:           advisorOverrideContext,
-				ignoreUnavailable: true,
+				context:             advisorOverrideContext,
+				failIfNoProviderKey: true,
 			},
 		},
 	}
 
 	always := func(modelOverrideSpec) bool { return true }
-	unlessIgnoreUnavailable := func(spec modelOverrideSpec) bool { return !spec.ignoreUnavailable }
+	ifFailIfUnavailable := func(spec modelOverrideSpec) bool { return spec.failIfUnavailable }
 	tests := []struct {
 		name      string
 		setup     func(*dbmock.MockStore, database.Chat, database.ChatModelConfig, uuid.UUID, modelOverrideSpec)
@@ -82,7 +78,7 @@ func TestResolveModelOverride(t *testing.T) {
 				db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, spec.context)).Return(orgModelOverride(chat, spec.context, config.ID, "high"), nil)
 				db.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(database.ChatModelConfig{}, sql.ErrNoRows)
 			},
-			wantErr: unlessIgnoreUnavailable,
+			wantErr: ifFailIfUnavailable,
 			wantSet: true,
 		},
 		{
@@ -91,7 +87,7 @@ func TestResolveModelOverride(t *testing.T) {
 				db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, spec.context)).Return(orgModelOverride(chat, spec.context, config.ID, "high"), nil)
 				db.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(database.ChatModelConfig{}, dbauthz.NotAuthorizedError{})
 			},
-			wantErr: unlessIgnoreUnavailable,
+			wantErr: ifFailIfUnavailable,
 			wantSet: true,
 		},
 		{
@@ -110,7 +106,7 @@ func TestResolveModelOverride(t *testing.T) {
 				db.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil)
 				db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{ID: providerID, Type: database.AIProviderTypeOpenai}, nil)
 			},
-			wantErr: unlessIgnoreUnavailable,
+			wantErr: ifFailIfUnavailable,
 			wantSet: true,
 		},
 		{
@@ -120,7 +116,7 @@ func TestResolveModelOverride(t *testing.T) {
 				db.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil)
 				db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{ID: providerID, Type: database.AIProviderType("invalid"), Enabled: true}, nil)
 			},
-			wantErr: unlessIgnoreUnavailable,
+			wantErr: ifFailIfUnavailable,
 			wantSet: true,
 		},
 		{
@@ -141,7 +137,7 @@ func TestResolveModelOverride(t *testing.T) {
 				db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 				db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil, nil)
 			},
-			wantErr: func(spec modelOverrideSpec) bool { return !spec.ignoreMissingCredentials },
+			wantErr: func(spec modelOverrideSpec) bool { return spec.failIfNoProviderKey },
 			wantSet: true,
 		},
 		{

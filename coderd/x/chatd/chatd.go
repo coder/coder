@@ -260,10 +260,10 @@ func (p *Server) resolveAdvisorModelOverride(
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
 	override, err := p.resolveModelOverride(ctx, modelOverrideSpec{
-		context:           advisorOverrideContext,
-		ownerID:           chat.OwnerID,
-		organizationID:    chat.OrganizationID,
-		ignoreUnavailable: true,
+		context:             advisorOverrideContext,
+		ownerID:             chat.OwnerID,
+		organizationID:      chat.OrganizationID,
+		failIfNoProviderKey: true,
 	})
 	if err != nil {
 		return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)

@@ -276,11 +276,9 @@ func (p *Server) resolveSubagentModelConfigID(
 	}
 
 	resolved, err := p.resolveModelOverride(chatdCtx, modelOverrideSpec{
-		context:                  string(overrideContext),
-		ownerID:                  ownerID,
-		organizationID:           organizationID,
-		ignoreUnavailable:        true,
-		ignoreMissingCredentials: true,
+		context:        string(overrideContext),
+		ownerID:        ownerID,
+		organizationID: organizationID,
 	})
 	if err != nil {
 		return uuid.Nil, nil, err

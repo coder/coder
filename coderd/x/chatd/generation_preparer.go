@@ -831,11 +831,9 @@ func (server *Server) prepareGeneration(
 	// window.
 	compactionContextLimit := modelConfig.ContextLimit
 	resolvedCompactionOverride, err := server.resolveModelOverride(ctx, modelOverrideSpec{
-		context:                  compactionOverrideContext,
-		ownerID:                  chat.OwnerID,
-		organizationID:           chat.OrganizationID,
-		ignoreUnavailable:        true,
-		ignoreMissingCredentials: true,
+		context:        compactionOverrideContext,
+		ownerID:        chat.OwnerID,
+		organizationID: chat.OrganizationID,
 	})
 	if err != nil {
 		return generationPrepared{}, err
