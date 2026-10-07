@@ -30,6 +30,7 @@ import {
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { buildAgentProjectPath } from "../utils/navigation";
 import { parsePullRequestUrl } from "../utils/pullRequest";
@@ -104,6 +105,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const { user: currentUser } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const location = useLocation();
 	const parentChatID = getParentChatID(chat);
 	const parentChatQuery = useQuery({
@@ -111,7 +113,11 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		enabled: Boolean(parentChatID),
 	});
 	const parentChat = parentChatQuery.data;
-	const projectId = chat?.project_id;
+	// Chats keep project_id when the experiment is turned off, but project
+	// pages are unreachable then.
+	const projectId = experiments.includes("chat-projects")
+		? chat?.project_id
+		: undefined;
 	const projectQuery = useQuery({
 		...chatProject(projectId),
 		enabled: Boolean(projectId),

@@ -38,7 +38,6 @@ type ProjectFoldersProps = {
 	readonly projects: readonly ChatProject[];
 	readonly organizations: readonly Organization[];
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
-	/** Projects with pinned chats, which the Pinned section lists instead. */
 	readonly projectIdsWithPinnedChats: ReadonlySet<string>;
 	readonly expandedProjectIds: Readonly<Record<string, boolean>>;
 	readonly onToggle: (projectId: string) => void;

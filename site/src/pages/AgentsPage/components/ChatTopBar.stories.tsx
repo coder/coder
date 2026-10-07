@@ -74,7 +74,7 @@ const defaultProps = {
 const meta: Meta<typeof ChatTopBar> = {
 	title: "pages/AgentsPage/ChatTopBar",
 	component: ChatTopBar,
-	decorators: [withAuthProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
 	beforeEach: () => {
 		requestArchiveAgent.mockClear();
 		requestArchiveAndDeleteWorkspace.mockClear();
@@ -163,6 +163,7 @@ export const WithProject: Story = {
 		},
 	},
 	parameters: {
+		experiments: ["chat-projects"],
 		queries: [
 			{
 				key: chatProjectsKey,
@@ -179,6 +180,7 @@ export const WithProjectLoading: Story = {
 			project_id: MockChatProject.id,
 		},
 	},
+	parameters: { experiments: ["chat-projects"] },
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockReturnValue(
 			new Promise(() => {}),
@@ -618,7 +620,6 @@ export const PreservesArchivedFilterOnMobileBack: Story = {
 };
 
 export const ShareChatButton: Story = {
-	decorators: [withDashboardProvider],
 	args: {
 		chat: {
 			...MockChat,
