@@ -12,6 +12,9 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
@@ -22,7 +25,6 @@ import {
 	ChatActionsMenuItems,
 	canManageChat,
 	chatFamilyAllowsArchive,
-	chatHasMenuActions,
 } from "../ChatActionsMenuItems";
 import { getChatCostTreeID } from "../ChatConversation/chatHelpers";
 import { ChatPRStateIcon } from "../ChatDiffStats";
@@ -81,7 +83,6 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		label: statusLabel,
 	} = getChatDisplayConfig(chat);
 	const canManage = canManageChat(chat, currentUser.id);
-	const showMenu = Boolean(actions) && chatHasMenuActions(chat, { canManage });
 	const isOwnChat = chat.owner_id === currentUser.id;
 	const ownerName = isOwnChat
 		? currentUser.name || currentUser.username
@@ -117,11 +118,11 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 					src={isOwnChat ? currentUser.avatar_url : undefined}
 					fallback={ownerName}
 					className={cn(
-						showMenu &&
+						actions &&
 							"[@media(hover:hover)]:group-hover:invisible group-has-focus-visible:invisible group-has-[[data-state=open]]:invisible [@media(hover:none)]:invisible",
 					)}
 				/>
-				{actions && showMenu && (
+				{actions && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -137,6 +138,9 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 							<ChatActionsMenuItems
 								Item={DropdownMenuItem}
 								Separator={DropdownMenuSeparator}
+								Sub={DropdownMenuSub}
+								SubTrigger={DropdownMenuSubTrigger}
+								SubContent={DropdownMenuSubContent}
 								chat={chat}
 								canManage={canManage}
 								hasWorkspace={Boolean(workspaceId)}

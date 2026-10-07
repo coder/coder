@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from "react-router";
@@ -7,7 +7,11 @@ import { API } from "#/api/api";
 import type { Chat } from "#/api/typesGenerated";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
-import { MockChatProject } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockUserMember,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
@@ -189,6 +193,71 @@ describe("ProjectChatsList", () => {
 		expect(await screen.findByRole("status")).toHaveTextContent(
 			"/agents/chat-0?archived=archived",
 		);
+	});
+
+	it.each([MockUserOwner, MockUserMember])(
+		"copies a chat ID without a branch (owner: $username)",
+		async (owner) => {
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue();
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+				{ ...MockChat, owner_id: owner.id },
+			]);
+			renderList();
+
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open chat actions for ${MockChat.title}`,
+				}),
+			);
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Copy ID" }),
+			);
+
+			await waitFor(() => {
+				expect(writeText).toHaveBeenCalledWith(MockChat.id);
+			});
+		},
+	);
+
+	it.each([
+		["Copy ID", MockChat.id],
+		["Copy branch", "feature/project-chat"],
+	])("copies %s from a project chat's submenu", async (label, value) => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+			{
+				...MockChat,
+				diff_status: {
+					chat_id: MockChat.id,
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 0,
+					changed_files: 0,
+					head_branch: "feature/project-chat",
+				},
+			},
+		]);
+		renderList();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open chat actions for ${MockChat.title}`,
+			}),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
+		fireEvent.click(await screen.findByRole("menuitem", { name: label }));
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith(value);
+		});
 	});
 
 	it("archives a chat through the agents page", async () => {
