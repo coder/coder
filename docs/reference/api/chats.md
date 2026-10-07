@@ -4081,11 +4081,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description                                                                                                 |
-|-------------------|-------|--------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `chat`            | path  | string(uuid) | true     | Chat ID                                                                                                     |
-| `after_id`        | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when history_version is non-zero           |
-| `history_version` | query | integer      | false    | Send only history changed after this history_version, taken from the messages page or the last status event |
+| Name              | In    | Type         | Required | Description                                                                                                        |
+|-------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------|
+| `chat`            | path  | string(uuid) | true     | Chat ID                                                                                                            |
+| `after_id`        | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when history_version is non-zero                  |
+| `history_version` | query | integer      | false    | Send only history changed after this history_version, taken from the messages page or the last preview_reset event |
 
 ### Example responses
 
@@ -4263,6 +4263,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "role": "system",
       "seq": 0
     },
+    "preview_reset": {
+      "history_version": 0
+    },
     "queued_messages": [
       {
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
@@ -4344,7 +4347,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "status_code": 0
     },
     "status": {
-      "history_version": 0,
       "status": "waiting"
     },
     "type": "message_part"
@@ -4450,6 +4452,8 @@ Status Code **200**
 | `»» part`                          | [codersdk.ChatMessagePart](schemas.md#codersdkchatmessagepart)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» role`                          | [codersdk.ChatMessageRole](schemas.md#codersdkchatmessagerole)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» seq`                           | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» preview_reset`                  | [codersdk.ChatStreamPreviewReset](schemas.md#codersdkchatstreampreviewreset)     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» history_version`               | integer                                                                          | false    |              | History version is the chat's history_version for the message events sent before this preview_reset. Every sync that changes the history ends with a preview_reset, so a client reconnects with the HistoryVersion of the last one it received.                                                                                                                                                            |
 | `» queued_messages`                | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4465,7 +4469,6 @@ Status Code **200**
 | `»» retrying_at`                   | string(date-time)                                                                | false    |              | Retrying at is the timestamp when the retry will be attempted.                                                                                                                                                                                                                                                                                                                                             |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
 | `» status`                         | [codersdk.ChatStreamStatus](schemas.md#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»» history_version`               | integer                                                                          | false    |              | History version is the chat's history_version for the messages sent before this status. Pass it as the stream's history_version parameter when reconnecting.                                                                                                                                                                                                                                               |
 | `»» status`                        | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» type`                           | [codersdk.ChatStreamEventType](schemas.md#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 

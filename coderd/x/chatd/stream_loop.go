@@ -54,10 +54,11 @@ type streamLocalState struct {
 
 	afterMessageID         int64
 	initialMessageSyncDone bool
-	// partialResets reports whether history_reset events may carry
-	// from_message_id. It is set only for clients that send history_version,
-	// since older clients would treat a partial reset as a full one.
-	partialResets bool
+	// hasHistoryVersion reports whether the client opened the stream with a
+	// history version. Only then may history_reset carry from_message_id,
+	// which older clients would read as a full reset, and preview_reset carry
+	// the history version, which an after_id stream does not deliver in full.
+	hasHistoryVersion bool
 }
 
 type streamSyncHint struct {
@@ -108,10 +109,10 @@ func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, cu
 		db:     db,
 		logger: logger,
 		state: streamLocalState{
-			historyVersion: cursor.HistoryVersion,
-			knownMessages:  make(map[int64]int64),
-			afterMessageID: afterMessageID,
-			partialResets:  cursor.HistoryVersion > 0,
+			historyVersion:    cursor.HistoryVersion,
+			knownMessages:     make(map[int64]int64),
+			afterMessageID:    afterMessageID,
+			hasHistoryVersion: cursor.HistoryVersion > 0,
 		},
 	}
 }
@@ -208,7 +209,7 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 			if snapshot.historyReset {
 				// Rows below the lowest changed ID have not changed since
 				// l.state.historyVersion, so a partial reset can start there.
-				if l.state.partialResets {
+				if l.state.hasHistoryVersion {
 					snapshot.resetFromID = snapshot.changedMessages[0].ID
 					for _, msg := range snapshot.changedMessages {
 						snapshot.resetFromID = min(snapshot.resetFromID, msg.ID)
@@ -347,12 +348,7 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 		events = append(events, codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypeStatus,
 			ChatID: l.chatID,
-			Status: &codersdk.ChatStreamStatus{
-				Status: codersdk.ChatStatus(chat.Status),
-				// Clients reconnect with this version, so the status event
-				// must follow this sync's message events.
-				HistoryVersion: chat.HistoryVersion,
-			},
+			Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(chat.Status)},
 		})
 	}
 
@@ -409,10 +405,16 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 
 	if historyChanged || (generationChanged && chat.GenerationAttempt != 0) {
 		l.state.lastPartSeq = 0
-		events = append(events, codersdk.ChatStreamEvent{
+		event := codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypePreviewReset,
 			ChatID: l.chatID,
-		})
+		}
+		// Clients reconnect with this version, so this must stay the last
+		// event of a sync that changes the history.
+		if l.state.hasHistoryVersion {
+			event.PreviewReset = &codersdk.ChatStreamPreviewReset{HistoryVersion: chat.HistoryVersion}
+		}
+		events = append(events, event)
 	}
 
 	l.state.snapshotVersion = chat.SnapshotVersion
