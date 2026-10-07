@@ -235,6 +235,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
+		PromptTextBytes:     []int64{seed.PromptTextBytes.Int64},
 		ProviderResponseID:  []string{seed.ProviderResponseID.String},
 		QueuedMessageID:     []int64{seed.QueuedMessageID.Int64},
 		AutomationID:        []uuid.UUID{seed.AutomationID.UUID},
