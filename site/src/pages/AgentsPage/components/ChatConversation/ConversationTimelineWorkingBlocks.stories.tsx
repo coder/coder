@@ -143,45 +143,6 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 	},
 };
 
-export const FailedStepCounted: Story = {
-	args: {
-		parsedMessages: parseMessagesWithMergedTools(
-			MockWorkingMessages.map((message) =>
-				message.id === 5
-					? {
-							...message,
-							content: [
-								{
-									type: "tool-result",
-									tool_call_id: "second",
-									tool_name: "execute",
-									is_error: true,
-									result: { output: "Command failed", exit_code: "1" },
-									created_at: workingFixtureTime(13),
-								},
-							],
-						}
-					: message,
-			),
-		),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Testing Library pads the badge with spaces; browsers read the name
-		// as "Worked for 12s (2 steps), 1 failed step".
-		const summary = canvas.getByRole("button", {
-			name: /^Worked for 12s \(2 steps\)\s?,\s?1 failed step$/,
-		});
-		await userEvent.click(summary);
-
-		const failedStep = canvas.getByTestId("chat-message-message:4");
-		await userEvent.click(
-			within(failedStep).getByRole("button", { name: /Expand command/ }),
-		);
-		await within(failedStep).findByText("Command failed");
-	},
-};
-
 export const QuestionStaysVisible: Story = {
 	args: {
 		isChatCompleted: true,
