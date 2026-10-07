@@ -20232,7 +20232,7 @@ func TestClearWorkspaceSecretsByWorkspaceID(t *testing.T) {
 	live, err := db.ListActiveWorkspaceSecrets(ctx, deleted.Build.ID)
 	require.NoError(t, err)
 	require.Empty(t, live, "the workspace's secrets are cleared")
-	history, err := db.GetWorkspaceSecretsHistory(ctx, deleted.Workspace.ID)
+	history, err := db.GetWorkspaceSecretsHistory(ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: deleted.Workspace.ID})
 	require.NoError(t, err)
 	require.Len(t, history, 1, "cleared rows are kept as history")
 	require.True(t, history[0].ClearedAt.Valid)
