@@ -158,7 +158,7 @@ Use the [Coder Remote extension](../user-guides/workspace-access/vscode.md) vers
 Sign in to your Coder deployment in the extension before collecting a bundle.
 
 - Bundle generation requires Coder CLI version 2.10.0 or later.
-- Remote editor server log collection requires Coder CLI and workspace agent version 2.36.0 or later.
+- Remote editor server log collection requires Coder CLI and workspace agent v2.36.0 or later.
   The workspace agent must be reachable.
 
 The extension normally manages the CLI for you.
