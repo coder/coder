@@ -6693,6 +6693,7 @@ func TestWorkspaceSecrets(t *testing.T) {
 		require.Equal(t, "API_KEY", secrets["api-key"].EnvName)
 		require.Equal(t, build1.ID, secrets["api-key"].WorkspaceBuildID)
 		require.True(t, secrets["one-shot"].Ephemeral)
+		require.Equal(t, database.WorkspaceSecretSourceRequest, secrets["api-key"].Source)
 		require.Empty(t, clearedRows(ctx, t, workspace.ID))
 
 		// Secrets never become build parameters.
@@ -6709,6 +6710,7 @@ func TestWorkspaceSecrets(t *testing.T) {
 		require.Equal(t, build2.ID, secrets["api-key"].WorkspaceBuildID)
 		require.Equal(t, "first-value", secrets["api-key"].Value.String)
 		require.Equal(t, build2.ID, secrets["cert"].WorkspaceBuildID)
+		require.Equal(t, database.WorkspaceSecretSourceCarryForward, secrets["api-key"].Source)
 		require.NotContains(t, secrets, "one-shot", "ephemeral secret must not carry forward")
 
 		cleared := clearedRows(ctx, t, workspace.ID)
@@ -6730,6 +6732,7 @@ func TestWorkspaceSecrets(t *testing.T) {
 		require.Len(t, secrets, 1)
 		require.Equal(t, "second-value", secrets["api-key"].Value.String)
 		require.Equal(t, build3.ID, secrets["api-key"].WorkspaceBuildID)
+		require.Equal(t, database.WorkspaceSecretSourceRequest, secrets["api-key"].Source, "a replaced secret comes from the request")
 
 		cleared = clearedRows(ctx, t, workspace.ID)
 		require.Len(t, cleared, 2)

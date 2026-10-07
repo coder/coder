@@ -691,7 +691,7 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 			Name:     prev.Name,
 			EnvName:  prev.EnvName,
 			FilePath: prev.FilePath,
-		}, prev.Value.String); err != nil {
+		}, prev.Value.String, database.WorkspaceSecretSourceCarryForward); err != nil {
 			return err
 		}
 	}
@@ -700,7 +700,7 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 		if secret.IsRemoval() {
 			continue
 		}
-		if err := b.insertSecret(b.ctx, store, workspaceBuildID, secret, *secret.Value); err != nil {
+		if err := b.insertSecret(b.ctx, store, workspaceBuildID, secret, *secret.Value, database.WorkspaceSecretSourceRequest); err != nil {
 			return err
 		}
 	}
@@ -717,7 +717,7 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 
 // insertSecret links a secret with the given value to the build. The input's
 // Value is ignored.
-func (b *Builder) insertSecret(ctx context.Context, store database.Store, workspaceBuildID uuid.UUID, secret codersdk.WorkspaceSecretInput, value string) error {
+func (b *Builder) insertSecret(ctx context.Context, store database.Store, workspaceBuildID uuid.UUID, secret codersdk.WorkspaceSecretInput, value string, source database.WorkspaceSecretSource) error {
 	_, err := store.InsertWorkspaceSecret(ctx, database.InsertWorkspaceSecretParams{
 		ID:               uuid.New(),
 		WorkspaceID:      b.workspace.ID,
@@ -728,6 +728,7 @@ func (b *Builder) insertSecret(ctx context.Context, store database.Store, worksp
 		EnvName:          secret.EnvName,
 		FilePath:         secret.FilePath,
 		Ephemeral:        secret.Ephemeral,
+		Source:           source,
 	})
 	if err == nil {
 		return nil
