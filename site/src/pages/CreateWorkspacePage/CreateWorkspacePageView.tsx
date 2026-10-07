@@ -454,7 +454,7 @@ export const CreateWorkspacePageView: React.FC<
 				<form
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
-					className="flex flex-col gap-10 w-full border border-border-default border-solid rounded-lg p-6"
+					className="flex flex-col gap-10 w-full border border-border border-solid rounded-lg p-6"
 					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}

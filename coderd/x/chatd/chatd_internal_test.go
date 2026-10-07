@@ -3597,6 +3597,8 @@ func TestResolveModelConfigOrganizationScope(t *testing.T) {
 func TestResolveFallbackModelConfigID(t *testing.T) {
 	t.Parallel()
 
+	db, ps := dbtestutil.NewDB(t)
+
 	newProvider := func(t *testing.T, db database.Store, enabled bool) database.AIProvider {
 		return dbgen.AIProvider(t, db, database.AIProvider{}, func(p *database.InsertAIProviderParams) {
 			p.Enabled = enabled
@@ -3618,7 +3620,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("EnabledLastModel", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3632,7 +3633,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ProviderDisabledLastModelFallsBackToDefault", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3648,7 +3648,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("NilLastModelUsesDefault", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3662,7 +3661,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("NonDefaultOrgWithoutLocalDefaultRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		otherOrgID := newModelConfigOrg(t, db)
@@ -3677,7 +3675,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("DisabledLocalDefaultRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3702,7 +3699,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("DisabledLocalDefaultProviderRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3715,7 +3711,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ProviderDisabledDefaultRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3729,7 +3724,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ExplicitEnabledModel", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3743,7 +3737,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ExplicitDefaultOrgModelRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		chatOrgID := newModelConfigOrg(t, db)
@@ -3763,7 +3756,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ExplicitUnrelatedOrgModelRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		chatOrgID := newModelConfigOrg(t, db)
@@ -3784,7 +3776,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 	// preflight must still be rejected inside the daemon.
 	t.Run("ExplicitProviderDisabledRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3799,7 +3790,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 	// inserting the chat and its initial messages.
 	t.Run("CreateChatProviderDisabledRejected", func(t *testing.T) {
 		t.Parallel()
-		db, ps := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		owner := dbgen.User(t, db, database.User{})

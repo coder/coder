@@ -531,7 +531,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // Creating the API key as the user instead of as system.
-	cookie, key, err := api.createAPIKey(dbauthz.As(ctx, actor), apikey.CreateParams{
+	cookie, key, err := api.createLoginAPIKey(dbauthz.As(ctx, actor), apikey.CreateParams{
 		UserID:          user.ID,
 		LoginType:       database.LoginTypePassword,
 		RemoteAddr:      r.RemoteAddr,
@@ -2074,7 +2074,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		key = *oldKey
 	} else {
 		//nolint:gocritic
-		cookie, newKey, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{
+		cookie, newKey, err := api.createLoginAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{
 			UserID:          user.ID,
 			LoginType:       params.LoginType,
 			DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
