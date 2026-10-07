@@ -2384,19 +2384,26 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	ownerChild := newChat(owner.ID, uuid.NullUUID{}, &ownerRoot)
 	shareeRoot := newChat(sharee.ID, inProject, nil)
 	unrelated := newChat(owner.ID, uuid.NullUUID{}, nil)
+	unrelatedChild := newChat(owner.ID, uuid.NullUUID{}, &unrelated)
 	otherProjectChat := newChat(owner.ID, uuid.NullUUID{UUID: otherProject.ID, Valid: true}, nil)
 
 	// A sub-chat that carries the project ID still locks as a sub-chat.
 	projectChild := newChat(sharee.ID, inProject, &shareeRoot)
 
 	family := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID, projectChild.ID}
-	rootIDs, chatIDs, err := database.LockChatProjectForDelete(ctx, db, project.ID)
+	err := database.InChatProjectDeleteTx(ctx, db, project.ID, func(_ database.Store, rootIDs, chatIDs []uuid.UUID) error {
+		require.ElementsMatch(t, []uuid.UUID{ownerRoot.ID, shareeRoot.ID}, rootIDs)
+		require.ElementsMatch(t, family, chatIDs)
+		return nil
+	})
 	require.NoError(t, err)
-	require.ElementsMatch(t, []uuid.UUID{ownerRoot.ID, shareeRoot.ID}, rootIDs)
-	require.ElementsMatch(t, family, chatIDs)
 
-	lockBatch := func(tx database.Store) ([]uuid.UUID, error) {
-		_, ids, err := database.LockChatProjectForDelete(ctx, tx, project.ID)
+	lockDelete := func() ([]uuid.UUID, error) {
+		var ids []uuid.UUID
+		err := database.InChatProjectDeleteTx(ctx, db, project.ID, func(_ database.Store, _, chatIDs []uuid.UUID) error {
+			ids = chatIDs
+			return nil
+		})
 		return ids, err
 	}
 
@@ -2413,16 +2420,13 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		require.ErrorAs(t, err, &pqErr, query)
 		require.Equal(t, lockNotAvailable, pqErr.Code, query)
 	}
-	err = db.InTx(func(tx database.Store) error {
-		if _, err := lockBatch(tx); err != nil {
-			return err
-		}
+	err = database.InChatProjectDeleteTx(ctx, db, project.ID, func(database.Store, []uuid.UUID, []uuid.UUID) error {
 		for _, id := range family {
 			requireLocked("SELECT 1 FROM chats WHERE id = $1 FOR UPDATE NOWAIT", id)
 		}
 		requireLocked("SELECT 1 FROM chat_projects WHERE id = $1 FOR KEY SHARE NOWAIT", project.ID)
 		return nil
-	}, nil)
+	})
 	require.NoError(t, err)
 
 	// requireLateInsertLocked holds a chat insert open until a delete is
@@ -2442,37 +2446,32 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 			}, nil)
 		}()
 		late := testutil.RequireReceive(ctx, t, inserted)
-		batchDone := make(chan []uuid.UUID, 1)
-		batchErr := make(chan error, 1)
+		deleteDone := make(chan []uuid.UUID, 1)
+		deleteErr := make(chan error, 1)
 		go func() {
-			var ids []uuid.UUID
-			err := db.InTx(func(tx database.Store) error {
-				var err error
-				ids, err = lockBatch(tx)
-				return err
-			}, nil)
-			batchErr <- err
-			batchDone <- ids
+			ids, err := lockDelete()
+			deleteErr <- err
+			deleteDone <- ids
 		}()
 		require.True(t, testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			var waiting int
 			err := sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'").Scan(&waiting)
 			return err == nil && waiting > 0
-		}, testutil.IntervalFast, "batch never waited on the inserting transaction"))
+		}, testutil.IntervalFast, "delete never waited on the inserting transaction"))
 		releaseOnce()
 		require.NoError(t, testutil.RequireReceive(ctx, t, insertDone))
-		require.NoError(t, testutil.RequireReceive(ctx, t, batchErr))
-		require.Contains(t, testutil.RequireReceive(ctx, t, batchDone), late.ID)
+		require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
+		require.Contains(t, testutil.RequireReceive(ctx, t, deleteDone), late.ID)
 		return late
 	}
-	// A root chat inserted while the batch waits on the project lock.
+	// A root chat inserted while the delete waits on the project lock.
 	lateRoot := requireLateInsertLocked(database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           sharee.ID,
 		LastModelConfigID: modelCfg.ID,
 		ProjectID:         inProject,
 	})
-	// A sub-chat inserted while the batch waits on its root's lock.
+	// A sub-chat inserted while the delete waits on its root's lock.
 	lateChild := requireLateInsertLocked(database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           sharee.ID,
@@ -2486,13 +2485,12 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, chats, len(family))
 
-	// Deleting the roots takes their sub-chats with them.
 	require.NoError(t, db.DeleteChatFamiliesByRootIDs(ctx, []uuid.UUID{ownerRoot.ID, shareeRoot.ID, lateRoot.ID}))
 	for _, id := range family {
 		_, err := db.GetChatByID(ctx, id)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	}
-	for _, id := range []uuid.UUID{unrelated.ID, otherProjectChat.ID} {
+	for _, id := range []uuid.UUID{unrelated.ID, unrelatedChild.ID, otherProjectChat.ID} {
 		_, err := db.GetChatByID(ctx, id)
 		require.NoError(t, err)
 	}
