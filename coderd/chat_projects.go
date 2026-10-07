@@ -326,7 +326,8 @@ func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Reque
 }
 
 // maxChatProjectsPerOwner caps how many projects one user owns across all
-// organizations, which bounds the project list every agents page loads.
+// organizations. It does not bound projects shared with the user, so the
+// project list can return more.
 const maxChatProjectsPerOwner = 100
 
 var errChatProjectLimit = xerrors.New("chat project limit reached")
