@@ -107,8 +107,8 @@ import "github.com/coder/coder/v2/apiversion"
 //     `provisioner.Script`, with the `ScriptDependency` message and the
 //     `ScriptDependencyRequirement` enum. They carry each script's full
 //     Terraform address and its resolved `coder_script_order` prerequisites
-//     from the provisioner to coderd. `dependencies` is empty when no rule
-//     orders the script. `resource_address` is empty only for the legacy
+//     from the provisioner to coderd. `dependencies` is empty when the script
+//     has no prerequisites. `resource_address` is empty only for the legacy
 //     agent startup and shutdown scripts.
 const (
 	CurrentMajor = 1

@@ -2247,7 +2247,7 @@ type Script struct {
 	// startup and shutdown scripts.
 	ResourceAddress string `protobuf:"bytes,10,opt,name=resource_address,json=resourceAddress,proto3" json:"resource_address,omitempty"`
 	// Direct prerequisites from coder_script_order rules, sorted by
-	// prerequisite_resource_address. Empty when no rule orders this script.
+	// prerequisite_resource_address. Empty when the script has no prerequisites.
 	Dependencies []*ScriptDependency `protobuf:"bytes,11,rep,name=dependencies,proto3" json:"dependencies,omitempty"`
 }
 

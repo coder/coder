@@ -328,7 +328,7 @@ export interface Script {
   resourceAddress: string;
   /**
    * Direct prerequisites from coder_script_order rules, sorted by
-   * prerequisite_resource_address. Empty when no rule orders this script.
+   * prerequisite_resource_address. Empty when the script has no prerequisites.
    */
   dependencies: ScriptDependency[];
 }
