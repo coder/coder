@@ -14,6 +14,9 @@ import {
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import {
@@ -21,6 +24,9 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -29,9 +35,9 @@ import {
 	ChatActionsMenuItems,
 	canManageChat,
 	chatFamilyAllowsArchive,
-	chatHasMenuActions,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
+import { ChatDiffStats } from "../../ChatDiffStats";
 import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
@@ -73,7 +79,6 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		onMarkChatRead,
 		onMarkChatUnread,
 		onOpenRenameDialog,
-		renderTrailing,
 	} = useChatTree();
 	const chatID = chat.id;
 	const isActiveChat = activeChatId === chatID;
@@ -139,28 +144,12 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		icon: StatusIcon,
 		className: statusClassName,
 		label: statusLabel,
-		prIcon,
-		diffStatus,
 	} = getChatDisplayConfig(chat);
-	const PRIcon = prIcon?.icon;
-	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
-	const changedFiles = diffStatus?.changed_files ?? 0;
-	const additions = diffStatus?.additions ?? 0;
-	const deletions = diffStatus?.deletions ?? 0;
-	const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
-	const filesChangedLabel = `${changedFiles} ${
-		changedFiles === 1 ? "file" : "files"
-	}`;
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const canManage = canManageChat(chat, currentUserId);
-	const hasMenuActions = chatHasMenuActions(chat, {
-		canManage,
-		hasSubagentsToggle: hasChildren,
-	});
-	const trailing = renderTrailing?.(chat);
 
 	const sharedMenuItemProps = {
 		chat,
@@ -192,7 +181,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	return (
 		<div className="flex min-w-0 flex-col gap-0.5">
 			<ContextMenu>
-				<ContextMenuTrigger asChild disabled={!hasMenuActions}>
+				<ContextMenuTrigger asChild>
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
@@ -270,26 +259,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
-										{PRIcon && prIcon && (
-											<PRIcon
-												role="img"
-												aria-label={prIcon.label}
-												className={cn("size-3.5 shrink-0", prIcon.className)}
-											/>
-										)}
-										{hasLinkedDiffStatus && hasLineStats && (
-											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-												title={`${filesChangedLabel}, +${additions} -${deletions}`}
-											>
-												<span className="text-git-added-bright">
-													+{additions}
-												</span>
-												<span className="text-git-deleted-bright">
-													&minus;{deletions}
-												</span>
-											</span>
-										)}
+										<ChatDiffStats chat={chat} />
 										<div
 											className={cn(
 												"min-w-0 overflow-hidden text-[13px] leading-4",
@@ -305,13 +275,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 								</div>
 							)}
 						</NavLink>
-						<div
-							className={cn(
-								"relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch",
-								// Slot content can be wider than the age, so let the column grow.
-								trailing && "w-auto min-w-7",
-							)}
-						>
+						<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
 							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
 								{isArchivingThisChat ? (
 									<Spinner
@@ -323,11 +287,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 										className={cn(
 											"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
 											// The timestamp swaps out for the actions trigger on
-											// hover or while a menu is open. Without menu actions,
-											// there is no trigger, so keep the timestamp visible.
-											hasMenuActions &&
-												"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
-											hasMenuActions && isActiveChat && "hidden",
+											// hover or while a menu is open.
+											"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
+											isActiveChat && "hidden",
 										)}
 									>
 										{chat.has_unread && !isActiveChat ? (
@@ -352,14 +314,13 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									</span>
 								)}
 							</div>
-							{trailing}
 							{isSharedChat && (
 								<UsersIcon
 									className="mt-auto size-3.5 text-content-secondary"
 									aria-label="Shared chat"
 								/>
 							)}
-							{hasMenuActions && !isArchivingThisChat && (
+							{!isArchivingThisChat && (
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
 										<Button
@@ -367,9 +328,6 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 											variant="subtle"
 											className={cn(
 												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100",
-												// inset-0 pins both edges; in a wider column the fixed
-												// width wins from the left, so release that edge.
-												trailing && "left-auto",
 												isActiveChat && "opacity-100",
 											)}
 											aria-label={`Open actions for ${chat.title}`}
@@ -409,6 +367,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 											{...sharedMenuItemProps}
 											Item={DropdownMenuItem}
 											Separator={DropdownMenuSeparator}
+											Sub={DropdownMenuSub}
+											SubTrigger={DropdownMenuSubTrigger}
+											SubContent={DropdownMenuSubContent}
 										/>
 									</DropdownMenuContent>
 								</DropdownMenu>
@@ -421,6 +382,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 						{...sharedMenuItemProps}
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
+						Sub={ContextMenuSub}
+						SubTrigger={ContextMenuSubTrigger}
+						SubContent={ContextMenuSubContent}
 					/>
 				</ContextMenuContent>
 			</ContextMenu>

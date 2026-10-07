@@ -250,6 +250,64 @@ export const FilterComboboxContent: React.FC<FilterComboboxContentProps> = ({
 	);
 };
 
+type FilterComboboxFlyoutRootProps = {
+	/** Fired when Escape is pressed while the flyout is shown. */
+	onDismiss: () => void;
+	/** The main menu, which the flyout is placed beside. */
+	children: React.ReactElement;
+};
+
+/**
+ * Anchors `FilterComboboxFlyoutContent` to the main menu. The flyout is a
+ * nested Radix layer, so it takes Escape from the popup and forwards it here.
+ */
+export const FilterComboboxFlyoutRoot: React.FC<
+	FilterComboboxFlyoutRootProps
+> = ({ onDismiss, children }) => {
+	return (
+		<Popover
+			open
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen) {
+					onDismiss();
+				}
+			}}
+			modal={false}
+		>
+			<PopoverAnchor asChild>{children}</PopoverAnchor>
+		</Popover>
+	);
+};
+
+/**
+ * Side panel to the right of the main menu. Radix moves it to the left side
+ * when the right side has no room.
+ */
+export const FilterComboboxFlyoutContent: React.FC<
+	React.ComponentProps<typeof PopoverContent>
+> = ({ className, ...props }) => {
+	return (
+		<PopoverContent
+			disablePortal
+			side="right"
+			align="start"
+			// Flush with the main panel, like `DropdownMenuSubContent`.
+			sideOffset={0}
+			collisionPadding={0}
+			onOpenAutoFocus={(event) => event.preventDefault()}
+			onCloseAutoFocus={(event) => event.preventDefault()}
+			// Outside presses are left to the popup's layer, which unmounts this
+			// one. Focus returning to the input must not close the flyout.
+			onInteractOutside={(event) => event.preventDefault()}
+			className={cn(
+				"flex max-h-[min(20rem,var(--radix-popper-available-height))] w-max min-w-40 max-w-64 flex-col overflow-y-hidden border-border p-2",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
 type FilterComboboxListProps = React.ComponentProps<
 	typeof CommandPrimitive.List
 >;
@@ -393,6 +451,8 @@ type FilterComboboxChipProps = React.ComponentProps<typeof Badge> & {
 	showRemove?: boolean;
 	/** Accessible name for the remove control. Defaults to `Remove ${value}`. */
 	removeLabel?: string;
+	/** Replaces the root's `onRemoveValue` for chips that are not query tokens. */
+	onRemove?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 };
 
 /** Height shared by chips and controls that sit in the chip row. */
@@ -404,6 +464,7 @@ export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 	value,
 	showRemove = true,
 	removeLabel,
+	onRemove,
 	...props
 }) => {
 	const { onRemoveValue } = useFilterComboboxState();
@@ -420,7 +481,7 @@ export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 			data-slot="combobox-chip"
 			svgSize="sm"
 			className={cn(
-				"group/chip pl-2 font-medium text-content-secondary hover:text-content-primary",
+				"group/chip min-w-0 max-w-full pl-2 font-medium text-content-secondary hover:text-content-primary",
 				chipRowItemHeightClassName,
 				className,
 			)}
@@ -438,7 +499,9 @@ export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 					onMouseDown={(event) => event.preventDefault()}
 					onClick={(event) => {
 						event.stopPropagation();
-						if (removeValue) {
+						if (onRemove) {
+							onRemove(event);
+						} else if (removeValue) {
 							onRemoveValue?.(removeValue);
 						}
 					}}

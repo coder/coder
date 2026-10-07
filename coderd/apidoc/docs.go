@@ -154,6 +154,136 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chat-automations/{automation}/events": {
+            "post": {
+                "description": "Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Deliver chat automation webhook event",
+                "operationId": "deliver-chat-automation-event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer followed by the webhook secret",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Event data: any JSON value up to 256 KiB",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {}
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomationEventResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/chats/projects": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat projects",
+                "operationId": "list-chat-projects",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProject"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/{chat}/stream/desktop": {
             "get": {
                 "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -397,6 +527,822 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OrganizationAISpendReport"
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chat-automations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat automations",
+                "operationId": "list-chat-automations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatAutomation"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat automation",
+                "operationId": "create-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Chat automation",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatAutomationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatAutomationResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chat-automations/schedule-preview": {
+            "post": {
+                "description": "Validates a schedule like chat automation create does and returns its next run times. Nothing is stored.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Preview chat automation schedule",
+                "operationId": "preview-chat-automation-schedule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Schedule",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomationSchedulePreviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomationSchedulePreviewResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chat-automations/{automation}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat automation",
+                "operationId": "get-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat automation",
+                "operationId": "delete-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "description": "Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat automation",
+                "operationId": "update-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Chat automation changes",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatAutomationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chat-automations/{automation}/runs": {
+            "post": {
+                "description": "Sends the saved prompt of an enabled schedule automation to its target now, like a scheduled run, as the owner. The schedule's next run does not change. Only the owner can run an automation.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Run chat automation now",
+                "operationId": "run-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomationRunResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chat-automations/{automation}/secret/rotate": {
+            "post": {
+                "description": "Only the owner of a webhook automation can rotate its secret. The previous secret stops working, and the new secret is returned only in this response.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Rotate chat automation webhook secret",
+                "operationId": "rotate-chat-automation-secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RotateChatAutomationSecretResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat project",
+                "operationId": "create-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create chat project request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProject"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat project",
+                "operationId": "get-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProject"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat project",
+                "operationId": "delete-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat project",
+                "operationId": "update-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat project request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProject"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/memories": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project memories",
+                "operationId": "list-chat-project-memories",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProjectMemory"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat project memory",
+                "operationId": "create-chat-project-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create memory request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatProjectMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectMemory"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/memories/{memory}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat project memory",
+                "operationId": "get-chat-project-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project memory ID",
+                        "name": "memory",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectMemory"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat project memory",
+                "operationId": "delete-chat-project-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project memory ID",
+                        "name": "memory",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -1617,7 +2563,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `status:\u003cwaiting\\|running\\|error\\|requires_action\\|interrupting\u003e` + "`" + ` (chat status, repeated or comma-separated), ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\\|none\u003e` + "`" + ` (none matches chats with no pull request) as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
+                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + ` (` + "`" + `archived:any` + "`" + ` matches archived and active chats), ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `status:\u003cwaiting\\|running\\|error\\|requires_action\\|interrupting\u003e` + "`" + ` (chat status, repeated or comma-separated), ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\\|none\u003e` + "`" + ` (none matches chats with no pull request) as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -1648,6 +2594,20 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Page offset",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter to chats the automation created or sent messages to. Ignored unless the chat-automations experiment is enabled for the caller.",
+                        "name": "automation_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Only chats in this project. Requires the chat-projects experiment.",
+                        "name": "project_id",
                         "in": "query"
                     }
                 ],
@@ -1696,6 +2656,12 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     },
                     "413": {
@@ -2713,6 +3679,12 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -2969,6 +3941,18 @@ const docTemplate = `{
                         "name": "chat",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Remote origin selecting the ref to diff",
+                        "name": "origin",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Git branch selecting the ref to diff",
+                        "name": "branch",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6497,6 +7481,80 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/chats/config/system-prompt": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get organization chat system prompt",
+                "operationId": "get-organization-chat-system-prompt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationChatSystemPromptResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update organization chat system prompt",
+                "operationId": "update-organization-chat-system-prompt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateOrganizationChatSystemPromptRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -17911,6 +18969,15 @@ const docTemplate = `{
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
+                "actor_header_email": {
+                    "type": "string"
+                },
+                "actor_header_id": {
+                    "type": "string"
+                },
+                "actor_header_username": {
+                    "type": "string"
+                },
                 "allow_byok": {
                     "type": "boolean"
                 },
@@ -18784,12 +19851,26 @@ const docTemplate = `{
                 "chat:read",
                 "chat:share",
                 "chat:update",
+                "chat_automation:*",
+                "chat_automation:create",
+                "chat_automation:delete",
+                "chat_automation:read",
+                "chat_automation:update",
                 "chat_model_config:*",
                 "chat_model_config:create",
                 "chat_model_config:delete",
                 "chat_model_config:read",
                 "chat_model_config:share",
                 "chat_model_config:update",
+                "chat_project:*",
+                "chat_project:create",
+                "chat_project:delete",
+                "chat_project:read",
+                "chat_project:update",
+                "chat_project_memory:*",
+                "chat_project_memory:create",
+                "chat_project_memory:delete",
+                "chat_project_memory:read",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -19031,12 +20112,26 @@ const docTemplate = `{
                 "APIKeyScopeChatRead",
                 "APIKeyScopeChatShare",
                 "APIKeyScopeChatUpdate",
+                "APIKeyScopeChatAutomationAll",
+                "APIKeyScopeChatAutomationCreate",
+                "APIKeyScopeChatAutomationDelete",
+                "APIKeyScopeChatAutomationRead",
+                "APIKeyScopeChatAutomationUpdate",
                 "APIKeyScopeChatModelConfigAll",
                 "APIKeyScopeChatModelConfigCreate",
                 "APIKeyScopeChatModelConfigDelete",
                 "APIKeyScopeChatModelConfigRead",
                 "APIKeyScopeChatModelConfigShare",
                 "APIKeyScopeChatModelConfigUpdate",
+                "APIKeyScopeChatProjectAll",
+                "APIKeyScopeChatProjectCreate",
+                "APIKeyScopeChatProjectDelete",
+                "APIKeyScopeChatProjectRead",
+                "APIKeyScopeChatProjectUpdate",
+                "APIKeyScopeChatProjectMemoryAll",
+                "APIKeyScopeChatProjectMemoryCreate",
+                "APIKeyScopeChatProjectMemoryDelete",
+                "APIKeyScopeChatProjectMemoryRead",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -19405,6 +20500,7 @@ const docTemplate = `{
                 "jetbrains",
                 "ssh",
                 "reconnecting_pty",
+                "port_forwarding",
                 "sftp",
                 "unknown"
             ],
@@ -19413,6 +20509,7 @@ const docTemplate = `{
                 "AppFamilyJetBrains",
                 "AppFamilySSH",
                 "AppFamilyReconnectingPTY",
+                "AppFamilyPortForwarding",
                 "AppFamilySFTP",
                 "AppFamilyUnknown"
             ]
@@ -19884,6 +20981,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChangedDiffStatus": {
+            "type": "object",
+            "properties": {
+                "ref": {
+                    "$ref": "#/definitions/codersdk.DiffStatusRef"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                }
+            }
+        },
         "codersdk.Chat": {
             "type": "object",
             "properties": {
@@ -19921,7 +21029,19 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "diff_status": {
-                    "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                    "description": "DiffStatus is the primary pull request. It is the ref with the\nmost recent git report.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                        }
+                    ]
+                },
+                "diff_statuses": {
+                    "description": "DiffStatuses lists every ref the chat tracks. The order is\nstable and follows the first report of each ref. DiffStatus\nmarks the primary.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                    }
                 },
                 "files": {
                     "type": "array",
@@ -19963,6 +21083,10 @@ const docTemplate = `{
                 "last_turn_summary": {
                     "type": "string"
                 },
+                "manage_automations_enabled": {
+                    "description": "ManageAutomationsEnabled offers the manage_automations tool to this\nchat's agent. Experimental.",
+                    "type": "boolean"
+                },
                 "mcp_server_ids": {
                     "type": "array",
                     "items": {
@@ -19994,6 +21118,10 @@ const docTemplate = `{
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "queued_for_capacity": {
                     "description": "QueuedForCapacity reports that the chat is waiting for a concurrent\nagent slot. Single-chat reads derive it; list responses leave it false.",
                     "type": "boolean"
@@ -20015,6 +21143,19 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "title_source": {
+                    "description": "TitleSource is where Title came from. A title write applies only when\nthe current source ranks the same as or lower than the incoming one,\nin the order fallback, generated, user.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatTitleSource"
+                        }
+                    ]
+                },
+                "title_updated_at": {
+                    "description": "TitleUpdatedAt orders title changes. Title writes do not change\nUpdatedAt.",
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "updated_at": {
                     "type": "string",
@@ -20056,6 +21197,217 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.ChatAutomation": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "kind": {
+                    "enum": [
+                        "webhook",
+                        "schedule"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationKind"
+                        }
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "new_chat_model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "next_run_times": {
+                    "description": "NextRunTimes lists up to five upcoming runs of an enabled schedule.\nIt is empty for webhooks and disabled schedules.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                },
+                "schedule_cron": {
+                    "type": "string"
+                },
+                "schedule_next_run_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "schedule_time_zone": {
+                    "type": "string"
+                },
+                "target_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "target_mode": {
+                    "enum": [
+                        "existing_chat",
+                        "new_chat"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationTargetMode"
+                        }
+                    ]
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "webhook_consumed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "webhook_secret_version": {
+                    "type": "integer"
+                },
+                "webhook_use": {
+                    "enum": [
+                        "single",
+                        "multi"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWebhookUse"
+                        }
+                    ]
+                },
+                "when_busy": {
+                    "enum": [
+                        "queue",
+                        "skip"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWhenBusy"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.ChatAutomationEventResponse": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "input_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatAutomationKind": {
+            "type": "string",
+            "enum": [
+                "webhook",
+                "schedule"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationKindWebhook",
+                "ChatAutomationKindSchedule"
+            ]
+        },
+        "codersdk.ChatAutomationRunResponse": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "input_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatAutomationSchedulePreviewRequest": {
+            "type": "object",
+            "properties": {
+                "schedule_cron": {
+                    "type": "string"
+                },
+                "schedule_time_zone": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatAutomationSchedulePreviewResponse": {
+            "type": "object",
+            "properties": {
+                "next_run_times": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatAutomationTargetMode": {
+            "type": "string",
+            "enum": [
+                "existing_chat",
+                "new_chat"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationTargetModeExistingChat",
+                "ChatAutomationTargetModeNewChat"
+            ]
+        },
+        "codersdk.ChatAutomationWebhookUse": {
+            "type": "string",
+            "enum": [
+                "single",
+                "multi"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationWebhookUseSingle",
+                "ChatAutomationWebhookUseMulti"
+            ]
+        },
+        "codersdk.ChatAutomationWhenBusy": {
+            "type": "string",
+            "enum": [
+                "queue",
+                "skip"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationWhenBusyQueue",
+                "ChatAutomationWhenBusySkip"
+            ]
         },
         "codersdk.ChatBusyBehavior": {
             "type": "string",
@@ -20105,6 +21457,10 @@ const docTemplate = `{
                 },
                 "max_attachments_per_chat": {
                     "description": "MaxAttachmentsPerChat is the maximum number of files linked to a\nchat.",
+                    "type": "integer"
+                },
+                "max_automations_per_owner": {
+                    "description": "MaxAutomationsPerOwner is the maximum number of chat automations\none user can own across all organizations.",
                     "type": "integer"
                 },
                 "max_concurrent_recording_uploads": {
@@ -20339,6 +21695,9 @@ const docTemplate = `{
                 "deletions": {
                     "type": "integer"
                 },
+                "git_branch": {
+                    "type": "string"
+                },
                 "head_branch": {
                     "type": "string"
                 },
@@ -20357,6 +21716,9 @@ const docTemplate = `{
                 "refreshed_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "remote_origin": {
+                    "type": "string"
                 },
                 "reviewer_count": {
                     "type": "integer"
@@ -20611,6 +21973,11 @@ const docTemplate = `{
         "codersdk.ChatMessage": {
             "type": "object",
             "properties": {
+                "automation_id": {
+                    "description": "AutomationID is the chat automation that delivered this message,\nif any. The automation may since have been deleted.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -20631,6 +21998,11 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "input_id": {
+                    "description": "InputID identifies the automation input that produced this\nmessage: a webhook delivery or a schedule occurrence. It is set\nonly when AutomationID is set.",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "model_config_id": {
                     "type": "string",
@@ -21574,6 +22946,79 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatProject": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "description": "Icon is a URL, typically an emoji image under /emojis, or empty for the\ndefault folder glyph.",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "description": "Name is a display label and is not unique; ID identifies the project.",
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatProjectMemory": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "created_by_username": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.ChatPrompt": {
             "type": "object",
             "properties": {
@@ -21599,6 +23044,11 @@ const docTemplate = `{
         "codersdk.ChatQueuedMessage": {
             "type": "object",
             "properties": {
+                "automation_id": {
+                    "description": "AutomationID is the chat automation that queued this message, if\nany. The automation may since have been deleted.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -21615,6 +23065,11 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "input_id": {
+                    "description": "InputID identifies the automation input that produced this\nmessage: a webhook delivery or a schedule occurrence. It is set\nonly when AutomationID is set.",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "model_config_id": {
                     "type": "string",
@@ -21824,6 +23279,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatTitleSource": {
+            "type": "string",
+            "enum": [
+                "fallback",
+                "generated",
+                "user"
+            ],
+            "x-enum-varnames": [
+                "ChatTitleSourceFallback",
+                "ChatTitleSourceGenerated",
+                "ChatTitleSourceUser"
+            ]
+        },
         "codersdk.ChatUnsupportedProvider": {
             "type": "object",
             "properties": {
@@ -21872,6 +23340,14 @@ const docTemplate = `{
         "codersdk.ChatWatchEvent": {
             "type": "object",
             "properties": {
+                "changed_diff_status": {
+                    "description": "ChangedDiffStatus is set when Kind is\nChatWatchEventKindDiffStatusChange. It identifies the ref that\nchanged.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChangedDiffStatus"
+                        }
+                    ]
+                },
                 "chat": {
                     "$ref": "#/definitions/codersdk.Chat"
                 },
@@ -22164,6 +23640,90 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateChatAutomationRequest": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "enum": [
+                        "webhook",
+                        "schedule"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationKind"
+                        }
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "new_chat_model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                },
+                "schedule_cron": {
+                    "description": "ScheduleCron is a standard five-field cron expression. As in standard\ncron, when both day of month and day of week are restricted, a time\nmatches if either field matches.",
+                    "type": "string"
+                },
+                "schedule_time_zone": {
+                    "type": "string"
+                },
+                "target_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "target_mode": {
+                    "enum": [
+                        "existing_chat",
+                        "new_chat"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationTargetMode"
+                        }
+                    ]
+                },
+                "webhook_use": {
+                    "enum": [
+                        "single",
+                        "multi"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWebhookUse"
+                        }
+                    ]
+                },
+                "when_busy": {
+                    "enum": [
+                        "queue",
+                        "skip"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWhenBusy"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.CreateChatAutomationResponse": {
+            "type": "object",
+            "properties": {
+                "automation": {
+                    "$ref": "#/definitions/codersdk.ChatAutomation"
+                },
+                "webhook_secret": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateChatMessageRequest": {
             "type": "object",
             "properties": {
@@ -22272,6 +23832,42 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateChatProjectMemoryRequest": {
+            "type": "object",
+            "required": [
+                "body",
+                "description",
+                "name"
+            ],
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateChatProjectRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateChatRequest": {
             "type": "object",
             "properties": {
@@ -22298,6 +23894,10 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "manage_automations_enabled": {
+                    "description": "ManageAutomationsEnabled offers the manage_automations tool to the\nchat's agent. Enabling it requires the chat-automations experiment\nfor the chat owner. Experimental.",
+                    "type": "boolean"
+                },
                 "mcp_server_ids": {
                     "type": "array",
                     "items": {
@@ -22321,10 +23921,18 @@ const docTemplate = `{
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "reasoning_effort": {
                     "type": "string"
                 },
                 "system_prompt": {
+                    "type": "string"
+                },
+                "title": {
+                    "description": "Title, when set, is stored as the user title and automatic title\ngeneration does not run. It is trimmed and must then be non-empty\nand at most 200 Unicode code points (MaxChatTitleRunes), else the\nrequest fails with 400. When omitted, the title is derived from the\nfirst prompt and may later be replaced by a generated title.",
                     "type": "string"
                 },
                 "unsafe_dynamic_tools": {
@@ -22647,8 +24255,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "description": {
-                    "description": "Description is a description of what the template contains. It must be\nless than 128 bytes.",
-                    "type": "string"
+                    "description": "Description is a description of what the template contains. It must be\nno longer than 128 Unicode code points.",
+                    "type": "string",
+                    "maxLength": 128
                 },
                 "disable_everyone_group_access": {
                     "description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template.",
@@ -23801,6 +25410,17 @@ const docTemplate = `{
                 "DiagnosticSeverityWarning"
             ]
         },
+        "codersdk.DiffStatusRef": {
+            "type": "object",
+            "properties": {
+                "git_branch": {
+                    "type": "string"
+                },
+                "remote_origin": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.DisplayApp": {
             "type": "string",
             "enum": [
@@ -23994,11 +25614,14 @@ const docTemplate = `{
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
                 "ai-gateway-reverse-proxy",
+                "chat-projects",
                 "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
-                "enable-ai-workspace-debug"
+                "enable-ai-workspace-debug",
+                "chat-stage-metrics",
+                "chat-automations"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -24006,7 +25629,10 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatAutomations": "Enables webhook and scheduled automations that deliver prompts to agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
+                "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
+                "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
@@ -24030,11 +25656,14 @@ const docTemplate = `{
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
+                "Enables organization-scoped projects that group agent chats.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
-                "Enables debugging failed workspace builds with Coder Agents."
+                "Enables debugging failed workspace builds with Coder Agents.",
+                "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "Enables webhook and scheduled automations that deliver prompts to agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -24048,11 +25677,14 @@ const docTemplate = `{
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentAIGatewayReverseProxy",
+                "ExperimentChatProjects",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
-                "ExperimentEnableAIWorkspaceDebug"
+                "ExperimentEnableAIWorkspaceDebug",
+                "ExperimentChatStageMetrics",
+                "ExperimentChatAutomations"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -26632,6 +28264,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationChatSystemPromptResponse": {
+            "type": "object",
+            "properties": {
+                "system_prompt": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.OrganizationGroupAISpend": {
             "type": "object",
             "properties": {
@@ -28092,7 +29732,10 @@ const docTemplate = `{
                 "boundary_log",
                 "boundary_usage",
                 "chat",
+                "chat_automation",
                 "chat_model_config",
+                "chat_project",
+                "chat_project_memory",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -28146,7 +29789,10 @@ const docTemplate = `{
                 "ResourceBoundaryLog",
                 "ResourceBoundaryUsage",
                 "ResourceChat",
+                "ResourceChatAutomation",
                 "ResourceChatModelConfig",
+                "ResourceChatProject",
+                "ResourceChatProjectMemory",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
@@ -28403,12 +30049,16 @@ const docTemplate = `{
                 "group_ai_budget",
                 "user_ai_budget_override",
                 "chat",
+                "chat_project",
+                "chat_project_memory",
                 "mcp_server_config",
                 "chat_model_config",
+                "chat_automation",
                 "user_secret",
                 "user_skill",
                 "chat_instruction_settings",
                 "chat_operational_settings",
+                "chat_organization_system_prompt",
                 "experiment_rule"
             ],
             "x-enum-varnames": [
@@ -28446,12 +30096,16 @@ const docTemplate = `{
                 "ResourceTypeGroupAIBudget",
                 "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
+                "ResourceTypeChatProject",
+                "ResourceTypeChatProjectMemory",
                 "ResourceTypeMCPServerConfig",
                 "ResourceTypeChatModelConfig",
+                "ResourceTypeChatAutomation",
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill",
                 "ResourceTypeChatInstructionSettings",
                 "ResourceTypeChatOperationalSettings",
+                "ResourceTypeChatOrganizationSystemPrompt",
                 "ResourceTypeExperimentRule"
             ]
         },
@@ -28557,6 +30211,17 @@ const docTemplate = `{
                             "type": "string"
                         }
                     }
+                }
+            }
+        },
+        "codersdk.RotateChatAutomationSecretResponse": {
+            "type": "object",
+            "properties": {
+                "webhook_secret": {
+                    "type": "string"
+                },
+                "webhook_secret_version": {
+                    "type": "integer"
                 }
             }
         },
@@ -29269,7 +30934,8 @@ const docTemplate = `{
                     }
                 },
                 "description": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 128
                 },
                 "display_name": {
                     "type": "string"
@@ -30214,6 +31880,50 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateChatAutomationRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Enabled disables or re-enables the automation. Disabling removes the\nmessages the automation queued that have not started. Re-enabling a\nschedule resumes at its next future occurrence; occurrences missed\nwhile it was disabled do not run.",
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "new_chat_model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "description": "ReasoningEffort sets the effort of new chats. An empty string clears\nthe override, so new chats use the model's default.",
+                    "type": "string"
+                },
+                "schedule_cron": {
+                    "type": "string"
+                },
+                "schedule_time_zone": {
+                    "type": "string"
+                },
+                "target_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "when_busy": {
+                    "enum": [
+                        "queue",
+                        "skip"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWhenBusy"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.UpdateChatDebugLoggingAllowUsersRequest": {
             "type": "object",
             "properties": {
@@ -30304,6 +32014,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateChatProjectRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UpdateChatRequest": {
             "type": "object",
             "properties": {
@@ -30315,6 +32039,10 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "manage_automations_enabled": {
+                    "description": "ManageAutomationsEnabled turns the manage_automations tool on or\noff for a root chat. Only the chat owner may set it. Enabling it\nrequires the chat-automations experiment for the owner; disabling\nis always accepted. Experimental.",
+                    "type": "boolean"
                 },
                 "pin_order": {
                     "description": "PinOrder controls the chat's pinned state and position.\n- nil: no change to pin state.\n- 0: unpin the chat.\n- \u003e0 (chat is unpinned): pin the chat, appending it to\n  the end of the pinned list. The specific value is\n  ignored; the server assigns the next available position.\n- \u003e0 (chat is already pinned): move the chat to the\n  requested position, shifting neighbors as needed. The\n  value is clamped to [1, pinned_count].",
@@ -30333,6 +32061,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "title": {
+                    "description": "Title, when set, is stored as the user title even when its text is\nunchanged, so a generated title never replaces it afterwards. It is\nvalidated like CreateChatRequest.Title.",
                     "type": "string"
                 },
                 "workspace_id": {
@@ -30504,6 +32233,14 @@ const docTemplate = `{
                     ]
                 },
                 "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateOrganizationChatSystemPromptRequest": {
+            "type": "object",
+            "properties": {
+                "system_prompt": {
                     "type": "string"
                 }
             }

@@ -753,7 +753,13 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	log := s.Logger.With(slog.F("agent_id", appToken.AgentID))
+
+	clientSessionID := tracing.ClientSessionID(r)
+
+	log := s.Logger.With(
+		slog.F("agent_id", appToken.AgentID),
+		slog.F("client_session_id", clientSessionID),
+	)
 	log.Debug(ctx, "resolved PTY request")
 
 	values := r.URL.Query()
@@ -802,6 +808,14 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer release()
 	log.Debug(ctx, "dialed workspace agent")
+
+	// Pass through the client session ID to the agent via the header.
+	if clientSessionID != "" {
+		agentConn.SetExtraHeaders(http.Header{
+			"baggage": []string{tracing.SessionIDBaggageKey + "=" + clientSessionID},
+		})
+	}
+
 	// #nosec G115 - Safe conversion for terminal height/width which are expected to be within uint16 range (0-65535)
 	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"), func(arp *workspacesdk.AgentReconnectingPTYInit) {
 		arp.Container = container

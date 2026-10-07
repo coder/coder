@@ -26,6 +26,7 @@ import {
 	openChat,
 	patchChatEntity,
 	promoteChatQueuedMessage,
+	updateChatManageAutomations,
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
@@ -53,6 +54,7 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { useAutomationsEnabled } from "./components/Automations/automationsFlag";
 import {
 	type ChatDetailError,
 	getPersistedDetailError,
@@ -82,6 +84,7 @@ import {
 	draftInputStorageKeyPrefix,
 	parseStoredDraft,
 } from "./utils/draftStorage";
+import { canToggleManageAutomations } from "./utils/manageAutomations";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -101,14 +104,8 @@ import { pickReasoningEffort } from "./utils/reasoningEffort";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
-type AgentChatPageProps = {
-	/** Overrides the route param so several chat panes can render at once. */
-	readonly chatId?: string;
-};
-
-const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
-	chatId: agentId,
-}) => {
+const AgentChatPage: React.FC = () => {
+	const { agentId } = useParams() as { agentId: string };
 	const {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -118,6 +115,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
 	const { organizations, experiments } = useDashboard();
+	const automationsExperimentEnabled = useAutomationsEnabled();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
 	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
@@ -329,6 +327,20 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId),
 	);
+	const updateChatManageAutomationsBase =
+		updateChatManageAutomations(queryClient);
+	const {
+		isPending: isUpdateChatManageAutomationsPending,
+		mutate: updateChatManageAutomationsMutate,
+	} = useMutation({
+		...updateChatManageAutomationsBase,
+		onError: (error, variables, context) => {
+			updateChatManageAutomationsBase.onError(error, variables, context);
+			toast.error(
+				getErrorMessage(error, "Failed to update automations setting."),
+			);
+		},
+	});
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
 	const {
 		isPending: isUpdateChatWorkspacePending,
@@ -489,7 +501,9 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		isCompactPending ||
 		isClearPending;
 	const isChatSettingsPending =
-		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
+		isUpdateChatPlanModePending ||
+		isUpdateChatWorkspacePending ||
+		isUpdateChatManageAutomationsPending;
 	const isInputDisabled =
 		!hasModelOptions ||
 		isArchived ||
@@ -766,6 +780,20 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					hasModelOptions={hasModelOptions}
 					isModelCatalogLoading={isModelDataPending}
 					onPlanModeToggle={handlePlanModeToggle}
+					onManageAutomationsToggle={
+						chat &&
+						canToggleManageAutomations({
+							chat,
+							viewerId: currentUser.id,
+							automationsExperimentEnabled,
+						})
+							? (enabled) =>
+									updateChatManageAutomationsMutate({
+										chatId: agentId,
+										enabled,
+									})
+							: undefined
+					}
 					isInputDisabled={isInputDisabled}
 					isSubmissionPending={isSubmissionPending}
 					isInterruptPending={isInterruptPending}
@@ -803,9 +831,8 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 // Keyed so that navigating between agents (changing the :agentId param)
 // fully remounts the component, resetting all internal state (drafts,
 // editing, queries, scroller) cleanly.
-const KeyedAgentChatPage: React.FC<AgentChatPageProps> = ({ chatId }) => {
-	const params = useParams<{ agentId: string }>();
-	const agentId = chatId ?? params.agentId;
+const KeyedAgentChatPage: React.FC = () => {
+	const { agentId } = useParams<{ agentId: string }>();
 	if (!agentId) {
 		return <AgentChatPageNotFoundView />;
 	}
@@ -815,7 +842,7 @@ const KeyedAgentChatPage: React.FC<AgentChatPageProps> = ({ chatId }) => {
 			autoScroll
 			defaultScrollPosition="end"
 		>
-			<AgentChatPage chatId={agentId} />
+			<AgentChatPage />
 		</MessageScroller.Provider>
 	);
 };

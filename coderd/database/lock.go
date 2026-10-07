@@ -1,6 +1,10 @@
 package database
 
-import "hash/fnv"
+import (
+	"hash/fnv"
+
+	"github.com/google/uuid"
+)
 
 // Well-known lock IDs for lock functions in the database. These should not
 // change. If locks are deprecated, they should be kept in this list to avoid
@@ -33,6 +37,12 @@ var (
 	LockIDChatInstructionSystemPrompt = GenLockID("agents_chat_system_prompt")
 	LockIDChatInstructionPlanMode     = GenLockID("agents_chat_plan_mode_instructions")
 )
+
+// LockIDChatOrganizationSystemPrompt returns the advisory lock ID that
+// serializes writes to one organization's chat system prompt.
+func LockIDChatOrganizationSystemPrompt(organizationID uuid.UUID) int64 {
+	return GenLockID("chat_organization_system_prompt:" + organizationID.String())
+}
 
 // GenLockID generates a unique and consistent lock ID from a given string.
 func GenLockID(name string) int64 {

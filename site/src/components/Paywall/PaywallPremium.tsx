@@ -23,7 +23,7 @@ const PaywallPremiumHeader: React.FC<React.ComponentProps<"div">> = ({
 	return (
 		<div
 			className={cn(
-				"relative isolate overflow-hidden rounded-lg py-12 mb-8",
+				"relative isolate overflow-hidden rounded py-12 mb-8",
 				"flex flex-col items-center justify-center px-6 text-center",
 				className,
 			)}
@@ -61,7 +61,7 @@ const PaywallPremium = ({
 	return (
 		<div
 			className={cn(
-				"rounded-lg border border-solid border-border-default bg-surface-primary p-2",
+				"rounded-xl border border-solid border-border-default bg-surface-primary p-2",
 				className,
 			)}
 			{...props}

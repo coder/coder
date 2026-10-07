@@ -20,6 +20,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -38,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -85,6 +87,8 @@ type internalTestServerConfig struct {
 	experiments      codersdk.Experiments
 	transportFactory *atomic.Pointer[aibridge.TransportFactory]
 	limits           Limits
+	registry         prometheus.Registerer
+	tracerProvider   trace.TracerProvider
 }
 
 type internalTestServerOpt func(*internalTestServerConfig)
@@ -110,6 +114,18 @@ func withInternalTestServerWorker() internalTestServerOpt {
 func withInternalTestServerExperiments(experiments codersdk.Experiments) internalTestServerOpt {
 	return func(cfg *internalTestServerConfig) {
 		cfg.experiments = experiments
+	}
+}
+
+func withInternalTestServerRegistry(registry prometheus.Registerer) internalTestServerOpt {
+	return func(cfg *internalTestServerConfig) {
+		cfg.registry = registry
+	}
+}
+
+func withInternalTestServerTracerProvider(provider trace.TracerProvider) internalTestServerOpt {
+	return func(cfg *internalTestServerConfig) {
+		cfg.tracerProvider = provider
 	}
 }
 
@@ -171,6 +187,8 @@ func newInternalTestServer(
 		ExperimentEvaluator:        evaluator,
 		AIBridgeTransportFactory:   cfg.transportFactory,
 		Limits:                     cfg.limits,
+		PrometheusRegistry:         cfg.registry,
+		TracerProvider:             cfg.tracerProvider,
 	})
 	require.NoError(t, err)
 	if cfg.startWorker {
@@ -427,6 +445,51 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		var hookErr *dispatch.Error
 		require.ErrorAs(t, runErr, &hookErr,
 			"dispatch failures must fail closed, not degrade to a tool error the model can ignore")
+
+		chats, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+			ParentIds: []uuid.UUID{parent.ID},
+		})
+		require.NoError(t, err)
+		require.Empty(t, chats)
+	})
+
+	t.Run("ArchivedRootSkipsHook", func(t *testing.T) {
+		t.Parallel()
+
+		var hookCalls atomic.Int32
+		ctx, db, parent, server := newFixture(t, func(rw http.ResponseWriter, _ *http.Request) {
+			hookCalls.Add(1)
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`{"permission": {"decision": "allow"}}`))
+		})
+		// The turn snapshot predates the archive, as for a spawn call
+		// still in flight when the family was archived.
+		turnSnapshot := parent
+		_, err := chatstate.SetFamilyArchived(ctx, db, server.pubsub, chatstate.SetFamilyArchivedInput{
+			RootID:   parent.ID,
+			Archived: true,
+		})
+		require.NoError(t, err)
+
+		tools := server.subagentTools(ctx, func() database.Chat { return turnSnapshot }, parent.LastModelConfigID)
+		tool := findToolByName(tools, spawnAgentToolName)
+		require.NotNil(t, tool)
+		input, err := json.Marshal(spawnAgentArgs{
+			Type:   subagentTypeExplore,
+			Prompt: "inspect the workspace",
+			Title:  "sub",
+		})
+		require.NoError(t, err)
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    uuid.NewString(),
+			Name:  spawnAgentToolName,
+			Input: string(input),
+		})
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "cannot create a child agent because the parent chat is archived")
+		require.Zero(t, hookCalls.Load(), "an archived family must not dispatch a prompt hook")
 
 		chats, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 			ParentIds: []uuid.UUID{parent.ID},
@@ -900,6 +963,83 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
 	require.Equal(t, parentChat.BuildID, childChat.BuildID)
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
+	require.Equal(t, subagentFallbackChatTitle("inspect bindings"), childChat.Title)
+	require.Equal(t, database.ChatTitleSourceFallback, childChat.TitleSource)
+}
+
+func TestCreateChildSubagentChatDoesNotInheritManageAutomations(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:           org.ID,
+		OwnerID:                  user.ID,
+		Title:                    "automations-parent",
+		ModelConfigID:            model.ID,
+		InitialUserContent:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		ManageAutomationsEnabled: true,
+	})
+	require.NoError(t, err)
+	require.True(t, parent.ManageAutomationsEnabled)
+
+	child, err := server.createChildSubagentChatWithOptions(ctx, parent, "inspect", "", childSubagentChatOptions{})
+	require.NoError(t, err)
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.False(t, childChat.ManageAutomationsEnabled, "sub-agents must never inherit the manage_automations switch")
+}
+
+func TestCreateChildSubagentChatResolvesOrganizationSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, model.ID, "org-prompt-parent")
+
+	systemTexts := func(chatID uuid.UUID) []string {
+		t.Helper()
+		messages, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+		require.NoError(t, err)
+		var texts []string
+		for _, message := range messages {
+			if message.Role != database.ChatMessageRoleSystem {
+				continue
+			}
+			parts, err := chatprompt.ParseContent(message)
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			texts = append(texts, parts[0].Text)
+		}
+		return texts
+	}
+	parentTexts := systemTexts(parent.ID)
+
+	// Set after the parent exists: the child resolves the prompt at spawn
+	// time while the parent keeps the rows it was created with.
+	const orgPrompt = "Organization instructions for delegated agents."
+	_, err := db.UpsertChatOrganizationSystemPrompt(ctx, database.UpsertChatOrganizationSystemPromptParams{
+		OrganizationID: org.ID,
+		SystemPrompt:   orgPrompt,
+	})
+	require.NoError(t, err)
+
+	child, err := server.createChildSubagentChatWithOptions(ctx, parent, "inspect bindings", "", childSubagentChatOptions{})
+	require.NoError(t, err)
+
+	childTexts := systemTexts(child.ID)
+	require.Greater(t, len(childTexts), 2)
+	require.Equal(t, strings.Replace(DefaultSystemPrompt, subagentOrchestrationPromptBlock, "", 1), childTexts[0])
+	require.Equal(t, orgPrompt, childTexts[1])
+	require.NotContains(t, childTexts[2:], orgPrompt)
+	require.Equal(t, parentTexts, systemTexts(parent.ID))
+	require.NotContains(t, parentTexts, orgPrompt)
 }
 
 func createInternalParentChat(
@@ -2324,6 +2464,8 @@ func TestCreateChildSubagentChatWithOptions_ExplorePersistsMCPSnapshot(t *testin
 	childChat, err := db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uuid.UUID{mcpCfg.ID}, childChat.MCPServerIDs)
+	require.Equal(t, "explore-snapshot", childChat.Title)
+	require.Equal(t, database.ChatTitleSourceUser, childChat.TitleSource)
 }
 
 func TestSpawnAgent_ExploreSnapshotsTurnStateParentState(t *testing.T) {
