@@ -31,6 +31,27 @@ const atLeast = (block: WorkingBlock) => (block.isPartial ? "at least " : "");
 const countLabel = (block: WorkingBlock, count: number, noun: string) =>
 	`${count} ${noun}${count === 1 ? "" : "s"}${block.isPartial ? " or more" : ""}`;
 
+const padTwo = (value: number) => value.toString().padStart(2, "0");
+
+/**
+ * Formats a ticking timer so its width only changes when it gains a leading
+ * digit or unit: the trailing unit is zero-padded and never omitted
+ * ("19m 00s", not "19m").
+ */
+export const formatLiveElapsed = (ms: number): string => {
+	const totalSeconds = Math.round(Math.max(0, ms) / 1000);
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+	if (hours > 0) {
+		return `${hours}h ${padTwo(minutes)}m`;
+	}
+	if (minutes > 0) {
+		return `${minutes}m ${padTwo(seconds)}s`;
+	}
+	return `${seconds}s`;
+};
+
 type LiveLabelProps = { block: WorkingBlock };
 
 const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
@@ -42,9 +63,13 @@ const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
 		return <ToolCall.Label>Working</ToolCall.Label>;
 	}
 
-	const elapsed = humanDurationShort(Math.max(0, now - block.startedAt));
+	const elapsed = formatLiveElapsed(now - block.startedAt);
 	return (
-		<ToolCall.Label>{`Working for ${atLeast(block)}${elapsed}`}</ToolCall.Label>
+		// Tabular digits and a fixed-width trailing unit keep the chevron still
+		// while the timer ticks.
+		<ToolCall.Label className="tabular-nums">
+			{`Working for ${atLeast(block)}${elapsed}`}
+		</ToolCall.Label>
 	);
 };
 
