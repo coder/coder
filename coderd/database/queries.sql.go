@@ -10873,14 +10873,14 @@ WHERE
                         OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $18))
                     )
             )
-            -- Skip an explicit pr_number lookup unless the search is a valid bigint.
+            -- Digits only, so LIKE sees no metacharacters; a per-chat PK probe.
             OR CASE
-                WHEN $18 ~ '^[0-9]{1,18}$' THEN EXISTS (
+                WHEN $18 ~ '^[0-9]+$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number = $18::bigint
+                        AND cds.pr_number::text LIKE $18 || '%'
                 )
                 ELSE false
             END

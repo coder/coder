@@ -1143,7 +1143,7 @@ export const ProjectLoaded: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByRole("button", { name: "Edit project" });
+		await canvas.findByRole("button", { name: "Project actions" });
 	},
 };
 

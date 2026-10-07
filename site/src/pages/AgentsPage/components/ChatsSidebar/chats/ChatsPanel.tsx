@@ -23,7 +23,12 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
-import type { Chat, ChatModel } from "#/api/typesGenerated";
+import type {
+	Chat,
+	ChatModel,
+	ChatProject,
+	Organization,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
@@ -65,12 +70,27 @@ import {
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
+import {
+	type DeleteProject,
+	type OpenProjectDialog,
+	ProjectFolders,
+} from "./ProjectFolders";
+import { groupChatsByProject } from "./projectGrouping";
 import { SectionSwitcher } from "./SectionSwitcher";
+import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
 type ChatsPanelProps = {
+	readonly chatProjectsEnabled: boolean;
+	readonly projects: readonly ChatProject[];
+	readonly organizations: readonly Organization[];
+	readonly isProjectsLoading: boolean;
+	readonly projectsError: unknown;
+	readonly onRetryProjects: () => void;
+	readonly onOpenProjectDialog: OpenProjectDialog;
+	readonly onDeleteProject: DeleteProject;
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
@@ -102,6 +122,7 @@ type ChatsPanelProps = {
 	readonly onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
 	readonly onCollapse?: () => void;
 	readonly activeChatId: string | undefined;
+	readonly viewedProjectId: string | undefined;
 	readonly isSettingsPanel: boolean;
 	readonly isChatsActive: boolean;
 	readonly location: Location;
@@ -109,6 +130,14 @@ type ChatsPanelProps = {
 };
 
 export const ChatsPanel: React.FC<ChatsPanelProps> = ({
+	chatProjectsEnabled,
+	projects,
+	organizations,
+	isProjectsLoading,
+	projectsError,
+	onRetryProjects,
+	onOpenProjectDialog,
+	onDeleteProject,
 	chats,
 	chatErrorReasons,
 	modelConfigs,
@@ -137,6 +166,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	onSidebarFiltersChange,
 	onCollapse,
 	activeChatId,
+	viewedProjectId,
 	isSettingsPanel,
 	isChatsActive,
 	location,
@@ -145,6 +175,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
+		Record<string, boolean>
+	>({});
+	// Explicit folder toggles. Folders without an entry follow the active
+	// project, so navigation opens the right folder in the same render.
+	const [projectFolderOverrides, setProjectFolderOverrides] = useState<
 		Record<string, boolean>
 	>({});
 
@@ -175,6 +210,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		(chat) => !canManageChat(chat, currentUserId),
 	);
 	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
+	const { chatsByProjectId, unfiledChats: unfiledOwnedChats } =
+		groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -294,6 +331,46 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		}
 	}, [activeChatId]);
 
+	// Folders default open for the active chat's project or the project page.
+	const activeProjectId =
+		(activeChatId ? chatById.get(activeChatId)?.project_id : undefined) ??
+		viewedProjectId;
+	const [seenActiveProjectId, setSeenActiveProjectId] =
+		useState(activeProjectId);
+	if (activeProjectId !== seenActiveProjectId) {
+		// Arriving at a project clears an earlier collapse. A collapse made while
+		// there remains until the next arrival. The folder being left keeps its
+		// state, so navigating never collapses a folder.
+		setSeenActiveProjectId(activeProjectId);
+		const keepsLeftFolderOpen =
+			seenActiveProjectId !== undefined &&
+			!(seenActiveProjectId in projectFolderOverrides);
+		const clearsArrivalOverride =
+			activeProjectId !== undefined &&
+			activeProjectId in projectFolderOverrides;
+		if (keepsLeftFolderOpen || clearsArrivalOverride) {
+			setProjectFolderOverrides((prev) => {
+				const next = { ...prev };
+				if (
+					seenActiveProjectId !== undefined &&
+					!(seenActiveProjectId in prev)
+				) {
+					next[seenActiveProjectId] = true;
+				}
+				if (activeProjectId !== undefined) {
+					delete next[activeProjectId];
+				}
+				return next;
+			});
+		}
+	}
+	const toggleProject = (projectId: string) => {
+		setProjectFolderOverrides((prev) => ({
+			...prev,
+			[projectId]: !(prev[projectId] ?? projectId === activeProjectId),
+		}));
+	};
+
 	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	};
@@ -335,18 +412,27 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					return {
 						key: label,
 						label,
-						chats: unpinnedOwnedChats.filter((chat) => chat.status === status),
+						chats: unfiledOwnedChats.filter((chat) => chat.status === status),
 					};
 				})
 			: TIME_GROUPS.map((group) => ({
 					key: group,
 					label: group,
-					chats: unpinnedOwnedChats.filter(
+					chats: unfiledOwnedChats.filter(
 						(chat) => getTimeGroup(chat.updated_at) === group,
 					),
 				}))
 	).filter((section) => section.chats.length > 0);
-	const isShowingEmptyState = visibleRootIDs.length === 0;
+	// Project chats live only in their folders, so a Chats section whose
+	// chats are all filed is empty. While projects load, chats with a project
+	// are held back, so the section is not known to be empty yet.
+	const isWithholdingProjectChats =
+		isProjectsLoading && unpinnedOwnedChats.some((chat) => chat.project_id);
+	const isShowingEmptyState =
+		!isWithholdingProjectChats &&
+		pinnedChats.length === 0 &&
+		sharedWithYouChats.length === 0 &&
+		chatSections.length === 0;
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
 	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
@@ -354,6 +440,33 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		: isViewingArchived
 			? "No archived agents"
 			: "No agents yet";
+	// Without projects the header stays pinned above the scrolling list, as
+	// before; with projects it scrolls below the folders.
+	const chatsHeader = (
+		<SidebarSectionHeader
+			title={chatsHeadingLabel}
+			actions={
+				<>
+					{onOpenSearchDialog && (
+						<Button
+							variant="subtle"
+							size="icon"
+							aria-label="Search chats"
+							onClick={onOpenSearchDialog}
+							className="size-7 sm:hidden"
+						>
+							<SearchIcon />
+						</Button>
+					)}
+					<FilterPopover
+						filters={sidebarFilters}
+						onFiltersChange={onSidebarFiltersChange}
+					/>
+				</>
+			}
+		/>
+	);
+
 	const clearResultFilters = () => {
 		onSidebarFiltersChange({
 			...sidebarFilters,
@@ -452,30 +565,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 				)}
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
-				<div className="mx-2 pt-6 mb-1.5">
-					<div className="ml-2.5 flex h-7 items-center justify-between">
-						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
-							{chatsHeadingLabel}
-						</h2>
-						<div className="flex items-center gap-1">
-							{onOpenSearchDialog && (
-								<Button
-									variant="subtle"
-									size="icon"
-									aria-label="Search chats"
-									onClick={onOpenSearchDialog}
-									className="size-7 sm:hidden"
-								>
-									<SearchIcon />
-								</Button>
-							)}
-							<FilterPopover
-								filters={sidebarFilters}
-								onFiltersChange={onSidebarFiltersChange}
-							/>
-						</div>
-					</div>
-				</div>
+				{!chatProjectsEnabled && chatsHeader}
 				<ScrollArea
 					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!"
 					scrollBarClassName="w-1.5"
@@ -489,6 +579,32 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						"sm:mask-none sm:[-webkit-mask-image:none]",
 					)}
 				>
+					{/* Projects share the chat list's scroll area, so expanding a folder
+					    pushes the Chats section down instead of scrolling on its own. */}
+					{chatProjectsEnabled && (
+						<ChatTreeContext value={chatTreeCtx}>
+							<ProjectFolders
+								projects={projects}
+								organizations={organizations}
+								chatsByProjectId={chatsByProjectId}
+								expandedProjectIds={Object.fromEntries(
+									projects.map((project) => [
+										project.id,
+										projectFolderOverrides[project.id] ??
+											project.id === activeProjectId,
+									]),
+								)}
+								onToggle={toggleProject}
+								onOpenProjectDialog={onOpenProjectDialog}
+								onDelete={onDeleteProject}
+								isLoading={isProjectsLoading}
+								error={projectsError}
+								onRetry={onRetryProjects}
+								emptyMessage={emptyStateMessage}
+							/>
+						</ChatTreeContext>
+					)}
+					{chatProjectsEnabled && chatsHeader}
 					<div className="flex flex-col gap-2 px-2 pb-3">
 						{loadError ? (
 							<div className="space-y-3 px-1">

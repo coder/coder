@@ -80,7 +80,7 @@ const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
 
 const LifecycleHookNotice: React.FC<{
 	children: string;
-	urlTransform?: UrlTransform;
+	urlTransform: UrlTransform;
 }> = ({ children, urlTransform }) => (
 	<TimelineNotice>
 		<div className="flex flex-col gap-1">
@@ -91,7 +91,7 @@ const LifecycleHookNotice: React.FC<{
 );
 
 const ChatMessageItem = memo<{
-	organizationId: string | undefined;
+	organizationId: string;
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
@@ -119,10 +119,10 @@ const ChatMessageItem = memo<{
 	// would render as a dangling blank at the end of the chat.
 	isLastMessage?: boolean;
 	onImplementPlan?: () => Promise<void> | void;
-	urlTransform?: UrlTransform;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	subagentTitles?: Map<string, string>;
-	subagentVariants?: Map<string, SubagentVariant>;
+	urlTransform: UrlTransform;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
+	subagentTitles: Map<string, string>;
+	subagentVariants: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -403,16 +403,16 @@ const ChatMessageItem = memo<{
 );
 
 type ConversationTimelineProps = {
-	organizationId: string | undefined;
+	organizationId: string;
 	parsedMessages: readonly ParsedMessageEntry[];
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	initialActiveTurnMaxMessageId?: number;
 	streamState?: StreamState | null;
-	streamTools?: readonly MergedTool[];
-	liveStatus?: LiveStatusModel;
-	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
+	streamTools: readonly MergedTool[];
+	liveStatus: LiveStatusModel;
+	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	subagentTitles: Map<string, string>;
-	subagentVariants?: Map<string, SubagentVariant>;
+	subagentVariants: Map<string, SubagentVariant>;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -421,12 +421,12 @@ type ConversationTimelineProps = {
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
-	isChatCompleted?: boolean;
-	urlTransform?: UrlTransform;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	showDesktopPreviews?: boolean;
-	hasActiveStream?: boolean;
-	isAwaitingFirstStreamChunk?: boolean;
+	isChatCompleted: boolean;
+	urlTransform: UrlTransform;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
+	showDesktopPreviews: boolean;
+	hasActiveStream: boolean;
+	isAwaitingFirstStreamChunk: boolean;
 };
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -436,7 +436,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		chatFiles,
 		initialActiveTurnMaxMessageId,
 		streamState,
-		streamTools = [],
+		streamTools,
 		liveStatus,
 		subagentStatusOverrides,
 		subagentTitles,
@@ -461,14 +461,13 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const evictedFileIds = deriveEvictedFileIds(parsedMessages, chatFiles);
 		const renderRows = assignTimelineRows(
 			displayMessages,
-			Boolean(liveStatus && shouldRenderLiveAssistant(liveStatus)),
+			shouldRenderLiveAssistant(liveStatus),
 		);
 
 		// A live turn only reveals its stream blocks once output has accumulated.
 		// Before that the callout and thinking indicator stand in for the turn.
 		const showsStreamOutput =
-			liveStatus !== undefined &&
-			(liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput);
+			liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
 		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
 		const liveTools = showsStreamOutput ? streamTools : [];
 
@@ -506,9 +505,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// handled, and its fallback for mutations that are neither clean appends
 		// nor clean prepends jumps to the oldest unhandled anchor, so historical
 		// rows must not be anchors at all.
-		const hasLiveAssistant = Boolean(
-			liveStatus && shouldRenderLiveAssistant(liveStatus),
-		);
+		const hasLiveAssistant = shouldRenderLiveAssistant(liveStatus);
 		const anchorUserRowKey =
 			hasLiveAssistant || isAwaitingFirstStreamChunk
 				? userRowKeys[userRowKeys.length - 1]
@@ -563,7 +560,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			<FileProbeProvider evictedFileIds={evictedFileIds}>
 				{renderRows.map((row) => {
 					if (row.type === "live") {
-						// This row only exists when liveStatus is set.
 						return (
 							<MessageScroller.Item key={row.key} messageId={row.key}>
 								<ChatMessageItem
@@ -618,8 +614,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								urlTransform={urlTransform}
 								isAfterEditingMessage={isAfterEditingMessage}
 								hideActions={!isUser && !row.isLastInAssistantChain}
-								hasActiveStream={Boolean(hasActiveStream)}
-								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
+								hasActiveStream={hasActiveStream}
+								isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 								isLastMessage={row.isLastMessage}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}

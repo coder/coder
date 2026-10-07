@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent } from "storybook/test";
-import type { AIBridgeThread } from "#/api/typesGenerated";
+import type { AIBridgeThread, MinimalUser } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
 	MockAIBridgeThread,
@@ -139,6 +139,24 @@ export default meta;
 type Story = StoryObj<typeof SessionTimeline>;
 
 export const OneThread: Story = {};
+
+const MockInitiatorWithLongUsername: MinimalUser = {
+	...MockSession.initiator,
+	username: "averylongusernamefortheinitiatorofthissession",
+};
+
+export const LongUsername: Story = {
+	args: {
+		initiator: MockInitiatorWithLongUsername,
+	},
+};
+
+export const Mobile: Story = {
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
 
 // A summary is present only for sessions that passed through Agent Firewall.
 // The panel sits above the threads because its counts are session-scoped

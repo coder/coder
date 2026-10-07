@@ -47,9 +47,9 @@ type UserCompactionThresholdSettingsProps = {
 	 * Organization ID to the model config the organization routes compaction
 	 * through. Missing entries mean the chat model summarizes itself.
 	 */
-	compactionModelIDByOrganization?: ReadonlyMap<string, string>;
+	compactionModelIDByOrganization: ReadonlyMap<string, string>;
 	modelsError?: unknown;
-	isLoadingModels?: boolean;
+	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;
 	thresholdsError: unknown;
@@ -59,8 +59,6 @@ type UserCompactionThresholdSettingsProps = {
 	) => Promise<unknown>;
 	onResetThreshold: (modelId: string) => Promise<unknown>;
 };
-
-const noCompactionOverrides: ReadonlyMap<string, string> = new Map();
 
 const ContextCompactionHeader: React.FC = () => (
 	<div className="flex flex-col gap-2">
@@ -94,7 +92,7 @@ export const UserCompactionThresholdSettings: React.FC<
 	models,
 	providerTypeByID,
 	organizations,
-	compactionModelIDByOrganization = noCompactionOverrides,
+	compactionModelIDByOrganization,
 	modelsError,
 	isLoadingModels,
 	thresholds,
@@ -267,7 +265,7 @@ export const UserCompactionThresholdSettings: React.FC<
 	);
 	const shouldShowActions =
 		hasAnyDrafts || hasAnyErrors || hasAnyPending || dirtyRows.length > 0;
-	const isTableLoading = isThresholdsLoading || isLoadingModels === true;
+	const isTableLoading = isThresholdsLoading || isLoadingModels;
 	const showRows =
 		!isTableLoading && thresholdsError == null && enabledModels.length > 0;
 	// A failed load is the alert above the table. The in-table empty state is

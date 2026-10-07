@@ -3,8 +3,8 @@ title: Air-gapped Deployments
 ---
 
 All Coder features are supported in air-gapped / behind firewalls / disconnected / offline.
-This is a general comparison. Keep reading for a full tutorial running Coder
-air-gapped with Kubernetes or Docker.
+This is a general comparison.
+Keep reading for a full tutorial running Coder air-gapped with Kubernetes or Docker.
 
 |                    | Public deployments                                                                                                                                                                                                                                                 | Air-gapped deployments                                                                                                                                                                                                                                                                                                    |
 |--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -19,24 +19,18 @@ air-gapped with Kubernetes or Docker.
 
 ## Air-gapped container images
 
-The following instructions walk you through how to build a custom control plane
-image for Docker or Kubernetes
+The following instructions walk you through how to build a custom control plane image for Docker or Kubernetes
 
-First, build and push a container image extending our official image with the
-following:
+First, build and push a container image extending our official image with the following:
 
-- CLI config (.tfrc) for Terraform referring to
-  [external mirror](https://www.terraform.io/cli/config/config-file#explicit-installation-method-configuration)
+- CLI config (.tfrc) for Terraform referring to [external mirror](https://www.terraform.io/cli/config/config-file#explicit-installation-method-configuration)
 - [Terraform Providers](https://registry.terraform.io) for templates
-  - These could also be specified via a volume mount (Docker) or
-    [network mirror](https://www.terraform.io/internals/provider-network-mirror-protocol).
+  - These could also be specified via a volume mount (Docker) or [network mirror](https://www.terraform.io/internals/provider-network-mirror-protocol).
     See below for details.
 
 > [!NOTE]
-> Coder includes the latest
-> [supported version](../../../provisioner/terraform/install.go#L27-L28)
-> of Terraform in the official Docker images. If you need to bundle a different
-> version of terraform, you can do so by customizing the image.
+> Coder includes the latest [supported version](../../../provisioner/terraform/install.go#L27-L28) of Terraform in the official Docker images.
+> If you need to bundle a different version of terraform, you can do so by customizing the image.
 
 Here's an example Dockerfile:
 
@@ -114,10 +108,7 @@ ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 ```
 
 > [!NOTE]
-> If you are bundling Terraform providers into your Coder image, be sure the
-> provider version matches any templates or
-> [example templates](../../../examples/templates)
-> you intend to use.
+> If you are bundling Terraform providers into your Coder image, be sure the provider version matches any templates or [example templates](../../../examples/templates) you intend to use.
 
 ```tf
 # filesystem-mirror-example.tfrc
@@ -141,10 +132,8 @@ provider_installation {
 
 ### Docker
 
-Follow our [docker-compose](../server/docker.md#install-coder-via-docker-compose)
-documentation and modify the docker-compose file to specify your custom Coder
-image. Additionally, you can add a volume mount to add providers to the
-filesystem mirror without re-building the image.
+Follow our [docker-compose](../server/docker.md#install-coder-via-docker-compose) documentation and modify the docker-compose file to specify your custom Coder image.
+Additionally, you can add a volume mount to add providers to the filesystem mirror without re-building the image.
 
 First, create an empty plugins directory:
 
@@ -176,17 +165,13 @@ services:
     # ...
 ```
 
-The
-[terraform providers mirror](https://www.terraform.io/cli/commands/providers/mirror)
-command can be used to download the required plugins for a Coder template.
+The [terraform providers mirror](https://www.terraform.io/cli/commands/providers/mirror) command can be used to download the required plugins for a Coder template.
 This can be uploaded into the `plugins` directory on your offline server.
 
 ### Kubernetes
 
-We publish the Helm chart for download on
-[GitHub Releases](https://github.com/coder/coder/releases/latest). Follow our
-[Kubernetes](../server/kubernetes/index.md) documentation and modify the Helm values to
-specify your custom Coder image.
+We publish the Helm chart for download on [GitHub Releases](https://github.com/coder/coder/releases/latest).
+Follow our [Kubernetes](../server/kubernetes/index.md) documentation and modify the Helm values to specify your custom Coder image.
 
 ```yaml
 # values.yaml
@@ -217,28 +202,23 @@ coder:
 
 ## Air-gapped docs
 
-Coder also provides air-gapped documentation in case you want to host it on your
-own server. The docs are exported as static files that you can host on any web
-server, as demonstrated in the example below:
+Coder also provides air-gapped documentation in case you want to host it on your own server.
+The docs are exported as static files that you can host on any web server, as demonstrated in the example below:
 
-1. Go to the release page. In this case, we want to use the
-   [latest version](https://github.com/coder/coder/releases/latest).
-2. Download the documentation files from the "Assets" section. It is named as
-   `coder_docs_<version>.tgz`.
+1. Go to the release page.
+   In this case, we want to use the [latest version](https://github.com/coder/coder/releases/latest).
+2. Download the documentation files from the "Assets" section.
+   It is named as `coder_docs_<version>.tgz`.
 3. Extract the file and move its contents to your server folder.
-4. If you are using NodeJS, you can execute the following command:
-   `cd docs && npx http-server .`
-5. Set the [CODER_DOCS_URL](../../reference/cli/server/index.md#--docs-url) environment
-   variable to use the URL of your hosted docs. This way, the Coder UI will
-   reference the documentation from your specified URL.
+4. If you are using NodeJS, you can execute the following command: `cd docs && npx http-server .`
+5. Set the [CODER_DOCS_URL](../../reference/cli/server/index.md#--docs-url) environment variable to use the URL of your hosted docs.
+   This way, the Coder UI will reference the documentation from your specified URL.
 
-With these steps, you'll have the Coder documentation hosted on your server and
-accessible for your team to use.
+With these steps, you'll have the Coder documentation hosted on your server and accessible for your team to use.
 
 ## Template builder
 
-The template builder requires outbound access to `registry.coder.com` for
-`terraform init` to resolve module sources at template composition time.
+The template builder requires outbound access to `registry.coder.com` for `terraform init` to resolve module sources at template composition time.
 
 For fully air-gapped deployments, disable the template builder:
 
@@ -246,25 +226,21 @@ For fully air-gapped deployments, disable the template builder:
 CODER_DISABLE_TEMPLATE_BUILDER=true
 ```
 
-When the builder is disabled, template creation falls back to the standard
-upload and CLI workflows. The **New Template** button on the **Templates** page
-links to the starter templates page instead of the builder.
+When the builder is disabled, template creation falls back to the standard upload and CLI workflows.
+The **New Template** button on the **Templates** page links to the starter templates page instead of the builder.
 
-For deployments using a self-hosted module registry mirror, set the registry URL
-instead of disabling the builder:
+For deployments using a self-hosted module registry mirror, set the registry URL instead of disabling the builder:
 
 ```sh
 CODER_TEMPLATE_BUILDER_REGISTRY_URL=registry.internal.example.com
 ```
 
-This makes the builder generate module source paths pointing at your mirror
-rather than `registry.coder.com`.
+This makes the builder generate module source paths pointing at your mirror rather than `registry.coder.com`.
 
 The value is a bare host, optionally with a port (for example, `mirror.internal:8443`).
 A leading `http(s)://` scheme and trailing slash are stripped, and a path, query, fragment, or credentials is rejected at server start.
 
-For a complete walkthrough of setting up the mirror, see
-[Mirror the Coder Registry with JFrog Artifactory](./registry-mirror.md).
+For a complete walkthrough of setting up the mirror, see [Mirror the Coder Registry with JFrog Artifactory](./registry-mirror.md).
 
 ## Coder Modules
 
@@ -276,8 +252,7 @@ To use Coder modules in offline installations, you can either:
 ## Firewall exceptions
 
 In restricted internet networks, Coder may require connection to internet.
-Ensure that the following web addresses are accessible from the machine where
-Coder is installed.
+Ensure that the following web addresses are accessible from the machine where Coder is installed.
 
 - code-server.dev (install via AUR)
 - open-vsx.org (optional if someone would use code-server)
@@ -286,15 +261,11 @@ Coder is installed.
 
 ## JetBrains IDEs
 
-Gateway, JetBrains' remote development product that works with Coder,
-[has documented offline deployment steps.](../../admin/templates/extending-templates/jetbrains-airgapped.md)
+Gateway, JetBrains' remote development product that works with Coder, [has documented offline deployment steps.](../../admin/templates/extending-templates/jetbrains-airgapped.md)
 
 ## Microsoft VS Code Remote - SSH
 
-Installation of the
-[Visual Studio Code Remote - SSH extension](https://code.visualstudio.com/docs/remote/ssh)
-(for connecting a local VS Code to a remote Coder workspace) requires that your
-local machine has outbound HTTPS (port 443) connectivity to:
+Installation of the [Visual Studio Code Remote - SSH extension](https://code.visualstudio.com/docs/remote/ssh) (for connecting a local VS Code to a remote Coder workspace) requires that your local machine has outbound HTTPS (port 443) connectivity to:
 
 - update.code.visualstudio.com
 - vscode.blob.core.windows.net
