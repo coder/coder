@@ -81,7 +81,8 @@ func TestForwardingHandlerPlaceholder(t *testing.T) {
 			logger := slogtest.Make(t, nil)
 			gate := aibridge.NewInflightGate(logger)
 			t.Cleanup(gate.Close)
-			handler := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{})
+			handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{}, http.DefaultTransport)
+			require.NoError(t, err)
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, req)
 			require.Equal(t, tc.status, response.Code)
@@ -364,7 +365,8 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	gate := aibridge.NewInflightGate(logger)
 	t.Cleanup(gate.Close)
-	handler := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{})
+	handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{}, http.DefaultTransport)
+	require.NoError(t, err)
 	const route = "/v1/responses"
 	require.NoError(t, handler.breaker.Execute(route, "", httptest.NewRecorder(), func(w http.ResponseWriter) error {
 		w.WriteHeader(http.StatusServiceUnavailable)
