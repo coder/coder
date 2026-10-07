@@ -44,27 +44,21 @@ export const ShortSingleStep: Story = {
 	},
 };
 
-export const UnknownDurationWithFailedSteps: Story = {
+export const UnknownDuration: Story = {
 	args: {
 		block: {
 			...MockWorkingBlock,
-			failedCount: 1,
 			startedAt: undefined,
 			endedAt: undefined,
 		},
 	},
 };
 
-export const FailedSteps: Story = {
-	args: { block: { ...MockWorkingBlock, failedCount: 1 } },
-};
-
-export const LiveWithFailedSteps: Story = {
+export const Live: Story = {
 	args: {
 		block: {
 			...MockWorkingBlock,
 			isLive: true,
-			failedCount: 1,
 			endedAt: undefined,
 		},
 	},
@@ -92,8 +86,6 @@ export const PartialLive: Story = {
 	},
 };
 
-// Unloaded history may hold more failures, so the badge reads as a lower
-// bound like the step count.
-export const PartialHistoryWithFailedSteps: Story = {
-	args: { block: { ...MockWorkingBlock, isPartial: true, failedCount: 1 } },
+export const PartialHistory: Story = {
+	args: { block: { ...MockWorkingBlock, isPartial: true } },
 };
