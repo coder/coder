@@ -233,8 +233,7 @@ type GenerateCompactionOptions struct {
 	ToolName            string
 
 	// ResolvedProvider, ResolvedModel, and ModelConfigID identify the
-	// summary model, which can differ from the chat model when a
-	// compaction override is configured. Debug runs record these.
+	// summary model. Debug runs record these.
 	ResolvedProvider string
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID

@@ -69,7 +69,6 @@ const meta = {
 			["provider-anthropic", "anthropic"],
 		]),
 		organizations: [modelsOrganization],
-		compactionModelIDByOrganization: new Map<string, string>(),
 		isLoadingModels: false,
 		thresholds: [],
 		isThresholdsLoading: false,
@@ -106,17 +105,6 @@ export const ContextWindowTracksDraft: Story = {
 
 		// 128K window: default 80% compacts at ~102K, the draft moves it to ~64K.
 		await userEvent.type(gpt4oInput, "50");
-	},
-};
-
-export const CompactionOverrideShrinksWindow: Story = {
-	name: "Compaction Override Shrinks Window",
-	args: {
-		// The organization summarizes with the 16K model, so both enabled
-		// models show a 16K compaction window instead of their own.
-		compactionModelIDByOrganization: new Map([
-			[MockChatModel.organization_id, "model-3"],
-		]),
 	},
 };
 

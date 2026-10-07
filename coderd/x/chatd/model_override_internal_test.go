@@ -34,15 +34,6 @@ func TestResolveModelOverride(t *testing.T) {
 			},
 		},
 		{
-			name: "Compaction",
-			spec: modelOverrideSpec{
-				context:         compactionOverrideContext,
-				queryFailure:    modelOverrideFailureModeHard,
-				configFailure:   modelOverrideFailureModeSoft,
-				providerFailure: modelOverrideFailureModeSoft,
-			},
-		},
-		{
 			name: "Subagent",
 			spec: modelOverrideSpec{
 				context:         string(codersdk.ChatModelOverrideContextGeneral),
@@ -175,8 +166,6 @@ func TestResolveModelOverride(t *testing.T) {
 				if test.wantModel {
 					require.Equal(t, config.ID, resolved.Config.ID)
 					require.Equal(t, ptr.Ref("high"), resolved.ReasoningEffort)
-					require.Equal(t, "openai", resolved.ResolvedProvider)
-					require.Equal(t, "gpt-4.1", resolved.ResolvedModel)
 				}
 			})
 		}

@@ -3334,14 +3334,12 @@ export interface ChatModelOpenRouterProviderOptions {
 // From codersdk/chats.go
 export type ChatModelOverrideContext =
 	| "advisor"
-	| "compaction"
 	| "explore"
 	| "general"
 	| "title_generation";
 
 export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
 	"advisor",
-	"compaction",
 	"explore",
 	"general",
 	"title_generation",

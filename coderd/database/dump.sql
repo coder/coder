@@ -2261,7 +2261,7 @@ CREATE TABLE chat_organization_model_overrides (
     context text NOT NULL,
     model_config_id uuid NOT NULL,
     reasoning_effort text,
-    CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text])))
+    CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'advisor'::text])))
 );
 
 CREATE TABLE chat_organization_system_prompts (

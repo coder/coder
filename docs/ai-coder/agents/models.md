@@ -368,7 +368,6 @@ The configurable contexts:
 | **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`).         |
 | **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                               |
 | **Title generation** | Admin only   | Chat titles, turn status labels, and chat summaries.                                   |
-| **Compaction**       | Admin only   | Conversation summarization near the context limit.                                     |
 | **Advisor**          | Admin only   | The [advisor](./platform-controls/advisor.md). Requires the `chat-advisor` experiment. |
 | **Root**             | User only    | The user's own root chats.                                                             |
 

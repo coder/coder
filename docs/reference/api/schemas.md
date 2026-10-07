@@ -4575,9 +4575,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                          |
-|-------------------------------------------------------------------|
-| `advisor`, `compaction`, `explore`, `general`, `title_generation` |
+| Value(s)                                            |
+|-----------------------------------------------------|
+| `advisor`, `explore`, `general`, `title_generation` |
 
 ## codersdk.ChatModelOverrideResponse
 

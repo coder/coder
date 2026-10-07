@@ -368,27 +368,6 @@ export function resolveCompactionThreshold(
 }
 
 /**
- * Context window the compaction trigger is measured against. Mirrors the
- * backend: when the organization routes compaction to an override model,
- * the history must also fit that model's window, so the smaller of the
- * two limits wins. Returns 0 when neither limit is known.
- */
-export function resolveCompactionContextLimit(
-	model: TypesGen.ChatModel,
-	models: readonly TypesGen.ChatModel[],
-	compactionModelIDByOrganization: ReadonlyMap<string, string>,
-): number {
-	const chatLimit = model.context_limit > 0 ? model.context_limit : 0;
-	const overrideID = compactionModelIDByOrganization.get(model.organization_id);
-	const overrideLimit =
-		models.find((candidate) => candidate.id === overrideID)?.context_limit ?? 0;
-	if (overrideLimit > 0 && (chatLimit <= 0 || overrideLimit < chatLimit)) {
-		return overrideLimit;
-	}
-	return chatLimit;
-}
-
-/**
  * Token count at which compaction triggers for the given context window and
  * threshold, or undefined when the window is unknown or compaction is
  * disabled (100%).

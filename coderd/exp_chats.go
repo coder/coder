@@ -5276,7 +5276,7 @@ func (api *API) getOrganizationChatModelOverrides(rw http.ResponseWriter, r *htt
 // @Accept json
 // @Produce json
 // @Param organization path string true "Organization name or ID"
-// @Param context path string true "Override context" Enums(general,explore,title_generation,compaction,advisor)
+// @Param context path string true "Override context" Enums(general,explore,title_generation,advisor)
 // @Param request body codersdk.UpdateChatModelOverrideRequest true "Model override"
 // @Success 200 {object} codersdk.ChatModelOverrideResponse
 // @Router /api/v2/organizations/{organization}/chats/model-overrides/{context} [put]

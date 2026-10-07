@@ -411,8 +411,7 @@ func startCompactionDebugRun(
 		historyTipMessageID = parentRun.HistoryTipMessageID
 	}
 
-	// Prefer the caller-supplied summary model identity; it can differ
-	// from the parent run's chat model under a compaction override.
+	// Prefer the caller-supplied summary model identity.
 	provider := parentRun.Provider
 	if options.ResolvedProvider != "" {
 		provider = options.ResolvedProvider

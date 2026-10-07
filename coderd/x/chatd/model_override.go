@@ -18,7 +18,6 @@ import (
 
 const (
 	titleGenerationOverrideContext = "title_generation"
-	compactionOverrideContext      = "compaction"
 	advisorOverrideContext         = "advisor"
 )
 
@@ -50,11 +49,9 @@ type modelOverrideSpec struct {
 }
 
 type resolvedModelOverride struct {
-	Config           database.ChatModelConfig
-	ReasoningEffort  *string
-	ResolvedProvider string
-	ResolvedModel    string
-	Set              bool
+	Config          database.ChatModelConfig
+	ReasoningEffort *string
+	Set             bool
 }
 
 func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpec) (resolvedModelOverride, error) {
@@ -173,13 +170,7 @@ func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpe
 		return resolvedModelOverride{}, nil
 	}
 
-	resolvedProvider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(modelConfig.Model, providerName)
-	if err != nil {
-		return resolved, xerrors.Errorf("resolve %s model override identity: %w", modelOverrideErrorLabel(spec.context), err)
-	}
 	resolved.Config = modelConfig
-	resolved.ResolvedProvider = resolvedProvider
-	resolved.ResolvedModel = resolvedModel
 	return resolved, nil
 }
 

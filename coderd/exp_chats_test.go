@@ -15241,7 +15241,6 @@ func TestChatModelOverrides(t *testing.T) {
 		codersdk.ChatModelOverrideContextGeneral,
 		codersdk.ChatModelOverrideContextExplore,
 		codersdk.ChatModelOverrideContextTitleGeneration,
-		codersdk.ChatModelOverrideContextCompaction,
 		codersdk.ChatModelOverrideContextAdvisor,
 	}
 	for _, overrideContext := range contexts {
@@ -15342,7 +15341,7 @@ func TestChatModelOverrides(t *testing.T) {
 		_, err := adminClient.UpdateOrganizationChatModelOverride(ctx, firstUser.OrganizationID, "not-a-context", codersdk.UpdateChatModelOverrideRequest{})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid chat model override context.", sdkErr.Message)
-		require.Contains(t, sdkErr.Detail, "general, explore, title_generation, compaction, advisor")
+		require.Contains(t, sdkErr.Detail, "general, explore, title_generation, advisor")
 	})
 
 	t.Run("LegacyRoutesRemoved", func(t *testing.T) {

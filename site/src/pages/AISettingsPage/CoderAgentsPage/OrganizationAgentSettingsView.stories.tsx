@@ -20,7 +20,6 @@ const saveGeneralOverride = fn();
 const saveExploreOverride = fn();
 const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
 	{ context: "general", model_config_id: "model-1", reasoning_effort: "high" },
-	{ context: "compaction", model_config_id: "model-1" },
 ];
 const saveByContext = new Map<
 	TypesGen.ChatModelOverrideContext,
@@ -29,7 +28,6 @@ const saveByContext = new Map<
 	["general", saveGeneralOverride],
 	["explore", saveExploreOverride],
 	["title_generation", fn()],
-	["compaction", fn()],
 	["advisor", fn()],
 ]);
 

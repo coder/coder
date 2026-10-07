@@ -7627,7 +7627,6 @@ const docTemplate = `{
                             "general",
                             "explore",
                             "title_generation",
-                            "compaction",
                             "advisor"
                         ],
                         "type": "string",
@@ -22677,14 +22676,12 @@ const docTemplate = `{
                 "general",
                 "explore",
                 "title_generation",
-                "compaction",
                 "advisor"
             ],
             "x-enum-varnames": [
                 "ChatModelOverrideContextGeneral",
                 "ChatModelOverrideContextExplore",
                 "ChatModelOverrideContextTitleGeneration",
-                "ChatModelOverrideContextCompaction",
                 "ChatModelOverrideContextAdvisor"
             ]
         },

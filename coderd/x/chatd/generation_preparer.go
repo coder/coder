@@ -826,39 +826,14 @@ func (server *Server) prepareGeneration(
 	if override, ok := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID); ok {
 		effectiveThreshold = override
 	}
-	// The compaction trigger uses the stricter of the chat and override
-	// models' context limits: the history must also fit the summarizer's
-	// window.
-	compactionContextLimit := modelConfig.ContextLimit
-	resolvedCompactionOverride, err := server.resolveModelOverride(ctx, modelOverrideSpec{
-		context:         compactionOverrideContext,
-		ownerID:         chat.OwnerID,
-		organizationID:  chat.OrganizationID,
-		queryFailure:    modelOverrideFailureModeHard,
-		configFailure:   modelOverrideFailureModeSoft,
-		providerFailure: modelOverrideFailureModeSoft,
-	})
-	if err != nil {
-		return generationPrepared{}, err
-	}
-	var compactionOverride *resolvedModelOverride
-	if resolvedCompactionOverride.Set {
-		compactionOverride = &resolvedCompactionOverride
-		if overrideLimit := compactionOverride.Config.ContextLimit; overrideLimit > 0 &&
-			(compactionContextLimit <= 0 || overrideLimit < compactionContextLimit) {
-			compactionContextLimit = overrideLimit
-		}
-	}
 	compactionStepUsage := latestPromptUsage(promptRows)
-	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
-	// The options carry the chat model; generateCompaction swaps in the
-	// override client when one is configured.
+	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, modelConfig.ContextLimit, effectiveThreshold)
 	compactionOptions := chatloop.GenerateCompactionOptions{
 		Model:                model.LanguageModel(),
 		Messages:             compactionPromptMessages,
 		ThresholdPercent:     effectiveThreshold,
-		ContextLimit:         compactionContextLimit,
-		ContextLimitFallback: compactionContextLimit,
+		ContextLimit:         modelConfig.ContextLimit,
+		ContextLimitFallback: modelConfig.ContextLimit,
 		ToolCallID:           compactionToolCallID,
 		ToolName:             "chat_summarized",
 		DebugSvc:             debugSvc,
@@ -903,8 +878,6 @@ func (server *Server) prepareGeneration(
 		ToolNameToConfigID:   toolNameToConfigID,
 		MaxSteps:             server.chatLimits.MaxStepsPerTurn,
 		Compaction: &generationCompaction{
-			Override:        compactionOverride,
-			ChatModelConfig: modelConfig,
 			Required:        compactionNeeded,
 			Options:         compactionOptions,
 			PendingUserRows: pendingUserRows,

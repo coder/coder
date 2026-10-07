@@ -76,11 +76,6 @@ const settings: readonly {
 			"The selected model is currently unavailable. Titles, status labels, and summaries will be skipped until you choose another model or clear this setting.",
 	},
 	{
-		context: "compaction",
-		title: "Compaction",
-		description: "Used to summarize conversations near the context limit.",
-	},
-	{
 		context: "advisor",
 		title: "Advisor",
 		description: "Used by the advisor for strategic guidance.",

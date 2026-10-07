@@ -34,20 +34,12 @@ import {
 import { formatContextLimit } from "#/modules/aiModels/ModelSelector";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel } from "#/utils/aiProviders";
-import {
-	compactionTriggerTokens,
-	resolveCompactionContextLimit,
-} from "../utils/modelOptions";
+import { compactionTriggerTokens } from "../utils/modelOptions";
 
 type UserCompactionThresholdSettingsProps = {
 	models: readonly TypesGen.ChatModel[];
 	providerTypeByID: ReadonlyMap<string, string>;
 	organizations: readonly TypesGen.Organization[];
-	/**
-	 * Organization ID to the model config the organization routes compaction
-	 * through. Missing entries mean the chat model summarizes itself.
-	 */
-	compactionModelIDByOrganization: ReadonlyMap<string, string>;
 	modelsError?: unknown;
 	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
@@ -92,7 +84,6 @@ export const UserCompactionThresholdSettings: React.FC<
 	models,
 	providerTypeByID,
 	organizations,
-	compactionModelIDByOrganization,
 	modelsError,
 	isLoadingModels,
 	thresholds,
@@ -346,11 +337,7 @@ export const UserCompactionThresholdSettings: React.FC<
 									parsedDraftValue ??
 									existingOverride ??
 									modelConfig.compression_threshold;
-								const contextLimit = resolveCompactionContextLimit(
-									modelConfig,
-									models,
-									compactionModelIDByOrganization,
-								);
+								const contextLimit = modelConfig.context_limit;
 								const triggerTokens = compactionTriggerTokens(
 									contextLimit,
 									effectiveThreshold,

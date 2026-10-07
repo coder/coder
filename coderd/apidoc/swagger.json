@@ -6778,13 +6778,7 @@
 						"required": true
 					},
 					{
-						"enum": [
-							"general",
-							"explore",
-							"title_generation",
-							"compaction",
-							"advisor"
-						],
+						"enum": ["general", "explore", "title_generation", "advisor"],
 						"type": "string",
 						"description": "Override context",
 						"name": "context",
@@ -20528,18 +20522,11 @@
 		},
 		"codersdk.ChatModelOverrideContext": {
 			"type": "string",
-			"enum": [
-				"general",
-				"explore",
-				"title_generation",
-				"compaction",
-				"advisor"
-			],
+			"enum": ["general", "explore", "title_generation", "advisor"],
 			"x-enum-varnames": [
 				"ChatModelOverrideContextGeneral",
 				"ChatModelOverrideContextExplore",
 				"ChatModelOverrideContextTitleGeneration",
-				"ChatModelOverrideContextCompaction",
 				"ChatModelOverrideContextAdvisor"
 			]
 		},

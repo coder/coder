@@ -24,7 +24,6 @@ const contexts: readonly ChatModelOverrideContext[] = [
 	"general",
 	"explore",
 	"title_generation",
-	"compaction",
 	"advisor",
 ];
 
@@ -83,13 +82,6 @@ const OrganizationAgentSettingsContent: React.FC<
 			"title_generation",
 		),
 	);
-	const compactionMutation = useMutation(
-		updateOrganizationChatModelOverride(
-			queryClient,
-			organization.id,
-			"compaction",
-		),
-	);
 	const advisorMutation = useMutation(
 		updateOrganizationChatModelOverride(
 			queryClient,
@@ -101,7 +93,6 @@ const OrganizationAgentSettingsContent: React.FC<
 		generalMutation,
 		exploreMutation,
 		titleMutation,
-		compactionMutation,
 		advisorMutation,
 	] as const;
 	const defaultModelMutation = useMutation(updateChatModel(queryClient));
