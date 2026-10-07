@@ -20,7 +20,6 @@ import { ToolCall } from "./ToolCall";
 import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import {
 	formatShellDurationMs,
-	sanitizeExecuteModelIntent,
 	signalTooltipLabel,
 	summarizeParsedCommands,
 	type ToolStatus,
@@ -35,7 +34,6 @@ type ExecuteToolProps = {
 	durationMs?: number;
 	isBackgrounded: boolean;
 	killedBySignal?: "kill" | "terminate";
-	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	startedAt?: string;
 	shellToolDisplayMode: TypesGen.AgentDisplayMode;
@@ -50,7 +48,6 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	durationMs,
 	isBackgrounded,
 	killedBySignal,
-	modelIntent,
 	parsedCommands,
 	startedAt,
 	shellToolDisplayMode,
@@ -67,7 +64,6 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	const durationLabel = isBackgrounded ? "" : formatShellDurationMs(durationMs);
 	const { commandLabel, durationSuffix } = getShellCommandLine({
 		command,
-		modelIntent,
 		parsedCommands,
 		durationLabel,
 		isRunning,
@@ -143,7 +139,6 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 
 type ShellCommandLineInput = {
 	command: string;
-	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	durationLabel: string;
 	isRunning: boolean;
@@ -153,7 +148,6 @@ type ShellCommandLineInput = {
 
 const getShellCommandLine = ({
 	command,
-	modelIntent,
 	parsedCommands,
 	durationLabel,
 	isRunning,
@@ -165,15 +159,9 @@ const getShellCommandLine = ({
 			? summarizeParsedCommands(parsedCommands)
 			: "";
 	const commandDisplay = summary || command;
-	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
-	let commandLabel = intentLabel
-		? `${intentLabel} using ${commandDisplay}`
+	let commandLabel = isBackgrounded
+		? `Started ${commandDisplay} in the background`
 		: `Ran ${commandDisplay}`;
-	if (intentLabel && isBackgrounded) {
-		commandLabel = `${intentLabel} in the background using ${commandDisplay}`;
-	} else if (isBackgrounded) {
-		commandLabel = `Started ${commandDisplay} in the background`;
-	}
 	if (!isRunning && isError) {
 		commandLabel = `Failed to run ${commandDisplay}`;
 	}
