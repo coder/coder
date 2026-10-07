@@ -162,7 +162,7 @@ describe("form util functions", () => {
 	});
 
 	describe("nameValidator with a custom limit", () => {
-		const schema = nameValidator("Name", 255);
+		const schema = nameValidator("Name", { maxLength: 255 });
 
 		it.each([1, 32, 33, 255])("allows a %i-character name", (length) => {
 			expect(schema.validateSync("a".repeat(length))).toBe("a".repeat(length));

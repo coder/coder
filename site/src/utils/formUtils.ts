@@ -97,7 +97,7 @@ const displayNameRE = /^[^\s](.*[^\s])?$/;
 // REMARK: see #1756 for name/username semantics
 export const nameValidator = (
 	name: string,
-	maxLength = maxLenName,
+	{ maxLength = maxLenName }: { maxLength?: number } = {},
 ): Yup.StringSchema =>
 	Yup.string()
 		.required(`Please enter a ${name.toLowerCase()}.`)

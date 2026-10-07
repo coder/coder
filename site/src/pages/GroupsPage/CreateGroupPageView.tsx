@@ -22,7 +22,7 @@ import {
 } from "#/utils/formUtils";
 
 const validationSchema = Yup.object({
-	name: nameValidator("Name", 255),
+	name: nameValidator("Name", { maxLength: 255 }),
 });
 
 type CreateGroupPageViewProps = {
