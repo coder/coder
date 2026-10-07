@@ -10,32 +10,50 @@ import (
 
 // validateWorkspaceSecretInputs validates the secrets supplied on a
 // workspace or workspace build request. It applies the same per-field rules
-// and file path delivery policy as user secrets, and rejects duplicate names
-// within one request because the builder applies inputs in order and a
-// duplicate would silently win.
+// and file path delivery policy as user secrets. It also rejects entries in
+// one request that share a name, env_name, or file_path, which would
+// otherwise fail on the build's unique indexes inside the build transaction.
 func (api *API) validateWorkspaceSecretInputs(secrets []codersdk.WorkspaceSecretInput) error {
 	if len(secrets) == 0 {
 		return nil
 	}
 
 	blocked := api.userSecretFilePathBlocked()
-	seen := make(map[string]struct{}, len(secrets))
+	seenNames := make(map[string]struct{}, len(secrets))
+	seenEnvNames := make(map[string]struct{}, len(secrets))
+	seenFilePaths := make(map[string]struct{}, len(secrets))
 	var validations []codersdk.ValidationError
 	for i, secret := range secrets {
 		fieldErrs := codersdk.ValidateWorkspaceSecretInput(secret)
-		if blocked && !secret.Remove() && secret.FilePath != "" {
+		if blocked && !secret.IsRemoval() && secret.FilePath != "" {
 			fieldErrs = append(fieldErrs, codersdk.ValidationError{
 				Field:  codersdk.UserSecretFilePathField,
 				Detail: userSecretFilePathDisabledDetail,
 			})
 		}
-		if _, dup := seen[secret.Name]; dup {
+		if _, dup := seenNames[secret.Name]; dup {
 			fieldErrs = append(fieldErrs, codersdk.ValidationError{
 				Field:  codersdk.UserSecretNameField,
 				Detail: fmt.Sprintf("Secret %q is listed more than once.", secret.Name),
 			})
 		}
-		seen[secret.Name] = struct{}{}
+		seenNames[secret.Name] = struct{}{}
+		if !secret.IsRemoval() {
+			if _, dup := seenEnvNames[secret.EnvName]; dup && secret.EnvName != "" {
+				fieldErrs = append(fieldErrs, codersdk.ValidationError{
+					Field:  codersdk.UserSecretEnvNameField,
+					Detail: fmt.Sprintf("env_name %q is used by more than one secret in this request.", secret.EnvName),
+				})
+			}
+			seenEnvNames[secret.EnvName] = struct{}{}
+			if _, dup := seenFilePaths[secret.FilePath]; dup && secret.FilePath != "" {
+				fieldErrs = append(fieldErrs, codersdk.ValidationError{
+					Field:  codersdk.UserSecretFilePathField,
+					Detail: fmt.Sprintf("file_path %q is used by more than one secret in this request.", secret.FilePath),
+				})
+			}
+			seenFilePaths[secret.FilePath] = struct{}{}
+		}
 		validations = append(validations, prefixUserSecretValidationErrors(i, fieldErrs)...)
 	}
 	if len(validations) == 0 {

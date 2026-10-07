@@ -2445,6 +2445,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("update workspace deleted: %w", err)
 		}
 
+		// Deleted workspaces keep their rows, so drop the secret values.
+		//nolint:gocritic // Clearing a deleted workspace's secrets is bookkeeping, not a user write.
+		if err := db.ClearWorkspaceSecretsByWorkspaceID(dbauthz.AsWorkspaceSecretManager(ctx), workspaceBuild.WorkspaceID); err != nil {
+			return xerrors.Errorf("clear workspace secrets: %w", err)
+		}
+
 		// Soft-delete any agents tied to this workspace so the
 		// aws-instance-identity handler (which filters on
 		// workspace_agents.deleted) doesn't keep seeing orphaned rows

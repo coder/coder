@@ -604,6 +604,11 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 				return BuildError{http.StatusInternalServerError, "mark workspace as deleted", err}
 			}
 
+			//nolint:gocritic // Clearing a deleted workspace's secrets is bookkeeping, not a user write.
+			if err := store.ClearWorkspaceSecretsByWorkspaceID(dbauthz.AsWorkspaceSecretManager(b.ctx), b.workspace.ID); err != nil {
+				return BuildError{http.StatusInternalServerError, "clear workspace secrets on orphan delete", err}
+			}
+
 			// Soft-delete any agents tied to this workspace so the
 			// aws-instance-identity handler doesn't keep seeing
 			// orphaned rows. Mirrors the path in
@@ -624,23 +629,20 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 }
 
 // persistSecrets links workspace secrets to the new build inside the build
-// transaction. The previous build's live, non-ephemeral secrets are copied
-// forward unless the request names them (to replace or remove them) or
-// claims their env_name or file_path. The request's own entries are inserted,
-// and the previous build's rows are then cleared of their values so only the
-// new build holds live secrets.
+// transaction.
 //
 // Copying forward and clearing are bookkeeping, not a user writing secrets,
 // so they run as the workspace secret manager. This lets autostart, the build
 // orchestrator, and other non-user initiators rebuild workspaces that hold
-// secrets. Secrets in the request are authorized as the build's actor.
+// secrets. Secrets in the request are authorized as the build's actor, and
+// removals are authorized in authorize.
 func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUID) error {
 	requestedNames := make(map[string]struct{}, len(b.secrets))
 	claimedEnvNames := make(map[string]struct{}, len(b.secrets))
 	claimedFilePaths := make(map[string]struct{}, len(b.secrets))
 	for _, secret := range b.secrets {
 		requestedNames[secret.Name] = struct{}{}
-		if secret.Remove() {
+		if secret.IsRemoval() {
 			continue
 		}
 		if secret.EnvName != "" {
@@ -655,17 +657,15 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 	managerCtx := dbauthz.AsWorkspaceSecretManager(b.ctx)
 
 	var previous []database.WorkspaceSecret
-	firstBuild, err := b.firstBuild()
-	if err != nil {
-		return BuildError{http.StatusInternalServerError, "check if first build", err}
-	}
-	if !firstBuild {
+	lastBuild, err := b.getLastBuild()
+	switch {
+	case xerrors.Is(err, sql.ErrNoRows):
+		// First build; nothing to copy forward.
+	case err != nil:
+		return BuildError{http.StatusInternalServerError, "get last build", err}
+	default:
 		// getLastBuild was cached before the new build row was inserted, so
 		// it is the build being superseded.
-		lastBuild, err := b.getLastBuild()
-		if err != nil {
-			return BuildError{http.StatusInternalServerError, "get last build", err}
-		}
 		previous, err = store.ListActiveWorkspaceSecrets(managerCtx, lastBuild.ID)
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "list workspace secrets", err}
@@ -673,14 +673,14 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 	}
 
 	for _, prev := range previous {
-		if prev.Ephemeral || !prev.Value.Valid {
+		if prev.Ephemeral {
 			continue
 		}
 		if _, named := requestedNames[prev.Name]; named {
 			continue
 		}
-		// A requested secret that takes over an injection target supersedes
-		// the previous secret using it.
+		// A secret applies as a whole: a requested secret that claims any of
+		// its targets supersedes it entirely.
 		if _, claimed := claimedEnvNames[prev.EnvName]; claimed && prev.EnvName != "" {
 			continue
 		}
@@ -689,21 +689,18 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 		}
 		if err := b.insertSecret(managerCtx, store, workspaceBuildID, codersdk.WorkspaceSecretInput{
 			Name:     prev.Name,
-			Value:    &prev.Value.String,
 			EnvName:  prev.EnvName,
 			FilePath: prev.FilePath,
-		}); err != nil {
+		}, prev.Value.String); err != nil {
 			return err
 		}
 	}
 
 	for _, secret := range b.secrets {
-		// Removals only stop the secret from being copied forward above;
-		// nothing is inserted for them.
-		if secret.Remove() {
+		if secret.IsRemoval() {
 			continue
 		}
-		if err := b.insertSecret(b.ctx, store, workspaceBuildID, secret); err != nil {
+		if err := b.insertSecret(b.ctx, store, workspaceBuildID, secret, *secret.Value); err != nil {
 			return err
 		}
 	}
@@ -718,15 +715,15 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 	return nil
 }
 
-// insertSecret inserts a secret that sets a value. Callers must skip
-// removals.
-func (b *Builder) insertSecret(ctx context.Context, store database.Store, workspaceBuildID uuid.UUID, secret codersdk.WorkspaceSecretInput) error {
+// insertSecret links a secret with the given value to the build. The input's
+// Value is ignored.
+func (b *Builder) insertSecret(ctx context.Context, store database.Store, workspaceBuildID uuid.UUID, secret codersdk.WorkspaceSecretInput, value string) error {
 	_, err := store.InsertWorkspaceSecret(ctx, database.InsertWorkspaceSecretParams{
 		ID:               uuid.New(),
 		WorkspaceID:      b.workspace.ID,
 		WorkspaceBuildID: workspaceBuildID,
 		Name:             secret.Name,
-		Value:            sql.NullString{String: *secret.Value, Valid: true},
+		Value:            sql.NullString{String: value, Valid: true},
 		ValueKeyID:       sql.NullString{}, // dbcrypt sets this when encryption is enabled.
 		EnvName:          secret.EnvName,
 		FilePath:         secret.FilePath,
@@ -741,11 +738,11 @@ func (b *Builder) insertSecret(ctx context.Context, store database.Store, worksp
 	case database.IsUniqueViolation(err, database.UniqueWorkspaceSecretsBuildFilePathIndex):
 		return BuildError{http.StatusBadRequest, fmt.Sprintf("workspace secret %q: file_path is already used by another workspace secret", secret.Name), err}
 	case database.IsCheckViolation(err):
-		// Per-build limit triggers and the injection target constraint all
-		// raise check_violation.
-		return BuildError{http.StatusBadRequest, fmt.Sprintf("workspace secret %q rejected", secret.Name), err}
+		// The per-build limit triggers are the only check violations a
+		// validated request can reach.
+		return BuildError{http.StatusBadRequest, fmt.Sprintf("Workspace secret %q exceeds a per-build limit on the number of secrets, their total value bytes, or their env value bytes.", secret.Name), err}
 	case rbac.IsUnauthorizedError(err):
-		return BuildError{http.StatusForbidden, fmt.Sprintf("set workspace secret %q", secret.Name), err}
+		return BuildError{http.StatusForbidden, fmt.Sprintf("Not authorized to set workspace secret %q on this workspace.", secret.Name), err}
 	}
 	return BuildError{http.StatusInternalServerError, fmt.Sprintf("set workspace secret %q", secret.Name), err}
 }
@@ -1412,6 +1409,19 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 		}
 		// We use the same wording as the httpapi to avoid leaking the existence of the workspace
 		return BuildError{http.StatusNotFound, httpapi.ResourceNotFoundResponse.Message, xerrors.New(httpapi.ResourceNotFoundResponse.Message)}
+	}
+
+	// Removals delete a stored secret without inserting a row, so dbauthz
+	// never sees them; authorize them here.
+	for _, secret := range b.secrets {
+		if !secret.IsRemoval() {
+			continue
+		}
+		if !authFunc(policy.ActionUpdate, b.workspace.WorkspaceSecretRBACObject()) {
+			msg := fmt.Sprintf("Not authorized to remove workspace secret %q on this workspace.", secret.Name)
+			return BuildError{http.StatusForbidden, msg, xerrors.New(msg)}
+		}
+		break
 	}
 
 	template, err := b.getTemplate()

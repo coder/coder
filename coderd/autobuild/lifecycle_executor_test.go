@@ -570,7 +570,7 @@ func TestExecutorAutostopCarriesSecrets(t *testing.T) {
 		})
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.Secrets = []codersdk.WorkspaceSecretInput{
-				{Name: "api-key", Value: ptr.Ref("secret-value"), EnvName: "API_KEY"},
+				{Name: "api-key", Value: new("secret-value"), EnvName: "API_KEY"},
 			}
 		})
 	)

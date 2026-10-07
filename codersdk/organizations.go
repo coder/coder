@@ -263,8 +263,7 @@ type CreateWorkspaceRequest struct {
 	// RichParameterValues allows for additional parameters to be provided
 	// during the initial provision.
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
-	// Secrets sets workspace secrets that are delivered to the workspace
-	// through the agent manifest instead of the provisioner.
+	// Secrets sets the workspace's initial secrets.
 	Secrets                 []WorkspaceSecretInput `json:"secrets,omitempty"`
 	AutomaticUpdates        AutomaticUpdates       `json:"automatic_updates,omitempty"`
 	TemplateVersionPresetID uuid.UUID              `json:"template_version_preset_id,omitempty" format:"uuid"`
