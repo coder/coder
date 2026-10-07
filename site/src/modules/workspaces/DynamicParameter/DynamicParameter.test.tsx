@@ -464,6 +464,43 @@ describe("DynamicParameter", () => {
 			},
 		);
 
+		it.each([",", "Enter"])(
+			"does not commit a tag with %s during IME composition",
+			async (key) => {
+				const user = userEvent.setup();
+				render(
+					<DynamicParameter
+						parameter={mockTagsParameter}
+						value='["engineering"]'
+						onChange={mockOnChange}
+					/>,
+				);
+
+				const input = screen.getByRole("textbox", { name: "Tags Parameter" });
+				await user.click(input);
+				// userEvent cannot simulate IME composition events.
+				fireEvent.compositionStart(input);
+				fireEvent.input(input, {
+					target: { value: "東京" },
+					inputType: "insertCompositionText",
+					isComposing: true,
+				});
+				const defaultAllowed = fireEvent.keyDown(input, {
+					key,
+					isComposing: true,
+				});
+
+				expect(mockOnChange).not.toHaveBeenCalled();
+				expect(defaultAllowed).toBe(true);
+
+				fireEvent.compositionEnd(input, { data: "東京" });
+				await user.keyboard("{Enter}");
+				expect(mockOnChange).toHaveBeenCalledExactlyOnceWith(
+					'["engineering","東京"]',
+				);
+			},
+		);
+
 		it("handles tag removals", async () => {
 			render(
 				<DynamicParameter
