@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/bedrock"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -329,7 +331,10 @@ func TestSmallFastModelCapturedAtConstruction(t *testing.T) {
 			t.Run(c.name+" "+tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				i := c.newInterception(mustMessagesPayload(t, tt.payload))
+				payload := mustMessagesPayload(t, tt.payload)
+				require.Equal(t, tt.expectConfigured, payload.InvocationModel(runtime))
+				require.Equal(t, tt.payload, string(payload))
+				i := c.newInterception(payload)
 				require.Equal(t, tt.expectModel, i.Model())
 				require.Equal(t, tt.expectConfigured, i.upstreamModel())
 			})
@@ -946,6 +951,12 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectRemovedFields: []string{"output_config.format"},
 		},
 		{
+			name:               "global_sonnet_5_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "global.anthropic.claude-sonnet-5-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
 			name:               "opus_5_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
 			bedrockModel:       "anthropic.claude-opus-5-5",
 			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
@@ -1380,6 +1391,152 @@ func TestBedrockMantleIsPassthrough(t *testing.T) {
 	require.Equal(t, before, string(i.reqPayload))
 }
 
+// TestCredentialResolutionContext verifies Bedrock credential resolution is bounded
+// and that a streaming response remains live after the resolution bound expires.
+func TestCredentialResolutionContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("cancellation and deadline", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			name          string
+			callerTimeout time.Duration
+			cancel        bool
+			wantErr       error
+		}{
+			{name: "caller cancellation", cancel: true, wantErr: context.Canceled},
+			{name: "resolution deadline", wantErr: context.DeadlineExceeded},
+			{name: "earlier caller deadline", callerTimeout: 5 * time.Second, wantErr: context.DeadlineExceeded},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					called := make(chan context.Context, 1)
+					creds := aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+						called <- ctx
+						<-ctx.Done()
+						return aws.Credentials{}, ctx.Err()
+					})
+					i := &interceptionBase{bedrock: NewBedrockRuntime(config.AWSBedrock{
+						Region:         "us-east-1",
+						BaseURL:        "https://bedrock.example",
+						Model:          "anthropic.claude-opus-4-8",
+						SmallFastModel: "anthropic.claude-haiku-4-5",
+					}, creds)}
+					ctx := context.Background()
+					var cancel context.CancelFunc
+					if tt.callerTimeout > 0 {
+						//nolint:gocritic // Simulated deadline tests precedence over the credential timeout.
+						ctx, cancel = context.WithTimeout(ctx, tt.callerTimeout)
+					} else {
+						ctx, cancel = context.WithCancel(ctx)
+					}
+					defer cancel()
+					result := make(chan error, 1)
+					go func() {
+						_, err := i.newMessagesService(ctx)
+						result <- err
+					}()
+					resolvedCtx := <-called
+					deadline, ok := resolvedCtx.Deadline()
+					require.True(t, ok, "credential resolution must have a deadline")
+					remaining := time.Until(deadline)
+					require.Greater(t, remaining, time.Duration(0))
+					require.LessOrEqual(t, remaining, 30*time.Second)
+					if tt.callerTimeout > 0 {
+						require.LessOrEqual(t, remaining, tt.callerTimeout)
+					}
+					switch {
+					case tt.cancel:
+						cancel()
+					case tt.callerTimeout > 0:
+						<-time.NewTimer(tt.callerTimeout).C
+					default:
+						<-time.NewTimer(30 * time.Second).C
+					}
+					require.ErrorIs(t, <-result, tt.wantErr)
+				})
+			})
+		}
+	})
+
+	t.Run("stream survives resolution deadline", func(t *testing.T) {
+		t.Parallel()
+		for _, tt := range []struct {
+			name string
+			base func(string, aws.CredentialsProvider) *interceptionBase
+		}{
+			{
+				name: "bedrock invoke model",
+				base: func(url string, creds aws.CredentialsProvider) *interceptionBase {
+					return &interceptionBase{bedrock: NewBedrockRuntime(config.AWSBedrock{
+						Region:         "us-east-1",
+						BaseURL:        url,
+						Model:          "anthropic.claude-opus-4-8",
+						SmallFastModel: "anthropic.claude-haiku-4-5",
+					}, creds)}
+				},
+			},
+			{
+				name: "bedrock mantle",
+				base: func(url string, creds aws.CredentialsProvider) *interceptionBase {
+					return &interceptionBase{bedrock: NewBedrockRuntime(config.AWSBedrock{
+						Region:   "us-east-1",
+						BaseURL:  url,
+						Protocol: config.BedrockProtocolMantle,
+					}, creds)}
+				},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					reader, writer := io.Pipe()
+					defer reader.Close()
+					defer writer.Close()
+					var requestCtx context.Context
+					transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+						requestCtx = req.Context()
+						if req.Body != nil {
+							_ = req.Body.Close()
+						}
+						return &http.Response{
+							StatusCode: http.StatusOK,
+							Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+							Body:       reader,
+						}, nil
+					})
+					i := tt.base("https://upstream.example", credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""))
+					service, err := i.newMessagesService(context.Background(), option.WithHTTPClient(&http.Client{Transport: transport}))
+					require.NoError(t, err)
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					stream := service.NewStreaming(ctx, anthropic.MessageNewParams{
+						Model: "claude-opus-4-8", MaxTokens: 1,
+						Messages: []anthropic.MessageParam{{Role: anthropic.MessageParamRoleUser, Content: []anthropic.ContentBlockParamUnion{anthropic.NewTextBlock("hello")}}},
+					})
+					done := make(chan bool, 1)
+					go func() { done <- stream.Next() }()
+					<-time.NewTimer(31 * time.Second).C
+					synctest.Wait()
+					require.NotNil(t, requestCtx)
+					require.NoError(t, requestCtx.Err(), "outgoing streaming request context must remain live")
+					_, err = writer.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{}}\n\n"))
+					require.NoError(t, err)
+					require.True(t, <-done)
+					require.NoError(t, stream.Err())
+					require.NoError(t, stream.Close())
+				})
+			})
+		}
+	})
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
 // TestAWSMantleOptionsValidation verifies the mantle protocol requires a
 // region (it scopes the SigV4 signature) but NOT model fields.
 func TestAWSMantleOptionsValidation(t *testing.T) {
@@ -1432,14 +1589,16 @@ func TestRecordTokenUsage(t *testing.T) {
 
 	id := uuid.New()
 	tests := []struct {
-		name     string
-		msgID    string
-		usage    anthropic.Usage
-		expected *recorder.TokenUsageRecord
+		name          string
+		msgID         string
+		providerModel anthropic.Model
+		usage         anthropic.Usage
+		expected      *recorder.TokenUsageRecord
 	}{
 		{
-			name:  "without service tier or extra tokens",
-			msgID: "msg_basic",
+			name:          "without service tier or extra tokens",
+			msgID:         "msg_basic",
+			providerModel: "provider-model",
 			usage: anthropic.Usage{
 				InputTokens:              10,
 				OutputTokens:             20,
@@ -1450,6 +1609,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "msg_basic",
+				ProviderModel:         "provider-model",
 				Input:                 10,
 				Output:                20,
 				CacheReadInputTokens:  3,
@@ -1458,8 +1618,9 @@ func TestRecordTokenUsage(t *testing.T) {
 			},
 		},
 		{
-			name:  "with service tier and all extra tokens",
-			msgID: "msg_full",
+			name:          "with service tier and all extra tokens",
+			msgID:         "msg_full",
+			providerModel: "provider-model",
 			usage: anthropic.Usage{
 				InputTokens:              100,
 				OutputTokens:             200,
@@ -1477,6 +1638,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "msg_full",
+				ProviderModel:         "provider-model",
 				Input:                 100,
 				Output:                200,
 				CacheReadInputTokens:  30,
@@ -1492,7 +1654,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			},
 		},
 		{
-			name:  "omits zero extra tokens and service tier",
+			name:  "omits zero extra tokens, service tier and provider model",
 			msgID: "msg_partial_extra",
 			usage: anthropic.Usage{
 				ServerToolUse: anthropic.ServerToolUsage{
@@ -1518,10 +1680,15 @@ func TestRecordTokenUsage(t *testing.T) {
 				id:       id,
 				recorder: rec,
 			}
-			base.recordTokenUsage(t.Context(), tc.msgID, tc.usage)
+			base.recordTokenUsage(t.Context(), tc.msgID, tc.providerModel, tc.usage)
 
 			usages := rec.RecordedTokenUsages()
 			require.Len(t, usages, 1)
+
+			// The record carries the time it was created; the rest of the
+			// record is compared verbatim.
+			require.False(t, usages[0].CreatedAt.IsZero(), "token usage was not stamped")
+			usages[0].CreatedAt = time.Time{}
 			require.Equal(t, tc.expected, usages[0])
 		})
 	}

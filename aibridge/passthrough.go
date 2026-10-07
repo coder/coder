@@ -22,10 +22,10 @@ import (
 	"github.com/coder/quartz"
 )
 
-// newPassthroughRouter returns a simple reverse-proxy implementation which will be used when a route is not handled specifically
-// by a [intercept.Provider].
-// A single reverse proxy is created per provider and reused across all requests.
-func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
+// NewPassthroughHandler returns a reverse proxy handler that should be mounted
+// on provider's PassthroughRoutes endpoints. Proxy is built once and reused
+// by returned HandlerFunc.
+func NewPassthroughHandler(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
 	provBaseURL, err := url.Parse(prov.BaseURL())
 	if err != nil {
 		return newInvalidBaseURLHandler(prov, logger, m, tracer, err)
@@ -37,6 +37,14 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 	// Transport tuned for streaming (no response header timeout).
 	t := utils.NewStreamingTransport()
 
+	inner := apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal())
+	// Providers which authenticate passthrough requests themselves (for example
+	// AWS SigV4 signing) wrap the transport here, beneath key failover, so an
+	// existing BYOK or centralized-pool credential still takes precedence.
+	if wrapper, ok := prov.(provider.PassthroughTransportWrapper); ok {
+		inner = wrapper.WrapPassthroughTransport(inner)
+	}
+
 	// Build the passthrough proxy, reused across all requests for this provider.
 	// Rewrite sets proxy headers. For centralized requests, KeyFailoverTransport
 	// handles auth and failover. BYOK requests pass through.
@@ -45,7 +53,7 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 			rewritePassthroughRequest(pr, provBaseURL)
 		},
 		Transport: keypool.NewKeyFailoverTransport(
-			apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
+			inner,
 			prov.KeyFailoverConfig(logger),
 		),
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, e error) {

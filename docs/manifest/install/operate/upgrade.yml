@@ -1,0 +1,14 @@
+title: Upgrade
+description: Learn how to upgrade your Coder deployment to a newer version, with steps for each install method.
+path: ./install/operate/upgrade.md
+icon_path: ./images/icons/upgrade.svg
+children:
+  - title: Upgrade best practices
+    description: Follow best practices and troubleshooting tips to plan and carry out Coder upgrades.
+    path: ./install/operate/upgrade/best-practices.md
+  - title: Upgrade from ESR 2.24 to 2.29
+    description: A step-by-step guide to upgrade a Coder deployment from Extended Support Release 2.24 to 2.29.
+    path: ./install/operate/upgrade/esr-2.24-2.29-upgrade.md
+  - title: Upgrade from ESR 2.29 to 2.34
+    description: A step-by-step guide to upgrade a Coder deployment from Extended Support Release 2.29 to 2.34.
+    path: ./install/operate/upgrade/esr-2.29-2.34-upgrade.md

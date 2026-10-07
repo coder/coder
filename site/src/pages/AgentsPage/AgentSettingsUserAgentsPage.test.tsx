@@ -228,7 +228,7 @@ describe("AgentSettingsUserAgentsPage", () => {
 			}),
 		);
 		await user.click(
-			screen.getByRole("button", {
+			screen.getByRole("combobox", {
 				name: new RegExp(`Organization ${MockOrganization2.display_name}`),
 			}),
 		);

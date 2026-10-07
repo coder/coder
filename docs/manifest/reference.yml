@@ -1,0 +1,22 @@
+title: Reference
+description: Reference for automating Coder through the REST API, command-line interface, and Agent API.
+path: ./reference/index.md
+icon_path: ./images/icons/notes.svg
+children:
+  - title: Glossary
+    description: Definitions of Coder terms and product names
+    path: ./reference/glossary.md
+  - title: Releases
+    description: Learn about Coder's release channels, versioning, and schedule so you can plan upgrades.
+    path: ./reference/releases.md
+    icon_path: ./images/icons/star.svg
+  - title: Feature stages
+    description: Understand Coder's feature stages, including early access, beta, and general availability.
+    path: ./reference/feature-stages.md
+  - include: reference/api.yml
+  - include: reference/cli.yml
+  - title: API key scopes
+    description: Reference for the scopes an API key can request, including the built-in, composite, and low-level scopes.
+    path: ./reference/api-key-scopes.md
+    icon_path: ./images/icons/api.svg
+  - include: reference/agent-api.yml

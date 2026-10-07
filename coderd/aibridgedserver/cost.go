@@ -73,14 +73,16 @@ type tokenUsageCost struct {
 	cacheReadPriceMicros  sql.NullInt64
 	cacheWritePriceMicros sql.NullInt64
 	costMicros            sql.NullInt64
+	pricedModel           sql.NullString
 }
 
 // resolveTokenUsageCost resolves the effective group and per-token prices for an
 // interception and computes its cost. Four independent conditions yield a NULL
 // column rather than an error: an unresolved effective group (the user has no
 // org membership), an interception whose provider name matches no configured
-// provider, a model absent from the price table, and a cost outside the
-// maxCostMicros range. A NULL cost means the cost is unknown.
+// provider, a requested and provider-reported model both absent from the price
+// table, and a cost outside the maxCostMicros range. A NULL cost means the cost
+// is unknown.
 // Any other error is returned.
 func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBridgeInterception, in *proto.RecordTokenUsageRequest) (tokenUsageCost, error) {
 	var result tokenUsageCost
@@ -114,9 +116,11 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	case errors.Is(err, sql.ErrNoRows):
 		// Only reachable if the provider was deleted mid-request.
 		s.logger.Warn(ctx, "no configured provider found for interception, recording token usage with NULL cost",
-			slog.F("provider_name", intc.ProviderName), slog.F("model", intc.Model))
+			slog.F("provider_name", intc.ProviderName),
+			slog.F("model", intc.Model),
+			slog.F("provider_model", in.GetProviderModel()))
 		if s.metrics != nil {
-			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(intc.ProviderName, unknownProviderType, intc.Model).Inc()
+			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(intc.ProviderName, unknownProviderType, intc.Model, in.GetProviderModel()).Inc()
 		}
 		return result, nil
 	case err != nil:
@@ -124,24 +128,29 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	}
 	configuredType := string(provider.Type)
 
-	// Snapshot the price for this (provider, model) and compute cost.
+	// Snapshot the price for the requested model, falling back to the model
+	// reported by the provider, and compute cost.
 	price, err := s.store.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
-		Provider: configuredType,
-		Model:    intc.Model,
+		Provider:      configuredType,
+		Model:         intc.Model,
+		ProviderModel: in.GetProviderModel(),
 	})
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		// Model not in the price table: record tokens but leave cost NULL.
+		// Neither model is in the price table: record tokens but leave cost NULL.
 		s.logger.Debug(ctx, "no price found for model, recording token usage with NULL cost",
-			slog.F("provider", configuredType), slog.F("model", intc.Model))
+			slog.F("provider", configuredType),
+			slog.F("model", intc.Model),
+			slog.F("provider_model", in.GetProviderModel()))
 		if s.metrics != nil {
-			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(intc.ProviderName, configuredType, intc.Model).Inc()
+			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(intc.ProviderName, configuredType, intc.Model, in.GetProviderModel()).Inc()
 		}
 		return result, nil
 	case err != nil:
 		return tokenUsageCost{}, xerrors.Errorf("look up model price for %s/%s: %w", configuredType, intc.Model, err)
 	}
 
+	result.pricedModel = sql.NullString{String: price.Model, Valid: true}
 	result.inputPriceMicros = price.InputPrice
 	result.outputPriceMicros = price.OutputPrice
 	result.cacheReadPriceMicros = price.CacheReadPrice
@@ -156,7 +165,10 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 		s.logger.Error(ctx, "cost out of range, recording token usage with NULL cost",
 			slog.F("interception_id", intc.ID),
 			slog.F("initiator_id", intc.InitiatorID),
-			slog.F("provider", intc.Provider), slog.F("model", intc.Model),
+			slog.F("provider", intc.Provider),
+			slog.F("model", intc.Model),
+			slog.F("provider_model", in.GetProviderModel()),
+			slog.F("priced_model", price.Model),
 			slog.F("input_tokens", in.GetInputTokens()),
 			slog.F("output_tokens", in.GetOutputTokens()),
 			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),

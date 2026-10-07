@@ -20,6 +20,7 @@ import {
 	chatPromptsKey,
 } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
@@ -27,12 +28,14 @@ import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBu
 import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockFailedWorkspaceBuild,
 	MockNoPermissions,
 	MockOrganization2,
 	MockPermissions,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
@@ -168,6 +171,7 @@ const agentsRouting = {
 				},
 			],
 		},
+		{ path: "projects/:projectId", element: <AgentCreatePage /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
@@ -213,7 +217,7 @@ const ChatPaneMinimumRouteElement = () => (
 		<div className="mt-auto px-4 pb-3">
 			<div
 				data-testid="chat-composer"
-				className="flex items-center justify-between rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-2"
+				className="flex items-center justify-between rounded-2xl border border-border/80 bg-surface-secondary/45 p-2"
 			>
 				<span className="truncate text-xs text-content-secondary">
 					Chat message
@@ -894,6 +898,7 @@ const watchedChatQueries = (chat: Chat) => [
 		},
 	},
 	{ key: chatPromptsKey(chat.id), data: { prompts: [] } },
+	{ key: preferenceSettingsKey, data: MockUserPreferenceSettings },
 	{
 		key: getAuthorizationKey({
 			checks: {
@@ -1096,6 +1101,65 @@ const debugWorkspaceBuildRouter = (buildId: string) =>
 		},
 		routing: [agentsRouting, aiSettingsRouting],
 	});
+
+const projectPageParameters = {
+	experiments: ["chat-projects"],
+	reactRouter: reactRouterParameters({
+		location: { path: `/agents/projects/${MockChatProject.id}` },
+		routing: [agentsRouting, aiSettingsRouting],
+	}),
+};
+
+// Each play waits for its state so the Chromatic snapshot captures it.
+export const ProjectLoading: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("status", { name: "Loading project" });
+	},
+};
+
+export const ProjectLoadError: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to list chat projects." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Failed to load project");
+	},
+};
+
+export const ProjectLoaded: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			MockChatProject,
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Project actions" });
+	},
+};
+
+export const ProjectNotFound: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Project not found");
+	},
+};
 
 export const PromptLink: Story = {
 	parameters: {

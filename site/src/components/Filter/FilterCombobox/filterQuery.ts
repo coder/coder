@@ -3,58 +3,31 @@ import {
 	needsQuotes,
 	parseFilterTokens,
 } from "#/components/Filter/filterQuery";
-import type { FilterCategory, FilterOption } from "./types";
+import {
+	categoryChipKeys,
+	type FilterCategory,
+	type FilterOption,
+} from "./types";
 
 export const chipToken = (key: string, value: string) => `${key}:${value}`;
 
-type ChipDisplaySource = Pick<FilterCategory, "key" | "chipKeys">;
+/** Token an option commits under `key`: its explicit token, or `key:value`. */
+export const optionToken = (
+	key: string,
+	option: Pick<FilterOption, "token" | "value">,
+) => option.token ?? chipToken(key, option.value);
 
-const PREVIEW_OPTION_LIMIT = 4;
-
-export type CategoryPreview = {
-	/** Labels of the chips currently applied for this category. */
-	selected: string[];
-	/** Comma-separated sample of available options, or the category hint. */
-	hint: string;
-};
-
-/**
- * Right-hand text for a category row: the applied chip labels when the
- * category has a chip, otherwise its fixed hint or a short sample of options.
- */
-export const categoryPreview = (
-	category: Pick<FilterCategory, "key" | "chipKeys" | "hint">,
-	chips: readonly string[],
-	options: readonly FilterOption[] | undefined,
-): CategoryPreview => {
-	const ownedKeys = category.chipKeys ?? [category.key];
-	const optionToken = (option: FilterOption) =>
-		option.token ?? chipToken(category.key, option.value);
-	const selected = chips.flatMap((chip) => {
-		const parsed = parseChipToken(chip, ownedKeys);
-		if (!parsed) {
-			return [];
-		}
-		const option = options?.find((entry) => optionToken(entry) === chip);
-		return [
-			option?.appliedLabel ??
-				option?.label ??
-				chipDisplay(chip, [category]).value,
-		];
-	});
-	const hint =
-		category.hint ??
-		(options ?? [])
-			.slice(0, PREVIEW_OPTION_LIMIT)
-			.map((option) => option.label)
-			.join(", ");
-	return { selected, hint };
-};
+type ChipDisplaySource = Pick<
+	FilterCategory,
+	"key" | "chipKeys" | "scopeToggle"
+>;
 
 /**
  * Key and value to display for a chip token. Tokens owned by a multi-key
  * category (`outdated:true` under Attributes) display under the category key
- * (`attribute:outdated`); the query string itself is unchanged.
+ * (`attribute:outdated`). A token under the category's `scopeToggle.widenedKey`
+ * keeps its value and displays under the category key (`user:bob` displays as
+ * `owner:bob`). The query string itself is unchanged.
  */
 export const chipDisplay = (
 	token: string,
@@ -69,8 +42,11 @@ export const chipDisplay = (
 	const owner = categories.find(
 		(category) =>
 			category.key !== key.toLowerCase() &&
-			category.chipKeys?.includes(key.toLowerCase()),
+			categoryChipKeys(category).includes(key.toLowerCase()),
 	);
+	if (owner?.scopeToggle?.widenedKey === key.toLowerCase()) {
+		return { key: owner.key, value };
+	}
 	if (owner) {
 		return { key: owner.key, value: key.toLowerCase() };
 	}
@@ -197,18 +173,28 @@ type CategoryMatchSource = {
 	key: string;
 	label: string;
 	aliases?: readonly string[];
+	/** Token an option commits, or the applied chip it removes. */
+	optionTokenFor?: (option: FilterOption) => string;
 };
 
 export const parseTypedCategoryPrefix = (
 	raw: string,
 	categories: readonly CategoryMatchSource[],
-): { categoryKey: string; query: string; freeText: string } | null => {
+): {
+	categoryKey: string;
+	query: string;
+	freeText: string;
+	typedKey: string;
+} | null => {
 	const resolveCategory = (typedKey: string) =>
 		categories.find((entry) => {
 			if (entry.key === typedKey || entry.label.toLowerCase() === typedKey) {
 				return true;
 			}
-			return entry.aliases?.some((alias) => alias.toLowerCase() === typedKey);
+			return (
+				entry.aliases?.some((alias) => alias.toLowerCase() === typedKey) ??
+				false
+			);
 		});
 
 	// Scan every `key:` fragment and keep the last one that resolves to a
@@ -218,6 +204,7 @@ export const parseTypedCategoryPrefix = (
 	// `[\w-]+` keeps hyphenated keys consistent with the rest of this module.
 	let chosen: {
 		category: CategoryMatchSource;
+		typedKey: string;
 		index: number;
 		end: number;
 	} | null = null;
@@ -229,7 +216,7 @@ export const parseTypedCategoryPrefix = (
 		const category = resolveCategory(typedKey);
 		if (category) {
 			const index = match.index ?? 0;
-			chosen = { category, index, end: index + match[0].length };
+			chosen = { category, typedKey, index, end: index + match[0].length };
 		}
 	}
 	if (!chosen) {
@@ -238,6 +225,7 @@ export const parseTypedCategoryPrefix = (
 
 	return {
 		categoryKey: chosen.category.key,
+		typedKey: chosen.typedKey,
 		query: raw.slice(chosen.end),
 		freeText: raw.slice(0, chosen.index).trim(),
 	};
@@ -276,7 +264,28 @@ type CategoryValueSuggestion = {
 		value: string;
 		startIcon?: React.ReactNode;
 	};
+	selected: boolean;
 	token: string;
+};
+
+// `normalized` is trimmed and lowercased.
+const optionMatches = (
+	option: Pick<FilterOption, "label" | "value">,
+	normalized: string,
+) =>
+	option.label.toLowerCase().includes(normalized) ||
+	option.value.toLowerCase().includes(normalized);
+
+/** Options whose label or value contains `text`, ignoring case. */
+export const filterOptionsByText = (
+	options: readonly FilterOption[],
+	text: string,
+): readonly FilterOption[] => {
+	const normalized = text.trim().toLowerCase();
+	if (normalized.length === 0) {
+		return options;
+	}
+	return options.filter((option) => optionMatches(option, normalized));
 };
 
 const DEFAULT_SUGGESTIONS_PER_CATEGORY = 5;
@@ -312,15 +321,10 @@ export const collectValueSuggestions = (
 				break;
 			}
 
-			const token = option.token ?? chipToken(category.key, option.value);
-			if (selected.has(token)) {
-				continue;
-			}
+			const token =
+				category.optionTokenFor?.(option) ?? optionToken(category.key, option);
 
-			if (
-				!option.label.toLowerCase().includes(normalized) &&
-				!option.value.toLowerCase().includes(normalized)
-			) {
+			if (!optionMatches(option, normalized)) {
 				continue;
 			}
 
@@ -328,6 +332,7 @@ export const collectValueSuggestions = (
 				categoryKey: category.key,
 				categoryLabel: category.label,
 				option,
+				selected: selected.has(token),
 				token,
 			});
 			taken += 1;

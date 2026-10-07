@@ -2,6 +2,7 @@ package audit
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"reflect"
 	"testing"
@@ -392,6 +393,30 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			name: "ConditionTracked",
+			left: database.ExperimentRule{
+				ID:         uuid.UUID{1},
+				Experiment: "example",
+				Mode:       "condition",
+				Condition:  `"coder/beta" in user.groups`,
+				Revision:   1,
+			},
+			right: database.ExperimentRule{
+				ID:         uuid.UUID{1},
+				Experiment: "example",
+				Mode:       "condition",
+				Condition:  `user.email == "alice@example.com"`,
+				Revision:   2,
+			},
+			exp: audit.Map{
+				"condition": audit.OldNew{Old: `"coder/beta" in user.groups`, New: `user.email == "alice@example.com"`},
+				"revision":  audit.OldNew{Old: int64(1), New: int64(2)},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
 			// User skill content is user-authored instruction text, not secret
 			// material, so audit diffs can include the content change.
 			name: "UserSkillContentTracked",
@@ -694,6 +719,46 @@ func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {
 		require.NotContains(t, string(raw), secret)
 	}
 	require.Contains(t, string(raw), "client-id")
+}
+
+func Test_chatAutomationSecretFieldsRedacted(t *testing.T) {
+	t.Parallel()
+
+	fields := AuditableResources[structName(reflect.TypeFor[database.ChatAutomation]())]
+	require.Equal(t, Action(ActionSecret), fields["webhook_secret_hash"])
+	require.Equal(t, Action(ActionSecret), fields["prompt"])
+
+	oldHash := []byte("old-webhook-secret-hash")
+	newHash := []byte("new-webhook-secret-hash")
+	left := database.ChatAutomation{
+		ID:                   uuid.UUID{1},
+		Name:                 "deploy-hook",
+		Kind:                 database.ChatAutomationKindWebhook,
+		WebhookSecretHash:    oldHash,
+		WebhookSecretVersion: 1,
+		Prompt:               "old private prompt text",
+	}
+	right := left
+	right.WebhookSecretHash = newHash
+	right.WebhookSecretVersion = 2
+	right.Prompt = "new private prompt text"
+
+	diff := diffValues(left, right, AuditableResources)
+	require.Equal(t, audit.Map{
+		"webhook_secret_hash":    audit.OldNew{Old: []byte(nil), New: []byte(nil), Secret: true},
+		"webhook_secret_version": audit.OldNew{Old: int64(1), New: int64(2)},
+		"prompt":                 audit.OldNew{Old: "", New: "", Secret: true},
+	}, diff)
+
+	// The persisted diff is JSON; neither hash nor prompt may appear in any
+	// encoding.
+	raw, err := json.Marshal(diff)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "private prompt text")
+	for _, hash := range [][]byte{oldHash, newHash} {
+		require.NotContains(t, string(raw), string(hash))
+		require.NotContains(t, string(raw), base64.StdEncoding.EncodeToString(hash))
+	}
 }
 
 func runDiffTests(t *testing.T, tests []diffTest) {

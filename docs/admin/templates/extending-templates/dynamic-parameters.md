@@ -1,5 +1,5 @@
 ---
-title: Dynamic Parameters
+title: Dynamic parameters
 ---
 
 Coder v2.24.0 introduces Dynamic Parameters to extend Coder [parameters](./parameters.md) with conditional form controls,
@@ -872,7 +872,7 @@ In the meantime, you can safely convert existing templates and build new paramet
 
 ### "Module not loaded" errors when using Dynamic Parameters
 
-Dynamic Parameters require Terraform modules to be archived and stored in the database. Coder limits module archives to **20MB total** to prevent database bloat. If your template uses modules that exceed this limit, some modules will be unavailable for parameter declarations.
+Dynamic Parameters require Terraform modules to be archived and stored in the database. Coder limits module archives to **20&nbsp;MB total** to prevent database bloat. If your template uses modules that exceed this limit, some modules will be unavailable for parameter declarations.
 
 **Symptoms:**
 

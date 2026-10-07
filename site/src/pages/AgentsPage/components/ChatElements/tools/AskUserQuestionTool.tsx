@@ -305,7 +305,7 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 					<span>{questionText}</span>
 				</p>
 			</div>
-			<div className="rounded-md border border-solid border-border-default px-3 py-1">
+			<div className="rounded-md border border-solid border-border px-3 py-1">
 				<RadioGroup
 					aria-labelledby={`${questionHeaderId} ${questionTextId}`}
 					className="space-y-1"
@@ -613,7 +613,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			</div>
 
 			{showSubmittedResponse && (
-				<div className="mt-4 rounded-md border border-solid border-border-default bg-surface-secondary px-3 py-2">
+				<div className="mt-4 rounded-md border border-solid border-border bg-surface-secondary px-3 py-2">
 					<p className="text-xs font-medium text-content-secondary">
 						Submitted answer
 					</p>

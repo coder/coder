@@ -1667,6 +1667,8 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		CreatedAt:       m.CreatedAt,
 		Role:            codersdk.ChatMessageRole(m.Role),
 		QueuedMessageID: nullInt64Ptr(m.QueuedMessageID),
+		AutomationID:    nullUUIDPtr(m.AutomationID),
+		InputID:         nullUUIDPtr(m.InputID),
 	}
 	if m.Content.Valid {
 		parts, err := chatMessageParts(m)
@@ -1731,6 +1733,8 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
 		Content:       parts,
 		CreatedAt:     message.CreatedAt,
+		AutomationID:  nullUUIDPtr(message.AutomationID),
+		InputID:       nullUUIDPtr(message.InputID),
 	}
 }
 
@@ -1782,6 +1786,49 @@ func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 		CreatedAt:       dbPrice.CreatedAt,
 		UpdatedAt:       dbPrice.UpdatedAt,
 	}
+}
+
+// ChatAutomation converts a chat automation row to its SDK form. The
+// webhook secret hash is never included. nextRuns are the upcoming schedule
+// runs the caller computed; a nil slice is returned as empty.
+func ChatAutomation(row database.ChatAutomation, nextRuns []time.Time) codersdk.ChatAutomation {
+	automation := codersdk.ChatAutomation{
+		ID:                   row.ID,
+		OrganizationID:       row.OrganizationID,
+		OwnerID:              row.OwnerID,
+		Name:                 row.Name,
+		CreatedByChatID:      nullUUIDPtr(row.CreatedByChatID),
+		Kind:                 codersdk.ChatAutomationKind(row.Kind),
+		Enabled:              row.Enabled,
+		TargetMode:           codersdk.ChatAutomationTargetMode(row.TargetMode),
+		TargetChatID:         nullUUIDPtr(row.TargetChatID),
+		NewChatModelConfigID: nullUUIDPtr(row.NewChatModelConfigID),
+		WebhookSecretVersion: row.WebhookSecretVersion,
+		WebhookConsumedAt:    nullTimePtr(row.WebhookConsumedAt),
+		Prompt:               row.Prompt,
+		ScheduleCron:         nullStringPtr(row.ScheduleCron),
+		ScheduleTimeZone:     nullStringPtr(row.ScheduleTimeZone),
+		ScheduleNextRunAt:    nullTimePtr(row.ScheduleNextRunAt),
+		NextRunTimes:         nextRuns,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+	}
+	if automation.NextRunTimes == nil {
+		automation.NextRunTimes = []time.Time{}
+	}
+	if row.ReasoningEffort.Valid {
+		effort := string(row.ReasoningEffort.ChatReasoningEffort)
+		automation.ReasoningEffort = &effort
+	}
+	if row.WhenBusy.Valid {
+		whenBusy := codersdk.ChatAutomationWhenBusy(row.WhenBusy.ChatAutomationWhenBusy)
+		automation.WhenBusy = &whenBusy
+	}
+	if row.WebhookUse.Valid {
+		webhookUse := codersdk.ChatAutomationWebhookUse(row.WebhookUse.ChatAutomationWebhookUse)
+		automation.WebhookUse = &webhookUse
+	}
+	return automation
 }
 
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
@@ -1851,6 +1898,45 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 	return &payload
 }
 
+func ChatProject(project database.ChatProject) codersdk.ChatProject {
+	return codersdk.ChatProject{
+		ID:             project.ID,
+		OrganizationID: project.OrganizationID,
+		OwnerID:        project.OwnerID,
+		Name:           project.Name,
+		Description:    project.Description,
+		Icon:           project.Icon,
+		CreatedAt:      project.CreatedAt,
+		UpdatedAt:      project.UpdatedAt,
+	}
+}
+
+func ChatProjectMemory(row database.GetChatProjectMemoryByIDRow) codersdk.ChatProjectMemory {
+	return convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+}
+
+func ChatProjectMemoryRows(rows []database.GetChatProjectMemoriesByProjectIDRow) []codersdk.ChatProjectMemory {
+	memories := make([]codersdk.ChatProjectMemory, len(rows))
+	for i, row := range rows {
+		memories[i] = convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+	}
+	return memories
+}
+
+func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUsername string) codersdk.ChatProjectMemory {
+	return codersdk.ChatProjectMemory{
+		ID:                memory.ID,
+		ProjectID:         memory.ProjectID,
+		OrganizationID:    memory.OrganizationID,
+		Name:              memory.Name,
+		Description:       memory.Description,
+		Body:              memory.Body,
+		CreatedBy:         memory.CreatedBy,
+		CreatedByUsername: createdByUsername,
+		CreatedAt:         memory.CreatedAt,
+	}
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
@@ -1858,6 +1944,17 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 // When files is non-empty the response includes file metadata;
 // pass nil to omit the files field (e.g. list endpoints).
 func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByChatIDRow) codersdk.Chat {
+	return ChatWithDiffStatuses(c, diffStatus, nil, files)
+}
+
+// ChatWithDiffStatuses converts a chat with its per-ref diff status
+// list. diffStatus is the primary shown in the diff_status field.
+func ChatWithDiffStatuses(
+	c database.Chat,
+	diffStatus *database.ChatDiffStatus,
+	diffStatuses []database.ChatDiffStatus,
+	files []database.GetChatFileMetadataByChatIDRow,
+) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
@@ -1875,6 +1972,8 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		OwnerName:         c.OwnerName,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
+		TitleSource:       codersdk.ChatTitleSource(c.TitleSource),
+		TitleUpdatedAt:    c.TitleUpdatedAt,
 		Status:            codersdk.ChatStatus(c.Status),
 		Archived:          c.Archived,
 		Shared:            len(c.UserACL) > 0 || len(c.GroupACL) > 0,
@@ -1885,6 +1984,8 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
 		LastError:         lastError,
+
+		ManageAutomationsEnabled: c.ManageAutomationsEnabled,
 	}
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String
@@ -1922,6 +2023,9 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
 	}
+	if c.ProjectID.Valid {
+		chat.ProjectID = &c.ProjectID.UUID
+	}
 	if c.BuildID.Valid {
 		chat.BuildID = &c.BuildID.UUID
 	}
@@ -1931,6 +2035,12 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if diffStatus != nil {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
+	}
+	if len(diffStatuses) > 0 {
+		chat.DiffStatuses = make([]codersdk.ChatDiffStatus, 0, len(diffStatuses))
+		for i := range diffStatuses {
+			chat.DiffStatuses = append(chat.DiffStatuses, ChatDiffStatus(c.ID, &diffStatuses[i]))
+		}
 	}
 	if len(files) > 0 {
 		chat.Files = make([]codersdk.ChatFileMetadata, 0, len(files))
@@ -2119,13 +2229,13 @@ func ChatDebugRunDetail(r database.ChatDebugRun, steps []database.ChatDebugStep)
 // is non-nil, children without an entry receive an empty DiffStatus.
 func ChildChatRows(
 	children []database.GetChildChatsByParentIDsRow,
-	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+	diffStatuses map[uuid.UUID][]database.ChatDiffStatus,
 ) []codersdk.Chat {
 	result := make([]codersdk.Chat, len(children))
 	for i, row := range children {
-		diffStatus, ok := diffStatuses[row.Chat.ID]
+		statuses, ok := diffStatuses[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus, nil)
+			result[i] = ChatWithDiffStatuses(row.Chat, PrimaryChatDiffStatus(statuses), statuses, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatuses != nil {
@@ -2144,7 +2254,7 @@ func ChildChatRows(
 func ChatRowsWithChildren(
 	roots []database.GetChatsRow,
 	children []database.GetChildChatsByParentIDsRow,
-	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+	diffStatuses map[uuid.UUID][]database.ChatDiffStatus,
 ) []codersdk.Chat {
 	// Group children by parent ID.
 	childrenByParent := make(map[uuid.UUID][]database.GetChildChatsByParentIDsRow, len(children))
@@ -2155,9 +2265,9 @@ func ChatRowsWithChildren(
 
 	result := make([]codersdk.Chat, len(roots))
 	for i, row := range roots {
-		diffStatus, ok := diffStatuses[row.Chat.ID]
+		statuses, ok := diffStatuses[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus, nil)
+			result[i] = ChatWithDiffStatuses(row.Chat, PrimaryChatDiffStatus(statuses), statuses, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatuses != nil {
@@ -2187,6 +2297,14 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	}
 
 	result.ChatID = status.ChatID
+	if status.GitRemoteOrigin != "" {
+		remoteOrigin := status.GitRemoteOrigin
+		result.RemoteOrigin = &remoteOrigin
+	}
+	if status.GitBranch != "" {
+		gitBranch := status.GitBranch
+		result.GitBranch = &gitBranch
+	}
 	if status.Url.Valid {
 		u := strings.TrimSpace(status.Url.String)
 		if u != "" {
@@ -2256,6 +2374,24 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	result.StaleAt = &staleAt
 
 	return result
+}
+
+// PrimaryChatDiffStatus returns the row with the most recent git
+// report, or nil when statuses is empty. Only a git report sets
+// updated_at. Ties go to the lowest origin, then the lowest branch.
+func PrimaryChatDiffStatus(statuses []database.ChatDiffStatus) *database.ChatDiffStatus {
+	if len(statuses) == 0 {
+		return nil
+	}
+
+	primary := slices.MinFunc(statuses, func(a, b database.ChatDiffStatus) int {
+		return cmp.Or(
+			b.UpdatedAt.Compare(a.UpdatedAt),
+			cmp.Compare(a.GitRemoteOrigin, b.GitRemoteOrigin),
+			cmp.Compare(a.GitBranch, b.GitBranch),
+		)
+	})
+	return &primary
 }
 
 // UserSecret converts a database ListUserSecretsRow (metadata only,

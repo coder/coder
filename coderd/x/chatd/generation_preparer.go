@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"cmp"
 	"context"
 	"maps"
 	"slices"
@@ -9,6 +10,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -449,8 +451,9 @@ func (server *Server) prepareGeneration(
 				}
 				mcpServers = append(mcpServers, srv)
 			}
+			connectCtx, connectSpan := server.stages.Start(ctx, chatloop.StageMCPConnect)
 			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
-				ctx,
+				connectCtx,
 				logger,
 				mcpServers,
 				mcpTokens,
@@ -460,6 +463,12 @@ func (server *Server) prepareGeneration(
 				server.mcpHTTPClient,
 			)
 			mcpSummaries = append(mcpSummaries, invalidConfigs...)
+			connected, failed, connectErr := mcpConnectOutcome(mcpSummaries)
+			connectSpan.SetAttributes(
+				attribute.Int(chatloop.AttrMCPServersConnected, connected),
+				attribute.Int(chatloop.AttrMCPServersFailed, failed),
+			)
+			connectSpan.End(connectErr)
 			return nil
 		})
 	}
@@ -526,12 +535,18 @@ func (server *Server) prepareGeneration(
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
+	memoryStore, memoryProjectName, hasMemory := server.resolveProjectMemory(ctx, chat)
+	memoryIndex := ""
+	if hasMemory {
+		memoryIndex = chattool.FormatMemoryGuidance(memoryProjectName)
+	}
 
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
 		instruction,
 		initialResolvedSkills,
+		memoryIndex,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
 			planMode:             currentPlanMode,
@@ -596,6 +611,15 @@ func (server *Server) prepareGeneration(
 			isPlanModeTurn:  isPlanModeTurn,
 		})
 	}
+	// The offer decides the chat-automations experiment once per turn;
+	// every call of the tool checks all rules again.
+	if manageAutomationsAllowed(chat, func() bool {
+		return input.TurnExperiments.chatAutomationsEnabled(stopNudgeKey(input.Messages), func() bool {
+			return AutomationsEnabled(ctx, server.experimentEvaluator, chat.OwnerID)
+		})
+	}) {
+		tools = append(tools, server.manageAutomationsTool(chat.ID))
+	}
 
 	skillOpts := chattool.ReadSkillOptions{
 		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -633,6 +657,9 @@ func (server *Server) prepareGeneration(
 		return updated, changed
 	}
 	tools, _ = appendCurrentSkillTools(tools)
+	if hasMemory {
+		tools = append(tools, chattool.ReadMemory(memoryStore), chattool.SaveMemory(memoryStore, memoryProjectName), chattool.DeleteMemory(memoryStore, memoryProjectName), chattool.ConsolidateMemory(memoryStore, memoryProjectName))
+	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
 			Runtime: advisorRuntime,
@@ -729,8 +756,20 @@ func (server *Server) prepareGeneration(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 	var allowInactiveTools map[string]bool
+	// The owner is the subject: only the owner posts turns and descendant
+	// chats inherit it. Preparation runs for every step, so the first step
+	// with MCP candidates decides and later steps of the same turn reuse
+	// that decision; otherwise a rule change mid-turn would reject
+	// find_tools calls the model already issued. Without candidates
+	// find_tools is never offered, so skip the read.
+	toolSearchEnabled := false
+	if len(deferredCandidates) > 0 {
+		toolSearchEnabled = input.TurnExperiments.mcpToolSearchEnabled(stopNudgeKey(input.Messages), func() bool {
+			return server.experimentEvaluator.Enabled(ctx, chat.OwnerID, codersdk.ExperimentMCPToolSearch)
+		})
+	}
 	if decideMCPToolSearch(mcpToolSearchInput{
-		experimentEnabled: server.experiments.Enabled(codersdk.ExperimentMCPToolSearch),
+		experimentEnabled: toolSearchEnabled,
 		candidates:        deferredCandidates,
 		dynamicToolNames:  dynamicToolNames,
 	}) {
@@ -853,6 +892,7 @@ func (server *Server) prepareGeneration(
 		ProviderTools:        providerTools,
 		ModelBuildOptions:    modelOpts,
 		ResolvedProvider:     resolved.resolvedProvider,
+		StageModel:           resolved.stageModel(),
 		ModelConfigID:        modelConfig.ID,
 		CallTemplate:         resolved.newCall(),
 		ContextLimitFallback: modelConfig.ContextLimit,
@@ -872,6 +912,25 @@ func (server *Server) prepareGeneration(
 		Cleanup: cleanup,
 		Debug:   debug,
 	}, nil
+}
+
+// mcpConnectOutcome returns an error only when no server connected.
+func mcpConnectOutcome(summaries []mcpclient.ConnectSummary) (connected, failed int, err error) {
+	var failures []string
+	for _, summary := range summaries {
+		switch summary.Outcome {
+		case mcpclient.ConnectOutcomeConnected, mcpclient.ConnectOutcomeNoTools:
+			connected++
+		default:
+			failed++
+			reason := cmp.Or(summary.Error, string(summary.Outcome))
+			failures = append(failures, summary.Slug+": "+reason)
+		}
+	}
+	if failed > 0 && connected == 0 {
+		return connected, failed, xerrors.Errorf("no MCP server connected: %s", strings.Join(failures, "; "))
+	}
+	return connected, failed, nil
 }
 
 func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {

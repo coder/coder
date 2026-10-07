@@ -45,6 +45,7 @@ import {
 	chatCostTreeKey,
 	chatDebugRunKey,
 	chatDebugRunsKey,
+	chatDiffContents,
 	chatDiffContentsKey,
 	chatEntitiesFamilyKey,
 	chatEntityKey,
@@ -57,6 +58,7 @@ import {
 	chatModelACLAvailableKey,
 	chatModelACLKey,
 	chatModelKey,
+	chatProjectListFamilyKey,
 	chatPromptsKey,
 	chatSearch,
 	chatsByWorkspace,
@@ -65,6 +67,7 @@ import {
 	deleteChatModel,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	findChatInListCaches,
 	getChatListQueryString,
 	getOpenChatPollInterval,
 	infiniteChats,
@@ -96,6 +99,7 @@ import {
 	pinChat,
 	planModeFieldsForCreateMessage,
 	prependToInfiniteChatsCache,
+	projectChatsKey,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
 	removeChatEntity,
@@ -112,6 +116,7 @@ import {
 	toChatListParams,
 	unarchiveChat,
 	unpinChat,
+	updateChatManageAutomations,
 	updateChatModel,
 	updateChatModelACL,
 	updateChatPlanMode,
@@ -132,6 +137,7 @@ vi.mock("#/api/api", () => ({
 			getChats: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
 			getChatCost: vi.fn(),
+			getChatDiffContents: vi.fn(),
 			createChatMessage: vi.fn(),
 			editChatMessage: vi.fn(),
 			interruptChat: vi.fn(),
@@ -198,6 +204,8 @@ const makeChat = (
 	mcp_server_ids: [],
 	labels: {},
 	title: `Chat ${id}`,
+	title_source: "generated",
+	title_updated_at: "2025-01-01T00:00:00.000Z",
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
@@ -549,6 +557,10 @@ describe("invalidateChatListQueries", () => {
 				pageParams: [0],
 			},
 		);
+		queryClient.setQueryData(projectChatsKey("project-1"), {
+			pages: [[makeChat(chatId)]],
+			pageParams: [0],
+		});
 		// Per-chat queries that should NOT be touched.
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
@@ -565,6 +577,10 @@ describe("invalidateChatListQueries", () => {
 				chatListKey(toChatListParams({ archived: true })),
 			)?.isInvalidated,
 			"archived chat list should be invalidated",
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(projectChatsKey("project-1"))?.isInvalidated,
+			"project chat list should be invalidated",
 		).toBe(true);
 
 		// Per-chat queries should NOT be invalidated.
@@ -721,6 +737,51 @@ describe("updateChatPlanMode", () => {
 	});
 });
 
+describe("updateChatManageAutomations", () => {
+	it("sends the requested value", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
+		const mutation = updateChatManageAutomations(queryClient);
+
+		await mutation.mutationFn({ chatId: "chat-1", enabled: true });
+		await mutation.mutationFn({ chatId: "chat-1", enabled: false });
+
+		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(1, "chat-1", {
+			manage_automations_enabled: true,
+		});
+		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(2, "chat-1", {
+			manage_automations_enabled: false,
+		});
+	});
+
+	it("updates the caches optimistically and rolls back on error", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const chat = makeChat(chatId);
+		seedInfiniteChats(queryClient, [chat]);
+		queryClient.setQueryData(chatEntityKey(chatId), chat);
+
+		const mutation = updateChatManageAutomations(queryClient);
+		const variables = { chatId, enabled: true };
+		const context = await mutation.onMutate(variables);
+
+		expect(readInfiniteChats(queryClient)?.[0].manage_automations_enabled).toBe(
+			true,
+		);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
+				?.manage_automations_enabled,
+		).toBe(true);
+
+		mutation.onError(new Error("forbidden"), variables, context);
+
+		expect(
+			readInfiniteChats(queryClient)?.[0].manage_automations_enabled,
+		).toBeUndefined();
+		expect(queryClient.getQueryData(chatEntityKey(chatId))).toEqual(chat);
+	});
+});
+
 describe("markChatRead and markChatUnread cache updates", () => {
 	it("drops the chat from a list whose read-status filter it no longer matches", async () => {
 		const queryClient = createTestQueryClient();
@@ -777,39 +838,6 @@ describe("markChatRead and markChatUnread cache updates", () => {
 });
 
 describe("updateChatTitle cache update", () => {
-	it("patches chat detail and infinite chat list caches after success", () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		queryClient.setQueryData(
-			chatEntityKey(chatId),
-			makeChat(chatId, { title: "Old" }),
-		);
-		seedInfiniteChats(queryClient, [
-			makeChat(chatId, { title: "Old" }),
-			makeChat("chat-2", { title: "Other" }),
-		]);
-		seedInfiniteChats(
-			queryClient,
-			[makeChat(chatId, { archived: true, title: "Old" })],
-			{ archived: true },
-		);
-
-		const mutation = updateChatTitle(queryClient);
-		mutation.onSuccess(undefined, { chatId, title: "New" });
-
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.title,
-		).toBe("New");
-		expect(
-			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId),
-		).toMatchObject({ title: "New" });
-		expect(
-			readInfiniteChats(queryClient, { archived: true })?.find(
-				(chat) => chat.id === chatId,
-			),
-		).toMatchObject({ title: "New" });
-	});
-
 	it("does not return pending invalidation promises from settlement", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -997,6 +1025,30 @@ describe("archiveChat optimistic update", () => {
 		expect(invalidateSpy).toHaveBeenCalledWith(
 			expect.objectContaining({ queryKey: chatListFamilyKey }),
 		);
+	});
+
+	it("restores project chat lists on error", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const projectKey = projectChatsKey("project-1");
+		queryClient.setQueryData(projectKey, {
+			pages: [[makeChat(chatId)]],
+			pageParams: [0],
+		});
+
+		const mutation = archiveChat(queryClient);
+		const context = await mutation.onMutate(chatId);
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectKey)?.pages[0]?.[0]
+				?.archived,
+		).toBe(true);
+
+		mutation.onError(new Error("server error"), chatId, context);
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectKey)?.pages[0]?.[0]
+				?.archived,
+		).toBe(false);
 	});
 
 	it("rolls back the individual chat cache on error", async () => {
@@ -1380,8 +1432,11 @@ describe("chat cost query factories", () => {
 			"tree",
 			chatId,
 		]);
-		await query.queryFn();
-		expect(API.experimental.getChatCost).toHaveBeenCalledWith(chatId);
+		await createTestQueryClient().fetchQuery(query);
+		expect(API.experimental.getChatCost).toHaveBeenCalledWith(
+			chatId,
+			expect.any(AbortSignal),
+		);
 	});
 });
 
@@ -2256,115 +2311,92 @@ describe("chatsByWorkspace", () => {
 	it("fetches with the sorted, deduplicated workspace IDs", async () => {
 		const getChatsByWorkspace = vi.mocked(API.experimental.getChatsByWorkspace);
 		getChatsByWorkspace.mockResolvedValue({});
-		await chatsByWorkspace(["ws-b", "ws-a", "ws-b"]).queryFn();
-		expect(getChatsByWorkspace).toHaveBeenCalledWith(["ws-a", "ws-b"]);
+		await createTestQueryClient().fetchQuery(
+			chatsByWorkspace(["ws-b", "ws-a", "ws-b"]),
+		);
+		expect(getChatsByWorkspace).toHaveBeenCalledWith(
+			["ws-a", "ws-b"],
+			expect.any(AbortSignal),
+		);
 	});
 });
 
 describe("infiniteChats", () => {
 	const PAGE_LIMIT = 50;
 
-	describe("getNextPageParam", () => {
-		it("returns undefined when lastPage has fewer items than the limit", () => {
-			const { getNextPageParam } = infiniteChats();
-			const lastPage = Array.from({ length: PAGE_LIMIT - 1 }, (_, i) =>
-				makeChat(`chat-${i}`),
-			);
-			expect(getNextPageParam(lastPage, [lastPage])).toBeUndefined();
+	it("requests the next page only after a full page", async () => {
+		const fullPage = Array.from({ length: PAGE_LIMIT }, (_, i) =>
+			makeChat(`chat-${i}`),
+		);
+		const getChats = vi
+			.mocked(API.experimental.getChats)
+			.mockResolvedValueOnce(fullPage)
+			.mockResolvedValueOnce(fullPage)
+			.mockResolvedValueOnce(fullPage.slice(1));
+
+		await createTestQueryClient().fetchInfiniteQuery({
+			...infiniteChats(),
+			pages: 4,
 		});
 
-		it("returns pages.length + 1 when lastPage has exactly the limit", () => {
-			const { getNextPageParam } = infiniteChats();
-			const lastPage = Array.from({ length: PAGE_LIMIT }, (_, i) =>
-				makeChat(`chat-${i}`),
-			);
-			const pages = [lastPage];
-			expect(getNextPageParam(lastPage, pages)).toBe(pages.length + 1);
-		});
+		expect(getChats).toHaveBeenCalledTimes(3);
+		expect(getChats).toHaveBeenNthCalledWith(
+			1,
+			{ limit: PAGE_LIMIT, offset: 0, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
+		expect(getChats).toHaveBeenNthCalledWith(
+			2,
+			{ limit: PAGE_LIMIT, offset: PAGE_LIMIT, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
+		expect(getChats).toHaveBeenNthCalledWith(
+			3,
+			{ limit: PAGE_LIMIT, offset: PAGE_LIMIT * 2, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
 	});
 
-	describe("queryFn", () => {
-		it("computes offset 0 for pageParam 0", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-			await queryFn({ pageParam: 0 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: 0,
-				q: "archived:false",
-			});
-		});
+	it("builds q from archived, prStatuses, chatStatus, and sources", async () => {
+		vi.mocked(API.experimental.getChats).mockResolvedValue([]);
 
-		it("computes offset 0 for pageParam <= 0", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-			await queryFn({ pageParam: -1 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: 0,
-				q: "archived:false",
-			});
-		});
-
-		it("computes correct offset for subsequent pages", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-
-			await queryFn({ pageParam: 2 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: PAGE_LIMIT,
-				q: "archived:false",
-			});
-
-			await queryFn({ pageParam: 3 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: PAGE_LIMIT * 2,
-				q: "archived:false",
-			});
-		});
-
-		it("builds q from archived, prStatuses, chatStatus, and sources", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats({
+		await createTestQueryClient().fetchInfiniteQuery(
+			infiniteChats({
 				archived: true,
 				prStatuses: ["draft", "open", "merged"],
 				chatStatus: "unread",
 				sources: ["created_by_me", "shared_with_me"],
-			});
+			}),
+		);
 
-			await queryFn({ pageParam: 0 });
-
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			{
 				limit: PAGE_LIMIT,
 				offset: 0,
 				q: "archived:true pr_status:draft,open,merged has_unread:true source:created_by_me,shared_with_me",
-			});
-		});
+			},
+			expect.any(AbortSignal),
+		);
+	});
 
-		it("builds q for read chat status", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats({
+	it("builds q for read chat status", async () => {
+		vi.mocked(API.experimental.getChats).mockResolvedValue([]);
+
+		await createTestQueryClient().fetchInfiniteQuery(
+			infiniteChats({
 				archived: false,
 				chatStatus: "read",
-			});
+			}),
+		);
 
-			await queryFn({ pageParam: 0 });
-
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			{
 				limit: PAGE_LIMIT,
 				offset: 0,
 				q: "archived:false has_unread:false",
-			});
-		});
-
-		it("throws when pageParam is not a number", () => {
-			const { queryFn } = infiniteChats();
-			expect(() => queryFn({ pageParam: "bad" })).toThrow(
-				"pageParam must be a number",
-			);
-		});
+			},
+			expect.any(AbortSignal),
+		);
 	});
 });
 
@@ -2381,10 +2413,26 @@ describe("chatSearch", () => {
 			{ q: "title:fix" },
 		]);
 		await queryClient.fetchQuery(query);
-		expect(API.experimental.getChats).toHaveBeenCalledWith({
-			limit: 50,
-			q: "title:fix",
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			{ limit: 50, q: "title:fix" },
+			expect.any(AbortSignal),
+		);
+	});
+});
+
+describe("chatDiffContents", () => {
+	it("requests the diff of the chat", async () => {
+		vi.mocked(API.experimental.getChatDiffContents).mockResolvedValue({
+			chat_id: "chat-1",
 		});
+
+		await createTestQueryClient().fetchQuery(chatDiffContents("chat-1"));
+
+		expect(API.experimental.getChatDiffContents).toHaveBeenCalledWith(
+			"chat-1",
+			undefined,
+			expect.any(AbortSignal),
+		);
 	});
 });
 
@@ -2551,6 +2599,88 @@ describe("sidebar title race condition", () => {
 	});
 });
 
+describe("updateInfiniteChatsCache", () => {
+	it("updates project chat lists alongside the sidebar lists", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(projectChatsKey("project-1"), {
+			pages: [[makeChat(chatId, { title: "original" })]],
+			pageParams: [0],
+		});
+
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((c) => (c.id === chatId ? { ...c, title: "renamed" } : c)),
+		);
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectChatsKey("project-1"))
+				?.pages[0]?.[0]?.title,
+		).toBe("renamed");
+	});
+});
+
+describe("project chat list caches", () => {
+	const seedProjectChats = (
+		queryClient: QueryClient,
+		projectId: string,
+		chats: TypesGen.Chat[],
+	) => {
+		queryClient.setQueryData(projectChatsKey(projectId), {
+			pages: [chats],
+			pageParams: [0],
+		});
+	};
+	const readProjectChats = (queryClient: QueryClient, projectId: string) =>
+		queryClient
+			.getQueryData<InfiniteData>(projectChatsKey(projectId))
+			?.pages.flat();
+
+	it("drops a chat archived elsewhere from its project list", () => {
+		const queryClient = createTestQueryClient();
+		seedProjectChats(queryClient, "project-1", [
+			makeChat("chat-1"),
+			makeChat("chat-2"),
+		]);
+
+		applyChatArchiveStateToCaches(queryClient, "chat-1", true);
+
+		expect(
+			readProjectChats(queryClient, "project-1")?.map((c) => c.id),
+		).toEqual(["chat-2"]);
+	});
+
+	it("refetches only the new chat's project list instead of growing its first page", () => {
+		const queryClient = createTestQueryClient();
+		seedProjectChats(queryClient, "project-1", [makeChat("chat-1")]);
+		seedProjectChats(queryClient, "project-2", [makeChat("chat-2")]);
+
+		prependToInfiniteChatsCache(
+			queryClient,
+			makeChat("chat-3", { project_id: "project-1" }),
+		);
+
+		expect(
+			readProjectChats(queryClient, "project-1")?.map((c) => c.id),
+		).toEqual(["chat-1"]);
+		expect(
+			queryClient.getQueryState(projectChatsKey("project-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(projectChatsKey("project-2"))?.isInvalidated,
+		).toBe(false);
+	});
+
+	it("finds a chat that is only cached in a project list", () => {
+		const queryClient = createTestQueryClient();
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+		seedProjectChats(queryClient, "project-1", [
+			makeChat("chat-2", { status: "running" }),
+		]);
+
+		expect(findChatInListCaches(queryClient, "chat-2")?.status).toBe("running");
+	});
+});
+
 describe("cancelChatListRefetches", () => {
 	it("cancels a regular refetch", async () => {
 		const queryClient = createTestQueryClient();
@@ -2584,6 +2714,38 @@ describe("cancelChatListRefetches", () => {
 			(c) => c.id === chatId,
 		)?.title;
 		expect(title).toBe("original");
+	});
+
+	it("cancels a project chat list refetch", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const projectKey = projectChatsKey("project-1");
+		queryClient.setQueryData(projectKey, {
+			pages: [[makeChat(chatId, { title: "original" })]],
+			pageParams: [0],
+		});
+
+		const fetchDone = queryClient.prefetchQuery({
+			queryKey: projectKey,
+			queryFn: () =>
+				new Promise<InfiniteData>((resolve) => {
+					setTimeout(
+						() =>
+							resolve({
+								pages: [[makeChat(chatId, { title: "stale" })]],
+								pageParams: [0],
+							}),
+						50,
+					);
+				}),
+		});
+
+		await cancelChatListRefetches(queryClient);
+		await fetchDone;
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectKey)?.pages[0]?.[0]?.title,
+		).toBe("original");
 	});
 
 	it("does not cancel a fetchNextPage fetch", async () => {
@@ -2848,6 +3010,19 @@ describe("updateChildInParentCache", () => {
 });
 
 describe("mergeWatchedChatSummary", () => {
+	const mockDiffStatusRef: TypesGen.ChatDiffStatus = {
+		chat_id: "chat-1",
+		remote_origin: "https://github.com/o/r.git",
+		git_branch: "feature-a",
+		pull_request_state: "open",
+		pull_request_title: "A",
+		pull_request_draft: false,
+		changes_requested: false,
+		additions: 1,
+		deletions: 0,
+		changed_files: 1,
+	};
+
 	it("applies context_dirty flags while preserving the pinned resource list", () => {
 		const cachedChat = makeChat("chat-1", {
 			updated_at: "2025-01-01T00:00:00.000Z",
@@ -3171,48 +3346,171 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
-	it("merges fresh title updates without clobbering a newer status snapshot", () => {
+	it.each<{
+		name: string;
+		cached?: Partial<TypesGen.Chat>;
+		watched: Partial<TypesGen.Chat>;
+		titleFrom: "watched" | "cached";
+	}>([
+		{
+			name: "applies a newer title even when updated_at is newer",
+			watched: {
+				title: "After",
+				title_updated_at: "2025-01-01T00:00:01.000Z",
+				updated_at: "2025-01-01T00:05:00.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "applies a newer title even when updated_at is older",
+			watched: {
+				title: "After",
+				title_updated_at: "2025-01-01T00:00:01.000Z",
+				updated_at: "2024-12-31T00:00:00.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "applies a newer title whose text is unchanged",
+			watched: {
+				title: "Before",
+				title_updated_at: "2025-01-01T00:00:01.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "ignores an older title",
+			watched: {
+				title: "After",
+				title_updated_at: "2024-12-31T23:59:59.000Z",
+			},
+			titleFrom: "cached",
+		},
+		{
+			name: "ignores a title with the same title_updated_at",
+			watched: {
+				title: "After",
+				title_updated_at: "2025-01-01T00:00:00.000Z",
+			},
+			titleFrom: "cached",
+		},
+		{
+			name: "applies a title written one microsecond later",
+			cached: { title_updated_at: "2025-01-01T00:00:00.000001Z" },
+			watched: {
+				title: "After",
+				title_updated_at: "2025-01-01T00:00:00.000002Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "applies a title when the cached chat has no title_updated_at",
+			cached: { title_updated_at: undefined },
+			watched: {
+				title: "After",
+				title_updated_at: "2024-12-31T23:59:59.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "applies a title event that has no title_updated_at",
+			watched: { title: "After", title_updated_at: undefined },
+			titleFrom: "watched",
+		},
+	])("$name", ({ cached, watched, titleFrom }) => {
 		const cachedChat = makeChat("chat-1", {
 			status: "running",
-			title: "Fresh title",
+			title: "Before",
+			title_source: "user",
+			title_updated_at: "2025-01-01T00:00:00.000Z",
 			updated_at: "2025-01-01T00:00:00.000Z",
+			...cached,
 		});
 		const watchedChat = makeChat("chat-1", {
 			status: "waiting",
-			title: "Updated title",
-			updated_at: "2025-01-01T00:05:00.000Z",
+			title_source: "generated",
+			...watched,
+		});
+		const rows = { watched: watchedChat, cached: cachedChat };
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "title_change",
+		});
+
+		expect(merged).toMatchObject({
+			title: rows[titleFrom].title,
+			title_source: rows[titleFrom].title_source,
+			title_updated_at: rows[titleFrom].title_updated_at,
+			status: cachedChat.status,
+			updated_at: cachedChat.updated_at,
+		});
+		if (titleFrom === "cached") {
+			expect(merged).toBe(cachedChat);
+		}
+	});
+
+	it("changes only the title fields from a title event", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			last_model_config_id: "model-a",
+			updated_at: "2025-01-01T00:00:01.000Z",
+		});
+		const titleEvent = makeChat("chat-1", {
+			status: "waiting",
+			last_model_config_id: "model-b",
+			title: "New title",
+			title_updated_at: "2025-01-01T00:00:03.000Z",
+			updated_at: "2025-01-01T00:00:03.000Z",
+		});
+		const delayedStatus = makeChat("chat-1", {
+			status: "waiting",
+			updated_at: "2025-01-01T00:00:02.000Z",
+		});
+
+		const afterTitle = mergeWatchedChatSummary(cachedChat, titleEvent, {
+			eventKind: "title_change",
+		});
+		expect(afterTitle).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-a",
+			title: "New title",
+			updated_at: "2025-01-01T00:00:01.000Z",
 		});
 
 		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "title_change",
+			mergeWatchedChatSummary(afterTitle, delayedStatus, {
+				eventKind: "status_change",
 			}),
 		).toMatchObject({
-			status: "running",
-			title: "Updated title",
+			status: "waiting",
+			updated_at: "2025-01-01T00:00:02.000Z",
 		});
 	});
 
-	it("merges title updates even when chat updated_at is older", () => {
+	it("does not let an older summary row revert fields a newer event set", () => {
 		const cachedChat = makeChat("chat-1", {
-			status: "running",
-			title: "Fresh title",
-			updated_at: "2025-01-01T00:10:00.000Z",
+			last_model_config_id: "model-a",
+			updated_at: "2025-01-01T00:00:00.000Z",
 		});
-		const watchedChat = makeChat("chat-1", {
-			status: "waiting",
-			title: "Newer generated title",
-			updated_at: "2025-01-01T00:05:00.000Z",
+		const newerSummary = makeChat("chat-1", {
+			last_model_config_id: "model-b",
+			updated_at: "2025-01-01T00:00:02.000Z",
+		});
+		const olderSummary = makeChat("chat-1", {
+			last_model_config_id: "model-a",
+			updated_at: "2025-01-01T00:00:01.000Z",
 		});
 
+		const afterNewer = mergeWatchedChatSummary(cachedChat, newerSummary, {
+			eventKind: "chat_summary_change",
+		});
 		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "title_change",
+			mergeWatchedChatSummary(afterNewer, olderSummary, {
+				eventKind: "summary_change",
 			}),
 		).toMatchObject({
-			status: "running",
-			title: "Newer generated title",
-			updated_at: "2025-01-01T00:10:00.000Z",
+			last_model_config_id: "model-b",
+			updated_at: "2025-01-01T00:00:02.000Z",
 		});
 	});
 
@@ -3246,7 +3544,7 @@ describe("mergeWatchedChatSummary", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "running",
 			title: "Fresh title",
-			diff_status: cachedDiffStatus,
+			diff_statuses: [cachedDiffStatus],
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
@@ -3259,10 +3557,15 @@ describe("mergeWatchedChatSummary", () => {
 		expect(
 			mergeWatchedChatSummary(cachedChat, watchedChat, {
 				eventKind: "diff_status_change",
+				changedDiffStatus: {
+					ref: { remote_origin: "", git_branch: "" },
+					status: watchedDiffStatus,
+				},
 			}),
 		).toMatchObject({
 			status: "running",
 			title: "Fresh title",
+			diff_statuses: [watchedDiffStatus],
 			diff_status: watchedDiffStatus,
 		});
 	});
@@ -3297,7 +3600,7 @@ describe("mergeWatchedChatSummary", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "running",
 			title: "Fresh title",
-			diff_status: cachedDiffStatus,
+			diff_statuses: [cachedDiffStatus],
 			updated_at: "2025-01-01T00:10:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
@@ -3310,11 +3613,15 @@ describe("mergeWatchedChatSummary", () => {
 		expect(
 			mergeWatchedChatSummary(cachedChat, watchedChat, {
 				eventKind: "diff_status_change",
+				changedDiffStatus: {
+					ref: { remote_origin: "", git_branch: "" },
+					status: watchedDiffStatus,
+				},
 			}),
 		).toMatchObject({
 			status: "running",
 			title: "Fresh title",
-			diff_status: watchedDiffStatus,
+			diff_statuses: [watchedDiffStatus],
 			updated_at: "2025-01-01T00:10:00.000Z",
 		});
 	});
@@ -3323,6 +3630,8 @@ describe("mergeWatchedChatSummary", () => {
 		{ field: "base_branch", to: "release" },
 		{ field: "head_branch", to: "feature-renamed" },
 		{ field: "reviewer_count", to: 2 },
+		{ field: "author_login", to: "new-author" },
+		{ field: "author_avatar_url", to: "https://example.com/a.png" },
 	])("adopts diff status when only $field changes", ({ field, to }) => {
 		const cachedDiffStatus = {
 			chat_id: "chat-1",
@@ -3345,7 +3654,7 @@ describe("mergeWatchedChatSummary", () => {
 			[field]: to,
 		};
 		const cachedChat = makeChat("chat-1", {
-			diff_status: cachedDiffStatus,
+			diff_statuses: [cachedDiffStatus],
 		});
 		const watchedChat = makeChat("chat-1", {
 			diff_status: watchedDiffStatus,
@@ -3353,9 +3662,255 @@ describe("mergeWatchedChatSummary", () => {
 
 		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
 			eventKind: "diff_status_change",
+			changedDiffStatus: {
+				ref: { remote_origin: "", git_branch: "" },
+				status: watchedDiffStatus,
+			},
 		});
 
-		expect(merged.diff_status).toBe(watchedDiffStatus);
+		expect(merged.diff_statuses).toEqual([watchedDiffStatus]);
+	});
+
+	it("merges a changed ref into diff_statuses without dropping other refs", () => {
+		const refA = {
+			chat_id: "chat-1",
+			remote_origin: "https://github.com/o/r.git",
+			git_branch: "feature-a",
+			url: "https://github.com/o/r/pull/1",
+			pull_request_state: "open",
+			pull_request_title: "A",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 0,
+			changed_files: 1,
+		};
+		const refB = {
+			chat_id: "chat-1",
+			remote_origin: "https://github.com/o/r.git",
+			git_branch: "feature-b",
+			url: "https://github.com/o/r/pull/2",
+			pull_request_state: "merged",
+			pull_request_title: "B",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 2,
+			deletions: 1,
+			changed_files: 2,
+		};
+		const refBUpdated = {
+			...refB,
+			additions: 7,
+		};
+		const cachedChat = makeChat("chat-1", {
+			diff_statuses: [refA, refB],
+			diff_status: refA,
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_status: refBUpdated,
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+			changedDiffStatus: {
+				ref: {
+					remote_origin: "https://github.com/o/r.git",
+					git_branch: "feature-b",
+				},
+				status: refBUpdated,
+			},
+		});
+
+		expect(merged.diff_statuses).toEqual([refA, refBUpdated]);
+		expect(merged.diff_status).toEqual(refBUpdated);
+	});
+
+	it("adopts the embedded primary when the cache missed its row", () => {
+		const cachedRef = { ...mockDiffStatusRef, git_branch: "feature-a" };
+		const refreshedRef = {
+			...mockDiffStatusRef,
+			git_branch: "feature-b",
+			additions: 2,
+		};
+		// The server's primary row was never cached, but every event
+		// embeds it as diff_status.
+		const primaryRef = {
+			...mockDiffStatusRef,
+			git_branch: "feature-newest",
+			additions: 3,
+		};
+		const cachedChat = makeChat("chat-1", {
+			diff_statuses: [cachedRef],
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_status: primaryRef,
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+			changedDiffStatus: {
+				ref: {
+					remote_origin: "https://github.com/o/r.git",
+					git_branch: "feature-b",
+				},
+				status: refreshedRef,
+			},
+		});
+
+		expect(merged.diff_statuses).toEqual([cachedRef, refreshedRef, primaryRef]);
+		expect(merged.diff_status).toEqual(primaryRef);
+	});
+
+	it("keeps the cached primary row over the embedded snapshot", () => {
+		const cachedRef = {
+			...mockDiffStatusRef,
+			git_branch: "feature-a",
+			additions: 9,
+		};
+		const refreshedRef = {
+			...mockDiffStatusRef,
+			git_branch: "feature-b",
+			additions: 2,
+		};
+		// An older snapshot of the primary, delivered late.
+		const stalePrimary = {
+			...mockDiffStatusRef,
+			git_branch: "feature-a",
+			additions: 1,
+		};
+		const cachedChat = makeChat("chat-1", {
+			diff_statuses: [cachedRef],
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_status: stalePrimary,
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+			changedDiffStatus: {
+				ref: {
+					remote_origin: "https://github.com/o/r.git",
+					git_branch: "feature-b",
+				},
+				status: refreshedRef,
+			},
+		});
+
+		expect(merged.diff_statuses?.[0]?.additions).toBe(9);
+		expect(merged.diff_status?.additions).toBe(9);
+	});
+
+	it("adopts the primary from an empty cache", () => {
+		// A chat loaded before its first push has no cached rows;
+		// a later refresh event for an older ref still embeds the
+		// server's primary.
+		const changedRef = {
+			...mockDiffStatusRef,
+			git_branch: "feature-old",
+			additions: 1,
+		};
+		const primaryRef = {
+			...mockDiffStatusRef,
+			git_branch: "feature-new",
+			additions: 2,
+		};
+		const cachedChat = makeChat("chat-1", {
+			diff_statuses: undefined,
+		});
+		const watchedChat = makeChat("chat-1", {
+			diff_status: primaryRef,
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+			changedDiffStatus: {
+				ref: {
+					remote_origin: "https://github.com/o/r.git",
+					git_branch: "feature-old",
+				},
+				status: changedRef,
+			},
+		});
+
+		expect(merged.diff_statuses).toEqual([changedRef, primaryRef]);
+		expect(merged.diff_status).toEqual(primaryRef);
+	});
+
+	it("removes the changed ref when the server sends a tombstone", () => {
+		const refA = {
+			chat_id: "chat-1",
+			remote_origin: "https://github.com/o/r.git",
+			git_branch: "feature-a",
+			url: "https://github.com/o/r/pull/1",
+			pull_request_state: "open",
+			pull_request_title: "A",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 1,
+			deletions: 0,
+			changed_files: 1,
+		};
+		const refB = {
+			chat_id: "chat-1",
+			remote_origin: "https://github.com/o/r.git",
+			git_branch: "feature-b",
+			url: "https://github.com/o/r/pull/2",
+			pull_request_state: "open",
+			pull_request_title: "B",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 2,
+			deletions: 1,
+			changed_files: 2,
+		};
+		const cachedChat = makeChat("chat-1", {
+			diff_statuses: [refA, refB],
+		});
+		// A tombstone event carries only diff_status; the server omits
+		// diff_statuses from the payload.
+		const watchedChat = makeChat("chat-1", {
+			diff_statuses: undefined,
+			diff_status: refB,
+		});
+		const refATombstone = {
+			ref: {
+				remote_origin: "https://github.com/o/r.git",
+				git_branch: "feature-a",
+			},
+			// The server sends a zero-valued status when the ref has no
+			// row: only the required fields survive serialization.
+			status: {
+				chat_id: "chat-1",
+				pull_request_title: "",
+				pull_request_draft: false,
+				changes_requested: false,
+				additions: 0,
+				deletions: 0,
+				changed_files: 0,
+			},
+		};
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "diff_status_change",
+			changedDiffStatus: refATombstone,
+		});
+
+		expect(merged.diff_statuses).toEqual([refB]);
+		expect(merged.diff_status).toEqual(refB);
+
+		// The embedded primary can name the removed ref when the
+		// tombstone races the report that moves the primary.
+		const primaryRemoved = mergeWatchedChatSummary(
+			cachedChat,
+			makeChat("chat-1", { diff_status: refA }),
+			{
+				eventKind: "diff_status_change",
+				changedDiffStatus: refATombstone,
+			},
+		);
+
+		expect(primaryRemoved.diff_statuses).toEqual([refB]);
+		expect(primaryRemoved.diff_status).toBeUndefined();
 	});
 
 	it("returns the cached chat when only refreshed_at/stale_at differ", () => {
@@ -3381,6 +3936,7 @@ describe("mergeWatchedChatSummary", () => {
 			stale_at: "2025-01-01T01:05:00.000Z",
 		};
 		const cachedChat = makeChat("chat-1", {
+			diff_statuses: [cachedDiffStatus],
 			diff_status: cachedDiffStatus,
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
@@ -3392,6 +3948,10 @@ describe("mergeWatchedChatSummary", () => {
 		expect(
 			mergeWatchedChatSummary(cachedChat, watchedChat, {
 				eventKind: "diff_status_change",
+				changedDiffStatus: {
+					ref: { remote_origin: "", git_branch: "" },
+					status: watchedDiffStatus,
+				},
 			}),
 		).toBe(cachedChat);
 	});
@@ -3988,15 +4548,16 @@ describe("openChat", () => {
 });
 
 describe("semantic cache operations: cancellation", () => {
-	it("cancelChatListQueries cancels unconditionally across the list family", async () => {
+	it("cancelChatListQueries cancels unconditionally across the sidebar and project list families", async () => {
 		const queryClient = createTestQueryClient();
 		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
 
 		await cancelChatListQueries(queryClient);
 
-		expect(cancelSpy).toHaveBeenCalledWith({
-			queryKey: chatListFamilyKey,
-		});
+		expect(cancelSpy.mock.calls).toEqual([
+			[{ queryKey: chatListFamilyKey }],
+			[{ queryKey: chatProjectListFamilyKey }],
+		]);
 	});
 
 	it("cancelChatEntity cancels the exact detail entry unconditionally", async () => {

@@ -103,7 +103,7 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		//
 		// We have to whitelist the known-safe routes because an API key with elevated privileges (i.e. admin) might be
 		// configured, so we should just reverse-proxy known-safe routes.
-		ftr := newPassthroughRouter(prov, logger.Named(fmt.Sprintf("passthrough.%s", prov.Name())), m, tracer)
+		ftr := NewPassthroughHandler(prov, logger.Named(fmt.Sprintf("passthrough.%s", prov.Name())), m, tracer)
 		for _, path := range prov.PassthroughRoutes() {
 			route, err := url.JoinPath(prov.RoutePrefix(), path)
 			if err != nil {
@@ -127,7 +127,7 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	for _, opt := range opts {
 		opt(b)
 	}
-	b.handler = b.inflight.Middleware(http.MaxBytesHandler(mux, routing.MaxRequestBodyBytes))
+	b.handler = b.inflight.Middleware(routing.RejectInvalidForwardPath(http.MaxBytesHandler(mux, routing.MaxRequestBodyBytes)))
 	return b, nil
 }
 
@@ -200,6 +200,11 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			return
 		}
 
+		actorID := actor.ID.String()
+		var metadata recorder.Metadata
+		if actor.Username != "" {
+			metadata = recorder.Metadata{"Username": actor.Username}
+		}
 		cred := interceptor.Credential()
 		traceAttrs := interceptor.TraceAttributes(r)
 		span.SetAttributes(traceAttrs...)
@@ -217,14 +222,15 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		asyncRecorder.WithMetrics(m)
 		asyncRecorder.WithProvider(p.Name())
 		asyncRecorder.WithModel(interceptor.Model())
-		asyncRecorder.WithInitiatorID(actor.ID)
+		asyncRecorder.WithInitiatorID(actorID)
 		asyncRecorder.WithClient(string(client))
 		interceptor.Setup(logger, asyncRecorder, mcpProxy)
 
 		if err := rec.RecordInterception(ctx, &recorder.InterceptionRecord{
+			StartedAt:                   time.Now().UTC(),
 			ID:                          interceptor.ID().String(),
-			InitiatorID:                 actor.ID,
-			Metadata:                    actor.Metadata,
+			InitiatorID:                 actorID,
+			Metadata:                    metadata,
 			Model:                       interceptor.Model(),
 			Provider:                    p.Type(),
 			ProviderName:                p.Name(),
@@ -272,18 +278,19 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		errType, errMsg := interceptionerror.Categorize(p, execErr)
 		if execErr != nil {
 			if m != nil {
-				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, r.Method, actor.ID, string(client)).Add(1)
+				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, r.Method, actorID, string(client)).Add(1)
 			}
 			span.SetStatus(codes.Error, fmt.Sprintf("interception failed: %v", execErr))
 			log.Warn(credCtx, "interception failed", slog.Error(execErr), slog.F("error_type", string(errType)))
 		} else {
 			if m != nil {
-				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusCompleted, route, r.Method, actor.ID, string(client)).Add(1)
+				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusCompleted, route, r.Method, actorID, string(client)).Add(1)
 			}
 			log.Debug(credCtx, "interception ended")
 		}
 
 		_ = asyncRecorder.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{
+			EndedAt:        time.Now().UTC(),
 			ID:             interceptor.ID().String(),
 			CredentialHint: cred.Hint(),
 			ErrorType:      errType,

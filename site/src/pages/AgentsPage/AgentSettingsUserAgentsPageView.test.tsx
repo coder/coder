@@ -374,7 +374,7 @@ describe("AgentSettingsUserAgentsPageView", () => {
 		};
 		render(<OrganizationView />);
 		await user.click(
-			screen.getByRole("button", {
+			screen.getByRole("combobox", {
 				name: new RegExp(MockDefaultOrganization.display_name, "i"),
 			}),
 		);

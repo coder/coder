@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
@@ -186,7 +187,7 @@ func TestBackendMode_Interception(t *testing.T) {
 	}
 }
 
-// Proxy mode returns 503 until providers load, then 404 for unregistered routes.
+// Proxy mode returns 503 until providers load, then 404 for bridged placeholders.
 func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	t.Parallel()
 
@@ -210,7 +211,8 @@ func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	h, err = f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err)
 	rec = serveHandler(t, h, "/openai/v1/chat/completions")
-	require.Equal(t, http.StatusNotFound, rec.Code, "the router has no provider routes registered yet")
+	require.Equal(t, http.StatusNotImplemented, rec.Code)
+	require.Equal(t, "bridged routes are not yet implemented in proxy mode\n", rec.Body.String(), "bridged routes must use the placeholder handler")
 	requireKeyPoolState(t, f.srv, 1, "openai", "valid")
 }
 
@@ -287,7 +289,7 @@ func TestBackendMode_SelectedOnceAcrossReconnects(t *testing.T) {
 			require.NoError(t, err)
 			require.Nil(t, srv.InterceptionPoolForTest())
 			requireKeyPoolState(t, srv, 1, "openai", "valid")
-			require.Equal(t, http.StatusNotFound, serveHandler(t, h, "/openai/v1/chat/completions").Code)
+			require.Equal(t, http.StatusNotImplemented, serveHandler(t, h, "/openai/v1/chat/completions").Code)
 		})
 	}
 }
@@ -332,7 +334,7 @@ func TestBackendMode_MCPDiscoveryFailureRetries(t *testing.T) {
 			}))
 			h, err = f.srv.GetRequestHandler(ctx, aibridged.Request{})
 			require.NoError(t, err)
-			require.Equal(t, http.StatusNotFound, serveHandler(t, h, "/openai/v1/chat/completions").Code)
+			require.Equal(t, http.StatusNotImplemented, serveHandler(t, h, "/openai/v1/chat/completions").Code)
 		})
 	}
 }
@@ -352,6 +354,9 @@ func TestReplaceProviders_SwapsRouter(t *testing.T) {
 
 	oldHandler, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err)
+	reused, err := f.srv.GetRequestHandler(ctx, aibridged.Request{APIKeyID: uuid.NewString(), InitiatorID: uuid.New()})
+	require.NoError(t, err)
+	require.Same(t, oldHandler, reused, "request identity must not rebuild the proxy router")
 
 	secondPool := singleKeyPool(t, "anthropic", "key")
 	require.NoError(t, f.srv.ReplaceProviders(ctx, []aibridge.Provider{
@@ -364,6 +369,7 @@ func TestReplaceProviders_SwapsRouter(t *testing.T) {
 
 	newHandler, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err)
+	require.NotSame(t, oldHandler, newHandler, "provider reloads replace the router")
 
 	// Handlers already acquired keep serving from the router they hold.
 	require.Equal(t, http.StatusNotFound, serveHandler(t, oldHandler, "/disabled/v1/models").Code)
@@ -396,9 +402,10 @@ func TestReplaceProviders_FailureRetainsRouter(t *testing.T) {
 	requireKeyPoolState(t, f.srv, 1, "openai", "valid")
 	retained, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err)
+	require.Same(t, handler, retained, "invalid providers must retain the existing router")
 	require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, handler, "/disabled/v1/models").Code)
 	require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, retained, "/disabled/v1/models").Code)
-	require.Equal(t, http.StatusNotFound, serveHandler(t, retained, "/openai/v1/chat/completions").Code)
+	require.Equal(t, http.StatusNotImplemented, serveHandler(t, retained, "/openai/v1/chat/completions").Code)
 }
 
 // Cancellation and shutdown prevent publication; shutdown also stops serving.

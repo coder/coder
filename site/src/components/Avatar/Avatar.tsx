@@ -15,6 +15,11 @@ import { Avatar as AvatarPrimitive } from "radix-ui";
 import { useAppearance } from "#/theme/appearance";
 import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 
+const graphemeSegmenter =
+	typeof Intl.Segmenter === "function"
+		? new Intl.Segmenter("en", { granularity: "grapheme" })
+		: undefined;
+
 const avatarVariants = cva(
 	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
 	{
@@ -78,6 +83,14 @@ export const Avatar: React.FC<AvatarProps> = ({
 }) => {
 	const { externalImages } = useAppearance();
 
+	const fallbackCharacters = fallback
+		? graphemeSegmenter
+			? Array.from(
+					graphemeSegmenter.segment(fallback),
+					({ segment }) => segment,
+				)
+			: Array.from(fallback)
+		: [];
 	const isEmoji = src?.startsWith("/emojis/");
 	const avatarSizeToken = size === "lg" || size === "sm" ? size : "default";
 
@@ -106,7 +119,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 			/>
 			{fallback && (
 				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
-					{fallback.slice(0, 2).toUpperCase()}
+					{fallbackCharacters.slice(0, 2).join("").toUpperCase()}
 				</AvatarPrimitive.Fallback>
 			)}
 			{children}

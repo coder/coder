@@ -1,0 +1,16 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder sharing [subcommand]
+
+  Commands for managing shared workspaces
+
+  Aliases: share
+
+SUBCOMMANDS:
+    add       Share a workspace with a user or group.
+    remove    Remove shared access for users or groups from a workspace.
+    status    List all users and groups the given Workspace is shared with.
+
+———
+Run `coder --help` for a list of global options.

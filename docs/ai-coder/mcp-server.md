@@ -1,5 +1,5 @@
 ---
-title: MCP Server
+title: MCP server
 ---
 
 Coder includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/)
@@ -115,7 +115,7 @@ CODER_EXPERIMENTS=mcp-server-http
 ```
 
 For the YAML and Helm forms of the provider setting, refer to [Enable OAuth2 Provider](../admin/integrations/oauth2-provider/index.md#enable-oauth2-provider).
-That page does not cover the experiment; set it with the top-level [`experiments`](../reference/cli/server.md#--experiments) YAML key.
+That page does not cover the experiment; set it with the top-level [`experiments`](../reference/cli/server/index.md#--experiments) YAML key.
 
 ### MCP Registry
 
@@ -201,7 +201,7 @@ The MCP server exposes tools across several areas:
 - **Workspace management**: list, inspect, create, and build workspaces
 - **Template operations**: list, inspect, create, and manage templates and versions
 - **File operations**: read, write, and edit files in a workspace
-- **Workspace interaction**: run commands, forward ports, list apps, and read logs
+- **Workspace interaction**: run commands, manage background processes, forward ports, list apps, and read logs
 - **Coder Agents chats**: create chats, send messages, read transcripts and status, interrupt, archive, and list available models
 - **User and system**: authenticated user details, organization memberships, tar uploads, and task reporting
 
@@ -209,6 +209,19 @@ The full, authoritative set of tools, including their names, descriptions, and
 arguments, is defined in Coder's
 [`toolsdk` package](../../codersdk/toolsdk/toolsdk.go). Refer to it for the
 current list, since the available tools can change between releases.
+
+The workspace file and command tools (`coder_workspace_read_file`,
+`coder_workspace_write_file`, `coder_workspace_edit_files`,
+`coder_workspace_execute`, and the `coder_workspace_process_*` tools) share
+their arguments and result formats with the matching
+[Coder Agents](./agents/index.md) tools, with these differences:
+
+- Each tool takes a `workspace` argument that selects the workspace to act on.
+- Invalid arguments and workspace agent errors are returned as MCP tool errors.
+- A single call waits at most 5 minutes. Run longer commands with
+  `run_in_background` and check on them with `coder_workspace_process_output`.
+- Commands started through MCP are separate from Coder Agents chat processes,
+  but anyone with SSH access to the workspace can list and signal them.
 
 ## Available Prompts
 

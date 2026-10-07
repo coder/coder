@@ -1,4 +1,6 @@
-# Platform Controls
+---
+title: Platform controls
+---
 
 ## Design philosophy
 
@@ -64,6 +66,24 @@ commit message formats, preferred libraries, or repository-specific context.
 
 This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Instructions** and is only accessible to administrators. Developers can't access or interact with it.
 
+Organization administrators can also set organization instructions that apply only to chats in their organization.
+Coder adds them after the deployment system prompt and never uses them in place of it.
+Set them under **Admin settings** > **AI** > **Coder Agents** > **Organization settings**.
+
+Coder stores both prompts when it creates a chat, in this order:
+
+1. The deployment system prompt.
+1. The organization instructions, when the chat's organization has them.
+
+A change to either prompt applies to chats created afterward.
+Existing chats keep the prompts they started with.
+Subagents receive the current prompts of their parent chat's organization when they start.
+
+The organization instructions are exposed over the chat configuration API:
+
+- `GET /api/v2/organizations/{organization}/chats/config/system-prompt`
+- `PUT /api/v2/organizations/{organization}/chats/config/system-prompt`
+
 ### Plan mode instructions
 
 Administrators can add deployment-wide instructions that apply only when a chat
@@ -121,7 +141,7 @@ that do not define one in their template. Template-defined autostop rules always
 take precedence. Active conversations extend the stop time automatically.
 
 This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**.
-The maximum configurable value is 30 days.
+The maximum configurable value is 30&nbsp;days.
 When disabled, workspaces follow their template's autostop rules (or none, if the template does not define any).
 
 ### Concurrent agents
@@ -158,21 +178,21 @@ These deployment-wide limits apply to every chat.
 The defaults suit most deployments, and you can change any of them with a server flag, environment variable, or YAML key.
 Each value must be at least 1, and the server fails to start if a value is 0 or negative:
 
-| Limit                                                         | Default      | Setting                                                                                                                           |
-|---------------------------------------------------------------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| Steps (model responses) per chat turn                         | 1200         | [`CODER_CHAT_MAX_STEPS_PER_TURN`](../../../admin/setup/configuration-reference.md#max-steps-per-turn)                             |
-| Consecutive retries after a failed model generation           | 25           | [`CODER_CHAT_MAX_GENERATION_RETRIES`](../../../admin/setup/configuration-reference.md#max-generation-retries)                     |
-| Queued messages per chat                                      | 20           | [`CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-queued-messages-per-chat)         |
-| Files linked to a chat                                        | 50           | [`CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-attachments-per-chat)                 |
-| System prompt, plan mode instructions, and custom prompt size | 128&nbsp;KiB | [`CODER_CHAT_MAX_PROMPT_BYTES`](../../../admin/setup/configuration-reference.md#max-prompt-bytes)                                 |
-| Concurrent virtual desktop recording uploads per server       | 25           | [`CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`](../../../admin/setup/configuration-reference.md#max-concurrent-recording-uploads) |
+| Limit                                                                          | Default      | Setting                                                                                                                           |
+|--------------------------------------------------------------------------------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| Steps (model responses) per chat turn                                          | 1200         | [`CODER_CHAT_MAX_STEPS_PER_TURN`](../../../admin/setup/configuration-reference.md#max-steps-per-turn)                             |
+| Consecutive retries after a failed model generation                            | 25           | [`CODER_CHAT_MAX_GENERATION_RETRIES`](../../../admin/setup/configuration-reference.md#max-generation-retries)                     |
+| Queued messages per chat                                                       | 20           | [`CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-queued-messages-per-chat)         |
+| Files linked to a chat                                                         | 50           | [`CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-attachments-per-chat)                 |
+| System prompt, organization and plan mode instructions, and custom prompt size | 128&nbsp;KiB | [`CODER_CHAT_MAX_PROMPT_BYTES`](../../../admin/setup/configuration-reference.md#max-prompt-bytes)                                 |
+| Concurrent virtual desktop recording uploads per server                        | 25           | [`CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`](../../../admin/setup/configuration-reference.md#max-concurrent-recording-uploads) |
 
 The concurrent agent pools described above are licensing limits, not deployment settings.
 
 ### Git providers
 
 Coder Agents leverages your existing
-[external authentication](../../../admin/external-auth/index.md) configuration
+[external authentication](../../../admin/external-auth.md) configuration
 to power the in-chat diff viewer. Self-hosted GitHub Enterprise deployments
 require additional configuration for this feature.
 
@@ -181,8 +201,8 @@ See [Git Providers](./git-providers.md) for details.
 ### Data retention
 
 Administrators can configure a retention period for archived conversations.
-When enabled, archived conversations and orphaned files older than the
-retention period are automatically purged. The default is 30 days.
+When enabled, archived conversations and orphaned files older than the retention period are automatically purged.
+The default is 30&nbsp;days.
 
 This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**.
 Refer to [Data Retention](./chat-retention.md) for details.
@@ -197,6 +217,7 @@ runtime configuration for those features is available under **Admin settings** >
 See the following pages for experiment-gated features:
 
 - [Advisor](./advisor.md) (`--experiments=chat-advisor`)
+- [Automations](../automations.md) (`--experiments=chat-automations`)
 - [Virtual desktop](./virtual-desktop.md) (`--experiments=chat-virtual-desktop`)
 - [Inline MCP servers](./mcp-servers.md#inline-mcp-servers-experimental) (`--experiments=chat-inline-mcp-servers`)
 

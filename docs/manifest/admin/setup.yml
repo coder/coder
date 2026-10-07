@@ -1,0 +1,22 @@
+title: Configure control plane access
+description: Configure your Coder control plane with server settings and environment variables.
+path: ./admin/setup/index.md
+icon_path: ./images/icons/toggle_on.svg
+children:
+  - title: Appearance
+    description: Customize your Coder deployment's appearance, including the logo, service banner, and application name.
+    path: ./admin/setup/appearance.md
+    state: [premium]
+  - title: Configuration reference
+    description: Searchable list of every Coder server setting with its environment variable, CLI flag, and YAML key
+    path: ./admin/setup/configuration-reference.md
+  - title: Telemetry
+    description: Learn what usage telemetry Coder collects, why it is collected, and how to opt out.
+    path: ./admin/setup/telemetry.md
+  - title: Chat lifecycle hooks
+    description: Configure an external policy service for chat agent lifecycle events
+    path: ./admin/setup/chat-lifecycle-hooks.md
+    state: [early access]
+  - title: Data retention
+    description: Configure retention policies that automatically purge old records from Coder database tables.
+    path: ./admin/setup/data-retention.md

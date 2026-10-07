@@ -14,6 +14,8 @@ export const isMobileViewport = (): boolean => {
 	return window.matchMedia(mobileViewportMediaQuery).matches;
 };
 
+export const coarsePointerMediaQuery = "(pointer: coarse)";
+
 export const belowMdViewportMediaQuery = "(max-width: 767px)";
 
 /**

@@ -1,0 +1,9 @@
+title: About
+description: Coder is a self-hosted platform for running AI coding agents and cloud development environments on the infrastructure you control.
+path: ./README.md
+icon_path: ./images/icons/home.svg
+children:
+  - title: Screenshots
+    description: See screenshots of the Coder platform, including browser-based workspace access and the admin dashboard.
+    path: ./about/screenshots.md
+  - include: about/support.yml

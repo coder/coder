@@ -203,11 +203,12 @@ func TestOAuth2RegistrationTokenSecurity(t *testing.T) {
 	})
 }
 
-// TestOAuth2PrivilegeEscalation tests that clients cannot escalate their privileges
+// TestOAuth2PrivilegeEscalation tests that clients cannot gain access through
+// registration metadata.
 func TestOAuth2PrivilegeEscalation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("CannotEscalateScopeViaUpdate", func(t *testing.T) {
+	t.Run("UpdateNarrowsScopeToCatalog", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
@@ -220,26 +221,31 @@ func TestOAuth2PrivilegeEscalation(t *testing.T) {
 		regReq := codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs: []string{"https://example.com/callback"},
 			ClientName:   clientName,
-			Scope:        "read", // Limited scope
+			Scope:        "workspace:read",
 		}
 		regResp, err := client.PostOAuth2ClientRegistration(ctx, regReq)
 		require.NoError(t, err)
 
-		// Try to escalate scope through update
 		updateReq := codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs: []string{"https://example.com/callback"},
 			ClientName:   clientName,
-			Scope:        "read write admin", // Trying to escalate to admin
+			Scope:        "workspace:read nosuch:admin",
 		}
+		updated, err := client.PutOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken, updateReq)
+		require.NoError(t, err)
+		require.Equal(t, "workspace:read", updated.Scope)
 
-		// This should succeed (scope changes are allowed in updates)
-		// but the system should validate scope permissions appropriately
-		updatedConfig, err := client.PutOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken, updateReq)
-		if err == nil {
-			// If update succeeds, verify the scope was set appropriately
-			// (The actual scope validation would happen during token issuance)
-			require.Contains(t, updatedConfig.Scope, "read")
-		}
+		// An update that keeps no catalog name is rejected rather than stored
+		// as an empty allowlist, which would mean unrestricted.
+		updateReq.Scope = "nosuch:admin"
+		_, err = client.PutOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken, updateReq)
+		require.ErrorContains(t, err, "invalid_client_metadata")
+		require.ErrorContains(t, err, "unknown or unsupported scope")
+		require.ErrorContains(t, err, "nosuch:admin")
+
+		config, err := client.GetOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken)
+		require.NoError(t, err)
+		require.Equal(t, "workspace:read", config.Scope)
 	})
 
 	t.Run("CustomSchemeRedirectURIs", func(t *testing.T) {
