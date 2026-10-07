@@ -576,8 +576,7 @@ export const useChatStore = (
 						store.clearStreamState();
 						// A partial reset keeps the messages below its
 						// from_message_id, which can include messages received
-						// earlier in this frame, so commit those first.
-						commitHistoryReplacement();
+						// earlier in this frame, so apply those first.
 						const earlierMessages = pendingMessages.splice(0);
 						if (earlierMessages.length > 0) {
 							store.upsertDurableMessages(earlierMessages);
