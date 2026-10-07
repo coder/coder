@@ -8766,44 +8766,32 @@ func (q *sqlQuerier) IsChatProjectAccessibleByUserID(ctx context.Context, arg Is
 }
 
 const lockChatProjectRootChatsForDelete = `-- name: LockChatProjectRootChatsForDelete :many
-SELECT chats.id, chats.worker_id, chats.runner_id
+SELECT chats.id
 FROM chats
 WHERE chats.project_id = $1::uuid
     AND chats.parent_chat_id IS NULL
-LIMIT $2::int
 FOR UPDATE
 `
 
-type LockChatProjectRootChatsForDeleteParams struct {
-	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
-	LimitCount int32     `db:"limit_count" json:"limit_count"`
-}
-
-type LockChatProjectRootChatsForDeleteRow struct {
-	ID       uuid.UUID     `db:"id" json:"id"`
-	WorkerID uuid.NullUUID `db:"worker_id" json:"worker_id"`
-	RunnerID uuid.NullUUID `db:"runner_id" json:"runner_id"`
-}
-
-// Locks up to limit_count of a project's root chats; run it through
-// LockChatProjectDeleteBatch, which takes the locks in the required order.
-// Rows lock in index-scan order, not id order, so this can deadlock with
-// another statement that locks some of the same chats in id order, such
-// as the MCP resource sync. Postgres aborts one side, and retrying the
-// delete is the intended recovery.
-func (q *sqlQuerier) LockChatProjectRootChatsForDelete(ctx context.Context, arg LockChatProjectRootChatsForDeleteParams) ([]LockChatProjectRootChatsForDeleteRow, error) {
-	rows, err := q.db.QueryContext(ctx, lockChatProjectRootChatsForDelete, arg.ProjectID, arg.LimitCount)
+// Locks a project's root chats; run it through LockChatProjectForDelete,
+// which takes the locks in the required order. Rows lock in index-scan
+// order, not id order, so this can deadlock with another statement that
+// locks some of the same chats in id order, such as the MCP resource sync.
+// Postgres aborts one side, and retrying the delete is the intended
+// recovery.
+func (q *sqlQuerier) LockChatProjectRootChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, lockChatProjectRootChatsForDelete, projectID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []LockChatProjectRootChatsForDeleteRow
+	var items []uuid.UUID
 	for rows.Next() {
-		var i LockChatProjectRootChatsForDeleteRow
-		if err := rows.Scan(&i.ID, &i.WorkerID, &i.RunnerID); err != nil {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -8815,34 +8803,28 @@ func (q *sqlQuerier) LockChatProjectRootChatsForDelete(ctx context.Context, arg 
 }
 
 const lockSubChatsByRootIDsForDelete = `-- name: LockSubChatsByRootIDsForDelete :many
-SELECT chats.id, chats.worker_id, chats.runner_id
+SELECT chats.id
 FROM chats
 WHERE chats.root_chat_id = ANY($1::uuid[])
 ORDER BY chats.id
 FOR UPDATE
 `
 
-type LockSubChatsByRootIDsForDeleteRow struct {
-	ID       uuid.UUID     `db:"id" json:"id"`
-	WorkerID uuid.NullUUID `db:"worker_id" json:"worker_id"`
-	RunnerID uuid.NullUUID `db:"runner_id" json:"runner_id"`
-}
-
 // Locks the sub-chats of root chats the caller already locked; run it
-// through LockChatProjectDeleteBatch.
-func (q *sqlQuerier) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]LockSubChatsByRootIDsForDeleteRow, error) {
+// through LockChatProjectForDelete.
+func (q *sqlQuerier) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, lockSubChatsByRootIDsForDelete, pq.Array(rootIds))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []LockSubChatsByRootIDsForDeleteRow
+	var items []uuid.UUID
 	for rows.Next() {
-		var i LockSubChatsByRootIDsForDeleteRow
-		if err := rows.Scan(&i.ID, &i.WorkerID, &i.RunnerID); err != nil {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

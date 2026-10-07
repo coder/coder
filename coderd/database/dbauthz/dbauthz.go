@@ -7403,11 +7403,11 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 	return q.db.LockChatByID(ctx, id)
 }
 
-func (q *querier) LockChatProjectRootChatsForDelete(ctx context.Context, arg database.LockChatProjectRootChatsForDeleteParams) ([]database.LockChatProjectRootChatsForDeleteRow, error) {
+func (q *querier) LockChatProjectRootChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
 		return nil, err
 	}
-	return q.db.LockChatProjectRootChatsForDelete(ctx, arg)
+	return q.db.LockChatProjectRootChatsForDelete(ctx, projectID)
 }
 
 func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
@@ -7423,7 +7423,7 @@ func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UU
 	return q.db.LockProvisionerKeyByIDForShare(ctx, id)
 }
 
-func (q *querier) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIDs []uuid.UUID) ([]database.LockSubChatsByRootIDsForDeleteRow, error) {
+func (q *querier) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIDs []uuid.UUID) ([]uuid.UUID, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
 		return nil, err
 	}

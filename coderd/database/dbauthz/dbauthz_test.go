@@ -1392,14 +1392,14 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("LockChatProjectRootChatsForDelete", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.LockChatProjectRootChatsForDeleteParams{ProjectID: uuid.New(), LimitCount: 10}
-		dbm.EXPECT().LockChatProjectRootChatsForDelete(gomock.Any(), arg).Return([]database.LockChatProjectRootChatsForDeleteRow{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns([]database.LockChatProjectRootChatsForDeleteRow{})
+		projectID := uuid.New()
+		dbm.EXPECT().LockChatProjectRootChatsForDelete(gomock.Any(), projectID).Return([]uuid.UUID{}, nil).AnyTimes()
+		check.Args(projectID).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns([]uuid.UUID{})
 	}))
 	s.Run("LockSubChatsByRootIDsForDelete", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
-		dbm.EXPECT().LockSubChatsByRootIDsForDelete(gomock.Any(), ids).Return([]database.LockSubChatsByRootIDsForDeleteRow{}, nil).AnyTimes()
-		check.Args(ids).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns([]database.LockSubChatsByRootIDsForDeleteRow{})
+		dbm.EXPECT().LockSubChatsByRootIDsForDelete(gomock.Any(), ids).Return([]uuid.UUID{}, nil).AnyTimes()
+		check.Args(ids).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns([]uuid.UUID{})
 	}))
 	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

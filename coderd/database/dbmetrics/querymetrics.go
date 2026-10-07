@@ -5224,7 +5224,7 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
-func (m queryMetricsStore) LockChatProjectRootChatsForDelete(ctx context.Context, arg database.LockChatProjectRootChatsForDeleteParams) ([]database.LockChatProjectRootChatsForDeleteRow, error) {
+func (m queryMetricsStore) LockChatProjectRootChatsForDelete(ctx context.Context, arg uuid.UUID) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockChatProjectRootChatsForDelete(ctx, arg)
 	m.queryLatencies.WithLabelValues("LockChatProjectRootChatsForDelete").Observe(time.Since(start).Seconds())
@@ -5240,7 +5240,7 @@ func (m queryMetricsStore) LockProvisionerKeyByIDForShare(ctx context.Context, i
 	return r0, r1
 }
 
-func (m queryMetricsStore) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]database.LockSubChatsByRootIDsForDeleteRow, error) {
+func (m queryMetricsStore) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockSubChatsByRootIDsForDelete(ctx, rootIds)
 	m.queryLatencies.WithLabelValues("LockSubChatsByRootIDsForDelete").Observe(time.Since(start).Seconds())
