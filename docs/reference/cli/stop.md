@@ -16,6 +16,14 @@ coder stop [flags] <workspace>
 
 ## Options
 
+### --template-version
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Stop with a named version of the workspace template. Defaults to the workspace's current version.
+
 ### -y, --yes
 
 |      |                   |
