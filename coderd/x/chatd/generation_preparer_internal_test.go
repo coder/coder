@@ -466,7 +466,11 @@ func TestPrepareGenerationMemory(t *testing.T) {
 				serverOpts = append(serverOpts, withInternalTestServerExperiments([]codersdk.Experiment{}))
 			}
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, serverOpts...)
-			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
+			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+				Chat:      created.Chat,
+				Messages:  created.InitialMessages,
+				Workspace: server.newTurnWorkspaceContext(),
+			})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Cleanup)
 
