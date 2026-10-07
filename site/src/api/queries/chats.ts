@@ -1415,6 +1415,33 @@ export const infiniteChats = (input?: ChatListInput) => {
 export const projectChatsKey = (projectId: string) =>
 	[...chatProjectListFamilyKey, projectId] as const;
 
+/** Unarchived chats in one project, newest first. */
+export const projectChats = (projectId: string) => {
+	const limit = DEFAULT_CHAT_PAGE_LIMIT;
+
+	return infiniteQueryOptions({
+		queryKey: projectChatsKey(projectId),
+		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
+			if (lastPage.length < limit) {
+				return undefined;
+			}
+			return pages.length + 1;
+		},
+		initialPageParam: 0,
+		queryFn: ({ pageParam, signal }) =>
+			API.experimental.getChats(
+				{
+					limit,
+					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
+					q: "archived:false",
+					project_id: projectId,
+				},
+				signal,
+			),
+		refetchOnWindowFocus: true,
+	});
+};
+
 const chatSearchKey = (params: ChatSearchParams) =>
 	[...chatSearchFamilyKey, params] as const;
 

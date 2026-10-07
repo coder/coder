@@ -3,6 +3,7 @@ import type {
 	ChatAutomation,
 	ChatContext,
 	ChatContextResource,
+	ChatCost,
 	ChatFileMetadata,
 	ChatMessage,
 	ChatQueuedMessage,
@@ -36,6 +37,16 @@ export const MockChat: Chat = {
 	client_type: "ui",
 	children: [],
 };
+
+export const mockChatCost = (
+	chatId: string,
+	totalCostMicros = 0,
+): ChatCost => ({
+	chat_id: chatId,
+	total_cost_micros: totalCostMicros,
+	request_count: 3,
+	unpriced_request_count: 0,
+});
 
 // Pinned workspace-context resources the prompt is built from.
 const MockChatContextResources: ChatContextResource[] = [
