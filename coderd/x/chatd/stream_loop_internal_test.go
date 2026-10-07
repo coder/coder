@@ -479,7 +479,7 @@ func syncAgainst(t *testing.T, loop *streamLoop, chat database.Chat, rows []data
 	return events
 }
 
-func TestStreamLoopRevisionCursor(t *testing.T) {
+func TestStreamLoopHistoryVersion(t *testing.T) {
 	t.Parallel()
 
 	// The second prompt, 3, was edited at version 4: 3 and its reply 4 were
@@ -519,13 +519,13 @@ func TestStreamLoopRevisionCursor(t *testing.T) {
 		{
 			name:       "page is current",
 			rows:       edited,
-			cursor:     StreamCursor{AfterMessageID: 6, AfterRevision: 5},
+			cursor:     StreamCursor{AfterMessageID: 6, HistoryVersion: 5},
 			wantEvents: []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus},
 		},
 		{
 			name:   "page is behind by an insert",
 			rows:   edited,
-			cursor: StreamCursor{AfterMessageID: 5, AfterRevision: 4},
+			cursor: StreamCursor{AfterMessageID: 5, HistoryVersion: 4},
 			wantEvents: []codersdk.ChatStreamEventType{
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
@@ -537,7 +537,7 @@ func TestStreamLoopRevisionCursor(t *testing.T) {
 			// The client holds 1 to 4 and keeps 1 and 2.
 			name:          "page is behind by an edit",
 			rows:          edited,
-			cursor:        StreamCursor{AfterMessageID: 4, AfterRevision: 2},
+			cursor:        StreamCursor{AfterMessageID: 4, HistoryVersion: 2},
 			wantEvents:    reset(2),
 			wantResetFrom: 3,
 			wantIDs:       []int64{5, 6},
@@ -545,7 +545,7 @@ func TestStreamLoopRevisionCursor(t *testing.T) {
 		{
 			name:          "deletion in the middle resets from it",
 			rows:          middleDeleted,
-			cursor:        StreamCursor{AfterMessageID: 3, AfterRevision: 2},
+			cursor:        StreamCursor{AfterMessageID: 3, HistoryVersion: 2},
 			wantEvents:    reset(1),
 			wantResetFrom: 2,
 			wantIDs:       []int64{3},

@@ -3539,8 +3539,8 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when after_revision is set"
-// @Param after_revision query int false "Send only history changed after this history_version, taken from the messages page or the last status event"
+// @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when history_version is non-zero"
+// @Param history_version query int false "Send only history changed after this history_version, taken from the messages page or the last status event"
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
@@ -3565,13 +3565,13 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if v := r.URL.Query().Get("after_revision"); v != "" {
+	if v := r.URL.Query().Get("history_version"); v != "" {
 		var err error
-		cursor.AfterRevision, err = strconv.ParseInt(v, 10, 64)
-		if err != nil || cursor.AfterRevision < 0 {
+		cursor.HistoryVersion, err = strconv.ParseInt(v, 10, 64)
+		if err != nil || cursor.HistoryVersion < 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid after_revision parameter.",
-				Detail:  "after_revision must be a non-negative integer.",
+				Message: "Invalid history_version parameter.",
+				Detail:  "history_version must be a non-negative integer.",
 			})
 			return
 		}

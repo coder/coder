@@ -3155,7 +3155,7 @@ export interface ChatMessagesResponse {
 	readonly turn_start_id?: number;
 	/**
 	 * HistoryVersion is the chat's history_version for the messages in this
-	 * page, to pass as after_revision when opening the stream. It is set only
+	 * page. Pass it as the stream's history_version parameter. It is set only
 	 * on pages requested without before_id or after_id.
 	 */
 	readonly history_version?: number;
@@ -3834,7 +3834,7 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 // From codersdk/chats.go
 /**
  * ChatStreamHistoryReset is set on the history_reset events of streams
- * opened with after_revision. On such a reset, the client keeps its
+ * opened with history_version. On such a reset, the client keeps its
  * messages with IDs below FromMessageID and replaces the rest with the
  * message events that follow. A history_reset without it replaces the
  * whole history.
@@ -3899,7 +3899,8 @@ export interface ChatStreamStatus {
 	readonly status: ChatStatus;
 	/**
 	 * HistoryVersion is the chat's history_version for the messages sent
-	 * before this status, to pass as after_revision when reconnecting.
+	 * before this status. Pass it as the stream's history_version parameter
+	 * when reconnecting.
 	 */
 	readonly history_version?: number;
 }
@@ -9830,13 +9831,13 @@ export interface StreamChatOptions {
 	 */
 	readonly AfterID: number | null;
 	/**
-	 * AfterRevision is the history version of the caller's messages, from
-	 * ChatMessagesResponse or ChatStreamStatus. When it is set, the server
-	 * ignores AfterID and history resets carry ChatStreamEvent.HistoryReset.
-	 * When it is nil, every connection to a chat with a deleted message
-	 * resends the whole history.
+	 * HistoryVersion is the history version of the caller's messages, from
+	 * ChatMessagesResponse or ChatStreamStatus. When it is non-zero, the
+	 * server ignores AfterID and history resets carry
+	 * ChatStreamEvent.HistoryReset. When it is nil or zero, every connection
+	 * to a chat with a deleted message resends the whole history.
 	 */
-	readonly AfterRevision: number | null;
+	readonly HistoryVersion: number | null;
 }
 
 // From codersdk/client.go

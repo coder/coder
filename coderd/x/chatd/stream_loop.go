@@ -52,7 +52,7 @@ type streamLocalState struct {
 	afterMessageID         int64
 	initialMessageSyncDone bool
 	// partialResets reports whether history_reset events may carry
-	// from_message_id. It is set only for clients that send after_revision,
+	// from_message_id. It is set only for clients that send history_version,
 	// since older clients would treat a partial reset as a full one.
 	partialResets bool
 }
@@ -86,18 +86,18 @@ type streamDBSnapshot struct {
 type StreamCursor struct {
 	// AfterMessageID is the newest message ID the client holds. An initial
 	// sync without a history reset skips messages at or below it. It is
-	// ignored when AfterRevision is non-zero, because a client can hold an
+	// ignored when HistoryVersion is non-zero, because a client can hold an
 	// ID without holding every earlier message.
 	AfterMessageID int64
-	// AfterRevision is the history version of the client's messages. If it
+	// HistoryVersion is the history version of the client's messages. If it
 	// is non-zero, the stream sends only history changed after it, and a
 	// history reset starts at the lowest changed message ID.
-	AfterRevision int64
+	HistoryVersion int64
 }
 
 func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, cursor StreamCursor) *streamLoop {
 	afterMessageID := cursor.AfterMessageID
-	if cursor.AfterRevision > 0 {
+	if cursor.HistoryVersion > 0 {
 		afterMessageID = 0
 	}
 	return &streamLoop{
@@ -105,10 +105,10 @@ func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, cu
 		db:     db,
 		logger: logger,
 		state: streamLocalState{
-			historyVersion: cursor.AfterRevision,
+			historyVersion: cursor.HistoryVersion,
 			knownMessages:  make(map[int64]int64),
 			afterMessageID: afterMessageID,
-			partialResets:  cursor.AfterRevision > 0,
+			partialResets:  cursor.HistoryVersion > 0,
 		},
 	}
 }

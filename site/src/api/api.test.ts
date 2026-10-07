@@ -62,23 +62,23 @@ describe("api.ts", () => {
 	});
 
 	describe("watchChat", () => {
-		const routeOf = (afterMessageId?: number, afterRevision?: number) => {
-			const socket = watchChat("chat-1", afterMessageId, afterRevision);
+		const routeOf = (afterMessageId?: number, historyVersion?: number) => {
+			const socket = watchChat("chat-1", afterMessageId, historyVersion);
 			const route = new URL(socket.url);
 			socket.close();
 			return Object.fromEntries(route.searchParams.entries());
 		};
 
-		it("sends the page's history version as after_revision", () => {
+		it("sends the page's history version", () => {
 			expect(routeOf(12, 7)).toMatchObject({
 				after_id: "12",
-				after_revision: "7",
+				history_version: "7",
 			});
 		});
 
-		it("omits after_revision when the version is unknown or zero", () => {
-			expect(routeOf(12)).not.toHaveProperty("after_revision");
-			expect(routeOf(12, 0)).not.toHaveProperty("after_revision");
+		it("omits history_version when the version is unknown or zero", () => {
+			expect(routeOf(12)).not.toHaveProperty("history_version");
+			expect(routeOf(12, 0)).not.toHaveProperty("history_version");
 		});
 	});
 

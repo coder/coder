@@ -10265,7 +10265,7 @@ func TestStreamChat(t *testing.T) {
 		legacy.version = 0
 		applied, _ = legacy.connect(ctx, t, client, chat.ID)
 		require.Equal(t, codersdk.ChatStreamEventTypeHistoryReset, applied[0].Type)
-		require.Nil(t, applied[0].HistoryReset, "a client without after_revision must get the full reset")
+		require.Nil(t, applied[0].HistoryReset, "a client without history_version must get the full reset")
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), legacy.sortedIDs())
 	})
 
@@ -10299,7 +10299,7 @@ func TestStreamChat(t *testing.T) {
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), tab.sortedIDs(), "the tab is missing messages sent while its stream was down")
 	})
 
-	t.Run("NegativeAfterRevisionReturns400", func(t *testing.T) {
+	t.Run("NegativeHistoryVersionReturns400", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -10315,7 +10315,7 @@ func TestStreamChat(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodGet,
-			fmt.Sprintf("/api/v2/chats/%s/stream?after_revision=-1", chat.ID),
+			fmt.Sprintf("/api/v2/chats/%s/stream?history_version=-1", chat.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -13982,7 +13982,7 @@ func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.
 	afterID := slices.Max(append(tab.sortedIDs(), 0))
 	opts := &codersdk.StreamChatOptions{AfterID: &afterID}
 	if tab.version > 0 {
-		opts.AfterRevision = &tab.version
+		opts.HistoryVersion = &tab.version
 	}
 	events, closer, err := client.StreamChat(ctx, chatID, opts)
 	require.NoError(t, err)

@@ -3832,7 +3832,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name              | Type                                                              | Required | Restrictions | Description                                                                                                                                                                                      |
 |-------------------|-------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `has_more`        | boolean                                                           | false    |              |                                                                                                                                                                                                  |
-| `history_version` | integer                                                           | false    |              | History version is the chat's history_version for the messages in this page, to pass as after_revision when opening the stream. It is set only on pages requested without before_id or after_id. |
+| `history_version` | integer                                                           | false    |              | History version is the chat's history_version for the messages in this page. Pass it as the stream's history_version parameter. It is set only on pages requested without before_id or after_id. |
 | `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                  |
 | `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                  |
 | `turn_start_id`   | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message.           |
@@ -5701,10 +5701,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                       | Required | Restrictions | Description                                                                                                                          |
-|-------------------|--------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `history_version` | integer                                    | false    |              | History version is the chat's history_version for the messages sent before this status, to pass as after_revision when reconnecting. |
-| `status`          | [codersdk.ChatStatus](#codersdkchatstatus) | false    |              |                                                                                                                                      |
+| Name              | Type                                       | Required | Restrictions | Description                                                                                                                                                  |
+|-------------------|--------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `history_version` | integer                                    | false    |              | History version is the chat's history_version for the messages sent before this status. Pass it as the stream's history_version parameter when reconnecting. |
+| `status`          | [codersdk.ChatStatus](#codersdkchatstatus) | false    |              |                                                                                                                                                              |
 
 ## codersdk.ChatStreamToolCall
 
