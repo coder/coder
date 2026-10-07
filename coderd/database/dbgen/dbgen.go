@@ -2108,6 +2108,7 @@ func WorkspaceSecret(t testing.TB, db database.Store, seed database.WorkspaceSec
 		EnvName:          takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
 		FilePath:         seed.FilePath,
 		Ephemeral:        seed.Ephemeral,
+		Source:           takeFirst(seed.Source, database.WorkspaceSecretSourceRequest),
 	})
 	require.NoError(t, err, "failed to insert workspace secret")
 	return secret

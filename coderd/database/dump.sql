@@ -779,6 +779,11 @@ CREATE TYPE workspace_app_status_state AS ENUM (
     'idle'
 );
 
+CREATE TYPE workspace_secret_source AS ENUM (
+    'request',
+    'carry_forward'
+);
+
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -4485,6 +4490,7 @@ CREATE TABLE workspace_secrets (
     env_name text DEFAULT ''::text NOT NULL,
     file_path text DEFAULT ''::text NOT NULL,
     ephemeral boolean DEFAULT false NOT NULL,
+    source workspace_secret_source NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     cleared_at timestamp with time zone,
     CONSTRAINT workspace_secrets_requires_target CHECK (((env_name <> ''::text) OR (file_path <> ''::text))),

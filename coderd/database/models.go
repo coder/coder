@@ -5061,6 +5061,64 @@ func AllWorkspaceAppStatusStateValues() []WorkspaceAppStatusState {
 	}
 }
 
+type WorkspaceSecretSource string
+
+const (
+	WorkspaceSecretSourceRequest      WorkspaceSecretSource = "request"
+	WorkspaceSecretSourceCarryForward WorkspaceSecretSource = "carry_forward"
+)
+
+func (e *WorkspaceSecretSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceSecretSource(s)
+	case string:
+		*e = WorkspaceSecretSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceSecretSource: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceSecretSource struct {
+	WorkspaceSecretSource WorkspaceSecretSource `json:"workspace_secret_source"`
+	Valid                 bool                  `json:"valid"` // Valid is true if WorkspaceSecretSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceSecretSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceSecretSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceSecretSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceSecretSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceSecretSource), nil
+}
+
+func (e WorkspaceSecretSource) Valid() bool {
+	switch e {
+	case WorkspaceSecretSourceRequest,
+		WorkspaceSecretSourceCarryForward:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceSecretSourceValues() []WorkspaceSecretSource {
+	return []WorkspaceSecretSource{
+		WorkspaceSecretSourceRequest,
+		WorkspaceSecretSourceCarryForward,
+	}
+}
+
 type WorkspaceTransition string
 
 const (
@@ -7323,17 +7381,18 @@ type WorkspaceResourceMetadatum struct {
 }
 
 type WorkspaceSecret struct {
-	ID               uuid.UUID      `db:"id" json:"id"`
-	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
-	WorkspaceBuildID uuid.UUID      `db:"workspace_build_id" json:"workspace_build_id"`
-	Name             string         `db:"name" json:"name"`
-	Value            sql.NullString `db:"value" json:"value"`
-	ValueKeyID       sql.NullString `db:"value_key_id" json:"value_key_id"`
-	EnvName          string         `db:"env_name" json:"env_name"`
-	FilePath         string         `db:"file_path" json:"file_path"`
-	Ephemeral        bool           `db:"ephemeral" json:"ephemeral"`
-	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
-	ClearedAt        sql.NullTime   `db:"cleared_at" json:"cleared_at"`
+	ID               uuid.UUID             `db:"id" json:"id"`
+	WorkspaceID      uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID             `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             string                `db:"name" json:"name"`
+	Value            sql.NullString        `db:"value" json:"value"`
+	ValueKeyID       sql.NullString        `db:"value_key_id" json:"value_key_id"`
+	EnvName          string                `db:"env_name" json:"env_name"`
+	FilePath         string                `db:"file_path" json:"file_path"`
+	Ephemeral        bool                  `db:"ephemeral" json:"ephemeral"`
+	Source           WorkspaceSecretSource `db:"source" json:"source"`
+	CreatedAt        time.Time             `db:"created_at" json:"created_at"`
+	ClearedAt        sql.NullTime          `db:"cleared_at" json:"cleared_at"`
 }
 
 type WorkspaceTable struct {

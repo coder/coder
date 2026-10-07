@@ -20,7 +20,8 @@ INSERT INTO workspace_secrets (
     value_key_id,
     env_name,
     file_path,
-    ephemeral
+    ephemeral,
+    source
 ) VALUES (
     @id,
     @workspace_id,
@@ -30,7 +31,8 @@ INSERT INTO workspace_secrets (
     @value_key_id,
     @env_name,
     @file_path,
-    @ephemeral
+    @ephemeral,
+    @source
 )
 RETURNING *;
 
@@ -97,7 +99,7 @@ RETURNING *;
 -- authorization.
 SELECT
     ws.id, ws.workspace_id, ws.workspace_build_id, ws.name,
-    ws.env_name, ws.file_path, ws.ephemeral, ws.created_at, ws.cleared_at,
+    ws.env_name, ws.file_path, ws.ephemeral, ws.source, ws.created_at, ws.cleared_at,
     w.owner_id AS workspace_owner_id,
     w.organization_id AS workspace_organization_id
 FROM workspace_secrets ws

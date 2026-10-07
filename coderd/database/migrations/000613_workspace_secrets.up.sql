@@ -18,6 +18,13 @@ ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'workspace_secret:update';
 --
 -- The value, value_key_id, env_name, and file_path columns mirror
 -- user_secrets so the same dbcrypt and agent manifest code paths apply.
+CREATE TYPE workspace_secret_source AS ENUM (
+    -- Set by the build request.
+    'request',
+    -- Copied from the previous build.
+    'carry_forward'
+);
+
 CREATE TABLE workspace_secrets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -33,6 +40,8 @@ CREATE TABLE workspace_secrets (
     file_path TEXT NOT NULL DEFAULT '',
     -- Ephemeral secrets are not copied forward to the next build.
     ephemeral BOOLEAN NOT NULL DEFAULT false,
+    -- How the row came to be linked to its build.
+    source workspace_secret_source NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     -- Set when a later build superseded this row and its value was dropped.
     cleared_at TIMESTAMP WITH TIME ZONE,

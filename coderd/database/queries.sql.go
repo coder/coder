@@ -35204,7 +35204,7 @@ func (q *sqlQuerier) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, wor
 }
 
 const getWorkspaceSecrets = `-- name: GetWorkspaceSecrets :many
-SELECT id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, created_at, cleared_at
+SELECT id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, source, created_at, cleared_at
 FROM workspace_secrets
 WHERE value IS NOT NULL
   AND id > $1::uuid
@@ -35239,6 +35239,7 @@ func (q *sqlQuerier) GetWorkspaceSecrets(ctx context.Context, arg GetWorkspaceSe
 			&i.EnvName,
 			&i.FilePath,
 			&i.Ephemeral,
+			&i.Source,
 			&i.CreatedAt,
 			&i.ClearedAt,
 		); err != nil {
@@ -35258,7 +35259,7 @@ func (q *sqlQuerier) GetWorkspaceSecrets(ctx context.Context, arg GetWorkspaceSe
 const getWorkspaceSecretsHistory = `-- name: GetWorkspaceSecretsHistory :many
 SELECT
     ws.id, ws.workspace_id, ws.workspace_build_id, ws.name,
-    ws.env_name, ws.file_path, ws.ephemeral, ws.created_at, ws.cleared_at,
+    ws.env_name, ws.file_path, ws.ephemeral, ws.source, ws.created_at, ws.cleared_at,
     w.owner_id AS workspace_owner_id,
     w.organization_id AS workspace_organization_id
 FROM workspace_secrets ws
@@ -35268,17 +35269,18 @@ ORDER BY ws.created_at ASC, ws.name ASC
 `
 
 type GetWorkspaceSecretsHistoryRow struct {
-	ID                      uuid.UUID    `db:"id" json:"id"`
-	WorkspaceID             uuid.UUID    `db:"workspace_id" json:"workspace_id"`
-	WorkspaceBuildID        uuid.UUID    `db:"workspace_build_id" json:"workspace_build_id"`
-	Name                    string       `db:"name" json:"name"`
-	EnvName                 string       `db:"env_name" json:"env_name"`
-	FilePath                string       `db:"file_path" json:"file_path"`
-	Ephemeral               bool         `db:"ephemeral" json:"ephemeral"`
-	CreatedAt               time.Time    `db:"created_at" json:"created_at"`
-	ClearedAt               sql.NullTime `db:"cleared_at" json:"cleared_at"`
-	WorkspaceOwnerID        uuid.UUID    `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceOrganizationID uuid.UUID    `db:"workspace_organization_id" json:"workspace_organization_id"`
+	ID                      uuid.UUID             `db:"id" json:"id"`
+	WorkspaceID             uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID        uuid.UUID             `db:"workspace_build_id" json:"workspace_build_id"`
+	Name                    string                `db:"name" json:"name"`
+	EnvName                 string                `db:"env_name" json:"env_name"`
+	FilePath                string                `db:"file_path" json:"file_path"`
+	Ephemeral               bool                  `db:"ephemeral" json:"ephemeral"`
+	Source                  WorkspaceSecretSource `db:"source" json:"source"`
+	CreatedAt               time.Time             `db:"created_at" json:"created_at"`
+	ClearedAt               sql.NullTime          `db:"cleared_at" json:"cleared_at"`
+	WorkspaceOwnerID        uuid.UUID             `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceOrganizationID uuid.UUID             `db:"workspace_organization_id" json:"workspace_organization_id"`
 }
 
 // Returns metadata for every workspace secret row of a workspace, including
@@ -35302,6 +35304,7 @@ func (q *sqlQuerier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID
 			&i.EnvName,
 			&i.FilePath,
 			&i.Ephemeral,
+			&i.Source,
 			&i.CreatedAt,
 			&i.ClearedAt,
 			&i.WorkspaceOwnerID,
@@ -35330,7 +35333,8 @@ INSERT INTO workspace_secrets (
     value_key_id,
     env_name,
     file_path,
-    ephemeral
+    ephemeral,
+    source
 ) VALUES (
     $1,
     $2,
@@ -35340,21 +35344,23 @@ INSERT INTO workspace_secrets (
     $6,
     $7,
     $8,
-    $9
+    $9,
+    $10
 )
-RETURNING id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, created_at, cleared_at
+RETURNING id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, source, created_at, cleared_at
 `
 
 type InsertWorkspaceSecretParams struct {
-	ID               uuid.UUID      `db:"id" json:"id"`
-	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
-	WorkspaceBuildID uuid.UUID      `db:"workspace_build_id" json:"workspace_build_id"`
-	Name             string         `db:"name" json:"name"`
-	Value            sql.NullString `db:"value" json:"value"`
-	ValueKeyID       sql.NullString `db:"value_key_id" json:"value_key_id"`
-	EnvName          string         `db:"env_name" json:"env_name"`
-	FilePath         string         `db:"file_path" json:"file_path"`
-	Ephemeral        bool           `db:"ephemeral" json:"ephemeral"`
+	ID               uuid.UUID             `db:"id" json:"id"`
+	WorkspaceID      uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID             `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             string                `db:"name" json:"name"`
+	Value            sql.NullString        `db:"value" json:"value"`
+	ValueKeyID       sql.NullString        `db:"value_key_id" json:"value_key_id"`
+	EnvName          string                `db:"env_name" json:"env_name"`
+	FilePath         string                `db:"file_path" json:"file_path"`
+	Ephemeral        bool                  `db:"ephemeral" json:"ephemeral"`
+	Source           WorkspaceSecretSource `db:"source" json:"source"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceSecret(ctx context.Context, arg InsertWorkspaceSecretParams) (WorkspaceSecret, error) {
@@ -35368,6 +35374,7 @@ func (q *sqlQuerier) InsertWorkspaceSecret(ctx context.Context, arg InsertWorksp
 		arg.EnvName,
 		arg.FilePath,
 		arg.Ephemeral,
+		arg.Source,
 	)
 	var i WorkspaceSecret
 	err := row.Scan(
@@ -35380,6 +35387,7 @@ func (q *sqlQuerier) InsertWorkspaceSecret(ctx context.Context, arg InsertWorksp
 		&i.EnvName,
 		&i.FilePath,
 		&i.Ephemeral,
+		&i.Source,
 		&i.CreatedAt,
 		&i.ClearedAt,
 	)
@@ -35387,7 +35395,7 @@ func (q *sqlQuerier) InsertWorkspaceSecret(ctx context.Context, arg InsertWorksp
 }
 
 const listActiveWorkspaceSecrets = `-- name: ListActiveWorkspaceSecrets :many
-SELECT id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, created_at, cleared_at
+SELECT id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, source, created_at, cleared_at
 FROM workspace_secrets
 WHERE workspace_build_id = $1
   AND cleared_at IS NULL
@@ -35418,6 +35426,7 @@ func (q *sqlQuerier) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBu
 			&i.EnvName,
 			&i.FilePath,
 			&i.Ephemeral,
+			&i.Source,
 			&i.CreatedAt,
 			&i.ClearedAt,
 		); err != nil {
@@ -35441,7 +35450,7 @@ SET
     value_key_id = $2
 WHERE id = $3
   AND cleared_at IS NULL
-RETURNING id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, created_at, cleared_at
+RETURNING id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, source, created_at, cleared_at
 `
 
 type UpdateEncryptedWorkspaceSecretValueParams struct {
@@ -35467,6 +35476,7 @@ func (q *sqlQuerier) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, ar
 		&i.EnvName,
 		&i.FilePath,
 		&i.Ephemeral,
+		&i.Source,
 		&i.CreatedAt,
 		&i.ClearedAt,
 	)
