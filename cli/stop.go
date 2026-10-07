@@ -52,7 +52,7 @@ func (r *RootCmd) stop() *serpent.Command {
 				return err
 			}
 
-			versionID, err := resolveWorkspaceTemplateVersion(inv.Context(), client, workspace, templateVersion)
+			versionID, err := resolveTemplateVersionID(inv.Context(), client, workspace.TemplateID, templateVersion)
 			if err != nil {
 				return err
 			}

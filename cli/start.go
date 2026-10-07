@@ -58,7 +58,7 @@ func (r *RootCmd) start() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			versionID, err := resolveWorkspaceTemplateVersion(inv.Context(), client, workspace, templateVersion)
+			versionID, err := resolveTemplateVersionID(inv.Context(), client, workspace.TemplateID, templateVersion)
 			if err != nil {
 				return err
 			}
@@ -248,11 +248,13 @@ func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace 
 	return build, nil
 }
 
-func resolveWorkspaceTemplateVersion(ctx context.Context, client *codersdk.Client, workspace codersdk.Workspace, name string) (uuid.UUID, error) {
+// resolveTemplateVersionID looks up a template version by name. An empty name
+// returns uuid.Nil so callers can fall back to their default version.
+func resolveTemplateVersionID(ctx context.Context, client *codersdk.Client, templateID uuid.UUID, name string) (uuid.UUID, error) {
 	if name == "" {
 		return uuid.Nil, nil
 	}
-	version, err := client.TemplateVersionByName(ctx, workspace.TemplateID, name)
+	version, err := client.TemplateVersionByName(ctx, templateID, name)
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("get template version by name: %w", err)
 	}

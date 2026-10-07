@@ -411,7 +411,7 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 func TestWorkspaceBuildClassicParameterContinuity(t *testing.T) {
 	t.Parallel()
 	for _, transition := range []database.WorkspaceTransition{
-		database.WorkspaceTransitionStart, database.WorkspaceTransitionStop,
+		database.WorkspaceTransitionStart, database.WorkspaceTransitionStop, database.WorkspaceTransitionDelete,
 	} {
 		t.Run(string(transition), func(t *testing.T) {
 			t.Parallel()
@@ -427,7 +427,7 @@ func TestWorkspaceBuildClassicParameterContinuity(t *testing.T) {
 				{Name: "absent", Value: "128"},
 			}
 			expected := map[string]string{"mutable": "updated", "immutable": "fixed"}
-			if transition == database.WorkspaceTransitionStop {
+			if transition != database.WorkspaceTransitionStart {
 				expected["absent"] = "128"
 			}
 			mDB := expectDB(t,

@@ -42,8 +42,8 @@ OPTIONS:
           pairs for the parameters.
 
       --stop-template-version string
-          Stop with a named version of the workspace template. Defaults to the
-          workspace's current version.
+          Stop with a named version of the workspace template. Only applies when
+          the workspace is started. Defaults to the workspace's current version.
 
       --template-version string
           Start with a named version of the workspace template. Defaults to the

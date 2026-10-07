@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -29,6 +30,7 @@ func TestWorkspaceBuildTemplateVersion(t *testing.T) {
 		stopped     bool
 		sameVersion bool
 		missing     bool
+		wantErr     string
 	}{
 		{name: "Stop", command: "stop", startPin: true},
 		{name: "StartRunning", command: "start", startPin: true},
@@ -38,6 +40,7 @@ func TestWorkspaceBuildTemplateVersion(t *testing.T) {
 		{name: "UpdateStop", command: "update", stopPin: true},
 		{name: "UpdateBoth", command: "update", startPin: true, stopPin: true},
 		{name: "UpdateStopped", command: "update", startPin: true, stopPin: true, stopped: true},
+		{name: "UpdateStopOnlyStopped", command: "update", stopPin: true, stopped: true, wantErr: "already stopped and up-to-date"},
 		{name: "UpdateMissingStart", command: "update", startPin: true, stopPin: true, missing: true},
 		{name: "UpdateMissingStop", command: "update", stopPin: true, missing: true},
 	} {
@@ -109,7 +112,17 @@ func TestWorkspaceBuildTemplateVersion(t *testing.T) {
 			}
 			inv, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, member, root)
+			var stderr bytes.Buffer
+			inv.Stderr = &stderr
 			err = inv.Run()
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				after, err := client.Workspace(ctx, workspace.ID)
+				require.NoError(t, err)
+				require.Equal(t, before, after.LatestBuild.BuildNumber)
+				require.Equal(t, codersdk.WorkspaceTransitionStop, after.LatestBuild.Transition)
+				return
+			}
 			if tc.missing {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "get template version by name")
@@ -122,6 +135,9 @@ func TestWorkspaceBuildTemplateVersion(t *testing.T) {
 			after, err := client.Workspace(ctx, workspace.ID)
 			require.NoError(t, err)
 
+			if tc.command == "update" && tc.stopPin && tc.stopped {
+				require.Contains(t, stderr.String(), "ignoring --stop-template-version")
+			}
 			if tc.command == "stop" {
 				require.Equal(t, before+1, after.LatestBuild.BuildNumber)
 				require.Equal(t, codersdk.WorkspaceTransitionStop, after.LatestBuild.Transition)
@@ -273,7 +289,7 @@ func TestUpdateTemplateVersionApplyFailure(t *testing.T) {
 			require.Error(t, err)
 			require.Contains(t, err.Error(), failure)
 			require.Contains(t, err.Error(), "workspace did not restart successfully")
-			require.Contains(t, err.Error(), "run coder start to retry")
+			require.Contains(t, err.Error(), "run 'coder start' to retry")
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			after := coderdtest.MustWorkspace(t, client, workspace.ID)
@@ -325,4 +341,49 @@ func TestStartTemplateVersionBuildInProgress(t *testing.T) {
 			require.Equal(t, ws.Build.ID, after.LatestBuild.ID)
 		})
 	}
+}
+
+func TestUpdateStopTemplateVersionFailedStop(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, client)
+	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	const failure = "stop apply failed"
+	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete, ProvisionInit: echo.InitComplete,
+		ProvisionPlan: echo.PlanComplete, ProvisionGraph: echo.GraphComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Response{
+			proto.WorkspaceTransition_STOP: {
+				{Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{Error: failure}}},
+			},
+		},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, member, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	stopTarget := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil,
+		func(req *codersdk.CreateTemplateVersionRequest) { req.TemplateID = template.ID })
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, stopTarget.ID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	stop, err := member.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStop,
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stop.ID)
+	before := coderdtest.MustWorkspace(t, client, workspace.ID)
+	require.Equal(t, codersdk.WorkspaceTransitionStop, before.LatestBuild.Transition)
+	require.Equal(t, codersdk.WorkspaceStatusFailed, before.LatestBuild.Status)
+
+	inv, root := clitest.New(t, "update", workspace.Name, "--stop-template-version", stopTarget.Name,
+		"--template-version", version.Name, "--use-parameter-defaults", "-y")
+	clitest.SetupConfig(t, member, root)
+	err = inv.Run()
+	require.ErrorContains(t, err, "the latest build is a stop (failed)")
+	require.ErrorContains(t, err, "coder stop --template-version "+stopTarget.Name)
+
+	after := coderdtest.MustWorkspace(t, client, workspace.ID)
+	require.Equal(t, before.LatestBuild.ID, after.LatestBuild.ID)
 }

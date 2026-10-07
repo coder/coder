@@ -44,7 +44,7 @@ Start with a named version of the workspace template. Defaults to the active ver
 |------|---------------------|
 | Type | <code>string</code> |
 
-Stop with a named version of the workspace template. Defaults to the workspace's current version.
+Stop with a named version of the workspace template. Only applies when the workspace is started. Defaults to the workspace's current version.
 
 ### --build-option
 
