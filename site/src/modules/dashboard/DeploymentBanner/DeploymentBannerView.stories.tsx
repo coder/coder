@@ -73,7 +73,7 @@ export const Loading: Story = {
 	play: async ({ canvasElement }) => {
 		within(canvasElement)
 			.getByRole("button", {
-				name: "Visual Studio Code: - loading active connections",
+				name: "VS Code Family: - loading active connections",
 			})
 			.focus();
 		await waitFor(() => screen.getByRole("tooltip"));
@@ -85,7 +85,7 @@ export const NoActiveConnections: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.hover(
 			within(canvasElement).getByRole("button", {
-				name: "Visual Studio Code: 0 active connections",
+				name: "VS Code Family: 0 active connections",
 			}),
 		);
 		await waitFor(() => screen.getByRole("tooltip"));
@@ -109,7 +109,7 @@ export const VSCodeForks: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.hover(
 			within(canvasElement).getByRole("button", {
-				name: "Visual Studio Code: 173 active connections",
+				name: "VS Code Family: 173 active connections",
 			}),
 		);
 		await waitFor(() => screen.getByRole("tooltip"));

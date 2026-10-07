@@ -15,6 +15,7 @@ import {
 import prettyBytes from "pretty-bytes";
 import { Fragment, memo, useEffect, useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router";
+import { appFamilyDisplayNames } from "#/api/appFamiliesGenerated";
 import {
 	type AppFamilyName,
 	AppFamilyNames,
@@ -289,36 +290,31 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 };
 
 /**
- * Banner slots in bar order. A family added in Go fails typecheck until it
- * gets a slot here, or null to total under Other.
+ * Banner slot icons in bar order. A family added in Go fails typecheck until
+ * it gets a slot here, or null to total under Other.
  */
 const SESSION_FAMILIES = {
-	vscode: {
-		name: "Visual Studio Code",
-		icon: <ExternalImage src="/icon/code.svg" className="size-icon-xs" />,
-	},
-	jetbrains: {
-		name: "JetBrains",
-		icon: <ExternalImage src="/icon/jetbrains.svg" className="size-icon-xs" />,
-	},
-	ssh: { name: "SSH", icon: <SquareTerminalIcon className="size-icon-xs" /> },
-	reconnecting_pty: {
-		name: "Web Terminal",
-		icon: <AppWindowIcon className="size-icon-xs" />,
-	},
-	unknown: { name: "Other", icon: <BlocksIcon className="size-icon-xs" /> },
+	vscode: <ExternalImage src="/icon/code.svg" className="size-icon-xs" />,
+	jetbrains: (
+		<ExternalImage src="/icon/jetbrains.svg" className="size-icon-xs" />
+	),
+	ssh: <SquareTerminalIcon className="size-icon-xs" />,
+	reconnecting_pty: <AppWindowIcon className="size-icon-xs" />,
+	unknown: <BlocksIcon className="size-icon-xs" />,
 	sftp: null,
 	port_forwarding: null,
 	workspace_app: null,
-} satisfies Record<
-	AppFamilyName,
-	{ name: string; icon: React.ReactNode } | null
->;
+} satisfies Record<AppFamilyName, React.ReactNode | null>;
 
 const FAMILY_SLOTS = Object.entries(SESSION_FAMILIES).flatMap(
-	([name, slot]) => {
+	([name, icon]) => {
 		const key = AppFamilyNames.find((family) => family === name);
-		return key && slot ? [{ key, ...slot }] : [];
+		if (!key || !icon) {
+			return [];
+		}
+		// The unknown slot also totals families without one.
+		const label = key === "unknown" ? "Other" : appFamilyDisplayNames[key];
+		return [{ key, name: label, icon }];
 	},
 );
 
