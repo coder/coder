@@ -42,6 +42,7 @@ export const applyMessagePartToStreamState = (
 			}
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: appendTextBlock(nextState.blocks, "thinking", part.text),
 			};
 		}
@@ -76,6 +77,7 @@ export const applyMessagePartToStreamState = (
 
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				toolCalls: {
 					...nextState.toolCalls,
@@ -119,6 +121,7 @@ export const applyMessagePartToStreamState = (
 				delete toolResults[toolCallID];
 				return {
 					...nextState,
+					startedAt: nextState.startedAt ?? part.created_at,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 					toolResults,
 				};
@@ -126,6 +129,7 @@ export const applyMessagePartToStreamState = (
 			if (part.result_delta === "" && !hasDelta && !isFinalResult) {
 				return {
 					...nextState,
+					startedAt: nextState.startedAt ?? part.created_at,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				};
 			}
@@ -149,6 +153,7 @@ export const applyMessagePartToStreamState = (
 
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				toolResults: {
 					...nextState.toolResults,
