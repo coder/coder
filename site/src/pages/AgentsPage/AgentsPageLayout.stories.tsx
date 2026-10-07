@@ -20,6 +20,7 @@ import {
 	chatPromptsKey,
 } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
@@ -34,6 +35,7 @@ import {
 	MockOrganization2,
 	MockPermissions,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
@@ -896,6 +898,7 @@ const watchedChatQueries = (chat: Chat) => [
 		},
 	},
 	{ key: chatPromptsKey(chat.id), data: { prompts: [] } },
+	{ key: preferenceSettingsKey, data: MockUserPreferenceSettings },
 	{
 		key: getAuthorizationKey({
 			checks: {

@@ -34,7 +34,10 @@ export type WorkingBlock = {
 
 export type GroupWorkingBlocksOptions = {
 	hasMoreMessages: boolean;
+	/** The agent still owns the turn, including while an interrupt drains it. */
 	isTurnActive: boolean;
+	/** The agent is producing output, so the newest block's clock runs. */
+	isWorking: boolean;
 	/** False while retry, reconnect, or interrupt callouts render in the row. */
 	isLiveRowCollapsible: boolean;
 	liveBlocks: readonly RenderBlock[];
@@ -219,7 +222,7 @@ export const groupWorkingBlocks = (
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
 
 		const isLive =
-			options.isTurnActive &&
+			options.isWorking &&
 			(draft.containsLiveRow || lastRowIndex >= lastMessageRowIndex);
 
 		// The span covers hidden tool-result messages up to the next row.

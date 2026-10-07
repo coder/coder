@@ -95,6 +95,7 @@ const step = (
 const defaultOptions: GroupWorkingBlocksOptions = {
 	hasMoreMessages: false,
 	isTurnActive: false,
+	isWorking: false,
 	isLiveRowCollapsible: false,
 	liveBlocks: [],
 	liveTools: [],
@@ -371,6 +372,7 @@ describe("groupWorkingBlocks", () => {
 
 			return group(messages, {
 				isTurnActive: true,
+				isWorking: true,
 				isLiveRowCollapsible: true,
 				liveBlocks: streamState?.blocks ?? [],
 				liveTools: streamTools,
@@ -489,6 +491,7 @@ describe("groupWorkingBlocks", () => {
 			const blocks = groupWorkingBlocks(rows, entries, {
 				...defaultOptions,
 				isTurnActive: true,
+				isWorking: true,
 			});
 
 			expect(blocks).toHaveLength(1);
@@ -497,6 +500,30 @@ describe("groupWorkingBlocks", () => {
 				stepCount: 2,
 				startedAt: WORKING_FIXTURE_START + 1000,
 				endedAt: undefined,
+			});
+		});
+
+		it("stops the block's clock while an interrupt drains the turn", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const pending = message("assistant", [call("b", at(3))], at(3));
+			const entries = parseMessagesWithMergedTools(
+				[prompt, ...steps, pending],
+				{
+					pendingToolCallIDs: new Set(["b"]),
+				},
+			);
+			const rows = assignTimelineRows(buildDisplayMessages(entries), false);
+			const blocks = groupWorkingBlocks(rows, entries, {
+				...defaultOptions,
+				isTurnActive: true,
+			});
+
+			expect(blocks).toHaveLength(1);
+			expect(blocks[0]).toMatchObject({
+				isLive: false,
+				stepCount: 2,
+				endedAt: WORKING_FIXTURE_START + 3000,
 			});
 		});
 
