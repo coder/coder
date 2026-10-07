@@ -898,15 +898,6 @@ func (s *partialMessageConversionState) appendStreamedDelta(part codersdk.ChatMe
 		return false
 	}
 	_, _ = s.streamedRun.WriteString(part.Text)
-	if len(part.ProviderMetadata) > 0 {
-		prev.ProviderMetadata = part.ProviderMetadata
-	}
-	if part.CompletedAt != nil {
-		prev.CompletedAt = part.CompletedAt
-	}
-	if prev.CreatedAt == nil {
-		prev.CreatedAt = part.CreatedAt
-	}
 	return true
 }
 
