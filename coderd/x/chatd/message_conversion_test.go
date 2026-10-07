@@ -1025,10 +1025,11 @@ func TestBufferedPartsToPartialMessages_SplitsAdjacentReasoningBlocks(t *testing
 	}, summary, "each reasoning block must keep its own part and start time")
 }
 
-// BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas persists N text
-// deltas; B/op should be linear in N. A measured interrupted turn had 3,987.
+// BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas persists N
+// seven-byte text deltas; B/op should be linear in N. A 1 MiB episode holds
+// about 2,585 such deltas, so N stays below that.
 func BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas(b *testing.B) {
-	for _, n := range []int{1000, 4000} {
+	for _, n := range []int{1000, 2500} {
 		b.Run(strconv.Itoa(n), func(b *testing.B) {
 			parts := make([]messagepartbuffer.Part, n)
 			for i := range parts {
@@ -1046,8 +1047,7 @@ func BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas(b *testing.B) {
 				interruptedAt:  time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC),
 			}
 			b.ReportAllocs()
-			b.ResetTimer()
-			for range b.N {
+			for b.Loop() {
 				if _, err := bufferedPartsToPartialMessages(input); err != nil {
 					b.Fatal(err)
 				}
