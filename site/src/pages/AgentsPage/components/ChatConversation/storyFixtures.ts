@@ -115,7 +115,6 @@ export const MockWorkingBlock: WorkingBlock = {
 	startedAt: FIXTURE_NOW - 12_000,
 	endedAt: FIXTURE_NOW,
 	stepCount: 2,
-	failedCount: 0,
 	isLive: false,
 	isPartial: false,
 };

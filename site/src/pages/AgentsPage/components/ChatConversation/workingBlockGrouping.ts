@@ -24,7 +24,6 @@ export type WorkingBlock = {
 	memberIds: number[];
 	/** Distinct visible tools, not rows. */
 	stepCount: number;
-	failedCount: number;
 	isLive: boolean;
 	/** Unloaded older history may hold earlier rows of this block. */
 	isPartial: boolean;
@@ -138,7 +137,7 @@ export const groupWorkingBlocks = (
 ): WorkingBlock[] => {
 	type Draft = {
 		rowIndices: number[];
-		tools: Map<string, MergedTool>;
+		toolIds: Set<string>;
 		anchorKey?: string;
 		ordinal: number;
 		containsLiveRow: boolean;
@@ -170,7 +169,7 @@ export const groupWorkingBlocks = (
 
 			current = {
 				rowIndices: [],
-				tools: new Map(),
+				toolIds: new Set(),
 				anchorKey,
 				ordinal,
 				containsLiveRow: false,
@@ -183,7 +182,7 @@ export const groupWorkingBlocks = (
 		current.containsLiveRow ||= row.type === "live";
 
 		for (const tool of content.visibleTools) {
-			current.tools.set(tool.id, tool);
+			current.toolIds.add(tool.id);
 		}
 	}
 
@@ -192,7 +191,7 @@ export const groupWorkingBlocks = (
 	// so thinking never shows and then vanishes once a tool call arrives.
 	const blockDrafts = drafts.filter(
 		(draft) =>
-			draft.tools.size > 0 || (draft.containsLiveRow && options.isTurnActive),
+			draft.toolIds.size > 0 || (draft.containsLiveRow && options.isTurnActive),
 	);
 
 	const lastMessageRowIndex = rows.findLastIndex(
@@ -251,17 +250,13 @@ export const groupWorkingBlocks = (
 
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
 		const key = isLive ? liveKey : `working:through:${rows[lastRowIndex].key}`;
-		const tools = Array.from(draft.tools.values());
 
 		return {
 			key,
 			liveKey,
 			rowIndices: draft.rowIndices,
 			memberIds,
-			stepCount: tools.length,
-			failedCount: tools.filter(
-				(tool) => tool.isError || tool.status === "error",
-			).length,
+			stepCount: draft.toolIds.size,
 			isLive,
 			isPartial: options.hasMoreMessages && firstRowIndex === 0,
 			startedAt: times.length > 0 ? Math.min(...times) : undefined,

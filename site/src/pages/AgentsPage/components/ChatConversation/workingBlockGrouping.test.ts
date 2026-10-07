@@ -139,7 +139,6 @@ describe("groupWorkingBlocks", () => {
 		expect(rowIds(rows, block.rowIndices)).toEqual([steps[0].id, steps[2].id]);
 		expect(block).toMatchObject({
 			stepCount: 2,
-			failedCount: 0,
 			isLive: false,
 			isPartial: false,
 			startedAt: WORKING_FIXTURE_START + 1000,
@@ -228,13 +227,13 @@ describe("groupWorkingBlocks", () => {
 		},
 	);
 
-	it("keeps failed steps inside the block and counts them", () => {
+	it("folds failed steps like any other step", () => {
 		const prompt = user("Go");
 		const steps = [...step("a", 1, 2, { isError: true }), ...step("b", 3, 4)];
 		const { blocks } = group([prompt, ...steps]);
 
 		expect(blocks).toHaveLength(1);
-		expect(blocks[0]).toMatchObject({ stepCount: 2, failedCount: 1 });
+		expect(blocks[0]).toMatchObject({ stepCount: 2 });
 	});
 
 	it("uses the wall-clock span of parallel tools rather than their sum", () => {
