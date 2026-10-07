@@ -2307,6 +2307,15 @@ func (q *querier) DeleteChatDebugDataByChatID(ctx context.Context, arg database.
 	return q.db.DeleteChatDebugDataByChatID(ctx, arg)
 }
 
+// DeleteChatFamiliesByRootIDs checks delete on all chats instead of
+// authorizing each one, because a project's chats can belong to its sharees.
+func (q *querier) DeleteChatFamiliesByRootIDs(ctx context.Context, rootIDs []uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
+		return err
+	}
+	return q.db.DeleteChatFamiliesByRootIDs(ctx, rootIDs)
+}
+
 func (q *querier) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg database.DeleteChatMCPServersByChatIDExcludingSlugsParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -2388,15 +2397,6 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	}
 	_ = chat
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
-}
-
-// DeleteChatsByIDs checks delete on all chats instead of authorizing each
-// one, because a project's chats can belong to its sharees.
-func (q *querier) DeleteChatsByIDs(ctx context.Context, ids []uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
-		return err
-	}
-	return q.db.DeleteChatsByIDs(ctx, ids)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {

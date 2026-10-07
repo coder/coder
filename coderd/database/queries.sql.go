@@ -8491,6 +8491,19 @@ func (q *sqlQuerier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uui
 	return column_1, err
 }
 
+const deleteChatFamiliesByRootIDs = `-- name: DeleteChatFamiliesByRootIDs :exec
+DELETE FROM chats
+WHERE id = ANY($1::uuid[])
+    OR root_chat_id = ANY($1::uuid[])
+`
+
+// Deletes root chats with all their sub-chats. Chat-scoped tables cascade,
+// and chat_automations references are set to NULL.
+func (q *sqlQuerier) DeleteChatFamiliesByRootIDs(ctx context.Context, rootIds []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatFamiliesByRootIDs, pq.Array(rootIds))
+	return err
+}
+
 const deleteChatProjectByID = `-- name: DeleteChatProjectByID :exec
 DELETE FROM chat_projects
 WHERE id = $1::uuid
@@ -8498,19 +8511,6 @@ WHERE id = $1::uuid
 
 func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteChatProjectByID, id)
-	return err
-}
-
-const deleteChatsByIDs = `-- name: DeleteChatsByIDs :exec
-DELETE FROM chats
-WHERE id = ANY($1::uuid[])
-`
-
-// Chat-scoped tables cascade. Sub-chats not in ids lose their root and
-// parent, and chat_automations references are set to NULL, so callers
-// must pass whole chat families.
-func (q *sqlQuerier) DeleteChatsByIDs(ctx context.Context, ids []uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatsByIDs, pq.Array(ids))
 	return err
 }
 
@@ -8769,6 +8769,7 @@ const lockChatProjectRootChatsForDelete = `-- name: LockChatProjectRootChatsForD
 SELECT chats.id, chats.worker_id, chats.runner_id
 FROM chats
 WHERE chats.project_id = $1::uuid
+    AND chats.parent_chat_id IS NULL
 LIMIT $2::int
 FOR UPDATE
 `
@@ -8784,12 +8785,12 @@ type LockChatProjectRootChatsForDeleteRow struct {
 	RunnerID uuid.NullUUID `db:"runner_id" json:"runner_id"`
 }
 
-// Locks up to limit_count of a project's root chats. Callers use worker_id
-// and runner_id to tell whether a worker holds a chat. Deleting a project
-// in batches keeps each transaction short. Callers must first lock the
-// project row with GetChatProjectByIDForUpdate in an earlier statement of
-// the same transaction: each statement takes its own snapshot, so only a
-// later one sees root chats whose inserts that lock waited for.
+// Locks up to limit_count of a project's root chats; run it through
+// LockChatProjectDeleteBatch, which takes the locks in the required order.
+// Rows lock in index-scan order, not id order, so this can deadlock with
+// another statement that locks some of the same chats in id order, such
+// as the MCP resource sync. Postgres aborts one side, and retrying the
+// delete is the intended recovery.
 func (q *sqlQuerier) LockChatProjectRootChatsForDelete(ctx context.Context, arg LockChatProjectRootChatsForDeleteParams) ([]LockChatProjectRootChatsForDeleteRow, error) {
 	rows, err := q.db.QueryContext(ctx, lockChatProjectRootChatsForDelete, arg.ProjectID, arg.LimitCount)
 	if err != nil {
@@ -8827,9 +8828,8 @@ type LockSubChatsByRootIDsForDeleteRow struct {
 	RunnerID uuid.NullUUID `db:"runner_id" json:"runner_id"`
 }
 
-// Locks the sub-chats of root chats the caller already locked. It must run
-// as a later statement than the root lock: a sub-chat insert holds a lock
-// on its root until it commits, and only a later snapshot sees it.
+// Locks the sub-chats of root chats the caller already locked; run it
+// through LockChatProjectDeleteBatch.
 func (q *sqlQuerier) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]LockSubChatsByRootIDsForDeleteRow, error) {
 	rows, err := q.db.QueryContext(ctx, lockSubChatsByRootIDsForDelete, pq.Array(rootIds))
 	if err != nil {
@@ -12209,6 +12209,8 @@ WHERE id = ANY($1::uuid[])
 ORDER BY id
 `
 
+// Same rows as GetChatsByIDsForRunnerSync, but dbauthz authorizes each row
+// for read instead of requiring update on every chat.
 func (q *sqlQuerier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, getChatsByIDs, pq.Array(ids))
 	if err != nil {
