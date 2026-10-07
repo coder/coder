@@ -22,6 +22,9 @@ type AdditionalFields struct {
 	BuildReason    database.BuildReason `json:"build_reason"`
 	WorkspaceOwner string               `json:"workspace_owner"`
 	WorkspaceID    uuid.UUID            `json:"workspace_id"`
+	// WorkspaceSecrets lists the secrets linked to a workspace build. Set
+	// only on workspace build entries.
+	WorkspaceSecrets []WorkspaceBuildSecret `json:"workspace_secrets,omitempty"`
 }
 
 func NewNop() Auditor {
