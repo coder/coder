@@ -1365,6 +1365,12 @@ export const ClearContextRejected: Story = {
 		status: "error",
 		isError: true,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const reason =
+			"nothing has happened since the last context boundary; do some work before clearing or compacting again";
+		expect(canvas.getByRole("img", { name: reason })).toBeVisible();
+	},
 };
 
 // Validation rejects a blank follow_up before anything runs.

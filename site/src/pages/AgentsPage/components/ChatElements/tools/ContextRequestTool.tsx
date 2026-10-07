@@ -148,7 +148,7 @@ export const ContextRequestTool: React.FC<ContextRequestToolProps> = ({
 						)}
 						{showError && (
 							<div className="border-0 border-t border-solid border-border-default pt-2 text-sm">
-								<p className="m-0 text-content-secondary wrap-anywhere">
+								<p className="m-0 text-content-destructive wrap-anywhere">
 									{effectiveErrorMessage}
 								</p>
 							</div>

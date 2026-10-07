@@ -502,6 +502,30 @@ export const SystemMessageWithoutHookNotice: Story = {
 	},
 };
 
+export const SystemMessageWarningNotice: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "system",
+				content: [
+					{
+						type: "text",
+						text: "Assistant-requested compaction failed: summary generation timed out. Continuing without compaction.",
+						severity: "warning",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const notice = within(canvasElement).getByRole("note");
+		expect(within(notice).getByRole("img", { name: "Warning" })).toBeVisible();
+	},
+};
+
 export const LifecycleHookNoticeOnUserMessage: Story = {
 	args: {
 		...defaultArgs,

@@ -4,6 +4,7 @@ import {
 	ChevronRightIcon,
 	InfoIcon,
 	PencilIcon,
+	TriangleAlertIcon,
 } from "lucide-react";
 import { memo, useState } from "react";
 import { useQuery } from "react-query";
@@ -73,19 +74,36 @@ const getChatMessageTextContent = (
 };
 
 // Avoid announcing historical hook notices as live alerts.
-const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
-	children,
-}) => (
+const TimelineNotice: React.FC<{
+	children?: React.ReactNode;
+	severity?: TypesGen.ChatMessageSeverity;
+}> = ({ children, severity }) => (
 	<div
 		role="note"
 		className="relative my-1 w-full rounded-lg border border-solid border-border bg-surface-secondary p-4 text-left"
 	>
 		<div className="flex min-w-0 flex-1 flex-row items-start gap-3 text-sm">
-			<InfoIcon className="size-icon-sm mt-[3px] text-highlight-sky" />
+			{severity === "warning" ? (
+				<TriangleAlertIcon
+					role="img"
+					aria-label="Warning"
+					className="size-icon-sm mt-[3px] text-content-warning"
+				/>
+			) : (
+				<InfoIcon className="size-icon-sm mt-[3px] text-highlight-sky" />
+			)}
 			<div className="min-w-0 flex-1">{children}</div>
 		</div>
 	</div>
 );
+
+const getNoticeSeverity = (
+	content: readonly TypesGen.ChatMessagePart[] | undefined,
+): TypesGen.ChatMessageSeverity | undefined =>
+	content?.find(
+		(part): part is TypesGen.ChatTextPart =>
+			part.type === "text" && part.severity !== undefined,
+	)?.severity;
 
 const LifecycleHookNotice: React.FC<{
 	children: string;
@@ -222,7 +240,7 @@ const ChatMessageItem = memo<{
 							</LifecycleHookNotice>
 						))
 					) : (
-						<TimelineNotice>
+						<TimelineNotice severity={getNoticeSeverity(message.content)}>
 							<Response urlTransform={urlTransform}>{parsed.markdown}</Response>
 						</TimelineNotice>
 					)}
