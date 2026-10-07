@@ -35,3 +35,27 @@ func ConnectionLogFromAgentType(typ agentproto.Connection_Type) (database.Connec
 		return "", "", xerrors.Errorf("unsupported agent connection type %d", typ)
 	}
 }
+
+// ConnectionLogFromAgentConnection returns the method and app to log for an
+// agent report. Unknown methods are rejected so they are never logged as SSH.
+func ConnectionLogFromAgentConnection(conn *agentproto.Connection) (database.ConnectionLogMethod, string, error) {
+	var method database.ConnectionLogMethod
+	switch m := conn.GetConnectionMethod(); m {
+	case agentproto.Connection_METHOD_UNSPECIFIED:
+		// Agents before API v2.13 send only the type.
+		return ConnectionLogFromAgentType(conn.GetType())
+	case agentproto.Connection_METHOD_SSH:
+		method = database.ConnectionLogMethodSSH
+	case agentproto.Connection_METHOD_RECONNECTING_PTY:
+		method = database.ConnectionLogMethodReconnectingPTY
+	case agentproto.Connection_METHOD_PORT_FORWARDING:
+		// app_name_or_port holds a forward's destination, not a client app.
+		return database.ConnectionLogMethodPortForwarding, "", nil
+	default:
+		return "", "", xerrors.Errorf("unsupported agent connection method %d", m)
+	}
+	if appName := conn.GetAppName(); appName != "" {
+		return method, codersdk.NormalizeAppName(appName), nil
+	}
+	return method, "", nil
+}

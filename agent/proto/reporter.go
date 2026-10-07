@@ -22,9 +22,13 @@ type NoopDisconnectionReporter struct{}
 
 func (*NoopDisconnectionReporter) Disconnect(DisconnectEvent) {}
 
+// ConnectEvent describes a connection. Its disconnect report repeats every
+// field.
 type ConnectEvent struct {
-	ID              uuid.UUID
-	Type            Connection_Type
+	ID uuid.UUID
+	// Method is set by the handler, never from client input.
+	Method Connection_Method
+	// AppName is client-supplied, and empty when unknown.
 	AppName         string
 	IP              string
 	ClientSessionID string

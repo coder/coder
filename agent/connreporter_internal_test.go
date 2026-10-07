@@ -26,33 +26,45 @@ func TestConnectionReporter(t *testing.T) {
 			// what we send if we cannot get the remote address.
 			name: "EmptyIP",
 			report: proto.ConnectEvent{
-				ID:   uuid.New(),
-				Type: proto.Connection_TYPE_UNSPECIFIED,
+				ID: uuid.New(),
 			},
 		},
 		{
 			name:       "WithIP",
 			expectedIP: "127.0.0.1",
 			report: proto.ConnectEvent{
-				ID:   uuid.New(),
-				IP:   "127.0.0.1:8080",
-				Type: proto.Connection_TYPE_UNSPECIFIED,
+				ID: uuid.New(),
+				IP: "127.0.0.1:8080",
 			},
 		},
 		{
 			name:       "Localhost",
 			expectedIP: "127.0.0.1",
 			report: proto.ConnectEvent{
-				ID:   uuid.New(),
-				IP:   "localhost:8080",
-				Type: proto.Connection_TYPE_UNSPECIFIED,
+				ID: uuid.New(),
+				IP: "localhost:8080",
 			},
 		},
 		{
 			name: "WithClientSessionID",
 			report: proto.ConnectEvent{
 				ID:              uuid.New(),
-				Type:            proto.Connection_TYPE_UNSPECIFIED,
+				ClientSessionID: "0123456789abcdef0123456789abcdef",
+			},
+		},
+		{
+			name: "WithAppName",
+			report: proto.ConnectEvent{
+				ID:      uuid.New(),
+				Method:  proto.Connection_METHOD_SSH,
+				AppName: "cursor",
+			},
+		},
+		{
+			name: "ReconnectingPTY",
+			report: proto.ConnectEvent{
+				ID:              uuid.New(),
+				Method:          proto.Connection_METHOD_RECONNECTING_PTY,
 				ClientSessionID: "0123456789abcdef0123456789abcdef",
 			},
 		},
@@ -77,11 +89,13 @@ func TestConnectionReporter(t *testing.T) {
 			connReporter := reporter.Connect(tc.report)
 
 			req0 := testutil.RequireReceive(ctx, t, sink.report)
-			require.Equal(t, tc.report.Type, req0.GetConnection().GetType())
+			require.Equal(t, proto.Connection_TYPE_UNSPECIFIED, req0.GetConnection().GetType(), "new agents do not send the legacy type")
 			require.Equal(t, tc.expectedIP, req0.GetConnection().Ip)
 			require.Equal(t, tc.report.ID[:], req0.GetConnection().GetId())
 			require.Equal(t, proto.Connection_CONNECT, req0.GetConnection().GetAction())
 			require.Equal(t, tc.report.ClientSessionID, req0.GetConnection().GetClientSessionId())
+			require.Equal(t, tc.report.AppName, req0.GetConnection().GetAppName())
+			require.Equal(t, tc.report.Method, req0.GetConnection().GetConnectionMethod())
 
 			connReporter.Disconnect(proto.DisconnectEvent{
 				Code:   0,
@@ -89,12 +103,14 @@ func TestConnectionReporter(t *testing.T) {
 			})
 
 			req1 := testutil.RequireReceive(ctx, t, sink.report)
-			require.Equal(t, tc.report.Type, req1.GetConnection().GetType())
+			require.Equal(t, proto.Connection_TYPE_UNSPECIFIED, req1.GetConnection().GetType())
 			require.Equal(t, tc.expectedIP, req1.GetConnection().Ip)
 			require.Equal(t, tc.report.ID[:], req1.GetConnection().GetId())
 			require.Equal(t, proto.Connection_DISCONNECT, req1.GetConnection().GetAction())
 			require.Equal(t, "because", req1.GetConnection().GetReason())
 			require.Equal(t, tc.report.ClientSessionID, req1.GetConnection().GetClientSessionId())
+			require.Equal(t, tc.report.AppName, req1.GetConnection().GetAppName())
+			require.Equal(t, tc.report.Method, req1.GetConnection().GetConnectionMethod())
 		})
 	}
 
@@ -110,8 +126,7 @@ func TestConnectionReporter(t *testing.T) {
 		reporter.report = make(chan *proto.ReportConnectionRequest, limit)
 		for i := range limit {
 			connReporter := reporter.Connect(proto.ConnectEvent{
-				ID:   uuid.New(),
-				Type: proto.Connection_SSH,
+				ID: uuid.New(),
 			})
 			connReporter.Disconnect(proto.DisconnectEvent{
 				Code: i,

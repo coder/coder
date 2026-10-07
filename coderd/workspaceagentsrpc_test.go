@@ -2,15 +2,20 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"storj.io/drpc/drpcerr"
 
+	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -20,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
@@ -349,4 +355,82 @@ func TestWorkspaceAgentRPCRole(t *testing.T) {
 	// existing tests like TestWorkspaceAgentReportStats which use
 	// ConnectRPC() (no role). The server defaults to monitoring when
 	// the role query parameter is omitted.
+}
+
+// Reported identity doesn't depend on the workspace usage experiment.
+func TestWorkspaceAgentConnectionLogIdentity(t *testing.T) {
+	t.Parallel()
+
+	for name, experiments := range map[string][]string{
+		"WorkspaceUsageDisabled": nil,
+		"WorkspaceUsageEnabled":  {string(codersdk.ExperimentWorkspaceUsage)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			dv := coderdtest.DeploymentValues(t)
+			dv.Experiments = experiments
+			connLogger := connectionlog.NewFake()
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: dv,
+				ConnectionLogger: connLogger,
+			})
+			user := coderdtest.CreateFirstUser(t, client)
+			r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).WithAgent().Do()
+			_ = agenttest.New(t, client.URL, r.AgentToken)
+			resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+
+			conn, err := workspacesdk.New(client).DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+				Logger: testutil.Logger(t),
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			sshClient, err := conn.SSHClient(ctx)
+			require.NoError(t, err)
+			defer sshClient.Close()
+			for _, env := range []string{"", "Cursor", "Some-New-IDE"} {
+				sess, err := sshClient.NewSession()
+				require.NoError(t, err)
+				if env != "" {
+					require.NoError(t, sess.Setenv(agentssh.AppNameEnvironmentVariable, env))
+				}
+				require.NoError(t, sess.Run("echo hello"), env)
+			}
+
+			ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "echo hello")
+			require.NoError(t, err)
+			require.NoError(t, ptyConn.Close())
+
+			type identity struct {
+				method  database.ConnectionLogMethod
+				appName sql.NullString
+			}
+			want := []identity{
+				// Without a supplied app, the identity stays absent.
+				{database.ConnectionLogMethodSSH, sql.NullString{}},
+				{database.ConnectionLogMethodSSH, sql.NullString{String: "cursor", Valid: true}},
+				{database.ConnectionLogMethodSSH, sql.NullString{String: "some_new_ide", Valid: true}},
+				// Reconnecting PTY reports no app identity.
+				{database.ConnectionLogMethodReconnectingPTY, sql.NullString{}},
+			}
+			// Connect and disconnect report the same identity.
+			want = append(want, want...)
+			var got []identity
+			require.Eventually(t, func() bool {
+				got = nil
+				for _, l := range connLogger.ConnectionLogs() {
+					if l.WorkspaceID == r.Workspace.ID && l.ConnectionID.Valid {
+						got = append(got, identity{l.ConnectionMethod, l.AppNameOrPort})
+					}
+				}
+				return len(got) == len(want)
+			}, testutil.WaitLong, testutil.IntervalFast)
+			require.ElementsMatch(t, want, got)
+		})
+	}
 }

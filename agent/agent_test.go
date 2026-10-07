@@ -131,8 +131,8 @@ type eofClient struct {
 	*agenttest.Client
 }
 
-func (*eofClient) ConnectRPC212WithRole(context.Context, string) (
-	proto.DRPCAgentClient212, tailnetproto.DRPCTailnetClient28, error,
+func (*eofClient) ConnectRPC213WithRole(context.Context, string) (
+	proto.DRPCAgentClient213, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	return nil, nil, io.EOF
 }
@@ -243,7 +243,7 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			require.NoError(t, err, "waiting for session to exit")
 
 			assertConnectionReport(t, agentClient,
-				proto.ConnectEvent{Type: proto.Connection_SSH},
+				proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
 			)
 		})
@@ -454,7 +454,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.NoError(t, err)
 
 		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Type: proto.Connection_VSCODE},
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: "vscode"},
 			proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
 		)
 	})
@@ -530,7 +530,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		)
 
 		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Type: proto.Connection_JETBRAINS},
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH, AppName: "jetbrains"},
 			proto.DisconnectEvent{Reason: "normal close"},
 		)
 	})
@@ -1516,7 +1516,7 @@ func TestAgent_SFTP(t *testing.T) {
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
 		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Type: proto.Connection_SSH},
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 			proto.DisconnectEvent{},
 		)
 	})
@@ -1552,7 +1552,7 @@ func TestAgent_SFTP(t *testing.T) {
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
 		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Type: proto.Connection_SSH},
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 			proto.DisconnectEvent{},
 		)
 	})
@@ -1610,7 +1610,7 @@ func TestAgent_SCP(t *testing.T) {
 	// Close the client to trigger disconnect event.
 	scpClient.Close()
 	assertConnectionReport(t, agentClient,
-		proto.ConnectEvent{Type: proto.Connection_SSH},
+		proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 		proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
 	)
 }
@@ -1648,7 +1648,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		assertFileTransferBlocked(t, err.Error())
 
 		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Type: proto.Connection_SSH},
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 			proto.DisconnectEvent{
 				Code:   agentssh.BlockedFileTransferErrorCode,
 				Reason: "file transfer blocked",
@@ -1678,7 +1678,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		assertFileTransferBlocked(t, err.Error())
 
 		assertConnectionReport(t, agentClient,
-			proto.ConnectEvent{Type: proto.Connection_SSH},
+			proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 			proto.DisconnectEvent{
 				Code:   agentssh.BlockedFileTransferErrorCode,
 				Reason: "file transfer blocked",
@@ -1721,7 +1721,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				assertFileTransferBlocked(t, string(msg))
 
 				assertConnectionReport(t, agentClient,
-					proto.ConnectEvent{Type: proto.Connection_SSH},
+					proto.ConnectEvent{Method: proto.Connection_METHOD_SSH},
 					proto.DisconnectEvent{
 						Code:   agentssh.BlockedFileTransferErrorCode,
 						Reason: "file transfer blocked",
@@ -2433,7 +2433,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.NoError(t, err)
 			_ = netConn0.Close()
 			assertConnectionReport(t, agentClient,
-				proto.ConnectEvent{Type: proto.Connection_RECONNECTING_PTY},
+				proto.ConnectEvent{Method: proto.Connection_METHOD_RECONNECTING_PTY},
 				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
 			)
 
@@ -4568,8 +4568,11 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 
 	assert.Equal(t, proto.Connection_CONNECT, reports[0].GetConnection().GetAction(), "first report should be connect")
 	assert.Equal(t, proto.Connection_DISCONNECT, reports[1].GetConnection().GetAction(), "second report should be disconnect")
-	assert.Equal(t, connect.Type, reports[0].GetConnection().GetType(), "connect type should be %s", connect.Type)
-	assert.Equal(t, connect.Type, reports[1].GetConnection().GetType(), "disconnect type should be %s", connect.Type)
+	assert.Equal(t, connect.Method, reports[0].GetConnection().GetConnectionMethod(), "connect method should be %s", connect.Method)
+	assert.Equal(t, connect.Method, reports[1].GetConnection().GetConnectionMethod(), "disconnect method should be %s", connect.Method)
+	assert.Equal(t, connect.AppName, reports[0].GetConnection().GetAppName(), "connect app name should be %s", connect.AppName)
+	assert.Equal(t, connect.AppName, reports[1].GetConnection().GetAppName(), "disconnect app name should be %s", connect.AppName)
+	assert.Equal(t, reports[0].GetConnection().GetId(), reports[1].GetConnection().GetId(), "disconnect id should match connect id")
 	t1 := reports[0].GetConnection().GetTimestamp().AsTime()
 	t2 := reports[1].GetConnection().GetTimestamp().AsTime()
 	assert.True(t, t1.Before(t2) || t1.Equal(t2), "connect timestamp should be before or equal to disconnect timestamp")
