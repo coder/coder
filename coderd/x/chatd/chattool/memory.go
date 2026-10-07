@@ -138,7 +138,7 @@ func deleteProjectMemory(ctx context.Context, db database.Store, projectID uuid.
 }
 
 func memoryIntro(projectName string) string {
-	return fmt.Sprintf("Memory is durable context shared by every chat in the project %q.", projectName)
+	return fmt.Sprintf("Memory is durable context shared by every chat in the project %q, including chats started by other users the project is shared with.", projectName)
 }
 
 // Memory is a durable memory with its provenance.
@@ -309,6 +309,7 @@ const memoryGuidance = "Save facts that will matter in future chats: who the peo
 	"and where to find information outside the project, such as an issue tracker or dashboard.\n" +
 	"Save a memory as soon as durable information surfaces, without waiting to be asked. " +
 	"Do not save anything derivable from the codebase (architecture, file paths, debugging fixes), anything already stated in instructions, or temporary in-progress state. " +
+	"Everyone with access to the project can read memories, so never save secrets, credentials, or personal details beyond how people work on the project. " +
 	"Never save that something is unknown or undecided. Convert relative dates to absolute dates. " +
 	"The memory index is in the conversation: a <project-memory-index> message lists every saved memory, and <project-memory-index-update> messages at the start of later turns list what changed. " +
 	"Changes made during a turn, including your own, appear in the next turn's update. " +

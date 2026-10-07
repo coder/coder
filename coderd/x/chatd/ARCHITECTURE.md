@@ -1070,6 +1070,10 @@ Root chats in a project share durable memory; other chats have none. The agent s
 
 <!-- TODO(f0ssel): the memory index no longer lives in the `read_memory` tool description. At turn start the generation loop commits a model-only user row: a full `<project-memory-index>` snapshot when the prompt has none (first turn, or after compaction), otherwise a `<project-memory-index-update>` listing changes since the model last saw it. Tool definitions and the system prompt carry no memory state, so memory writes no longer invalidate the provider's cached prefix. Mid-turn only a snapshot dropped by compaction is restored, and never between an assistant step and its tool results. -->
 
+<!-- TODO(f0ssel): projects can be shared (user, group, or Everyone ACL with `use` or `admin`). Memory tools still run as chatd, so `resolveProjectMemory` checks `ChatProjectUsableBy` for the chat owner each generation: a chat whose owner lost the share, or any non-owner chat under `--disable-chat-sharing`, runs without memory. Administrators' role grants do not count. -->
+
+<!-- TODO(f0ssel): deleting a project deletes its root chats and sub-chats for every user (`Server.DeleteChatProject`), and fails while a worker holds any of them. Chats are no longer detached. -->
+
 ##### Reasoning effort
 
 Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` and on `chat_queued_messages.reasoning_effort` for queued messages. Queued messages carry the value through promotion, and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.

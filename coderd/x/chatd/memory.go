@@ -19,8 +19,8 @@ import (
 
 // resolveProjectMemory returns the durable-memory store and project name for
 // a chat. Only root chats inside a project have memory; chats outside a
-// project, subagents, the disabled experiment, and transient lookup failures
-// all report ok=false.
+// project, subagents, chats whose owner lost access to the project, the
+// disabled experiment, and transient lookup failures all report ok=false.
 func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (store chattool.MemoryStore, projectName string, ok bool) {
 	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
 		return nil, "", false
@@ -33,12 +33,23 @@ func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (
 		p.logger.Debug(ctx, "failed to load chat project for memory", slog.F("chat_id", chat.ID), slog.Error(err))
 		return nil, "", false
 	}
+	// A chat whose owner lost access to the project keeps running without
+	// its memory.
+	usable, err := ChatProjectUsableBy(ctx, p.db, project, chat.OwnerID)
+	if err != nil {
+		p.logger.Debug(ctx, "failed to check chat project access for memory", slog.F("chat_id", chat.ID), slog.Error(err))
+		return nil, "", false
+	}
+	if !usable {
+		return nil, "", false
+	}
 	return chattool.NewProjectMemoryStore(p.db, chat.ProjectID.UUID, chat.OrganizationID, chat.OwnerID, p.memoryAuditor(chat)), project.Name, true
 }
 
 // memoryAuditor records memory changes made by a chat's tools. There is no
-// HTTP request, so entries are attributed to the chat owner, whose
-// permissions the change ran with, and name the chat that made it.
+// HTTP request, so entries are attributed to the chat owner and name the
+// chat that made it. The change itself runs as chatd, after
+// resolveProjectMemory has checked the owner can use the project.
 func (p *Server) memoryAuditor(chat database.Chat) chattool.MemoryAuditFunc {
 	return func(ctx context.Context, action database.AuditAction, oldMemory, newMemory database.ChatProjectMemory) {
 		if p.chatWorker == nil || p.chatWorker.opts.Auditor == nil {

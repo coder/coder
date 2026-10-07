@@ -10861,9 +10861,8 @@ export interface UpdateChatPlanModeInstructionsRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatProjectACL changes only the listed principals.
- * ChatProjectRoleDeleted removes an entry. Use the organization ID as the
- * group ID to share with the whole organization.
+ * UpdateChatProjectACL changes only the listed principals. Users and groups
+ * must belong to the project's organization.
  */
 export interface UpdateChatProjectACL {
 	readonly user_roles?: Record<string, ChatProjectRole>;

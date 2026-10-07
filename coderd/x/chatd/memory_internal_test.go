@@ -33,6 +33,35 @@ func TestResolveProjectMemory(t *testing.T) {
 		require.Equal(t, "platform", projectName)
 	})
 
+	t.Run("SharedWithChatOwner", func(t *testing.T) {
+		t.Parallel()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		project := database.ChatProject{ID: uuid.New(), OwnerID: uuid.New(), Name: "platform"}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}}
+		db.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil)
+		db.EXPECT().IsChatProjectAccessibleByUserID(gomock.Any(), database.IsChatProjectAccessibleByUserIDParams{
+			ProjectID: project.ID,
+			UserID:    chat.OwnerID,
+		}).Return(true, nil)
+		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
+		_, _, ok := server.resolveProjectMemory(t.Context(), chat)
+		require.True(t, ok)
+	})
+
+	// Memory tools run as chatd, so a revoked share must remove memory from
+	// the sharee's existing chats.
+	t.Run("RevokedFromChatOwner", func(t *testing.T) {
+		t.Parallel()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		project := database.ChatProject{ID: uuid.New(), OwnerID: uuid.New(), Name: "platform"}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}}
+		db.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil)
+		db.EXPECT().IsChatProjectAccessibleByUserID(gomock.Any(), gomock.Any()).Return(false, nil)
+		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
+		_, _, ok := server.resolveProjectMemory(t.Context(), chat)
+		require.False(t, ok)
+	})
+
 	t.Run("OutsideProject", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))

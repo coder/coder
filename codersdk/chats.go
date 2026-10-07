@@ -258,16 +258,17 @@ type UpdateChatProjectRequest struct {
 }
 
 // ChatProjectRole is the access a project's ACL grants a user or group.
-// Sharing a project shares its details and memories, and lets sharees
-// start their own chats in it. It does not share the chats themselves.
+// Sharing a project does not share the chats in it.
 type ChatProjectRole string
 
 const (
 	// ChatProjectRoleUse can view the project and its memories and start
-	// chats in it, whose agents read and write the project's memories.
+	// chats in it. It cannot change the project or its memories directly,
+	// but the agents in its chats read and write the project's memories.
 	ChatProjectRoleUse ChatProjectRole = "use"
-	// ChatProjectRoleAdmin can also edit the project and change who it is
-	// shared with. Only the owner can delete it.
+	// ChatProjectRoleAdmin can also edit the project and its memories
+	// directly and change who it is shared with. Only the owner can delete
+	// the project.
 	ChatProjectRoleAdmin ChatProjectRole = "admin"
 	// ChatProjectRoleDeleted removes an ACL entry in an update.
 	ChatProjectRoleDeleted ChatProjectRole = ""
@@ -291,9 +292,8 @@ type ChatProjectACL struct {
 	Groups []ChatProjectGroup `json:"groups"`
 }
 
-// UpdateChatProjectACL changes only the listed principals.
-// ChatProjectRoleDeleted removes an entry. Use the organization ID as the
-// group ID to share with the whole organization.
+// UpdateChatProjectACL changes only the listed principals. Users and groups
+// must belong to the project's organization.
 type UpdateChatProjectACL struct {
 	UserRoles  map[string]ChatProjectRole `json:"user_roles,omitempty"`
 	GroupRoles map[string]ChatProjectRole `json:"group_roles,omitempty"`
@@ -2436,7 +2436,9 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 	return project, ReadBodyAsJSON(res, &project)
 }
 
-// DeleteChatProject deletes a chat project and detaches its chats.
+// DeleteChatProject deletes a chat project and every chat in it, including
+// chats started by users it is shared with. It fails with 409 Conflict while
+// any of those chats is running.
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
 	if err != nil {

@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -174,8 +175,7 @@ func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
-	if !api.Authorize(r, policy.ActionUpdate, project.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionUpdate, project) {
 		return
 	}
 
@@ -239,8 +239,7 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
-	if !api.Authorize(r, policy.ActionDelete, project.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionDelete, project) {
 		return
 	}
 
@@ -254,7 +253,14 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = project
 
-	err := api.Database.DeleteChatProjectByID(ctx, project.ID)
+	// Chats die with their project, including chats sharees started in it.
+	err := api.chatDaemon.DeleteChatProject(ctx, project.ID)
+	if errors.Is(err, chatd.ErrChatProjectHasActiveChats) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "This project has running chats. Wait for them to finish or stop them, then delete the project.",
+		})
+		return
+	}
 	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -267,6 +273,20 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// authorizeChatProjectChange writes 404 when the caller cannot read the
+// project and 403 when they can read it but not perform action.
+func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Request, action policy.Action, project database.ChatProject) bool {
+	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return false
+	}
+	if !api.Authorize(r, action, project.RBACObject()) {
+		httpapi.Forbidden(rw)
+		return false
+	}
+	return true
 }
 
 // maxChatProjectsPerOwner caps how many projects one user owns across all

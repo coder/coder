@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -38,12 +39,14 @@ func (api *API) getChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 
-	if !api.allowChatSharing(ctx, rw) {
-		return
-	}
 	// Anyone who can read the project may see who else it is shared with.
+	// Reading comes first so the disabled response does not reveal that a
+	// project exists.
 	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if !api.allowChatSharing(ctx, rw) {
 		return
 	}
 
@@ -89,11 +92,11 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = project
 
-	if !api.allowChatSharing(ctx, rw) {
-		return
-	}
 	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if !api.allowChatSharing(ctx, rw) {
 		return
 	}
 	if !api.Authorize(r, policy.ActionShare, project.RBACObject()) {
@@ -106,24 +109,36 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for userID := range req.UserRoles {
-		parsed, err := uuid.Parse(userID)
-		if err == nil && parsed == apiKey.UserID {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cannot change your own project sharing role.",
-			})
-			return
-		}
+	validErrs := acl.Validate(ctx, api.Database, ChatProjectACLUpdateValidator(req))
+	if len(validErrs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid request to update chat project ACL.",
+			Validations: validErrs,
+		})
+		return
+	}
+	// ACL keys must be canonical UUIDs: RBAC matches them as strings, so
+	// any other spelling would grant nothing and could not be removed.
+	userRoles := canonicalChatProjectRoles(req.UserRoles)
+	groupRoles := canonicalChatProjectRoles(req.GroupRoles)
+
+	if _, ok := userRoles[apiKey.UserID]; ok {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot change your own project sharing role.",
+		})
+		return
+	}
+	if _, ok := userRoles[project.OwnerID]; ok {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The project owner cannot be added to the project's sharing list.",
+		})
+		return
 	}
 
-	validErrs := acl.Validate(ctx, api.Database, ChatProjectACLUpdateValidator(req))
-	if len(validErrs) == 0 {
-		var err error
-		validErrs, err = api.validateChatProjectACLGroupOrganization(ctx, project, req.GroupRoles)
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
+	validErrs, err := api.validateChatProjectACLOrganization(ctx, project, userRoles, groupRoles)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
 	}
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -133,13 +148,13 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := api.Database.InTx(func(tx database.Store) error {
+	err = api.Database.InTx(func(tx database.Store) error {
 		current, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID)
 		if err != nil {
 			return xerrors.Errorf("get chat project for update: %w", err)
 		}
-		userACL := applyChatProjectRoles(current.UserACL, req.UserRoles)
-		groupACL := applyChatProjectRoles(current.GroupACL, req.GroupRoles)
+		userACL := applyChatProjectRoles(current.UserACL, userRoles)
+		groupACL := applyChatProjectRoles(current.GroupACL, groupRoles)
 		if err := tx.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
 			ID:       project.ID,
 			UserACL:  userACL,
@@ -166,53 +181,97 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// applyChatProjectRoles returns a copy of current with roles applied.
-func applyChatProjectRoles(current database.ChatACL, roles map[string]codersdk.ChatProjectRole) database.ChatACL {
+// canonicalChatProjectRoles keys roles by parsed UUID. acl.Validate has
+// already rejected keys that are not UUIDs.
+func canonicalChatProjectRoles(roles map[string]codersdk.ChatProjectRole) map[uuid.UUID]codersdk.ChatProjectRole {
+	canonical := make(map[uuid.UUID]codersdk.ChatProjectRole, len(roles))
+	for rawID, role := range roles {
+		id, err := uuid.Parse(rawID)
+		if err != nil {
+			continue
+		}
+		canonical[id] = role
+	}
+	return canonical
+}
+
+func applyChatProjectRoles(current database.ChatACL, roles map[uuid.UUID]codersdk.ChatProjectRole) database.ChatACL {
 	next := make(database.ChatACL, len(current)+len(roles))
 	for id, entry := range current {
 		next[id] = entry
 	}
 	for id, role := range roles {
 		if role == codersdk.ChatProjectRoleDeleted {
-			delete(next, id)
+			delete(next, id.String())
 			continue
 		}
-		next[id] = database.ChatACLEntry{Permissions: db2sdk.ChatProjectRoleActions(role)}
+		next[id.String()] = database.ChatACLEntry{Permissions: db2sdk.ChatProjectRoleActions(role)}
 	}
 	return next
 }
 
-// validateChatProjectACLGroupOrganization rejects groups from other
-// organizations. RBAC applies a group grant to any member of the project's
-// organization who is in the group, so a foreign group would leak access
-// to its members.
-func (api *API) validateChatProjectACLGroupOrganization(ctx context.Context, project database.ChatProject, roles map[string]codersdk.ChatProjectRole) ([]codersdk.ValidationError, error) {
-	groupIDs := make([]uuid.UUID, 0, len(roles))
-	for rawID, role := range roles {
-		if role == codersdk.ChatProjectRoleDeleted {
-			continue
-		}
-		// acl.Validate has already rejected invalid UUIDs.
-		groupIDs = append(groupIDs, uuid.MustParse(rawID))
-	}
-	if len(groupIDs) == 0 {
-		return nil, nil
-	}
-	//nolint:gocritic // Validation needs every requested group, even ones the caller cannot read.
-	groups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return nil, xerrors.Errorf("get groups: %w", err)
-	}
+// validateChatProjectACLOrganization rejects users and groups outside the
+// project's organization. RBAC applies grants only to members of the
+// project's organization, so a foreign user would be listed but get no
+// access, and a foreign group would grant access to those of its members
+// who also belong to the project's organization.
+func (api *API) validateChatProjectACLOrganization(
+	ctx context.Context,
+	project database.ChatProject,
+	userRoles, groupRoles map[uuid.UUID]codersdk.ChatProjectRole,
+) ([]codersdk.ValidationError, error) {
+	//nolint:gocritic // Validation needs every requested user and group, even ones the caller cannot read.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	var validErrs []codersdk.ValidationError
-	for _, group := range groups {
-		if group.Group.OrganizationID != project.OrganizationID {
-			validErrs = append(validErrs, codersdk.ValidationError{
-				Field:  "group_roles",
-				Detail: fmt.Sprintf("group with ID %v is not in the project's organization", group.Group.ID),
-			})
+
+	userIDs := grantedChatProjectIDs(userRoles)
+	if len(userIDs) > 0 {
+		memberships, err := api.Database.GetOrganizationIDsByMemberIDs(sysCtx, userIDs)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get organization memberships: %w", err)
+		}
+		inOrg := make(map[uuid.UUID]bool, len(memberships))
+		for _, membership := range memberships {
+			inOrg[membership.UserID] = slices.Contains(membership.OrganizationIDs, project.OrganizationID)
+		}
+		for _, id := range userIDs {
+			if !inOrg[id] {
+				validErrs = append(validErrs, codersdk.ValidationError{
+					Field:  "user_roles",
+					Detail: fmt.Sprintf("user with ID %v is not a member of the project's organization", id),
+				})
+			}
+		}
+	}
+
+	groupIDs := grantedChatProjectIDs(groupRoles)
+	if len(groupIDs) > 0 {
+		groups, err := api.Database.GetGroups(sysCtx, database.GetGroupsParams{GroupIds: groupIDs})
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get groups: %w", err)
+		}
+		for _, group := range groups {
+			if group.Group.OrganizationID != project.OrganizationID {
+				validErrs = append(validErrs, codersdk.ValidationError{
+					Field:  "group_roles",
+					Detail: fmt.Sprintf("group with ID %v is not in the project's organization", group.Group.ID),
+				})
+			}
 		}
 	}
 	return validErrs, nil
+}
+
+// grantedChatProjectIDs returns the IDs being granted a role. Removals
+// skip validation so entries for deleted principals can still be removed.
+func grantedChatProjectIDs(roles map[uuid.UUID]codersdk.ChatProjectRole) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(roles))
+	for id, role := range roles {
+		if role != codersdk.ChatProjectRoleDeleted {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 func (api *API) chatProjectACLUsers(ctx context.Context, project database.ChatProject) ([]codersdk.ChatProjectUser, error) {

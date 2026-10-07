@@ -1356,18 +1356,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProjectsAccessibleByUserID(gomock.Any(), userID).Return(rows, nil).AnyTimes()
 		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
 	}))
-	s.Run("GetChatProjectByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		project := testutil.Fake(s.T(), faker, database.ChatProject{})
-		dbm.EXPECT().GetChatProjectByIDForUpdate(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
-		check.Args(project.ID).Asserts(project, policy.ActionRead).Returns(project)
-	}))
-	s.Run("GetChatProjectsAccessibleByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		userID := uuid.New()
-		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: userID})
-		rows := []database.ChatProject{project}
-		dbm.EXPECT().GetChatProjectsAccessibleByUserID(gomock.Any(), userID).Return(rows, nil).AnyTimes()
-		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
-	}))
 	s.Run("GetChatProjectChatsForDelete", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		projectID := uuid.New()
 		dbm.EXPECT().GetChatProjectChatsForDelete(gomock.Any(), projectID).Return([]database.Chat{}, nil).AnyTimes()
