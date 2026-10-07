@@ -951,8 +951,8 @@ func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *t
 func TestBufferedPartsToPartialMessages_CoalescesStreamedTextDeltas(t *testing.T) {
 	t.Parallel()
 
-	// Streams deliver text one token at a time; an interrupted turn must
-	// persist one part per run, as a completed turn does, not one per token.
+	// Whitespace-only deltas must stay inside the run: the frontend and prompt
+	// replay drop whitespace-only text parts.
 	parts := []messagepartbuffer.Part{
 		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageReasoning("think")},
 		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageReasoning("ing")},

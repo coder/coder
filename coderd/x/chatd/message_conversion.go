@@ -789,9 +789,9 @@ type partialMessageConversionState struct {
 	// modelStreamedAssistant distinguishes streamed content from tool
 	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
-	// streamedRun holds the text of the open text or reasoning run at
-	// assistantParts[streamedRunIndex]. Appending to the part's Text instead
-	// copied the whole run on every delta.
+	// streamedRun accumulates the text of the open text or reasoning run.
+	// While streamedRunOpen is true, assistantParts[streamedRunIndex].Text is
+	// stale; close the run before reading or appending to assistantParts.
 	streamedRun      strings.Builder
 	streamedRunIndex int
 	streamedRunOpen  bool
@@ -876,9 +876,9 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	s.assistantParts[call.index] = durable
 }
 
-// appendAssistantPart merges a text or reasoning delta into the open run of
-// the same type, so an interrupted turn persists one part per run like a
-// completed turn (processStepStream) instead of one part per token.
+// appendAssistantPart appends part, merging a delta into the open run of its
+// type. Text deltas carry no block identity, so adjacent text blocks merge; a
+// reasoning run ends when CreatedAt, the block's start time, changes.
 func (s *partialMessageConversionState) appendAssistantPart(part codersdk.ChatMessagePart) {
 	streamed := part.Type == codersdk.ChatMessagePartTypeText || part.Type == codersdk.ChatMessagePartTypeReasoning
 	if streamed && s.streamedRunOpen {
@@ -899,7 +899,6 @@ func (s *partialMessageConversionState) appendAssistantPart(part codersdk.ChatMe
 	_, _ = s.streamedRun.WriteString(part.Text)
 }
 
-// closeStreamedRun writes the accumulated text back onto the run's part.
 func (s *partialMessageConversionState) closeStreamedRun() {
 	if !s.streamedRunOpen {
 		return
