@@ -108,6 +108,10 @@ api "/api/v2/users/me/workspace/$ws" |
   jq '{id, outdated, build_id: .latest_build.id, status: .latest_build.status, transition: .latest_build.transition}'
 ```
 
+While `status` is `pending`, `starting`, `stopping`, `canceling`, or
+`deleting`, a build is in progress: repeat the lookup every 10 seconds until
+it ends.
+
 Any other code but `404`: stop and report it. `404` means the workspace does
 not exist. Create it:
 
@@ -278,13 +282,15 @@ license.
 
 ## 9. Teardown
 
-For a merged or closed PR, with `ws=eph-pr-$number`:
+For a merged or closed PR, with `ws=eph-pr-$number`, look the workspace up as
+in step 4 and wait out a build in progress. On `404` there is nothing to tear
+down; go to item 4.
 
 1. If the workspace is running, delete its OAuth client:
    `coder ssh "$ws" -- sudo /opt/eph/bin/eph-proxy deregister`. It prints
    "no OAuth client registered" for workspaces that never ran in frontend
-   mode. For a stopped workspace, skip this and tell the user the client stays
-   registered on dogfood until an admin deletes it.
+   mode. For a workspace that is not running, skip this and tell the user the
+   client stays registered on dogfood until an admin deletes it.
 2. Remove its port shares, which `coder delete` leaves in the database:
 
    ```sh
