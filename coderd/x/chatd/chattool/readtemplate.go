@@ -26,13 +26,18 @@ const ReadTemplateReadmeMaxRunes = 8000
 const (
 	readTemplateBuildDefaultsNote = "Parameter defaults are the values a " +
 		"build for this workspace owner uses when create_workspace omits " +
-		"every parameter. A default that depends on another parameter is " +
-		"re-evaluated against the values passed to create_workspace, so pass " +
-		"it explicitly when its value matters. To use a preset, pass its " +
-		"preset_id: a prebuilt workspace is claimed only for a preset given " +
-		"explicitly or matched by the parameter values passed to " +
-		"create_workspace, never by defaults, and a preset marked default is " +
-		"not applied implicitly."
+		"every parameter and no preset applies. A default that depends on " +
+		"another parameter is re-evaluated against the values passed to " +
+		"create_workspace, so pass it explicitly when its value matters. A " +
+		"preset applies when its preset_id is passed or, without one, when " +
+		"every parameter it defines is passed with the preset's value; the " +
+		"matching preset defining the most parameters wins, and a preset " +
+		"defining none matches every request. A preset marked default is not " +
+		"applied implicitly. If a prebuilt workspace is claimed for the " +
+		"preset, omitted parameters can keep the prebuilt workspace's values " +
+		"instead of these defaults, and passing an immutable parameter the " +
+		"preset does not define with a value other than the prebuilt " +
+		"workspace's fails workspace creation."
 	readTemplateImportDefaultsNote = "Parameter defaults could not be " +
 		"evaluated for the workspace owner and are the values recorded at " +
 		"template import, which may differ from what a build uses. Pass " +
@@ -290,14 +295,22 @@ func readTemplateParameters(
 		options.Logger.Debug(ctx, "read_template skipped owner evaluation, template version still importing", fields...)
 		return importEntries(), readTemplateImportingNote
 	default:
+		// A canceled render is not an evaluation failure worth a warning.
+		if ctx.Err() != nil {
+			return importEntries(), readTemplateImportDefaultsNote
+		}
 		if err != nil {
 			fields = append(fields, slog.Error(err))
 		}
+		// Diagnostic text can quote owner attributes seeded into the render,
+		// so only the codes are logged.
+		var codes []string
 		for _, d := range diags {
 			if d.Severity == codersdk.DiagnosticSeverityError {
-				fields = append(fields, slog.F("diagnostic", d.Summary+": "+d.Detail))
+				codes = append(codes, d.Extra.Code)
 			}
 		}
+		fields = append(fields, slog.F("diagnostic_codes", codes))
 		options.Logger.Warn(ctx, "read_template failed to evaluate parameters for owner, using import defaults", fields...)
 		return importEntries(), readTemplateImportDefaultsNote
 	}
@@ -338,26 +351,24 @@ func renderedParameterEntry(p codersdk.PreviewParameter) map[string]any {
 	if desc := strings.TrimSpace(p.Description); desc != "" {
 		param["description"] = truncateRunes(desc, 300)
 	}
+	// error flags an evaluated default the build would reject. Without one,
+	// both renderers validate an empty value instead, and the static renderer
+	// presents a required parameter's missing default as a valid empty string.
 	var paramErr string
-	for _, d := range p.Diagnostics {
-		// Rendering with no inputs tags every required parameter with a
-		// "required" error; that state is already conveyed by required
-		// being true with no default, so it is not a broken default.
-		if d.Severity != codersdk.DiagnosticSeverityError || d.Extra.Code == previewtypes.DiagnosticCodeRequired {
-			continue
+	if p.DefaultValue.Valid && !p.Required {
+		for _, d := range p.Diagnostics {
+			if d.Severity == codersdk.DiagnosticSeverityError {
+				paramErr = strings.TrimSpace(d.Summary + ": " + d.Detail)
+				break
+			}
 		}
-		paramErr = strings.TrimSpace(d.Summary + ": " + d.Detail)
-		break
 	}
 	switch {
 	case paramErr != "":
 		// A parameter-scoped error does not fail the whole render, but a
 		// build with this value is rejected, so never present it as a
 		// usable default.
-		if p.DefaultValue.Valid {
-			paramErr += fmt.Sprintf("; the evaluated default %q cannot be used, pass a value explicitly", p.DefaultValue.Value)
-		}
-		param["error"] = paramErr
+		param["error"] = fmt.Sprintf("%s; the evaluated default %q cannot be used, pass a value explicitly", paramErr, p.DefaultValue.Value)
 	case p.DefaultValue.Valid:
 		if p.DefaultValue.Value != "" {
 			param["default"] = p.DefaultValue.Value
@@ -394,7 +405,7 @@ func renderedParameterEntry(p codersdk.PreviewParameter) map[string]any {
 // renderedOptions converts the rendered options, omitting any whose value is
 // unknown before the build rather than presenting an empty value. Preview
 // flags the parameter with an invalid-options error in that case, which the
-// entry surfaces as error.
+// entry surfaces as error when the parameter has an evaluated default.
 func renderedOptions(options []codersdk.PreviewParameterOption) []map[string]any {
 	opts := make([]map[string]any, 0, len(options))
 	for _, o := range options {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -341,6 +343,13 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 	tmpl := newTemplate(t, database.Template{}, regionRow)
 
 	regex := "^[a-z-]+$"
+	// With no evaluated default, preview checks an empty value against the
+	// validation block and reports this error for it.
+	emptyValueError := codersdk.FriendlyDiagnostic{
+		Severity: codersdk.DiagnosticSeverityError,
+		Summary:  "Invalid parameter value according to 'validation' block",
+		Detail:   `lowercase only (value "" does not match "^[a-z-]+$")`,
+	}
 	ownerRendered := []codersdk.PreviewParameter{
 		{
 			PreviewParameterData: codersdk.PreviewParameterData{
@@ -426,6 +435,9 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		// is given, so the note must not promise more than that.
 		require.Contains(t, note, "omits every parameter")
 		require.Contains(t, note, "re-evaluated against the values passed to create_workspace")
+		// A preset can apply without a preset_id, and a claimed prebuilt
+		// workspace keeps its own values.
+		require.Contains(t, note, "no preset applies")
 	})
 
 	t.Run("ParameterErrorIsReported", func(t *testing.T) {
@@ -449,28 +461,36 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 
 	t.Run("RequiredWithoutValueIsNotAnError", func(t *testing.T) {
 		t.Parallel()
-		// preview tags required parameters rendered with no inputs with a
-		// "required" error diagnostic; that must not be reported as a
-		// broken default, and the import default must not stand in.
+		// With no inputs, preview reports the validation error for the empty
+		// value before tagging the parameter "required", and the static
+		// renderer reports it against an empty but valid default. Neither is
+		// a broken default, and the import default must not stand in.
 		required := codersdk.PreviewParameter{
 			PreviewParameterData: codersdk.PreviewParameterData{
-				Name:     "Region",
-				Type:     codersdk.OptionTypeString,
-				Required: true,
-				Mutable:  true,
+				Name:        "Region",
+				Type:        codersdk.OptionTypeString,
+				Required:    true,
+				Mutable:     true,
+				Validations: []codersdk.PreviewParameterValidation{{Regex: &regex}},
 			},
-			Diagnostics: []codersdk.FriendlyDiagnostic{{
+			Diagnostics: []codersdk.FriendlyDiagnostic{emptyValueError, {
 				Severity: codersdk.DiagnosticSeverityError,
 				Summary:  "Required parameter not provided",
 				Detail:   "parameter value is null",
 				Extra:    codersdk.DiagnosticExtra{Code: "required"},
 			}},
 		}
-		region, note := readParams(t, renderStatic(required))
-		require.Equal(t, true, region["required"])
-		require.NotContains(t, region, "default")
-		require.NotContains(t, region, "error")
-		require.Contains(t, note, "values a build for this workspace owner uses")
+		static := required
+		static.DefaultValue = codersdk.NullHCLString{Valid: true}
+		static.Diagnostics = []codersdk.FriendlyDiagnostic{emptyValueError}
+		for _, rendered := range []codersdk.PreviewParameter{required, static} {
+			region, note := readParams(t, renderStatic(rendered))
+			require.Equal(t, true, region["required"])
+			require.NotContains(t, region, "default")
+			require.NotContains(t, region, "error")
+			require.Equal(t, regex, region["validation_regex"], "the constraint still reaches the model")
+			require.Contains(t, note, "values a build for this workspace owner uses")
+		}
 	})
 
 	t.Run("RenderErrorFallsBack", func(t *testing.T) {
@@ -490,6 +510,59 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		})
 		require.Equal(t, "us-pittsburgh", region["default"])
 		require.Contains(t, note, "recorded at template import")
+	})
+
+	readTemplateCall := fantasy.ToolCall{
+		ID:    "call-owner",
+		Name:  "read_template",
+		Input: `{"template_id":"` + tmpl.ID.String() + `"}`,
+	}
+	isWarn := func(e slog.SinkEntry) bool { return e.Level == slog.LevelWarn }
+
+	t.Run("FallbackLogOmitsDiagnosticText", func(t *testing.T) {
+		t.Parallel()
+		// The render is seeded with owner attributes, so diagnostic text can
+		// quote them, as a duplicate parameter name does with an SSH key.
+		const ownerKey = "ssh-ed25519 AAAAOWNERKEY"
+		sink := testutil.NewFakeSink(t)
+		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
+			OwnerID: user.ID,
+			RenderParameters: func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+				return nil, []codersdk.FriendlyDiagnostic{
+					{Severity: codersdk.DiagnosticSeverityError, Summary: `Found 2 duplicate parameters with name "` + ownerKey + `"`},
+					{Severity: codersdk.DiagnosticSeverityError, Summary: "Invalid type", Detail: ownerKey},
+				}, nil
+			},
+			Logger: sink.Logger(),
+		})
+		_, err := tool.Run(testutil.Context(t, testutil.WaitShort), readTemplateCall)
+		require.NoError(t, err)
+		warns := sink.Entries(isWarn)
+		require.Len(t, warns, 1)
+		require.NotContains(t, fmt.Sprintf("%+v", warns[0]), ownerKey)
+		fieldNames := make(map[string]struct{}, len(warns[0].Fields))
+		for _, f := range warns[0].Fields {
+			require.NotContains(t, fieldNames, f.Name, "a repeated field name is dropped by JSON log consumers")
+			fieldNames[f.Name] = struct{}{}
+		}
+	})
+
+	t.Run("CanceledRenderDoesNotWarn", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		defer cancel()
+		sink := testutil.NewFakeSink(t)
+		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
+			OwnerID: user.ID,
+			RenderParameters: func(ctx context.Context, _, _ uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+				cancel()
+				return nil, nil, ctx.Err()
+			},
+			Logger: sink.Logger(),
+		})
+		_, err := tool.Run(ctx, readTemplateCall)
+		require.NoError(t, err)
+		require.Empty(t, sink.Entries(isWarn), "a canceled render is not an evaluation failure")
 	})
 
 	t.Run("NotReadyReportsImporting", func(t *testing.T) {
@@ -518,11 +591,13 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		t.Parallel()
 		// Preview renders a default that depends on data.coder_provisioner
 		// and a default that evaluates to null for this owner identically:
-		// Valid is false and there is no diagnostic. The import row cannot
-		// tell them apart, so its value must not stand in.
+		// Valid is false, with the validation error for the empty value it
+		// checks instead. The import row cannot tell them apart, so its
+		// value must not stand in.
 		unknown := ownerRendered[0]
 		unknown.DefaultValue = codersdk.NullHCLString{}
 		unknown.Value = codersdk.NullHCLString{}
+		unknown.Diagnostics = []codersdk.FriendlyDiagnostic{emptyValueError}
 		region, note := readParams(t, renderStatic(unknown))
 		require.NotContains(t, region, "default", "import default must not stand in for an unevaluated one")
 		require.Contains(t, region["default_note"], "no default could be evaluated")
