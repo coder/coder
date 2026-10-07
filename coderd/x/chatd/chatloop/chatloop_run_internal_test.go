@@ -231,6 +231,78 @@ func TestGenerateAssistant_ProviderResponseID(t *testing.T) {
 	}
 }
 
+func TestGenerateAssistant_PromptTextBytes(t *testing.T) {
+	t.Parallel()
+
+	tool := fantasy.NewAgentTool(
+		"read_file",
+		"Reads a file.",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextResponse("ok"), nil
+		},
+	)
+	for _, tc := range []struct {
+		name     string
+		messages []fantasy.Message
+		wantZero bool
+	}{
+		{
+			name: "text",
+			messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleSystem, "system prompt"),
+				textMessage(fantasy.MessageRoleUser, "hello"),
+			},
+		},
+		{
+			name: "media",
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: "see image"},
+					fantasy.FilePart{Data: []byte("png"), MediaType: "image/png"},
+				},
+			}},
+			wantZero: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var sent fantasy.Call
+			model := &chattest.FakeModel{
+				ProviderName: "fake",
+				ModelName:    "fake-model",
+				StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+					sent = call
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "hi"},
+						{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+						{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+					}), nil
+				},
+			}
+
+			outcome, err := GenerateAssistant(context.Background(), GenerateAssistantOptions{
+				Model:    model,
+				Messages: tc.messages,
+				Tools:    []fantasy.AgentTool{tool},
+			})
+			require.NoError(t, err)
+			if tc.wantZero {
+				require.Zero(t, outcome.Step.PromptTextBytes)
+				return
+			}
+			// The bytes describe the request as sent, tools included.
+			require.Len(t, sent.Tools, 1)
+			want, _ := promptTextBytes(sent.Prompt)
+			want += toolDefinitionBytes(sent.Tools)
+			require.Greater(t, toolDefinitionBytes(sent.Tools), 0)
+			require.Equal(t, int64(want), outcome.Step.PromptTextBytes)
+		})
+	}
+}
+
 func TestGenerateAssistant_ErrorProviderOverridesTransportLabel(t *testing.T) {
 	t.Parallel()
 

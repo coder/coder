@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -379,76 +381,92 @@ const (
 	// system prompt and tool definitions measured 4.0 bytes per token
 	// on Claude Sonnet 4.6 and 5.3 on gpt-5-mini.
 	nextPromptBytesPerTokenFallback = 4.0
-	// Calibrated ratios outside these bounds come from inconsistent
-	// usage and fall back to nextPromptBytesPerTokenFallback.
+	// Calibrated ratios outside these bounds are treated as unreliable
+	// and replaced by nextPromptBytesPerTokenFallback. Measured ratios
+	// range from 3.9 to 5.3.
 	minNextPromptBytesPerToken = 1.0
 	maxNextPromptBytesPerToken = 16.0
 )
 
 // CompactionNextPrompt describes the request that follows a compaction,
 // apart from the summary, so the estimate published with the summary
-// covers the whole prompt. It is sized only when a compaction runs.
+// also covers the system prompt, tool definitions and user messages
+// sent with it. It is sized only when a compaction runs.
 type CompactionNextPrompt struct {
 	// History is the chat model's prompt before compaction, system
 	// messages included. Its system messages are sent again.
 	History []fantasy.Message
-	// Pending holds the user messages replayed after the boundary.
+	// Pending holds the user messages committed after the boundary:
+	// the replayed pending tail and the project memory index.
 	Pending []fantasy.Message
-	// Tools are the tool definitions of the next request.
+	// Tools are the tool definitions of the current request.
 	Tools []fantasy.Tool
-	// FirstStepUsage is the usage of the first assistant message in
-	// History, or zero when it is unknown.
-	FirstStepUsage fantasy.Usage
+	// DroppedTools names the tools in Tools that the next request no
+	// longer carries.
+	DroppedTools []string
+	// FirstStepUsage and FirstStepPromptTextBytes describe the request
+	// of the first step since the latest compaction boundary, as
+	// PersistedStep reports them. Either is zero when unknown.
+	FirstStepUsage           fantasy.Usage
+	FirstStepPromptTextBytes int64
 }
 
-// size returns the text bytes the next request carries besides the
-// summary, and the bytes-per-token ratio that converts them. Media is
-// not counted: its token count does not follow its byte size.
+// estimateTokens estimates the next request's prompt tokens for a
+// summary of summaryBytes. It returns zero, an unknown estimate, when
+// the retained messages carry media, whose token count does not follow
+// its byte size.
 //
-// The ratio comes from the first step of the current context window,
-// whose prompt is everything in History before the first assistant
-// message. That prompt is mostly system messages and tool definitions,
-// like the prompt after compaction. Later prompts are dominated by
-// history whose tokenization differs: calibrating on the last prompt
-// overestimated by 30% to 48% after large tool results, against 1% for
-// the first step. A first prompt with media is not used, because the
-// media's tokens have no matching text bytes. System messages or tools
-// added after the first step, for example when a workspace attaches,
-// make the ratio too large and the estimate low.
-func (p CompactionNextPrompt) size() (retainedBytes int, bytesPerToken float64) {
-	toolBytes := toolDefinitionBytes(p.Tools)
-	pendingBytes, _ := promptTextBytes(p.Pending)
-	retainedBytes = toolBytes + pendingBytes
-	firstAssistant := -1
-	for i, msg := range p.History {
+// Bytes convert to tokens at the ratio of the first step since the
+// latest boundary. That request is mostly system messages and tool
+// definitions, like the request after compaction, and its bytes were
+// recorded when it was sent, so prompt changes since then, such as the
+// instructions of a workspace attached later, do not skew the ratio.
+// Later requests are dominated by history whose tokenization differs:
+// calibrating on the last request overestimated by 30% to 48% after
+// large tool results, while the first step stayed within 5%.
+func (p CompactionNextPrompt) estimateTokens(summaryBytes int) int64 {
+	retainedBytes, hasMedia := promptTextBytes(p.Pending)
+	if hasMedia {
+		return 0
+	}
+	for _, msg := range p.History {
 		if msg.Role == fantasy.MessageRoleSystem {
 			systemBytes, _ := messageTextBytes(msg)
 			retainedBytes += systemBytes
 		}
-		if firstAssistant < 0 && msg.Role == fantasy.MessageRoleAssistant {
-			firstAssistant = i
-		}
 	}
-
-	bytesPerToken = nextPromptBytesPerTokenFallback
-	if tokens := contextTokensFromUsage(p.FirstStepUsage); tokens > 0 && firstAssistant > 0 {
-		firstPromptBytes, hasMedia := promptTextBytes(p.History[:firstAssistant])
-		ratio := float64(toolBytes+firstPromptBytes) / float64(tokens)
-		if !hasMedia && ratio >= minNextPromptBytesPerToken && ratio <= maxNextPromptBytesPerToken {
-			bytesPerToken = ratio
-		}
-	}
-	return retainedBytes, bytesPerToken
+	retainedBytes += toolDefinitionBytes(slices.DeleteFunc(slices.Clone(p.Tools), func(tool fantasy.Tool) bool {
+		return slices.Contains(p.DroppedTools, tool.GetName())
+	}))
+	return int64(math.Ceil(float64(retainedBytes+summaryBytes) / p.bytesPerToken()))
 }
 
-func (p CompactionNextPrompt) estimateTokens(summaryBytes int) int64 {
-	retainedBytes, bytesPerToken := p.size()
-	return int64(math.Ceil(float64(retainedBytes+summaryBytes) / bytesPerToken))
+func (p CompactionNextPrompt) bytesPerToken() float64 {
+	// TotalTokens is not a fallback here: it includes output tokens.
+	usage := p.FirstStepUsage
+	tokens := usage.InputTokens + usage.CacheReadTokens + usage.CacheCreationTokens
+	if tokens <= 0 || p.FirstStepPromptTextBytes <= 0 {
+		return nextPromptBytesPerTokenFallback
+	}
+	ratio := float64(p.FirstStepPromptTextBytes) / float64(tokens)
+	if ratio < minNextPromptBytesPerToken || ratio > maxNextPromptBytesPerToken {
+		return nextPromptBytesPerTokenFallback
+	}
+	return ratio
+}
+
+// requestTextBytes returns the text bytes of a model request, its
+// prompt and tool definitions, or zero when the prompt carries media.
+func requestTextBytes(prompt []fantasy.Message, tools []fantasy.Tool) int64 {
+	textBytes, hasMedia := promptTextBytes(prompt)
+	if hasMedia {
+		return 0
+	}
+	return int64(textBytes + toolDefinitionBytes(tools))
 }
 
 // promptTextBytes sums the text the provider tokenizes as text and
-// reports whether any message also carries media, whose token count
-// does not follow its byte size.
+// reports whether any message also carries media.
 func promptTextBytes(messages []fantasy.Message) (int, bool) {
 	total := 0
 	hasMedia := false
@@ -466,9 +484,15 @@ func messageTextBytes(msg fantasy.Message) (int, bool) {
 	for _, part := range msg.Content {
 		switch p := part.(type) {
 		case fantasy.FilePart:
+			// Text attachments are sent as text documents.
+			if chatfiles.IsTextAttachmentMediaType(p.MediaType) {
+				total += len(p.Data)
+				continue
+			}
 			hasMedia = true
 		case fantasy.ToolResultPart:
-			if _, media := p.Output.(fantasy.ToolResultOutputContentMedia); media {
+			if output, media := p.Output.(fantasy.ToolResultOutputContentMedia); media {
+				total += len(output.Text)
 				hasMedia = true
 				continue
 			}
@@ -481,12 +505,15 @@ func messageTextBytes(msg fantasy.Message) (int, bool) {
 }
 
 // toolDefinitionBytes sums each tool's name, description, and JSON
-// schema, the parts a provider tokenizes.
+// schema. Provider-defined tools count their name and arguments only;
+// the provider may add its own definition text.
 func toolDefinitionBytes(tools []fantasy.Tool) int {
 	total := 0
 	for _, tool := range tools {
 		switch t := tool.(type) {
 		case fantasy.FunctionTool:
+			// Sending the request marshals the same schema, so an
+			// error here also fails the request.
 			schema, _ := json.Marshal(t.InputSchema)
 			total += len(t.Name) + len(t.Description) + len(schema)
 		case fantasy.ProviderDefinedTool:

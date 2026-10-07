@@ -1,9 +1,11 @@
 package chatd //nolint:testpackage // Exercises unexported re-derivation helpers.
 
 import (
+	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
@@ -173,6 +175,14 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 		chatloop.BuildToolDefinitions(prepared.Tools, prepared.ActiveTools, prepared.ProviderTools),
 		prepared.Compaction.Options.ToolDefinitions,
 	)
+	// The next prompt keeps the chat model's tools. A first turn has no
+	// pending tail: "hello" is summarized, so only system messages and
+	// tools are retained.
+	nextPrompt := prepared.Compaction.Options.NextPrompt
+	require.Equal(t, prepared.Compaction.Options.ToolDefinitions, nextPrompt.Tools)
+	require.Empty(t, nextPrompt.DroppedTools)
+	require.Empty(t, nextPrompt.Pending)
+	require.Equal(t, fantasy.MessageRoleUser, nextPrompt.History[len(nextPrompt.History)-1].Role)
 
 	require.NotNil(t, providerOptions.User)
 	require.Equal(t, "turn-options-sentinel", *providerOptions.User)
@@ -847,35 +857,92 @@ func TestLatestPromptUsage(t *testing.T) {
 	})
 }
 
-func TestFirstPromptUsage(t *testing.T) {
+// TestFirstStepCalibration verifies which step calibrates the
+// post-compaction estimate and when calibration is skipped.
+func TestFirstStepCalibration(t *testing.T) {
 	t.Parallel()
 
-	modelConfigID := uuid.New()
-	assistant := func(id, inputTokens int64, configID uuid.UUID) database.ChatMessage {
+	updatedAt := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	modelConfig := database.ChatModelConfig{ID: uuid.New(), UpdatedAt: updatedAt}
+	assistant := func(t *testing.T, id, inputTokens, promptTextBytes int64, configID uuid.UUID) database.ChatMessage {
+		t.Helper()
 		msg := withUsage(dbMessage(t, id, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("step")), inputTokens, 0)
 		msg.ModelConfigID = uuid.NullUUID{UUID: configID, Valid: true}
+		msg.CreatedAt = updatedAt.Add(time.Duration(id) * time.Minute)
+		msg.PromptTextBytes = sql.NullInt64{Int64: promptTextBytes, Valid: promptTextBytes != 0}
 		return msg
 	}
-	user := dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hi"))
+	user := func(t *testing.T) database.ChatMessage {
+		t.Helper()
+		return dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hi"))
+	}
 
 	t.Run("returns the first step", func(t *testing.T) {
 		t.Parallel()
-		usage := firstPromptUsage([]database.ChatMessage{user, assistant(2, 5000, modelConfigID), assistant(3, 5200, modelConfigID)}, modelConfigID)
+		usage, promptTextBytes := firstStepCalibration([]database.ChatMessage{
+			user(t), assistant(t, 2, 5000, 25000, modelConfig.ID), assistant(t, 3, 5200, 26000, modelConfig.ID),
+		}, modelConfig)
 		assert.Equal(t, int64(5000), usage.InputTokens)
+		assert.Equal(t, int64(25000), promptTextBytes)
 	})
 
-	t.Run("returns zero when the first step has no usage", func(t *testing.T) {
+	t.Run("returns zero bytes for a step recorded without them", func(t *testing.T) {
 		t.Parallel()
-		interrupted := assistant(2, 0, modelConfigID)
-		usage := firstPromptUsage([]database.ChatMessage{user, interrupted, assistant(3, 5200, modelConfigID)}, modelConfigID)
-		assert.Equal(t, fantasy.Usage{}, usage)
+		usage, promptTextBytes := firstStepCalibration([]database.ChatMessage{user(t), assistant(t, 2, 5000, 0, modelConfig.ID)}, modelConfig)
+		assert.Equal(t, int64(5000), usage.InputTokens)
+		assert.Zero(t, promptTextBytes)
 	})
 
-	t.Run("returns zero when the first step ran on another model", func(t *testing.T) {
-		t.Parallel()
-		usage := firstPromptUsage([]database.ChatMessage{user, assistant(2, 5000, uuid.New()), assistant(3, 5200, modelConfigID)}, modelConfigID)
-		assert.Equal(t, fantasy.Usage{}, usage)
-	})
+	for _, tc := range []struct {
+		name     string
+		messages func(t *testing.T) []database.ChatMessage
+	}{
+		{
+			name: "returns zero when the first step has no usage",
+			messages: func(t *testing.T) []database.ChatMessage {
+				return []database.ChatMessage{user(t), assistant(t, 2, 0, 0, modelConfig.ID), assistant(t, 3, 5200, 26000, modelConfig.ID)}
+			},
+		},
+		{
+			name: "returns zero when the first step ran on another model config",
+			messages: func(t *testing.T) []database.ChatMessage {
+				return []database.ChatMessage{user(t), assistant(t, 2, 5000, 25000, uuid.New()), assistant(t, 3, 5200, 26000, modelConfig.ID)}
+			},
+		},
+		{
+			name: "returns zero when the first step has no model config",
+			messages: func(t *testing.T) []database.ChatMessage {
+				msg := assistant(t, 2, 5000, 25000, modelConfig.ID)
+				msg.ModelConfigID = uuid.NullUUID{}
+				return []database.ChatMessage{user(t), msg}
+			},
+		},
+		{
+			name: "returns zero when the model config changed after the first step",
+			messages: func(t *testing.T) []database.ChatMessage {
+				msg := assistant(t, 2, 5000, 25000, modelConfig.ID)
+				msg.CreatedAt = updatedAt.Add(-time.Minute)
+				return []database.ChatMessage{user(t), msg}
+			},
+		},
+		{
+			name: "returns zero without an assistant message",
+			messages: func(t *testing.T) []database.ChatMessage {
+				return []database.ChatMessage{user(t)}
+			},
+		},
+		{
+			name:     "returns zero for no messages",
+			messages: func(*testing.T) []database.ChatMessage { return nil },
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			usage, promptTextBytes := firstStepCalibration(tc.messages(t), modelConfig)
+			assert.Equal(t, fantasy.Usage{}, usage)
+			assert.Zero(t, promptTextBytes)
+		})
+	}
 }
 
 // TestShouldCompactPromptUsage verifies the compaction threshold decision

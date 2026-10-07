@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -143,6 +144,29 @@ func (p *Server) memoryIndexMessage(ctx context.Context, chat database.Chat) (ch
 		ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: chat.LastModelConfigID != uuid.Nil},
 		ContentVersion: chatprompt.CurrentContentVersion,
 	}, true, nil
+}
+
+// memoryIndexAfterCompaction returns the memory index snapshot that
+// memoryIndexMessage sends after a compaction drops the earlier one, so
+// the post-compaction estimate can count it. ok is false when no snapshot
+// would be sent or the memories cannot be listed.
+func (p *Server) memoryIndexAfterCompaction(ctx context.Context, chat database.Chat) (msg fantasy.Message, ok bool) {
+	store, _, ok := p.resolveProjectMemory(ctx, chat)
+	if !ok {
+		return fantasy.Message{}, false
+	}
+	current, err := store.List(ctx)
+	if err != nil {
+		p.logger.Debug(ctx, "list project memories for compaction estimate", slog.F("chat_id", chat.ID), slog.Error(err))
+		return fantasy.Message{}, false
+	}
+	if len(current) == 0 {
+		return fantasy.Message{}, false
+	}
+	return fantasy.Message{
+		Role:    fantasy.MessageRoleUser,
+		Content: []fantasy.MessagePart{fantasy.TextPart{Text: chattool.FormatMemoryIndexSnapshot(current)}},
+	}, true
 }
 
 // memoryIndexTexts returns the text of active model-only user rows. Users

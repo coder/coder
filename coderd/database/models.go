@@ -5631,6 +5631,8 @@ type ChatMessage struct {
 	AutomationID uuid.NullUUID `db:"automation_id" json:"automation_id"`
 	// Automation input (webhook delivery or schedule occurrence) that delivered this message.
 	InputID uuid.NullUUID `db:"input_id" json:"input_id"`
+	// Text bytes of the prompt and tool definitions sent in the model request that produced this assistant message. Paired with the message's prompt token counts to convert bytes to tokens. NULL when unknown, including requests that carried media.
+	PromptTextBytes sql.NullInt64 `db:"prompt_text_bytes" json:"prompt_text_bytes"`
 }
 
 type ChatModelConfig struct {

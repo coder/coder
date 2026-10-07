@@ -816,18 +816,6 @@ func (server *Server) prepareGeneration(
 	}
 
 	toolDefinitions := chatloop.BuildToolDefinitions(tools, activeToolNames, providerTools)
-	// Deferred MCP tool activations are derived from the history after
-	// the latest boundary, so the request after a compaction drops them.
-	nextPromptToolDefinitions := toolDefinitions
-	if len(deferredActivations) > 0 {
-		nextPromptToolDefinitions = chatloop.BuildToolDefinitions(
-			tools,
-			slices.DeleteFunc(slices.Clone(activeToolNames), func(name string) bool {
-				return slices.Contains(deferredActivations, name)
-			}),
-			providerTools,
-		)
-	}
 	toolNameToConfigID := make(map[string]uuid.UUID)
 	for _, t := range tools {
 		if mcpTool, ok := t.(mcpclient.MCPToolIdentifier); ok {
@@ -865,17 +853,18 @@ func (server *Server) prepareGeneration(
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
-	// The pending tail is replayed after the boundary only when it is
-	// kept out of the summarizer input.
-	var compactionPendingPrompt []fantasy.Message
-	if pendingUserRows != nil {
-		compactionPendingPrompt = pendingPrompt
-	}
+	firstStepUsage, firstStepPromptTextBytes := firstStepCalibration(promptRows, modelConfig)
 	compactionNextPrompt := chatloop.CompactionNextPrompt{
-		History:        compactionPromptMessages,
-		Pending:        compactionPendingPrompt,
-		Tools:          nextPromptToolDefinitions,
-		FirstStepUsage: firstPromptUsage(promptRows, modelConfig.ID),
+		History: compactionPromptMessages,
+		// A nonempty pending tail is kept out of the summarizer input
+		// and replayed after the boundary.
+		Pending: pendingPrompt,
+		Tools:   toolDefinitions,
+		// Deferred MCP tool activations are derived from the history
+		// after the latest boundary, so the next request drops them.
+		DroppedTools:             deferredActivations,
+		FirstStepUsage:           firstStepUsage,
+		FirstStepPromptTextBytes: firstStepPromptTextBytes,
 	}
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
@@ -970,21 +959,22 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 	return fantasy.Usage{}
 }
 
-// firstPromptUsage returns the usage of the first assistant message,
-// the first step of the current context window. It is zero when that
-// step persisted no usage or ran on another model config, whose
-// tokenizer can differ.
-func firstPromptUsage(messages []database.ChatMessage, modelConfigID uuid.UUID) fantasy.Usage {
+// firstStepCalibration returns the usage and request text bytes of the
+// first assistant message, the first step since the latest compaction
+// boundary. Both are zero when that step ran on another model config,
+// or on this one before its last update, which may have changed the
+// model and with it the tokenizer.
+func firstStepCalibration(messages []database.ChatMessage, modelConfig database.ChatModelConfig) (fantasy.Usage, int64) {
 	for _, msg := range messages {
 		if msg.Role != database.ChatMessageRoleAssistant {
 			continue
 		}
-		if msg.ModelConfigID.UUID != modelConfigID {
-			return fantasy.Usage{}
+		if !msg.ModelConfigID.Valid || msg.ModelConfigID.UUID != modelConfig.ID || msg.CreatedAt.Before(modelConfig.UpdatedAt) {
+			return fantasy.Usage{}, 0
 		}
-		return usageFromMessage(msg)
+		return usageFromMessage(msg), msg.PromptTextBytes.Int64
 	}
-	return fantasy.Usage{}
+	return fantasy.Usage{}, 0
 }
 
 func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, thresholdPercent int32) bool {

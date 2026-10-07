@@ -960,8 +960,7 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 		{prefix: "Pr", want: 2},
 		{prefix: "Pre", want: 3},
 	} {
-		prefix := tc.prefix
-		t.Run(prefix, func(t *testing.T) {
+		t.Run(tc.prefix, func(t *testing.T) {
 			t.Parallel()
 			var parts []codersdk.ChatMessagePart
 			result, err := GenerateCompaction(t.Context(), GenerateCompactionOptions{
@@ -976,7 +975,7 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 					},
 				},
 				Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
-				SystemSummaryPrefix: prefix,
+				SystemSummaryPrefix: tc.prefix,
 				Force:               true,
 				ContextLimit:        1000,
 				StepUsage:           fantasy.Usage{InputTokens: 800},
@@ -988,7 +987,7 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 				Clock: quartz.NewMock(t),
 			})
 			require.NoError(t, err)
-			require.Equal(t, prefix+"\n\n界x", result.SystemSummary)
+			require.Equal(t, tc.prefix+"\n\n界x", result.SystemSummary)
 			require.Equal(t, tc.want, result.EstimatedContextTokens)
 			require.Equal(t, int64(800), result.ContextTokens)
 			require.Len(t, parts, 2)
@@ -1002,10 +1001,12 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 	}
 }
 
+// TestGenerateCompaction_NextPromptEstimate verifies the published
+// estimate covers the retained system prompt besides the summary.
 func TestGenerateCompaction_NextPromptEstimate(t *testing.T) {
 	t.Parallel()
 	// A system message of 9985 bytes, calibrated at 5 bytes per token
-	// by a first step whose prompt was that message alone.
+	// by a first step whose request was that message alone.
 	system := textMessage(fantasy.MessageRoleSystem, strings.Repeat("s", 9985))
 	history := []fantasy.Message{system, textMessage(fantasy.MessageRoleAssistant, "step")}
 	var parts []codersdk.ChatMessagePart
@@ -1023,8 +1024,9 @@ func TestGenerateCompaction_NextPromptEstimate(t *testing.T) {
 		Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
 		SystemSummaryPrefix: "Prefix",
 		NextPrompt: CompactionNextPrompt{
-			History:        history,
-			FirstStepUsage: fantasy.Usage{InputTokens: 1997},
+			History:                  history,
+			FirstStepUsage:           fantasy.Usage{InputTokens: 1997},
+			FirstStepPromptTextBytes: 9985,
 		},
 		Force:        true,
 		ContextLimit: 100000,
@@ -1045,118 +1047,152 @@ func TestGenerateCompaction_NextPromptEstimate(t *testing.T) {
 	require.Equal(t, float64(2000), metadata["estimated_context_tokens"])
 }
 
-func TestCompactionNextPromptSize(t *testing.T) {
+// TestCompactionNextPrompt_EstimateTokens verifies which parts of the
+// next request the estimate counts and which ratio converts them.
+func TestCompactionNextPrompt_EstimateTokens(t *testing.T) {
 	t.Parallel()
 
 	system := textMessage(fantasy.MessageRoleSystem, strings.Repeat("s", 3000))
-	tool := fantasy.FunctionTool{
+	readFile := fantasy.FunctionTool{
 		Name:        "read_file",
 		Description: strings.Repeat("d", 891),
 		InputSchema: map[string]any{"type": "object"},
 	}
 	// read_file (9) + description (891) + {"type":"object"} (17).
 	const toolBytes = 917
-	tools := []fantasy.Tool{tool}
-	firstUser := textMessage(fantasy.MessageRoleUser, strings.Repeat("u", 83))
-	assistant := textMessage(fantasy.MessageRoleAssistant, strings.Repeat("a", 500))
-	toolResult := fantasy.Message{
-		Role: fantasy.MessageRoleTool,
-		Content: []fantasy.MessagePart{fantasy.ToolResultPart{
-			ToolCallID: "call",
-			Output:     fantasy.ToolResultOutputContentText{Text: strings.Repeat("r", 2000)},
-		}},
+	tools := []fantasy.Tool{readFile}
+	history := []fantasy.Message{
+		system,
+		textMessage(fantasy.MessageRoleUser, strings.Repeat("u", 83)),
+		textMessage(fantasy.MessageRoleAssistant, strings.Repeat("a", 500)),
+		{
+			Role: fantasy.MessageRoleTool,
+			Content: []fantasy.MessagePart{fantasy.ToolResultPart{
+				ToolCallID: "call",
+				Output:     fantasy.ToolResultOutputContentText{Text: strings.Repeat("r", 2000)},
+			}},
+		},
 	}
-	history := []fantasy.Message{system, firstUser, assistant, toolResult}
 	pending := []fantasy.Message{textMessage(fantasy.MessageRoleUser, strings.Repeat("p", 100))}
-	// The first step's prompt is the system message, the first user
-	// message, and the tools: 3000 + 83 + 917 = 4000 bytes.
-	firstStepUsage := fantasy.Usage{InputTokens: 200, CacheReadTokens: 600}
+	// Retained: the system message, the tools and the pending message.
+	const retainedBytes = 3000 + toolBytes + 100
+	const summaryBytes = 84
+	// 500 prompt tokens over three counters.
+	firstStepUsage := fantasy.Usage{InputTokens: 100, CacheReadTokens: 300, CacheCreationTokens: 100}
 
-	t.Run("CalibratesOnFirstStep", func(t *testing.T) {
+	t.Run("CalibratesOnRecordedFirstStep", func(t *testing.T) {
 		t.Parallel()
-		// 4000 bytes over 800 tokens. The whole history would give
-		// (4000 + 500 + 2000) / 800, so the ratio shows which prompt
-		// was measured.
-		next := CompactionNextPrompt{History: history, Pending: pending, Tools: tools, FirstStepUsage: firstStepUsage}
-		retained, bytesPerToken := next.size()
-		require.Equal(t, 3000+toolBytes+100, retained)
-		require.InDelta(t, 5.0, bytesPerToken, 1e-9)
-		require.Equal(t, int64((3000+toolBytes+100+83)/5), next.estimateTokens(83))
+		// The recorded 2500 bytes differ from the current prompt's, as
+		// when instructions were added after the first step, so a
+		// ratio of 5 shows the recorded bytes were used.
+		next := CompactionNextPrompt{
+			History:                  history,
+			Pending:                  pending,
+			Tools:                    tools,
+			FirstStepUsage:           firstStepUsage,
+			FirstStepPromptTextBytes: 2500,
+		}
+		require.Equal(t, 5.0, next.bytesPerToken())
+		// ceil((4017 + 84) / 5).
+		require.Equal(t, int64(821), next.estimateTokens(summaryBytes))
 	})
 
-	t.Run("FallsBackWithoutFirstStepUsage", func(t *testing.T) {
+	t.Run("FallsBackWithoutRecordedBytes", func(t *testing.T) {
 		t.Parallel()
-		retained, bytesPerToken := CompactionNextPrompt{History: history, Tools: tools}.size()
-		require.Equal(t, 3000+toolBytes, retained)
-		require.InDelta(t, nextPromptBytesPerTokenFallback, bytesPerToken, 1e-9)
+		next := CompactionNextPrompt{History: history, Pending: pending, Tools: tools, FirstStepUsage: firstStepUsage}
+		require.Equal(t, nextPromptBytesPerTokenFallback, next.bytesPerToken())
+		// ceil((4017 + 84) / 4).
+		require.Equal(t, int64(1026), next.estimateTokens(summaryBytes))
+	})
+
+	t.Run("FallsBackWithTotalTokensOnly", func(t *testing.T) {
+		t.Parallel()
+		// TotalTokens includes output, so it does not calibrate.
+		next := CompactionNextPrompt{FirstStepUsage: fantasy.Usage{TotalTokens: 500}, FirstStepPromptTextBytes: 2500}
+		require.Equal(t, nextPromptBytesPerTokenFallback, next.bytesPerToken())
 	})
 
 	t.Run("FallsBackOnImplausibleRatio", func(t *testing.T) {
 		t.Parallel()
 		for _, tokens := range []int64{10, 10000} {
-			_, bytesPerToken := CompactionNextPrompt{
-				History:        history,
-				Tools:          tools,
-				FirstStepUsage: fantasy.Usage{InputTokens: tokens},
-			}.size()
-			require.InDelta(t, nextPromptBytesPerTokenFallback, bytesPerToken, 1e-9, "tokens %d", tokens)
+			next := CompactionNextPrompt{FirstStepUsage: fantasy.Usage{InputTokens: tokens}, FirstStepPromptTextBytes: 4000}
+			require.Equal(t, nextPromptBytesPerTokenFallback, next.bytesPerToken(), "tokens %d", tokens)
 		}
 	})
 
-	t.Run("FallsBackWhenHistoryStartsWithAssistant", func(t *testing.T) {
+	t.Run("LeavesOutDroppedTools", func(t *testing.T) {
 		t.Parallel()
-		_, bytesPerToken := CompactionNextPrompt{
-			History:        []fantasy.Message{assistant, toolResult},
-			Tools:          tools,
-			FirstStepUsage: firstStepUsage,
-		}.size()
-		require.InDelta(t, nextPromptBytesPerTokenFallback, bytesPerToken, 1e-9)
-	})
-
-	t.Run("FallsBackWhenFirstPromptHasMedia", func(t *testing.T) {
-		t.Parallel()
-		withImage := fantasy.Message{
-			Role: fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: strings.Repeat("u", 83)},
-				fantasy.FilePart{Data: make([]byte, 50000), MediaType: "image/png"},
-			},
+		activated := fantasy.FunctionTool{Name: "mcp_search", Description: strings.Repeat("m", 4000)}
+		next := CompactionNextPrompt{
+			History:      []fantasy.Message{system},
+			Tools:        []fantasy.Tool{readFile, activated},
+			DroppedTools: []string{"mcp_search"},
 		}
-		_, bytesPerToken := CompactionNextPrompt{
-			History:        []fantasy.Message{system, withImage, assistant},
-			Tools:          tools,
-			FirstStepUsage: firstStepUsage,
-		}.size()
-		require.InDelta(t, nextPromptBytesPerTokenFallback, bytesPerToken, 1e-9)
-	})
-
-	t.Run("SkipsMedia", func(t *testing.T) {
-		t.Parallel()
-		media := fantasy.Message{
-			Role: fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: "see image"},
-				fantasy.FilePart{Data: make([]byte, 50000), MediaType: "image/png"},
-				fantasy.ToolResultPart{Output: fantasy.ToolResultOutputContentMedia{Data: strings.Repeat("x", 50000)}},
-			},
-		}
-		retained, _ := CompactionNextPrompt{History: []fantasy.Message{system}, Pending: []fantasy.Message{media}}.size()
-		require.Equal(t, 3000+len("see image"), retained)
+		// ceil((3000 + 917) / 4).
+		require.Equal(t, int64(980), next.estimateTokens(0))
 	})
 
 	t.Run("CountsProviderDefinedTools", func(t *testing.T) {
 		t.Parallel()
-		retained, _ := CompactionNextPrompt{Tools: []fantasy.Tool{fantasy.ProviderDefinedTool{
+		next := CompactionNextPrompt{Tools: []fantasy.Tool{fantasy.ProviderDefinedTool{
 			ID:   "anthropic.web_search",
 			Name: "web_search",
 			Args: map[string]any{"max_uses": 5},
-		}}}.size()
-		require.Equal(t, len("web_search")+len(`{"max_uses":5}`), retained)
+		}}}
+		// web_search (10) + {"max_uses":5} (14).
+		require.Equal(t, int64(6), next.estimateTokens(0))
 	})
 
-	t.Run("ZeroValueUsesFallbackRatio", func(t *testing.T) {
+	t.Run("UnknownWithPendingMedia", func(t *testing.T) {
 		t.Parallel()
-		require.Equal(t, int64(3), CompactionNextPrompt{}.estimateTokens(10))
+		withImage := fantasy.Message{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "see image"},
+				fantasy.FilePart{Data: make([]byte, 50000), MediaType: "image/png"},
+			},
+		}
+		next := CompactionNextPrompt{History: history, Pending: []fantasy.Message{withImage}, Tools: tools}
+		require.Zero(t, next.estimateTokens(summaryBytes))
+	})
+}
+
+// TestRequestTextBytes verifies the request size recorded for
+// calibration: text, text attachments and tool definitions count, and
+// media makes the size unknown.
+func TestRequestTextBytes(t *testing.T) {
+	t.Parallel()
+
+	tools := []fantasy.Tool{fantasy.FunctionTool{Name: "read_file", InputSchema: map[string]any{"type": "object"}}}
+	// read_file (9) + {"type":"object"} (17).
+	const toolBytes = 26
+
+	t.Run("CountsTextAttachments", func(t *testing.T) {
+		t.Parallel()
+		prompt := []fantasy.Message{{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "read this"},
+				fantasy.FilePart{Data: []byte(strings.Repeat("t", 50)), MediaType: "text/plain"},
+			},
+		}}
+		require.Equal(t, int64(len("read this")+50+toolBytes), requestTextBytes(prompt, tools))
+	})
+
+	t.Run("UnknownWithMediaToolResult", func(t *testing.T) {
+		t.Parallel()
+		prompt := []fantasy.Message{{
+			Role: fantasy.MessageRoleTool,
+			Content: []fantasy.MessagePart{fantasy.ToolResultPart{
+				ToolCallID: "call",
+				Output:     fantasy.ToolResultOutputContentMedia{Data: strings.Repeat("x", 50000), MediaType: "image/png", Text: "screenshot"},
+			}},
+		}}
+		require.Zero(t, requestTextBytes(prompt, tools))
+		// The media's text annotation still counts toward retained text.
+		size, hasMedia := messageTextBytes(prompt[0])
+		require.True(t, hasMedia)
+		require.Equal(t, len("screenshot"), size)
 	})
 }
 

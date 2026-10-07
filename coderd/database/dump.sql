@@ -2205,7 +2205,8 @@ CREATE TABLE chat_messages (
     search_tsv_config chat_message_search_tsv_config,
     queued_message_id bigint,
     automation_id uuid,
-    input_id uuid
+    input_id uuid,
+    prompt_text_bytes bigint
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
@@ -2219,6 +2220,8 @@ COMMENT ON COLUMN chat_messages.queued_message_id IS 'ID of the chat_queued_mess
 COMMENT ON COLUMN chat_messages.automation_id IS 'Automation that delivered this message. No foreign key by design.';
 
 COMMENT ON COLUMN chat_messages.input_id IS 'Automation input (webhook delivery or schedule occurrence) that delivered this message.';
+
+COMMENT ON COLUMN chat_messages.prompt_text_bytes IS 'Text bytes of the prompt and tool definitions sent in the model request that produced this assistant message. Paired with the message''s prompt token counts to convert bytes to tokens. NULL when unknown, including requests that carried media.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
