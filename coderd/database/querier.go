@@ -105,6 +105,9 @@ type sqlcQuerier interface {
 	// Rows of the given build and of any later build are left untouched, so a
 	// build that clears out of order cannot wipe a newer build's secrets.
 	ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg ClearWorkspaceSecretsBeforeBuildParams) error
+	// Drops the values of every live row of the workspace, keeping the rows as
+	// history. Used when the workspace is deleted.
+	ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
 	// Marks an unconsumed single-use webhook as consumed. It affects no row
 	// when the automation is not a single-use webhook or was already
 	// consumed, so callers can refuse the delivery.

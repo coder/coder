@@ -2071,6 +2071,17 @@ func (q *querier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg data
 	return q.db.ClearWorkspaceSecretsBeforeBuild(ctx, arg)
 }
 
+func (q *querier) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
+	workspace, err := q.db.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspaceSecretObject(workspace)); err != nil {
+		return err
+	}
+	return q.db.ClearWorkspaceSecretsByWorkspaceID(ctx, workspaceID)
+}
+
 func (q *querier) ConsumeChatAutomationWebhookByID(ctx context.Context, arg database.ConsumeChatAutomationWebhookByIDParams) (int64, error) {
 	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
 	if err != nil {

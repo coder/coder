@@ -451,6 +451,20 @@ func (mr *MockStoreMockRecorder) ClearWorkspaceSecretsBeforeBuild(ctx, arg any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearWorkspaceSecretsBeforeBuild", reflect.TypeOf((*MockStore)(nil).ClearWorkspaceSecretsBeforeBuild), ctx, arg)
 }
 
+// ClearWorkspaceSecretsByWorkspaceID mocks base method.
+func (m *MockStore) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearWorkspaceSecretsByWorkspaceID", ctx, workspaceID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ClearWorkspaceSecretsByWorkspaceID indicates an expected call of ClearWorkspaceSecretsByWorkspaceID.
+func (mr *MockStoreMockRecorder) ClearWorkspaceSecretsByWorkspaceID(ctx, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearWorkspaceSecretsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).ClearWorkspaceSecretsByWorkspaceID), ctx, workspaceID)
+}
+
 // ConsumeChatAutomationWebhookByID mocks base method.
 func (m *MockStore) ConsumeChatAutomationWebhookByID(ctx context.Context, arg database.ConsumeChatAutomationWebhookByIDParams) (int64, error) {
 	m.ctrl.T.Helper()

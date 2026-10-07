@@ -35186,6 +35186,23 @@ func (q *sqlQuerier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg C
 	return err
 }
 
+const clearWorkspaceSecretsByWorkspaceID = `-- name: ClearWorkspaceSecretsByWorkspaceID :exec
+UPDATE workspace_secrets
+SET
+    value        = NULL,
+    value_key_id = NULL,
+    cleared_at   = CURRENT_TIMESTAMP
+WHERE workspace_id = $1
+  AND cleared_at IS NULL
+`
+
+// Drops the values of every live row of the workspace, keeping the rows as
+// history. Used when the workspace is deleted.
+func (q *sqlQuerier) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, clearWorkspaceSecretsByWorkspaceID, workspaceID)
+	return err
+}
+
 const getWorkspaceSecrets = `-- name: GetWorkspaceSecrets :many
 SELECT id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, created_at, cleared_at
 FROM workspace_secrets

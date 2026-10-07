@@ -328,6 +328,14 @@ func (m queryMetricsStore) ClearWorkspaceSecretsBeforeBuild(ctx context.Context,
 	return r0
 }
 
+func (m queryMetricsStore) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.ClearWorkspaceSecretsByWorkspaceID(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("ClearWorkspaceSecretsByWorkspaceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearWorkspaceSecretsByWorkspaceID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) ConsumeChatAutomationWebhookByID(ctx context.Context, arg database.ConsumeChatAutomationWebhookByIDParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.ConsumeChatAutomationWebhookByID(ctx, arg)

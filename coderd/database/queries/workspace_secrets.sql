@@ -55,6 +55,17 @@ WHERE workspace_secrets.workspace_build_id = workspace_builds.id
       WHERE current_build.id = @workspace_build_id
   );
 
+-- name: ClearWorkspaceSecretsByWorkspaceID :exec
+-- Drops the values of every live row of the workspace, keeping the rows as
+-- history. Used when the workspace is deleted.
+UPDATE workspace_secrets
+SET
+    value        = NULL,
+    value_key_id = NULL,
+    cleared_at   = CURRENT_TIMESTAMP
+WHERE workspace_id = @workspace_id
+  AND cleared_at IS NULL;
+
 -- name: GetWorkspaceSecrets :many
 -- Returns a page of workspace secrets that still hold a value across the
 -- deployment, ordered by id. Pass the last returned id as after_id to fetch

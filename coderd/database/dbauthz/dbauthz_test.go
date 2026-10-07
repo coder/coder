@@ -7036,6 +7036,12 @@ func (s *MethodTestSuite) TestWorkspaceSecrets() {
 		dbm.EXPECT().ClearWorkspaceSecretsBeforeBuild(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(secretObj(ws), policy.ActionUpdate)
 	}))
+	s.Run("ClearWorkspaceSecretsByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().ClearWorkspaceSecretsByWorkspaceID(gomock.Any(), ws.ID).Return(nil).AnyTimes()
+		check.Args(ws.ID).Asserts(secretObj(ws), policy.ActionUpdate)
+	}))
 	s.Run("ListActiveWorkspaceSecrets", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{})
 		secret := testutil.Fake(s.T(), faker, database.WorkspaceSecret{WorkspaceBuildID: build.ID})

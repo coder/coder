@@ -20198,6 +20198,43 @@ func TestClearWorkspaceSecretsBeforeBuild(t *testing.T) {
 	}
 }
 
+func TestClearWorkspaceSecretsByWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	newWorkspace := func() dbfake.WorkspaceResponse {
+		resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).Do()
+		dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      resp.Workspace.ID,
+			WorkspaceBuildID: resp.Build.ID,
+		})
+		return resp
+	}
+	deleted := newWorkspace()
+	other := newWorkspace()
+
+	require.NoError(t, db.ClearWorkspaceSecretsByWorkspaceID(ctx, deleted.Workspace.ID))
+
+	live, err := db.ListActiveWorkspaceSecrets(ctx, deleted.Build.ID)
+	require.NoError(t, err)
+	require.Empty(t, live, "the workspace's secrets are cleared")
+	history, err := db.GetWorkspaceSecretsHistory(ctx, deleted.Workspace.ID)
+	require.NoError(t, err)
+	require.Len(t, history, 1, "cleared rows are kept as history")
+	require.True(t, history[0].ClearedAt.Valid)
+
+	live, err = db.ListActiveWorkspaceSecrets(ctx, other.Build.ID)
+	require.NoError(t, err)
+	require.Len(t, live, 1, "other workspaces are untouched")
+}
+
 func TestGetWorkspaceSecretsPaginates(t *testing.T) {
 	t.Parallel()
 
