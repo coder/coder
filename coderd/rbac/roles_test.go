@@ -1494,7 +1494,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "ChatProjectManage",
-			Actions:  []policy.Action{policy.ActionUpdate, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
 			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgAgentsAccessUser},

@@ -379,6 +379,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			Negate:       true,
 			ResourceType: ResourceChat.Type,
 			Action:       policy.ActionShare,
+		}, Permission{
+			Negate:       true,
+			ResourceType: ResourceChatProject.Type,
+			Action:       policy.ActionShare,
 		})
 	}
 
@@ -757,7 +761,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							},
 							// Projects group a member's own chats, so they follow chat
 							// access. ChatProject.RBACObject sets WithOwner(OwnerID),
-							// which keeps them private to their owner.
+							// which keeps them private to their owner until shared.
 							ResourceChatProject.Type: ResourceChatProject.AvailableActions(),
 							// Memory objects carry the owning project's owner, so this
 							// grant reaches only the member's own projects.

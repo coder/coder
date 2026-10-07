@@ -8502,7 +8502,7 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 }
 
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
 FROM chat_projects
 WHERE id = $1::uuid
 `
@@ -8519,12 +8519,101 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 		&i.Icon,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }
 
+const getChatProjectByIDForUpdate = `-- name: GetChatProjectByIDForUpdate :one
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+FROM chat_projects
+WHERE id = $1::uuid
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectByIDForUpdate, id)
+	var i ChatProject
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
+	)
+	return i, err
+}
+
+const getChatProjectsAccessibleByUserID = `-- name: GetChatProjectsAccessibleByUserID :many
+SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl
+FROM chat_projects
+WHERE chat_projects.owner_id = $1::uuid
+    OR (
+        EXISTS (
+            SELECT 1
+            FROM organization_members
+            WHERE organization_members.user_id = $1::uuid
+                AND organization_members.organization_id = chat_projects.organization_id
+        )
+        AND (
+            chat_projects.user_acl ? ($1::uuid)::text
+            OR chat_projects.group_acl ? chat_projects.organization_id::text
+            OR chat_projects.group_acl ?| ARRAY(
+                SELECT group_members.group_id::text
+                FROM group_members
+                WHERE group_members.user_id = $1::uuid
+            )
+        )
+    )
+ORDER BY lower(chat_projects.name), chat_projects.id
+`
+
+// Returns the projects a user owns or that are shared with them directly,
+// through a group, or through the organization's Everyone group, whose ID
+// is the organization ID. ACL grants only apply to organization members,
+// matching the RBAC policy; callers still authorize each row.
+func (q *sqlQuerier) GetChatProjectsAccessibleByUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectsAccessibleByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProject
+	for rows.Next() {
+		var i ChatProject
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Description,
+			&i.Icon,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserACL,
+			&i.GroupACL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatProjectsByOwnerID = `-- name: GetChatProjectsByOwnerID :many
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
 FROM chat_projects
 WHERE owner_id = $1::uuid
 ORDER BY lower(name), id
@@ -8548,6 +8637,8 @@ func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.
 			&i.Icon,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UserACL,
+			&i.GroupACL,
 		); err != nil {
 			return nil, err
 		}
@@ -8572,7 +8663,7 @@ VALUES (
     $5::text,
     $6::text
 )
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
 `
 
 type InsertChatProjectParams struct {
@@ -8603,8 +8694,29 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.Icon,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
+}
+
+const updateChatProjectACLByID = `-- name: UpdateChatProjectACLByID :exec
+UPDATE chat_projects
+SET
+    user_acl = $1,
+    group_acl = $2
+WHERE id = $3::uuid
+`
+
+type UpdateChatProjectACLByIDParams struct {
+	UserACL  ChatACL   `db:"user_acl" json:"user_acl"`
+	GroupACL ChatACL   `db:"group_acl" json:"group_acl"`
+	ID       uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatProjectACLByID(ctx context.Context, arg UpdateChatProjectACLByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatProjectACLByID, arg.UserACL, arg.GroupACL, arg.ID)
+	return err
 }
 
 const updateChatProjectByID = `-- name: UpdateChatProjectByID :one
@@ -8615,7 +8727,7 @@ SET
     icon = $3::text,
     updated_at = now()
 WHERE id = $4::uuid
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
 `
 
 type UpdateChatProjectByIDParams struct {
@@ -8642,6 +8754,8 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		&i.Icon,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }
