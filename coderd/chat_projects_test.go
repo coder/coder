@@ -98,10 +98,10 @@ func TestChatProjectsCRUDListAndDelete(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, duplicate.ID, fetched.ID)
 
-	// Chats die with their project.
+	// Deleting the project deletes its chats.
 	require.NoError(t, client.DeleteChatProject(ctx, firstUser.OrganizationID, project.ID))
 	_, err = client.GetChat(ctx, chat.ID)
-	require.Equal(t, 404, coderdtest.SDKError(t, err).StatusCode())
+	requireSDKError(t, err, http.StatusNotFound)
 }
 
 func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
@@ -182,11 +182,8 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 	_, err = admin.UpdateChatProject(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectRequest{Name: &adminName})
 	require.NoError(t, err)
 
-	// The owner may create chats for other users, but binding one to the
-	// owner's project would expose its memory to someone who cannot read
-	// the project, so the chat owner must own it or have it shared. The
-	// response matches an unknown project so the check does not reveal
-	// existence.
+	// memberUser cannot read the owner's project, so postChats returns the
+	// unknown-project 404.
 	_, memberUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,

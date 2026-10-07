@@ -158,7 +158,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 				entity="project"
 				name={project.name}
 				confirmLoading={deleteMutation.isPending}
-				info="Chats in this project will be kept and move back to the Chats list."
+				info="Every chat in this project will be deleted, including chats started by people it is shared with."
 			/>
 		</>
 	);

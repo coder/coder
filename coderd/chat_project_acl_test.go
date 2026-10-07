@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"net/http"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -167,7 +169,7 @@ func TestChatProjectSharing(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, admin.DeleteChatProjectMemory(ctx, project.OrganizationID, project.ID, memory.ID))
 
-		// The owner always has full access, so an admin cannot list them.
+		// The owner cannot be added to the ACL, so an admin's attempt returns 400.
 		err = admin.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{firstUser.UserID.String(): codersdk.ChatProjectRoleUse},
 		})
@@ -254,7 +256,19 @@ func TestChatProjectSharing(t *testing.T) {
 		err := client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{firstUser.UserID.String(): codersdk.ChatProjectRoleUse},
 		})
-		requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "The project owner cannot be added to the project's sharing list.", sdkErr.Message)
+
+		// Two spellings of one ID would leave the outcome to map order.
+		err = client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
+			UserRoles: map[string]codersdk.ChatProjectRole{
+				member.ID.String():                  codersdk.ChatProjectRoleAdmin,
+				strings.ToUpper(member.ID.String()): codersdk.ChatProjectRoleDeleted,
+			},
+		})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "user_roles", sdkErr.Validations[0].Field)
 
 		err = client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{member.ID.String(): "owner"},
@@ -271,7 +285,7 @@ func TestChatProjectSharing(t *testing.T) {
 		err = client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			GroupRoles: map[string]codersdk.ChatProjectRole{foreignGroup.ID.String(): codersdk.ChatProjectRoleUse},
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "group_roles", sdkErr.Validations[0].Field)
 
@@ -311,7 +325,13 @@ func TestChatProjectSharing(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatProjectClient(t)
+		mAudit := audit.NewMock()
+		store, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client, db := newChatProjectClientWithOptions(t, func(opts *coderdtest.Options) {
+			opts.Auditor = mAudit
+			opts.Database = store
+			opts.Pubsub = ps
+		})
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
 		project := createChatProject(t, client, firstUser.OrganizationID, "Deleted Project")
@@ -323,30 +343,89 @@ func TestChatProjectSharing(t *testing.T) {
 		ownerChat := createChatInProject(t, client, project.OrganizationID, &project.ID)
 		shareeChat := createChatInProject(t, sharee, project.OrganizationID, &project.ID)
 		otherChat := createChatInProject(t, client, project.OrganizationID, nil)
-
-		// Deletion waits for running chats instead of cutting them off.
-		//nolint:gocritic // Test setup forces a running status.
+		//nolint:gocritic // Test setup seeds a sub-chat and worker leases directly.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		_, err = db.UpdateChatStatus(sysCtx, database.UpdateChatStatusParams{
-			ID:       shareeChat.ID,
-			Status:   database.ChatStatusRunning,
-			WorkerID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		shareeChild := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    project.OrganizationID,
+			OwnerID:           shareeUser.ID,
+			LastModelConfigID: shareeChat.LastModelConfigID,
+			ParentChatID:      uuid.NullUUID{UUID: shareeChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: shareeChat.ID, Valid: true},
 		})
+
+		// A worker with a fresh heartbeat blocks deletion.
+		runnerID := uuid.New()
+		_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET worker_id = $2, runner_id = $3 WHERE id = $1", shareeChat.ID, uuid.New(), runnerID)
 		require.NoError(t, err)
+		require.NoError(t, db.UpsertChatHeartbeat(sysCtx, database.UpsertChatHeartbeatParams{ChatID: shareeChat.ID, RunnerID: runnerID}))
 		err = client.DeleteChatProject(ctx, project.OrganizationID, project.ID)
 		requireSDKError(t, err, http.StatusConflict)
 		_, err = sharee.GetChat(ctx, shareeChat.ID)
 		require.NoError(t, err)
 
-		_, err = db.UpdateChatStatus(sysCtx, database.UpdateChatStatusParams{ID: shareeChat.ID, Status: database.ChatStatusWaiting})
+		// A lease left behind by a dead worker does not.
+		_, err = sqlDB.ExecContext(ctx, "UPDATE chat_heartbeats SET heartbeat_at = NOW() - INTERVAL '1 hour' WHERE chat_id = $1", shareeChat.ID)
 		require.NoError(t, err)
+
+		events, closer, err := sharee.WatchChats(ctx)
+		require.NoError(t, err)
+		defer closer.Close()
+		mAudit.ResetLogs()
 		require.NoError(t, client.DeleteChatProject(ctx, project.OrganizationID, project.ID))
-		_, err = client.GetChat(ctx, ownerChat.ID)
-		requireSDKError(t, err, http.StatusNotFound)
-		_, err = sharee.GetChat(ctx, shareeChat.ID)
-		requireSDKError(t, err, http.StatusNotFound)
+
+		for _, id := range []uuid.UUID{ownerChat.ID, shareeChat.ID, shareeChild.ID} {
+			_, err := db.GetChatByID(sysCtx, id)
+			require.ErrorIs(t, err, sql.ErrNoRows)
+		}
 		_, err = client.GetChat(ctx, otherChat.ID)
 		require.NoError(t, err)
+
+		// Each deleted root chat is audited for the user who deleted it.
+		for _, id := range []uuid.UUID{ownerChat.ID, shareeChat.ID} {
+			require.True(t, mAudit.Contains(t, database.AuditLog{
+				Action:       database.AuditActionDelete,
+				ResourceType: database.ResourceTypeChat,
+				ResourceID:   id,
+				UserID:       firstUser.UserID,
+			}))
+		}
+
+		// The sharee's sidebar learns that their chats are gone.
+		pending := map[uuid.UUID]bool{shareeChat.ID: true, shareeChild.ID: true}
+		for len(pending) > 0 {
+			select {
+			case event := <-events:
+				if event.Kind == codersdk.ChatWatchEventKindDeleted {
+					delete(pending, event.Chat.ID)
+				}
+			case <-ctx.Done():
+				t.Fatalf("missing deleted events for %v", pending)
+			}
+		}
+	})
+
+	t.Run("DeleteWithoutAIGateway", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		values := coderdtest.DeploymentValues(t)
+		require.NoError(t, values.AI.BridgeConfig.Enabled.Set("false"))
+		values.Experiments = serpent.StringArray{string(codersdk.ExperimentChatProjects)}
+		rawClient, _, api := coderdtest.NewWithAPI(t, newChatTestOptions(t, values))
+		client := codersdk.NewExperimentalClient(rawClient)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		project := createChatProject(t, client, firstUser.OrganizationID, "No Gateway Project")
+		modelConfig := dbgen.ChatModelConfig(t, api.Database, database.ChatModelConfig{})
+		chat := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+		})
+
+		require.NoError(t, client.DeleteChatProject(ctx, project.OrganizationID, project.ID))
+		_, err := client.GetChat(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	// Role grants do not let an administrator run chats in a member's

@@ -39,9 +39,8 @@ func (api *API) getChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 
-	// Anyone who can read the project may see who else it is shared with.
-	// Reading comes first so the disabled response does not reveal that a
-	// project exists.
+	// The read check runs before allowChatSharing so the disabled response
+	// does not reveal that a project exists.
 	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -119,18 +118,25 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	}
 	// ACL keys must be canonical UUIDs: RBAC matches them as strings, so
 	// any other spelling would grant nothing and could not be removed.
-	userRoles := canonicalChatProjectRoles(req.UserRoles)
-	groupRoles := canonicalChatProjectRoles(req.GroupRoles)
-
-	if _, ok := userRoles[apiKey.UserID]; ok {
+	userRoles, userDupErrs := canonicalChatProjectRoles(req.UserRoles, "user_roles")
+	groupRoles, groupDupErrs := canonicalChatProjectRoles(req.GroupRoles, "group_roles")
+	if len(userDupErrs)+len(groupDupErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Cannot change your own project sharing role.",
+			Message:     "Invalid request to update chat project ACL.",
+			Validations: slices.Concat(userDupErrs, groupDupErrs),
 		})
 		return
 	}
+
 	if _, ok := userRoles[project.OwnerID]; ok {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The project owner cannot be added to the project's sharing list.",
+		})
+		return
+	}
+	if _, ok := userRoles[apiKey.UserID]; ok {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot change your own project sharing role.",
 		})
 		return
 	}
@@ -181,18 +187,27 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// canonicalChatProjectRoles keys roles by parsed UUID. acl.Validate has
-// already rejected keys that are not UUIDs.
-func canonicalChatProjectRoles(roles map[string]codersdk.ChatProjectRole) map[uuid.UUID]codersdk.ChatProjectRole {
+// canonicalChatProjectRoles drops keys that are not UUIDs, so callers must
+// run acl.Validate first. Two spellings of one UUID are a validation error,
+// because which role wins would otherwise depend on map order.
+func canonicalChatProjectRoles(roles map[string]codersdk.ChatProjectRole, field string) (map[uuid.UUID]codersdk.ChatProjectRole, []codersdk.ValidationError) {
 	canonical := make(map[uuid.UUID]codersdk.ChatProjectRole, len(roles))
+	var validErrs []codersdk.ValidationError
 	for rawID, role := range roles {
 		id, err := uuid.Parse(rawID)
 		if err != nil {
 			continue
 		}
+		if _, ok := canonical[id]; ok {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field:  field,
+				Detail: fmt.Sprintf("ID %v appears more than once", id),
+			})
+			continue
+		}
 		canonical[id] = role
 	}
-	return canonical
+	return canonical, validErrs
 }
 
 func applyChatProjectRoles(current database.ChatACL, roles map[uuid.UUID]codersdk.ChatProjectRole) database.ChatACL {
@@ -262,8 +277,8 @@ func (api *API) validateChatProjectACLOrganization(
 	return validErrs, nil
 }
 
-// grantedChatProjectIDs returns the IDs being granted a role. Removals
-// skip validation so entries for deleted principals can still be removed.
+// Removals are excluded so entries for deleted principals can still be
+// removed.
 func grantedChatProjectIDs(roles map[uuid.UUID]codersdk.ChatProjectRole) []uuid.UUID {
 	ids := make([]uuid.UUID, 0, len(roles))
 	for id, role := range roles {

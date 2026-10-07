@@ -8501,18 +8501,14 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 	return err
 }
 
-const deleteChatProjectChats = `-- name: DeleteChatProjectChats :exec
+const deleteChatsByIDs = `-- name: DeleteChatsByIDs :exec
 DELETE FROM chats
-WHERE project_id = $1::uuid
-    OR root_chat_id IN (
-        SELECT root.id FROM chats root WHERE root.project_id = $1::uuid
-    )
+WHERE id = ANY($1::uuid[])
 `
 
-// Deletes a project's root chats and their sub-chats. Chat-scoped tables
-// cascade.
-func (q *sqlQuerier) DeleteChatProjectChats(ctx context.Context, projectID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatProjectChats, projectID)
+// Chat-scoped tables cascade.
+func (q *sqlQuerier) DeleteChatsByIDs(ctx context.Context, ids []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatsByIDs, pq.Array(ids))
 	return err
 }
 
@@ -8567,26 +8563,80 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 	return i, err
 }
 
-const getChatProjectChatsForDelete = `-- name: GetChatProjectChatsForDelete :many
+const getChatProjectsAccessibleByUserID = `-- name: GetChatProjectsAccessibleByUserID :many
+SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl
+FROM chat_projects
+WHERE chat_projects.owner_id = $1::uuid
+    OR (
+        (
+            chat_projects.user_acl ? ($1::uuid)::text
+            OR chat_projects.group_acl ?| ARRAY(
+                SELECT group_members.group_id::text
+                FROM group_members
+                WHERE group_members.user_id = $1::uuid
+                UNION ALL
+                SELECT organization_members.organization_id::text
+                FROM organization_members
+                WHERE organization_members.user_id = $1::uuid
+            )
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM organization_members
+            WHERE organization_members.user_id = $1::uuid
+                AND organization_members.organization_id = chat_projects.organization_id
+        )
+    )
+ORDER BY lower(chat_projects.name), chat_projects.id
+`
+
+// The Everyone group's ID is the organization ID, so the user's
+// organization IDs join their group IDs. As in the RBAC policy, ACL grants
+// count only for members of the project's organization. ACL keys match
+// regardless of the actions they grant; callers authorize each row.
+func (q *sqlQuerier) GetChatProjectsAccessibleByUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectsAccessibleByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProject
+	for rows.Next() {
+		var i ChatProject
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Description,
+			&i.Icon,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserACL,
+			&i.GroupACL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsByIDs = `-- name: GetChatsByIDs :many
 SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at, automation_id, manage_automations_enabled
 FROM chats_expanded
-WHERE id IN (
-    SELECT chats.id
-    FROM chats
-    WHERE chats.project_id = $1::uuid
-        OR chats.root_chat_id IN (
-            SELECT root.id FROM chats root WHERE root.project_id = $1::uuid
-        )
-    FOR UPDATE
-)
+WHERE id = ANY($1::uuid[])
 ORDER BY id
 `
 
-// Returns a project's root chats and their sub-chats. The rows stay locked
-// until the transaction ends, so no worker acquires one before
-// DeleteChatProjectChats runs.
-func (q *sqlQuerier) GetChatProjectChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectChatsForDelete, projectID)
+func (q *sqlQuerier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
@@ -8647,71 +8697,6 @@ func (q *sqlQuerier) GetChatProjectChatsForDelete(ctx context.Context, projectID
 			&i.TitleUpdatedAt,
 			&i.AutomationID,
 			&i.ManageAutomationsEnabled,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getChatProjectsAccessibleByUserID = `-- name: GetChatProjectsAccessibleByUserID :many
-SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl
-FROM chat_projects
-WHERE chat_projects.owner_id = $1::uuid
-    OR (
-        (
-            chat_projects.user_acl ? ($1::uuid)::text
-            OR chat_projects.group_acl ?| ARRAY(
-                SELECT group_members.group_id::text
-                FROM group_members
-                WHERE group_members.user_id = $1::uuid
-                UNION ALL
-                SELECT organization_members.organization_id::text
-                FROM organization_members
-                WHERE organization_members.user_id = $1::uuid
-            )
-        )
-        AND EXISTS (
-            SELECT 1
-            FROM organization_members
-            WHERE organization_members.user_id = $1::uuid
-                AND organization_members.organization_id = chat_projects.organization_id
-        )
-    )
-ORDER BY lower(chat_projects.name), chat_projects.id
-`
-
-// The Everyone group's ID is the organization ID, so the user's
-// organization IDs join their group IDs. As in the RBAC policy, ACL grants
-// count only for members of the project's organization. ACL keys match
-// regardless of the actions they grant; callers authorize each row.
-func (q *sqlQuerier) GetChatProjectsAccessibleByUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectsAccessibleByUserID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatProject
-	for rows.Next() {
-		var i ChatProject
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.OwnerID,
-			&i.Name,
-			&i.Description,
-			&i.Icon,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.UserACL,
-			&i.GroupACL,
 		); err != nil {
 			return nil, err
 		}
@@ -8816,6 +8801,60 @@ func (q *sqlQuerier) IsChatProjectAccessibleByUserID(ctx context.Context, arg Is
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const lockChatProjectChatsForDelete = `-- name: LockChatProjectChatsForDelete :many
+WITH roots AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.project_id = $1::uuid
+    ORDER BY chats.id
+    LIMIT $2::int
+)
+SELECT chats.id, chats.worker_id, chats.runner_id
+FROM chats
+WHERE chats.id IN (SELECT id FROM roots)
+    OR chats.root_chat_id IN (SELECT id FROM roots)
+ORDER BY chats.id
+FOR UPDATE
+`
+
+type LockChatProjectChatsForDeleteParams struct {
+	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+type LockChatProjectChatsForDeleteRow struct {
+	ID       uuid.UUID     `db:"id" json:"id"`
+	WorkerID uuid.NullUUID `db:"worker_id" json:"worker_id"`
+	RunnerID uuid.NullUUID `db:"runner_id" json:"runner_id"`
+}
+
+// Locks up to limit_count of a project's root chats with their sub-chats,
+// returning the locked rows' current worker fields so callers can tell
+// whether a worker holds one. Deleting a project in batches keeps each
+// transaction short.
+func (q *sqlQuerier) LockChatProjectChatsForDelete(ctx context.Context, arg LockChatProjectChatsForDeleteParams) ([]LockChatProjectChatsForDeleteRow, error) {
+	rows, err := q.db.QueryContext(ctx, lockChatProjectChatsForDelete, arg.ProjectID, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LockChatProjectChatsForDeleteRow
+	for rows.Next() {
+		var i LockChatProjectChatsForDeleteRow
+		if err := rows.Scan(&i.ID, &i.WorkerID, &i.RunnerID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateChatProjectACLByID = `-- name: UpdateChatProjectACLByID :exec

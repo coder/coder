@@ -2345,15 +2345,6 @@ func (q *querier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error
 	return deleteQ(q.log, q.auth, q.db.GetChatProjectByID, q.db.DeleteChatProjectByID)(ctx, id)
 }
 
-// DeleteChatProjectChats deletes chats owned by any user, so it requires
-// deleting every chat, as chatd and dbpurge can.
-func (q *querier) DeleteChatProjectChats(ctx context.Context, projectID uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
-		return err
-	}
-	return q.db.DeleteChatProjectChats(ctx, projectID)
-}
-
 func (q *querier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
 	row, err := q.db.GetChatProjectMemoryByID(ctx, id)
 	if err != nil {
@@ -2397,6 +2388,15 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	}
 	_ = chat
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
+}
+
+// DeleteChatsByIDs deletes chats owned by any user, so it requires deleting
+// every chat, as chatd and dbpurge can.
+func (q *querier) DeleteChatsByIDs(ctx context.Context, ids []uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
+		return err
+	}
+	return q.db.DeleteChatsByIDs(ctx, ids)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -3780,13 +3780,6 @@ func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID)
 	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForUpdate)(ctx, id)
 }
 
-func (q *querier) GetChatProjectChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatProjectChatsForDelete(ctx, projectID)
-}
-
 func (q *querier) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
 	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionRead, projectID); err != nil {
 		return nil, err
@@ -3975,6 +3968,10 @@ func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]
 
 func (q *querier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByChatFileID)(ctx, fileID)
+}
+
+func (q *querier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByIDs)(ctx, ids)
 }
 
 func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
@@ -7388,6 +7385,13 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 		return uuid.Nil, err
 	}
 	return q.db.LockChatByID(ctx, id)
+}
+
+func (q *querier) LockChatProjectChatsForDelete(ctx context.Context, arg database.LockChatProjectChatsForDeleteParams) ([]database.LockChatProjectChatsForDeleteRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.LockChatProjectChatsForDelete(ctx, arg)
 }
 
 func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {

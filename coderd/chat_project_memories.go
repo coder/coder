@@ -12,7 +12,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -59,7 +58,7 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	apiKey := httpmw.APIKey(r)
-	if !api.authorizeChatProjectMemoryChange(rw, r, policy.ActionCreate, database.ChatProjectMemoryRBACObject(project)) {
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionCreate, database.ChatProjectMemoryRBACObject(project)) {
 		return
 	}
 	var req codersdk.CreateChatProjectMemoryRequest
@@ -135,7 +134,7 @@ func (api *API) deleteChatProjectMemory(rw http.ResponseWriter, r *http.Request)
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	if !api.authorizeChatProjectMemoryChange(rw, r, policy.ActionDelete, memory.ChatProjectMemory.RBACObject(project)) {
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionDelete, memory.ChatProjectMemory.RBACObject(project)) {
 		return
 	}
 	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionDelete, OrganizationID: project.OrganizationID})
@@ -149,19 +148,4 @@ func (api *API) deleteChatProjectMemory(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-// authorizeChatProjectMemoryChange writes 404 when the caller cannot read
-// the memories and 403 when they can read them but not perform action, as
-// sharees with the use role can.
-func (api *API) authorizeChatProjectMemoryChange(rw http.ResponseWriter, r *http.Request, action policy.Action, object rbac.Object) bool {
-	if !api.Authorize(r, policy.ActionRead, object) {
-		httpapi.ResourceNotFound(rw)
-		return false
-	}
-	if !api.Authorize(r, action, object) {
-		httpapi.Forbidden(rw)
-		return false
-	}
-	return true
 }

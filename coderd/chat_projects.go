@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -175,7 +176,7 @@ func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
-	if !api.authorizeChatProjectChange(rw, r, policy.ActionUpdate, project) {
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionUpdate, project.RBACObject()) {
 		return
 	}
 
@@ -239,7 +240,7 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
-	if !api.authorizeChatProjectChange(rw, r, policy.ActionDelete, project) {
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionDelete, project.RBACObject()) {
 		return
 	}
 
@@ -253,11 +254,19 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = project
 
-	// Chats die with their project, including chats sharees started in it.
-	err := api.chatDaemon.DeleteChatProject(ctx, project.ID)
-	if errors.Is(err, chatd.ErrChatProjectHasActiveChats) {
+	var deleted []database.Chat
+	var err error
+	if api.chatDaemon != nil {
+		deleted, err = api.chatDaemon.DeleteChatProject(ctx, project.ID)
+	} else {
+		// Without the AI Gateway no worker runs chats and no sidebar needs
+		// watch events, so the deletion runs directly.
+		deleted, err = chatd.DeleteChatProjectWithChats(ctx, api.Database, project.ID, chatd.DefaultInFlightChatStaleAfter)
+	}
+	api.auditChatProjectChatDeletes(ctx, r, project, deleted)
+	if errors.Is(err, chatd.ErrChatProjectHasRunningChats) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "This project has running chats. Wait for them to finish or stop them, then delete the project.",
+			Message: "A chat in this project is running, possibly one started by a user the project is shared with. Try again after it finishes.",
 		})
 		return
 	}
@@ -275,14 +284,41 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// authorizeChatProjectChange writes 404 when the caller cannot read the
-// project and 403 when they can read it but not perform action.
-func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Request, action policy.Action, project database.ChatProject) bool {
-	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
+// auditChatProjectChatDeletes records each root chat deleted with its
+// project. Sub-chats go with their root and are not audited separately,
+// matching archive.
+func (api *API) auditChatProjectChatDeletes(ctx context.Context, r *http.Request, project database.ChatProject, chats []database.Chat) {
+	apiKey := httpmw.APIKey(r)
+	auditor := api.Auditor.Load()
+	auditCtx := context.WithoutCancel(ctx)
+	for _, chat := range chats {
+		if chat.IsSubChat() {
+			continue
+		}
+		audit.BackgroundAudit(auditCtx, &audit.BackgroundAuditParams[database.Chat]{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			UserID:         apiKey.UserID,
+			RequestID:      httpmw.RequestID(r),
+			Status:         http.StatusNoContent,
+			Action:         database.AuditActionDelete,
+			OrganizationID: project.OrganizationID,
+			IP:             r.RemoteAddr,
+			UserAgent:      r.UserAgent(),
+			Old:            chat,
+		})
+	}
+}
+
+// authorizeChatProjectChange authorizes action on a project or its
+// memories. Callers who cannot read the object get 404 so the response does
+// not reveal that the project exists.
+func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Request, action policy.Action, object rbac.Objecter) bool {
+	if !api.Authorize(r, policy.ActionRead, object) {
 		httpapi.ResourceNotFound(rw)
 		return false
 	}
-	if !api.Authorize(r, action, project.RBACObject()) {
+	if !api.Authorize(r, action, object) {
 		httpapi.Forbidden(rw)
 		return false
 	}

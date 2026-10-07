@@ -1356,15 +1356,20 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProjectsAccessibleByUserID(gomock.Any(), userID).Return(rows, nil).AnyTimes()
 		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
 	}))
-	s.Run("GetChatProjectChatsForDelete", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		projectID := uuid.New()
-		dbm.EXPECT().GetChatProjectChatsForDelete(gomock.Any(), projectID).Return([]database.Chat{}, nil).AnyTimes()
-		check.Args(projectID).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns([]database.Chat{})
+	s.Run("LockChatProjectChatsForDelete", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.LockChatProjectChatsForDeleteParams{ProjectID: uuid.New(), LimitCount: 10}
+		dbm.EXPECT().LockChatProjectChatsForDelete(gomock.Any(), arg).Return([]database.LockChatProjectChatsForDeleteRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns([]database.LockChatProjectChatsForDeleteRow{})
 	}))
-	s.Run("DeleteChatProjectChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		projectID := uuid.New()
-		dbm.EXPECT().DeleteChatProjectChats(gomock.Any(), projectID).Return(nil).AnyTimes()
-		check.Args(projectID).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns()
+	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), []uuid.UUID{chat.ID}).Return([]database.Chat{chat}, nil).AnyTimes()
+		check.Args([]uuid.UUID{chat.ID}).Asserts(chat, policy.ActionRead).Returns([]database.Chat{chat})
+	}))
+	s.Run("DeleteChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().DeleteChatsByIDs(gomock.Any(), ids).Return(nil).AnyTimes()
+		check.Args(ids).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns()
 	}))
 	s.Run("IsChatProjectAccessibleByUserID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.IsChatProjectAccessibleByUserIDParams{ProjectID: uuid.New(), UserID: uuid.New()}

@@ -33,8 +33,6 @@ func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (
 		p.logger.Debug(ctx, "failed to load chat project for memory", slog.F("chat_id", chat.ID), slog.Error(err))
 		return nil, "", false
 	}
-	// A chat whose owner lost access to the project keeps running without
-	// its memory.
 	usable, err := ChatProjectUsableBy(ctx, p.db, project, chat.OwnerID)
 	if err != nil {
 		p.logger.Debug(ctx, "failed to check chat project access for memory", slog.F("chat_id", chat.ID), slog.Error(err))

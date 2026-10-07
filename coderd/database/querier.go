@@ -176,9 +176,6 @@ type sqlcQuerier interface {
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
 	DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error
-	// Deletes a project's root chats and their sub-chats. Chat-scoped tables
-	// cascade.
-	DeleteChatProjectChats(ctx context.Context, projectID uuid.UUID) error
 	DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (ChatProjectMemory, error)
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
@@ -186,6 +183,8 @@ type sqlcQuerier interface {
 	// number of affected rows so callers can detect missing rows without
 	// a follow-up read.
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
+	// Chat-scoped tables cascade.
+	DeleteChatsByIDs(ctx context.Context, ids []uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
@@ -569,10 +568,6 @@ type sqlcQuerier interface {
 	// Locks the row so ACL updates read, modify, and write it in one
 	// transaction.
 	GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error)
-	// Returns a project's root chats and their sub-chats. The rows stay locked
-	// until the transaction ends, so no worker acquires one before
-	// DeleteChatProjectChats runs.
-	GetChatProjectChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]Chat, error)
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
@@ -636,6 +631,7 @@ type sqlcQuerier interface {
 	GetChatWorkspaceTTL(ctx context.Context) (string, error)
 	GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error)
 	GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error)
+	GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	// Retrieves chats updated after the given timestamp for telemetry
@@ -1440,6 +1436,11 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Locks up to limit_count of a project's root chats with their sub-chats,
+	// returning the locked rows' current worker fields so callers can tell
+	// whether a worker holds one. Deleting a project in batches keeps each
+	// transaction short.
+	LockChatProjectChatsForDelete(ctx context.Context, arg LockChatProjectChatsForDeleteParams) ([]LockChatProjectChatsForDeleteRow, error)
 	// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
 	// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
 	// is held the key cannot be deleted, and a committed deletion is observed as
