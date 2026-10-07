@@ -21,9 +21,9 @@ export const extractContextUsageFromMessage = (
 	const cacheReadTokens = usage.cache_read_tokens;
 	const contextLimitTokens = usage.context_limit;
 
-	// Reasoning is never added: it is either part of output_tokens or,
-	// where a provider reports it separately, not replayed in the next
-	// prompt.
+	// reasoning_tokens is not added: every provider on the chat path
+	// counts it inside output_tokens. The sum still reads high by this
+	// step's reasoning when the next request drops it (CODAGT-1350).
 	const components = [
 		inputTokens,
 		outputTokens,

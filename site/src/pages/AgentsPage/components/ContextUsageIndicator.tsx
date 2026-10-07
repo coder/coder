@@ -41,6 +41,7 @@ export type AgentContextUsage = {
 	readonly outputTokens?: number;
 	readonly cacheReadTokens?: number;
 	readonly cacheCreationTokens?: number;
+	// Part of outputTokens, so usedTokens does not add it.
 	readonly reasoningTokens?: number;
 	// Percentage (0-100) at which the context will be compacted.
 	readonly compressionThreshold?: number;

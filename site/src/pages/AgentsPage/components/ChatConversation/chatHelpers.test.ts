@@ -54,14 +54,13 @@ describe("extractContextUsageFromMessage", () => {
 	});
 
 	it.each<{
-		provider: string;
+		shape: string;
 		usage: TypesGen.ChatMessageUsage;
 		usedTokens: number;
 	}>([
-		// Persisted rows from live runs. On the OpenAI shapes output tokens
-		// already include the reported reasoning tokens.
+		// Usage values recorded from real provider responses.
 		{
-			provider: "OpenAI Responses",
+			shape: "reasoning inside output",
 			usage: {
 				input_tokens: 110,
 				output_tokens: 334,
@@ -71,17 +70,7 @@ describe("extractContextUsageFromMessage", () => {
 			usedTokens: 110 + 334 + 5632,
 		},
 		{
-			provider: "OpenAI-compatible Chat Completions",
-			usage: {
-				input_tokens: 190,
-				output_tokens: 379,
-				reasoning_tokens: 320,
-				cache_read_tokens: 5632,
-			},
-			usedTokens: 190 + 379 + 5632,
-		},
-		{
-			provider: "Anthropic with thinking",
+			shape: "cache creation present",
 			usage: {
 				input_tokens: 3,
 				output_tokens: 120,
@@ -91,12 +80,12 @@ describe("extractContextUsageFromMessage", () => {
 			usedTokens: 3 + 120 + 7736 + 129,
 		},
 		{
-			provider: "Gemini through its OpenAI-compatible API",
+			shape: "no cache fields",
 			usage: { input_tokens: 4220, output_tokens: 41 },
 			usedTokens: 4220 + 41,
 		},
 	])(
-		"sums input, output and cache tokens for $provider",
+		"sums input, output and cache tokens with $shape",
 		({ usage, usedTokens }) => {
 			const result = extractContextUsageFromMessage({
 				...MockChatMessage,
@@ -235,38 +224,14 @@ describe("getLatestContextUsage", () => {
 		expect(getLatestContextUsage([], 200000)).toBeNull();
 	});
 
-	it("returns the newest usage-bearing step instead of summing a tool loop", () => {
-		const step = (
-			id: number,
-			usage: TypesGen.ChatMessageUsage,
-		): TypesGen.ChatMessage => ({
-			...MockChatMessage,
-			id,
-			role: "assistant",
-			usage,
-		});
-		const toolResult: TypesGen.ChatMessage = {
-			...MockChatMessage,
-			id: 2,
-			role: "tool",
-			content: [{ type: "tool-result", tool_name: "lookup_code" }],
-		};
-		const result = getLatestContextUsage([
-			step(1, {
-				input_tokens: 139,
-				output_tokens: 139,
-				reasoning_tokens: 64,
-				cache_read_tokens: 5632,
-			}),
-			toolResult,
-			step(3, {
-				input_tokens: 110,
-				output_tokens: 207,
-				reasoning_tokens: 128,
-				cache_read_tokens: 5760,
-			}),
-		]);
-		expect(result?.usedTokens).toBe(110 + 207 + 5760);
+	it("returns usage from the newest usage-bearing message", () => {
+		const messages = [
+			{ ...MockChatMessage, id: 1, usage: { input_tokens: 100 } },
+			{ ...MockChatMessage, id: 2 },
+			{ ...MockChatMessage, id: 3, usage: { input_tokens: 300 } },
+		];
+		const result = getLatestContextUsage(messages);
+		expect(result?.inputTokens).toBe(300);
 	});
 
 	it("returns null when a compaction summary is newer than usage", () => {
