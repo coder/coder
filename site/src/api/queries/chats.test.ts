@@ -5136,14 +5136,7 @@ describe("applyWatchedChatHardDeleted", () => {
 				?.pages.flat()
 				.map((c) => c.id),
 		).toEqual([other.id]);
-		// The entity is refetched rather than patched to archived, so the
-		// open route never offers Unarchive.
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.archived,
-		).toBe(false);
-		expect(
-			queryClient.getQueryState(chatEntityKey(chatId))?.isInvalidated,
-		).toBe(true);
+		expect(queryClient.getQueryData(chatEntityKey(chatId))).toBeUndefined();
 	});
 });
 

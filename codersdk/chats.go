@@ -240,8 +240,8 @@ type ChatProject struct {
 	Icon      string    `json:"icon"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
-	// Permissions are what the caller may do with the project, counting
-	// role grants as well as the project ACL.
+	// Permissions count role grants as well as the project ACL, so clients
+	// can hide actions that would fail.
 	Permissions ChatProjectPermissions `json:"permissions"`
 }
 
@@ -2207,7 +2207,7 @@ const (
 	// ChatWatchEventKindDeleted is published when a chat is archived.
 	ChatWatchEventKindDeleted ChatWatchEventKind = "deleted"
 	// ChatWatchEventKindHardDeleted is published when a chat is removed
-	// permanently, as when its project is deleted. It cannot be unarchived.
+	// permanently, as when its project is deleted.
 	ChatWatchEventKindHardDeleted      ChatWatchEventKind = "hard_deleted"
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"

@@ -120,12 +120,12 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	}
 	// ACL keys must be canonical UUIDs: RBAC matches them as strings, so
 	// any other spelling would grant nothing and could not be removed.
-	userRoles, userDupErrs := canonicalChatProjectRoles(req.UserRoles, "user_roles")
-	groupRoles, groupDupErrs := canonicalChatProjectRoles(req.GroupRoles, "group_roles")
-	if len(userDupErrs)+len(groupDupErrs) > 0 {
+	userRoles, userKeyErrs := canonicalChatProjectRoles(req.UserRoles, "user_roles")
+	groupRoles, groupKeyErrs := canonicalChatProjectRoles(req.GroupRoles, "group_roles")
+	if len(userKeyErrs)+len(groupKeyErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update chat project ACL.",
-			Validations: slices.Concat(userDupErrs, groupDupErrs),
+			Validations: slices.Concat(userKeyErrs, groupKeyErrs),
 		})
 		return
 	}
@@ -161,9 +161,19 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("get chat project for update: %w", err)
 		}
-		usableBefore, err := chatd.ChatProjectUsableBy(ctx, tx, current, apiKey.UserID)
-		if err != nil {
-			return err
+		// An administrator's role lets them share any project, but role
+		// grants do not let them run chats in it. Granting access, even to a
+		// group they are not in yet, could turn that role grant into an ACL
+		// grant, so only the owner and sharees may grant; others may only
+		// revoke.
+		if grantsChatProjectAccess(userRoles) || grantsChatProjectAccess(groupRoles) {
+			usable, err := chatd.ChatProjectUsableBy(ctx, tx, current, apiKey.UserID)
+			if err != nil {
+				return err
+			}
+			if !usable {
+				return errChatProjectGrantWithoutAccess
+			}
 		}
 		userACL := applyChatProjectRoles(current.UserACL, userRoles)
 		groupACL := applyChatProjectRoles(current.GroupACL, groupRoles)
@@ -178,25 +188,13 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("get updated chat project: %w", err)
 		}
-		// An administrator's role lets them share any project, but role
-		// grants do not let them run chats in it. Sharing with a group they
-		// belong to would turn that role grant into an ACL grant.
-		if !usableBefore {
-			usableAfter, err := chatd.ChatProjectUsableBy(ctx, tx, updated, apiKey.UserID)
-			if err != nil {
-				return err
-			}
-			if usableAfter {
-				return errChatProjectSelfShare
-			}
-		}
 		aReq.New = updated
 		return nil
 	}, nil)
 	if err != nil {
-		if errors.Is(err, errChatProjectSelfShare) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cannot share a project with a group you belong to unless it is already shared with you.",
+		if errors.Is(err, errChatProjectGrantWithoutAccess) {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Only the project owner or users it is shared with can grant access to it. You can still remove entries.",
 			})
 			return
 		}
@@ -211,11 +209,20 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-var errChatProjectSelfShare = xerrors.New("chat project shared with the caller")
+var errChatProjectGrantWithoutAccess = xerrors.New("caller cannot use the chat project")
 
-// canonicalChatProjectRoles parses ACL keys into UUIDs. Two spellings of one
-// UUID are a validation error, because which role wins would otherwise
-// depend on map order.
+func grantsChatProjectAccess(roles map[uuid.UUID]codersdk.ChatProjectRole) bool {
+	for _, role := range roles {
+		if role != codersdk.ChatProjectRoleDeleted {
+			return true
+		}
+	}
+	return false
+}
+
+// canonicalChatProjectRoles parses ACL keys into UUIDs. A key that is not a
+// UUID, or two spellings of one UUID, is a validation error; with two
+// spellings, which role wins would depend on map order.
 func canonicalChatProjectRoles(roles map[string]codersdk.ChatProjectRole, field string) (map[uuid.UUID]codersdk.ChatProjectRole, []codersdk.ValidationError) {
 	canonical := make(map[uuid.UUID]codersdk.ChatProjectRole, len(roles))
 	var validErrs []codersdk.ValidationError

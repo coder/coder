@@ -23075,7 +23075,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "permissions": {
-                    "description": "Permissions are what the caller may do with the project, counting\nrole grants as well as the project ACL.",
+                    "description": "Permissions count role grants as well as the project ACL, so clients\ncan hide actions that would fail.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatProjectPermissions"

@@ -567,23 +567,18 @@ export const applyWatchedChatHardDeleted = (
 		const next = page.filter((row) => row.id !== chatId);
 		return next.length === page.length ? page : next;
 	};
-	for (const queryKey of [chatListFamilyKey, chatProjectListFamilyKey]) {
-		queryClient.setQueriesData<InfiniteChatsCacheData>({ queryKey }, (prev) => {
-			if (!isInfiniteChatsCacheData(prev)) {
-				return prev;
-			}
-			const pages = prev.pages.map(withoutChat);
-			return pages.some((page, i) => page !== prev.pages[i])
-				? { ...prev, pages }
-				: prev;
-		});
-	}
+	updateInfiniteChatsCache(queryClient, withoutChat);
 	queryClient.setQueriesData<TypesGen.Chat[]>(
 		{ queryKey: chatSearchFamilyKey },
 		(prev) => (prev ? withoutChat(prev) : prev),
 	);
 	removeChatFromChatsByWorkspace(queryClient, chatId);
-	void invalidateChatEntity(queryClient, chatId);
+	// Invalidating would keep the cached chat when the refetch 404s, so
+	// an open route would keep rendering it.
+	void queryClient.resetQueries({
+		queryKey: chatEntityKey(chatId),
+		exact: true,
+	});
 	void invalidateChatListQueries(queryClient);
 	void invalidateChatsByWorkspace(queryClient);
 	void invalidateChatSearches(queryClient);

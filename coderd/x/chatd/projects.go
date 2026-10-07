@@ -48,40 +48,19 @@ func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, proj
 			batch []database.Chat
 		)
 		err := db.InTx(func(tx database.Store) error {
-			batch = nil
-			// Locking the project blocks new root chats from joining it
-			// until this batch commits.
-			if _, err := tx.GetChatProjectByIDForUpdate(ctx, projectID); err != nil {
-				return xerrors.Errorf("lock project: %w", err)
-			}
-			roots, err := tx.LockChatProjectRootChatsForDelete(chatdCtx, database.LockChatProjectRootChatsForDeleteParams{
-				ProjectID:  projectID,
-				LimitCount: chatProjectDeleteBatchSize,
-			})
+			locked, err := database.LockChatProjectDeleteBatch(chatdCtx, tx, projectID, chatProjectDeleteBatchSize)
 			if err != nil {
-				return xerrors.Errorf("lock project chats: %w", err)
+				return err
 			}
-			if len(roots) == 0 {
+			if len(locked) == 0 {
 				if err := tx.DeleteChatProjectByID(ctx, projectID); err != nil {
 					return xerrors.Errorf("delete project: %w", err)
 				}
 				done = true
 				return nil
 			}
-			locked := make([]lockedChat, 0, len(roots))
-			rootIDs := make([]uuid.UUID, 0, len(roots))
-			for _, row := range roots {
-				locked = append(locked, lockedChat{ID: row.ID, WorkerID: row.WorkerID, RunnerID: row.RunnerID})
-				rootIDs = append(rootIDs, row.ID)
-			}
-			subs, err := tx.LockSubChatsByRootIDsForDelete(chatdCtx, rootIDs)
-			if err != nil {
-				return xerrors.Errorf("lock project sub-chats: %w", err)
-			}
-			for _, row := range subs {
-				locked = append(locked, lockedChat{ID: row.ID, WorkerID: row.WorkerID, RunnerID: row.RunnerID})
-			}
 			ids := make([]uuid.UUID, 0, len(locked))
+			rootIDs := make([]uuid.UUID, 0, len(locked))
 			for _, chat := range locked {
 				running, err := chatHeldByLiveWorker(chatdCtx, tx, chat, staleAfter)
 				if err != nil {
@@ -91,12 +70,15 @@ func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, proj
 					return ErrChatProjectHasRunningChats
 				}
 				ids = append(ids, chat.ID)
+				if chat.IsRoot {
+					rootIDs = append(rootIDs, chat.ID)
+				}
 			}
 			chats, err := tx.GetChatsByIDs(chatdCtx, ids)
 			if err != nil {
 				return xerrors.Errorf("get project chats: %w", err)
 			}
-			if err := tx.DeleteChatsByIDs(chatdCtx, ids); err != nil {
+			if err := tx.DeleteChatFamiliesByRootIDs(chatdCtx, rootIDs); err != nil {
 				return xerrors.Errorf("delete project chats: %w", err)
 			}
 			batch = chats
@@ -112,16 +94,10 @@ func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, proj
 	}
 }
 
-type lockedChat struct {
-	ID       uuid.UUID
-	WorkerID uuid.NullUUID
-	RunnerID uuid.NullUUID
-}
-
 // chatHeldByLiveWorker reports whether a worker with a fresh heartbeat holds
 // the chat. A turn can end with worker_id still set, and a replica that dies
 // then never clears it, so worker_id alone would block deletion forever.
-func chatHeldByLiveWorker(ctx context.Context, db database.Store, chat lockedChat, staleAfter time.Duration) (bool, error) {
+func chatHeldByLiveWorker(ctx context.Context, db database.Store, chat database.LockedChatProjectChat, staleAfter time.Duration) (bool, error) {
 	if !chat.WorkerID.Valid || !chat.RunnerID.Valid {
 		return false, nil
 	}

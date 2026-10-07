@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { chatCostTreeKey, projectChatsKey } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
@@ -72,5 +73,22 @@ export const Mobile: Story = {
 				title: `Chat ${index + 1}`,
 			})),
 		),
+	},
+};
+
+/** A sharee without edit or delete rights gets no project actions menu. */
+export const WithoutManagePermissions: Story = {
+	args: {
+		project: {
+			...MockChatProject,
+			permissions: { update: false, delete: false, share: false },
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(MockChatProject.name);
+		expect(
+			canvas.queryByRole("button", { name: "Project actions" }),
+		).toBeNull();
 	},
 };

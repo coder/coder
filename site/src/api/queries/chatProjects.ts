@@ -72,10 +72,11 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 				queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 				invalidateChatListQueries(queryClient),
 				invalidateChatSearches(queryClient),
-				// Refetching the chat entities lets open routes find a deleted
-				// chat gone. Their nested queries (messages, ACL, diffs, ...)
-				// would only refetch into 404s.
-				queryClient.invalidateQueries({
+				// Resetting, not invalidating, the chat entities lets open
+				// routes find a deleted chat gone: invalidation keeps cached
+				// data when the refetch 404s. Their nested queries (messages,
+				// ACL, diffs, ...) would only refetch into 404s.
+				queryClient.resetQueries({
 					queryKey: chatEntitiesFamilyKey,
 					predicate: ({ queryKey }) =>
 						queryKey.length === chatEntitiesFamilyKey.length + 1,

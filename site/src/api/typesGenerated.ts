@@ -3587,8 +3587,8 @@ export interface ChatProject {
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
-	 * Permissions are what the caller may do with the project, counting
-	 * role grants as well as the project ACL.
+	 * Permissions count role grants as well as the project ACL, so clients
+	 * can hide actions that would fail.
 	 */
 	readonly permissions: ChatProjectPermissions;
 }

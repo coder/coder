@@ -394,7 +394,6 @@ func TestChatProjectSharing(t *testing.T) {
 				UserID:       firstUser.UserID,
 			}))
 		}
-		// Sub-chats go with their root and are not audited separately.
 		require.False(t, mAudit.Contains(t, database.AuditLog{ResourceType: database.ResourceTypeChat, ResourceID: shareeChild.ID}))
 
 		// The sharee's chat watch receives hard_deleted events for their chats.
@@ -446,6 +445,7 @@ func TestChatProjectSharing(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
 		member, _ := newChatProjectMember(t, client, firstUser.OrganizationID)
+		_, otherUser := newChatProjectMember(t, client, firstUser.OrganizationID)
 		memberProject := createChatProject(t, member, firstUser.OrganizationID, "Member Project")
 
 		_, err := client.GetChatProject(ctx, memberProject.OrganizationID, memberProject.ID)
@@ -457,15 +457,31 @@ func TestChatProjectSharing(t *testing.T) {
 		})
 		requireChatProjectNotFound(t, err)
 
-		// Nor can they reach it by sharing it with a group they belong to.
+		// Nor can they reach it by granting access, which they could then
+		// join, for example through the Everyone group.
 		err = client.UpdateChatProjectACL(ctx, memberProject.OrganizationID, memberProject.ID, codersdk.UpdateChatProjectACL{
 			GroupRoles: map[string]codersdk.ChatProjectRole{memberProject.OrganizationID.String(): codersdk.ChatProjectRoleAdmin},
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Cannot share a project with a group you belong to unless it is already shared with you.", sdkErr.Message)
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Equal(t, "Only the project owner or users it is shared with can grant access to it. You can still remove entries.", sdkErr.Message)
+		err = client.UpdateChatProjectACL(ctx, memberProject.OrganizationID, memberProject.ID, codersdk.UpdateChatProjectACL{
+			UserRoles: map[string]codersdk.ChatProjectRole{otherUser.ID.String(): codersdk.ChatProjectRoleUse},
+		})
+		requireSDKError(t, err, http.StatusForbidden)
 		acl, err := member.ChatProjectACL(ctx, memberProject.OrganizationID, memberProject.ID)
 		require.NoError(t, err)
 		require.Empty(t, acl.Groups)
+		require.Empty(t, acl.Users)
+
+		// They can still revoke a share the owner made.
+		err = member.UpdateChatProjectACL(ctx, memberProject.OrganizationID, memberProject.ID, codersdk.UpdateChatProjectACL{
+			UserRoles: map[string]codersdk.ChatProjectRole{otherUser.ID.String(): codersdk.ChatProjectRoleUse},
+		})
+		require.NoError(t, err)
+		err = client.UpdateChatProjectACL(ctx, memberProject.OrganizationID, memberProject.ID, codersdk.UpdateChatProjectACL{
+			UserRoles: map[string]codersdk.ChatProjectRole{otherUser.ID.String(): codersdk.ChatProjectRoleDeleted},
+		})
+		require.NoError(t, err)
 	})
 }
 

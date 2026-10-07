@@ -58,15 +58,19 @@ describe("chat project mutations", () => {
 		}
 	});
 
-	it("refreshes chat lists, searches, and entities after a delete", async () => {
+	it("refreshes chat lists and searches and resets entities after a delete", async () => {
 		const queryClient = seed();
 		const messagesKey = chatMessagesKey("chat-1");
+		const entityKey = [...chatEntitiesFamilyKey, "chat-1"];
 		queryClient.setQueryData(messagesKey, {});
 		await settle(deleteChatProject(queryClient));
-		for (const key of [...projectKeys, ...chatKeys]) {
+		const [listKey, searchKey] = chatKeys;
+		for (const key of [...projectKeys, listKey, searchKey]) {
 			expect(isInvalidated(queryClient, key)).toBe(true);
 		}
-		// A chat's nested queries do not depend on its project.
+		// Resetting drops the cached chat, so a 404 refetch cannot leave it
+		// rendered.
+		expect(queryClient.getQueryData(entityKey)).toBeUndefined();
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
 	});
 });

@@ -960,6 +960,31 @@ export const ArchiveWatchEventKeepsOpenChatMounted: Story = {
 	},
 };
 
+export const HardDeleteWatchEventRemovesOpenChat: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats")
+			.mockResolvedValueOnce([watchedChat()])
+			.mockResolvedValue([]);
+		spyOn(API.experimental, "getChat").mockRejectedValue(
+			mockApiError({ message: "Resource not found." }),
+		);
+		return mockAgentChatPageAPIs();
+	},
+	parameters: watchedChatPageParameters(watchedChat(), [
+		chatWatchEvent("hard_deleted", watchedChat()),
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.queryByText("Watched agent")).toBeNull();
+		});
+		expect(
+			canvas.queryByText("This agent has been archived and is read-only."),
+		).toBeNull();
+	},
+};
+
 export const UnarchiveWatchEventRecoversArchivedChat: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {

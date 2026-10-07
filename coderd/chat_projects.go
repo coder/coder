@@ -261,17 +261,16 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	if api.chatDaemon != nil {
 		deleted, err = api.chatDaemon.DeleteChatProject(ctx, project.ID)
 	} else {
-		// Without the AI Gateway no worker runs chats and no sidebar needs
-		// watch events, so the deletion runs directly.
+		// Without the AI Gateway no worker runs chats, so the deletion runs
+		// directly. No watch events are published; other users' sidebars
+		// drop the chats on their next refetch.
 		deleted, err = chatd.DeleteChatProjectWithoutEvents(ctx, api.Database, project.ID, chatd.DefaultInFlightChatStaleAfter)
 	}
 	api.auditChatProjectChatDeletes(ctx, r, project, deleted)
 	if errors.Is(err, chatd.ErrChatProjectHasRunningChats) {
-		message := "A chat in this project is running, possibly one started by a user the project is shared with. Try again after it finishes."
-		if len(deleted) > 0 {
-			message = "Some of the project's chats were already deleted. A chat in this project is running, possibly one started by a user the project is shared with. Try again after it finishes to delete the rest."
-		}
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: message})
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: chatProjectDeleteFailureMessage(true, len(deleted) > 0),
+		})
 		return
 	}
 	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
@@ -280,12 +279,28 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete chat project.",
+			Message: chatProjectDeleteFailureMessage(false, len(deleted) > 0),
 			Detail:  err.Error(),
 		})
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// chatProjectDeleteFailureMessage tells the user whether chats were already
+// deleted, because deletion commits in batches and a failed attempt can
+// leave the project with fewer chats.
+func chatProjectDeleteFailureMessage(running, partial bool) string {
+	switch {
+	case running && partial:
+		return "Some of the project's chats were already deleted. A chat in this project is running, possibly one started by a user the project is shared with. Try again after it finishes to delete the rest."
+	case running:
+		return "A chat in this project is running, possibly one started by a user the project is shared with. Try again after it finishes."
+	case partial:
+		return "Some of the project's chats were already deleted, but deleting the rest failed. Try again to finish."
+	default:
+		return "Failed to delete chat project."
+	}
 }
 
 // auditChatProjectChatDeletes records each root chat deleted with its
@@ -329,14 +344,19 @@ func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Reque
 	return true
 }
 
-// convertChatProject includes the caller's permissions so clients show
-// only the actions that will succeed.
 func (api *API) convertChatProject(r *http.Request, project database.ChatProject) codersdk.ChatProject {
+	ctx := r.Context()
+	subject, ok := httpmw.UserAuthorizationOptional(ctx)
 	obj := project.RBACObject()
+	// Denials are expected here, so this skips api.Authorize, which logs
+	// each one as a warning.
+	can := func(action policy.Action) bool {
+		return ok && api.HTTPAuth.Authorizer.Authorize(ctx, subject, action, obj) == nil
+	}
 	return db2sdk.ChatProject(project, codersdk.ChatProjectPermissions{
-		Update: api.Authorize(r, policy.ActionUpdate, obj),
-		Delete: api.Authorize(r, policy.ActionDelete, obj),
-		Share:  api.Authorize(r, policy.ActionShare, obj),
+		Update: can(policy.ActionUpdate),
+		Delete: can(policy.ActionDelete),
+		Share:  can(policy.ActionShare),
 	})
 }
 

@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	addChildToParentInCache,
 	applyChatArchiveStateToCaches,
@@ -605,6 +606,11 @@ const AgentsPageLayout: React.FC = () => {
 
 					if (chatEvent.kind === "hard_deleted") {
 						applyWatchedChatHardDeleted(queryClient, updatedChat.id);
+						// Chats are hard-deleted with their project, which may
+						// be one shared with this user.
+						void queryClient.invalidateQueries({
+							queryKey: chatProjectsKey,
+						});
 						return;
 					}
 					if (chatEvent.kind === "deleted") {
