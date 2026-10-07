@@ -1,0 +1,6 @@
+title: Quickstart
+description: Install Coder, build your first template, and launch your first workspace in this quickstart guide.
+path: ./get-started/index.md
+icon_path: ./images/icons/rocket.svg
+children:
+  - include: get-started/customize-your-template.yml

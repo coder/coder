@@ -1,4 +1,4 @@
-import { MoonIcon, RefreshCwOffIcon, Share2Icon } from "lucide-react";
+import { MoonIcon, RefreshCwOffIcon } from "lucide-react";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import { templates } from "#/api/queries/templates";
 import type { WorkspaceStatus } from "#/api/typesGenerated";
@@ -96,12 +96,6 @@ const ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
 		value: "dormant",
 		icon: <MoonIcon />,
 		requiresDormantEntitlement: true,
-	},
-	{
-		label: "Shared",
-		value: "shared",
-		icon: <Share2Icon />,
-		requiresDormantEntitlement: false,
 	},
 ];
 

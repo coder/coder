@@ -378,19 +378,16 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	require.Contains(t, resp.Content, "[REDACTED]")
 
 	// A connect failure must not leak the URL into the persisted summary
-	// either. A refused dial makes net/http embed the full request URL,
-	// including a path credential, in the error.
-	closed := httptest.NewServer(http.NotFoundHandler())
-	closed.Close()
-	brokenURL := closed.URL + "/t/pathtoken?key=querytoken"
-	brokenCfg := makeInlineConfig("broken", brokenURL, nil)
+	// either. The guard rejects this private IP before dialing, so the
+	// failure needs no network and reads the same on every OS.
+	brokenCfg := makeInlineConfig("broken", "http://10.0.0.1/t/pathtoken?key=querytoken", nil)
 	_, summaries, cleanup = mcpclient.ConnectInlineForTest(
 		ctx, logger, []mcpclient.Server{brokenCfg}, nil, testutil.WaitLong,
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, summaries, 1)
 	require.Equal(t, mcpclient.ConnectOutcomeError, summaries[0].Outcome)
-	require.Contains(t, summaries[0].Error, "connection refused")
+	require.Contains(t, summaries[0].Error, `Post "http://10.0.0.1"`)
 	require.NotContains(t, summaries[0].Error, "pathtoken")
 	require.NotContains(t, summaries[0].Error, "querytoken")
 }

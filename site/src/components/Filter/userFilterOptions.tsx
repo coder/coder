@@ -47,6 +47,11 @@ export const getUserFilterOptions = async (
 	const usersRes = await queryClient.fetchQuery(
 		users({ q: query, limit: USER_SUGGESTIONS_LIMIT }),
 	);
+	// The users API also matches name and email, so a result for the current
+	// user keeps its option even when the query is not in its label.
+	const self = usersRes.users.some((user) => user.username === me.username)
+		? [selfUserOption(me)]
+		: await getSelfUserFilterOptions(query, me);
 	const options = usersRes.users
 		.filter((user) => user.username !== me.username)
 		.map<FilterOption>((user) => ({
@@ -57,5 +62,5 @@ export const getUserFilterOptions = async (
 			),
 		}));
 
-	return [selfUserOption(me), ...options];
+	return [...self, ...options];
 };

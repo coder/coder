@@ -576,6 +576,28 @@ func TestTelemetryInstallSource(t *testing.T) {
 	require.Equal(t, "aws_marketplace", deployment.InstallSource)
 }
 
+// TestTelemetryExcludesExperimentRuleConditions guards against condition
+// text, which only the rules API may return, leaking into telemetry.
+func TestTelemetryExcludesExperimentRuleConditions(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sentinel := "telemetry-sentinel-" + uuid.NewString()
+	value, err := json.Marshal(map[string]any{"mode": "condition", "condition": fmt.Sprintf("user.email == %q", sentinel), "revision": 1})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertExperimentRule(ctx, database.UpsertExperimentRuleParams{
+		Experiment: string(codersdk.ExperimentExample),
+		Value:      string(value),
+	}))
+
+	deployment, snapshot := collectSnapshot(ctx, t, db, nil)
+	for _, report := range []any{deployment, snapshot} {
+		data, err := json.Marshal(report)
+		require.NoError(t, err)
+		require.NotContains(t, string(data), sentinel)
+	}
+}
+
 func TestTelemetryItem(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitMedium)

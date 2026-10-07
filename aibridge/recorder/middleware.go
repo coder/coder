@@ -13,11 +13,11 @@ type Middleware func(next Recorder) Recorder
 // logging will happen first, then tracing, and then the call to the recorder.
 //
 //	middleware := ChainMiddleware(
-//		WithLogging(logger),
+//		WithLogging(logger, true),
 //		WithTracing(tracer),
 //	)
 //
-//	recorder := NewWrappedRecorder(clientFn)
+//	recorder := NewDRPCRecorder(clientFn)
 //
 //	wrappedRecorder := middleware(recorder)
 //

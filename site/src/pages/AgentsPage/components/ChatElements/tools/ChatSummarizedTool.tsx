@@ -41,7 +41,7 @@ export const ChatSummarizedTool: React.FC<{
 			/>
 			<ToolCall.Content>
 				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default"
+					className="mt-1.5 rounded-md border border-solid border-border"
 					viewportClassName="max-h-64"
 					viewportTabIndex={0}
 					viewportAriaLabel="Conversation summary"

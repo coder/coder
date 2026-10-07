@@ -20,6 +20,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Loader } from "#/components/Loader/Loader";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -30,7 +31,10 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
-import { TableLoader } from "#/components/TableLoader/TableLoader";
+import {
+	TableLoaderSkeleton,
+	TableRowSkeleton,
+} from "#/components/TableLoader/TableLoader";
 import { formatDate } from "#/utils/time";
 import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
 import { PersonalSkillEditor } from "./components/PersonalSkillEditor";
@@ -84,7 +88,7 @@ export type AgentSettingsPersonalSkillsPageViewProps = {
 	onDownload: (skill: UserSkillMetadata) => void;
 	onExportAll: () => void;
 	downloadingSkillName?: string;
-	isExportingAll?: boolean;
+	isExportingAll: boolean;
 	editorState?: PersonalSkillEditorState;
 	deleteState?: PersonalSkillDeleteState;
 };
@@ -223,7 +227,7 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 	onDownload,
 	onExportAll,
 	downloadingSkillName,
-	isExportingAll = false,
+	isExportingAll,
 	editorState,
 	deleteState,
 }) => {
@@ -274,9 +278,9 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 			<Table aria-label="Personal skills">
 				<TableHeader>
 					<TableRow>
-						<TableHead>Name</TableHead>
-						<TableHead>Description</TableHead>
-						<TableHead>Updated</TableHead>
+						<TableHead className="whitespace-nowrap">Name</TableHead>
+						<TableHead className="w-full">Description</TableHead>
+						<TableHead className="whitespace-nowrap">Updated</TableHead>
 						<TableHead className="w-14">
 							<span className="sr-only">Actions</span>
 						</TableHead>
@@ -284,7 +288,22 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 				</TableHeader>
 				<TableBody size="lg">
 					{isLoading ? (
-						<TableLoader />
+						<TableLoaderSkeleton>
+							<TableRowSkeleton aria-label="Loading personal skills">
+								<TableCell>
+									<Skeleton variant="text" className="w-32" />
+								</TableCell>
+								<TableCell className="w-full max-w-0">
+									<Skeleton variant="text" />
+								</TableCell>
+								<TableCell>
+									<Skeleton variant="text" className="w-44" />
+								</TableCell>
+								<TableCell>
+									<Skeleton className="size-8" />
+								</TableCell>
+							</TableRowSkeleton>
+						</TableLoaderSkeleton>
 					) : skills.length === 0 && error ? (
 						<TableEmpty
 							message="Failed to load personal skills"
@@ -308,15 +327,22 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 					) : (
 						skills.map((skill) => (
 							<TableRow key={skill.id}>
-								<TableCell>{skill.name}</TableCell>
-								<TableCell>
+								<TableCell className="max-w-48 truncate" title={skill.name}>
+									{skill.name}
+								</TableCell>
+								<TableCell
+									className="w-full max-w-0 truncate"
+									title={skill.description || undefined}
+								>
 									{skill.description || (
 										<span className="text-content-disabled">
 											No description
 										</span>
 									)}
 								</TableCell>
-								<TableCell>{formatUpdatedAt(skill.updated_at)}</TableCell>
+								<TableCell className="whitespace-nowrap">
+									{formatUpdatedAt(skill.updated_at)}
+								</TableCell>
 								<TableCell className="text-right">
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>

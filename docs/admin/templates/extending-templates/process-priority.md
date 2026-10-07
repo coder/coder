@@ -1,5 +1,5 @@
 ---
-title: Improving Agent Resiliency
+title: Improve agent resiliency
 ---
 
 Coder's agent can automatically lower the scheduling priority
@@ -135,7 +135,9 @@ environments automatically. This prevents interference in
 "Coder on Coder" development scenarios where a workspace
 runs another Coder agent.
 
-### Verifying the feature is enabled
+<a id="verifying-the-feature-is-enabled"></a>
+
+### Verify the feature is enabled
 
 The agent logs whether process priority management is active
 at startup. Look for these lines in the agent log:

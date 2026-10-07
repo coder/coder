@@ -1,33 +1,25 @@
 import { Building2Icon, SlidersHorizontalIcon, UserIcon } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
 import {
 	getValidationErrorMessage,
 	hasError,
 	isApiValidationError,
 } from "#/api/errors";
-import { templates } from "#/api/queries/templates";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
-import type {
-	FilterCategory,
-	SearchResult,
-} from "#/components/Filter/FilterCombobox/types";
+import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
 import {
 	getSelfUserFilterOptions,
 	getUserFilterOptions,
 } from "#/components/Filter/userFilterOptions";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { linkToTemplate, useLinks } from "#/modules/navigation";
 import {
 	ATTRIBUTE_CHIP_KEYS,
 	getAttributeFilterOptions,
 	getOrganizationFilterOptions,
 } from "./categoryOptions";
-
-const TEMPLATE_PREVIEW_LIMIT = 5;
 
 type TemplatesFilterProps = Readonly<{
 	filter: UseFilterResult;
@@ -42,8 +34,6 @@ export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 	const { permissions, user: me } = useAuthenticated();
 	const canListUsers = permissions.viewAllUsers;
 	const queryClient = useQueryClient();
-	const navigate = useNavigate();
-	const getLink = useLinks();
 
 	const categories = useMemo(() => {
 		const next: FilterCategory[] = [
@@ -81,50 +71,20 @@ export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 		return next;
 	}, [canListUsers, me, organizations, showOrganizations, queryClient]);
 
-	const getSearchResults = useCallback(
-		async (query: string): Promise<SearchResult[]> => {
-			const matched = await queryClient.fetchQuery(templates({ q: query }));
-
-			return matched.slice(0, TEMPLATE_PREVIEW_LIMIT).map((template) => ({
-				value: template.id,
-				label: template.display_name || template.name,
-				subtitle:
-					template.organization_display_name || template.organization_name,
-				imageUrl: template.icon,
-				href: getLink(
-					linkToTemplate(template.organization_name, template.name),
-				),
-			}));
-		},
-		[getLink, queryClient],
-	);
-
-	const onSearchResultSelect = useCallback(
-		(result: SearchResult) => {
-			if (result.href) {
-				navigate(result.href);
-			}
-		},
-		[navigate],
-	);
-
 	const showValidationError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div className="flex min-w-0 flex-col gap-2">
 			<FilterCombobox
+				queryScope="templates"
 				value={filter.query}
 				onChange={filter.update}
 				categories={categories}
 				placeholder="Search and filter templates…"
-				className="max-w-lg"
+				className="w-full min-w-0 self-start sm:w-auto sm:min-w-lg sm:max-w-full"
 				errorMessage={
 					showValidationError ? getValidationErrorMessage(error) : undefined
 				}
-				getSearchResults={getSearchResults}
-				onSearchResultSelect={onSearchResultSelect}
-				searchResultsLabel="Jump to template"
-				searchResultsErrorMessage="Couldn't load template previews."
 			/>
 		</div>
 	);

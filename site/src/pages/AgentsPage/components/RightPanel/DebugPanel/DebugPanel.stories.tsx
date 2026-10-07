@@ -1433,9 +1433,9 @@ export const InProgressRun: Story = {
 
 const longToolResultPayload = JSON.stringify({
 	value: 4,
-	explanation:
-		"Explained via calculator tool. ".repeat(24) +
-		"The debug panel should clamp this payload until expanded.",
+	explanation: `${"Explained via calculator tool. ".repeat(
+		24,
+	)}The debug panel should clamp this payload until expanded.`,
 	steps: ["parse expression", "compute result", "return integer"],
 });
 

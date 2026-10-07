@@ -1,5 +1,5 @@
 ---
-title: Getting Started
+title: Getting started
 ---
 
 This guide walks platform teams and administrators through setting up Coder
@@ -176,7 +176,10 @@ deployment. Use this to encode organizational conventions:
 
 Configure the system prompt from **Admin settings** > **AI** > **Coder Agents** > **Instructions**
 or via the API at `PUT /api/v2/chats/config/system-prompt`.
-See [Platform Controls](./platform-controls/index.md) for details.
+
+In a deployment with several organizations, organization administrators can also add organization instructions under **Admin settings** > **AI** > **Coder Agents** > **Organization settings**.
+Coder adds them after the deployment system prompt for new chats in that organization.
+Refer to [Platform Controls](./platform-controls/index.md#system-prompt) for details.
 
 ### Understand the security model
 
@@ -309,7 +312,9 @@ configuring
 to maintain a pool of ready-to-use workspaces. The agent gets assigned an
 already-running workspace instead of provisioning from scratch.
 
-## Providing feedback
+<a id="providing-feedback"></a>
+
+## Provide feedback
 
 Report bugs and feature requests as [GitHub issues](https://github.com/coder/coder/issues/new/choose).
 For deployment-specific problems, such as provider configuration or performance in your environment, use your usual Coder support channel.

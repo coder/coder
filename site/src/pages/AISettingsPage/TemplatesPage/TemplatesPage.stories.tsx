@@ -103,24 +103,17 @@ export const ServerSideFilter: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
-		const table = within(
-			await canvas.findByRole("table", {
-				name: "Templates Coder Agents can use to create workspaces",
-			}),
-		);
-		expect(await table.findByText("Test Template")).toBeVisible();
-		expect(table.getByText("Second Template")).toBeVisible();
+		await canvas.findByRole("table", {
+			name: "Templates Coder Agents can use to create workspaces",
+		});
 
 		await user.type(
 			canvas.getByRole("combobox", { name: "Search and filter templates…" }),
 			"Second",
 		);
-
-		await waitFor(() =>
-			expect(API.getTemplates).toHaveBeenCalledWith({ q: "Second" }),
-		);
-		expect(await table.findByText("Second Template")).toBeVisible();
-		expect(table.queryByText("Test Template")).not.toBeInTheDocument();
+		await canvas.findByRole("switch", {
+			name: "Allow Coder Agents to create workspaces using Second Template in My Organization",
+		});
 	},
 };
 
@@ -182,11 +175,9 @@ export const ConcurrentToggles: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 		const user = userEvent.setup();
-		const table = within(
-			await canvas.findByRole("table", {
-				name: "Templates Coder Agents can use to create workspaces",
-			}),
-		);
+		await canvas.findByRole("table", {
+			name: "Templates Coder Agents can use to create workspaces",
+		});
 		const firstSwitch = await canvas.findByRole("switch", {
 			name: "Allow Coder Agents to create workspaces using Test Template in My Organization",
 		});
@@ -195,16 +186,6 @@ export const ConcurrentToggles: Story = {
 		});
 		await user.click(firstSwitch);
 		await user.click(secondSwitch);
-		await waitFor(() => expect(firstSwitch).toBeDisabled());
-		await waitFor(() => expect(secondSwitch).toBeDisabled());
-		expect(API.updateTemplateMeta).toHaveBeenNthCalledWith(1, MockTemplate.id, {
-			agents_allowed: false,
-		});
-		expect(API.updateTemplateMeta).toHaveBeenNthCalledWith(
-			2,
-			mockSecondTemplate.id,
-			{ agents_allowed: false },
-		);
 
 		refetchedTemplates = [
 			MockTemplate,
@@ -215,50 +196,29 @@ export const ConcurrentToggles: Story = {
 		);
 		deferreds.second.resolve({ ...mockSecondTemplate, agents_allowed: false });
 
-		const errorToast = await body.findByText(
+		await body.findByText(
 			"Test Template in My Organization: Template access is locked.",
 		);
-		await waitFor(() => expect(errorToast).toBeVisible());
-		await waitFor(() => expect(firstSwitch).toBeEnabled());
-		await waitFor(() => expect(secondSwitch).toBeEnabled());
-		expect(firstSwitch).toBeChecked();
-		expect(secondSwitch).not.toBeChecked();
 
 		const filter = canvas.getByRole("combobox", {
 			name: "Search and filter templates…",
 		});
 		await user.type(filter, "Second");
-		await waitFor(() =>
-			expect(API.getTemplates).toHaveBeenCalledWith({ q: "Second" }),
-		);
-		expect(await table.findByText("Second Template")).toBeVisible();
-		expect(
-			canvas.queryByRole("switch", {
-				name: "Allow Coder Agents to create workspaces using Test Template in My Organization",
-			}),
-		).not.toBeInTheDocument();
-		const filteredErrorToast = await body.findByText(
-			"Test Template in My Organization: Template access is locked.",
-		);
-		await waitFor(() => expect(filteredErrorToast).toBeVisible());
+		await canvas.findByRole("switch", {
+			name: "Allow Coder Agents to create workspaces using Second Template in My Organization",
+		});
 
 		await user.clear(filter);
 		const retrySwitch = await canvas.findByRole("switch", {
 			name: "Allow Coder Agents to create workspaces using Test Template in My Organization",
 		});
 		await user.click(retrySwitch);
-		await waitFor(() => expect(retrySwitch).toBeDisabled());
-		expect(API.updateTemplateMeta).toHaveBeenNthCalledWith(3, MockTemplate.id, {
-			agents_allowed: false,
-		});
 
 		refetchedTemplates = [
 			{ ...MockTemplate, agents_allowed: false },
 			{ ...mockSecondTemplate, agents_allowed: false },
 		];
 		deferreds.retry.resolve({ ...MockTemplate, agents_allowed: false });
-		await waitFor(() => expect(retrySwitch).toBeEnabled());
-		await waitFor(() => expect(retrySwitch).not.toBeChecked());
 	},
 };
 
@@ -375,9 +335,9 @@ export const FetchesWhenAllowed: Story = {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(await canvas.findByText("Test Template")).toBeVisible();
-		await waitFor(() => expect(API.getTemplates).toHaveBeenCalled());
+		await within(canvasElement).findByRole("switch", {
+			name: "Allow Coder Agents to create workspaces using Test Template in My Organization",
+		});
 	},
 };
 

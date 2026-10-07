@@ -621,7 +621,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	case "rc":
 		fmt.Fprintln(&notes)
 		fmt.Fprintln(&notes, "> [!NOTE]")
-		fmt.Fprintln(&notes, "> This is a **release candidate** (RC) for testing purposes. It is not recommended for production use. Please report any issues you encounter. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
+		fmt.Fprintln(&notes, "> This is a **release candidate** (RC) for testing purposes. It is not recommended for production use. Please report any issues you encounter. Learn more about our [Release Schedule](https://coder.com/docs/reference/releases).")
 	case "mainline":
 		// Only show the mainline blurb when the version is
 		// actually the current mainline series. Patches on
@@ -630,7 +630,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		if latestMainline != nil && newVersion.Minor == latestMainline.Minor {
 			fmt.Fprintln(&notes)
 			fmt.Fprintln(&notes, "> [!NOTE]")
-			fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
+			fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/reference/releases).")
 		}
 	}
 
@@ -672,7 +672,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 
 	// Install/upgrade links.
 	fmt.Fprintln(&notes, "\n## Install/upgrade")
-	fmt.Fprintln(&notes, "\nRefer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/install/upgrade) Coder, or use a release asset below.")
+	fmt.Fprintln(&notes, "\nRefer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/install/operate/upgrade) Coder, or use a release asset below.")
 
 	releaseNotes := notes.String()
 

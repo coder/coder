@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -69,8 +69,8 @@ func TestReconcileAll(t *testing.T) {
 
 						// nolint:gocritic // Reconciliation happens as prebuilds system user, not a human user.
 						ctx := dbauthz.AsPrebuildsOrchestrator(testutil.Context(t, testutil.WaitLong))
-						client, db := coderdtest.NewWithDatabase(t, nil)
-						owner := coderdtest.CreateFirstUser(t, client)
+						db, _ := dbtestutil.NewDB(t)
+						owner := dbgen.User(t, db, database.User{})
 
 						defaultOrg, err := db.GetDefaultOrganization(ctx)
 						require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestReconcileAll(t *testing.T) {
 						// Setup unrelated org preset
 						dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
 							OrganizationID: unrelatedOrg.ID,
-							CreatedBy:      owner.UserID,
+							CreatedBy:      owner.ID,
 						}).Preset(database.TemplateVersionPreset{
 							DesiredInstances: sql.NullInt32{
 								Int32: 1,
@@ -120,7 +120,7 @@ func TestReconcileAll(t *testing.T) {
 						// Setup target org preset
 						dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
 							OrganizationID: targetOrg.ID,
-							CreatedBy:      owner.UserID,
+							CreatedBy:      owner.ID,
 						}).Preset(database.TemplateVersionPreset{
 							DesiredInstances: sql.NullInt32{
 								Int32: 0,

@@ -14,48 +14,35 @@ import {
 } from "./displayMode";
 import { TerminalOutput } from "./TerminalOutput";
 import { ToolCall } from "./ToolCall";
-import {
-	sanitizeExecuteModelIntent,
-	signalTooltipLabel,
-	type ToolStatus,
-} from "./utils";
+import { signalTooltipLabel, type ToolStatus } from "./utils";
 
 type ProcessOutputToolProps = {
 	output: string;
 	command?: string;
-	modelIntent?: string;
 	status: ToolStatus;
 	/**
 	 * Whether the result snapshot saw the process still alive. This only
 	 * affects label tense and signal badges; the row must not animate for
 	 * it, because the snapshot never updates once the poll completes.
 	 */
-	processRunning?: boolean;
+	processRunning: boolean;
 	exitCode: number | null;
 	isError: boolean;
 	errorMessage?: string;
 	killedBySignal?: "kill" | "terminate";
-	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
+	shellToolDisplayMode: TypesGen.AgentDisplayMode;
 };
 
 const getProcessOutputLabel = ({
 	command,
-	modelIntent,
 	isRunning,
 	isFailed,
 }: {
 	command: string | undefined;
-	modelIntent: string | undefined;
 	isRunning: boolean;
 	isFailed: boolean;
 }): string => {
 	const trimmedCommand = command?.trim() ?? "";
-	const intent = modelIntent
-		? sanitizeExecuteModelIntent(modelIntent, trimmedCommand)
-		: "";
-	if (intent) {
-		return intent;
-	}
 	if (!trimmedCommand) {
 		return "Process output";
 	}
@@ -68,9 +55,8 @@ const getProcessOutputLabel = ({
 export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 	output,
 	command,
-	modelIntent,
 	status,
-	processRunning = false,
+	processRunning,
 	exitCode,
 	isError,
 	errorMessage,
@@ -93,7 +79,7 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 
 	return (
 		<ToolCall.Root
-			key={`${shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
+			key={`${shellToolDisplayMode}:${autoDisplayState}`}
 			className="group/proc w-full"
 			status={status}
 			isError={isError}
@@ -110,7 +96,6 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 					<ToolCall.Label>
 						{getProcessOutputLabel({
 							command,
-							modelIntent,
 							isRunning,
 							isFailed,
 						})}

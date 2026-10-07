@@ -40,15 +40,11 @@ import {
 
 type DebugStepCardProps = {
 	step: ChatDebugStep;
-	defaultOpen?: boolean;
 };
 
 type SectionKey = "tools" | "options" | "usage" | "policy";
 
-export const DebugStepCard: React.FC<DebugStepCardProps> = ({
-	step,
-	defaultOpen = false,
-}) => {
+export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 	// Single active metadata pill: only one section open at a time.
 	const [activeSection, setActiveSection] = useState<SectionKey | null>(null);
 
@@ -114,8 +110,8 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({
 	const errorText = getErrorMessage(rawError, safeJsonStringify(rawError));
 
 	return (
-		<Collapsible defaultOpen={defaultOpen}>
-			<div className="overflow-hidden rounded-lg border border-solid border-border-default/40 bg-surface-secondary/10">
+		<Collapsible>
+			<div className="overflow-hidden rounded-lg border border-solid border-border/40 bg-surface-secondary/10">
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
@@ -157,7 +153,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({
 					</button>
 				</CollapsibleTrigger>
 
-				<CollapsibleContent className="space-y-3 border-0 border-t border-solid border-border-default/30 bg-surface-primary/10 px-3 pb-3 pt-3">
+				<CollapsibleContent className="space-y-3 border-0 border-t border-solid border-border/30 bg-surface-primary/10 px-3 pb-3 pt-3">
 					{/* ── Metadata bar ────────────────────────────── */}
 					<div className="flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-content-secondary">
 						{model ? <MetadataItem label="Model" value={model} /> : null}
@@ -234,7 +230,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({
 							{request.tools.map((tool) => (
 								<div
 									key={tool.name}
-									className="rounded-md border border-solid border-border-default/40 bg-surface-secondary/10 p-2.5"
+									className="rounded-md border border-solid border-border/40 bg-surface-secondary/10 p-2.5"
 								>
 									<ToolBadge label={tool.name} />
 									{tool.description ? (

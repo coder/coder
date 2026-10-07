@@ -188,6 +188,11 @@ func TestUserCanUseProviderKeys_AmbientCredentials(t *testing.T) {
 
 	keys := chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"bedrock": ""}}
 	require.True(t, userCanUseProviderKeys(keys, "bedrock"))
+
+	keys = chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"anthropic": ""}}
+	require.True(t, userCanUseProviderKeys(keys, "anthropic"))
+
+	require.False(t, userCanUseProviderKeys(chatprovider.ProviderAPIKeys{}, "anthropic"))
 }
 
 func modelOverrideParams(chat database.Chat, context string) database.GetChatOrganizationModelOverrideParams {

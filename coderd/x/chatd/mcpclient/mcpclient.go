@@ -354,19 +354,14 @@ func connectAllWithHooks(
 				DurationMS: duration.Milliseconds(),
 				ToolCount:  len(serverTools),
 			}
-			// Redact before truncating so a secret cut at the byte cap
-			// cannot leak a prefix into the persisted summary.
-			var errText string
 			if connectErr != nil {
-				errText = redactor.redactString(redactErrorURL(opts.kind, connectErr))
+				summary.Error = summaryError(opts.kind, redactor, connectErr)
 			}
 			switch {
 			case connectErr != nil && errors.Is(connectErr, context.DeadlineExceeded):
 				summary.Outcome = ConnectOutcomeTimeout
-				summary.Error = truncateSummaryError(errText)
 			case connectErr != nil:
 				summary.Outcome = ConnectOutcomeError
-				summary.Error = truncateSummaryError(errText)
 			case len(serverTools) == 0:
 				summary.Outcome = ConnectOutcomeNoTools
 			default:
@@ -889,11 +884,12 @@ func redactErrorURL(kind connectionKind, err error) string {
 // regardless of the entry-count cap.
 const maxSummaryErrorLen = 512
 
-// summaryError renders a connect error for the persisted summary:
-// credential-bearing URLs are redacted and the result is truncated
-// to maxSummaryErrorLen bytes on a rune boundary.
-func summaryError(err error) string {
-	return truncateSummaryError(redactErrorURL(connectionKindOrg, err))
+// summaryError renders a connect error for the persisted summary. It
+// strips credentials from the request URL, redacts the server's
+// sensitive values, and truncates last, so a secret cut at
+// maxSummaryErrorLen cannot leak a prefix.
+func summaryError(kind connectionKind, redactor secretRedactor, err error) string {
+	return truncateSummaryError(redactor.redactString(redactErrorURL(kind, err)))
 }
 
 // truncateSummaryError caps an already-redacted error message at

@@ -96,7 +96,7 @@ export const SelectOrganization: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: new RegExp(MockDefaultOrganization.display_name, "i"),
 			}),
 		);
@@ -165,7 +165,7 @@ export const SingleOrganization: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.queryByRole("button", {
+			canvas.queryByRole("combobox", {
 				name: new RegExp(MockDefaultOrganization.display_name, "i"),
 			}),
 		).not.toBeInTheDocument();

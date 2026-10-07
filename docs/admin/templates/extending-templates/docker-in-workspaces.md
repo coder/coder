@@ -1,5 +1,5 @@
 ---
-title: Docker in Workspaces
+title: Docker in workspaces
 ---
 
 There are a few ways to run Docker within container-based Coder workspaces.
@@ -147,7 +147,9 @@ To get started with `envbox` check out the
 [starter template](../../../../examples/templates/kubernetes-envbox)
 or visit the [repo](https://github.com/coder/envbox).
 
-### Authenticating with a Private Registry
+<a id="authenticating-with-a-private-registry"></a>
+
+### Authenticate with a private registry
 
 Authenticating with a private container registry can be done by referencing the
 credentials via the `CODER_IMAGE_PULL_SECRET` environment variable. It is

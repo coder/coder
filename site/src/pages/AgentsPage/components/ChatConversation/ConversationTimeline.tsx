@@ -6,7 +6,9 @@ import {
 	PencilIcon,
 } from "lucide-react";
 import { memo, useState } from "react";
+import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
+import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -17,7 +19,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
-
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
@@ -26,7 +27,12 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
+import { AutomationLabel, type ChatAutomationNames } from "./AutomationLabel";
 import { FileProbeProvider } from "./FileProbeContext";
+import {
+	emptyLiveBlockKeys,
+	reconcileLiveBlockKeys,
+} from "./liveBlockItemKeys";
 import {
 	type LiveStatusModel,
 	shouldRenderLiveAssistant,
@@ -46,6 +52,8 @@ import type {
 	StreamState,
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
+import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
+import { groupWorkingBlocks } from "./workingBlockGrouping";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -70,7 +78,7 @@ const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
 }) => (
 	<div
 		role="note"
-		className="relative my-1 w-full rounded-lg border border-solid border-border-default bg-surface-secondary p-4 text-left"
+		className="relative my-1 w-full rounded-lg border border-solid border-border bg-surface-secondary p-4 text-left"
 	>
 		<div className="flex min-w-0 flex-1 flex-row items-start gap-3 text-sm">
 			<InfoIcon className="size-icon-sm mt-[3px] text-highlight-sky" />
@@ -81,7 +89,7 @@ const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
 
 const LifecycleHookNotice: React.FC<{
 	children: string;
-	urlTransform?: UrlTransform;
+	urlTransform: UrlTransform;
 }> = ({ children, urlTransform }) => (
 	<TimelineNotice>
 		<div className="flex flex-col gap-1">
@@ -92,10 +100,12 @@ const LifecycleHookNotice: React.FC<{
 );
 
 const ChatMessageItem = memo<{
-	organizationId: string | undefined;
+	organizationId: string;
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
+	automationName?: string;
+	automationNameStatus: ChatAutomationNames["status"];
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -120,10 +130,10 @@ const ChatMessageItem = memo<{
 	// would render as a dangling blank at the end of the chat.
 	isLastMessage?: boolean;
 	onImplementPlan?: () => Promise<void> | void;
-	urlTransform?: UrlTransform;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	subagentTitles?: Map<string, string>;
-	subagentVariants?: Map<string, SubagentVariant>;
+	urlTransform: UrlTransform;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
+	subagentTitles: Map<string, string>;
+	subagentVariants: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -138,6 +148,8 @@ const ChatMessageItem = memo<{
 		organizationId,
 		renderKey,
 		message,
+		automationName,
+		automationNameStatus,
 		parsed,
 		liveStatus,
 		liveBlocks = [],
@@ -231,6 +243,16 @@ const ChatMessageItem = memo<{
 				)}
 				inert={isAfterEditingMessage ? true : undefined}
 			>
+				{message?.automation_id && (
+					<div className={cn("mb-1 flex", isUser && "justify-end")}>
+						<AutomationLabel
+							automationId={message.automation_id}
+							inputId={message.input_id}
+							automationName={automationName}
+							nameStatus={automationNameStatus}
+						/>
+					</div>
+				)}
 				<ConversationItem {...conversationItemProps}>
 					{isUser && displayState && parsed ? (
 						<UserMessageContent
@@ -404,16 +426,19 @@ const ChatMessageItem = memo<{
 );
 
 type ConversationTimelineProps = {
-	organizationId: string | undefined;
+	hasMoreMessages: boolean;
+	chatStatus: TypesGen.ChatStatus | null;
+	organizationId: string;
 	parsedMessages: readonly ParsedMessageEntry[];
+	automationNames: ChatAutomationNames;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	initialActiveTurnMaxMessageId?: number;
 	streamState?: StreamState | null;
-	streamTools?: readonly MergedTool[];
-	liveStatus?: LiveStatusModel;
-	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
+	streamTools: readonly MergedTool[];
+	liveStatus: LiveStatusModel;
+	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	subagentTitles: Map<string, string>;
-	subagentVariants?: Map<string, SubagentVariant>;
+	subagentVariants: Map<string, SubagentVariant>;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -422,22 +447,25 @@ type ConversationTimelineProps = {
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
-	isChatCompleted?: boolean;
-	urlTransform?: UrlTransform;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	showDesktopPreviews?: boolean;
-	hasActiveStream?: boolean;
-	isAwaitingFirstStreamChunk?: boolean;
+	isChatCompleted: boolean;
+	urlTransform: UrlTransform;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
+	showDesktopPreviews: boolean;
+	hasActiveStream: boolean;
+	isAwaitingFirstStreamChunk: boolean;
 };
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
+		hasMoreMessages,
+		chatStatus,
 		organizationId,
 		parsedMessages,
+		automationNames,
 		chatFiles,
 		initialActiveTurnMaxMessageId,
 		streamState,
-		streamTools = [],
+		streamTools,
 		liveStatus,
 		subagentStatusOverrides,
 		subagentTitles,
@@ -454,6 +482,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		isAwaitingFirstStreamChunk,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
+		const preferences = useQuery(preferenceSettings());
+		const [expandedBlocks, setExpandedBlocks] = useState<
+			ReadonlyMap<string, boolean>
+		>(new Map());
+		const [liveBlockKeys, setLiveBlockKeys] = useState(emptyLiveBlockKeys);
+
 		const jumpToUserMessage = (messageKey: string) => {
 			scrollToMessage(messageKey, { align: "start", behavior: "smooth" });
 		};
@@ -462,16 +496,44 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const evictedFileIds = deriveEvictedFileIds(parsedMessages, chatFiles);
 		const renderRows = assignTimelineRows(
 			displayMessages,
-			Boolean(liveStatus && shouldRenderLiveAssistant(liveStatus)),
+			shouldRenderLiveAssistant(liveStatus),
 		);
 
 		// A live turn only reveals its stream blocks once output has accumulated.
 		// Before that the callout and thinking indicator stand in for the turn.
 		const showsStreamOutput =
-			liveStatus !== undefined &&
-			(liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput);
+			liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
 		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
 		const liveTools = showsStreamOutput ? streamTools : [];
+
+		const workingBlocks = preferences.data?.collapse_assistant_steps
+			? groupWorkingBlocks(renderRows, parsedMessages, {
+					hasMoreMessages,
+					// requires_action is the agent waiting on the user, not working.
+					isTurnActive:
+						chatStatus === "running" || chatStatus === "interrupting",
+					isWorking: chatStatus === "running",
+					isLiveRowCollapsible:
+						liveStatus.phase === "streaming" || liveStatus.phase === "starting",
+					liveBlocks,
+					liveTools,
+					streamState,
+				})
+			: [];
+		const blockByFirstRow = new Map(
+			workingBlocks.map((block) => [block.rowIndices[0], block]),
+		);
+		const groupedRows = new Set(
+			workingBlocks.flatMap((block) => block.rowIndices),
+		);
+		const nextLiveBlockKeys = reconcileLiveBlockKeys(
+			workingBlocks,
+			streamState?.startedAt,
+			liveBlockKeys,
+		);
+		if (nextLiveBlockKeys !== liveBlockKeys) {
+			setLiveBlockKeys(nextLiveBlockKeys);
+		}
 
 		if (renderRows.length === 0) {
 			return null;
@@ -507,9 +569,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// handled, and its fallback for mutations that are neither clean appends
 		// nor clean prepends jumps to the oldest unhandled anchor, so historical
 		// rows must not be anchors at all.
-		const hasLiveAssistant = Boolean(
-			liveStatus && shouldRenderLiveAssistant(liveStatus),
-		);
+		const hasLiveAssistant = shouldRenderLiveAssistant(liveStatus);
 		const anchorUserRowKey =
 			hasLiveAssistant || isAwaitingFirstStreamChunk
 				? userRowKeys[userRowKeys.length - 1]
@@ -560,76 +620,149 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
+		const rowContents = renderRows.map((row, index) => {
+			if (row.type === "live") {
+				return (
+					<ChatMessageItem
+						key={row.key}
+						organizationId={organizationId}
+						renderKey={row.key}
+						automationNameStatus="settled"
+						liveStatus={liveStatus}
+						liveBlocks={liveBlocks}
+						liveTools={liveTools}
+						subagentStatusOverrides={
+							showsStreamOutput ? subagentStatusOverrides : undefined
+						}
+						subagentTitles={subagentTitles}
+						subagentVariants={subagentVariants}
+						urlTransform={urlTransform}
+						mcpServers={mcpServers}
+					/>
+				);
+			}
+
+			const { message, parsed } = row.entry;
+			const isUser = message.role === "user";
+			const neighbors = userNeighborsByKey.get(row.key);
+			// A block's item dims and inerts its rows as a whole.
+			const isAfterEditingMessage =
+				!groupedRows.has(index) && afterEditingMessageIds.has(message.id);
+
+			return (
+				<ChatMessageItem
+					key={row.key}
+					organizationId={organizationId}
+					renderKey={row.key}
+					message={message}
+					automationName={
+						message.automation_id
+							? automationNames.names.get(message.automation_id)
+							: undefined
+					}
+					automationNameStatus={
+						// A fixed status keeps rows without an automation from
+						// re-rendering when the automations list status changes.
+						message.automation_id ? automationNames.status : "settled"
+					}
+					parsed={parsed}
+					onEditUserMessage={isUser ? onEditUserMessage : undefined}
+					editingMessageId={editingMessageId}
+					onImplementPlan={onImplementPlan}
+					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+					isChatCompleted={isChatCompleted}
+					latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+					askUserQuestionResponseTextByToolId={
+						historicalAskUserQuestionResponseTextByToolId
+					}
+					hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
+					urlTransform={urlTransform}
+					isAfterEditingMessage={isAfterEditingMessage}
+					hideActions={!isUser && !row.isLastInAssistantChain}
+					hasActiveStream={hasActiveStream}
+					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+					isLastMessage={row.isLastMessage}
+					mcpServers={mcpServers}
+					subagentTitles={subagentTitles}
+					subagentVariants={subagentVariants}
+					showDesktopPreviews={showDesktopPreviews}
+					prevUserMessageKey={neighbors?.prevKey}
+					nextUserMessageKey={neighbors?.nextKey}
+					onJumpToUserMessage={isUser ? jumpToUserMessage : undefined}
+				/>
+			);
+		});
+
 		return (
 			<FileProbeProvider evictedFileIds={evictedFileIds}>
-				{renderRows.map((row) => {
-					if (row.type === "live") {
-						// This row only exists when liveStatus is set.
+				{renderRows.map((row, index) => {
+					const block = blockByFirstRow.get(index);
+					if (block) {
+						// Keyed on durable member rows and the item key, excluding the live
+						// row so the choice does not carry into the next turn; the newest
+						// member wins.
+						const memberKeys = block.rowIndices.flatMap((rowIndex) => {
+							const member = renderRows[rowIndex];
+							return member.type === "message" ? [member.key] : [];
+						});
+						const itemKey =
+							nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
+						const expanded =
+							expandedBlocks.get(
+								memberKeys.findLast((key) => expandedBlocks.has(key)) ??
+									itemKey,
+							) ?? false;
+						const isAfterEditingMessage =
+							row.type === "message" &&
+							afterEditingMessageIds.has(row.entry.message.id);
+
 						return (
-							<MessageScroller.Item key={row.key} messageId={row.key}>
-								<ChatMessageItem
-									organizationId={organizationId}
-									renderKey={row.key}
-									liveStatus={liveStatus}
-									liveBlocks={liveBlocks}
-									liveTools={liveTools}
-									subagentStatusOverrides={
-										showsStreamOutput ? subagentStatusOverrides : undefined
+							<MessageScroller.Item
+								key={itemKey}
+								messageId={itemKey}
+								className={cn(
+									isAfterEditingMessage && "opacity-40 pointer-events-none",
+									"transition-opacity duration-200",
+								)}
+								inert={isAfterEditingMessage ? true : undefined}
+							>
+								<WorkingBlockDisclosure
+									block={block}
+									expanded={expanded}
+									onExpandedChange={(value) =>
+										setExpandedBlocks((previous) => {
+											const next = new Map(previous);
+											for (const key of [itemKey, ...memberKeys]) {
+												next.set(key, value);
+											}
+											return next;
+										})
 									}
-									subagentTitles={subagentTitles}
-									subagentVariants={subagentVariants}
-									urlTransform={urlTransform}
-									mcpServers={mcpServers}
-								/>
+								>
+									{expanded &&
+										block.rowIndices.map((rowIndex) => rowContents[rowIndex])}
+								</WorkingBlockDisclosure>
 							</MessageScroller.Item>
 						);
 					}
-					const { message, parsed } = row.entry;
-					const isUser = message.role === "user";
+
+					if (groupedRows.has(index)) {
+						return null;
+					}
+
 					const suppressInitialAnchor =
+						row.type === "message" &&
 						initialActiveTurnMaxMessageId !== undefined &&
-						message.id <= initialActiveTurnMaxMessageId;
-					const neighbors = userNeighborsByKey.get(row.key);
-					const isAfterEditingMessage = afterEditingMessageIds.has(message.id);
+						row.entry.message.id <= initialActiveTurnMaxMessageId;
 					return (
 						<MessageScroller.Item
 							key={row.key}
 							messageId={row.key}
 							scrollAnchor={
-								isUser && row.key === anchorUserRowKey && !suppressInitialAnchor
+								row.key === anchorUserRowKey && !suppressInitialAnchor
 							}
 						>
-							<ChatMessageItem
-								organizationId={organizationId}
-								renderKey={row.key}
-								message={message}
-								parsed={parsed}
-								onEditUserMessage={isUser ? onEditUserMessage : undefined}
-								editingMessageId={editingMessageId}
-								onImplementPlan={onImplementPlan}
-								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-								isChatCompleted={isChatCompleted}
-								latestAskUserQuestionToolId={latestAskUserQuestionToolId}
-								askUserQuestionResponseTextByToolId={
-									historicalAskUserQuestionResponseTextByToolId
-								}
-								hasUserResponseAfterAskQuestion={
-									hasUserResponseAfterAskQuestion
-								}
-								urlTransform={urlTransform}
-								isAfterEditingMessage={isAfterEditingMessage}
-								hideActions={!isUser && !row.isLastInAssistantChain}
-								hasActiveStream={Boolean(hasActiveStream)}
-								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
-								isLastMessage={row.isLastMessage}
-								mcpServers={mcpServers}
-								subagentTitles={subagentTitles}
-								subagentVariants={subagentVariants}
-								showDesktopPreviews={showDesktopPreviews}
-								prevUserMessageKey={neighbors?.prevKey}
-								nextUserMessageKey={neighbors?.nextKey}
-								onJumpToUserMessage={isUser ? jumpToUserMessage : undefined}
-							/>
+							{rowContents[index]}
 						</MessageScroller.Item>
 					);
 				})}

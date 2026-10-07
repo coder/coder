@@ -2,6 +2,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
 import { DefaultModelSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/DefaultModelSettings";
+import { OrganizationInstructionsSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/OrganizationInstructionsSettings";
 import {
 	type MutationCallbacks,
 	SubagentModelOverrideSettings,
@@ -33,6 +34,18 @@ type OrganizationAgentSettingsViewProps = {
 	>;
 	savingContexts: ReadonlySet<TypesGen.ChatModelOverrideContext>;
 	errorContexts: ReadonlySet<TypesGen.ChatModelOverrideContext>;
+	canViewInstructions: boolean;
+	systemPrompt: string | undefined;
+	isSystemPromptLoading: boolean;
+	systemPromptLoadError: unknown;
+	systemPromptRefetchError: unknown;
+	onSaveSystemPrompt: (
+		req: TypesGen.UpdateOrganizationChatSystemPromptRequest,
+		options: MutationCallbacks,
+	) => void;
+	isSavingSystemPrompt: boolean;
+	saveSystemPromptError: unknown;
+	onResetSaveSystemPrompt: () => void;
 };
 
 const settings: readonly {
@@ -94,6 +107,15 @@ const OrganizationAgentSettingsView: React.FC<
 	saveByContext,
 	savingContexts,
 	errorContexts,
+	canViewInstructions,
+	systemPrompt,
+	isSystemPromptLoading,
+	systemPromptLoadError,
+	systemPromptRefetchError,
+	onSaveSystemPrompt,
+	isSavingSystemPrompt,
+	saveSystemPromptError,
+	onResetSaveSystemPrompt,
 }) => {
 	const bannerError =
 		overridesLoadError ?? overridesRefetchError ?? modelsError;
@@ -157,6 +179,19 @@ const OrganizationAgentSettingsView: React.FC<
 					);
 				})}
 			</div>
+			{canViewInstructions && (
+				<OrganizationInstructionsSettings
+					systemPrompt={systemPrompt}
+					isLoading={isSystemPromptLoading}
+					loadError={systemPromptLoadError}
+					refetchError={systemPromptRefetchError}
+					canEdit={canEdit}
+					onSave={onSaveSystemPrompt}
+					isSaving={isSavingSystemPrompt}
+					saveError={saveSystemPromptError}
+					onResetSave={onResetSaveSystemPrompt}
+				/>
+			)}
 		</div>
 	);
 };

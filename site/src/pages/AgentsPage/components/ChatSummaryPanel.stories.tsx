@@ -48,7 +48,7 @@ const mockRequests = ({
 
 // The Summary tab fills the right panel, so give stories a bounded height.
 const PanelFrame = (Story: React.FC) => (
-	<div className="h-[420px] w-[420px] max-w-full border border-solid border-border-default">
+	<div className="h-[420px] w-[420px] max-w-full border border-solid border-border">
 		<Story />
 	</div>
 );
@@ -96,8 +96,14 @@ export const SubagentTreeCost: Story = {
 		expect(
 			canvas.getByText(/Cost covers this agent's whole chat/),
 		).toBeInTheDocument();
-		expect(API.experimental.getChatCost).toHaveBeenCalledWith(ROOT_CHAT_ID);
-		expect(API.experimental.getChatCost).not.toHaveBeenCalledWith(MockChat.id);
+		expect(API.experimental.getChatCost).toHaveBeenCalledWith(
+			ROOT_CHAT_ID,
+			expect.any(AbortSignal),
+		);
+		expect(API.experimental.getChatCost).not.toHaveBeenCalledWith(
+			MockChat.id,
+			expect.any(AbortSignal),
+		);
 	},
 };
 

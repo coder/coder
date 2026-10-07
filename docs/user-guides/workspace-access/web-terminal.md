@@ -29,7 +29,9 @@ and feature-rich terminal experience in your browser.
 - **Multiple Rendering Options**: Choose between different rendering engines for
   optimal performance
 
-## Accessing the Terminal
+<a id="accessing-the-terminal"></a>
+
+## Access the terminal
 
 ### From the Dashboard
 

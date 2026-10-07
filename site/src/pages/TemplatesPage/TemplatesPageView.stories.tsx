@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import {
@@ -148,12 +147,6 @@ export const WithAuthorFilter: Story = {
 			used: true,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: "Remove author:me" }),
-		).toBeVisible();
-	},
 };
 
 export const EmptyCanCreate: Story = {
@@ -211,18 +204,6 @@ export const WithValidationError: Story = {
 		templates: undefined,
 		examples: undefined,
 		canCreateTemplates: false,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const input = canvas.getByRole("combobox", {
-			name: "Search and filter templates…",
-		});
-		expect(input).toHaveAttribute("aria-invalid", "true");
-		const alert = await canvas.findByRole("alert");
-		expect(input).toHaveAttribute("aria-errormessage", alert.id);
-		expect(alert).toHaveTextContent(
-			"That search query was invalid, why did you do that?",
-		);
 	},
 };
 

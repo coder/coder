@@ -1,44 +1,53 @@
+import { HttpResponse, http } from "msw";
+import { QueryClient } from "react-query";
+import { MockUserOwner } from "#/testHelpers/entities";
+import { server } from "#/testHelpers/server";
 import {
 	getSelfUserFilterOptions,
 	getUserFilterOptions,
-	type OptionsQueryClient,
 } from "./userFilterOptions";
 
-const fakeQueryClient = <T>(data: T): OptionsQueryClient => ({
-	fetchQuery: (async () => data) as OptionsQueryClient["fetchQuery"],
-});
+const me = { ...MockUserOwner, username: "alice", avatar_url: "/alice.png" };
+const bob = { ...MockUserOwner, id: "bob", username: "bob" };
 
 describe("getUserFilterOptions", () => {
-	const me = { username: "alice", avatar_url: "/alice.png" };
-
 	it("puts the current user first and commits the me sentinel", async () => {
-		const queryClient = fakeQueryClient({ users: [] });
-
-		const options = await getUserFilterOptions("", me, queryClient);
-
+		server.use(
+			http.get("/api/v2/users", () => HttpResponse.json({ users: [] })),
+		);
+		const options = await getUserFilterOptions("", me, new QueryClient());
 		expect(options[0]).toMatchObject({ label: "alice (you)", value: "me" });
 	});
 
 	it("drops the current user from the fetched list to avoid a duplicate", async () => {
-		const queryClient = fakeQueryClient({
-			users: [
-				{ username: "alice", avatar_url: "/alice.png" },
-				{ username: "bob", avatar_url: "/bob.png" },
-			],
-		});
+		server.use(
+			http.get("/api/v2/users", () => HttpResponse.json({ users: [me, bob] })),
+		);
+		const options = await getUserFilterOptions("", me, new QueryClient());
+		expect(options.map((option) => option.value)).toEqual(["me", "bob"]);
+	});
 
-		const options = await getUserFilterOptions("", me, queryClient);
+	it("matches the current user by its label when the users API does not return it", async () => {
+		server.use(
+			http.get("/api/v2/users", () => HttpResponse.json({ users: [] })),
+		);
+		const queryClient = new QueryClient();
+		expect(await getUserFilterOptions("ali", me, queryClient)).toHaveLength(1);
+		expect(await getUserFilterOptions("zzz", me, queryClient)).toHaveLength(0);
+	});
 
+	it("lists the current user when the users API matches it by name or email", async () => {
+		server.use(
+			http.get("/api/v2/users", () => HttpResponse.json({ users: [me, bob] })),
+		);
+		const options = await getUserFilterOptions("smith", me, new QueryClient());
 		expect(options.map((option) => option.value)).toEqual(["me", "bob"]);
 	});
 });
 
 describe("getSelfUserFilterOptions", () => {
-	const me = { username: "alice", avatar_url: "/alice.png" };
-
 	it("returns only the current user without fetching", async () => {
 		const options = await getSelfUserFilterOptions("", me);
-
 		expect(options).toMatchObject([{ label: "alice (you)", value: "me" }]);
 	});
 

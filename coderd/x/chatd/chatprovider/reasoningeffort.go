@@ -178,10 +178,10 @@ func applyReasoningEffort(
 }
 
 // openAIReasoningEffort maps the global reasoning effort scale onto what an
-// OpenAI model accepts. GPT-6 Astra rejects none with HTTP 400 and does not
-// list minimal; OpenAI's migration guidance for both is to start at low.
+// OpenAI model accepts. GPT-6 Astra and GPT-6.1 Sol reject none with HTTP 400
+// and do not list minimal, so both start at low, the lowest effort they accept.
 func openAIReasoningEffort(modelID, effort string) string {
-	if !chatopenai.IsGPT6Astra(modelID) {
+	if !chatopenai.IsGPT6Astra(modelID) && !chatopenai.IsGPT61Sol(modelID) {
 		return effort
 	}
 	switch effort {
@@ -192,12 +192,15 @@ func openAIReasoningEffort(modelID, effort string) string {
 }
 
 // anthropicReasoningEffort maps the global reasoning effort scale onto what an
-// Anthropic model accepts. Claude Opus 5.5 always runs adaptive thinking and
-// rejects the thinking: {type: "disabled"} that fantasy sends for none with
-// HTTP 400, so none starts at low.
+// Anthropic model accepts. Claude Opus 5.5 and Sonnet 5.5 always run adaptive
+// thinking and reject the thinking: {type: "disabled"} that fantasy sends for
+// none with HTTP 400, so none starts at low.
 func anthropicReasoningEffort(modelID, effort string) string {
-	if effort == codersdk.ChatModelReasoningEffortNone &&
-		strings.Contains(strings.ToLower(modelID), "claude-opus-5-5") {
+	if effort != codersdk.ChatModelReasoningEffortNone {
+		return effort
+	}
+	id := strings.ToLower(modelID)
+	if strings.Contains(id, "claude-opus-5-5") || strings.Contains(id, "claude-sonnet-5-5") {
 		return codersdk.ChatModelReasoningEffortLow
 	}
 	return effort

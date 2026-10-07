@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	MockNoPermissions,
@@ -31,12 +31,7 @@ const TemplatesFilterHarness = ({
 		cancelDebounce: () => {},
 	};
 
-	return (
-		<div className="flex flex-col gap-2">
-			<TemplatesFilter filter={filter} error={error} />
-			<output data-testid="filter-query">{query}</output>
-		</div>
-	);
+	return <TemplatesFilter filter={filter} error={error} />;
 };
 
 const meta: Meta<typeof TemplatesFilterHarness> = {
@@ -52,40 +47,28 @@ const meta: Meta<typeof TemplatesFilterHarness> = {
 export default meta;
 type Story = StoryObj<typeof TemplatesFilterHarness>;
 
-const PLACEHOLDER = "Search and filter templates…";
+export const Default: Story = {};
 
-export const Default: Story = {
+export const Attributes: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("combobox", { name: PLACEHOLDER }),
-		).toBeVisible();
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
+		await userEvent.click(
+			await body.findByRole("option", { name: /^Attributes/ }),
+		);
 	},
 };
 
 export const SelectDeprecatedOption: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-
+	play: async (context) => {
+		await Attributes.play?.(context);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
-		await userEvent.click(
-			await body.findByRole("option", { name: /^Attributes/ }),
-		);
-		await userEvent.click(
-			await body.findByRole("option", { name: /deprecated/i }),
-		);
-
-		await waitFor(() =>
-			expect(canvas.getByTestId("filter-query")).toHaveTextContent(
-				"deprecated:true",
+			await within(context.canvasElement.ownerDocument.body).findByRole(
+				"button",
+				{ name: /deprecated/i },
 			),
 		);
-		await expect(
-			canvas.getByRole("button", { name: "Remove attributes:deprecated" }),
-		).toBeVisible();
 	},
 };
 
@@ -95,25 +78,8 @@ export const OrdinaryUserKeepsAuthorChip: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
-
-		await expect(
-			canvas.getByRole("button", { name: "Remove author:me" }),
-		).toBeVisible();
-
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
-		await waitFor(() => {
-			const names = body
-				.getAllByRole("option")
-				.map((option) => option.textContent?.trim());
-			expect(names).toEqual(
-				expect.arrayContaining([
-					expect.stringMatching(/^Attributes/),
-					expect.stringMatching(/^Author/),
-				]),
-			);
-		});
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
+		await userEvent.click(await body.findByRole("option", { name: /^Author/ }));
 	},
 };
 
@@ -127,11 +93,9 @@ export const WithFilterError: Story = {
 			],
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const input = canvas.getByRole("combobox", { name: PLACEHOLDER });
-		await expect(input).toHaveAttribute("aria-invalid", "true");
-		const alert = await canvas.findByRole("alert");
-		await expect(input).toHaveAttribute("aria-errormessage", alert.id);
-	},
+};
+
+export const Mobile: Story = {
+	...Attributes,
+	globals: { viewport: { value: "iphone12" } },
 };

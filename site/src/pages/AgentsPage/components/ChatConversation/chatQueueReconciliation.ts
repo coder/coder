@@ -51,7 +51,7 @@ export const runPromoteQueuedMessage = async (params: {
 		| "unsuppressQueuedMessageID"
 	>;
 	promoteQueuedMessage: (id: number) => Promise<void>;
-	agentId: string | undefined;
+	agentId: string;
 	clearChatErrorReason: (chatID: string) => void;
 	onError: (error: unknown) => void;
 }): Promise<void> => {
@@ -73,9 +73,7 @@ export const runPromoteQueuedMessage = async (params: {
 		store.clearStreamError();
 		store.setChatStatus("running");
 	});
-	if (agentId) {
-		clearChatErrorReason(agentId);
-	}
+	clearChatErrorReason(agentId);
 	try {
 		await promoteQueuedMessage(id);
 	} catch (error) {

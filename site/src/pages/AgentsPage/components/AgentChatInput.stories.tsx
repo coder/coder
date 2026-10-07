@@ -71,6 +71,9 @@ const meta: Meta<typeof AgentChatInput> = {
 		modelOptions: [...defaultModelOptions],
 		modelSelectorPlaceholder: "Select model",
 		hasModelOptions: true,
+		planModeEnabled: false,
+		onPlanModeToggle: fn(),
+		isModelCatalogLoading: false,
 	},
 };
 
@@ -1145,13 +1148,6 @@ export const DisablePlanModeFromBadge: Story = {
 	},
 };
 
-export const PlanningIndicatorWithoutToggle: Story = {
-	args: {
-		planModeEnabled: true,
-		onPlanModeToggle: undefined,
-	},
-};
-
 export const PlanFirstCheckedState: Story = {
 	args: {
 		planModeEnabled: true,
@@ -1163,6 +1159,15 @@ export const PlanFirstCheckedState: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await body.findByRole("dialog");
 	},
+};
+
+export const ManageAutomationsCheckedState: Story = {
+	args: {
+		onPlanModeToggle: fn(),
+		manageAutomationsEnabled: true,
+		onManageAutomationsToggle: fn(),
+	},
+	play: PlanFirstCheckedState.play,
 };
 
 export const DetailPageWorkspacePicker: Story = {

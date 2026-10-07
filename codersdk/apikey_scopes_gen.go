@@ -59,12 +59,26 @@ const (
 	APIKeyScopeChatRead                            APIKeyScope = "chat:read"
 	APIKeyScopeChatShare                           APIKeyScope = "chat:share"
 	APIKeyScopeChatUpdate                          APIKeyScope = "chat:update"
+	APIKeyScopeChatAutomationAll                   APIKeyScope = "chat_automation:*"
+	APIKeyScopeChatAutomationCreate                APIKeyScope = "chat_automation:create"
+	APIKeyScopeChatAutomationDelete                APIKeyScope = "chat_automation:delete"
+	APIKeyScopeChatAutomationRead                  APIKeyScope = "chat_automation:read"
+	APIKeyScopeChatAutomationUpdate                APIKeyScope = "chat_automation:update"
 	APIKeyScopeChatModelConfigAll                  APIKeyScope = "chat_model_config:*"
 	APIKeyScopeChatModelConfigCreate               APIKeyScope = "chat_model_config:create"
 	APIKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
 	APIKeyScopeChatModelConfigRead                 APIKeyScope = "chat_model_config:read"
 	APIKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
 	APIKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
+	APIKeyScopeChatProjectAll                      APIKeyScope = "chat_project:*"
+	APIKeyScopeChatProjectCreate                   APIKeyScope = "chat_project:create"
+	APIKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
+	APIKeyScopeChatProjectRead                     APIKeyScope = "chat_project:read"
+	APIKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
+	APIKeyScopeChatProjectMemoryAll                APIKeyScope = "chat_project_memory:*"
+	APIKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
+	APIKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
+	APIKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
 	APIKeyScopeCoderAll                            APIKeyScope = "coder:all"
 	APIKeyScopeCoderApikeysManageSelf              APIKeyScope = "coder:apikeys.manage_self"
 	APIKeyScopeCoderApplicationConnect             APIKeyScope = "coder:application_connect"
@@ -272,6 +286,8 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeFileAll,
 	APIKeyScopeFileCreate,
 	APIKeyScopeFileRead,
+	APIKeyScopeInboxNotificationRead,
+	APIKeyScopeInboxNotificationUpdate,
 	APIKeyScopeOrganizationAll,
 	APIKeyScopeOrganizationDelete,
 	APIKeyScopeOrganizationRead,
