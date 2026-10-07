@@ -9,7 +9,7 @@ import {
 	Share2Icon,
 	UsersIcon,
 } from "lucide-react";
-import { type FC, type RefObject, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
@@ -21,15 +21,19 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
+	canManageChat,
 	chatFamilyAllowsArchive,
-	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
@@ -47,13 +51,13 @@ type ChatSharingTopBarButtonProps = {
 };
 
 type ChatTopBarProps = {
-	panelToggleRef?: RefObject<HTMLButtonElement | null>;
+	panelToggleRef?: React.RefObject<HTMLButtonElement | null>;
 	chat?: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
 };
 
-const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
+const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
 	chatId,
 	organizationId,
 }) => {
@@ -90,13 +94,14 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 	);
 };
 
-export const ChatTopBar: FC<ChatTopBarProps> = ({
+export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,
 	panelToggleRef,
 }) => {
 	const { isEmbedded } = useEmbedContext();
+	const { user: currentUser } = useAuthenticated();
 	const location = useLocation();
 	const parentChatID = getParentChatID(chat);
 	const parentChatQuery = useQuery({
@@ -139,6 +144,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	const chatTitle = chat?.title;
 	const isArchived = chat?.archived ?? false;
 	const isSharedChat = chat?.shared;
+	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
 	const hasWorkspace = Boolean(chat?.workspace_id);
 	const isArchivingThisChat = Boolean(
 		isArchiving &&
@@ -153,6 +159,9 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)
 		: false;
 	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
+	// Suppressed when there is no chat to act on (loading and not-found views).
+	const showActionsMenu =
+		!isEmbedded && chat !== undefined && Boolean(chatTitle);
 	const diffStatus = chat?.diff_status;
 
 	const prUrl = diffStatus?.url;
@@ -232,10 +241,8 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						)}
 					</div>
 				)}
-				{/* Actions menu sits inline with the title so it tracks the title's right edge.
-				   Suppressed when there is no chat to act on (loading and not-found views)
-				   and when the chat has no menu actions (archived child chats). */}
-				{!isEmbedded && chat && chatTitle && chatHasMenuActions(chat) && (
+				{/* Actions menu sits inline with the title so it tracks the title's right edge. */}
+				{chat && showActionsMenu && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -253,6 +260,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						>
 							<ChatActionsMenuItems
 								chat={chat}
+								canManage={canManage}
 								hasWorkspace={hasWorkspace}
 								isArchiving={isArchivingThisChat}
 								isArchiveBlocked={isArchiveBlocked}
@@ -296,6 +304,9 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								}
 								Item={DropdownMenuItem}
 								Separator={DropdownMenuSeparator}
+								Sub={DropdownMenuSub}
+								SubTrigger={DropdownMenuSubTrigger}
+								SubContent={DropdownMenuSubContent}
 							/>
 						</DropdownMenuContent>
 					</DropdownMenu>
@@ -310,7 +321,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					target="_blank"
 					rel="noreferrer"
 					className={cn(
-						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
 						panel.showSidebarPanel && "lg:hidden",
 					)}
 				>

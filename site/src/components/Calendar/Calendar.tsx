@@ -9,7 +9,6 @@
 
 import { cn } from "cn";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import type { ComponentProps } from "react";
 import {
 	type DayButton,
 	DayPicker,
@@ -26,7 +25,7 @@ function Calendar({
 	formatters,
 	components,
 	...props
-}: ComponentProps<typeof DayPicker> & {
+}: React.ComponentProps<typeof DayPicker> & {
 	buttonVariant?: ButtonProps["variant"];
 }) {
 	const defaultClassNames = getDefaultClassNames();
@@ -80,7 +79,7 @@ function Calendar({
 					defaultClassNames.dropdowns,
 				),
 				dropdown_root: cn(
-					"border-border-default relative rounded-md border",
+					"border-border relative rounded-md border",
 					defaultClassNames.dropdown_root,
 				),
 				dropdown: cn(
@@ -169,7 +168,7 @@ function CalendarDayButton({
 	day,
 	modifiers,
 	...props
-}: ComponentProps<typeof DayButton>) {
+}: React.ComponentProps<typeof DayButton>) {
 	const defaultClassNames = getDefaultClassNames();
 
 	return (

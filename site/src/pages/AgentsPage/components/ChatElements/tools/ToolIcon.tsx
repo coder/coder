@@ -10,11 +10,13 @@ import {
 	type LucideIcon,
 	MonitorIcon,
 	PowerIcon,
+	PowerOffIcon,
 	RouteIcon,
 	SearchIcon,
 	ServerIcon,
 	TerminalIcon,
 	WrenchIcon,
+	ZapIcon,
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
@@ -38,6 +40,7 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	read_template: ServerIcon,
 	create_workspace: ServerIcon,
 	start_workspace: PowerIcon,
+	stop_workspace: PowerOffIcon,
 	chat_cleared: BotIcon,
 	chat_summarized: BotIcon,
 	list_agents: BotIcon,
@@ -48,6 +51,7 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	advisor: CompassIcon,
 	computer: MonitorIcon,
 	find_tools: SearchIcon,
+	manage_automations: ZapIcon,
 };
 
 export const ToolIcon: React.FC<{

@@ -6,7 +6,6 @@ import {
 	WrenchIcon,
 	ZapIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import type { ChatContextResource } from "#/api/typesGenerated";
 import { formatKiB } from "#/utils/fileSize";
 import {
@@ -14,7 +13,7 @@ import {
 	groupContextResources,
 } from "../utils/chatDetails";
 
-const ResourceMetadata: FC<{ resource: ChatContextResource }> = ({
+const ResourceMetadata: React.FC<{ resource: ChatContextResource }> = ({
 	resource,
 }) => (
 	<>
@@ -31,7 +30,7 @@ const ResourceMetadata: FC<{ resource: ChatContextResource }> = ({
 	</>
 );
 
-export const ContextResourceGroups: FC<{
+export const ContextResourceGroups: React.FC<{
 	items: readonly ContextResourceItem[];
 	kind: "file" | "skill";
 }> = ({ items, kind }) => {
@@ -49,7 +48,7 @@ export const ContextResourceGroups: FC<{
 							{dir || "Current directory"}
 						</span>
 					</div>
-					<ul className="m-0 ml-1.5 flex list-none flex-col gap-3 border-0 border-l border-solid border-border-default py-0 pl-4">
+					<ul className="m-0 ml-1.5 flex list-none flex-col gap-3 border-0 border-l border-solid border-border py-0 pl-4">
 						{items.map(({ resource, name }) => (
 							<li
 								key={resource.source}
@@ -82,7 +81,7 @@ export const ContextResourceGroups: FC<{
 	);
 };
 
-export const ContextResourceIssues: FC<{
+export const ContextResourceIssues: React.FC<{
 	items: readonly ContextResourceItem[];
 }> = ({ items }) =>
 	items.length === 0 ? null : (
@@ -119,7 +118,7 @@ export const ContextResourceIssues: FC<{
 		</div>
 	);
 
-export const McpResourceList: FC<{
+export const McpResourceList: React.FC<{
 	configs: readonly ContextResourceItem[];
 	servers: readonly ContextResourceItem[];
 }> = ({ configs, servers }) => (

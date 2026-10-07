@@ -19,7 +19,10 @@ import {
 	chatSlashCommandTriggerText,
 	resolveChatSlashCommandAvailability,
 } from "../../utils/slashCommands";
-import type { PendingAttachment } from "../ChatPageContent";
+import type {
+	PendingAttachment,
+	PendingWorkspaceUpload,
+} from "../ChatPageContent";
 import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
@@ -29,12 +32,10 @@ import {
 } from "./chatQueueReconciliation";
 import type { ChatStore } from "./chatStore";
 
-/** @internal Exported for testing. */
-export const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
 export type SubmitChatTurnParams = {
 	message: string;
 	attachments?: readonly PendingAttachment[];
+	workspaceUploads?: readonly PendingWorkspaceUpload[];
 	editedMessageID?: number;
 	composerParts?: readonly ChatComposerContentPart[];
 	clearPlanMode?: boolean;
@@ -111,10 +112,6 @@ export const resolveEditModelConfigID = ({
 		return pickerModelConfigID;
 	}
 	return undefined;
-};
-
-const persistLastModelConfigID = (modelConfigID: string): void => {
-	localStorage.setItem(lastModelConfigIDStorageKey, modelConfigID);
 };
 
 const findBuiltInChatCommand = (
@@ -251,6 +248,7 @@ export async function submitChatTurn(
 	const {
 		message,
 		attachments,
+		workspaceUploads,
 		editedMessageID,
 		composerParts,
 		clearPlanMode = false,
@@ -285,6 +283,7 @@ export async function submitChatTurn(
 	const { content, hasContent } = buildChatInputContent({
 		message,
 		attachments,
+		workspaceUploads,
 		composerParts,
 	});
 	if (!hasContent || isSubmissionPending || !hasModelOptions) {
@@ -368,9 +367,6 @@ export async function submitChatTurn(
 			},
 		});
 		scrollToEnd({ behavior: "smooth" });
-		if (editSelectedModelConfigID) {
-			persistLastModelConfigID(editSelectedModelConfigID);
-		}
 		return;
 	}
 
@@ -438,11 +434,6 @@ export async function submitChatTurn(
 				fetchQueueConvergence,
 			});
 		}
-	}
-	if (selectedModelConfigID) {
-		persistLastModelConfigID(selectedModelConfigID);
-	} else {
-		localStorage.removeItem(lastModelConfigIDStorageKey);
 	}
 	if (clearPlanMode) {
 		setCachedChatPlanMode(agentId, undefined);

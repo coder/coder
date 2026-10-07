@@ -1,13 +1,6 @@
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useId,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -87,7 +80,9 @@ type CreateWorkspacePageViewProps = {
 	setOwner: (user: TypesGen.MinimalUser) => void;
 };
 
-export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
+export const CreateWorkspacePageView: React.FC<
+	CreateWorkspacePageViewProps
+> = ({
 	autofillParameters,
 	canUpdateTemplate,
 	creatingWorkspace,
@@ -459,7 +454,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				<form
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
-					className="flex flex-col gap-10 w-full border border-border-default border-solid rounded-lg p-6"
+					className="flex flex-col gap-10 w-full border border-border border-solid rounded-lg p-6"
 					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}

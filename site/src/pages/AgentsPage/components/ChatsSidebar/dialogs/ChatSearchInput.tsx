@@ -1,11 +1,5 @@
 import { cn } from "cn";
 import { ListFilterIcon, SearchIcon, XIcon } from "lucide-react";
-import type {
-	ChangeEventHandler,
-	FC,
-	KeyboardEventHandler,
-	RefObject,
-} from "react";
 
 export type SearchFilter = {
 	readonly key: string;
@@ -15,18 +9,18 @@ export type SearchFilter = {
 type ChatSearchInputProps = {
 	readonly activeResultId: string | undefined;
 	readonly hasResults: boolean;
-	readonly inputRef: RefObject<HTMLInputElement | null>;
+	readonly inputRef: React.RefObject<HTMLInputElement | null>;
 	readonly listboxId: string;
 	readonly filters: readonly SearchFilter[];
 	readonly value: string;
-	readonly onChange: ChangeEventHandler<HTMLInputElement>;
-	readonly onKeyDown: KeyboardEventHandler<HTMLInputElement>;
+	readonly onChange: React.ChangeEventHandler<HTMLInputElement>;
+	readonly onKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
 	readonly onRemoveFilter: (key: string) => void;
 	readonly isDropdownOpen: boolean;
 	readonly onToggleDropdown: () => void;
 };
 
-export const ChatSearchInput: FC<ChatSearchInputProps> = ({
+export const ChatSearchInput: React.FC<ChatSearchInputProps> = ({
 	activeResultId,
 	hasResults,
 	inputRef,
@@ -45,7 +39,7 @@ export const ChatSearchInput: FC<ChatSearchInputProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex min-h-10 w-full min-w-0 items-start gap-1.5 rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2",
+				"flex min-h-10 w-full min-w-0 items-start gap-1.5 rounded-md border border-solid border-border bg-surface-primary px-3 py-2",
 				"focus-within:ring-2 focus-within:ring-content-link",
 			)}
 		>

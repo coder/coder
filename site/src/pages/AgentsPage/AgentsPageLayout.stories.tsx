@@ -23,13 +23,18 @@ import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
+import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
+	MockFailedWorkspaceBuild,
 	MockNoPermissions,
 	MockOrganization2,
 	MockPermissions,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -44,6 +49,7 @@ import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
 import AgentSettingsLayout from "./AgentSettingsLayout";
 import AgentsPageLayout from "./AgentsPageLayout";
+import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
@@ -94,9 +100,6 @@ const todayTimestamp = new Date().toISOString();
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...MockChat,
 	id: "chat-default",
-	owner_id: "owner-1",
-	owner_username: "owner",
-	owner_name: undefined,
 	last_model_config_id: defaultModels[0].id,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
@@ -166,6 +169,7 @@ const agentsRouting = {
 				},
 			],
 		},
+		{ path: "projects/:projectId", element: <AgentCreatePage /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
@@ -211,7 +215,7 @@ const ChatPaneMinimumRouteElement = () => (
 		<div className="mt-auto px-4 pb-3">
 			<div
 				data-testid="chat-composer"
-				className="flex items-center justify-between rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-2"
+				className="flex items-center justify-between rounded-2xl border border-border/80 bg-surface-secondary/45 p-2"
 			>
 				<span className="truncate text-xs text-content-secondary">
 					Chat message
@@ -264,41 +268,15 @@ const meta: Meta<typeof AgentsPageLayout> = {
 	args: {},
 	beforeEach: () => {
 		localStorage.removeItem(LEFT_SIDEBAR_STORAGE_KEY);
+		localStorage.removeItem(emptyInputStorageKey);
 		// Mocks for the queries AgentsPageLayout runs for the sidebar.
 		spyOn(API.experimental, "getChats").mockResolvedValue([]);
 		spyOn(
 			API.experimental,
 			"getUserChatPersonalModelOverrides",
 		).mockResolvedValue({
+			...MockUnsetUserChatPersonalModelOverrides,
 			enabled: false,
-			root: {
-				context: "root",
-				mode: "deployment_default",
-				model_config_id: "",
-				is_set: false,
-			},
-			general: {
-				context: "general",
-				mode: "deployment_default",
-				model_config_id: "",
-				is_set: false,
-			},
-			explore: {
-				context: "explore",
-				mode: "deployment_default",
-				model_config_id: "",
-				is_set: false,
-			},
-			deployment_defaults: {
-				general: {
-					context: "general",
-					model_config_id: "",
-				},
-				explore: {
-					context: "explore",
-					model_config_id: "",
-				},
-			},
 		});
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
@@ -1108,6 +1086,124 @@ export const SettingsViewCoderAgentsLink: Story = {
 
 		await screen.findByText(
 			/organization model choices and deployment-wide Coder Agents capabilities/,
+		);
+	},
+};
+
+const debugWorkspaceBuildRouter = (buildId: string) =>
+	reactRouterParameters({
+		location: {
+			path: "/agents",
+			searchParams: { [debugWorkspaceBuildSearchParam]: buildId },
+		},
+		routing: [agentsRouting, aiSettingsRouting],
+	});
+
+const projectPageParameters = {
+	experiments: ["chat-projects"],
+	reactRouter: reactRouterParameters({
+		location: { path: `/agents/projects/${MockChatProject.id}` },
+		routing: [agentsRouting, aiSettingsRouting],
+	}),
+};
+
+// Each play waits for its state so the Chromatic snapshot captures it.
+export const ProjectLoading: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("status", { name: "Loading project" });
+	},
+};
+
+export const ProjectLoadError: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to list chat projects." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Failed to load project");
+	},
+};
+
+export const ProjectLoaded: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			MockChatProject,
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Project actions" });
+	},
+};
+
+export const ProjectNotFound: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Project not found");
+	},
+};
+
+export const PromptLink: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: {
+					prompt: "Fix the flaky test in site/src/api\nand explain the cause.",
+				},
+			},
+			routing: [agentsRouting, aiSettingsRouting],
+		}),
+	},
+};
+
+export const PromptLinkEdited: Story = {
+	parameters: PromptLink.parameters,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("textbox", { name: "Chat message" }),
+		);
+		await userEvent.keyboard(" Keep it short.");
+	},
+};
+
+export const DebugWorkspaceBuildLoading: Story = {
+	parameters: {
+		experiments: ["enable-ai-workspace-debug"],
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuild().id),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuild").mockReturnValue(new Promise(() => {}));
+	},
+};
+
+export const DebugWorkspaceBuildLoadError: Story = {
+	parameters: {
+		experiments: ["enable-ai-workspace-debug"],
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuild().id),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuild").mockRejectedValue(
+			mockApiError({
+				message:
+					"Resource not found or you do not have access to this resource",
+			}),
 		);
 	},
 };

@@ -30,6 +30,9 @@ type OAuth2ProviderApp struct {
 
 	// ClientType is "confidential" or "public".
 	ClientType OAuth2ClientType `json:"client_type"`
+	// DynamicallyRegistered is true when the app registered itself through
+	// Dynamic Client Registration rather than being created by an admin.
+	DynamicallyRegistered bool `json:"dynamically_registered"`
 
 	// Endpoints are included in the app response for easier discovery. The OAuth2
 	// spec does not have a defined place to find these (for comparison, OIDC has
@@ -126,7 +129,9 @@ type PutOAuth2ProviderAppRequest struct {
 	// Deprecated: send redirect_uris instead. If both are sent, callback_url
 	// must equal the first entry of redirect_uris.
 	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
-	Icon        string `json:"icon" validate:"omitempty"`
+	// Icon replaces the app's stored icon. Omitting it clears the stored
+	// icon rather than leaving it unchanged.
+	Icon string `json:"icon" validate:"omitempty"`
 	// Scope replaces the app's current allowlist. Omit to leave the existing
 	// allowlist untouched. Set to an empty string to clear it, making the app
 	// unrestricted.

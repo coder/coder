@@ -9,8 +9,6 @@ import {
 	XIcon,
 } from "lucide-react";
 import {
-	type FC,
-	type ReactNode,
 	useEffect,
 	useEffectEvent,
 	useId,
@@ -34,10 +32,10 @@ export type SidebarTab = {
 	/** Label shown in the tab button. */
 	label: string;
 	/** Optional icon shown before the label. */
-	icon?: ReactNode;
-	badge?: ReactNode;
+	icon?: React.ReactNode;
+	badge?: React.ReactNode;
 	/** The content to render when this tab is active. */
-	content: ReactNode;
+	content: React.ReactNode;
 	onClose?: () => void;
 };
 
@@ -62,7 +60,7 @@ type SidebarTabViewProps = {
 	effectiveTabId: string | null;
 	/** Called when the user switches tabs. */
 	onActiveTabChange: (tabId: string) => void;
-	addTabControl?: ReactNode;
+	addTabControl?: React.ReactNode;
 };
 
 const TAB_SCROLL_AMOUNT = 120;
@@ -128,7 +126,7 @@ type ScrollChevronButtonProps = {
 	ariaLabel: string;
 };
 
-const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
+const ScrollChevronButton: React.FC<ScrollChevronButtonProps> = ({
 	direction,
 	onClick,
 	ariaLabel,
@@ -153,7 +151,7 @@ const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
 	);
 };
 
-export const SidebarTabView: FC<SidebarTabViewProps> = ({
+export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 	tabs,
 	isExpanded,
 	onToggleExpanded,
@@ -194,10 +192,12 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 		tab.onClose?.();
 	};
 
-	const allPanels: { id: string; content: ReactNode }[] = tabs.map((t) => ({
-		id: t.id,
-		content: t.content,
-	}));
+	const allPanels: { id: string; content: React.ReactNode }[] = tabs.map(
+		(t) => ({
+			id: t.id,
+			content: t.content,
+		}),
+	);
 
 	if (tabs.length === 0) {
 		return (
@@ -208,7 +208,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				tabIndex={-1}
 				className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary"
 			>
-				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1">
+				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-4 py-1.5 lg:px-3 lg:py-1">
 					{onClose && (
 						<Button
 							variant="subtle"
@@ -251,7 +251,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 			onValueChange={onActiveTabChange}
 			className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary"
 		>
-			<div className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1">
+			<div className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-4 py-1.5 lg:px-3 lg:py-1">
 				{onClose && (
 					<Button
 						variant="subtle"

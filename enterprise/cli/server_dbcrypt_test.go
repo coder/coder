@@ -195,6 +195,10 @@ func TestServerDBCrypt(t *testing.T) {
 		require.NoError(t, err, "expected gitsshkey row to remain for user %s", usr.ID)
 		require.Empty(t, sshKey.PrivateKey, "expected private_key to be cleared for user %s", usr.ID)
 		require.False(t, sshKey.PrivateKeyKeyID.Valid, "expected private_key_key_id to be cleared for user %s", usr.ID)
+
+		chatMCPServers, err := db.GetChatMCPServersByChatOwnerID(ctx, usr.ID)
+		require.NoError(t, err, "failed to get chat MCP servers for user %s", usr.ID)
+		require.Empty(t, chatMCPServers)
 	}
 
 	// Validate that the key has been revoked in the database.
@@ -242,6 +246,18 @@ func genData(t *testing.T, db database.Store) []database.User {
 					UserID:     usr.ID,
 					PrivateKey: "private-" + usr.ID.String(),
 					PublicKey:  "public-" + usr.ID.String(),
+				})
+				chatModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+					AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+				})
+				chat := dbgen.Chat(t, db, database.Chat{
+					OrganizationID:    chatModel.OrganizationID,
+					OwnerID:           usr.ID,
+					LastModelConfigID: chatModel.ID,
+				})
+				_ = dbgen.ChatMCPServer(t, db, database.ChatMCPServer{
+					ChatID:  chat.ID,
+					Headers: "headers-" + usr.ID.String(),
 				})
 				now := time.Now()
 				_, err := db.UpsertUserAIProviderKey(context.Background(), database.UpsertUserAIProviderKeyParams{
@@ -329,6 +345,12 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 	require.Equal(t, c.HexDigest(), sshKey.PrivateKeyKeyID.String)
 	// Public key is never encrypted.
 	require.Equal(t, "public-"+userID.String(), sshKey.PublicKey)
+
+	chatMCPServers, err := db.GetChatMCPServersByChatOwnerID(ctx, userID)
+	require.NoError(t, err, "failed to get chat MCP servers for user %s", userID)
+	require.Len(t, chatMCPServers, 1)
+	requireEncryptedEquals(t, c, "headers-"+userID.String(), chatMCPServers[0].Headers)
+	require.Equal(t, c.HexDigest(), chatMCPServers[0].HeadersKeyID.String)
 
 	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{
 		IncludeDeleted:  true,

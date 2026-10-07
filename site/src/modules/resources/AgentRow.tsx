@@ -7,14 +7,7 @@ import {
 	PlayIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { VariableSizeList as List, ListOnScrollProps } from "react-window";
 import type {
@@ -144,7 +137,7 @@ const STARTUP_SCRIPT_DISPLAY_NAME = "Startup Script";
 const isScriptFailed = (script: WorkspaceAgentScript | undefined): boolean =>
 	Boolean(script?.exit_code || (script?.status && script.status !== "ok"));
 
-export const AgentRow: FC<AgentRowProps> = ({
+export const AgentRow: React.FC<AgentRowProps> = ({
 	agent,
 	subAgents,
 	workspace,
@@ -339,7 +332,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 			return a.title.localeCompare(b.title);
 		});
 	const logTabs: {
-		startIcon?: ReactNode;
+		startIcon?: React.ReactNode;
 		title: string;
 		value: string;
 		error: boolean;

@@ -1,5 +1,5 @@
 import { InfoIcon } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { templateVersions } from "#/api/queries/templates";
 import type { TemplateVersion, Workspace } from "#/api/typesGenerated";
@@ -31,7 +31,7 @@ type ChangeWorkspaceVersionDialogProps = {
 	onConfirm: (version: TemplateVersion) => void;
 };
 
-export const ChangeWorkspaceVersionDialog: FC<
+export const ChangeWorkspaceVersionDialog: React.FC<
 	ChangeWorkspaceVersionDialogProps
 > = ({ workspace, onClose, onConfirm, open }) => {
 	const { data: versions } = useQuery({

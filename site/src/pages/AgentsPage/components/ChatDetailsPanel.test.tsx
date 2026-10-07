@@ -1,6 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentProps, ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -16,7 +15,7 @@ vi.mock("#/modules/dashboard/useFeatureVisibility", () => ({
 	useFeatureVisibility: () => ({ aibridge: true }),
 }));
 
-const props: ComponentProps<typeof ChatDetailsPanel> = {
+const props: React.ComponentProps<typeof ChatDetailsPanel> = {
 	chatId: MockChat.id,
 	isVisible: true,
 	usage: {
@@ -30,7 +29,7 @@ function setup(overrides: Partial<typeof props> = {}) {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false, gcTime: 0 } },
 	});
-	const wrapper = ({ children }: { children: ReactNode }) => (
+	const wrapper = ({ children }: { children: React.ReactNode }) => (
 		<QueryClientProvider client={client}>{children}</QueryClientProvider>
 	);
 	const result = render(<ChatDetailsPanel {...props} {...overrides} />, {
@@ -176,8 +175,14 @@ describe("ChatDetailsPanel", () => {
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
 		rerenderPanel({ isVisible: true });
 		await waitFor(() =>
-			expect(API.experimental.getChatCost).toHaveBeenCalledWith("root-chat"),
+			expect(API.experimental.getChatCost).toHaveBeenCalledWith(
+				"root-chat",
+				expect.any(AbortSignal),
+			),
 		);
-		expect(API.experimental.getChatCost).not.toHaveBeenCalledWith(MockChat.id);
+		expect(API.experimental.getChatCost).not.toHaveBeenCalledWith(
+			MockChat.id,
+			expect.any(AbortSignal),
+		);
 	});
 });

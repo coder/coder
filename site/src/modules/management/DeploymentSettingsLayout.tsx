@@ -1,4 +1,4 @@
-import { type FC, Suspense } from "react";
+import { Suspense } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 import {
 	Breadcrumb,
@@ -13,7 +13,7 @@ import { canViewDeploymentSettings } from "#/modules/permissions";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { DeploymentSidebar } from "./DeploymentSidebar";
 
-const DeploymentSettingsLayout: FC = () => {
+const DeploymentSettingsLayout: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const location = useLocation();
 

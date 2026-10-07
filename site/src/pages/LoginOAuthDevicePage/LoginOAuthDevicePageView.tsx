@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { ApiErrorResponse } from "#/api/errors";
 import type { ExternalAuthDevice } from "#/api/typesGenerated";
 import { GitDeviceAuth } from "#/components/GitDeviceAuth/GitDeviceAuth";
@@ -12,7 +11,7 @@ type LoginOAuthDevicePageViewProps = {
 	deviceExchangeError?: ApiErrorResponse;
 };
 
-const LoginOAuthDevicePageView: FC<LoginOAuthDevicePageViewProps> = ({
+const LoginOAuthDevicePageView: React.FC<LoginOAuthDevicePageViewProps> = ({
 	authenticated,
 	redirectUrl,
 	deviceExchangeError,

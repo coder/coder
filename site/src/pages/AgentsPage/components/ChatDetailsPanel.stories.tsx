@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
 import { fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { chat, chatCost } from "#/api/queries/chats";
@@ -12,8 +11,8 @@ import {
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { ChatDetailsPanel } from "./ChatDetailsPanel";
 
-const PanelFrame = (Story: FC) => (
-	<div className="h-[760px] w-[360px] max-w-full border border-solid border-border-default">
+const PanelFrame = (Story: React.FC) => (
+	<div className="h-[760px] w-[360px] max-w-full border border-solid border-border">
 		<Story />
 	</div>
 );

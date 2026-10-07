@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -13,7 +13,7 @@ import { useTemplatesFilter } from "#/pages/TemplatesPage/TemplatesFilter";
 import { pageTitle } from "#/utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
-const TemplatesPage: FC = () => {
+const TemplatesPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const queryClient = useQueryClient();

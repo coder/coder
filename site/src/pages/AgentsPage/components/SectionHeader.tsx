@@ -1,14 +1,12 @@
-import type { FC, ReactNode } from "react";
-
 type SectionHeaderProps = {
 	label: string;
 	description?: string;
-	badge?: ReactNode;
-	action?: ReactNode;
+	badge?: React.ReactNode;
+	action?: React.ReactNode;
 	level?: "page" | "section";
 };
 
-export const SectionHeader: FC<SectionHeaderProps> = ({
+export const SectionHeader: React.FC<SectionHeaderProps> = ({
 	label,
 	description,
 	badge,

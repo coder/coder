@@ -34,10 +34,45 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 export default meta;
 type Story = StoryObj<typeof PortForwardPopoverView>;
 
+const listeningPortsWithSubstringMatch = [
+	...MockListeningPortsResponse.ports,
+	{ process_name: "substring-match", network: "", port: 18080 },
+];
+
+const typeInPortFilter = (canvasElement: HTMLElement, text: string) =>
+	userEvent.type(
+		within(canvasElement).getByRole("textbox", { name: "Filter ports" }),
+		text,
+	);
+
 export const WithPorts: Story = {
 	args: {
 		listeningPorts: MockListeningPortsResponse.ports,
 		sharedPorts: MockSharedPortsResponse.shares,
+	},
+};
+
+export const FilterPorts: Story = {
+	args: {
+		listeningPorts: listeningPortsWithSubstringMatch,
+		sharedPorts: MockSharedPortsResponse.shares.filter(
+			(share) => share.port !== 8081,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await typeInPortFilter(canvasElement, "808");
+	},
+};
+
+export const NoMatchingPorts: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInPortFilter(canvasElement, "1234");
+	},
+};
+
+export const InvalidPort: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInPortFilter(canvasElement, "5");
 	},
 };
 

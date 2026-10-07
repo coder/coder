@@ -328,7 +328,10 @@ describe("useChatContext", () => {
 				contextUsage: expect.objectContaining({ context: updatedChat.context }),
 			}),
 		);
-		expect(API.experimental.getChat).toHaveBeenCalledWith(MockChat.id);
+		expect(API.experimental.getChat).toHaveBeenCalledWith(
+			MockChat.id,
+			expect.any(AbortSignal),
+		);
 		expect(API.experimental.refreshChatContext).not.toHaveBeenCalled();
 	});
 

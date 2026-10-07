@@ -1,5 +1,5 @@
 ---
-title: Slack Notifications
+title: Slack notifications
 ---
 
 [Slack](https://slack.com/) is a popular messaging platform designed for teams

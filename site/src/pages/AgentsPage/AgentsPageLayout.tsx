@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -9,6 +9,7 @@ import {
 import {
 	Outlet,
 	useLocation,
+	useMatch,
 	useNavigate,
 	useParams,
 	useSearchParams,
@@ -25,6 +26,7 @@ import {
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
+	findChatInListCaches,
 	infiniteChats,
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
@@ -32,11 +34,12 @@ import {
 	invalidateChatListQueries,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	markChatRead,
+	markChatUnread,
 	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
-	readInfiniteChatsCache,
 	removeChatFromChatsByWorkspace,
 	reorderPinnedChat,
 	shouldInvalidateChatSearches,
@@ -64,6 +67,7 @@ import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { AUTOMATIONS_PATH } from "./components/Automations/automationsFlag";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -79,7 +83,10 @@ import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableC
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
-import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
+import {
+	AGENT_CHAT_STATUS_ORDER,
+	getAgentSidebarFilters,
+} from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
 	notifyArchiveAndDeleteFailed,
@@ -88,6 +95,7 @@ import {
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
+import { readDeepLinkState } from "./utils/deepLinkState";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
@@ -133,6 +141,12 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
+// The status in other event kinds may be older than the cached status.
+export const shouldEvaluateChime = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean => eventKind === "status_change" && !chat.parent_chat_id;
+
 // Summary and title generation can bill after the turn reports a non-active
 // status, so invalidate the root-keyed cost query when those events arrive.
 const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
@@ -154,13 +168,14 @@ export const chatCostIdToInvalidate = (
 	return getChatCostTreeID(chat);
 };
 
-const AgentsPageLayout: FC = () => {
+const AgentsPageLayout: React.FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { agentId } = useParams();
+	const isPlainComposerRoute = useMatch("/agents") !== null;
 	const { permissions, user } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
@@ -169,69 +184,38 @@ const AgentsPageLayout: FC = () => {
 	// an organization-scoped endpoint, so fall back to any accessible
 	// organization for users outside the default organization.
 	const personalOverridesOrganizationId =
-		defaultOrganizationId || (organizations[0]?.id ?? "");
+		defaultOrganizationId ?? organizations[0]?.id ?? "";
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 	const canManageAgentSettings = canAccessCoderAgentsSettings(permissions);
 
 	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
 		searchParams,
 		setSearchParams,
+		location.state,
 	);
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 
-	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
-	// layout shift on pages that toggle scrollbars. The agents page
-	// uses its own internal scroll containers so the reserved gutter
-	// space is unnecessary and wastes horizontal room.
-	//
-	// Removing the gutter requires three things:
-	//
-	// 1. overflow:hidden on both <html> and <body> so neither element
-	//    can produce a scrollbar.
-	// 2. scrollbar-gutter:auto on <html> so the browser stops
-	//    reserving space for a scrollbar that will never appear.
-	//    This is what makes react-remove-scroll-bar measure a gap of
-	//    0 when a Radix dropdown opens, so it injects no padding or
-	//    margin compensation.
-	// 3. An injected <style> that overrides the global
-	//    `overflow-y: scroll !important` on body[data-scroll-locked].
-	//    Without this, opening any Radix dropdown would force a
-	//    scrollbar onto <body>, re-introducing the layout shift.
+	// Opts out of the global scrollbar gutter; see html[data-agents-layout]
+	// in index.css.
 	useEffect(() => {
 		const html = document.documentElement;
-		const body = document.body;
-
-		const prevHtmlOverflow = html.style.overflow;
-		const prevHtmlScrollbarGutter = html.style.scrollbarGutter;
-		const prevBodyOverflow = body.style.overflow;
-
-		html.style.overflow = "hidden";
-		html.style.scrollbarGutter = "auto";
-		body.style.overflow = "hidden";
-
-		const style = document.createElement("style");
-		style.textContent =
-			"html body[data-scroll-locked] { overflow-y: hidden !important; }";
-		document.head.appendChild(style);
-
+		html.dataset.agentsLayout = "";
 		return () => {
-			html.style.overflow = prevHtmlOverflow;
-			html.style.scrollbarGutter = prevHtmlScrollbarGutter;
-			body.style.overflow = prevBodyOverflow;
-			style.remove();
+			delete html.dataset.agentsLayout;
 		};
 	}, []);
 
 	const archivedFilter = sidebarFilters.archiveStatus === "archived";
-	const chatStatusFilter =
-		sidebarFilters.chatStatuses.length === 1
-			? sidebarFilters.chatStatuses[0]
-			: undefined;
+	const statuses =
+		sidebarFilters.chatStatuses.length === AGENT_CHAT_STATUS_ORDER.length
+			? undefined
+			: sidebarFilters.chatStatuses;
 	const chatsQuery = useInfiniteQuery(
 		infiniteChats({
 			archived: archivedFilter,
 			prStatuses: sidebarFilters.prStatuses,
-			chatStatus: chatStatusFilter,
+			statuses,
+			chatStatus: sidebarFilters.unread ? "unread" : undefined,
 			sources: sidebarFilters.sources,
 		}),
 	);
@@ -373,6 +357,22 @@ const AgentsPageLayout: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unpin agent."));
 		},
 	});
+	const markChatReadBase = markChatRead(queryClient);
+	const markChatReadMutation = useMutation({
+		...markChatReadBase,
+		onError: (error, chatId, context) => {
+			markChatReadBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as read."));
+		},
+	});
+	const markChatUnreadBase = markChatUnread(queryClient);
+	const markChatUnreadMutation = useMutation({
+		...markChatUnreadBase,
+		onError: (error, chatId, context) => {
+			markChatUnreadBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as unread."));
+		},
+	});
 	const reorderPinnedChatMutation = useMutation({
 		...reorderPinnedChat(queryClient),
 		onError: (error) => {
@@ -452,10 +452,7 @@ const AgentsPageLayout: FC = () => {
 						],
 						queryFn: () => API.getWorkspaceBuilds(workspaceId),
 					}),
-				() =>
-					readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === chatId,
-					)?.created_at,
+				() => findChatInListCaches(queryClient, chatId)?.created_at,
 			);
 			if (action === "proceed") {
 				archiveAndDeleteMutation.mutate(
@@ -507,6 +504,12 @@ const AgentsPageLayout: FC = () => {
 	const requestUnpinAgent = (chatId: string) => {
 		unpinAgentMutation.mutate(chatId);
 	};
+	const requestMarkChatRead = (chatId: string) => {
+		markChatReadMutation.mutate(chatId);
+	};
+	const requestMarkChatUnread = (chatId: string) => {
+		markChatUnreadMutation.mutate(chatId);
+	};
 	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
 		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
 	};
@@ -524,10 +527,28 @@ const AgentsPageLayout: FC = () => {
 		// Only clear the draft when the user is already on the empty
 		// state and explicitly requests a blank slate.  When navigating
 		// back from a conversation the existing draft is preserved.
-		if (!agentId) {
+		// A composer prefilled from a prompt link shows the link's text,
+		// not the draft, so the draft is preserved there too. A debug link
+		// can fall back to the draft-backed composer, so it is not exempt.
+		// Other routes, such as a project composer, keep this draft too.
+		if (
+			isPlainComposerRoute &&
+			readDeepLinkState(location.state).prompt === undefined
+		) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate({ pathname: "/agents", search: location.search });
+	};
+
+	const handleOpenSettings = () => {
+		// Already there: keep the original `from` so the back button
+		// still returns to the view the user opened settings from.
+		if (isSettingsView(sidebarViewFromPath(location.pathname))) {
+			return;
+		}
+		navigate("/agents/settings", {
+			state: { from: location.pathname + location.search },
+		});
 	};
 
 	useEffect(() => {
@@ -568,11 +589,11 @@ const AgentsPageLayout: FC = () => {
 					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
 					// The old membership is only available before the cache write below.
-					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === updatedChat.id,
+					const prevStatus = findChatInListCaches(
+						queryClient,
+						updatedChat.id,
 					)?.status;
-					// Only play the chime for top-level chats, not sub-agents.
-					if (!updatedChat.parent_chat_id) {
+					if (shouldEvaluateChime(updatedChat, chatEvent.kind)) {
 						maybePlayChime(
 							prevStatus,
 							updatedChat.status,
@@ -642,6 +663,7 @@ const AgentsPageLayout: FC = () => {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
 							eventKind: chatEvent.kind,
 							activeChatId: activeChatIDRef.current,
+							changedDiffStatus: chatEvent.changed_diff_status,
 						});
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
@@ -683,6 +705,7 @@ const AgentsPageLayout: FC = () => {
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
 		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
+		onOpenSettings: handleOpenSettings,
 	});
 
 	// Fetch workspace name for the confirmation dialog. Only
@@ -705,6 +728,10 @@ const AgentsPageLayout: FC = () => {
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
+	// On mobile the automations page replaces the sidebar, like a settings
+	// detail page.
+	const isFullPageRoute =
+		isSettingsDetail || location.pathname.startsWith(AUTOMATIONS_PATH);
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.
@@ -751,10 +778,10 @@ const AgentsPageLayout: FC = () => {
 					className={cn(
 						"sm:h-full sm:min-h-0 sm:border-b-0",
 						agentId
-							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-							: isSettingsDetail
+							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border"
+							: isFullPageRoute
 								? "hidden sm:block shrink-0"
-								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
+								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border sm:flex-none sm:border-t-0 sm:border-b-0",
 						isSidebarCollapsed && "sm:hidden",
 					)}
 				>
@@ -769,6 +796,8 @@ const AgentsPageLayout: FC = () => {
 						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 						onPinAgent={requestPinAgent}
 						onUnpinAgent={requestUnpinAgent}
+						onMarkChatRead={requestMarkChatRead}
+						onMarkChatUnread={requestMarkChatUnread}
 						onReorderPinnedAgent={requestReorderPinnedAgent}
 						onRenameTitle={requestRenameTitle}
 						onProposeTitle={requestProposeTitle}
@@ -802,7 +831,7 @@ const AgentsPageLayout: FC = () => {
 						"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
 						isSettingsIndex ? "hidden sm:flex" : "flex",
 						!agentId &&
-							!isSettingsDetail &&
+							!isFullPageRoute &&
 							sidebarView.panel === "chats" &&
 							"contents sm:flex sm:flex-1 sm:flex-col",
 					)}

@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
 import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import {
@@ -34,7 +33,7 @@ import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 // These stories cover transcript rendering, so history paging stays idle.
-const StoryChatPageTimeline: FC<{
+const StoryChatPageTimeline: React.FC<{
 	store: ReturnType<typeof createChatStore>;
 }> = ({ store }) => (
 	<MessageScroller.Provider autoScroll defaultScrollPosition="end">
@@ -47,6 +46,8 @@ const StoryChatPageTimeline: FC<{
 			isHydratingMessages={false}
 			hasFetchMoreError={false}
 			onFetchMoreMessages={async () => {}}
+			urlTransform={(url) => url}
+			mcpServers={[]}
 		/>
 	</MessageScroller.Provider>
 );
@@ -108,7 +109,7 @@ const mockCompactionModels: readonly TypesGen.ChatModel[] = [
 
 // Renders only the composer half of the chat page. Empty chat id and
 // organization keep the prompt-history and draft attachment queries disabled.
-const StoryChatPageInput: FC<{
+const StoryChatPageInput: React.FC<{
 	store: ReturnType<typeof createChatStore>;
 	onInterrupt?: () => void;
 	contextLimit?: number;
@@ -145,6 +146,21 @@ const StoryChatPageInput: FC<{
 			canConfigureAgentSetup={false}
 			isEditing={false}
 			onCancelHistoryEdit={fn()}
+			isReadOnly={false}
+			onReasoningEffortChange={fn()}
+			unsupportedProviderNames={[]}
+			onPlanModeToggle={fn()}
+			isModelCatalogLoading={false}
+			inputRef={{ current: null }}
+			initialValue=""
+			remountKey={0}
+			onContentChange={fn()}
+			editingFileBlocks={[]}
+			mcpServers={[]}
+			selectedMCPServerIds={[]}
+			onMCPSelectionChange={fn()}
+			onMCPAuthComplete={fn()}
+			isWorkspaceLoading={false}
 		/>
 	</div>
 );
@@ -264,6 +280,48 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 	},
 };
 
+// The advisor streams its reasoning and advice after its assistant message
+// is already durable. Both must land on that message's card, with no second
+// live card for the same call.
+export const StreamedAdvisorResultOverlaysDurableCall: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([
+			buildMessage(1, "user", [
+				{ type: "text", text: "Should the advisor be on by default?" },
+			]),
+			buildMessage(2, "assistant", [
+				{
+					type: "tool-call",
+					tool_call_id: "advisor-call",
+					tool_name: "advisor",
+					args: {
+						question: "on or off by default?",
+						model_intent: "Checking the default",
+					},
+				},
+			]),
+		]);
+		store.setChatStatus("running");
+		store.applyMessageParts([
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-call",
+				tool_name: "advisor",
+				reasoning_delta: "Weighing the default against the rollout risk.",
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-call",
+				tool_name: "advisor",
+				result_delta: "Keep it off by default and let teams opt in.",
+			},
+		]);
+
+		return <StoryChatPageTimeline store={store} />;
+	},
+};
+
 // Matches the fixed terminal error path.
 const errorClearsStreamStore = createChatStore();
 export const ErrorClearsStreamingTool: Story = {
@@ -358,6 +416,8 @@ export const InterruptingShowsBusyComposer: Story = {
 						isHydratingMessages={false}
 						hasFetchMoreError={false}
 						onFetchMoreMessages={async () => {}}
+						urlTransform={(url) => url}
+						mcpServers={[]}
 					/>
 					<StoryChatPageInput
 						store={store}
@@ -394,7 +454,7 @@ export const RunningShowsBusyComposer: Story = {
 	},
 };
 
-const CompactionChatPageInput: FC = () => {
+const CompactionChatPageInput: React.FC = () => {
 	const store = createChatStore();
 	store.replaceMessages([
 		buildMessage(1, "user", [{ type: "text", text: "Summarize the diff" }]),
@@ -437,6 +497,21 @@ const CompactionChatPageInput: FC = () => {
 				canConfigureAgentSetup={false}
 				isEditing={false}
 				onCancelHistoryEdit={fn()}
+				isReadOnly={false}
+				onReasoningEffortChange={fn()}
+				unsupportedProviderNames={[]}
+				onPlanModeToggle={fn()}
+				isModelCatalogLoading={false}
+				inputRef={{ current: null }}
+				initialValue=""
+				remountKey={0}
+				onContentChange={fn()}
+				editingFileBlocks={[]}
+				mcpServers={[]}
+				selectedMCPServerIds={[]}
+				onMCPSelectionChange={fn()}
+				onMCPAuthComplete={fn()}
+				isWorkspaceLoading={false}
 			/>
 		</div>
 	);

@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import {
 	Alert,
 	type AlertColor,
@@ -36,14 +35,14 @@ const severityBorderColors: Record<AlertColor, string> = {
 const getAlertClassName = (variant: AlertVariant, severity: AlertColor) => {
 	if (variant === AlertVariant.Inline) {
 		return cn(
-			"rounded-none border-0 border-b border-l-2 border-solid border-b-border-default",
+			"rounded-none border-0 border-b border-l-2 border-solid border-b-border",
 			severityBorderColors[severity],
 		);
 	}
 	return undefined;
 };
 
-export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
+export const ProvisionerAlert: React.FC<ProvisionerAlertProps> = ({
 	title,
 	detail,
 	severity,

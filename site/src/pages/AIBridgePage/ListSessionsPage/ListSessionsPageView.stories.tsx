@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import {
@@ -13,7 +12,9 @@ import {
 import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
-type FilterProps = ComponentProps<typeof ListSessionsPageView>["filterProps"];
+type FilterProps = React.ComponentProps<
+	typeof ListSessionsPageView
+>["filterProps"];
 
 const timeRange: DateTimeRangeValue = {
 	start: new Date("2026-08-12T15:00:00Z"),

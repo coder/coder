@@ -114,6 +114,10 @@ func (m *FakeConnectionLogger) Contains(t testing.TB, expected database.UpsertCo
 			t.Logf("connection log %d: expected DisconnectReason %s, got %s", idx+1, expected.DisconnectReason.String, cl.DisconnectReason.String)
 			continue
 		}
+		if expected.ClientSessionID.Valid && cl.ClientSessionID.String != expected.ClientSessionID.String {
+			t.Logf("connection log %d: expected ClientSessionID %s, got %s", idx+1, expected.ClientSessionID.String, cl.ClientSessionID.String)
+			continue
+		}
 		if !expected.Time.IsZero() && expected.Time != cl.Time {
 			t.Logf("connection log %d: expected Time %s, got %s", idx+1, expected.Time, cl.Time)
 			continue

@@ -17,7 +17,7 @@ OPTIONS:
   -o, --output table|json (default: table)
           Output format.
 
-      --search string (default: owner:me)
+      --search string (default: user:me)
           Search for a workspace with a query.
 
 ———

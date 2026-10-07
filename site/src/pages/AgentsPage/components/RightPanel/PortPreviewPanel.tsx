@@ -1,12 +1,11 @@
 import { ExternalLinkIcon, NetworkIcon } from "lucide-react";
-import type { FC } from "react";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { WorkspaceIframe } from "#/modules/apps/WorkspaceAppFrame";
 import { portForwardURL } from "#/utils/portForward";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 
-export const PortPreviewPanel: FC<{
+export const PortPreviewPanel: React.FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	host: string;
@@ -24,7 +23,7 @@ export const PortPreviewPanel: FC<{
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default bg-surface-secondary px-2 py-1 text-xs text-content-secondary">
+			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border bg-surface-secondary px-2 py-1 text-xs text-content-secondary">
 				<NetworkIcon className="size-3.5 shrink-0" />
 				<span className="min-w-0 truncate text-content-primary">
 					{tab.label}

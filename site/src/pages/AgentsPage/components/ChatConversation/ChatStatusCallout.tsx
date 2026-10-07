@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
 import { getProviderStatusURL } from "./chatStatusHelpers";
@@ -13,18 +13,13 @@ type ReconnectingStatus = Extract<LiveStatusModel, { phase: "reconnecting" }>;
 /**
  * Syncs with the system clock to produce a live countdown from an
  * ISO-8601 deadline. Polls at 100ms so the displayed second flips
- * within 100ms of the real transition. Returns 0 when no deadline is
- * provided or the deadline has passed.
+ * within 100ms of the real transition. Returns 0 when the deadline is
+ * invalid or has passed.
  */
-const useDeadlineCountdown = (deadline: string | undefined): number => {
+const useDeadlineCountdown = (deadline: string): number => {
 	const [secondsLeft, setSecondsLeft] = useState(0);
 
 	useEffect(() => {
-		if (!deadline) {
-			setSecondsLeft(0);
-			return;
-		}
-
 		const targetMs = new Date(deadline).getTime();
 		if (!Number.isFinite(targetMs)) {
 			setSecondsLeft(0);
@@ -49,7 +44,7 @@ const useDeadlineCountdown = (deadline: string | undefined): number => {
  * re-render this span, not the parent Alert (which contains a Radix Slot
  * that infinite-loops on rapid re-renders).
  */
-const StatusCountdown: FC<{
+const StatusCountdown: React.FC<{
 	deadline: string;
 	label: string;
 }> = ({ deadline, label }) => {
@@ -64,7 +59,7 @@ const StatusCountdown: FC<{
 	);
 };
 
-const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
+const StatusAlert: React.FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 	const statusURL = getProviderStatusURL(status.kind, status.provider);
 	const severity =
 		status.phase === "failed"
@@ -126,7 +121,9 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 	);
 };
 
-const ReconnectingAlert: FC<{ status: ReconnectingStatus }> = ({ status }) => {
+const ReconnectingAlert: React.FC<{ status: ReconnectingStatus }> = ({
+	status,
+}) => {
 	return (
 		<Alert
 			severity="info"
@@ -146,7 +143,7 @@ const ReconnectingAlert: FC<{ status: ReconnectingStatus }> = ({ status }) => {
 	);
 };
 
-export const ChatStatusCallout: FC<{
+export const ChatStatusCallout: React.FC<{
 	status: LiveStatusModel;
 }> = ({ status }) => {
 	switch (status.phase) {

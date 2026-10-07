@@ -1,5 +1,4 @@
 import { TriangleAlertIcon, XIcon } from "lucide-react";
-import type { FC } from "react";
 import { JobError } from "#/api/queries/templates";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -32,7 +31,7 @@ type BuildLogsDrawerProps = {
 	templateVersion: TemplateVersion | undefined;
 };
 
-export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
+export const BuildLogsDrawer: React.FC<BuildLogsDrawerProps> = ({
 	templateVersion,
 	error,
 	open,
@@ -111,7 +110,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 
 type MissingVariablesBannerProps = { onFillVariables: () => void };
 
-const MissingVariablesBanner: FC<MissingVariablesBannerProps> = ({
+const MissingVariablesBanner: React.FC<MissingVariablesBannerProps> = ({
 	onFillVariables,
 }) => {
 	return (

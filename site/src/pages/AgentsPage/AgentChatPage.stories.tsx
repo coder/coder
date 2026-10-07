@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -59,7 +58,7 @@ import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
 // ---------------------------------------------------------------------------
-const AgentChatPageLayout: FC = () => {
+const AgentChatPageLayout: React.FC = () => {
 	return (
 		<div className="flex h-full">
 			<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -103,7 +102,7 @@ const STALE_MODEL_CONFIG_ID = "stale-model-config";
 const DISABLED_DEFAULT_MODEL_CONFIG_ID = "disabled-default-model-config";
 const RECOVERY_MODEL_CONFIG_ID = "recovery-model-config";
 
-const AgentChatSwitchHarness: FC = () => {
+const AgentChatSwitchHarness: React.FC = () => {
 	const navigate = useNavigate();
 	return (
 		<>
@@ -189,6 +188,8 @@ const baseChatFields = {
 	last_model_config_id: MODEL_CONFIG_ID,
 	mcp_server_ids: [],
 	labels: {},
+	title_source: "generated",
+	title_updated_at: "2026-02-18T00:00:00.000Z",
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,
@@ -2020,9 +2021,11 @@ export const WithReasoningInline: Story = {
 		const canvas = within(canvasElement);
 
 		// Reasoning renders inside a collapsible disclosure.
-		const trigger = canvas.getByRole("button", { name: "Thinking" });
+		const trigger = canvas.getByRole("button", {
+			name: "Thinking: Reasoning body",
+		});
 		await userEvent.click(trigger);
-		await canvas.findByText("Reasoning body");
+		await canvas.findByText("Reasoning body", { selector: "p" });
 	},
 };
 

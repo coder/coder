@@ -81,6 +81,37 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 	return log
 }
 
+func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) database.ChatProject {
+	t.Helper()
+
+	project, err := db.InsertChatProject(genCtx, database.InsertChatProjectParams{
+		ID:             uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
+		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
+		OwnerID:        takeFirst(seed.OwnerID, uuid.New()),
+		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
+		Description:    seed.Description,
+		Icon:           seed.Icon,
+	})
+	require.NoError(t, err, "insert chat project")
+	return project
+}
+
+func ChatProjectMemory(t testing.TB, db database.Store, seed database.ChatProjectMemory) database.ChatProjectMemory {
+	t.Helper()
+
+	memory, err := db.InsertChatProjectMemory(genCtx, database.InsertChatProjectMemoryParams{
+		ID:             uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
+		ProjectID:      takeFirst(seed.ProjectID, uuid.New()),
+		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
+		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
+		Description:    seed.Description,
+		Body:           seed.Body,
+		CreatedBy:      takeFirst(seed.CreatedBy, uuid.New()),
+	})
+	require.NoError(t, err, "insert chat project memory")
+	return memory
+}
+
 func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	t.Helper()
 
@@ -95,6 +126,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		ID:                uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
 		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
+		ProjectID:         seed.ProjectID,
 		WorkspaceID:       seed.WorkspaceID,
 		BuildID:           seed.BuildID,
 		AgentID:           seed.AgentID,
@@ -102,6 +134,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		RootChatID:        seed.RootChatID,
 		LastModelConfigID: takeFirst(seed.LastModelConfigID, uuid.New()),
 		Title:             takeFirst(seed.Title, testutil.GetRandomName(t)),
+		TitleSource:       database.NullChatTitleSource{ChatTitleSource: seed.TitleSource, Valid: seed.TitleSource != ""},
 		Mode:              seed.Mode,
 		PlanMode:          seed.PlanMode,
 		Status:            takeFirst(seed.Status, database.ChatStatusWaiting),
@@ -109,9 +142,70 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		Labels:            labels,
 		DynamicTools:      seed.DynamicTools,
 		ClientType:        takeFirst(seed.ClientType, database.ChatClientTypeUi),
+
+		ManageAutomationsEnabled: seed.ManageAutomationsEnabled,
 	})
 	require.NoError(t, err, "insert chat")
 	return chat
+}
+
+// ChatAutomation inserts a chat automation. It defaults to a multi-use
+// webhook that targets an existing chat and queues when busy, and fills
+// the shape-required columns for whichever kind and target mode the seed
+// selects. Callers must supply OrganizationID and OwnerID, and
+// NewChatModelConfigID for new_chat targets.
+func ChatAutomation(t testing.TB, db database.Store, seed database.ChatAutomation) database.ChatAutomation {
+	t.Helper()
+
+	kind := takeFirst(seed.Kind, database.ChatAutomationKindWebhook)
+	webhookUse := seed.WebhookUse
+	scheduleCron := seed.ScheduleCron
+	scheduleTimeZone := seed.ScheduleTimeZone
+	switch kind {
+	case database.ChatAutomationKindWebhook:
+		if !webhookUse.Valid {
+			webhookUse = database.NullChatAutomationWebhookUse{ChatAutomationWebhookUse: database.ChatAutomationWebhookUseMulti, Valid: true}
+		}
+	case database.ChatAutomationKindSchedule:
+		if !scheduleCron.Valid {
+			scheduleCron = sql.NullString{String: "0 9 * * *", Valid: true}
+		}
+		if !scheduleTimeZone.Valid {
+			scheduleTimeZone = sql.NullString{String: "UTC", Valid: true}
+		}
+	}
+
+	targetMode := takeFirst(seed.TargetMode, database.ChatAutomationTargetModeExistingChat)
+	whenBusy := seed.WhenBusy
+	if targetMode == database.ChatAutomationTargetModeExistingChat && !whenBusy.Valid {
+		whenBusy = database.NullChatAutomationWhenBusy{ChatAutomationWhenBusy: database.ChatAutomationWhenBusyQueue, Valid: true}
+	}
+
+	automation, err := db.InsertChatAutomation(genCtx, database.InsertChatAutomationParams{
+		ID:                   takeFirst(seed.ID, uuid.New()),
+		OrganizationID:       takeFirst(seed.OrganizationID, uuid.New()),
+		OwnerID:              takeFirst(seed.OwnerID, uuid.New()),
+		Name:                 takeFirst(seed.Name, testutil.GetRandomName(t)),
+		CreatedByChatID:      seed.CreatedByChatID,
+		Kind:                 kind,
+		Enabled:              seed.Enabled,
+		TargetMode:           targetMode,
+		TargetChatID:         seed.TargetChatID,
+		NewChatModelConfigID: seed.NewChatModelConfigID,
+		ReasoningEffort:      seed.ReasoningEffort,
+		WhenBusy:             whenBusy,
+		WebhookUse:           webhookUse,
+		WebhookSecretHash:    seed.WebhookSecretHash,
+		WebhookSecretVersion: seed.WebhookSecretVersion,
+		Prompt:               takeFirst(seed.Prompt, "Summarize the latest activity."),
+		ScheduleCron:         scheduleCron,
+		ScheduleTimeZone:     scheduleTimeZone,
+		ScheduleNextRunAt:    seed.ScheduleNextRunAt,
+		CreatedAt:            takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt:            takeFirst(seed.UpdatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert chat automation")
+	return automation
 }
 
 func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) database.ChatMessage {
@@ -141,6 +235,10 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
+		ProviderResponseID:  []string{seed.ProviderResponseID.String},
+		QueuedMessageID:     []int64{seed.QueuedMessageID.Int64},
+		AutomationID:        []uuid.UUID{seed.AutomationID.UUID},
+		InputID:             []uuid.UUID{seed.InputID.UUID},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
@@ -413,6 +511,38 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 	return cfg
 }
 
+func ChatMCPServer(t testing.TB, db database.Store, seed database.ChatMCPServer) database.ChatMCPServer {
+	t.Helper()
+
+	chatID := seed.ChatID
+	if chatID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		owner := User(t, db, database.User{})
+		model := ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: defaultOrg.ID})
+		chatID = Chat(t, db, database.Chat{
+			OrganizationID:    defaultOrg.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: model.ID,
+		}).ID
+	}
+
+	server, err := db.UpsertChatMCPServer(genCtx, database.UpsertChatMCPServerParams{
+		ID:                  takeFirst(seed.ID, uuid.New()),
+		ChatID:              chatID,
+		Slug:                takeFirst(seed.Slug, testutil.GetRandomName(t)),
+		Url:                 takeFirst(seed.Url, "https://mcp.example.com/mcp"),
+		Headers:             takeFirst(seed.Headers, "{}"),
+		HeadersKeyID:        seed.HeadersKeyID,
+		ToolAllowList:       takeFirstSlice(seed.ToolAllowList, []string{}),
+		ToolDenyList:        takeFirstSlice(seed.ToolDenyList, []string{}),
+		AllowInSubagents:    seed.AllowInSubagents,
+		ForwardCoderHeaders: seed.ForwardCoderHeaders,
+	})
+	require.NoError(t, err, "upsert chat MCP server")
+	return server
+}
+
 func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnectionLogParams) database.ConnectionLog {
 	arg := database.UpsertConnectionLogParams{
 		ID:               takeFirst(seed.ID, uuid.New()),
@@ -454,6 +584,10 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			String: takeFirst(seed.DisconnectReason.String, ""),
 			Valid:  takeFirst(seed.DisconnectReason.Valid, false),
 		},
+		ClientSessionID: sql.NullString{
+			String: takeFirst(seed.ClientSessionID.String, ""),
+			Valid:  takeFirst(seed.ClientSessionID.Valid, false),
+		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
 	}
 
@@ -480,6 +614,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
 		DisconnectReason: []string{arg.DisconnectReason.String},
 		DisconnectTime:   []time.Time{disconnectTime.Time},
+		ClientSessionID:  []string{arg.ClientSessionID.String},
 	})
 	require.NoError(t, err, "insert connection log")
 
@@ -2034,6 +2169,8 @@ func AIBridgeTokenUsage(t testing.TB, db database.Store, seed database.InsertAIB
 		CacheReadPriceMicros:  seed.CacheReadPriceMicros,
 		CacheWritePriceMicros: seed.CacheWritePriceMicros,
 		CostMicros:            seed.CostMicros,
+		ProviderModel:         seed.ProviderModel,
+		PricedModel:           seed.PricedModel,
 	})
 	require.NoError(t, err, "insert aibridge token usage")
 	return usage

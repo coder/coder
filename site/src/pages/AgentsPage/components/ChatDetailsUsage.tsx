@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import {
 	compactionThresholdLabel,
 	formatContextTokenCount,
@@ -6,7 +5,7 @@ import {
 import { compactionTriggerTokens } from "../utils/modelOptions";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 
-export const ChatDetailsUsage: FC<{
+export const ChatDetailsUsage: React.FC<{
 	usage: AgentContextUsage | null;
 	compact?: boolean;
 }> = ({ usage, compact = false }) => {
@@ -38,9 +37,7 @@ export const ChatDetailsUsage: FC<{
 			<span
 				className="block h-full rounded-full bg-content-link forced-colors:bg-[Highlight]"
 				style={{
-					width:
-						(percent === undefined ? 0 : Math.min(100, Math.max(0, percent))) +
-						"%",
+					width: `${percent === undefined ? 0 : Math.min(100, Math.max(0, percent))}%`,
 				}}
 			/>
 		</span>

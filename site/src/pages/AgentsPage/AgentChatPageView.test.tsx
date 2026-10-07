@@ -33,9 +33,17 @@ const Page = ({ initiallyOpen = false }: { initiallyOpen?: boolean }) => {
 				onMCPSelectionChange={vi.fn()}
 				onMCPAuthComplete={vi.fn()}
 				modelSelectorPlaceholder="Select model"
+				onReasoningEffortChange={vi.fn()}
+				unsupportedProviderNames={[]}
 				hasModelOptions={false}
+				isModelCatalogLoading={false}
+				onPlanModeToggle={vi.fn()}
 				canConfigureAgentSetup={false}
 				isInputDisabled={false}
+				isWorkspaceLoading={false}
+				onImplementPlan={vi.fn()}
+				onSendAskUserQuestionResponse={vi.fn()}
+				urlTransform={(url) => url}
 				isSubmissionPending={false}
 				isInterruptPending={false}
 				showSidebarPanel={open}
@@ -51,7 +59,6 @@ const Page = ({ initiallyOpen = false }: { initiallyOpen?: boolean }) => {
 					refresh: vi.fn(),
 				}}
 				sshCommand={undefined}
-				handleCommit={vi.fn()}
 				handleInterrupt={vi.fn()}
 				handleDeleteQueuedMessage={vi.fn()}
 				handlePromoteQueuedMessage={vi.fn()}

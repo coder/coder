@@ -12,6 +12,7 @@ export type ChatTreeContextValue = {
 	readonly isLoadingModelConfigs: boolean;
 	readonly chatErrorReasons: Record<string, string>;
 	readonly activeChatId: string | undefined;
+	readonly currentUserId: string;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
 	readonly toggleExpanded: (chatID: string) => void;
@@ -23,6 +24,8 @@ export type ChatTreeContextValue = {
 	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
+	readonly onMarkChatRead: (chatId: string) => void;
+	readonly onMarkChatUnread: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 };
 

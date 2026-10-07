@@ -2,7 +2,7 @@ import { cn } from "cn";
 import { useFormik } from "formik";
 import { ArrowLeftIcon, CheckIcon } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
 import * as Yup from "yup";
@@ -112,7 +112,7 @@ const createOrgMemberCheck = {
 	action: "create",
 } as const;
 
-export const CreateUserForm: FC<CreateUserFormProps> = (props) => {
+export const CreateUserForm: React.FC<CreateUserFormProps> = (props) => {
 	const availableLoginTypes = (
 		["password", "oidc", "github", "none"] as const
 	).filter((key) => {
@@ -163,7 +163,7 @@ type CreateUserFormFieldsProps = CreateUserFormProps & {
 	defaultLoginType: AvailableLoginType;
 };
 
-const CreateUserFormFields: FC<CreateUserFormFieldsProps> = ({
+const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 	error,
 	isLoading,
 	onSubmit,

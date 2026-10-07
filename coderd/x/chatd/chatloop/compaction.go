@@ -143,6 +143,9 @@ type CompactionResult struct {
 	// PersistedStep.Runtime). Zero when the run was gated off before
 	// calling the model.
 	Runtime time.Duration
+	// ProviderResponseID identifies the summary response. See
+	// PersistedStep.ProviderResponseID.
+	ProviderResponseID string
 }
 
 // GenerateCompaction generates one context summary and returns it without
@@ -207,7 +210,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	if opts.OnModelStreamStart != nil {
 		opts.OnModelStreamStart()
 	}
-	summary, err := generateCompactionSummary(ctx, opts.Model, opts.Messages, config)
+	summary, responseID, err := generateCompactionSummary(ctx, opts.Model, opts.Messages, config)
 	if err != nil {
 		publishCompactionError(config, "failed to generate compaction summary")
 		return CompactionResult{}, err
@@ -222,13 +225,14 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		SystemSummary: strings.TrimSpace(
 			config.SystemSummaryPrefix + "\n\n" + summary,
 		),
-		SummaryReport:    summary,
-		Source:           config.Source,
-		ThresholdPercent: config.ThresholdPercent,
-		UsagePercent:     usagePercent,
-		ContextTokens:    contextTokens,
-		ContextLimit:     contextLimit,
-		Runtime:          summaryRuntime,
+		SummaryReport:      summary,
+		Source:             config.Source,
+		ThresholdPercent:   config.ThresholdPercent,
+		UsagePercent:       usagePercent,
+		ContextTokens:      contextTokens,
+		ContextLimit:       contextLimit,
+		Runtime:            summaryRuntime,
+		ProviderResponseID: responseID,
 	}
 	result.EstimatedContextTokens = int64((len(result.SystemSummary) + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
@@ -481,7 +485,7 @@ func generateCompactionSummary(
 	model fantasy.LanguageModel,
 	messages []fantasy.Message,
 	options CompactionOptions,
-) (summary string, err error) {
+) (summary string, responseID string, err error) {
 	summaryPrompt := make([]fantasy.Message, 0, len(messages)+1)
 	summaryPrompt = append(summaryPrompt, messages...)
 	summaryParts := []fantasy.MessagePart{fantasy.TextPart{Text: options.SummaryPrompt}}
@@ -492,10 +496,10 @@ func generateCompactionSummary(
 		Role:    fantasy.MessageRoleUser,
 		Content: summaryParts,
 	})
-	// Anthropic only reads the cache at explicit breakpoints, so without
+	// Claude only reads the cache at explicit breakpoints, so without
 	// these the shared tool and history prefix is never a cache hit.
-	if shouldApplyAnthropicPromptCaching(model) {
-		addAnthropicPromptCaching(summaryPrompt)
+	if applyPromptCaching := promptCachingStrategyFor(model, model.Model()); applyPromptCaching != nil {
+		applyPromptCaching(summaryPrompt)
 	}
 
 	summaryCtx, finishDebugRun := startCompactionDebugRun(ctx, options)
@@ -525,8 +529,8 @@ func generateCompactionSummary(
 	if timeout == 0 {
 		timeout = DefaultStreamSilenceTimeout
 	}
-	// NopMetrics: TTFT is an assistant-generation metric, so the summary
-	// stream must not record into it.
+	// TTFT is an assistant-generation measurement, so the summary stream
+	// records neither its histogram nor its stage.
 	streamSummaryText := func() (string, error) {
 		attempt, err := guardedStream(
 			summaryCtx,
@@ -538,6 +542,8 @@ func generateCompactionSummary(
 				return model.Stream(attemptCtx, call)
 			},
 			NopMetrics(),
+			(*StageTracer)(nil),
+			StageModel{},
 		)
 		if err != nil {
 			return "", xerrors.Errorf("stream summary text: %w", wrapProviderStreamError(options.ResolvedProvider, err))
@@ -575,6 +581,7 @@ func generateCompactionSummary(
 			case fantasy.StreamPartTypeFinish:
 				finishSeen = true
 				finishReason = part.FinishReason
+				responseID = providerResponseID(part)
 			case fantasy.StreamPartTypeError:
 				streamErr = part.Error
 				if streamErr == nil {
@@ -626,7 +633,7 @@ func generateCompactionSummary(
 		call.Tools = nil
 		summary, err = streamSummaryText()
 	}
-	return summary, err
+	return summary, responseID, err
 }
 
 // contextTooLargePhrases are context-window rejections fantasy does not

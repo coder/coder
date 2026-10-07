@@ -7,7 +7,6 @@
 import { isPixel } from "@coder/pixel-storybook/storyapi";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
-import type { ReactNode } from "react";
 
 const leaves = Array.from({ length: 8 }).map((_, i) => i);
 
@@ -25,7 +24,7 @@ const spinnerVariants = cva("", {
 
 type SpinnerProps = React.ComponentProps<"svg"> &
 	VariantProps<typeof spinnerVariants> & {
-		children?: ReactNode;
+		children?: React.ReactNode;
 		loading?: boolean;
 		/**
 		 * Exposes the spinner as an accessible live region labelled with this text. Leave undefined for

@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChatContext } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -29,7 +29,7 @@ export type AgentContextUsage = {
 	readonly context?: ChatContext;
 };
 
-export const ContextUsageIndicator: FC<{
+export const ContextUsageIndicator: React.FC<{
 	usage: AgentContextUsage | null;
 	onOpenDetails: (opener: HTMLButtonElement | null) => void;
 }> = ({ usage, onOpenDetails }) => {
@@ -116,7 +116,7 @@ export const ContextUsageIndicator: FC<{
 					}}
 				>
 					<SvgRingProgress
-						size={21.5}
+						size={22}
 						strokeWidth={2.25}
 						percent={percent}
 						trackClassName="stroke-current opacity-30 forced-colors:opacity-100 forced-colors:stroke-[GrayText]"

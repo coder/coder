@@ -1,14 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	type RefObject,
-	useId,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { chat, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -42,10 +34,10 @@ type ChatDetailsPanelProps = {
 	applyError?: unknown;
 	applySuccess?: boolean;
 	workspaceStatus?: string;
-	focusRef?: RefObject<HTMLDivElement | null>;
+	focusRef?: React.RefObject<HTMLDivElement | null>;
 };
 
-export const ChatDetailsPanel: FC<ChatDetailsPanelProps> = ({
+export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 	chatId,
 	isVisible,
 	focusRef,
@@ -59,7 +51,7 @@ export const ChatDetailsPanel: FC<ChatDetailsPanelProps> = ({
 		...chatCost(rootChatId),
 		enabled: isVisible && showCost && chatData !== undefined,
 	});
-	let summary: ReactNode = (
+	let summary: React.ReactNode = (
 		<Skeleton aria-label="Loading summary" className="h-20 w-full" />
 	);
 	if (chatData)
@@ -90,14 +82,14 @@ export const ChatDetailsPanel: FC<ChatDetailsPanelProps> = ({
 	);
 };
 
-const DetailsSection: FC<{
+const DetailsSection: React.FC<{
 	title: string;
 	count?: string;
 	defaultOpen?: boolean;
 	description?: string;
 	warning?: boolean;
-	compactContent?: ReactNode;
-	children: ReactNode;
+	compactContent?: React.ReactNode;
+	children: React.ReactNode;
 }> = ({
 	title,
 	count,
@@ -114,7 +106,7 @@ const DetailsSection: FC<{
 		<Collapsible
 			open={open}
 			onOpenChange={setOpen}
-			className="border-0 border-b border-solid border-border-default last:border-b-0"
+			className="border-0 border-b border-solid border-border last:border-b-0"
 		>
 			<h3 className="m-0 text-sm font-medium">
 				<CollapsibleTrigger asChild>
@@ -163,9 +155,9 @@ const DetailsSection: FC<{
 	);
 };
 
-const DetailsSections: FC<
+const DetailsSections: React.FC<
 	Omit<ChatDetailsPanelProps, "chatId" | "isVisible" | "focusRef"> & {
-		summary: ReactNode;
+		summary: React.ReactNode;
 	}
 > = ({
 	usage,
@@ -212,7 +204,7 @@ const DetailsSections: FC<
 				{Boolean(
 					context?.dirty || context?.error || applyError || showApply,
 				) && (
-					<div className="flex flex-col gap-2 border-0 border-b border-solid border-border-default p-4 text-xs">
+					<div className="flex flex-col gap-2 border-0 border-b border-solid border-border p-4 text-xs">
 						{context?.dirty && (
 							<p className="m-0 text-highlight-orange">
 								New workspace context is available. This chat is using the
@@ -320,10 +312,7 @@ const DetailsSections: FC<
 					title="MCP servers"
 					count={
 						inventory.known
-							? inventory.connectedServers +
-								" of " +
-								inventory.servers.length +
-								" connected"
+							? `${inventory.connectedServers} of ${inventory.servers.length} connected`
 							: undefined
 					}
 					warning={
@@ -331,10 +320,9 @@ const DetailsSections: FC<
 						Boolean(staleWorkspace)
 					}
 					description={
-						"Status from latest workspace sync" +
-						(staleWorkspace
-							? `. Workspace ${workspaceStatus}; status may be stale.`
-							: ".")
+						staleWorkspace
+							? `Status from latest workspace sync. Workspace ${workspaceStatus}; status may be stale.`
+							: "Status from latest workspace sync."
 					}
 				>
 					{inventory.servers.length === 0 && (

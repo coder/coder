@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
@@ -30,7 +30,7 @@ function getRightPanelState(): { open: boolean; width: number } {
  * sidebar + empty main area layout so the user sees structure
  * immediately instead of a fullscreen spinner.
  */
-export const AgentsPageLayoutSkeleton: FC = () => {
+export const AgentsPageLayoutSkeleton: React.FC = () => {
 	const [leftSidebarWidth] = useState(() => loadPersistedLeftSidebarWidth());
 
 	return (
@@ -39,11 +39,11 @@ export const AgentsPageLayoutSkeleton: FC = () => {
 				style={{
 					"--agents-left-sidebar-width": `${leftSidebarWidth}px`,
 				}}
-				className="order-2 sm:order-0 flex-1 min-h-0 border-t border-border-default sm:flex-none sm:border-t-0 sm:h-full sm:w-(--agents-left-sidebar-width) sm:min-w-[240px] sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
+				className="order-2 sm:order-0 flex-1 min-h-0 border-t border-border sm:flex-none sm:border-t-0 sm:h-full sm:w-(--agents-left-sidebar-width) sm:min-w-[240px] sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
 			>
 				<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 					<div className="absolute inset-0 flex flex-col">
-						<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 sm:block">
+						<div className="hidden border-b border-border px-2 pb-3 pt-1.5 sm:block">
 							<div className="mb-2.5 flex items-center justify-between">
 								<Skeleton className="size-6 rounded" />
 								<div className="flex items-center gap-0.5 -mr-1.5">
@@ -86,7 +86,7 @@ export const AgentsPageLayoutSkeleton: FC = () => {
  * Skeleton placeholder for a chat conversation: two user message
  * bubbles interleaved with assistant response lines.
  */
-export const ChatConversationSkeleton: FC = () => (
+export const ChatConversationSkeleton: React.FC = () => (
 	<div className="flex flex-col gap-3">
 		{/* User message bubble (right-aligned) */}
 		<div className="flex w-full justify-end">
@@ -117,10 +117,10 @@ export const ChatConversationSkeleton: FC = () => (
  * Skeleton placeholder for the right sidebar panel: a tab bar and
  * a few content lines.
  */
-export const RightPanelSkeleton: FC = () => (
+export const RightPanelSkeleton: React.FC = () => (
 	<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 		{/* Skeleton tab bar */}
-		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1">
+		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1">
 			<Skeleton className="h-6 w-12 rounded-md" />
 			<div className="flex-1" />
 		</div>
@@ -138,7 +138,7 @@ export const RightPanelSkeleton: FC = () => (
  * the real AgentChatInput so the transition from Suspense fallback to
  * the loaded component doesn't cause a vertical layout shift.
  */
-const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
+const ChatInputSkeleton: React.FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
 	<div className="shrink-0 overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin">
 		<div
 			className={cn("mx-auto w-full pb-0 sm:pb-4", chatWidthClass(fullWidth))}
@@ -159,7 +159,7 @@ const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
  * top bar + chat conversation layout so the user sees navigable
  * structure during the brief Suspense fallback.
  */
-export const AgentChatPageSkeleton: FC = () => {
+export const AgentChatPageSkeleton: React.FC = () => {
 	const rightPanel = getRightPanelState();
 	const [chatFullWidth] = useChatFullWidth();
 
@@ -197,7 +197,7 @@ export const AgentChatPageSkeleton: FC = () => {
 					style={{
 						"--panel-width": `${rightPanel.width}px`,
 					}}
-					className="relative flex h-full w-screen min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-(--panel-width) sm:min-w-[360px] sm:max-w-[70vw]"
+					className="relative flex h-full w-screen min-w-0 flex-col border-0 border-l border-solid border-border sm:w-(--panel-width) sm:min-w-[360px] sm:max-w-[70vw]"
 				>
 					<RightPanelSkeleton />
 				</div>
