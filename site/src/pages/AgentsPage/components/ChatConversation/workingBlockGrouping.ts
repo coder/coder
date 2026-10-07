@@ -16,6 +16,12 @@ export type WorkingBlock = {
 	 */
 	liveKey: string;
 	rowIndices: number[];
+	/**
+	 * Persisted member message IDs, oldest first. A merged read_file row
+	 * contributes every message it merged, so unlike row keys the list grows
+	 * at the front when history is prepended into that row.
+	 */
+	memberIds: number[];
 	/** Distinct visible tools, not rows. */
 	stepCount: number;
 	isLive: boolean;
@@ -249,6 +255,7 @@ export const groupWorkingBlocks = (
 			key,
 			liveKey,
 			rowIndices: draft.rowIndices,
+			memberIds,
 			stepCount: draft.toolIds.size,
 			isLive,
 			isPartial: options.hasMoreMessages && firstRowIndex === 0,
