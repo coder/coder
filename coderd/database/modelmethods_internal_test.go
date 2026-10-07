@@ -186,7 +186,7 @@ func TestChatACLDisabled(t *testing.T) {
 
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
 func TestChatProjectRBACObjects(t *testing.T) {
-	readUser, updateUser, wildcardUser, noReadUser := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
+	readUser, updateUser, wildcardUser, noReadUser, updateOnlyUser := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
 	readGroup, updateGroup := uuid.NewString(), uuid.NewString()
 	project := ChatProject{
 		ID:             uuid.New(),
@@ -197,13 +197,16 @@ func TestChatProjectRBACObjects(t *testing.T) {
 			updateUser:   {Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}},
 			wildcardUser: {Permissions: []policy.Action{policy.WildcardSymbol}},
 			noReadUser:   {Permissions: []policy.Action{policy.ActionShare}},
+			// RBAC denies reading the project without read, so its memories
+			// get nothing either.
+			updateOnlyUser: {Permissions: []policy.Action{policy.ActionUpdate}},
 		},
 		GroupACL: ChatACL{
 			readGroup:   {Permissions: []policy.Action{policy.ActionRead}},
 			updateGroup: {Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate}},
 		},
 	}
-	write := []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete}
+	readWrite := []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete}
 
 	t.Run("Enabled", func(t *testing.T) {
 		rbac.SetChatACLDisabled(false)
@@ -216,12 +219,12 @@ func TestChatProjectRBACObjects(t *testing.T) {
 		memory := ChatProjectMemoryRBACObject(project)
 		require.Equal(t, map[string][]policy.Action{
 			readUser:     {policy.ActionRead},
-			updateUser:   write,
-			wildcardUser: write,
+			updateUser:   readWrite,
+			wildcardUser: readWrite,
 		}, memory.ACLUserList)
 		require.Equal(t, map[string][]policy.Action{
 			readGroup:   {policy.ActionRead},
-			updateGroup: write,
+			updateGroup: readWrite,
 		}, memory.ACLGroupList)
 
 		memoryID := uuid.New()

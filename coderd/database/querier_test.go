@@ -2229,7 +2229,7 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{recipientChat.ID}, chatIDs(disabledRows))
 }
 
-func TestGetChatProjectsAccessibleByUserID(t *testing.T) {
+func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -2244,8 +2244,9 @@ func TestGetChatProjectsAccessibleByUserID(t *testing.T) {
 	direct := dbgen.User(t, db, database.User{})
 	groupMember := dbgen.User(t, db, database.User{})
 	orgMember := dbgen.User(t, db, database.User{})
+	wildcard := dbgen.User(t, db, database.User{})
 	outsider := dbgen.User(t, db, database.User{})
-	for _, user := range []database.User{owner, direct, groupMember, orgMember} {
+	for _, user := range []database.User{owner, direct, groupMember, orgMember, wildcard} {
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 	}
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: outsider.ID, OrganizationID: otherOrg.ID})
@@ -2271,9 +2272,16 @@ func TestGetChatProjectsAccessibleByUserID(t *testing.T) {
 	share(outsiderShared, database.ChatACL{outsider.ID.String(): read}, database.ChatACL{})
 	// The query matches ACL keys without checking actions, so this row is
 	// returned raw and removed by dbauthz.
+	noReadEntry := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionShare}}
 	noRead := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
-	share(noRead, database.ChatACL{direct.ID.String(): {Permissions: []policy.Action{policy.ActionShare}}}, database.ChatACL{})
-	all := []uuid.UUID{private.ID, userShared.ID, groupShared.ID, everyoneShared.ID, outsiderShared.ID, noRead.ID}
+	share(noRead, database.ChatACL{direct.ID.String(): noReadEntry}, database.ChatACL{})
+	groupNoRead := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(groupNoRead, database.ChatACL{}, database.ChatACL{group.ID.String(): noReadEntry})
+	everyoneNoRead := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(everyoneNoRead, database.ChatACL{}, database.ChatACL{org.ID.String(): noReadEntry})
+	wildcardShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(wildcardShared, database.ChatACL{wildcard.ID.String(): {Permissions: []policy.Action{policy.WildcardSymbol}}}, database.ChatACL{})
+	all := []uuid.UUID{private.ID, userShared.ID, groupShared.ID, everyoneShared.ID, outsiderShared.ID, noRead.ID, groupNoRead.ID, everyoneNoRead.ID, wildcardShared.ID}
 
 	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 	authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
@@ -2293,18 +2301,19 @@ func TestGetChatProjectsAccessibleByUserID(t *testing.T) {
 		// grants with read apply.
 		authorized []uuid.UUID
 	}{
-		{"Direct", direct, []uuid.UUID{userShared.ID, everyoneShared.ID, noRead.ID}, []uuid.UUID{userShared.ID, everyoneShared.ID}},
-		{"Group", groupMember, []uuid.UUID{groupShared.ID, everyoneShared.ID}, []uuid.UUID{groupShared.ID, everyoneShared.ID}},
-		{"Everyone", orgMember, []uuid.UUID{everyoneShared.ID}, []uuid.UUID{everyoneShared.ID}},
+		{"Direct", direct, []uuid.UUID{userShared.ID, everyoneShared.ID, noRead.ID, everyoneNoRead.ID}, []uuid.UUID{userShared.ID, everyoneShared.ID}},
+		{"Group", groupMember, []uuid.UUID{groupShared.ID, everyoneShared.ID, groupNoRead.ID, everyoneNoRead.ID}, []uuid.UUID{groupShared.ID, everyoneShared.ID}},
+		{"Everyone", orgMember, []uuid.UUID{everyoneShared.ID, everyoneNoRead.ID}, []uuid.UUID{everyoneShared.ID}},
+		{"Wildcard", wildcard, []uuid.UUID{wildcardShared.ID, everyoneShared.ID, everyoneNoRead.ID}, []uuid.UUID{wildcardShared.ID, everyoneShared.ID}},
 		{"Outsider", outsider, nil, nil},
 	} {
-		projects, err := db.GetChatProjectsAccessibleByUserID(ctx, tc.user.ID)
+		projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, tc.user.ID)
 		require.NoError(t, err, tc.name)
 		require.ElementsMatch(t, tc.raw, ids(projects), tc.name)
 
 		subject, _, err := httpmw.UserRBACSubject(ctx, db, tc.user.ID, rbac.ExpandableScope(rbac.ScopeAll))
 		require.NoError(t, err, tc.name)
-		projects, err = authzdb.GetChatProjectsAccessibleByUserID(dbauthz.As(ctx, subject), tc.user.ID)
+		projects, err = authzdb.GetChatProjectsOwnedOrSharedWithUserID(dbauthz.As(ctx, subject), tc.user.ID)
 		require.NoError(t, err, tc.name)
 		require.ElementsMatch(t, tc.authorized, ids(projects), tc.name)
 
@@ -2318,7 +2327,7 @@ func TestGetChatProjectsAccessibleByUserID(t *testing.T) {
 		}
 	}
 
-	projects, err := db.GetChatProjectsAccessibleByUserID(ctx, owner.ID)
+	projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, owner.ID)
 	require.NoError(t, err)
 	require.ElementsMatch(t, all, ids(projects))
 	for _, projectID := range all {
@@ -2335,7 +2344,7 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{})
@@ -2379,6 +2388,8 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		got = append(got, row.ID)
 	}
 	require.ElementsMatch(t, family, got)
+	// Roots lock before sub-chats, the order chat archiving uses.
+	require.Equal(t, ownerChild.ID, got[len(got)-1])
 
 	// The limit counts root chats and brings each root's sub-chats along.
 	locked, err = db.LockChatProjectChatsForDelete(ctx, database.LockChatProjectChatsForDeleteParams{ProjectID: project.ID, LimitCount: 1})
@@ -2392,6 +2403,31 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	} else {
 		require.Equal(t, []uuid.UUID{shareeRoot.ID}, got)
 	}
+
+	// While a delete batch holds its locks, workers cannot take the chats
+	// and inserts cannot reference the project. NOWAIT probes stand in for
+	// both, failing instead of blocking.
+	requireLocked := func(query string, id uuid.UUID) {
+		t.Helper()
+		_, err := sqlDB.ExecContext(ctx, query, id)
+		var pqErr *pq.Error
+		require.ErrorAs(t, err, &pqErr, query)
+		require.Equal(t, pq.ErrorCode("55P03"), pqErr.Code, query)
+	}
+	err = db.InTx(func(tx database.Store) error {
+		if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
+			return err
+		}
+		if _, err := tx.LockChatProjectChatsForDelete(ctx, database.LockChatProjectChatsForDeleteParams{ProjectID: project.ID, LimitCount: 10}); err != nil {
+			return err
+		}
+		for _, id := range family {
+			requireLocked("SELECT 1 FROM chats WHERE id = $1 FOR UPDATE NOWAIT", id)
+		}
+		requireLocked("SELECT 1 FROM chat_projects WHERE id = $1 FOR KEY SHARE NOWAIT", project.ID)
+		return nil
+	}, nil)
+	require.NoError(t, err)
 
 	chats, err := db.GetChatsByIDs(ctx, family)
 	require.NoError(t, err)

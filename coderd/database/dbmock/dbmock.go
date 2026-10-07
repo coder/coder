@@ -3640,21 +3640,6 @@ func (mr *MockStoreMockRecorder) GetChatProjectMemoryByName(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectMemoryByName", reflect.TypeOf((*MockStore)(nil).GetChatProjectMemoryByName), ctx, arg)
 }
 
-// GetChatProjectsAccessibleByUserID mocks base method.
-func (m *MockStore) GetChatProjectsAccessibleByUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatProjectsAccessibleByUserID", ctx, userID)
-	ret0, _ := ret[0].([]database.ChatProject)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatProjectsAccessibleByUserID indicates an expected call of GetChatProjectsAccessibleByUserID.
-func (mr *MockStoreMockRecorder) GetChatProjectsAccessibleByUserID(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectsAccessibleByUserID", reflect.TypeOf((*MockStore)(nil).GetChatProjectsAccessibleByUserID), ctx, userID)
-}
-
 // GetChatProjectsByOwnerID mocks base method.
 func (m *MockStore) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
 	m.ctrl.T.Helper()
@@ -3668,6 +3653,21 @@ func (m *MockStore) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.U
 func (mr *MockStoreMockRecorder) GetChatProjectsByOwnerID(ctx, ownerID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetChatProjectsByOwnerID), ctx, ownerID)
+}
+
+// GetChatProjectsOwnedOrSharedWithUserID mocks base method.
+func (m *MockStore) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectsOwnedOrSharedWithUserID", ctx, userID)
+	ret0, _ := ret[0].([]database.ChatProject)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectsOwnedOrSharedWithUserID indicates an expected call of GetChatProjectsOwnedOrSharedWithUserID.
+func (mr *MockStoreMockRecorder) GetChatProjectsOwnedOrSharedWithUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectsOwnedOrSharedWithUserID", reflect.TypeOf((*MockStore)(nil).GetChatProjectsOwnedOrSharedWithUserID), ctx, userID)
 }
 
 // GetChatQueuedForCapacity mocks base method.
