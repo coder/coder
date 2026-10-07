@@ -964,7 +964,8 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 // boundary. Both are zero when that step ran on another model config,
 // whose tokenizer can differ. A model changed within the same config is
 // not detected: updated_at also moves on unrelated edits such as setting
-// a new default, and skipping calibration then costs up to 27%.
+// a new default, and the fallback ratio reads about 27% high on
+// gpt-5-mini.
 func firstStepCalibration(messages []database.ChatMessage, modelConfigID uuid.UUID) (fantasy.Usage, int64) {
 	for _, msg := range messages {
 		if msg.Role != database.ChatMessageRoleAssistant {
