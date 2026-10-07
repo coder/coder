@@ -10089,9 +10089,6 @@ func TestStreamChat(t *testing.T) {
 		}
 	})
 
-	// An edited chat keeps its soft-deleted rows. A tab that sends its
-	// history version gets only what changed since: nothing when it is
-	// current, the messages from the edit on otherwise.
 	t.Run("EditedChatSyncsOnlyChangedHistory", func(t *testing.T) {
 		t.Parallel()
 
@@ -10114,7 +10111,6 @@ func TestStreamChat(t *testing.T) {
 			require.False(t, page.HasMore)
 			return page
 		}
-		// lastPromptID is the newest user message, the one each step edits.
 		lastPromptID := func(page codersdk.ChatMessagesResponse) int64 {
 			t.Helper()
 			var id int64
@@ -10134,8 +10130,6 @@ func TestStreamChat(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, resp.DeletedMessageIDs)
 		}
-		// requireResetFrom checks the events replaced only the messages
-		// from fromID on.
 		requireResetFrom := func(events []codersdk.ChatStreamEvent, fromID int64) {
 			t.Helper()
 			resets := 0
@@ -10152,7 +10146,8 @@ func TestStreamChat(t *testing.T) {
 			require.Equal(t, 1, resets)
 		}
 
-		// Opening a chat that was edited before replays nothing.
+		// Opening a chat edited earlier must send no history, even though the
+		// rows the edit soft-deleted are still in the chat.
 		edit(lastPromptID(newestPage()), "edited once")
 		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
 		page := newestPage()
@@ -10163,7 +10158,8 @@ func TestStreamChat(t *testing.T) {
 			require.NotEqual(t, codersdk.ChatStreamEventTypeMessage, event.Type, "opening the chat resent a message the page holds")
 		}
 
-		// An edit while connected replaces the messages from the edit on.
+		// An edit while the stream is open resets the history from the
+		// edited message.
 		stale := newChatTab(page)
 		editedID := lastPromptID(page)
 		edit(editedID, "edited twice")
@@ -10177,14 +10173,15 @@ func TestStreamChat(t *testing.T) {
 		requireResetFrom(applied, editedID)
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), live.sortedIDs())
 
-		// A tab whose stream was down for that edit, and which then sent
-		// a message, still holds the deleted messages and a newer ID.
+		// A tab that missed the edit and then sent a message holds both the
+		// deleted messages and a newer message ID. Its reconnect must still
+		// reset the history from the edited message.
 		stale.hold(sendChatMessage(ctx, t, client, chat.ID, "sent while the stream was down")...)
 		applied, _ = stale.connect(ctx, t, client, chat.ID)
 		requireResetFrom(applied, editedID)
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), stale.sortedIDs(), "the tab still shows deleted messages or is missing their replacements")
 
-		// A client that sends no history version gets the full reset.
+		// A client without a history version gets a full reset.
 		legacy := newChatTab(newestPage())
 		legacy.version = 0
 		applied, _ = legacy.connect(ctx, t, client, chat.ID)
@@ -10193,9 +10190,6 @@ func TestStreamChat(t *testing.T) {
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), legacy.sortedIDs())
 	})
 
-	// A message another tab sends while this tab's stream is down has a
-	// lower ID than this tab's own later send, so after_id cannot tell
-	// the server to include it; the history version can.
 	t.Run("ReconnectReceivesMessagesSentElsewhere", func(t *testing.T) {
 		t.Parallel()
 
@@ -10215,8 +10209,10 @@ func TestStreamChat(t *testing.T) {
 		tab := newChatTab(page)
 		_, _ = tab.connect(ctx, t, client, chat.ID)
 
-		// The stream is down: another tab sends, then this tab sends and
-		// stores its response, as submitChatTurn.ts does.
+		// While this tab's stream is down, another tab sends a message and then
+		// this tab sends one, storing the response as submitChatTurn.ts does.
+		// The other tab's message has the lower ID, so after_id alone would
+		// skip it.
 		_ = sendChatMessage(ctx, t, client, chat.ID, "from another tab")
 		tab.hold(sendChatMessage(ctx, t, client, chat.ID, "from this tab")...)
 
@@ -13872,10 +13868,8 @@ func waitForChatStatus(ctx context.Context, t testing.TB, client *codersdk.Exper
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
-// chatTab models what a web client tab holds for one chat: the message
-// IDs it has stored and the history version it has applied. Messages
-// arrive from the REST page, from the tab's own send responses, and from
-// the stream.
+// chatTab models the state a web client tab keeps for one chat: the IDs
+// of the messages it holds and its history version.
 type chatTab struct {
 	ids     map[int64]bool
 	version int64
@@ -13902,9 +13896,8 @@ func (tab *chatTab) sortedIDs() []int64 {
 	return ids
 }
 
-// connect opens the stream with the tab's cursor, as the web client does,
-// and applies events up to and including the first status. It returns
-// the applied events and the open stream.
+// connect opens the stream with the tab's newest message ID and history
+// version, and applies events through the first status event.
 func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent) {
 	t.Helper()
 	afterID := slices.Max(append(tab.sortedIDs(), 0))
@@ -13918,7 +13911,6 @@ func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.
 	return tab.applyUntilStatus(ctx, t, events), events
 }
 
-// applyUntilStatus applies stream events to the tab until a status event.
 func (tab *chatTab) applyUntilStatus(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent) []codersdk.ChatStreamEvent {
 	t.Helper()
 	var applied []codersdk.ChatStreamEvent
@@ -13946,8 +13938,8 @@ func (tab *chatTab) applyUntilStatus(ctx context.Context, t *testing.T, events <
 	}
 }
 
-// sendChatMessage sends a message, waits for its turn to finish, and
-// returns the messages the response carries.
+// sendChatMessage sends text, waits for the chat to return to waiting,
+// and returns the messages in the response.
 func sendChatMessage(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID, text string) []codersdk.ChatMessage {
 	t.Helper()
 	resp, err := client.CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
@@ -13963,7 +13955,6 @@ func sendChatMessage(ctx context.Context, t *testing.T, client *codersdk.Experim
 	return []codersdk.ChatMessage{*resp.Message}
 }
 
-// liveChatMessageIDs returns the IDs of the chat's visible messages.
 func liveChatMessageIDs(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) []int64 {
 	t.Helper()
 	page, err := client.GetChatMessages(ctx, chatID, nil)
@@ -18438,10 +18429,6 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		require.Equal(t, want, got)
 	})
 
-	// history_version certifies the newest messages, so only the
-	// uncursored page carries it. An after_id page with has_more stops
-	// short of the newest message; passing its version as after_revision
-	// would skip the rest.
 	t.Run("HistoryVersionOnlyOnUncursoredPage", func(t *testing.T) {
 		t.Parallel()
 
