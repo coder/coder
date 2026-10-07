@@ -7,6 +7,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type cancelOnErrCheckContext struct {
+	context.Context
+	cancel          context.CancelFunc
+	remainingChecks int
+}
+
+func (c *cancelOnErrCheckContext) Err() error {
+	if err := c.Context.Err(); err != nil {
+		return err
+	}
+	c.remainingChecks--
+	if c.remainingChecks == 0 {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+
 func TestIndexRejectsExcessiveTerraformOutput(t *testing.T) {
 	t.Parallel()
 
@@ -74,17 +91,6 @@ func TestIndexRejectsExcessiveTerraformOutput(t *testing.T) {
 	}
 }
 
-func TestIndexRetainsNodeLabels(t *testing.T) {
-	t.Parallel()
-
-	index, err := Parse(t.Context(), `digraph {
-		"[root] coder_agent.main" [label = "coder_agent.main"]
-	}`)
-	require.NoError(t, err)
-	require.Len(t, index.nodes, 1)
-	require.Equal(t, `"coder_agent.main"`, index.nodes[0].label)
-}
-
 func TestPreflightBoundsTerraformGraphOutput(t *testing.T) {
 	t.Parallel()
 
@@ -119,6 +125,19 @@ func TestPreflightBoundsTerraformGraphOutput(t *testing.T) {
 	)
 }
 
+func TestPreflightCountsEdgeEndpointNodes(t *testing.T) {
+	t.Parallel()
+
+	limits := defaultIndexLimits()
+	limits.nodes = 1
+	err := preflight(
+		t.Context(),
+		"digraph {\n\t\"[root] a\" -> \"[root] b\"\n}",
+		limits,
+	)
+	require.ErrorContains(t, err, "Terraform graph nodes")
+}
+
 func TestParseHonorsCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -126,4 +145,33 @@ func TestParseHonorsCancellation(t *testing.T) {
 	cancel()
 	_, err := Parse(ctx, "digraph {}")
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestParseHonorsCancellationDuringIndexing(t *testing.T) {
+	t.Parallel()
+
+	const rawGraph = "digraph {\n\t\"[root] a\" -> \"[root] b\"\n}"
+	// Parse checks the context nine times before traversing destinations for
+	// this two-node graph.
+	for _, test := range []struct {
+		name          string
+		cancelOnCheck int
+	}{
+		{name: "Destination", cancelOnCheck: 10},
+		{name: "BeforeReturn", cancelOnCheck: 11},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			cancelCtx := &cancelOnErrCheckContext{
+				Context:         ctx,
+				cancel:          cancel,
+				remainingChecks: test.cancelOnCheck,
+			}
+			_, err := Parse(cancelCtx, rawGraph)
+			require.ErrorIs(t, err, context.Canceled)
+		})
+	}
 }

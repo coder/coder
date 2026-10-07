@@ -43,7 +43,6 @@ type NodeID struct {
 // Node contains normalized read-only metadata for a Terraform graph node.
 type Node struct {
 	rawID     string
-	label     string
 	address   string
 	operation string
 }
@@ -217,7 +216,6 @@ func parseWithLimits(
 		nodeIDBytes += len(rawNodeID)
 
 		node := parseNode(rawNodeID)
-		node.label = graph.Nodes.Lookup[rawNodeID].Attrs["label"]
 		if exceedsLimit(
 			retainedAddressBytes, len(node.address), limits.retainedAddressBytes,
 		) {
@@ -266,6 +264,9 @@ func parseWithLimits(
 		}
 		edgeCount += len(rawDestinations)
 		for _, rawDestinationID := range rawDestinations {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			destinationID, ok := nodeIDByRawID[rawDestinationID]
 			if !ok {
 				return nil, xerrors.Errorf(
@@ -281,6 +282,9 @@ func parseWithLimits(
 				index.dependencies[position], destinationID,
 			)
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return index, nil
 }
@@ -334,9 +338,11 @@ func preflight(
 		return nil
 	}
 
+	const contextCheckInterval = 256
+
 	remaining := rawGraph
 	for lineIndex := 0; ; lineIndex++ {
-		if lineIndex%256 == 0 {
+		if lineIndex%contextCheckInterval == 0 {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
