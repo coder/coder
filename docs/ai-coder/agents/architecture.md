@@ -170,16 +170,15 @@ workspace connection. Platform and orchestration tools are only available to
 root chats — sub-agents spawned by `spawn_agent` do not have access to them
 and cannot create workspaces or spawn further sub-agents.
 
-| Tool                 | What it does                                                                                                                                                         |
-|----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `list_templates`     | Browses available workspace templates, sorted by popularity.                                                                                                         |
-| `read_template`      | Gets template details and configurable parameters.                                                                                                                   |
-| `create_workspace`   | Creates a workspace from a template and waits for it to be ready.                                                                                                    |
-| `start_workspace`    | Starts the chat's workspace if it is currently stopped. Idempotent if already running.                                                                               |
-| `stop_workspace`     | Stops the chat's workspace and waits for the stop build to finish. Idempotent if already stopped.                                                                    |
-| `propose_plan`       | Presents a Markdown plan file from the workspace for user review before implementation.                                                                              |
-| `ask_user_question`  | Asks the user structured clarification questions during plan mode.                                                                                                   |
-| `manage_automations` | Creates and manages [automations](./automations.md). Available only when the `chat-automations` experiment is enabled and **Manage automations** is on for the chat. |
+| Tool                | What it does                                                                                      |
+|---------------------|---------------------------------------------------------------------------------------------------|
+| `list_templates`    | Browses available workspace templates, sorted by popularity.                                      |
+| `read_template`     | Gets template details and configurable parameters.                                                |
+| `create_workspace`  | Creates a workspace from a template and waits for it to be ready.                                 |
+| `start_workspace`   | Starts the chat's workspace if it is currently stopped. Idempotent if already running.            |
+| `stop_workspace`    | Stops the chat's workspace and waits for the stop build to finish. Idempotent if already stopped. |
+| `propose_plan`      | Presents a Markdown plan file from the workspace for user review before implementation.           |
+| `ask_user_question` | Asks the user structured clarification questions during plan mode.                                |
 
 `propose_plan` and `ask_user_question` are only exposed while plan mode is
 active. In that mode, `write_file` and `edit_files` are restricted to the

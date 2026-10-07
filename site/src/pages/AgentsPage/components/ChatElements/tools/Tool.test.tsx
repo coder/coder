@@ -105,34 +105,6 @@ describe("Tool workspace lifecycle rows", () => {
 	);
 });
 
-describe("Tool manage_automations label", () => {
-	it.each([
-		"constructor",
-		"toString",
-		"__proto__",
-		"hasOwnProperty",
-		"unknown_action",
-	])("falls back to the generic label for action %s", (action) => {
-		renderComponent(
-			<Tool
-				name="manage_automations"
-				status="error"
-				isError
-				args={{ action }}
-				result={{ error: "unknown action" }}
-				organizationId="organization-id"
-				mcpServers={[]}
-				subagentTitles={new Map()}
-				subagentVariants={new Map()}
-				shellToolDisplayMode="auto"
-				codeDiffDisplayMode="auto"
-			/>,
-		);
-
-		screen.getByText("Manage automations");
-	});
-});
-
 describe("Tool generic rows", () => {
 	it("falls back to the tool name when the model intent is whitespace", () => {
 		renderComponent(

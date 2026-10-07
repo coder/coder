@@ -268,7 +268,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		organizationId,
 		projectId: formProjectId,
 		planMode,
-		manageAutomationsEnabled,
 		uploadWorkspaceFiles,
 	}: CreateChatOptions) => {
 		const content: TypesGen.ChatInputPart[] = [];
@@ -291,7 +290,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
-			manage_automations_enabled: manageAutomationsEnabled,
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 			...(formProjectId ? { project_id: formProjectId } : {}),

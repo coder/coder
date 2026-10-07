@@ -1161,15 +1161,6 @@ export const PlanFirstCheckedState: Story = {
 	},
 };
 
-export const ManageAutomationsCheckedState: Story = {
-	args: {
-		onPlanModeToggle: fn(),
-		manageAutomationsEnabled: true,
-		onManageAutomationsToggle: fn(),
-	},
-	play: PlanFirstCheckedState.play,
-};
-
 export const DetailPageWorkspacePicker: Story = {
 	args: {
 		workspaceOptions: [

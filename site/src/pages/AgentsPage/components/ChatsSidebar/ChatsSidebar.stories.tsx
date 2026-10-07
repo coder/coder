@@ -2726,40 +2726,6 @@ export const ProjectsSectionCollapsed: Story = {
 	},
 };
 
-export const MobileWithAutomations: Story = {
-	args: {
-		chats: sectionHeaderChats,
-	},
-	parameters: {
-		experiments: ["chat-automations"],
-		viewport: { defaultViewport: "mobile1" },
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents" },
-			routing: agentsRouting,
-		}),
-	},
-	decorators: [
-		(Story) => (
-			<div className="h-125 w-90">
-				<Story />
-			</div>
-		),
-	],
-};
-
-export const AutomationsActive: Story = {
-	args: {
-		chats: sectionHeaderChats,
-	},
-	parameters: {
-		experiments: ["chat-automations"],
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/automations" },
-			routing: agentsRouting,
-		}),
-	},
-};
-
 export const ProjectChatWithoutLoadedProject: Story = {
 	args: {
 		chats: [

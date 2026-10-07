@@ -199,7 +199,6 @@ Actions: `create`, `write`
 <tbody>
 <tr><td><code>agent_id</code></td><td>No</td></tr>
 <tr><td><code>archived</code></td><td>Yes</td></tr>
-<tr><td><code>automation_id</code></td><td>Yes</td></tr>
 <tr><td><code>build_id</code></td><td>No</td></tr>
 <tr><td><code>client_type</code></td><td>No</td></tr>
 <tr><td><code>compaction_requested_at</code></td><td>No</td></tr>
@@ -220,7 +219,6 @@ Actions: `create`, `write`
 <tr><td><code>last_read_message_id</code></td><td>No</td></tr>
 <tr><td><code>last_reasoning_effort</code></td><td>No</td></tr>
 <tr><td><code>last_turn_summary</code></td><td>No</td></tr>
-<tr><td><code>manage_automations_enabled</code></td><td>Yes</td></tr>
 <tr><td><code>mcp_server_ids</code></td><td>Yes</td></tr>
 <tr><td><code>mode</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>No</td></tr>
@@ -249,40 +247,6 @@ Actions: `create`, `write`
 <tr><td><code>user_acl</code></td><td>Yes</td></tr>
 <tr><td><code>worker_id</code></td><td>No</td></tr>
 <tr><td><code>workspace_id</code></td><td>Yes</td></tr>
-</tbody>
-</table>
-
-### ChatAutomation
-
-Actions: `create`, `write`, `delete`
-
-<table width="100%">
-<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
-<tbody>
-<tr><td><code>created_at</code></td><td>No</td></tr>
-<tr><td><code>created_by_chat_id</code></td><td>Yes</td></tr>
-<tr><td><code>enabled</code></td><td>Yes</td></tr>
-<tr><td><code>id</code></td><td>Yes</td></tr>
-<tr><td><code>kind</code></td><td>Yes</td></tr>
-<tr><td><code>name</code></td><td>Yes</td></tr>
-<tr><td><code>new_chat_model_config_id</code></td><td>Yes</td></tr>
-<tr><td><code>organization_id</code></td><td>Yes</td></tr>
-<tr><td><code>owner_id</code></td><td>Yes</td></tr>
-<tr><td><code>prompt</code></td><td>Yes</td></tr>
-<tr><td><code>queue_generation</code></td><td>No</td></tr>
-<tr><td><code>reasoning_effort</code></td><td>Yes</td></tr>
-<tr><td><code>schedule_cron</code></td><td>Yes</td></tr>
-<tr><td><code>schedule_next_run_at</code></td><td>No</td></tr>
-<tr><td><code>schedule_revision</code></td><td>No</td></tr>
-<tr><td><code>schedule_time_zone</code></td><td>Yes</td></tr>
-<tr><td><code>target_chat_id</code></td><td>Yes</td></tr>
-<tr><td><code>target_mode</code></td><td>Yes</td></tr>
-<tr><td><code>updated_at</code></td><td>No</td></tr>
-<tr><td><code>webhook_consumed_at</code></td><td>Yes</td></tr>
-<tr><td><code>webhook_secret_hash</code></td><td>Yes</td></tr>
-<tr><td><code>webhook_secret_version</code></td><td>Yes</td></tr>
-<tr><td><code>webhook_use</code></td><td>Yes</td></tr>
-<tr><td><code>when_busy</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 

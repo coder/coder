@@ -276,7 +276,6 @@ func testOptions(t *testing.T, f *workerTestFixture, starter chatWorkerTaskStart
 		RunnerSyncInterval:         time.Hour,
 		HeartbeatInterval:          time.Hour,
 		HeartbeatCleanupInterval:   time.Hour,
-		AutomationScheduleInterval: time.Hour,
 		HeartbeatStaleSeconds:      30,
 		StateChannelSize:           16,
 		RunnerManagerChannelSize:   16,
