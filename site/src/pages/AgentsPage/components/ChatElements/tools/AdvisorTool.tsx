@@ -3,7 +3,7 @@ import type React from "react";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Response } from "../Response";
 import { ToolCall } from "./ToolCall";
-import { formatModelIntentLabel, type ToolStatus } from "./utils";
+import type { ToolStatus } from "./utils";
 
 export type AdvisorToolResultType = "advice" | "limit_reached" | "error";
 
@@ -16,7 +16,6 @@ type AdvisorToolProps = {
 	/** Streamed advisor reasoning, present only while the advisor runs. */
 	reasoning?: string;
 	errorMessage?: string;
-	modelIntent?: string;
 };
 
 export const AdvisorTool: React.FC<AdvisorToolProps> = ({
@@ -27,7 +26,6 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	advice,
 	reasoning,
 	errorMessage,
-	modelIntent,
 }) => {
 	const questionText = question.trim() || "No question provided.";
 	const adviceText = advice?.trim() ?? "";
@@ -40,16 +38,13 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	const showThinking = isRunning && reasoningText.length > 0;
 	const showAdvice = adviceText.length > 0 || !isRunning;
 
-	const intent = formatModelIntentLabel(modelIntent);
 	const label = showLimitReached
 		? "Advisor limit reached"
-		: intent && !showError
-			? intent
-			: isRunning
-				? "Consulting the advisor"
-				: showError
-					? "Failed to consult the advisor"
-					: "Consulted the advisor";
+		: isRunning
+			? "Consulting the advisor"
+			: showError
+				? "Failed to consult the advisor"
+				: "Consulted the advisor";
 
 	return (
 		<ToolCall.Root

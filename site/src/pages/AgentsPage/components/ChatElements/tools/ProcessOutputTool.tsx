@@ -14,16 +14,11 @@ import {
 } from "./displayMode";
 import { TerminalOutput } from "./TerminalOutput";
 import { ToolCall } from "./ToolCall";
-import {
-	sanitizeExecuteModelIntent,
-	signalTooltipLabel,
-	type ToolStatus,
-} from "./utils";
+import { signalTooltipLabel, type ToolStatus } from "./utils";
 
 type ProcessOutputToolProps = {
 	output: string;
 	command?: string;
-	modelIntent?: string;
 	status: ToolStatus;
 	/**
 	 * Whether the result snapshot saw the process still alive. This only
@@ -40,20 +35,14 @@ type ProcessOutputToolProps = {
 
 const getProcessOutputLabel = ({
 	command,
-	modelIntent,
 	isRunning,
 	isFailed,
 }: {
 	command: string | undefined;
-	modelIntent: string | undefined;
 	isRunning: boolean;
 	isFailed: boolean;
 }): string => {
 	const trimmedCommand = command?.trim() ?? "";
-	const intent = sanitizeExecuteModelIntent(modelIntent, trimmedCommand);
-	if (intent) {
-		return intent;
-	}
 	if (!trimmedCommand) {
 		return "Process output";
 	}
@@ -66,7 +55,6 @@ const getProcessOutputLabel = ({
 export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 	output,
 	command,
-	modelIntent,
 	status,
 	processRunning,
 	exitCode,
@@ -108,7 +96,6 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 					<ToolCall.Label>
 						{getProcessOutputLabel({
 							command,
-							modelIntent,
 							isRunning,
 							isFailed,
 						})}

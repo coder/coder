@@ -1864,6 +1864,7 @@ func (a *agent) createTailnet(
 			case <-ctx.Done():
 			case <-a.hardCtx.Done():
 			}
+			_ = sshUpgradeListener.Close()
 			_ = ptyUpgradeListener.Close()
 		}()
 		_ = a.reconnectingPTYServer.Serve(a.gracefulCtx, a.hardCtx, ptyUpgradeListener)
