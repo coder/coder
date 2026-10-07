@@ -942,7 +942,7 @@ const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
 };
 
 /**
- * Predicate that matches chat-list queries performing a regular
+ * Predicate that matches infinite queries performing a regular
  * refetch (window-focus, invalidation, mount) but not a
  * fetchNextPage or fetchPreviousPage. During pagination fetches
  * react-query sets fetchMeta.fetchMore.direction to "forward"
@@ -951,10 +951,10 @@ const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
  * Also excludes queries that have never loaded data. Cancelling
  * a first-ever fetch with revert:true leaves the query stuck in
  * { status: 'pending', fetchStatus: 'idle', data: undefined }
- * with no automatic recovery, so the sidebar shows skeletons
+ * with no automatic recovery, so the page shows skeletons
  * forever until the user refocuses the window.
  */
-const isChatListRefetch = (query: {
+const isBackgroundRefetch = (query: {
 	queryKey: readonly unknown[];
 	state: { data: unknown; fetchMeta: unknown };
 }): boolean => {
@@ -1087,7 +1087,7 @@ export const cancelChatListQueries = (queryClient: QueryClient) =>
 export const cancelChatListRefetches = (queryClient: QueryClient) =>
 	Promise.all(
 		[chatListFamilyKey, chatProjectListFamilyKey].map((queryKey) =>
-			queryClient.cancelQueries({ queryKey, predicate: isChatListRefetch }),
+			queryClient.cancelQueries({ queryKey, predicate: isBackgroundRefetch }),
 		),
 	);
 
@@ -1170,16 +1170,25 @@ export const patchChatEntity = (
 		updater,
 	);
 
+// A refetch that resolves after this write would replace the pages with what
+// it read before, so the write cancels it. Pagination fetches are left alone:
+// cancelling one on every stream write can keep older history from loading.
 export const patchChatMessages = (
 	queryClient: QueryClient,
 	chatId: string,
 	updater: (
 		data: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
 	) => InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
-) =>
-	queryClient.setQueryData<
+) => {
+	void queryClient.cancelQueries({
+		queryKey: chatMessagesKey(chatId),
+		exact: true,
+		predicate: isBackgroundRefetch,
+	});
+	return queryClient.setQueryData<
 		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
 	>(chatMessagesKey(chatId), updater);
+};
 
 const replaceMessagesInPage = (
 	page: TypesGen.ChatMessagesResponse,

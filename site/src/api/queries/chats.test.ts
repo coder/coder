@@ -5469,6 +5469,37 @@ describe("message upsert fan-out and history replacement", () => {
 			queryClient.getQueryCache().find({ queryKey: chatMessagesKey("chat-1") }),
 		).toBeUndefined();
 	});
+
+	it("upsertChatMessages is not overwritten by a refetch that read the page before it", async () => {
+		const queryClient = createTestQueryClient();
+		const stalePage = (): InfMessages => ({
+			pages: [
+				{
+					messages: [mockChatMessage(1)],
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined],
+		});
+		seedMessagePages(queryClient, stalePage());
+
+		// The server answers the refetch before the stream delivers message 2,
+		// and the response arrives after it.
+		const refetch = queryClient.prefetchQuery({
+			queryKey: chatMessagesKey("chat-1"),
+			queryFn: () =>
+				new Promise<InfMessages>((resolve) => {
+					setTimeout(() => resolve(stalePage()), 50);
+				}),
+		});
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(2)]);
+		await refetch;
+
+		expect(
+			readMessagePages(queryClient)?.pages[0]?.messages.map((m) => m.id),
+		).toEqual([2, 1]);
+	});
 });
 
 describe("chatEntitiesFamilyKey shape", () => {
