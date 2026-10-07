@@ -829,9 +829,6 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 				part.CompletedAt = &interruptedAt
 			}
 		}
-		if s.appendStreamedDelta(part) {
-			return
-		}
 		s.appendAssistantPart(part)
 		return
 	}
@@ -879,34 +876,22 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	s.assistantParts[call.index] = durable
 }
 
-// appendStreamedDelta merges a text or reasoning delta into the open run of
+// appendAssistantPart merges a text or reasoning delta into the open run of
 // the same type, so an interrupted turn persists one part per run like a
-// completed turn (processStepStream) instead of one part per token. Metadata
-// and timestamps merge the way processStepStream merges them.
-func (s *partialMessageConversionState) appendStreamedDelta(part codersdk.ChatMessagePart) bool {
-	if part.Type != codersdk.ChatMessagePartTypeText && part.Type != codersdk.ChatMessagePartTypeReasoning {
-		return false
-	}
-	if !s.streamedRunOpen {
-		return false
-	}
-	prev := &s.assistantParts[s.streamedRunIndex]
-	if prev.Type != part.Type {
-		return false
-	}
-	if part.Type == codersdk.ChatMessagePartTypeReasoning && !sameTime(prev.CreatedAt, part.CreatedAt) {
-		return false
-	}
-	_, _ = s.streamedRun.WriteString(part.Text)
-	return true
-}
-
-// appendAssistantPart closes the open run; a text or reasoning part opens a
-// new one.
+// completed turn (processStepStream) instead of one part per token.
 func (s *partialMessageConversionState) appendAssistantPart(part codersdk.ChatMessagePart) {
+	streamed := part.Type == codersdk.ChatMessagePartTypeText || part.Type == codersdk.ChatMessagePartTypeReasoning
+	if streamed && s.streamedRunOpen {
+		prev := s.assistantParts[s.streamedRunIndex]
+		if prev.Type == part.Type &&
+			(part.Type == codersdk.ChatMessagePartTypeText || sameTime(prev.CreatedAt, part.CreatedAt)) {
+			_, _ = s.streamedRun.WriteString(part.Text)
+			return
+		}
+	}
 	s.closeStreamedRun()
 	s.assistantParts = append(s.assistantParts, part)
-	if part.Type != codersdk.ChatMessagePartTypeText && part.Type != codersdk.ChatMessagePartTypeReasoning {
+	if !streamed {
 		return
 	}
 	s.streamedRunIndex = len(s.assistantParts) - 1
@@ -1002,8 +987,7 @@ func (s *partialMessageConversionState) toolCall(id string) *partialToolCall {
 	call = &partialToolCall{index: len(s.assistantParts), valid: true}
 	s.toolCalls[id] = call
 	s.toolCallOrder = append(s.toolCallOrder, id)
-	s.closeStreamedRun()
-	s.assistantParts = append(s.assistantParts, codersdk.ChatMessagePart{})
+	s.appendAssistantPart(codersdk.ChatMessagePart{})
 	return call
 }
 
