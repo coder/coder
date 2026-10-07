@@ -196,6 +196,10 @@ Every remote command goes through `coder ssh "$ws" -- ...`, which runs as
    coder ssh "$ws" -- cat /var/lib/eph/status/status.json
    ```
 
+   If the user overrode a `full` choice with `frontend` in step 3, expect
+   `needs_full_mode` instead of `running`: the workspace serves the frontend,
+   and `message` names the files it cannot serve.
+
    A missing file means the VM is still being set up. If the agent's
    lifecycle is `start_error`, the setup script failed: report the tail of
    `coder ssh "$ws" -- 'sudo tail -n 40 /tmp/coder-script-*.log'` and offer
