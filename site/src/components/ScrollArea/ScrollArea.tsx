@@ -91,7 +91,7 @@ const ScrollBar: React.FC<
 		>
 			<ScrollAreaPrimitive.ScrollAreaThumb
 				className={cn(
-					"relative flex-1 rounded-full bg-scrollbar-thumb",
+					"relative flex-1 rounded-full bg-surface-invert-secondary",
 					"before:absolute before:content-['']",
 					orientation === "vertical"
 						? "before:right-0 before:top-1/2 before:h-full before:min-h-6 before:w-6 before:-translate-y-1/2"

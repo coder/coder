@@ -63,7 +63,6 @@
 	--color-surface-quaternary: hsl(var(--surface-quaternary));
 	--color-surface-invert-primary: hsl(var(--surface-invert-primary));
 	--color-surface-invert-secondary: hsl(var(--surface-invert-secondary));
-	--color-scrollbar-thumb: hsl(var(--scrollbar-thumb));
 	--color-surface-destructive: hsl(var(--surface-destructive));
 	--color-surface-green: hsl(var(--surface-green));
 	--color-surface-grey: hsl(var(--surface-grey));
@@ -446,8 +445,6 @@
 		--surface-quaternary: 240 5% 84%;
 		--surface-invert-primary: 240 4% 16%;
 		--surface-invert-secondary: 240 5% 26%;
-		/* At least 3:1 against every surface token (WCAG 1.4.11). */
-		--scrollbar-thumb: 240 5% 26%;
 		--surface-destructive: 0 93% 94%;
 		--surface-green: 141 79% 85%;
 		--surface-grey: 240 5% 96%;
@@ -525,8 +522,6 @@
 		--surface-quaternary: 240 5% 26%;
 		--surface-invert-primary: 240 6% 90%;
 		--surface-invert-secondary: 240 5% 65%;
-		/* At least 3:1 against every surface token (WCAG 1.4.11). */
-		--scrollbar-thumb: 240 5% 65%;
 		--surface-destructive: 0 75% 15%;
 		--surface-green: 145 80% 10%;
 		--surface-grey: 240 6% 10%;
@@ -722,16 +717,17 @@
 		@apply border-none p-0 m-0 w-full;
 	}
 
-	/* Global scrollbar color baseline: the same thumb color as the
-	ScrollArea component on a transparent track, so native and custom
-	scrollbars look alike and meet WCAG 1.4.11 contrast. scrollbar-color
-	is inherited, so this cascades to all scroll containers. Do not
-	override the thumb color per container. We intentionally do NOT set
+	/* Global scrollbar color baseline: surface-invert-secondary thumb (the
+	ScrollArea thumb color) on a transparent track, so native and custom
+	scrollbars look alike and meet WCAG 1.4.11 3:1 contrast against every
+	surface token. scrollbar-color is inherited, so this cascades to all
+	scroll containers. Do not override the thumb color per container. We
+	intentionally do NOT set
 	scrollbar-width globally because any non-auto value opts out of
 	overlay scrollbars on macOS/Chromium, causing a permanent gutter
 	on every container (even when content does not overflow). */
 	:root {
-		scrollbar-color: hsl(var(--scrollbar-thumb)) transparent;
+		scrollbar-color: hsl(var(--surface-invert-secondary)) transparent;
 	}
 
 	/* Prevent layout shift when modals open by maintaining scrollbar width.

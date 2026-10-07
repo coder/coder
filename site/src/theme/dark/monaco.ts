@@ -34,7 +34,7 @@ export default {
 	colors: {
 		"editor.foreground": palette.text.primary,
 		"editor.background": palette.background.paper,
-		// Matches --scrollbar-thumb so editor scrollbars meet 3:1 contrast.
+		// Matches --surface-invert-secondary so editor scrollbars meet 3:1 contrast.
 		"scrollbarSlider.background": tw.zinc[400],
 		"scrollbarSlider.hoverBackground": tw.zinc[300],
 		"scrollbarSlider.activeBackground": tw.zinc[300],
