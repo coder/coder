@@ -164,9 +164,8 @@ export const NoUsage: Story = {
 	},
 };
 
-// After compaction the server estimates the next prompt until the next
-// response reports measured usage, and the popover labels the number as an
-// estimate.
+// After compaction the meter shows the server's estimate of the next prompt
+// until the next response reports measured usage.
 export const EstimatedAfterCompaction: Story = {
 	args: {
 		usage: {

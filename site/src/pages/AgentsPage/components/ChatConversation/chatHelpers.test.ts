@@ -58,8 +58,8 @@ describe("extractContextUsageFromMessage", () => {
 		usage: TypesGen.ChatMessageUsage;
 		usedTokens: number;
 	}>([
-		// Persisted rows from live runs. Output tokens include reasoning tokens
-		// for every shape that reports both.
+		// Persisted rows from live runs. On the OpenAI shapes output tokens
+		// already include the reported reasoning tokens.
 		{
 			provider: "OpenAI Responses",
 			usage: {
@@ -96,18 +96,29 @@ describe("extractContextUsageFromMessage", () => {
 			usedTokens: 4220 + 41,
 		},
 	])(
-		"counts prompt and output tokens without adding reasoning again for $provider",
+		"sums input, output and cache tokens for $provider",
 		({ usage, usedTokens }) => {
 			const result = extractContextUsageFromMessage({
 				...MockChatMessage,
 				usage,
 			});
 			expect(result?.usedTokens).toBe(usedTokens);
+			expect(result?.inputTokens).toBe(usage.input_tokens);
+			expect(result?.outputTokens).toBe(usage.output_tokens);
 			expect(result?.reasoningTokens).toBe(usage.reasoning_tokens);
 			expect(result?.cacheReadTokens).toBe(usage.cache_read_tokens);
 			expect(result?.cacheCreationTokens).toBe(usage.cache_creation_tokens);
 		},
 	);
+
+	it("does not count reasoning tokens reported alone", () => {
+		const result = extractContextUsageFromMessage({
+			...MockChatMessage,
+			usage: { reasoning_tokens: 256, context_limit: 128000 },
+		});
+		expect(result?.usedTokens).toBeUndefined();
+		expect(result?.reasoningTokens).toBe(256);
+	});
 
 	it("includes contextLimitTokens when context_limit is set", () => {
 		const msg = { ...MockChatMessage, usage: { context_limit: 128000 } };
