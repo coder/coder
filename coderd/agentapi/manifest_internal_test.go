@@ -22,6 +22,7 @@ func Test_dbSecretsToProto(t *testing.T) {
 		{Name: "file-only", FilePath: "~/.ssh/id_rsa", Value: "file-val", Enabled: true},
 		{Name: "dual", EnvName: "DUAL_ENV", FilePath: "/etc/dual", Value: "dual-val", Enabled: true},
 		{Name: "disabled", EnvName: "DISABLED_ENV", FilePath: "/etc/disabled", Value: "disabled-val"},
+		// ws-shared takes this secret's env var; its file is still written.
 		{Name: "overridden", EnvName: "SHARED_ENV", FilePath: "/etc/overridden", Value: "user-val", Enabled: true},
 	}
 	workspaceSecrets := []database.WorkspaceSecret{
@@ -31,8 +32,6 @@ func Test_dbSecretsToProto(t *testing.T) {
 		{Name: "ws-shared", EnvName: "SHARED_ENV", Value: sql.NullString{String: "ws-shared-val", Valid: true}},
 	}
 
-	// A workspace secret on the same env var replaces the user secret's env
-	// delivery; the user secret's file is still written.
 	cases := []struct {
 		name     string
 		policy   workspacesecrets.FilePathPolicy

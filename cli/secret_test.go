@@ -601,8 +601,37 @@ func TestSecretListWorkspaceBuild(t *testing.T) {
 			assert.Contains(t, out, "REPLACED BY")
 			assert.Contains(t, out, "build-token")
 			assert.Contains(t, out, "env: build-token")
+			assert.NotContains(t, out, "EPHEMERAL", "ephemeral is hidden by default")
 		})
 	}
+
+	// Without a build, the build-only columns are not shown.
+	t.Run("NoBuildColumns", func(t *testing.T) {
+		t.Parallel()
+
+		inv, root := clitest.New(t, "secret", "list")
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.NoError(t, inv.WithContext(ctx).Run())
+		assert.Contains(t, output.Stdout(), "user-token")
+		assert.NotContains(t, output.Stdout(), "SOURCE")
+		assert.NotContains(t, output.Stdout(), "REPLACED BY")
+	})
+
+	t.Run("EphemeralColumn", func(t *testing.T) {
+		t.Parallel()
+
+		inv, root := clitest.New(t, "secret", "list", "--build-id", workspace.LatestBuild.ID.String(), "-c", "name,source,ephemeral")
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.NoError(t, inv.WithContext(ctx).Run())
+		assert.Contains(t, output.Stdout(), "EPHEMERAL")
+		assert.NotContains(t, output.Stdout(), "REPLACED BY", "explicit columns are kept")
+	})
 
 	// Inside a workspace that the logged-in deployment or user cannot see,
 	// only user secrets are listed.
@@ -617,7 +646,7 @@ func TestSecretListWorkspaceBuild(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			require.NoError(t, inv.WithContext(ctx).Run())
-			assert.Contains(t, output.Stderr(), "only user secrets are listed")
+			assert.Contains(t, output.Stderr(), "only that user's secrets are listed")
 			assert.Contains(t, output.Stdout(), "user-token")
 			assert.NotContains(t, output.Stdout(), "build-token")
 		})

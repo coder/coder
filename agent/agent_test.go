@@ -1804,6 +1804,19 @@ func TestAgent_CoderWorkspaceBuildIDEnvVar(t *testing.T) {
 	output, err := session.Output(command)
 	require.NoError(t, err)
 	require.Equal(t, buildID.String(), strings.TrimSpace(string(output)))
+
+	// A manifest from a server that predates the build ID leaves it unset
+	// rather than exporting the nil UUID.
+	t.Run("Unset", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("uses POSIX parameter expansion")
+		}
+		session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
+		output, err := session.Output("sh -c 'echo ${CODER_WORKSPACE_BUILD_ID-unset}'")
+		require.NoError(t, err)
+		require.Equal(t, "unset", strings.TrimSpace(string(output)))
+	})
 }
 
 func TestAgent_SSHConnectionEnvVars(t *testing.T) {

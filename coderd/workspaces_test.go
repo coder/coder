@@ -7020,3 +7020,47 @@ func TestWorkspaceSecrets(t *testing.T) {
 		require.Len(t, cleared[build.ID], 1, "the delete build's row is kept as history")
 	})
 }
+
+func TestWorkspaceBuildSecretsFilePathBlocked(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+		dv.DisableUserSecretFilePath = true
+	})
+	db, ps := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps, DeploymentValues: dv})
+	owner := coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// The API rejects file paths under this policy, so seed rows that were
+	// written before it was enabled.
+	ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: owner.OrganizationID,
+		OwnerID:        owner.UserID,
+	}).Do()
+	userSecret := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID: owner.UserID, EnvName: "TOKEN", FilePath: "~/.token",
+	})
+	buildEnv := dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+		WorkspaceID: ws.Workspace.ID, WorkspaceBuildID: ws.Build.ID, Name: "build-env", EnvName: "TOKEN",
+	})
+	buildFile := dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+		WorkspaceID: ws.Workspace.ID, WorkspaceBuildID: ws.Build.ID, Name: "build-file", EnvName: "OTHER", FilePath: "~/.token",
+	})
+
+	secrets, err := client.WorkspaceBuildSecrets(ctx, ws.Build.ID)
+	require.NoError(t, err)
+	byID := make(map[uuid.UUID]codersdk.WorkspaceSecret, len(secrets))
+	for _, s := range secrets {
+		byID[s.ID] = s
+	}
+	require.Len(t, byID, 2)
+	require.Equal(t, &userSecret.ID, byID[buildEnv.ID].EnvReplaces, "env targets are still delivered")
+	require.Nil(t, byID[buildFile.ID].FileReplaces, "no file is delivered, so none is replaced")
+
+	// A build ID that is not a UUID is rejected.
+	res, err := client.Request(ctx, http.MethodGet, "/api/v2/workspacebuilds/not-a-uuid/secrets", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+}

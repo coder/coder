@@ -313,37 +313,34 @@ func dbAgentDevcontainersToProto(devcontainers []database.WorkspaceAgentDevconta
 // dbSecretsToProto builds the manifest secrets from the user's and the
 // agent build's secrets, delivering each on the targets Resolve assigns.
 func dbSecretsToProto(userSecrets []database.UserSecret, workspaceSecrets []database.WorkspaceSecret, policy workspacesecrets.FilePathPolicy) []*agentproto.WorkspaceSecret {
-	candidates := make([]workspacesecrets.Secret, 0, len(userSecrets)+len(workspaceSecrets))
+	user := make([]workspacesecrets.Secret, 0, len(userSecrets))
 	for _, s := range userSecrets {
-		candidates = append(candidates, workspacesecrets.Secret{
+		user = append(user, workspacesecrets.Secret{
 			ID:       s.ID,
-			Source:   workspacesecrets.SourceUser,
-			Name:     s.Name,
 			EnvName:  s.EnvName,
 			FilePath: s.FilePath,
 			Enabled:  s.Enabled,
 			Value:    s.Value,
 		})
 	}
+	build := make([]workspacesecrets.Secret, 0, len(workspaceSecrets))
 	for _, s := range workspaceSecrets {
 		// ListActiveWorkspaceSecrets only returns rows that still hold a
 		// value; the check guards against a cleared row slipping through.
 		if !s.Value.Valid {
 			continue
 		}
-		candidates = append(candidates, workspacesecrets.Secret{
+		build = append(build, workspacesecrets.Secret{
 			ID:       s.ID,
-			Source:   workspacesecrets.SourceBuild,
-			Name:     s.Name,
 			EnvName:  s.EnvName,
 			FilePath: s.FilePath,
-			Enabled:  true,
 			Value:    s.Value.String,
 		})
 	}
 
-	ret := make([]*agentproto.WorkspaceSecret, 0, len(candidates))
-	for _, r := range workspacesecrets.Resolve(candidates, policy) {
+	resolvedUser, resolvedBuild := workspacesecrets.Resolve(user, build, policy)
+	ret := make([]*agentproto.WorkspaceSecret, 0, len(user)+len(build))
+	for _, r := range append(resolvedUser, resolvedBuild...) {
 		if !r.Delivered() {
 			continue
 		}
