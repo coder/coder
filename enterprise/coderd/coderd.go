@@ -19,6 +19,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/semaphore"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
@@ -38,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/nats"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
@@ -46,7 +48,6 @@ import (
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	"github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aiseats"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
@@ -228,6 +229,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	api.AGPL = coderd.New(options.Options)
 	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal(), &api.AGPL.Auditor)
 	api.trialer = trialer.New(options.Database, trialer.LicenseRequestURL, options.LicenseKeys)
+	// Created once, so committers replaced on entitlement changes share it.
+	api.quotaAdmission = semaphore.NewWeighted(quotaAdmissionLimit(int(options.DeploymentValues.PostgresConnMaxOpen.Value())))
 	api.AGPL.AISeatTracker = api.aiSeatTracker
 	defer func() {
 		if err != nil {
@@ -932,6 +935,8 @@ type API struct {
 
 	aibridgeproxydHandler http.Handler
 	aiSeatTracker         *aiseats.SeatTracker
+	// quotaAdmission limits concurrent quota transactions on this replica.
+	quotaAdmission *semaphore.Weighted
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
@@ -1055,8 +1060,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if initial, changed, enabled := featureChanged(codersdk.FeatureTemplateRBAC); shouldUpdate(initial, changed, enabled) {
 			if enabled {
 				committer := committer{
-					Log:      api.Logger.Named("quota_committer"),
-					Database: api.Database,
+					Log:       api.Logger.Named("quota_committer"),
+					Database:  api.Database,
+					admission: api.quotaAdmission,
+					clock:     quartz.NewReal(),
 				}
 				qcPtr := proto.QuotaCommitter(&committer)
 				api.AGPL.QuotaCommitter.Store(&qcPtr)

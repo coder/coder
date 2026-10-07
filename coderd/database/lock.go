@@ -38,6 +38,12 @@ var (
 	LockIDChatInstructionPlanMode     = GenLockID("agents_chat_plan_mode_instructions")
 )
 
+// LockIDChatOrganizationSystemPrompt returns the advisory lock ID that
+// serializes writes to one organization's chat system prompt.
+func LockIDChatOrganizationSystemPrompt(organizationID uuid.UUID) int64 {
+	return GenLockID("chat_organization_system_prompt:" + organizationID.String())
+}
+
 // WorkspaceQuotaLockID returns the advisory lock ID that serializes quota
 // commits for one workspace owner in one organization. The key format must
 // not change, because replicas running different versions must derive the

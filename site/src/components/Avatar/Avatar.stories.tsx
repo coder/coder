@@ -96,6 +96,23 @@ export const FallbackSmSize: Story = {
 	},
 };
 
+export const UnicodeFallbacks: Story = {
+	render: () => (
+		<div className="flex flex-wrap gap-4">
+			{[
+				"A🚀 Research",
+				"👩🏽‍💻 Developers",
+				"E\u0301lodie",
+				"東京",
+				"Jo",
+				"J",
+			].map((fallback) => (
+				<Avatar key={fallback} size="lg" fallback={fallback} />
+			))}
+		</div>
+	),
+};
+
 export const WithAlt: Story = {
 	args: {
 		variant: "icon",

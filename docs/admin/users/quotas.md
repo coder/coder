@@ -110,7 +110,8 @@ Form will never get held up by quota enforcement.
 Coder v2.39.0 and later check quota for one build at a time for each user in each organization.
 Builds that start together, such as several autostarts, are each checked against the credits that the builds before them consumed.
 Only the quota check takes turns, so builds don't wait for each other to finish.
-If a quota check waits more than 30&nbsp;seconds for earlier checks, for example because the database is overloaded, the build fails with a `Failed to commit quota` error, and its owner can start or stop the workspace again.
+Each `coderd` replica also runs only a few quota checks at a time, so during a burst of builds a check can wait for checks of other users.
+If a quota check waits more than 30&nbsp;seconds to start, for example because earlier checks or the database are slow, the build fails with a `Failed to commit quota` error, and its owner can start or stop the workspace again.
 
 ## Upgrade a deployment that enforces quotas
 
@@ -146,8 +147,9 @@ A result of `false` doesn't rule out a template whose cost depends on parameters
 If your deployment isn't affected, [upgrade as usual](../../install/operate/upgrade.md).
 
 > [!WARNING]
-> Don't use a rolling upgrade for an affected deployment.
+> Don't use a rolling upgrade for an affected deployment, on Kubernetes or elsewhere.
 > The default Kubernetes `RollingUpdate` strategy starts a new pod before the old pod stops, even with one replica, so `coderd` processes of the earlier and the new release overlap and quota can be granted beyond a user's budget.
+> Outside Kubernetes, upgrading hosts or containers one at a time behind a load balancer causes the same overlap.
 >
 > Stopping every workspace doesn't make the upgrade safe.
 > Stop builds also commit quota, queued and running builds can remain, and autostart, prebuilt workspaces, and API requests keep creating builds until every `coderd` stops.
@@ -169,6 +171,8 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
 1. List everything that can start or restart `coderd`, such as systemd units, container restart policies, autoscalers, and GitOps controllers.
 1. List every external provisioner daemon and where it runs.
    `coder provisioner list --org <organization>` shows the daemons connected to each organization.
+1. If you deploy with the Coder Helm chart, set `coder.strategy.type` to `Recreate` in your Helm values for this upgrade.
+1. If your Helm values set `coder.strategy.rollingUpdate`, remove those settings, because Kubernetes rejects them with `Recreate`.
 1. Tell users when the outage starts and how long it lasts.
 
 ### Stop the earlier release
@@ -271,8 +275,8 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
 1. Tell users that the outage is over, and tell the owners of interrupted builds to start or stop their workspaces again.
 
 > [!NOTE]
-> On Kubernetes, setting `coder.strategy.type` to `Recreate` in your Helm values makes Kubernetes remove every old pod before it creates a new one.
-> Remove any `coder.strategy.rollingUpdate` settings when you do, because Kubernetes rejects them with `Recreate`.
+> The Coder Helm chart leaves `coder.strategy` empty by default, so Kubernetes uses `RollingUpdate`.
+> `Recreate` makes Kubernetes remove every old pod before it creates a new one, and you can return to your earlier strategy after the upgrade.
 > `Recreate` doesn't drain provisioners or check the database, so it doesn't replace the steps above.
 
 ### Recover from an overlap
@@ -290,6 +294,8 @@ If you find a `coderd` from the earlier release running after the new release st
 ### Roll back
 
 Coder [doesn't support rollbacks](../../install/operate/upgrade.md), so returning to the earlier release means restoring the database snapshot you took before the upgrade.
+Restoring the snapshot discards every change made to the Coder database after you took it, including users, workspaces, and builds.
+Resources that those builds created can keep running without Coder tracking them, so plan to find and remove them.
 Returning to the earlier release has the same overlap risk as the upgrade, so run the procedure in reverse:
 
 1. Stop the new release as described in [Stop the earlier release](#stop-the-earlier-release).

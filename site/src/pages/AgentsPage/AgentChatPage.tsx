@@ -34,6 +34,7 @@ import {
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { userSkills } from "#/api/queries/userSkills";
+import { preferenceSettings } from "#/api/queries/users";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
@@ -104,14 +105,8 @@ import { pickReasoningEffort } from "./utils/reasoningEffort";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
-type AgentChatPageProps = {
-	/** Overrides the route param so several chat panes can render at once. */
-	readonly chatId?: string;
-};
-
-const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
-	chatId: agentId,
-}) => {
+const AgentChatPage: React.FC = () => {
+	const { agentId } = useParams() as { agentId: string };
 	const {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -179,6 +174,9 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		enabled: permissions.editDeploymentConfig,
 	});
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
+	// The timeline folds steps by preference, so a cold load waits for it here
+	// rather than painting rows unfolded and then collapsing them.
+	const preferencesQuery = useQuery(preferenceSettings());
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(chatOrganizationId),
 		enabled: Boolean(chatOrganizationId),
@@ -708,19 +706,28 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		});
 	};
 
+	const isWaitingForPreferences =
+		preferencesQuery.isLoading &&
+		!chatQuery.isLoadingError &&
+		!chatMessagesQuery.isLoadingError;
+
 	return (
 		<>
 			<title>
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
-			{chatQuery.isLoading || chatMessagesQuery.isLoading ? (
+			{chatQuery.isLoading ||
+			chatMessagesQuery.isLoading ||
+			isWaitingForPreferences ? (
 				<AgentChatPageLoadingView
 					inputRef={editing.chatInputRef}
 					initialValue={editing.editorInitialValue}
 					initialEditorState={editing.initialEditorState}
 					remountKey={editing.remountKey}
 					onContentChange={editing.handleLoadingDraftChange}
-					isInputDisabled={isInputDisabled}
+					// The loading view drops sends, so keep the composer disabled
+					// until the transcript can mount.
+					isInputDisabled={isInputDisabled || preferencesQuery.isLoading}
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
@@ -837,9 +844,8 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 // Keyed so that navigating between agents (changing the :agentId param)
 // fully remounts the component, resetting all internal state (drafts,
 // editing, queries, scroller) cleanly.
-const KeyedAgentChatPage: React.FC<AgentChatPageProps> = ({ chatId }) => {
-	const params = useParams<{ agentId: string }>();
-	const agentId = chatId ?? params.agentId;
+const KeyedAgentChatPage: React.FC = () => {
+	const { agentId } = useParams<{ agentId: string }>();
 	if (!agentId) {
 		return <AgentChatPageNotFoundView />;
 	}
@@ -849,7 +855,7 @@ const KeyedAgentChatPage: React.FC<AgentChatPageProps> = ({ chatId }) => {
 			autoScroll
 			defaultScrollPosition="end"
 		>
-			<AgentChatPage chatId={agentId} />
+			<AgentChatPage />
 		</MessageScroller.Provider>
 	);
 };

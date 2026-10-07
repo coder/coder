@@ -48,10 +48,12 @@ var excludeDirs = []string{
 	"enterprise/scaletest/agentfake",
 }
 
-// excluded reports whether a path lies under an excluded subtree.
+// excluded reports whether a path lies under an excluded subtree. The path may
+// use either OS-native or slash separators.
 func excluded(path string) bool {
+	path = filepath.ToSlash(path)
 	for _, dir := range excludeDirs {
-		if path == dir || strings.HasPrefix(path, dir+string(filepath.Separator)) {
+		if path == dir || strings.HasPrefix(path, dir+"/") {
 			return true
 		}
 	}
@@ -189,7 +191,7 @@ func scanDirectory(root string, prefixes prefixIndex, packageStrings map[string]
 			return nil
 		}
 
-		fileMetrics, err := scanFile(path, prefixes[filepath.Dir(path)], packageStrings)
+		fileMetrics, err := scanFile(path, prefixes[packageDir(path)], packageStrings)
 		if err != nil {
 			return xerrors.Errorf("scanning %s: %w", path, err)
 		}

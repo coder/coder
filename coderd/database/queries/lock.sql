@@ -17,8 +17,3 @@ SELECT pg_try_advisory_xact_lock($1);
 -- A wait longer than lock_timeout_ms fails with lock_not_available
 -- instead of blocking. The setting reverts when the transaction ends.
 SELECT set_config('lock_timeout', format('%sms', @lock_timeout_ms::bigint), true);
-
--- name: GetTransactionLockTimeout :one
--- Normalize the effective timeout to milliseconds, regardless of the units
--- used to configure the session or transaction.
-SELECT (EXTRACT(EPOCH FROM current_setting('lock_timeout')::interval) * 1000)::bigint;

@@ -3888,7 +3888,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Password Authentication",
-			Description: "Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.",
+			Description: "Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. This applies to all users, including owners. Ensure an owner can sign in through your identity provider before enabling this. To recover access, unset this option, restart the server, and use `coder server create-admin-user` if needed.",
 			Flag:        "disable-password-auth",
 			Env:         "CODER_DISABLE_PASSWORD_AUTH",
 
@@ -5529,7 +5529,6 @@ const (
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
-	ExperimentChatBoard                 Experiment = "chat-board"                  // Offers the Coder Agents chat board as a per-browser opt-in.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
 )
@@ -5570,8 +5569,6 @@ func (e Experiment) DisplayName() string {
 		return "Chat Inline MCP Servers"
 	case ExperimentEnableAIWorkspaceDebug:
 		return "AI Workspace Debugging"
-	case ExperimentChatBoard:
-		return "Chat Board"
 	case ExperimentChatAutomations:
 		return "Chat Automations"
 	default:
@@ -5601,7 +5598,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentAgentLifecycleHooks,
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
-	ExperimentChatBoard,
 	ExperimentChatStageMetrics,
 	ExperimentChatAutomations,
 }

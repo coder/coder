@@ -421,6 +421,33 @@ WHERE
 ORDER BY
     id ASC;
 
+-- name: GetDeletedChatMessagesFromLastAssistant :many
+-- Returns the last deleted assistant message and the deleted rows after it.
+-- Every visibility is included: a model-only row can hold a tool call's result.
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND deleted = true
+    AND id < @user_message_id::bigint
+    AND id >= (
+        SELECT
+            max(id)
+        FROM
+            chat_messages
+        WHERE
+            chat_id = @chat_id::uuid
+            AND deleted = true
+            AND compressed = false
+            AND role = 'assistant'
+            AND id > @previous_user_message_id::bigint
+            AND id < @user_message_id::bigint
+    )
+ORDER BY
+    id ASC;
+
 -- name: GetChatMessagesByRevisionForStream :many
 -- Stream deltas and reset snapshots must use the same message order.
 SELECT
@@ -760,14 +787,14 @@ WHERE
                         OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', @search))
                     )
             )
-            -- Skip an explicit pr_number lookup unless the search is a valid bigint.
+            -- Digits only, so LIKE sees no metacharacters; a per-chat PK probe.
             OR CASE
-                WHEN @search ~ '^[0-9]{1,18}$' THEN EXISTS (
+                WHEN @search ~ '^[0-9]+$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number = @search::bigint
+                        AND cds.pr_number::text LIKE @search || '%'
                 )
                 ELSE false
             END
@@ -2053,7 +2080,7 @@ FROM
 WHERE
     chat_id = @chat_id::uuid
 ORDER BY
-    updated_at DESC,
+    created_at,
     git_remote_origin,
     git_branch;
 
@@ -2065,7 +2092,7 @@ FROM
 WHERE
     chat_id = ANY(@chat_ids::uuid[])
 ORDER BY
-    updated_at DESC,
+    created_at,
     git_remote_origin,
     git_branch;
 

@@ -1,3 +1,38 @@
+-- Take every table lock this migration needs before changing anything.
+-- chatd keeps using these tables during a rolling deploy and touches chats
+-- and chats_expanded in both orders, so no fixed acquisition order is free
+-- of deadlocks. Each attempt waits briefly for each lock; if any wait times
+-- out, the attempt releases everything it took and tries again.
+DO $$
+DECLARE
+	previous_lock_timeout text := current_setting('lock_timeout');
+	deadline timestamptz := clock_timestamp() + interval '2 minutes';
+BEGIN
+	LOOP
+		BEGIN
+			-- Well below the default deadlock_timeout of 1s, so this
+			-- transaction gives up before PostgreSQL can choose an
+			-- application transaction as the deadlock victim.
+			PERFORM set_config('lock_timeout', '100ms', true);
+			-- chats_expanded is recreated below. DROP VIEW locks only the
+			-- view, while LOCK TABLE on the view would also lock users (via
+			-- visible_users) in ACCESS EXCLUSIVE mode.
+			DROP VIEW IF EXISTS chats_expanded;
+			LOCK TABLE chats, chat_messages, chat_queued_messages IN ACCESS EXCLUSIVE MODE;
+			-- The chat_automations foreign keys need these.
+			LOCK TABLE organizations, users, chat_model_configs IN SHARE ROW EXCLUSIVE MODE;
+			EXIT;
+		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+			IF clock_timestamp() > deadline THEN
+				RAISE EXCEPTION 'migration 000609 could not lock the chat tables within 2 minutes';
+			END IF;
+		END;
+		PERFORM pg_sleep(0.1);
+	END LOOP;
+	PERFORM set_config('lock_timeout', previous_lock_timeout, true);
+END;
+$$;
+
 CREATE TYPE chat_automation_kind AS ENUM ('webhook', 'schedule');
 CREATE TYPE chat_automation_target_mode AS ENUM ('existing_chat', 'new_chat');
 CREATE TYPE chat_automation_webhook_use AS ENUM ('single', 'multi');
@@ -138,9 +173,8 @@ COMMENT ON COLUMN chats.automation_id IS 'Automation that created this chat. No 
 
 CREATE INDEX chats_automation_idx ON chats (automation_id) WHERE automation_id IS NOT NULL;
 
--- Recreate chats_expanded: its explicit column list hides new columns otherwise.
-DROP VIEW IF EXISTS chats_expanded;
-
+-- Recreate chats_expanded, dropped at the top of this migration: its
+-- explicit column list hides new columns otherwise.
 CREATE VIEW chats_expanded AS
  SELECT c.id,
     c.owner_id,
