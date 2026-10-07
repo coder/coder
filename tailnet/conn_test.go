@@ -554,7 +554,6 @@ func TestConn_BlockEndpoints(t *testing.T) {
 //
 //nolint:paralleltest // TUNDev enables the process-global tailscale netns setting, which would leak into parallel NewConn calls.
 func TestConn_ReusedSourcePortAfterServerClose(t *testing.T) {
-	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := testutil.Logger(t)
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 
@@ -565,7 +564,7 @@ func TestConn_ReusedSourcePortAfterServerClose(t *testing.T) {
 		DERPMap:   derpMap,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = agent.Close() })
+	defer agent.Close()
 
 	// The client is a gVisor stack behind a TUN so it can choose its source
 	// port.
@@ -578,17 +577,18 @@ func TestConn_ReusedSourcePortAfterServerClose(t *testing.T) {
 		TUNDev:    chTUN.TUN(),
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = client.Close() })
-	clientStack := newTUNStack(ctx, t, chTUN, clientIP)
+	defer client.Close()
+	clientStack := newTUNStack(t, chTUN, clientIP)
 
 	stitch(t, agent, client)
 	stitch(t, client, agent)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	require.True(t, client.AwaitReachable(ctx, agentIP))
 
 	const port = 35565
 	ln, err := agent.Listen("tcp", fmt.Sprintf(":%d", port))
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = ln.Close() })
+	defer ln.Close()
 	go func() {
 		for {
 			c, err := ln.Accept()
@@ -622,7 +622,8 @@ func TestConn_ReusedSourcePortAfterServerClose(t *testing.T) {
 
 // newTUNStack returns a gVisor stack with address addr that exchanges
 // packets through chTUN.
-func newTUNStack(ctx context.Context, t *testing.T, chTUN *tuntest.ChannelTUN, addr netip.Addr) *stack.Stack {
+func newTUNStack(t *testing.T, chTUN *tuntest.ChannelTUN, addr netip.Addr) *stack.Stack {
+	ctx := t.Context()
 	s := stack.New(stack.Options{
 		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv6.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol},
