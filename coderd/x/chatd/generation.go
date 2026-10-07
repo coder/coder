@@ -625,7 +625,7 @@ func (s *taskStarter) runGenerationStep(
 			return input, false, xerrors.Errorf("decide generation: %w", err)
 		}
 		if errors.Is(err, errCompactionStillOverLimit) && prepared.Compaction != nil {
-			metricProvider, metricModel := compactionProvider(prepared.Compaction.Options), compactionModel(prepared.Compaction.Options)
+			metricProvider, metricModel := compactionMetricLabels(prepared.Compaction.Options)
 			s.server.metrics.RecordCompaction(
 				metricProvider,
 				metricModel,
@@ -1197,7 +1197,7 @@ func (s *taskStarter) generateCompaction(
 		return s.finishGenerationError(ctx, machine, input, xerrors.New("compaction action missing options"), requireGenerationAttempt(attempt.number))
 	}
 	compactionOpts := prepared.Compaction.Options
-	metricProvider, metricModel := compactionProvider(prepared.Compaction.Options), compactionModel(prepared.Compaction.Options)
+	metricProvider, metricModel := compactionMetricLabels(compactionOpts)
 	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)
 	if err != nil {
 		return chathooks.GenerationDispatchError(agenthooks.EventPreCompact, err)
@@ -1273,18 +1273,11 @@ func (s *taskStarter) generateCompaction(
 	return nil
 }
 
-func compactionProvider(opts chatloop.GenerateCompactionOptions) string {
+func compactionMetricLabels(opts chatloop.GenerateCompactionOptions) (provider, model string) {
 	if opts.Model == nil {
-		return ""
+		return "", ""
 	}
-	return opts.Model.Provider()
-}
-
-func compactionModel(opts chatloop.GenerateCompactionOptions) string {
-	if opts.Model == nil {
-		return ""
-	}
-	return opts.Model.Model()
+	return opts.Model.Provider(), opts.Model.Model()
 }
 
 // generationAttempt groups the state a generation action needs after
