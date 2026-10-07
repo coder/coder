@@ -81,7 +81,8 @@ func TestForwardingHandlerPlaceholder(t *testing.T) {
 			logger := slogtest.Make(t, nil)
 			gate := aibridge.NewInflightGate(logger)
 			t.Cleanup(gate.Close)
-			handler := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{})
+			handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &testutil.MockRecorder{})
+			require.NoError(t, err)
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, req)
 			require.Equal(t, tc.status, response.Code)
@@ -115,7 +116,6 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 		name           string
 		prepare        func(*testing.T, *http.Request) *http.Request
 		provider       func(*testing.T) provider.Provider
-		noRecorder     bool
 		status         int
 		wantBody       string
 		wantLogLevel   slog.Level
@@ -178,14 +178,6 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 			wantLogMessage: "rejecting request without an actor",
 		},
 		{
-			name:           "MissingRecorder",
-			noRecorder:     true,
-			status:         http.StatusInternalServerError,
-			wantBody:       "recorder unavailable\n",
-			wantLogLevel:   slog.LevelWarn,
-			wantLogMessage: "rejecting request without a recorder",
-		},
-		{
 			name: "MissingCredential",
 			prepare: func(_ *testing.T, r *http.Request) *http.Request {
 				r.Header.Del("Authorization")
@@ -243,10 +235,6 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			var rec recorder.Recorder = &struct{ recorder.Recorder }{}
-			if tc.noRecorder {
-				rec = nil
-			}
 			body := &unreadBody{}
 			req := requestWithAuth(t, body)
 			if tc.prepare != nil {
@@ -257,9 +245,10 @@ func TestForwardingHandlerRejectsRequest(t *testing.T) {
 				prov = tc.provider(t)
 			}
 			sink := codertestutil.NewFakeSink(t)
-			h := &forwardingHandler{provider: prov, logger: sink.Logger(), recorder: rec}
+			h, err := newForwardingHandler(prov, sink.Logger(), nil, nil, nil, &testutil.MockRecorder{})
+			require.NoError(t, err)
 			response := httptest.NewRecorder()
-			record, cred := h.checkRequest(response, req)
+			_, record, cred := h.checkRequest(response, req)
 			require.Nil(t, record)
 			require.Nil(t, cred)
 			require.Equal(t, tc.status, response.Code)
@@ -325,11 +314,10 @@ func TestForwardingHandlerInterceptionRecord(t *testing.T) {
 			}
 			h := &forwardingHandler{
 				provider: provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test", KeyPool: pool}),
-				recorder: &struct{ recorder.Recorder }{},
 			}
 			response := httptest.NewRecorder()
 			before := time.Now()
-			record, cred := h.checkRequest(response, req)
+			_, record, cred := h.checkRequest(response, req)
 			require.NotNil(t, record)
 			require.NotNil(t, cred)
 			id, err := uuid.Parse(record.ID)
@@ -364,7 +352,8 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	gate := aibridge.NewInflightGate(logger)
 	t.Cleanup(gate.Close)
-	handler := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{})
+	handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &testutil.MockRecorder{})
+	require.NoError(t, err)
 	const route = "/v1/responses"
 	require.NoError(t, handler.breaker.Execute(route, "", httptest.NewRecorder(), func(w http.ResponseWriter) error {
 		w.WriteHeader(http.StatusServiceUnavailable)

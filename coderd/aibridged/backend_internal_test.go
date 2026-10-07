@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -72,7 +73,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	// Replacing proxy snapshots similarly changes the output without
 	// registering another collector.
 	thirdProvider := newProvider(t, "third")
-	firstRouter, err := proxy.NewRouter(t.Context(), []aibridge.Provider{thirdProvider}, slogtest.Make(t, nil), nil, otel.Tracer(t.Name()), server.inflight, nil)
+	firstRouter, err := proxy.NewRouter(t.Context(), []aibridge.Provider{thirdProvider}, slogtest.Make(t, nil), nil, otel.Tracer(t.Name()), server.inflight, &struct{ recorder.Recorder }{})
 	require.NoError(t, err)
 	server.backend.Store(&backend{proxyRouter: firstRouter})
 
@@ -81,7 +82,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	require.True(t, testutil.PromGaugeHasValue(t, metrics, 1, "key_pool_state", "third", "valid"))
 
 	fourthProvider := newProvider(t, "fourth")
-	secondRouter, err := proxy.NewRouter(t.Context(), []aibridge.Provider{fourthProvider}, slogtest.Make(t, nil), nil, otel.Tracer(t.Name()), server.inflight, nil)
+	secondRouter, err := proxy.NewRouter(t.Context(), []aibridge.Provider{fourthProvider}, slogtest.Make(t, nil), nil, otel.Tracer(t.Name()), server.inflight, &struct{ recorder.Recorder }{})
 	require.NoError(t, err)
 	server.backend.Store(&backend{proxyRouter: secondRouter})
 

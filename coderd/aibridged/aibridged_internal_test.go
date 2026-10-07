@@ -451,7 +451,7 @@ func newProxyTestRouter(t *testing.T, upstreamHandler http.Handler, gate *aibrid
 	upstream := httptest.NewServer(upstreamHandler)
 	t.Cleanup(upstream.Close)
 	router, err := proxy.NewRouter(t.Context(), []aibridge.Provider{aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})},
-		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate, nil)
+		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{})
 	require.NoError(t, err)
 	return router
 }
@@ -468,6 +468,7 @@ func newProxyTestServer(t *testing.T, upstreamHandler http.Handler) *Server {
 		logger:       slogtest.Make(t, nil),
 		tracer:       noop.NewTracerProvider().Tracer(t.Name()),
 		inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
+		recorder:     &struct{ recorder.Recorder }{},
 	}
 	s.backend.Store(&backend{proxyRouter: newProxyTestRouter(t, upstreamHandler, s.inflight)})
 	t.Cleanup(func() { _ = s.Close() })

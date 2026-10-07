@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
@@ -37,15 +38,18 @@ type forwardingHandler struct {
 var _ http.Handler = (*forwardingHandler)(nil)
 
 // newForwardingHandler constructs one bridged handler per provider snapshot.
-func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) *forwardingHandler {
+func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*forwardingHandler, error) {
+	if rec == nil {
+		return nil, xerrors.New("recorder is required")
+	}
 	return &forwardingHandler{
 		provider: prov,
-		logger:   logger,
+		logger:   logger.With(slog.F("provider", prov.Name())),
 		tracer:   tracer,
 		inflight: inflight,
 		recorder: rec,
 		breaker:  circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
-	}
+	}, nil
 }
 
 func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -60,86 +64,87 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, span := h.tracer.Start(ctx, "Proxy")
 	defer span.End()
 	r = r.WithContext(ctx)
-	record, cred := h.checkRequest(w, r)
+	logger, record, cred := h.checkRequest(w, r)
 	if record == nil {
 		return
 	}
 
 	var err error
-	defer func() { h.finishForwarding(ctx, record, err) }()
+	defer func() { h.finishForwarding(ctx, record, logger, err) }()
 	route := strings.TrimPrefix(r.URL.Path, "/"+h.provider.Name())
 	err = h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
-		outbound := h.prepareForwarding(r, cred)
-		return h.forward(rw, outbound)
+		outbound := h.prepareForwarding(r, cred, logger)
+		return h.forward(rw, outbound, logger)
 	})
 }
 
 // checkRequest validates a bridged request without reading its body. On rejection
-// it writes the response and returns nil, nil. Otherwise it returns the initial
-// interception record and credential without writing a response.
-func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request) (*recorder.InterceptionRecord, credential.Credential) {
+// it writes the response and returns a nil record and credential. Otherwise it
+// returns the request logger, initial interception record, and credential
+// without writing a response.
+func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request) (slog.Logger, *recorder.InterceptionRecord, credential.Credential) {
 	ctx := r.Context()
-	logger := h.logger.With(slog.F("provider", h.provider.Name()))
 	client := aibclient.GuessClient(r)
+
+	logger := h.logger.With(
+		slog.F("path", r.URL.Path),
+		slog.F("user_agent", r.UserAgent()),
+		slog.F("client", string(client)),
+	)
+
 	if headers.IsWebSocketUpgrade(r) {
-		logger.Debug(ctx, "rejecting unsupported WebSocket upgrade",
-			slog.F("route", strings.TrimPrefix(r.URL.Path, h.provider.RoutePrefix())),
-			slog.F("client", string(client)),
-		)
+		logger.Debug(ctx, "rejecting unsupported WebSocket upgrade")
 		http.Error(w, "WebSocket transport is not supported, use HTTP", http.StatusNotImplemented)
-		return nil, nil
+		return logger, nil, nil
 	}
+
+	if r.ContentLength > routing.MaxRequestBodyBytes {
+		logger.Debug(ctx, "rejecting oversized request body", slog.F("content_length", r.ContentLength))
+		routing.WriteRequestBodyTooLarge(ctx, w)
+		return logger, nil, nil
+	}
+
 	firewallID, firewallSequence, err := headers.ExtractAgentFirewallHeaders(r)
 	if err != nil {
 		logger.Warn(ctx, "rejecting request with invalid agent firewall headers", slog.Error(err))
 		http.Error(w, "invalid agent firewall headers", http.StatusBadRequest)
-		return nil, nil
-	}
-	if r.ContentLength > routing.MaxRequestBodyBytes {
-		logger.Debug(ctx, "rejecting oversized request body",
-			slog.F("route", strings.TrimPrefix(r.URL.Path, h.provider.RoutePrefix())),
-			slog.F("client", string(client)),
-			slog.F("content_length", r.ContentLength),
-		)
-		routing.WriteRequestBodyTooLarge(ctx, w)
-		return nil, nil
+		return logger, nil, nil
 	}
 
 	actor := aibcontext.ActorFromContext(ctx)
 	if actor == nil {
 		logger.Warn(ctx, "rejecting request without an actor")
 		http.Error(w, "no actor found", http.StatusBadRequest)
-		return nil, nil
+		return logger, nil, nil
 	}
-	if h.recorder == nil {
-		logger.Warn(ctx, "rejecting request without a recorder")
-		http.Error(w, "recorder unavailable", http.StatusInternalServerError)
-		return nil, nil
-	}
+	logger = logger.With(slog.F("initiator_id", actor.ID.String()))
+
 	cred, err := h.provider.ResolveCredential(r)
 	if err != nil {
 		trace.SpanFromContext(ctx).SetStatus(codes.Error, "failed to resolve credential")
-		logger.Warn(ctx, "failed to resolve credential", slog.Error(err), slog.F("path", r.URL.Path))
+		logger.Warn(ctx, "failed to resolve credential", slog.Error(err))
 		if errors.Is(err, provider.ErrNoCredential) {
 			http.Error(w, "upstream authentication unavailable: no provider credentials supplied or configured", http.StatusForbidden)
 		} else {
 			http.Error(w, "upstream authentication unavailable", http.StatusInternalServerError)
 		}
-		return nil, nil
+		return logger, nil, nil
 	}
+
 	switch cred.(type) {
 	case credential.BYOK, *credential.CentralizedPool:
 	default:
 		// The type name identifies the credential kind; the value may hold secrets.
+		// TODO: https://linear.app/codercom/issue/AIGOV-628
 		logger.Warn(ctx, "rejecting unsupported upstream credential", slog.F("credential_type", fmt.Sprintf("%T", cred)))
 		http.Error(w, "upstream authentication is not supported in proxy mode", http.StatusNotImplemented)
-		return nil, nil
+		return logger, nil, nil
 	}
 	var metadata recorder.Metadata
 	if actor.Username != "" {
 		metadata = recorder.Metadata{"Username": actor.Username}
 	}
-	return &recorder.InterceptionRecord{
+	ir := &recorder.InterceptionRecord{
 		StartedAt:                   time.Now().UTC(),
 		ID:                          uuid.NewString(),
 		InitiatorID:                 actor.ID.String(),
@@ -155,20 +160,26 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 		// Model:                    TODO, depends on extractor
 		// ClientSessionID:          TODO, depends on request buffering
 		// CorrelatingToolCallID:    TODO, depends on extractor
-	}, cred
+		// TODO https://linear.app/codercom/issue/AIGOV-613
+	}
+
+	return logger, ir, cred
 }
 
-func (*forwardingHandler) prepareForwarding(r *http.Request, _ credential.Credential) *http.Request {
+func (*forwardingHandler) prepareForwarding(r *http.Request, _ credential.Credential, _ slog.Logger) *http.Request {
 	// TODO: prepare provider headers and a replayable request body.
+	// https://linear.app/codercom/issue/AIGOV-615
 	return r.Clone(r.Context())
 }
 
-func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request) error {
+func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request, _ slog.Logger) error {
 	// TODO: forward only when lifecycle recording is connected.
+	// https://linear.app/codercom/issue/AIGOV-615
 	http.Error(w, "bridged routes are not yet implemented in proxy mode", http.StatusNotImplemented)
 	return nil
 }
 
-func (*forwardingHandler) finishForwarding(context.Context, *recorder.InterceptionRecord, error) {
+func (*forwardingHandler) finishForwarding(context.Context, *recorder.InterceptionRecord, slog.Logger, error) {
 	// TODO: finalize the outcome and lifecycle records, including breaker rejection.
+	// https://linear.app/codercom/issue/AIGOV-615
 }

@@ -42,12 +42,10 @@ var _ http.Handler = (*Router)(nil)
 // Provider names must be valid and unique.
 //
 // Disabled providers serve 503 on every path under their name. Enabled
-// providers proxy passthrough routes upstream. Non-Bedrock bridged routes
-// return 404 after validation succeeds. Bedrock bridged routes return 404
-// without validation regardless of credentials.
+// providers proxy passthrough routes upstream, and bridged routes return 501
+// after validation succeeds.
 // All routes reuse the same inflight gate across a server's snapshots.
-// Shutdown drains all admitted requests.
-// rec is shared across requests and must read identity from the request context.
+// Shutdown drains all admitted requests. Recorder is shared across requests.
 func NewRouter(ctx context.Context, providers []provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*Router, error) {
 	if err := provider.ValidateProviders(providers); err != nil {
 		return nil, err
@@ -62,7 +60,12 @@ func NewRouter(ctx context.Context, providers []provider.Provider, logger slog.L
 			continue
 		}
 
-		bridged := inflight.Middleware(newForwardingHandler(prov, logger, m, tracer, inflight, rec))
+		// The bridged handler admits requests itself because only it knows
+		// when post-processing (for which DRPC connection needs to be up) finishes.
+		bridged, err := newForwardingHandler(prov, logger, m, tracer, inflight, rec)
+		if err != nil {
+			return nil, xerrors.Errorf("configure provider %q bridged handler: %w", prov.Name(), err)
+		}
 		for _, path := range prov.BridgedRoutes() {
 			pattern, err := url.JoinPath(prov.RoutePrefix(), path)
 			if err != nil {

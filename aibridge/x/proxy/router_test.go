@@ -25,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
-	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/testutil"
@@ -76,7 +75,7 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			router, err := proxy.NewRouter(t.Context(), tc.providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
+			router, err := proxy.NewRouter(t.Context(), tc.providers, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), &aibtestutil.MockRecorder{})
 			if tc.errContains != "" {
 				require.ErrorContains(t, err, tc.errContains)
 				require.Nil(t, router)
@@ -86,6 +85,14 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 			require.NotNil(t, router)
 		})
 	}
+}
+
+func TestNewRouterRequiresRecorder(t *testing.T) {
+	t.Parallel()
+
+	router, err := proxy.NewRouter(t.Context(), []provider.Provider{&aibtestutil.MockProvider{NameStr: "openai"}}, slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), nil)
+	require.ErrorContains(t, err, `configure provider "openai" bridged handler: recorder is required`)
+	require.Nil(t, router)
 }
 
 //nolint:paralleltest,tparallel // Sequential subtests verify connection reuse.
@@ -113,7 +120,7 @@ func TestRouterRoutes(t *testing.T) {
 	m := metrics.NewMetrics(prometheus.NewRegistry())
 	router, err := proxy.NewRouter(
 		t.Context(), []provider.Provider{enabled, provider.NewDisabledStub("disabled-openai", "openai")},
-		slogtest.Make(t, nil), m, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), &struct{ recorder.Recorder }{},
+		slogtest.Make(t, nil), m, noop.NewTracerProvider().Tracer(t.Name()), newRouterGate(t), &aibtestutil.MockRecorder{},
 	)
 	require.NoError(t, err)
 
@@ -262,7 +269,9 @@ func TestRouterRefusesAfterGateShutdown(t *testing.T) {
 			},
 			provider.NewDisabledStub("disabled-openai", "openai"),
 		},
-		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{},
+		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()),
+		gate,
+		&aibtestutil.MockRecorder{},
 	)
 	require.NoError(t, err)
 	require.NoError(t, gate.Shutdown(testutil.Context(t, testutil.WaitShort)))
