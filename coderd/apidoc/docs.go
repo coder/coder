@@ -4743,7 +4743,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Send only history changed after this history_version, taken from the messages page or the last status event",
+                        "description": "Send only history changed after this history_version, taken from the messages page or the last preview_reset event",
                         "name": "history_version",
                         "in": "query"
                     }
@@ -23596,6 +23596,9 @@ const docTemplate = `{
                 "message_part": {
                     "$ref": "#/definitions/codersdk.ChatStreamMessagePart"
                 },
+                "preview_reset": {
+                    "$ref": "#/definitions/codersdk.ChatStreamPreviewReset"
+                },
                 "queued_messages": {
                     "description": "QueuedMessages lists the queued messages in delivery order: steer\nmessages first, then queue messages.",
                     "type": "array",
@@ -23667,6 +23670,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatStreamPreviewReset": {
+            "type": "object",
+            "properties": {
+                "history_version": {
+                    "description": "HistoryVersion is the chat's history_version for the message events\nsent before this preview_reset. Every sync that changes the history\nends with a preview_reset, so a client reconnects with the\nHistoryVersion of the last one it received.",
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.ChatStreamRetry": {
             "type": "object",
             "properties": {
@@ -23708,10 +23720,6 @@ const docTemplate = `{
         "codersdk.ChatStreamStatus": {
             "type": "object",
             "properties": {
-                "history_version": {
-                    "description": "HistoryVersion is the chat's history_version for the messages sent\nbefore this status. Pass it as the stream's history_version parameter\nwhen reconnecting.",
-                    "type": "integer"
-                },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 }
