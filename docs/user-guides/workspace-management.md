@@ -123,13 +123,11 @@ coder update <workspace-name> --template-version <version-name>
 coder update <workspace-name> --stop-template-version <version-name> --template-version <version-name>
 ```
 
-`--stop-template-version` only applies when `coder update` stops a started
-workspace. To stop a workspace with a specific version on its own, use
-`coder stop --template-version`.
+`--stop-template-version` only applies when `coder update` stops a started workspace.
+To stop a workspace with a specific version on its own, use `coder stop --template-version`.
 
-`coder start` and `coder stop` also accept `--template-version`. Template
-permissions still apply, so if a template requires the active version, only
-template admins can start a workspace on another version.
+`coder start` and `coder stop` also accept `--template-version`.
+Template permissions still apply, so if a template requires the active version, only template admins can start a workspace on another version.
 
 ### Automatic updates
 
