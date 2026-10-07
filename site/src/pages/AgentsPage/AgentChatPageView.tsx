@@ -884,7 +884,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									</div>
 								)}
 								{isArchived && (
-									<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
+									<div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
 										<ArchiveIcon className="size-4 shrink-0" />
 										This agent has been archived and is read-only.
 									</div>

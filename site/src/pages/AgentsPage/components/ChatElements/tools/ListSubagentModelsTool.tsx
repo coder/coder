@@ -72,7 +72,7 @@ const ListSubagentModelsContent: React.FC<{ models: unknown[] }> = ({
 
 	return (
 		<ScrollArea
-			className="mt-1.5 rounded-md border border-solid border-border-default"
+			className="mt-1.5 rounded-md border border-solid border-border"
 			viewportClassName="max-h-64"
 			viewportTabIndex={0}
 			viewportAriaLabel="Available models"
@@ -84,7 +84,7 @@ const ListSubagentModelsContent: React.FC<{ models: unknown[] }> = ({
 						key={provider}
 						className={
 							index > 0
-								? "border-0 border-t border-solid border-border-default"
+								? "border-0 border-t border-solid border-border"
 								: undefined
 						}
 					>
