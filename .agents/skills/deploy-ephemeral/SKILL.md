@@ -9,7 +9,7 @@ Each same-repo coder/coder pull request gets one dogfood workspace,
 `eph-pr-<number>`, built from the `coder-ephemeral` template. The workspace
 follows the PR branch on its own: it checks GitHub every 2 minutes and
 redeploys each new commit. It stays up until it is
-deleted. Members of the dogfood `coder` organization reach it through
+deleted, and each user may keep at most 5 of them. Members of the dogfood `coder` organization reach it through
 organization port shares.
 
 - **Full mode** runs the branch's own Coder with `scripts/develop.sh`, seeded
@@ -113,7 +113,21 @@ While `status` is `pending`, `starting`, `stopping`, `canceling`, or
 it ends.
 
 Any other code but `404`: stop and report it. `404` means the workspace does
-not exist. Create it:
+not exist.
+
+Each user may keep at most 5 `eph-pr-*` workspaces, running or stopped. Count
+them before creating one:
+
+```sh
+coder list -o json | jq '[.[] | select(.name | startswith("eph-pr-"))] | length'
+```
+
+At 5 or more, do not create the workspace. List them with their PR states as
+in [Teardown](#9-teardown) item 4, offer to tear down those whose PRs are
+merged or closed, and otherwise ask the user which one to tear down. Create
+the new workspace only once the count is below 5.
+
+Create it:
 
 ```sh
 coder create "$ws" -O coder --template coder-ephemeral -y \
