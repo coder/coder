@@ -42,6 +42,9 @@ export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 				label: "Attributes",
 				icon: <SlidersHorizontalIcon />,
 				chipKeys: ATTRIBUTE_CHIP_KEYS,
+				inlineOptions: true,
+				inlineOptionsLabel: "Attributes",
+				inlineOptionsIcons: true,
 				getOptions: getAttributeFilterOptions,
 			},
 		];

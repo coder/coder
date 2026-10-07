@@ -50,13 +50,10 @@ type Story = StoryObj<typeof TemplatesFilterHarness>;
 export const Default: Story = {};
 
 export const Attributes: Story = {
+	parameters: { showOrganizations: true },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
-		await userEvent.click(
-			await body.findByRole("option", { name: /^Attributes/ }),
-		);
 	},
 };
 
@@ -73,12 +70,13 @@ export const Organization: Story = {
 };
 
 export const SelectDeprecatedOption: Story = {
+	...Attributes,
 	play: async (context) => {
 		await Attributes.play?.(context);
 		await userEvent.click(
 			await within(context.canvasElement.ownerDocument.body).findByRole(
-				"button",
-				{ name: /deprecated/i },
+				"option",
+				{ name: "Deprecated" },
 			),
 		);
 	},

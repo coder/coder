@@ -38,18 +38,44 @@ describe("TemplatesFilter", () => {
 		["Compatibility mode", "compatibility_mode:true"],
 		["Agents allowed", "agents-allowed:true"],
 		["Has external agent", "has_external_agent:true"],
-	])("emits the query for %s", async (label, token) => {
-		const user = userEvent.setup({ skipHover: true });
+	])("toggles %s from the main menu", async (label, token) => {
+		const user = userEvent.setup();
 		const onUpdate = vi.fn();
 		renderWithAuth(<TemplatesFilterHarness onUpdate={onUpdate} />);
 
 		await user.click(await screen.findByRole("button", { name: "Filters" }));
-		await user.hover(
-			await screen.findByRole("option", { name: /^Attributes/ }),
-		);
-		await user.click(await screen.findByRole("button", { name: label }));
+		await user.click(await screen.findByRole("option", { name: label }));
 
 		await waitFor(() => expect(onUpdate).toHaveBeenLastCalledWith(token));
+		await user.click(await screen.findByRole("option", { name: label }));
+		await waitFor(() => expect(onUpdate).toHaveBeenLastCalledWith(""));
+	});
+
+	it("toggles attributes independently while preserving the author", async () => {
+		const user = userEvent.setup();
+		const onUpdate = vi.fn();
+		renderWithAuth(
+			<TemplatesFilterHarness
+				onUpdate={onUpdate}
+				initialQuery="author:me deprecated:true"
+			/>,
+		);
+
+		await user.click(await screen.findByRole("button", { name: "Filters" }));
+		await user.click(
+			await screen.findByRole("option", { name: "Agents allowed" }),
+		);
+		await waitFor(() =>
+			expect(onUpdate).toHaveBeenLastCalledWith(
+				"author:me deprecated:true agents-allowed:true",
+			),
+		);
+		await user.click(await screen.findByRole("option", { name: "Deprecated" }));
+		await waitFor(() =>
+			expect(onUpdate).toHaveBeenLastCalledWith(
+				"author:me agents-allowed:true",
+			),
+		);
 	});
 
 	it("allows ordinary users to select themselves without listing users", async () => {
