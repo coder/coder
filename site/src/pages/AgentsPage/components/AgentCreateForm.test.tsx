@@ -991,11 +991,12 @@ describe("AgentCreateForm project picker", () => {
 	});
 
 	it.each([
-		{ listRefetch: "succeeds", refetchFails: false },
-		{ listRefetch: "fails", refetchFails: true },
+		{ list: "refetches", isListLoaded: true, refetchFails: false },
+		{ list: "fails to refetch", isListLoaded: true, refetchFails: true },
+		{ list: "never loads", isListLoaded: false, refetchFails: true },
 	])(
-		"selects a project created from the picker when the list refetch $listRefetch",
-		async ({ refetchFails }) => {
+		"selects a project created from the picker when the list $list",
+		async ({ isListLoaded, refetchFails }) => {
 			const createdProject: TypesGen.ChatProject = {
 				...MockChatProject,
 				id: "chat-project-new",
@@ -1012,7 +1013,11 @@ describe("AgentCreateForm project picker", () => {
 			}
 			const { onCreateChat } = renderForm(
 				{},
-				{ queryClient: createProjectQueryClient() },
+				{
+					queryClient: isListLoaded
+						? createProjectQueryClient()
+						: createQueryClient(),
+				},
 			);
 
 			await user().click(

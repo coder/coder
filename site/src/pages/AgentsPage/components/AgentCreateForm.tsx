@@ -448,20 +448,25 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		...chatProjects(),
 		enabled: isProjectPickerEnabled,
 	});
-	const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-		null,
-	);
+	// Holds the project itself, not just its ID, so a project created while
+	// the list cannot load stays selected.
+	const [pickedProject, setPickedProject] =
+		useState<TypesGen.ChatProject | null>(null);
 	// The server rejects a project from another organization, so only the
-	// effective organization's projects are offered. Deriving the selection
-	// also drops a project that was deleted or belongs to another organization.
+	// effective organization's projects are offered.
 	const organizationProjects = (projectsQuery.data ?? []).filter(
 		(chatProject) => chatProject.organization_id === organizationId,
 	);
-	const selectedProject = isProjectPickerEnabled
-		? (organizationProjects.find(
-				(chatProject) => chatProject.id === selectedProjectId,
-			) ?? null)
-		: null;
+	// A loaded list is authoritative: it drops a deleted project and supplies
+	// the latest name and icon.
+	const selectedProject =
+		isProjectPickerEnabled && pickedProject?.organization_id === organizationId
+			? projectsQuery.data === undefined
+				? pickedProject
+				: (organizationProjects.find(
+						(chatProject) => chatProject.id === pickedProject.id,
+					) ?? null)
+			: null;
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
 	const openCreateProjectDialog = () => {
@@ -482,7 +487,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		if (lastSettledOrgId !== null) {
 			setSelectedWorkspaceId(null);
 			setUserMCPServerIds(null);
-			setSelectedProjectId(null);
+			setPickedProject(null);
 		}
 	}
 	useEffect(() => {
@@ -665,7 +670,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 
 	const selectOrganization = (organization: TypesGen.Organization) => {
 		setUserMCPServerIds(null);
-		setSelectedProjectId(null);
+		setPickedProject(null);
 		setSelectedOrg(organization);
 	};
 
@@ -1009,9 +1014,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 							<CompactProjectSelector
 								value={selectedProject}
 								options={organizationProjects}
-								onChange={(chatProject) =>
-									setSelectedProjectId(chatProject?.id ?? null)
-								}
+								onChange={setPickedProject}
 								onCreateProject={openCreateProjectDialog}
 								isLoading={projectsQuery.isLoading}
 								// A failed background refetch keeps the cached list usable.
@@ -1155,9 +1158,10 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						createProjectMutation.mutate(
 							{ organizationId: projectOrganizationId, request },
 							{
-								// Runs after the list refetch settles. Adding the project
-								// keeps it selectable when that refetch failed; an unloaded
-								// list is left alone rather than replaced by a partial one.
+								// Runs after the list refetch settles. A loaded list gets the
+								// project in case that refetch failed. An unloaded list is not
+								// replaced by a partial one; the selection falls back to the
+								// picked project instead.
 								onSuccess: (chatProject) => {
 									queryClient.setQueryData(
 										chatProjectsKey,
@@ -1166,7 +1170,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 												? projects
 												: projects && [...projects, chatProject],
 									);
-									setSelectedProjectId(chatProject.id);
+									setPickedProject(chatProject);
 									setIsCreateProjectOpen(false);
 								},
 							},
