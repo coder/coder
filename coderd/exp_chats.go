@@ -3539,7 +3539,7 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param after_id query int false "Skip snapshot messages with id at or before this cursor"
+// @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when after_revision is set"
 // @Param after_revision query int false "Skip history changed at or before this history_version, as returned by the messages page"
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]

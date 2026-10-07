@@ -4077,11 +4077,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 ### Parameters
 
-| Name             | In    | Type         | Required | Description                                                                              |
-|------------------|-------|--------------|----------|------------------------------------------------------------------------------------------|
-| `chat`           | path  | string(uuid) | true     | Chat ID                                                                                  |
-| `after_id`       | query | integer      | false    | Skip snapshot messages with id at or before this cursor                                  |
-| `after_revision` | query | integer      | false    | Skip history changed at or before this history_version, as returned by the messages page |
+| Name             | In    | Type         | Required | Description                                                                                 |
+|------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------|
+| `chat`           | path  | string(uuid) | true     | Chat ID                                                                                     |
+| `after_id`       | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when after_revision is set |
+| `after_revision` | query | integer      | false    | Skip history changed at or before this history_version, as returned by the messages page    |
 
 ### Example responses
 

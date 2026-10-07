@@ -3139,7 +3139,7 @@ type StreamChatOptions struct {
 	AfterID *int64
 	// AfterRevision is the ChatMessagesResponse.HistoryVersion the caller's
 	// messages were read at. Without it, any past edit makes the server
-	// resend the whole history.
+	// resend the whole history. When set, the server ignores AfterID.
 	AfterRevision *int64
 }
 

@@ -10297,6 +10297,52 @@ func TestStreamChat(t *testing.T) {
 		require.NotEmpty(t, messageIDs)
 	})
 
+	// A message another tab sends while this tab's stream is down has a
+	// lower ID than this tab's own later send, so after_id cannot tell
+	// the server to include it; the history version can.
+	t.Run("ReconnectReceivesMessagesSentElsewhere", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "first prompt"}},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+
+		page, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		tab := newChatTab(page)
+		_, _ = tab.connect(ctx, t, client, chat.ID)
+
+		send := func(text string) []codersdk.ChatMessage {
+			t.Helper()
+			resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
+			})
+			require.NoError(t, err)
+			require.False(t, resp.Queued)
+			waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+			if len(resp.Messages) > 0 {
+				return resp.Messages
+			}
+			require.NotNil(t, resp.Message)
+			return []codersdk.ChatMessage{*resp.Message}
+		}
+
+		// The stream is down: another tab sends, then this tab sends and
+		// stores its response, as submitChatTurn.ts does.
+		_ = send("from another tab")
+		tab.hold(send("from this tab")...)
+
+		_, _ = tab.connect(ctx, t, client, chat.ID)
+		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), tab.sortedIDs(), "the tab is missing messages sent while its stream was down")
+	})
+
 	t.Run("NegativeAfterRevisionReturns400", func(t *testing.T) {
 		t.Parallel()
 
@@ -13943,6 +13989,90 @@ func waitForChatStatus(ctx context.Context, t testing.TB, client *codersdk.Exper
 		chat, err := client.GetChat(ctx, chatID)
 		return err == nil && chat.Status == want
 	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
+// chatTab models what a web client tab holds for one chat: the message
+// IDs it has stored and the history version it has applied. Messages
+// arrive from the REST page, from the tab's own send responses, and from
+// the stream.
+type chatTab struct {
+	ids     map[int64]bool
+	version int64
+}
+
+func newChatTab(page codersdk.ChatMessagesResponse) *chatTab {
+	tab := &chatTab{ids: map[int64]bool{}, version: page.HistoryVersion}
+	tab.hold(page.Messages...)
+	return tab
+}
+
+func (tab *chatTab) hold(messages ...codersdk.ChatMessage) {
+	for _, m := range messages {
+		tab.ids[m.ID] = true
+	}
+}
+
+func (tab *chatTab) sortedIDs() []int64 {
+	ids := make([]int64, 0, len(tab.ids))
+	for id := range tab.ids {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids
+}
+
+// connect opens the stream with the tab's cursor, as the web client does,
+// and applies events up to and including the first status. It returns
+// the applied events and the open stream.
+func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent) {
+	t.Helper()
+	afterID := slices.Max(append(tab.sortedIDs(), 0))
+	opts := &codersdk.StreamChatOptions{AfterID: &afterID}
+	if tab.version > 0 {
+		opts.AfterRevision = &tab.version
+	}
+	events, closer, err := client.StreamChat(ctx, chatID, opts)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = closer.Close() })
+	return tab.applyUntilStatus(ctx, t, events), events
+}
+
+// applyUntilStatus applies stream events to the tab until a status event.
+func (tab *chatTab) applyUntilStatus(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent) []codersdk.ChatStreamEvent {
+	t.Helper()
+	var applied []codersdk.ChatStreamEvent
+	for {
+		select {
+		case <-ctx.Done():
+			require.FailNow(t, "timed out waiting for a stream status")
+		case event, ok := <-events:
+			require.True(t, ok, "stream closed before a status event")
+			applied = append(applied, event)
+			switch event.Type {
+			case codersdk.ChatStreamEventTypeHistoryReset:
+				clear(tab.ids)
+			case codersdk.ChatStreamEventTypeMessage:
+				tab.hold(*event.Message)
+			case codersdk.ChatStreamEventTypeStatus:
+				tab.version = max(tab.version, event.Status.HistoryVersion)
+				return applied
+			}
+		}
+	}
+}
+
+// liveChatMessageIDs returns the IDs of the chat's visible messages.
+func liveChatMessageIDs(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) []int64 {
+	t.Helper()
+	page, err := client.GetChatMessages(ctx, chatID, nil)
+	require.NoError(t, err)
+	require.False(t, page.HasMore)
+	ids := make([]int64, 0, len(page.Messages))
+	for _, m := range page.Messages {
+		ids = append(ids, m.ID)
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 func createChatModelWithBaseURL(t testing.TB, client *codersdk.ExperimentalClient, baseURL string) codersdk.ChatModel {

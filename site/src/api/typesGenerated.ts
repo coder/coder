@@ -9819,7 +9819,7 @@ export interface StreamChatOptions {
 	/**
 	 * AfterRevision is the ChatMessagesResponse.HistoryVersion the caller's
 	 * messages were read at. Without it, any past edit makes the server
-	 * resend the whole history.
+	 * resend the whole history. When set, the server ignores AfterID.
 	 */
 	readonly AfterRevision: number | null;
 }

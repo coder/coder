@@ -77,7 +77,9 @@ type streamDBSnapshot struct {
 // StreamCursor is the history a stream client already holds; the initial
 // sync sends only what it is missing.
 type StreamCursor struct {
-	// AfterMessageID is the newest message ID the client holds.
+	// AfterMessageID is the newest message ID the client holds. Ignored
+	// when AfterRevision is set: a client can hold a newer ID without
+	// holding every older message.
 	AfterMessageID int64
 	// AfterRevision is the chat history_version the client's messages were
 	// read at. Zero treats every past deletion as new and forces a
@@ -86,6 +88,10 @@ type StreamCursor struct {
 }
 
 func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, cursor StreamCursor) *streamLoop {
+	afterMessageID := cursor.AfterMessageID
+	if cursor.AfterRevision > 0 {
+		afterMessageID = 0
+	}
 	return &streamLoop{
 		chatID: chat.ID,
 		db:     db,
@@ -93,7 +99,7 @@ func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, cu
 		state: streamLocalState{
 			historyVersion: cursor.AfterRevision,
 			knownMessages:  make(map[int64]int64),
-			afterMessageID: cursor.AfterMessageID,
+			afterMessageID: afterMessageID,
 		},
 	}
 }
