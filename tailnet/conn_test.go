@@ -550,8 +550,9 @@ func TestConn_BlockEndpoints(t *testing.T) {
 }
 
 // TestConn_ReusedSourcePortAfterServerClose checks that the agent accepts a
-// SYN that reopens a 4-tuple it holds in TIME_WAIT. The agent's netstack has
-// no listening endpoint, and unpatched gVisor only hands such a SYN to one
+// SYN that reopens a 4-tuple it holds in TIME_WAIT, in the case RFC 1122
+// allows (sequence number above the old RcvNxt). Unpatched gVisor only hands
+// such a SYN to a listening endpoint, and the agent's netstack has none
 // (google/gvisor#15013).
 //
 //nolint:paralleltest // NewConn with TUNDev enables tailscale's process-global netns setting, which sockets opened by Conns in parallel tests would pick up.
@@ -615,9 +616,9 @@ func TestConn_ReusedSourcePortAfterServerClose(t *testing.T) {
 		require.Equal(t, "x", string(b))
 		require.NoError(t, c.Close())
 		// The client's port is free once its LAST_ACK completes, leaving the
-		// agent in TIME_WAIT. gVisor unregisters the endpoint before it
-		// releases the port and drops it from CleanupEndpoints after, so
-		// check in this order.
+		// agent in TIME_WAIT. gVisor adds the endpoint to CleanupEndpoints
+		// before it unregisters it and removes it only after releasing the
+		// port, so check RegisteredEndpoints first.
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			return len(clientStack.RegisteredEndpoints()) == 0 &&
 				len(clientStack.CleanupEndpoints()) == 0
