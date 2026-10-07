@@ -230,8 +230,8 @@ func TestStreamLoopQueuedMessageLink(t *testing.T) {
 			changedMessages: []database.ChatMessage{
 				streamMessage(t, chatID, 1, 2, database.ChatMessageRoleUser, "direct", true),
 			},
-			historyReset: true,
-			fullHistory:  twins,
+			historyReset:  true,
+			resetMessages: twins,
 		})
 		require.Equal(t, codersdk.ChatStreamEventTypeHistoryReset, events[0].Type)
 		requireTwinEvents(t, events)
@@ -261,7 +261,7 @@ func TestStreamLoopHistoryReset(t *testing.T) {
 			streamMessage(t, chatID, 1, 2, database.ChatMessageRoleUser, "deleted", true),
 		},
 		historyReset: true,
-		fullHistory: []database.ChatMessage{
+		resetMessages: []database.ChatMessage{
 			streamMessage(t, chatID, 3, 2, database.ChatMessageRoleUser, "replacement", false),
 		},
 	})
@@ -439,7 +439,7 @@ func TestStreamLoopInitialSyncRecoversWithoutHint(t *testing.T) {
 }
 
 // syncAgainst runs one syncDB against a store holding chat and rows and
-// answers the revision and full-history queries as the real store does.
+// answers the revision and history queries as the real store does.
 func syncAgainst(t *testing.T, loop *streamLoop, chat database.Chat, rows []database.ChatMessage) []codersdk.ChatStreamEvent {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -463,10 +463,10 @@ func syncAgainst(t *testing.T, loop *streamLoop, chat database.Chat, rows []data
 		},
 	).AnyTimes()
 	tx.EXPECT().GetChatMessagesByChatID(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(context.Context, database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
+		func(_ context.Context, params database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
 			var live []database.ChatMessage
 			for _, row := range rows {
-				if !row.Deleted {
+				if !row.Deleted && row.ID > params.AfterID {
 					live = append(live, row)
 				}
 			}
@@ -483,77 +483,106 @@ func syncAgainst(t *testing.T, loop *streamLoop, chat database.Chat, rows []data
 func TestStreamLoopRevisionCursor(t *testing.T) {
 	t.Parallel()
 
-	// Message 1 was soft-deleted at version 2 and replaced by message 3 at
-	// version 4; message 2 is untouched. The client's page holds 2 and 3.
+	// Two turns, then the second prompt (3) was edited at version 4: 3 and
+	// its reply 4 were soft-deleted, 5 replaced 3, and 6 answered at 5.
 	chatID := uuid.New()
-	chat := database.Chat{
-		ID:              chatID,
-		Status:          database.ChatStatusWaiting,
-		SnapshotVersion: 4,
-		HistoryVersion:  4,
+	edited := []database.ChatMessage{
+		streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "first prompt", false),
+		streamMessage(t, chatID, 2, 1, database.ChatMessageRoleAssistant, "first reply", false),
+		streamMessage(t, chatID, 3, 4, database.ChatMessageRoleUser, "second prompt", true),
+		streamMessage(t, chatID, 4, 4, database.ChatMessageRoleAssistant, "second reply", true),
+		streamMessage(t, chatID, 5, 4, database.ChatMessageRoleUser, "edited prompt", false),
+		streamMessage(t, chatID, 6, 5, database.ChatMessageRoleAssistant, "edited reply", false),
 	}
-	rows := []database.ChatMessage{
-		streamMessage(t, chatID, 1, 2, database.ChatMessageRoleUser, "edited away", true),
-		streamMessage(t, chatID, 2, 1, database.ChatMessageRoleAssistant, "kept", false),
-		streamMessage(t, chatID, 3, 4, database.ChatMessageRoleUser, "replacement", false),
+	// Message 2 was deleted at version 3 and message 3 kept: not something
+	// an edit does, but the reset must still hold.
+	middleDeleted := []database.ChatMessage{
+		streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "kept", false),
+		streamMessage(t, chatID, 2, 3, database.ChatMessageRoleAssistant, "deleted", true),
+		streamMessage(t, chatID, 3, 1, database.ChatMessageRoleUser, "kept after", false),
 	}
-	resetWithFullHistory := []codersdk.ChatStreamEventType{
-		codersdk.ChatStreamEventTypeHistoryReset,
-		codersdk.ChatStreamEventTypeMessage,
-		codersdk.ChatStreamEventTypeMessage,
-		codersdk.ChatStreamEventTypeStatus,
-		codersdk.ChatStreamEventTypePreviewReset,
+	reset := func(messages int) []codersdk.ChatStreamEventType {
+		types := []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeHistoryReset}
+		for range messages {
+			types = append(types, codersdk.ChatStreamEventTypeMessage)
+		}
+		return append(types, codersdk.ChatStreamEventTypeStatus, codersdk.ChatStreamEventTypePreviewReset)
 	}
 
 	for _, tt := range []struct {
-		name       string
-		cursor     StreamCursor
-		wantEvents []codersdk.ChatStreamEventType
-		wantIDs    []int64
+		name          string
+		rows          []database.ChatMessage
+		cursor        StreamCursor
+		wantEvents    []codersdk.ChatStreamEventType
+		wantResetFrom int64
+		wantIDs       []int64
 	}{
 		{
 			name:       "page is current",
-			cursor:     StreamCursor{AfterMessageID: 3, AfterRevision: 4},
+			rows:       edited,
+			cursor:     StreamCursor{AfterMessageID: 6, AfterRevision: 5},
 			wantEvents: []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus},
 		},
 		{
-			// The page predates the replacement but not the deletion.
 			name:   "page is behind by an insert",
-			cursor: StreamCursor{AfterMessageID: 2, AfterRevision: 3},
+			rows:   edited,
+			cursor: StreamCursor{AfterMessageID: 5, AfterRevision: 4},
 			wantEvents: []codersdk.ChatStreamEventType{
 				codersdk.ChatStreamEventTypeMessage,
 				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
 			},
-			wantIDs: []int64{3},
+			wantIDs: []int64{6},
 		},
 		{
-			// The client still holds message 1.
-			name:       "page is behind by a deletion",
-			cursor:     StreamCursor{AfterMessageID: 2, AfterRevision: 1},
-			wantEvents: resetWithFullHistory,
-			wantIDs:    []int64{2, 3},
+			// The client holds 1 to 4. It keeps 1 and 2.
+			name:          "page is behind by an edit",
+			rows:          edited,
+			cursor:        StreamCursor{AfterMessageID: 4, AfterRevision: 2},
+			wantEvents:    reset(2),
+			wantResetFrom: 3,
+			wantIDs:       []int64{5, 6},
 		},
 		{
-			// Zero cursor: every row counts as changed, the deletion included.
+			name:          "deletion in the middle replaces from it",
+			rows:          middleDeleted,
+			cursor:        StreamCursor{AfterMessageID: 3, AfterRevision: 2},
+			wantEvents:    reset(1),
+			wantResetFrom: 2,
+			wantIDs:       []int64{3},
+		},
+		{
+			// Zero cursor: every row counts as changed, the deletions
+			// included, and the client gets the whole history.
 			name:       "no cursor replays the history",
-			cursor:     StreamCursor{AfterMessageID: 3},
-			wantEvents: resetWithFullHistory,
-			wantIDs:    []int64{2, 3},
+			rows:       edited,
+			cursor:     StreamCursor{AfterMessageID: 6},
+			wantEvents: reset(4),
+			wantIDs:    []int64{1, 2, 5, 6},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			chat := database.Chat{ID: chatID, Status: database.ChatStatusWaiting}
+			for _, row := range tt.rows {
+				chat.HistoryVersion = max(chat.HistoryVersion, row.Revision)
+			}
+			chat.SnapshotVersion = chat.HistoryVersion
 			loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), tt.cursor)
-			events := syncAgainst(t, loop, chat, rows)
+			events := syncAgainst(t, loop, chat, tt.rows)
 			requireEventTypes(t, events, tt.wantEvents...)
 			var gotIDs []int64
 			for _, event := range events {
-				if event.Message != nil {
+				switch {
+				case event.Message != nil:
 					gotIDs = append(gotIDs, event.Message.ID)
-				}
-				if event.Status != nil {
+				case event.Status != nil:
 					require.Equal(t, chat.HistoryVersion, event.Status.HistoryVersion, "status must carry the version the client can reconnect with")
+				case event.Type == codersdk.ChatStreamEventTypeHistoryReset && tt.wantResetFrom == 0:
+					require.Nil(t, event.HistoryReset, "a full reset carries no from_message_id")
+				case event.Type == codersdk.ChatStreamEventTypeHistoryReset:
+					require.NotNil(t, event.HistoryReset)
+					require.Equal(t, tt.wantResetFrom, event.HistoryReset.FromMessageID)
 				}
 			}
 			require.Equal(t, tt.wantIDs, gotIDs)
