@@ -136,36 +136,30 @@ func (api *API) applySecretReplacements(secrets []codersdk.WorkspaceSecret, user
 	if api.userSecretFilePathBlocked() {
 		policy = workspacesecrets.FilePathBlocked
 	}
-	candidates := make([]workspacesecrets.Secret, 0, len(secrets)+len(userSecrets))
+	user := make([]workspacesecrets.Secret, 0, len(userSecrets))
 	for _, s := range userSecrets {
-		candidates = append(candidates, workspacesecrets.Secret{
+		user = append(user, workspacesecrets.Secret{
 			ID:       s.ID,
-			Source:   workspacesecrets.SourceUser,
-			Name:     s.Name,
 			EnvName:  s.EnvName,
 			FilePath: s.FilePath,
 			Enabled:  s.Enabled,
 		})
 	}
+	build := make([]workspacesecrets.Secret, 0, len(secrets))
 	byID := make(map[uuid.UUID]*codersdk.WorkspaceSecret, len(secrets))
 	for i, s := range secrets {
 		if s.ClearedAt != nil {
 			continue
 		}
 		byID[s.ID] = &secrets[i]
-		candidates = append(candidates, workspacesecrets.Secret{
+		build = append(build, workspacesecrets.Secret{
 			ID:       s.ID,
-			Source:   workspacesecrets.SourceBuild,
-			Name:     s.Name,
 			EnvName:  s.EnvName,
 			FilePath: s.FilePath,
-			Enabled:  true,
 		})
 	}
-	for _, r := range workspacesecrets.Resolve(candidates, policy) {
-		if r.Source != workspacesecrets.SourceUser {
-			continue
-		}
+	resolvedUser, _ := workspacesecrets.Resolve(user, build, policy)
+	for _, r := range resolvedUser {
 		if s, ok := byID[r.EnvReplacedBy.UUID]; r.EnvReplacedBy.Valid && ok {
 			s.EnvReplaces = &r.ID
 		}

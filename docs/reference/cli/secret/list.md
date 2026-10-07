@@ -23,7 +23,7 @@ coder secret list [flags] [name]
 ```console
 Secret values are omitted from the output.
 
-When listing all secrets inside a workspace, or with --workspace or --build-id, the workspace build's secrets are included and the "replaced by" column shows user secrets whose env var or file is taken by a workspace secret.
+When listing all secrets inside a workspace, or with --workspace or --build-id, the workspace build's secrets are included and the source and "replaced by" columns are shown by default. If a build secret uses the same env var or file as a user secret, the user secret is not delivered on that target and its "replaced by" column names the build secret, for example "env: github-token".
 ```
 
 ## Options
@@ -34,7 +34,7 @@ When listing all secrets inside a workspace, or with --workspace or --build-id, 
 |------|---------------------|
 | Type | <code>string</code> |
 
-Include the secrets of this workspace's latest build. Defaults to the current workspace when run inside one.
+Include the secrets of this workspace's latest build. Inside a workspace, the default is the build the workspace agent was started from.
 
 ### --build-id
 
@@ -46,10 +46,10 @@ Include the secrets of this workspace build. Takes precedence over --workspace.
 
 ### -c, --column
 
-|         |                                                                                             |
-|---------|---------------------------------------------------------------------------------------------|
-| Type    | <code>[created\|name\|updated\|source\|env\|file\|enabled\|replaced by\|description]</code> |
-| Default | <code>name,source,created,updated,env,file,enabled,replaced by,description</code>           |
+|         |                                                                                                        |
+|---------|--------------------------------------------------------------------------------------------------------|
+| Type    | <code>[created\|name\|updated\|source\|env\|file\|enabled\|replaced by\|ephemeral\|description]</code> |
+| Default | <code>name,created,updated,env,file,enabled,description</code>                                         |
 
 Columns to display in table output.
 

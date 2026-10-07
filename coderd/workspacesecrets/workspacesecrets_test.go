@@ -12,59 +12,59 @@ import (
 func TestResolve(t *testing.T) {
 	t.Parallel()
 
-	user := func(name, env, file string, enabled bool) workspacesecrets.Secret {
-		return workspacesecrets.Secret{ID: uuid.New(), Source: workspacesecrets.SourceUser, Name: name, EnvName: env, FilePath: file, Enabled: enabled}
-	}
-	build := func(name, env, file string) workspacesecrets.Secret {
-		return workspacesecrets.Secret{ID: uuid.New(), Source: workspacesecrets.SourceBuild, Name: name, EnvName: env, FilePath: file, Enabled: true}
+	secret := func(env, file string, enabled bool) workspacesecrets.Secret {
+		return workspacesecrets.Secret{ID: uuid.New(), EnvName: env, FilePath: file, Enabled: enabled}
 	}
 
 	var (
-		userBoth     = user("both", "TOKEN", "/etc/token", true)
-		userFileOnly = user("file-only", "", "/etc/cert", true)
-		userDisabled = user("disabled", "DISABLED", "", false)
-		userPlain    = user("plain", "PLAIN", "", true)
-		buildEnv     = build("build-env", "TOKEN", "")
-		buildFile    = build("build-file", "", "/etc/cert")
-		buildOnDis   = build("build-on-disabled", "DISABLED", "")
+		userBoth     = secret("TOKEN", "/etc/token", true)
+		userFileOnly = secret("", "~/a/cert", true)
+		userDisabled = secret("DISABLED", "", false)
+		userPlain    = secret("PLAIN", "", true)
+		buildEnv     = secret("TOKEN", "", true)
+		// Written differently from userFileOnly's path, but the same file.
+		buildFile = secret("", "~/a//cert", true)
+		// Enabled is ignored for build secrets.
+		buildOnDis = secret("DISABLED", "", false)
 	)
-	// Build secrets listed last still win, so input order does not matter.
-	secrets := []workspacesecrets.Secret{userBoth, userFileOnly, userDisabled, userPlain, buildEnv, buildFile, buildOnDis}
+	user := []workspacesecrets.Secret{userBoth, userFileOnly, userDisabled, userPlain}
+	build := []workspacesecrets.Secret{buildEnv, buildFile, buildOnDis}
 
 	t.Run("FilePathAllowed", func(t *testing.T) {
 		t.Parallel()
-		got := workspacesecrets.Resolve(secrets, workspacesecrets.FilePathAllowed)
-		require.Len(t, got, len(secrets))
+		gotUser, gotBuild := workspacesecrets.Resolve(user, build, workspacesecrets.FilePathAllowed)
+		require.Len(t, gotUser, len(user))
+		require.Len(t, gotBuild, len(build))
 
 		// Partial override: the env var is taken, the file is still delivered.
-		require.Empty(t, got[0].DeliveredEnvName)
-		require.Equal(t, uuid.NullUUID{UUID: buildEnv.ID, Valid: true}, got[0].EnvReplacedBy)
-		require.Equal(t, "/etc/token", got[0].DeliveredFilePath)
-		require.False(t, got[0].FileReplacedBy.Valid)
-		require.True(t, got[0].Delivered())
+		require.Empty(t, gotUser[0].DeliveredEnvName)
+		require.Equal(t, uuid.NullUUID{UUID: buildEnv.ID, Valid: true}, gotUser[0].EnvReplacedBy)
+		require.Equal(t, "/etc/token", gotUser[0].DeliveredFilePath)
+		require.False(t, gotUser[0].FileReplacedBy.Valid)
+		require.True(t, gotUser[0].Delivered())
 
-		// Full override.
-		require.False(t, got[1].Delivered())
-		require.Equal(t, uuid.NullUUID{UUID: buildFile.ID, Valid: true}, got[1].FileReplacedBy)
+		// Full override, matched on the cleaned path.
+		require.False(t, gotUser[1].Delivered())
+		require.Equal(t, uuid.NullUUID{UUID: buildFile.ID, Valid: true}, gotUser[1].FileReplacedBy)
 
-		// Disabled secrets are neither delivered nor replaced.
-		require.False(t, got[2].Delivered())
-		require.False(t, got[2].EnvReplacedBy.Valid)
+		// Disabled user secrets are neither delivered nor replaced.
+		require.False(t, gotUser[2].Delivered())
+		require.False(t, gotUser[2].EnvReplacedBy.Valid)
 
-		require.Equal(t, "PLAIN", got[3].DeliveredEnvName)
-		require.Equal(t, "TOKEN", got[4].DeliveredEnvName)
-		require.Equal(t, "/etc/cert", got[5].DeliveredFilePath)
-		require.Equal(t, "DISABLED", got[6].DeliveredEnvName)
+		require.Equal(t, "PLAIN", gotUser[3].DeliveredEnvName)
+		require.Equal(t, "TOKEN", gotBuild[0].DeliveredEnvName)
+		require.Equal(t, "~/a//cert", gotBuild[1].DeliveredFilePath, "the path is delivered as written")
+		require.Equal(t, "DISABLED", gotBuild[2].DeliveredEnvName)
 	})
 
 	t.Run("FilePathBlocked", func(t *testing.T) {
 		t.Parallel()
-		got := workspacesecrets.Resolve(secrets, workspacesecrets.FilePathBlocked)
+		gotUser, gotBuild := workspacesecrets.Resolve(user, build, workspacesecrets.FilePathBlocked)
 
 		// No file is delivered, so no file target is reported as replaced.
-		require.False(t, got[0].Delivered())
-		require.False(t, got[1].Delivered())
-		require.False(t, got[1].FileReplacedBy.Valid)
-		require.False(t, got[5].Delivered())
+		require.False(t, gotUser[0].Delivered())
+		require.False(t, gotUser[1].Delivered())
+		require.False(t, gotUser[1].FileReplacedBy.Valid)
+		require.False(t, gotBuild[1].Delivered())
 	})
 }
