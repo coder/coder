@@ -61,6 +61,9 @@ const (
 	ScopeChatProjectDelete                   ScopeName = "chat_project:delete"
 	ScopeChatProjectRead                     ScopeName = "chat_project:read"
 	ScopeChatProjectUpdate                   ScopeName = "chat_project:update"
+	ScopeChatProjectMemoryCreate             ScopeName = "chat_project_memory:create"
+	ScopeChatProjectMemoryDelete             ScopeName = "chat_project_memory:delete"
+	ScopeChatProjectMemoryRead               ScopeName = "chat_project_memory:read"
 	ScopeConnectionLogRead                   ScopeName = "connection_log:read"
 	ScopeConnectionLogUpdate                 ScopeName = "connection_log:update"
 	ScopeCryptoKeyCreate                     ScopeName = "crypto_key:create"
@@ -263,6 +266,9 @@ func (e ScopeName) Valid() bool {
 		ScopeChatProjectDelete,
 		ScopeChatProjectRead,
 		ScopeChatProjectUpdate,
+		ScopeChatProjectMemoryCreate,
+		ScopeChatProjectMemoryDelete,
+		ScopeChatProjectMemoryRead,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -466,6 +472,9 @@ func AllScopeNameValues() []ScopeName {
 		ScopeChatProjectDelete,
 		ScopeChatProjectRead,
 		ScopeChatProjectUpdate,
+		ScopeChatProjectMemoryCreate,
+		ScopeChatProjectMemoryDelete,
+		ScopeChatProjectMemoryRead,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,

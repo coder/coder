@@ -24,11 +24,6 @@ export function useAgentsPWA() {
 		appleMobileWebAppCapable.name = "apple-mobile-web-app-capable";
 		appleMobileWebAppCapable.content = "yes";
 
-		const appleMobileWebAppStatusBarStyle = document.createElement("meta");
-		appleMobileWebAppStatusBarStyle.name =
-			"apple-mobile-web-app-status-bar-style";
-		appleMobileWebAppStatusBarStyle.content = "black-translucent";
-
 		const appleMobileWebAppTitle = document.createElement("meta");
 		appleMobileWebAppTitle.name = "apple-mobile-web-app-title";
 		appleMobileWebAppTitle.content = "Agents";
@@ -38,7 +33,6 @@ export function useAgentsPWA() {
 			appleTouchIcon,
 			mobileWebAppCapable,
 			appleMobileWebAppCapable,
-			appleMobileWebAppStatusBarStyle,
 			appleMobileWebAppTitle,
 		];
 

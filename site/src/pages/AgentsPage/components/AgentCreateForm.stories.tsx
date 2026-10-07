@@ -32,6 +32,7 @@ import {
 } from "#/testHelpers/chatModels";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockFailedWorkspace,
 	MockOrganization2,
@@ -55,6 +56,7 @@ import {
 	emptyInputStorageKey,
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
+import { AgentCreateFormFrame } from "./AgentCreateFormFrame";
 
 let pendingOrganizationAuthorization: Deferred<
 	Awaited<ReturnType<typeof API.checkAuthorization>>
@@ -262,7 +264,14 @@ const defaultQueries = [
 const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
 	component: AgentCreateForm,
-	decorators: [withDashboardProvider],
+	decorators: [
+		(Story) => (
+			<AgentCreateFormFrame>
+				<Story />
+			</AgentCreateFormFrame>
+		),
+		withDashboardProvider,
+	],
 	args: {
 		onCreateChat: fn(),
 		isCreating: false,
@@ -328,6 +337,56 @@ const mockPermittedOrganizations = (
 };
 
 export const Default: Story = {};
+
+export const ProjectComposerOrganizationDenied: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
+	},
+	args: {
+		project: { ...MockChatProject, organization_id: MockOrganization2.id },
+	},
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: false,
+		});
+	},
+};
+
+export const ProjectComposerUnlistedOrganizationDenied: Story = {
+	parameters: ProjectComposerOrganizationDenied.parameters,
+	args: {
+		project: { ...MockChatProject, organization_id: "unlisted-organization" },
+	},
+	render: ProjectComposerOrganizationDenied.render,
+	beforeEach: () => {
+		mockPermittedOrganizations({ [MockDefaultOrganization.id]: true });
+	},
+};
+
+export const ProjectComposerProductDenied: Story = {
+	parameters: ProjectComposerOrganizationDenied.parameters,
+	args: {
+		...ProjectComposerOrganizationDenied.args,
+		canCreateChat: false,
+	},
+	render: ProjectComposerOrganizationDenied.render,
+	beforeEach: ProjectComposerOrganizationDenied.beforeEach,
+};
+
+export const ProjectComposerNoOrganizationPermitted: Story = {
+	parameters: ProjectComposerOrganizationDenied.parameters,
+	args: ProjectComposerOrganizationDenied.args,
+	render: ProjectComposerOrganizationDenied.render,
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: false,
+		});
+	},
+};
 
 const submitMessage = async (canvasElement: HTMLElement, message: string) => {
 	const canvas = within(canvasElement);

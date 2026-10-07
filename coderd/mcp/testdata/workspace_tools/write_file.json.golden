@@ -1,0 +1,15 @@
+{
+  "parameters": {
+    "content": {
+      "description": "Complete file contents. Replaces any existing contents.",
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "content",
+    "path"
+  ]
+}

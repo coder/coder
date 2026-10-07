@@ -121,6 +121,13 @@ The `resource:*` form grants every action on that resource, including actions no
 | `file:create` | Create a file.                                                     |
 | `file:read`   | Read files.                                                        |
 
+### `inbox_notification`
+
+| Scope                       | Description                 |
+|-----------------------------|-----------------------------|
+| `inbox_notification:read`   | Read inbox notifications.   |
+| `inbox_notification:update` | Update inbox notifications. |
+
 ### `organization`
 
 | Scope                 | Description                                                                |
