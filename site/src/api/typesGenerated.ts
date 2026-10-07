@@ -3805,6 +3805,7 @@ export interface ChatStreamEvent {
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
 	readonly history_reset?: ChatStreamHistoryReset;
+	readonly preview_reset?: ChatStreamPreviewReset;
 }
 
 // From codersdk/chats.go
@@ -3857,6 +3858,21 @@ export interface ChatStreamMessagePart {
 
 // From codersdk/chats.go
 /**
+ * ChatStreamPreviewReset is set on the preview_reset events of streams
+ * opened with history_version.
+ */
+export interface ChatStreamPreviewReset {
+	/**
+	 * HistoryVersion is the chat's history_version for the message events
+	 * sent before this preview_reset. Every sync that changes the history
+	 * ends with a preview_reset, so a client reconnects with the
+	 * HistoryVersion of the last one it received.
+	 */
+	readonly history_version: number;
+}
+
+// From codersdk/chats.go
+/**
  * ChatStreamRetry represents an auto-retry status event in the stream.
  * Published when the server automatically retries a failed LLM call.
  */
@@ -3897,12 +3913,6 @@ export interface ChatStreamRetry {
  */
 export interface ChatStreamStatus {
 	readonly status: ChatStatus;
-	/**
-	 * HistoryVersion is the chat's history_version for the messages sent
-	 * before this status. Pass it as the stream's history_version parameter
-	 * when reconnecting.
-	 */
-	readonly history_version?: number;
 }
 
 // From codersdk/chats.go
@@ -9832,7 +9842,7 @@ export interface StreamChatOptions {
 	readonly AfterID: number | null;
 	/**
 	 * HistoryVersion is the history version of the caller's messages, from
-	 * ChatMessagesResponse or ChatStreamStatus. When it is non-zero, the
+	 * ChatMessagesResponse or ChatStreamPreviewReset. When it is non-zero, the
 	 * server ignores AfterID and history resets carry
 	 * ChatStreamEvent.HistoryReset. When it is nil or zero, every connection
 	 * to a chat with a deleted message resends the whole history.

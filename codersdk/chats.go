@@ -1988,10 +1988,6 @@ type ChatStreamMessagePart struct {
 // ChatStreamStatus represents an updated chat status.
 type ChatStreamStatus struct {
 	Status ChatStatus `json:"status"`
-	// HistoryVersion is the chat's history_version for the messages sent
-	// before this status. Pass it as the stream's history_version parameter
-	// when reconnecting.
-	HistoryVersion int64 `json:"history_version,omitempty"`
 }
 
 // ChatErrorKind classifies chat errors for consistent client rendering.
@@ -2205,6 +2201,7 @@ type ChatStreamEvent struct {
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
 	HistoryReset   *ChatStreamHistoryReset   `json:"history_reset,omitempty"`
+	PreviewReset   *ChatStreamPreviewReset   `json:"preview_reset,omitempty"`
 }
 
 // ChatStreamHistoryReset is set on the history_reset events of streams
@@ -2214,6 +2211,16 @@ type ChatStreamEvent struct {
 // whole history.
 type ChatStreamHistoryReset struct {
 	FromMessageID int64 `json:"from_message_id"`
+}
+
+// ChatStreamPreviewReset is set on the preview_reset events of streams
+// opened with history_version.
+type ChatStreamPreviewReset struct {
+	// HistoryVersion is the chat's history_version for the message events
+	// sent before this preview_reset. Every sync that changes the history
+	// ends with a preview_reset, so a client reconnects with the
+	// HistoryVersion of the last one it received.
+	HistoryVersion int64 `json:"history_version"`
 }
 
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.
@@ -3149,7 +3156,7 @@ type StreamChatOptions struct {
 	// full message history.
 	AfterID *int64
 	// HistoryVersion is the history version of the caller's messages, from
-	// ChatMessagesResponse or ChatStreamStatus. When it is non-zero, the
+	// ChatMessagesResponse or ChatStreamPreviewReset. When it is non-zero, the
 	// server ignores AfterID and history resets carry
 	// ChatStreamEvent.HistoryReset. When it is nil or zero, every connection
 	// to a chat with a deleted message resends the whole history.

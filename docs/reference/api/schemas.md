@@ -5453,6 +5453,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "role": "system",
     "seq": 0
   },
+  "preview_reset": {
+    "history_version": 0
+  },
   "queued_messages": [
     {
       "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
@@ -5534,7 +5537,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "status_code": 0
   },
   "status": {
-    "history_version": 0,
     "status": "waiting"
   },
   "type": "message_part"
@@ -5551,6 +5553,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `history_reset`   | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              |             |
 | `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |             |
 | `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |             |
+| `preview_reset`   | [codersdk.ChatStreamPreviewReset](#codersdkchatstreampreviewreset)     | false    |              |             |
 | `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |             |
 | `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |             |
 | `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |             |
@@ -5664,6 +5667,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `role`               | [codersdk.ChatMessageRole](#codersdkchatmessagerole) | false    |              |             |
 | `seq`                | integer                                              | false    |              |             |
 
+## codersdk.ChatStreamPreviewReset
+
+```json
+{
+  "history_version": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                     |
+|-------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `history_version` | integer | false    |              | History version is the chat's history_version for the message events sent before this preview_reset. Every sync that changes the history ends with a preview_reset, so a client reconnects with the HistoryVersion of the last one it received. |
+
 ## codersdk.ChatStreamRetry
 
 ```json
@@ -5694,17 +5711,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "history_version": 0,
   "status": "waiting"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                       | Required | Restrictions | Description                                                                                                                                                  |
-|-------------------|--------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `history_version` | integer                                    | false    |              | History version is the chat's history_version for the messages sent before this status. Pass it as the stream's history_version parameter when reconnecting. |
-| `status`          | [codersdk.ChatStatus](#codersdkchatstatus) | false    |              |                                                                                                                                                              |
+| Name     | Type                                       | Required | Restrictions | Description |
+|----------|--------------------------------------------|----------|--------------|-------------|
+| `status` | [codersdk.ChatStatus](#codersdkchatstatus) | false    |              |             |
 
 ## codersdk.ChatStreamToolCall
 

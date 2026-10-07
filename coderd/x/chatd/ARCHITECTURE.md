@@ -1282,12 +1282,12 @@ The following chat stream events, delivered to the client over WebSocket, are su
 
 - `message_part`: a streaming message part emitted by the chat worker. Each carries the `history_version` and `generation_attempt` of the episode it belongs to, so a client knows which episode a message part comes from.
 - `message`: a committed chat message present in the database. Messages promoted from the queue carry `queued_message_id`, so clients can match them to the queued entry without comparing content. A missing field means unknown, since older servers don't write it.
-- `status`: the chat's status. It carries the synchronized `history_version` and follows the sync's `message` events, so a client can reconnect with it as the `history_version` parameter.
+- `status`: the chat's status.
 - `error`: the chat's persisted error payload.
 - `queue_update`: the full current queued-message list.
 - `action_required`: a dynamic tool call was issued by the chat worker, the client must execute it and submit the result.
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
-- `preview_reset`: a reset of the stream's preview state (message parts), emitted when the history version changes or a new generation attempt starts.
+- `preview_reset`: a reset of the stream's preview state (message parts), emitted when the history version changes or a new generation attempt starts. It is the last event of every sync that changes the history. On streams opened with `history_version` it carries the synchronized `history_version`, so a client that applied the events before it can reconnect with that version.
 - `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history. On streams opened with `history_version` it carries `from_message_id`: the client keeps its messages with lower IDs and replaces the rest with the `message` events that follow. Without `from_message_id`, those events replace the whole history.
 
 ## Endpoint lifecycle
@@ -1336,7 +1336,7 @@ Initial null state:
 - preview part sequence is `0`;
 - `attempt_retired` is false;
 
-A client may open the stream with the `history_version` parameter, taken from the newest messages page or its last `status` event. The synchronized `history_version` then starts at that value, so the first sync sends only history changed after it. The endpoint then ignores `after_id`, because a client can hold a message ID without holding every message below it.
+A client may open the stream with the `history_version` parameter, taken from the newest messages page or its last `preview_reset` event. The synchronized `history_version` then starts at that value, so the first sync sends only history changed after it. The endpoint then ignores `after_id`, because a client can hold a message ID without holding every message below it.
 
 ## Stream loop operations
 
@@ -1387,11 +1387,11 @@ Applying the database result means, in deterministic order:
 5. If `db.status = requires_action` and `db.history_version > local.action_required_history_version`, run action-required synchronization.
 6. If `db.retry_state_version > local.retry_state_version`, run retry-state synchronization.
 7. If `db.history_version != local.history_version` or `db.generation_attempt != local.generation_attempt`, set `attempt_retired = false`. Then, if `db.retry_state` is non-null, `db.status = error`, or `db.retry_state_version > local.retry_state_version` while the history version and generation attempt are unchanged, set `attempt_retired = true`: the current generation attempt failed, so its remaining preview parts are dropped. It stays set if the retry is later cancelled. An errored chat records a new generation attempt before it streams again.
-8. If `db.history_version != local.history_version` or (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), set last accepted preview part `seq = 0` and emit `preview_reset`. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
+8. If `db.history_version != local.history_version` or (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), set last accepted preview part `seq = 0` and emit `preview_reset`, with `db.history_version` on a stream opened with `history_version`. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
 9. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
 10. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
 
-If `Sync` fetches from the database, all database reads for that `Sync` must happen in the same read transaction. This includes reading the chat row, changed messages, full-history refresh messages, queued messages, retry state, error data, and pending dynamic tool-call data.
+If `Sync` fetches from the database, all database reads for that `Sync` must happen in the same read transaction. This includes reading the chat row, changed messages, history reset messages, queued messages, retry state, error data, and pending dynamic tool-call data.
 
 ### How pubsub notifications trigger sync
 

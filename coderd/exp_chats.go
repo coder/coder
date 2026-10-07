@@ -3540,7 +3540,7 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when history_version is non-zero"
-// @Param history_version query int false "Send only history changed after this history_version, taken from the messages page or the last status event"
+// @Param history_version query int false "Send only history changed after this history_version, taken from the messages page or the last preview_reset event"
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {

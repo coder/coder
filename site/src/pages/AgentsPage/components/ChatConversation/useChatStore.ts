@@ -175,7 +175,7 @@ export const useChatStore = (
 	});
 
 	// The history version the stream reconnects with. It is taken from the
-	// newest page when the chat opens and then advances only on status
+	// newest page when the chat opens and then advances only on preview_reset
 	// events, because a refetched page does not remove every deleted message
 	// from the store.
 	const historyVersionRef = useRef<
@@ -600,6 +600,10 @@ export const useChatStore = (
 					if (streamEvent.type === "preview_reset") {
 						discardBufferedParts();
 						store.clearStreamState();
+						const version = streamEvent.preview_reset?.history_version;
+						if (version !== undefined) {
+							historyVersionRef.current = { chatID, version };
+						}
 						continue;
 					}
 
@@ -662,13 +666,6 @@ export const useChatStore = (
 							const nextStatus = streamEvent.status?.status;
 							if (!nextStatus) {
 								continue;
-							}
-							const syncedVersion = streamEvent.status?.history_version;
-							if (
-								syncedVersion !== undefined &&
-								syncedVersion > (historyVersionFor(chatID) ?? 0)
-							) {
-								historyVersionRef.current = { chatID, version: syncedVersion };
 							}
 
 							streamReportedWaiting = nextStatus === "waiting";

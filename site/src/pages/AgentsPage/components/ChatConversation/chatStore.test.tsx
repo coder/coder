@@ -4042,7 +4042,7 @@ describe("useChatStore", () => {
 		expect(result.current.chatStatus).toBe("running");
 	});
 
-	it("opens the stream at the page's history version and reconnects at the last status version", async () => {
+	it("opens the stream at the page's history version and reconnects at the last preview_reset version", async () => {
 		immediateAnimationFrame();
 		vi.spyOn(Math, "random").mockReturnValue(0.5);
 
@@ -4082,12 +4082,17 @@ describe("useChatStore", () => {
 		// A page refetch does not advance the history version.
 		rerender({ pageVersion: 9 });
 
+		// The version advances on preview_reset, which ends every sync that
+		// changes the history, and not on status.
 		act(() => {
-			mockSocket1.emitData({
-				type: "status",
-				chat_id: chatID,
-				status: { status: "running", history_version: 7 },
-			});
+			mockSocket1.emitDataBatch([
+				{ type: "status", chat_id: chatID, status: { status: "running" } },
+				{
+					type: "preview_reset",
+					chat_id: chatID,
+					preview_reset: { history_version: 7 },
+				},
+			]);
 		});
 
 		const mockSocket2 = createMockSocket();

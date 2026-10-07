@@ -10242,13 +10242,11 @@ func TestStreamChat(t *testing.T) {
 		stale := newChatTab(page)
 		editedID := lastPromptID(page)
 		edit(editedID, "edited twice")
-		applied = nil
-		for {
-			applied = append(applied, live.applyUntilStatus(ctx, t, events)...)
-			if applied[len(applied)-1].Status.Status == codersdk.ChatStatusWaiting {
-				break
-			}
-		}
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+		want := newestPage().HistoryVersion
+		applied = live.applyUntil(ctx, t, events, func(codersdk.ChatStreamEvent) bool {
+			return live.version >= want
+		})
 		requireResetFrom(applied, editedID)
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), live.sortedIDs())
 
@@ -13976,7 +13974,8 @@ func (tab *chatTab) sortedIDs() []int64 {
 }
 
 // connect opens the stream with the tab's newest message ID and history
-// version, and applies events through the first status event.
+// version, and applies events through the first status event, which every
+// initial sync sends.
 func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent) {
 	t.Helper()
 	afterID := slices.Max(append(tab.sortedIDs(), 0))
@@ -13987,18 +13986,23 @@ func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.
 	events, closer, err := client.StreamChat(ctx, chatID, opts)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = closer.Close() })
-	return tab.applyUntilStatus(ctx, t, events), events
+	applied := tab.applyUntil(ctx, t, events, func(event codersdk.ChatStreamEvent) bool {
+		return event.Type == codersdk.ChatStreamEventTypeStatus
+	})
+	return applied, events
 }
 
-func (tab *chatTab) applyUntilStatus(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent) []codersdk.ChatStreamEvent {
+// applyUntil applies stream events to the tab until done reports true
+// after an event.
+func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent, done func(codersdk.ChatStreamEvent) bool) []codersdk.ChatStreamEvent {
 	t.Helper()
 	var applied []codersdk.ChatStreamEvent
 	for {
 		select {
 		case <-ctx.Done():
-			require.FailNow(t, "timed out waiting for a stream status")
+			require.FailNow(t, "timed out applying stream events")
 		case event, ok := <-events:
-			require.True(t, ok, "stream closed before a status event")
+			require.True(t, ok, "stream closed early")
 			applied = append(applied, event)
 			switch event.Type {
 			case codersdk.ChatStreamEventTypeHistoryReset:
@@ -14009,8 +14013,12 @@ func (tab *chatTab) applyUntilStatus(ctx context.Context, t *testing.T, events <
 				maps.DeleteFunc(tab.ids, func(id int64, _ bool) bool { return id >= fromID })
 			case codersdk.ChatStreamEventTypeMessage:
 				tab.hold(*event.Message)
-			case codersdk.ChatStreamEventTypeStatus:
-				tab.version = max(tab.version, event.Status.HistoryVersion)
+			case codersdk.ChatStreamEventTypePreviewReset:
+				if event.PreviewReset != nil {
+					tab.version = event.PreviewReset.HistoryVersion
+				}
+			}
+			if done(event) {
 				return applied
 			}
 		}
