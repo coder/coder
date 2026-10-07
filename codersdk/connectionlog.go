@@ -20,23 +20,25 @@ type ConnectionLog struct {
 	WorkspaceName          string              `json:"workspace_name"`
 	AgentName              string              `json:"agent_name"`
 	IP                     *netip.Addr         `json:"ip,omitempty"`
-	Type                   ConnectionType      `json:"type"`
+	// Deprecated: Use ConnectionMethod and AppName.
+	Type             string              `json:"type"`
+	ConnectionMethod ConnectionLogMethod `json:"connection_method"`
+	// AppName identifies the originating client, when known. Web destinations
+	// are reported separately in WebInfo.
+	AppName string `json:"app_name,omitempty"`
+	// AppDisplayName is the registry display name for a known client identity,
+	// or its normalized identifier when unregistered.
+	AppDisplayName string `json:"app_display_name,omitempty"`
 
-	// WebInfo is only set when `type` is one of:
-	// - `ConnectionTypePortForwarding`
-	// - `ConnectionTypeWorkspaceApp`
-	// - `ConnectionTypeTunnel`
+	// WebInfo is set for connections that coderd records.
 	WebInfo *ConnectionLogWebInfo `json:"web_info,omitempty"`
 
-	// SSHInfo is only set when `type` is one of:
-	// - `ConnectionTypeSSH`
-	// - `ConnectionTypeReconnectingPTY`
-	// - `ConnectionTypeVSCode`
-	// - `ConnectionTypeJetBrains`
+	// SSHInfo is set for connections that agents report.
 	SSHInfo *ConnectionLogSSHInfo `json:"ssh_info,omitempty"`
 }
 
-// ConnectionType is the type of connection that the agent is receiving.
+// ConnectionType is a connection method with SSH split by app family. It backs
+// the legacy `type` filter, which is removed together with ConnectionLog.Type.
 type ConnectionType string
 
 const (
@@ -50,6 +52,17 @@ const (
 	// requests made by authenticated users.
 	ConnectionTypeTunnel ConnectionType = "tunnel"
 )
+
+func (t ConnectionType) Valid() bool {
+	switch t {
+	case ConnectionTypeSSH, ConnectionTypeVSCode, ConnectionTypeJetBrains,
+		ConnectionTypeReconnectingPTY, ConnectionTypeWorkspaceApp,
+		ConnectionTypePortForwarding, ConnectionTypeTunnel:
+		return true
+	default:
+		return false
+	}
+}
 
 // ConnectionLogStatus is the status of a connection log entry.
 // It's the argument to the `status` filter when fetching connection logs.

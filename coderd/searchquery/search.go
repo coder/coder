@@ -104,7 +104,6 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 		OrganizationID:      parseOrganization(ctx, db, parser, values, "organization"),
 		WorkspaceOwner:      parser.String(values, "", "workspace_owner"),
 		WorkspaceOwnerEmail: parser.String(values, "", "workspace_owner_email"),
-		Type:                string(httpapi.ParseCustom(parser, values, "", "type", httpapi.ParseEnum[database.ConnectionType])),
 		Username:            parser.String(values, "", "username"),
 		UserEmail:           parser.String(values, "", "user_email"),
 		ConnectedAfter:      parser.Time3339Nano(values, time.Time{}, "connected_after"),
@@ -112,6 +111,28 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 		WorkspaceID:         parser.UUID(values, uuid.Nil, "workspace_id"),
 		ConnectionID:        parser.UUID(values, uuid.Nil, "connection_id"),
 		Status:              string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[codersdk.ConnectionLogStatus])),
+		ConnectionMethod:    string(httpapi.ParseCustom(parser, values, "", "method", httpapi.ParseEnum[codersdk.ConnectionLogMethod])),
+	}
+	app := parser.String(values, "", "app")
+	familyApps := httpapi.ParseCustom(parser, values, nil, "family", parseAppFamily)
+	typ := httpapi.ParseCustom(parser, values, "", "type", httpapi.ParseEnum[codersdk.ConnectionType])
+	switch {
+	case typ != "" && (filter.ConnectionMethod != "" || app != "" || familyApps != nil):
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "type",
+			Detail: "type cannot be combined with method, app, or family",
+		})
+	case typ != "":
+		applyConnectionTypeFilter(&filter, typ)
+	case app != "":
+		app = codersdk.NormalizeAppName(app)
+		filter.AppNames = []string{app}
+		if familyApps != nil && !slices.Contains(familyApps, app) {
+			// Filters intersect: an app outside the family matches nothing.
+			filter.AppNames = []string{}
+		}
+	default:
+		filter.AppNames = familyApps
 	}
 
 	if filter.Username == "me" {
@@ -131,18 +152,57 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 		WorkspaceOwner:      filter.WorkspaceOwner,
 		WorkspaceOwnerID:    filter.WorkspaceOwnerID,
 		WorkspaceOwnerEmail: filter.WorkspaceOwnerEmail,
-		Type:                filter.Type,
-		UserID:              filter.UserID,
-		Username:            filter.Username,
-		UserEmail:           filter.UserEmail,
-		ConnectedAfter:      filter.ConnectedAfter,
-		ConnectedBefore:     filter.ConnectedBefore,
-		WorkspaceID:         filter.WorkspaceID,
-		ConnectionID:        filter.ConnectionID,
-		Status:              filter.Status,
+		ConnectionMethod:    filter.ConnectionMethod,
+		AppNames:            filter.AppNames,
+		ExcludedAppNames:    filter.ExcludedAppNames,
+
+		UserID:          filter.UserID,
+		Username:        filter.Username,
+		UserEmail:       filter.UserEmail,
+		ConnectedAfter:  filter.ConnectedAfter,
+		ConnectedBefore: filter.ConnectedBefore,
+		WorkspaceID:     filter.WorkspaceID,
+		ConnectionID:    filter.ConnectionID,
+		Status:          filter.Status,
 	}
 	parser.ErrorExcessParams(values)
 	return filter, countFilter, parser.Errors
+}
+
+// applyConnectionTypeFilter translates the legacy type filter. It mirrors
+// db2sdk.ConnectionLogType so a row matches the type it is returned with.
+// Remove it, ExcludedAppNames, and ConnectionLog.Type together.
+func applyConnectionTypeFilter(filter *database.GetConnectionLogsOffsetParams, typ codersdk.ConnectionType) {
+	switch typ {
+	case codersdk.ConnectionTypeVSCode, codersdk.ConnectionTypeJetBrains:
+		filter.ConnectionMethod = string(database.ConnectionLogMethodSSH)
+		filter.AppNames = appsInFamily(codersdk.AppFamilyName(typ))
+	case codersdk.ConnectionTypeSSH:
+		// Plain SSH also matches absent and unregistered apps.
+		filter.ConnectionMethod = string(database.ConnectionLogMethodSSH)
+		filter.ExcludedAppNames = slices.Concat(appsInFamily(codersdk.AppFamilyVSCode), appsInFamily(codersdk.AppFamilyJetBrains))
+	default:
+		filter.ConnectionMethod = string(typ)
+	}
+}
+
+func parseAppFamily(family string) ([]string, error) {
+	apps := appsInFamily(codersdk.AppFamilyName(family))
+	if len(apps) == 0 {
+		return nil, xerrors.Errorf("%q is not an app family with registered apps", family)
+	}
+	return apps, nil
+}
+
+func appsInFamily(family codersdk.AppFamilyName) []string {
+	var apps []string
+	for appName, appFamily := range codersdk.SessionCountAppFamilies() {
+		if appFamily == family {
+			apps = append(apps, appName)
+		}
+	}
+	slices.Sort(apps)
+	return apps
 }
 
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {

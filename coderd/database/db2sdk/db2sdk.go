@@ -1002,20 +1002,16 @@ func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
 	return []policy.Action{}
 }
 
-func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
-	switch typ {
-	case agentproto.Connection_SSH:
-		return database.ConnectionTypeSsh, nil
-	case agentproto.Connection_JETBRAINS:
-		return database.ConnectionTypeJetbrains, nil
-	case agentproto.Connection_VSCODE:
-		return database.ConnectionTypeVscode, nil
-	case agentproto.Connection_RECONNECTING_PTY:
-		return database.ConnectionTypeReconnectingPty, nil
-	default:
-		// Also Connection_TYPE_UNSPECIFIED, no mapping.
-		return "", xerrors.Errorf("unknown agent connection type %q", typ)
+// ConnectionLogType returns the deprecated ConnectionLog.Type. The legacy
+// type search filter mirrors it, so change both together.
+func ConnectionLogType(method database.ConnectionLogMethod, appNameOrPort string) string {
+	if method == database.ConnectionLogMethodSSH {
+		switch family := codersdk.AppNameFamily(appNameOrPort); family {
+		case codersdk.AppFamilyVSCode, codersdk.AppFamilyJetBrains:
+			return string(family)
+		}
 	}
+	return string(method)
 }
 
 func ConnectionLogStatusFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.ConnectionStatus, error) {
