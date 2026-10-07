@@ -81,7 +81,7 @@ export const getOrganizationFilterOptions = async (
 		value: organization.name,
 		startIcon: (
 			<Avatar
-				size="md"
+				size="sm"
 				fallback={organization.display_name || organization.name}
 				src={organization.icon}
 			/>

@@ -60,6 +60,18 @@ export const Attributes: Story = {
 	},
 };
 
+export const Organization: Story = {
+	parameters: { showOrganizations: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
+		await userEvent.click(
+			await body.findByRole("option", { name: /^Organization/ }),
+		);
+	},
+};
+
 export const SelectDeprecatedOption: Story = {
 	play: async (context) => {
 		await Attributes.play?.(context);
