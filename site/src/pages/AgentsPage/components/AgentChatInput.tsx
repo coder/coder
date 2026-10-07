@@ -197,8 +197,7 @@ type AgentChatInputProps = {
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
 	// Caution shown at the top of the composer, owned by the parent.
 	warning?: string;
-	// Replaces the editor and every action control with this message,
-	// leaving only the context pills for a chat the viewer cannot change.
+	// When set, also hides the editor and every control (view-only mode).
 	readOnlyNotice?: string;
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
