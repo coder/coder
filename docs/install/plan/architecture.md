@@ -2,9 +2,8 @@
 title: Architecture
 ---
 
-The Coder deployment model is flexible and offers various components that
-platform administrators can deploy and scale depending on their use case. This
-page describes possible deployments, challenges, and risks associated with them.
+The Coder deployment model is flexible and offers various components that platform administrators can deploy and scale depending on their use case.
+This page describes possible deployments, challenges, and risks associated with them.
 
 <div class="tabs">
 
@@ -22,10 +21,9 @@ page describes possible deployments, challenges, and risks associated with them.
 
 ### coderd
 
-`coderd` is the process that runs the control plane, started with
-`coder server`. It is a thin API that connects workspaces, provisioners and
-users. `coderd` stores its state in Postgres and is the only component that
-communicates with Postgres.
+`coderd` is the process that runs the control plane, started with `coder server`.
+It is a thin API that connects workspaces, provisioners and users.
+`coderd` stores its state in Postgres and is the only component that communicates with Postgres.
 
 It offers:
 
@@ -41,27 +39,21 @@ _provisionerd_ is the execution context for infrastructure modifying providers.
 At the moment, the only provider is Terraform (running `terraform`).
 
 By default, the control plane runs multiple provisioner daemons.
-[External provisioners](../operate/provisioners/index.md) can be added for security or
-scalability purposes.
+[External provisioners](../operate/provisioners/index.md) can be added for security or scalability purposes.
 
 ### Workspaces
 
-At the highest level, a workspace is a set of cloud resources. These resources
-can be VMs, Kubernetes clusters, storage buckets, or whatever else Terraform
-lets you dream up.
+At the highest level, a workspace is a set of cloud resources.
+These resources can be VMs, Kubernetes clusters, storage buckets, or whatever else Terraform lets you dream up.
 
-The resources that run the workspace agent are described as _computational
-resources_, while those that don't are called _peripheral resources_.
+The resources that run the workspace agent are described as _computational resources_, while those that don't are called _peripheral resources_.
 
-Each resource may also be _persistent_ or _ephemeral_ depending on whether
-they're destroyed on workspace stop.
+Each resource may also be _persistent_ or _ephemeral_ depending on whether they're destroyed on workspace stop.
 
 ### Agents
 
-A workspace agent is the Coder process that runs within a user's remote
-workspace. It provides a consistent interface for `coderd` and clients to
-communicate with workspaces regardless of operating system, architecture, or
-cloud.
+A workspace agent is the Coder process that runs within a user's remote workspace.
+It provides a consistent interface for `coderd` and clients to communicate with workspaces regardless of operating system, architecture, or cloud.
 
 It offers the following services along with much more:
 
@@ -70,43 +62,34 @@ It offers the following services along with much more:
 - Liveness checks
 - `startup_script` automation
 
-Templates are responsible for
-[creating and running agents](../../admin/templates/extending-templates/index.md#workspace-agents)
-within workspaces.
+Templates are responsible for [creating and running agents](../../admin/templates/extending-templates/index.md#workspace-agents) within workspaces.
 
 ## Service Bundling
 
-While `coderd` and Postgres can be orchestrated independently, our default
-installation paths bundle them all together into one system service. It's
-perfectly fine to run a production deployment this way, but there are certain
-situations that necessitate decomposition:
+While `coderd` and Postgres can be orchestrated independently, our default installation paths bundle them all together into one system service.
+It's perfectly fine to run a production deployment this way, but there are certain situations that necessitate decomposition:
 
 - Reducing global client latency (distribute `coderd` and centralize database)
-- Achieving greater availability and efficiency (horizontally scale individual
-  services)
+- Achieving greater availability and efficiency (horizontally scale individual services)
 
 ## Data Layer
 
 ### PostgreSQL (Recommended)
 
-While `coderd` runs a bundled version of PostgreSQL, we recommend running an
-external PostgreSQL 13+ database for production deployments.
+While `coderd` runs a bundled version of PostgreSQL, we recommend running an external PostgreSQL 13+ database for production deployments.
 
 A managed PostgreSQL database, with daily backups, is recommended:
 
-- For AWS: Amazon RDS for PostgreSQL (preferably using
-  [RDS IAM authentication](../../reference/cli/server/index.md#--postgres-auth)).
+- For AWS: Amazon RDS for PostgreSQL (preferably using [RDS IAM authentication](../../reference/cli/server/index.md#--postgres-auth)).
 - For Azure: Azure Database for PostgreSQL
 - Flexible Server For GCP: Cloud SQL for PostgreSQL
 
-Learn more about database requirements:
-[Database Health](../../admin/monitoring/health-check.md#database)
+Learn more about database requirements: [Database Health](../../admin/monitoring/health-check.md#database)
 
 ### Git Providers (Recommended)
 
-Users will likely need to pull source code and other artifacts from a git
-provider. The Coder control plane and workspaces will need network connectivity
-to the git provider.
+Users will likely need to pull source code and other artifacts from a git provider.
+The Coder control plane and workspaces will need network connectivity to the git provider.
 
 - [GitHub Enterprise](../../admin/external-auth.md#github-enterprise)
 - [GitLab](../../admin/external-auth.md#gitlab-self-managed)
@@ -115,25 +98,20 @@ to the git provider.
 
 ### Artifact Manager (Optional)
 
-Workspaces and templates can pull artifacts from an artifact manager, such as
-JFrog Artifactory. This can be configured on the infrastructure level, or in
-some cases within Coder:
+Workspaces and templates can pull artifacts from an artifact manager, such as JFrog Artifactory.
+This can be configured on the infrastructure level, or in some cases within Coder:
 
 - Tutorial: [JFrog Artifactory and Coder](../../admin/integrations/jfrog-artifactory.md)
 
 ### Container Registry (Optional)
 
-If you prefer not to pull container images for the control plane (`coderd`,
-`provisionerd`) and workspaces from public container registry (Docker Hub,
-GitHub Container Registry) you can run your own container registry with Coder.
+If you prefer not to pull container images for the control plane (`coderd`, `provisionerd`) and workspaces from public container registry (Docker Hub, GitHub Container Registry) you can run your own container registry with Coder.
 
-To shorten the provisioning time, it is recommended to deploy registry mirrors
-in the same region as the workspace nodes.
+To shorten the provisioning time, it is recommended to deploy registry mirrors in the same region as the workspace nodes.
 
 ## Governance Layer
 
-The governance layer provides centralized oversight and policy enforcement for
-AI-powered development within Coder workspaces.
+The governance layer provides centralized oversight and policy enforcement for AI-powered development within Coder workspaces.
 
 ### AI Gateway
 
@@ -155,9 +133,7 @@ Refer to [AI Gateway](../../ai-coder/ai-gateway/index.md) and [standalone deploy
 
 ### Agent Firewall
 
-Agent Firewall is a process-level firewall that restricts and audits network
-access for AI agents running in workspaces. It enforces allowlist-based policies
-controlling which domains, HTTP methods, and URL paths agents can reach, while
-streaming audit logs to the Coder control plane for centralized monitoring.
+Agent Firewall is a process-level firewall that restricts and audits network access for AI agents running in workspaces.
+It enforces allowlist-based policies controlling which domains, HTTP methods, and URL paths agents can reach, while streaming audit logs to the Coder control plane for centralized monitoring.
 
 Learn more: [Agent Firewall](../../ai-coder/agent-firewall/index.md)

@@ -30,7 +30,6 @@ const baseArgs: AgentSettingsGeneralPageViewProps = {
 	onSaveUserDebugLogging: fn(),
 	isSavingUserDebugLogging: false,
 	isSaveUserDebugLoggingError: false,
-	chatBoardAvailable: true,
 };
 
 const meta = {

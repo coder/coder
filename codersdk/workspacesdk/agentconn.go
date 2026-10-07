@@ -125,7 +125,9 @@ type AgentConn interface {
 	UploadChatFile(ctx context.Context, req UploadChatFileRequest) (AgentUploadChatFileResponse, error)
 	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
 	BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error)
+	// Deprecated: Use SSHTCPConn instead.
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
+	SSHTCPConn(ctx context.Context) (TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
 	SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error)
@@ -249,7 +251,16 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
+	c.headersMu.RLock()
+	extraHeaders := c.extraHeaders.Clone()
+	c.headersMu.RUnlock()
+
+	addr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
+	conn, err := DialTCPUpgrade(ctx, addr.String(), c.apiClient(ctx), extraHeaders, AgentReconnectingPTYPort)
+	if errors.Is(err, ErrAgentTCPUpgradeUnsupported) {
+		// Fall back to dialing the port directly.
+		conn, err = c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -279,10 +290,36 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 	return conn, nil
 }
 
-// SSH pipes the SSH protocol over the returned net.Conn.
+// SSH pipes the SSH protocol over the returned gonet.TCPConn.
 // This connects to the built-in SSH server in the workspace agent.
 func (c *agentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
 	return c.SSHOnPort(ctx, AgentSSHPort)
+}
+
+// SSHTCPConn makes an HTTP request with the client session ID that then
+// upgrades into an SSH connection.  If the agent does not support the endpoint,
+// falls back to dialing the port directly.
+func (c *agentConn) SSHTCPConn(ctx context.Context) (TCPConn, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	if !c.AwaitReachable(ctx) {
+		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+	}
+
+	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSSH)
+
+	c.headersMu.RLock()
+	extraHeaders := c.extraHeaders.Clone()
+	c.headersMu.RUnlock()
+
+	addr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
+	conn, err := DialTCPUpgrade(ctx, addr.String(), c.apiClient(ctx), extraHeaders, AgentStandardSSHPort)
+	if errors.Is(err, ErrAgentTCPUpgradeUnsupported) {
+		// Fall back to dialing the port directly.
+		return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentStandardSSHPort))
+	}
+	return conn, err
 }
 
 // SSHOnPort pipes the SSH protocol over the returned net.Conn.
@@ -299,9 +336,29 @@ func (c *agentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn,
 	return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
 }
 
-// SSHClient calls SSH to create a client
+// SSHClient makes an HTTP request with the client session ID that then upgrades
+// into an SSH client connection.  If the agent does not support the endpoint,
+// falls back to dialing the port directly.
 func (c *agentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
-	return c.SSHClientOnPort(ctx, AgentSSHPort)
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	netConn, err := c.SSHTCPConn(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("ssh: %w", err)
+	}
+
+	sshConn, channels, requests, err := ssh.NewClientConn(netConn, "localhost:22", &ssh.ClientConfig{
+		// SSH host validation isn't helpful, because obtaining a peer
+		// connection already signifies user-intent to dial a workspace.
+		// #nosec
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("ssh conn: %w", err)
+	}
+
+	return ssh.NewClient(sshConn, channels, requests), nil
 }
 
 // SSHClientOnPort calls SSH to create a client on a specific port
@@ -326,6 +383,82 @@ func (c *agentConn) SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Clie
 
 	return ssh.NewClient(sshConn, channels, requests), nil
 }
+
+type TCPConn interface {
+	net.Conn
+	CloseWrite() error
+}
+
+var ErrAgentTCPUpgradeUnsupported = xerrors.New("agent does not support the tcp upgrade endpoint")
+
+// DialTCPUpgrade dials the agent's /tcp HTTP endpoint which allows sending
+// extra data to the agent via headers.  These must include the client session
+// ID or the connection will be refused.  The agent will then upgrade the
+// connection based on the port.  Returns ErrAgentTCPUpgradeUnsupported if the
+// agent does not support the endpoint.
+func DialTCPUpgrade(ctx context.Context, addr string, client *http.Client, headers http.Header, port uint16) (TCPConn, error) {
+	apiURL := fmt.Sprintf("http://%s/api/v0/tcp/%d", addr, port)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, xerrors.Errorf("new http api request to %q: %w", apiURL, err)
+	}
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "tcp")
+
+	// The client session ID baggage is found in the extra headers.
+	for k, v := range headers {
+		req.Header[k] = v
+	}
+
+	//nolint:bodyclose // On success the caller is responsible for closing.
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, xerrors.Errorf("do upgrade request to %q: %w", apiURL, err)
+	}
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		_ = resp.Body.Close()
+		return nil, ErrAgentTCPUpgradeUnsupported
+	}
+
+	respBody := resp.Body
+	conn, ok := respBody.(rawConn)
+	if !ok {
+		_ = respBody.Close()
+		return nil, xerrors.Errorf("response body is not a rawConn: %T", respBody)
+	}
+
+	return &upgradedConn{
+		rawConn:    conn,
+		remoteAddr: upgradeAddr{"tcp", addr},
+		// For now setting a fake local address.
+		localAddr: upgradeAddr{"ssh", "ssh"},
+	}, nil
+}
+
+type rawConn interface {
+	io.ReadWriteCloser
+	CloseWrite() error
+}
+
+type upgradedConn struct {
+	rawConn
+	remoteAddr net.Addr
+	localAddr  net.Addr
+}
+
+func (u *upgradedConn) LocalAddr() net.Addr              { return u.localAddr }
+func (u *upgradedConn) RemoteAddr() net.Addr             { return u.remoteAddr }
+func (*upgradedConn) SetDeadline(_ time.Time) error      { return nil }
+func (*upgradedConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (*upgradedConn) SetWriteDeadline(_ time.Time) error { return nil }
+
+type upgradeAddr struct {
+	network string
+	addr    string
+}
+
+func (u upgradeAddr) Network() string { return u.network }
+func (u upgradeAddr) String() string  { return u.addr }
 
 // Speedtest runs a speedtest against the workspace agent.
 func (c *agentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
@@ -1244,62 +1377,15 @@ func DefaultReadFileLinesLimits() ReadFileLinesLimits {
 // FileEdit is a single old_text -> new_text replacement applied
 // to one file. The fields use old_text/new_text instead of the
 // earlier search/replace because models confused the direction
-// (CODAGT-312). MarshalJSON and UnmarshalJSON keep the deprecated
-// search/replace keys on the wire for rollout compatibility; remove
-// both in the first release after Coder Agents GA (2026-09)
-// (CODAGT-483).
+// (CODAGT-312); the old keys are not decoded.
 type FileEdit struct {
 	OldText    string `json:"old_text" description:"Existing text in the file to replace. Matching is fuzzy: whitespace and indentation differences are tolerated."`
 	NewText    string `json:"new_text" description:"Text that replaces old_text."`
 	ReplaceAll bool   `json:"replace_all,omitempty" description:"Replace every match of old_text instead of erroring when it matches more than once."`
 }
 
-// MarshalJSON emits both the current and the deprecated
-// "search"/"replace" keys so agents that predate the rename keep
-// decoding the request while coderd upgrades ahead of running
-// workspaces.
-func (e FileEdit) MarshalJSON() ([]byte, error) {
-	type wire FileEdit
-	return json.Marshal(struct {
-		wire
-		Search  string `json:"search"`
-		Replace string `json:"replace"`
-	}{wire: wire(e), Search: e.OldText, Replace: e.NewText})
-}
-
-// UnmarshalJSON accepts the deprecated "search"/"replace" keys so
-// callers that predate the rename keep working. The fallback applies
-// only when both new fields are empty, which identifies an old-wire
-// caller; if either new field is set, an explicitly empty value
-// (e.g. new_text="" for a deletion) is preserved.
-//
-// The fallback decodes the deprecated keys through the same struct
-// tags the pre-rename type used, so its behavior is identical to the
-// old decoder, including case-insensitive key matching.
-func (e *FileEdit) UnmarshalJSON(data []byte) error {
-	type wire FileEdit
-	var w wire
-	if err := json.Unmarshal(data, &w); err != nil {
-		return err
-	}
-	*e = FileEdit(w)
-	if e.OldText == "" && e.NewText == "" {
-		var legacy struct {
-			Search  string `json:"search"`
-			Replace string `json:"replace"`
-		}
-		if err := json.Unmarshal(data, &legacy); err != nil {
-			return err
-		}
-		e.OldText = legacy.Search
-		e.NewText = legacy.Replace
-	}
-	return nil
-}
-
 // FileEdits carries the model-facing schema descriptions so the
-// chat tool's generated schema includes per-field guidance; see
-// FileEdit for the removal target.
+// chat tool's generated schema includes per-field guidance.
 type FileEdits struct {
 	Path  string     `json:"path" description:"The absolute path of the file to edit, for example /home/coder/project/main.go."`
 	Edits []FileEdit `json:"edits" description:"Edits that replace old text with new text, applied to this file in order."`

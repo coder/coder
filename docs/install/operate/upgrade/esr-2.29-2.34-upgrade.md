@@ -4,21 +4,20 @@ title: Upgrade from ESR 2.29 to 2.34
 
 ## Guide Overview
 
-Coder provides Extended Support Releases (ESR) biannually. This guide walks
-through upgrading from Coder 2.29 ESR to Coder 2.34 ESR. It
-summarizes key changes, highlights breaking updates, and provides a recommended
-upgrade process.
+Coder provides Extended Support Releases (ESR) biannually.
+This guide walks through upgrading from Coder 2.29 ESR to Coder 2.34 ESR.
+It summarizes key changes, highlights breaking updates, and provides a recommended upgrade process.
 
-Read more about the
-[ESR release process](../../../reference/releases.md#extended-support-release) and how Coder
-supports it.
+Read more about the [ESR release process](../../../reference/releases.md#extended-support-release) and how Coder supports it.
 
 ## What's New in Coder 2.34
 
 ### Coder Agents
 
-[Coder Agents](../../../ai-coder/agents/index.md) was introduced in v2.32, and is the long-term replacement for
-Coder Tasks. Coder Agents is a native AI coding agent that runs entirely within the Coder control plane, managing the agent loop, conversation state, and workspace provisioning in one place. This gives administrators centralized control over model access, credentials, and audit trails across every agent session. Coder Agents was made Beta in v2.33.
+[Coder Agents](../../../ai-coder/agents/index.md) was introduced in v2.32, and is the long-term replacement for Coder Tasks.
+Coder Agents is a native AI coding agent that runs entirely within the Coder control plane, managing the agent loop, conversation state, and workspace provisioning in one place.
+This gives administrators centralized control over model access, credentials, and audit trails across every agent session.
+Coder Agents was made Beta in v2.33.
 
 Coder Agents includes the following high-level functionality:
 
@@ -43,15 +42,15 @@ Administrators have the following levers to configure appropriate access to vari
 - Observability via AI Gateway, part of Coder's AI Governance features
 
 > [!CAUTION]
-> Coder Tasks is officially deprecated in 2.34. It remains supported through the 2.34 ESR support window
-> but receives no new features. Coder recommends migrating to Coder Agents
-> and the Chats API now. See the [Tasks to Chats migration guide](../../../ai-coder/agents/tasks-to-chats-migration.md)
-> for API migration details.
+> Coder Tasks is officially deprecated in 2.34.
+> It remains supported through the 2.34 ESR support window but receives no new features.
+> Coder recommends migrating to Coder Agents and the Chats API now.
+> See the [Tasks to Chats migration guide](../../../ai-coder/agents/tasks-to-chats-migration.md) for API migration details.
 
 ### AI Gateway and AI Governance
 
-AI Gateway, previously AI Bridge, matured into a broader governance and
-observability layer for AI usage. It now supports:
+AI Gateway, previously AI Bridge, matured into a broader governance and observability layer for AI usage.
+It now supports:
 
 - [AI Gateway Proxy](../../../ai-coder/ai-gateway/ai-gateway-proxy/index.md).
 - OpenAI Responses API interception.
@@ -60,92 +59,68 @@ observability layer for AI usage. It now supports:
 - Structured logs and client/session views.
 - Model filtering.
 - Multiple providers of the same type.
-- [BYOK](../../../ai-coder/ai-gateway/auth.md#bring-your-own-key-byok) and
-  [key failover](../../../ai-coder/ai-gateway/providers.md#key-failover).
+- [BYOK](../../../ai-coder/ai-gateway/auth.md#bring-your-own-key-byok) and [key failover](../../../ai-coder/ai-gateway/providers.md#key-failover).
 
-[AI Governance](../../../ai-coder/ai-governance.md) adds administrative controls
-around AI usage:
+[AI Governance](../../../ai-coder/ai-governance.md) adds administrative controls around AI usage:
 
 - License and seat visibility.
 - AI session auditing.
 
-These features help administrators understand who is using AI tools, which
-providers are being used, and how spend changes over time.
+These features help administrators understand who is using AI tools, which providers are being used, and how spend changes over time.
 
-For more information, visit the
-[AI Gateway documentation](../../../ai-coder/ai-gateway/index.md).
+For more information, visit the [AI Gateway documentation](../../../ai-coder/ai-gateway/index.md).
 
 ### Agent Firewall
 
-Agent Firewall, previously Agent Boundaries, moved from an early capability into
-a stronger governance primitive for AI agents. It can audit and restrict network
-access from agent processes, forward machine-readable logs to the control plane,
-track usage, and use [landjail mode](../../../ai-coder/agent-firewall/landjail.md)
-for environments where changing Linux capabilities is not practical.
+Agent Firewall, previously Agent Boundaries, moved from an early capability into a stronger governance primitive for AI agents.
+It can audit and restrict network access from agent processes, forward machine-readable logs to the control plane, track usage, and use [landjail mode](../../../ai-coder/agent-firewall/landjail.md) for environments where changing Linux capabilities is not practical.
 
-For more information, visit the
-[Agent Firewall documentation](../../../ai-coder/agent-firewall/index.md).
+For more information, visit the [Agent Firewall documentation](../../../ai-coder/agent-firewall/index.md).
 
 ### Service Accounts
 
-[Service accounts](../../../admin/users/headless-auth.md) are a
-[Premium](../../prepare/licensing.md) feature and now integrate with workspace
-sharing, user and workspace filtering, organization membership, and role
-assignment.
+[Service accounts](../../../admin/users/headless-auth.md) are a [Premium](../../prepare/licensing.md) feature and now integrate with workspace sharing, user and workspace filtering, organization membership, and role assignment.
 
 ### Templates, Prebuilds, and User Secrets
 
 Template and workspace operations received several improvements:
 
-- Terraform modules are [cached per template version](../../../tutorials/best-practices/speed-up-templates.md)
-  to reduce repeated downloads and make workspace starts more deterministic.
-- [Prebuild](../../../admin/templates/extending-templates/prebuilt-workspaces.md)
-  claiming is more durable and idempotent.
+- Terraform modules are [cached per template version](../../../tutorials/best-practices/speed-up-templates.md) to reduce repeated downloads and make workspace starts more deterministic.
+- [Prebuild](../../../admin/templates/extending-templates/prebuilt-workspaces.md) claiming is more durable and idempotent.
 - Prebuild presets are validated with dynamic parameter validation.
-- [`coder_env`](../../../admin/templates/extending-templates/environment-variables.md)
-  supports `merge_strategy`.
-- [User secrets](../../../user-guides/user-secrets.md) can be created, encrypted,
-  audited, and injected into workspaces.
+- [`coder_env`](../../../admin/templates/extending-templates/environment-variables.md) supports `merge_strategy`.
+- [User secrets](../../../user-guides/user-secrets.md) can be created, encrypted, audited, and injected into workspaces.
 - The dashboard warns about active prebuilds when duplicating templates.
 
-These changes reduce operational surprises for template authors, but templates
-that assumed a clean Terraform module download on every build should be tested.
+These changes reduce operational surprises for template authors, but templates that assumed a clean Terraform module download on every build should be tested.
 
 ### Security and Networking
 
 Coder added several security and networking controls between 2.29 and 2.34:
 
-- OAuth2 external auth providers now support PKCE, and unknown providers default
-  to PKCE unless explicitly disabled.
-- Secure auth cookies are now enabled automatically when `CODER_ACCESS_URL` uses
-  HTTPS.
-- AI Gateway Proxy blocks CONNECT tunnels to private or reserved IP ranges, while
-  always exempting the Coder access URL.
-- Workspace agents can disable reverse and local port forwarding through agent
-  flags.
+- OAuth2 external auth providers now support PKCE, and unknown providers default to PKCE unless explicitly disabled.
+- Secure auth cookies are now enabled automatically when `CODER_ACCESS_URL` uses HTTPS.
+- AI Gateway Proxy blocks CONNECT tunnels to private or reserved IP ranges, while always exempting the Coder access URL.
+- Workspace agents can disable reverse and local port forwarding through agent flags.
 - Authenticated request rate limiting is keyed by user instead of IP address.
 - Kubernetes Gateway API `HTTPRoute` is supported as an alternative to Ingress.
-- Helm chart probes are more configurable, and Prometheus and pprof addresses can
-  be overridden through chart environment values.
-- DERP TLS configuration is wired through the CLI, SDK, tailnet, VPN, agent, and
-  health checks.
+- Helm chart probes are more configurable, and Prometheus and pprof addresses can be overridden through chart environment values.
+- DERP TLS configuration is wired through the CLI, SDK, tailnet, VPN, agent, and health checks.
 
 ### Operations and Scale
 
-Large deployments should now have improvements in database, logging, and
-observability behavior. Coder added the following:
+Large deployments should now have improvements in database, logging, and observability behavior.
+Coder added the following:
 
 - Configurable PostgreSQL connection pool settings.
-- [Retention configuration](../../../admin/setup/data-retention.md) for audit logs,
-  connection logs, API keys, and workspace agent logs.
+- [Retention configuration](../../../admin/setup/data-retention.md) for audit logs, connection logs, API keys, and workspace agent logs.
 - `dbpurge` metrics.
 - Support bundle improvements.
 - `chatd` metrics.
 - Agent first-connection duration metrics.
 - A `coder_build_info` metric.
 
-Coder also removed several deprecated Prometheus metrics, so dashboards and
-alerts should be reviewed before the upgrade.
+Coder also removed several deprecated Prometheus metrics, so dashboards and alerts should be reviewed before the upgrade.
 
 Several expensive queries and write paths were optimized, including:
 
@@ -165,14 +140,11 @@ The CLI and dashboard gained smaller but meaningful workflow improvements:
 - `coder login token` prints the current session token for scripts and automation.
 - `coder support bundle` can infer the workspace from the environment.
 - `coder groups list -o json` now returns a flat JSON structure.
-- The dashboard includes user editing, service account management, group member
-  filtering, role selection during user creation, improved accessibility, and
-  clearer confirmation flows for destructive actions.
+- The dashboard includes user editing, service account management, group member filtering, role selection during user creation, improved accessibility, and clearer confirmation flows for destructive actions.
 
 ## Changes to be Aware of
 
-The following changes introduced after 2.29 might break workflows, require manual
-updates, or change administrator expectations:
+The following changes introduced after 2.29 might break workflows, require manual updates, or change administrator expectations:
 
 | Initial State (2.29 and before)                                                                                 | New State (2.30-2.34)                                                                                                                                       | Change Required                                                                                                                                                                                                                                                                          |
 |-----------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -208,84 +180,50 @@ updates, or change administrator expectations:
 ## Upgrade recommendations
 
 > [!NOTE]
-> You can upgrade directly from 2.29 to 2.34. Stepping through intermediate
-> minor versions is not required.
+> You can upgrade directly from 2.29 to 2.34.
+> Stepping through intermediate minor versions is not required.
 >
-> This upgrade applies 108 database migrations. Coder applies them in order
-> on startup. Most are fast schema changes, but a few rewrite or backfill
-> long-lived tables and hold locks while they run. Total time ranges from under
-> a minute to several minutes, scaling with the size of the tables called out
-> in [Database migrations to watch](#database-migrations-to-watch) below.
+> This upgrade applies 108 database migrations.
+> Coder applies them in order on startup.
+> Most are fast schema changes, but a few rewrite or backfill long-lived tables and hold locks while they run.
+> Total time ranges from under a minute to several minutes, scaling with the size of the tables called out in [Database migrations to watch](#database-migrations-to-watch) below.
 >
-> Take a database backup before upgrading and validate the upgrade in a
-> staging environment that mirrors production data volume.
+> Take a database backup before upgrading and validate the upgrade in a staging environment that mirrors production data volume.
 
 ### Database migrations to watch
 
-The batch runs in order on the first startup of the new version. Most
-migrations create new tables or make fast schema changes, but the following
-pre-existing tables receive the heaviest operations. Size your maintenance
-window for whichever are largest in your deployment:
+The batch runs in order on the first startup of the new version.
+Most migrations create new tables or make fast schema changes, but the following pre-existing tables receive the heaviest operations.
+Size your maintenance window for whichever are largest in your deployment:
 
-- **Tailnet coordination tables** (`tailnet_peers`, `tailnet_tunnels`,
-  `tailnet_coordinators`) are converted to `UNLOGGED` and rewritten under an
-  exclusive lock. **`UNLOGGED` tables are not replicated to standby servers and
-  are truncated on crash recovery.** This is intentional, since coordinators
-  re-register and peers reconnect on startup, but confirm your high
-  availability strategy does not rely on replicating tailnet state to read
-  replicas.
-- **`users`** gains a service account column plus check constraints and unique
-  index rebuilds, held under an exclusive lock. This briefly blocks logins and
-  API key validation, so the duration matters most on deployments with many
-  users.
-- **`workspace_agents`** (joined with `workspace_builds`, `workspace_resources`,
-  and `workspaces`) is bulk updated to soft-delete stale agents left behind by
-  a pre-2.33 bug. This is typically the slowest step on long-lived deployments
-  with extensive build history. It is safe, but plan for the time.
+- **Tailnet coordination tables** (`tailnet_peers`, `tailnet_tunnels`, `tailnet_coordinators`) are converted to `UNLOGGED` and rewritten under an exclusive lock.
+  **`UNLOGGED` tables are not replicated to standby servers and are truncated on crash recovery.**
+  This is intentional, since coordinators re-register and peers reconnect on startup, but confirm your high availability strategy does not rely on replicating tailnet state to read replicas.
+- **`users`** gains a service account column plus check constraints and unique index rebuilds, held under an exclusive lock.
+  This briefly blocks logins and API key validation, so the duration matters most on deployments with many users.
+- **`workspace_agents`** (joined with `workspace_builds`, `workspace_resources`, and `workspaces`) is bulk updated to soft-delete stale agents left behind by a pre-2.33 bug.
+  This is typically the slowest step on long-lived deployments with extensive build history.
+  It is safe, but plan for the time.
 - **`workspaces`** receives full-table updates and new ACL check constraints.
-- **`usage_events`** has a check constraint revalidated and an index added; the
-  cost scales with retained event volume.
+- **`usage_events`** has a check constraint revalidated and an index added; the cost scales with retained event volume.
 
-Several of these changes are irreversible, including the `users` service
-account reclassification and the cleanup of `user_secrets`,
-`organization_members`, and related rows for already soft-deleted users. Take a
-database backup before upgrading.
+Several of these changes are irreversible, including the `users` service account reclassification and the cleanup of `user_secrets`, `organization_members`, and related rows for already soft-deleted users.
+Take a database backup before upgrading.
 
 The Coder team recommends taking the following steps when performing the upgrade:
 
-- **Perform the upgrade in a staging environment first:** The cumulative changes
-  between 2.29 and 2.34 affect AI workflows, templates, prebuilds,
-  authentication, RBAC, and dashboard behavior. Validate representative
-  workspaces before production rollout.
-- **Retest templates and prebuilds:** Focus on Terraform module caching,
-  prebuild preset validation, `coder_env` merging, user secrets, and workspace
-  starts with changed parameters.
-- **Audit AI Gateway integrations:** Update experimental API routes, check
-  permissions for interception/session data, migrate provider configuration
-  from env vars to the database via `/ai/settings/providers`, verify proxy mode behavior,
-  and review any injected MCP usage.
-- **Plan the Tasks to Agents migration:** Tasks remains available during the
-  support window, but new automation should use Coder Agents and the Chats API.
+- **Perform the upgrade in a staging environment first:** The cumulative changes between 2.29 and 2.34 affect AI workflows, templates, prebuilds, authentication, RBAC, and dashboard behavior.
+  Validate representative workspaces before production rollout.
+- **Retest templates and prebuilds:** Focus on Terraform module caching, prebuild preset validation, `coder_env` merging, user secrets, and workspace starts with changed parameters.
+- **Audit AI Gateway integrations:** Update experimental API routes, check permissions for interception/session data, migrate provider configuration from env vars to the database via `/ai/settings/providers`, verify proxy mode behavior, and review any injected MCP usage.
+- **Plan the Tasks to Agents migration:** Tasks remains available during the support window, but new automation should use Coder Agents and the Chats API.
   Update internal docs, templates, and API clients accordingly.
-- **Validate external authentication:** Test GitHub, GitLab, OIDC, and custom
-  external auth providers. Add the `read_api` scope to GitLab OAuth applications
-  and have users re-authenticate. Disable PKCE for providers that do not support
-  it.
-- **Migrate headless automation to service accounts:** Replace users created
-  with `--login-type none` where possible, and verify CI/CD tokens, template
-  publish jobs, and workspace automation.
-- **Update CLI parsers, API clients, and scripts:** Check `coder groups list -o
-  json`, `coder tokens rm`, `coder login` with `CODER_SESSION_TOKEN`, SFTP/SCP
-  destination paths, template metadata update clients, provisionerd protocol
-  consumers, and any script that depends on terminal command URL execution.
-- **Review networking controls before enabling them:** Test AI Gateway Proxy,
-  private IP restrictions, port forwarding blocks, DERP TLS configuration,
-  Kubernetes `HTTPRoute`, and Helm probe settings in environments that use custom
-  networking.
-- **Tune operational settings after rollout:** Review PostgreSQL connection pool
-  settings, retention policies, dbpurge behavior, Prometheus metrics, secure
-  cookie behavior, support bundle output, and log ingestion pipelines.
-- **Communicate user-facing changes:** Service accounts, Coder Agents, AI
-  Governance, Tasks deprecation, dashboard confirmations, and workspace parameter
-  restarts can change user workflows. Share the expected behavior before the
-  production upgrade.
+- **Validate external authentication:** Test GitHub, GitLab, OIDC, and custom external auth providers.
+  Add the `read_api` scope to GitLab OAuth applications and have users re-authenticate.
+  Disable PKCE for providers that do not support it.
+- **Migrate headless automation to service accounts:** Replace users created with `--login-type none` where possible, and verify CI/CD tokens, template publish jobs, and workspace automation.
+- **Update CLI parsers, API clients, and scripts:** Check `coder groups list -o json`, `coder tokens rm`, `coder login` with `CODER_SESSION_TOKEN`, SFTP/SCP destination paths, template metadata update clients, provisionerd protocol consumers, and any script that depends on terminal command URL execution.
+- **Review networking controls before enabling them:** Test AI Gateway Proxy, private IP restrictions, port forwarding blocks, DERP TLS configuration, Kubernetes `HTTPRoute`, and Helm probe settings in environments that use custom networking.
+- **Tune operational settings after rollout:** Review PostgreSQL connection pool settings, retention policies, dbpurge behavior, Prometheus metrics, secure cookie behavior, support bundle output, and log ingestion pipelines.
+- **Communicate user-facing changes:** Service accounts, Coder Agents, AI Governance, Tasks deprecation, dashboard confirmations, and workspace parameter restarts can change user workflows.
+  Share the expected behavior before the production upgrade.

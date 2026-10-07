@@ -308,10 +308,12 @@ plane, not from the workspace's network.
 ### Centralized enforcement
 
 Administrators control which models are available, the system prompt, and tool configuration from the control plane.
-The system prompt and the tool configuration are deployment-wide.
+The deployment system prompt and the tool configuration are deployment-wide.
+Organization administrators can add organization instructions, which Coder adds after the deployment system prompt in the chats of their organization.
 The model list belongs to an organization, so a chat can only use the models of its own organization.
 Developers can select from the set of admin-enabled models when starting or continuing a chat, but cannot add their own providers or override system prompts or tool permissions.
-When an administrator removes a model or modifies the system prompt, the change applies to all affected agent sessions immediately.
+When an administrator removes a model, the change applies to all affected agent sessions immediately.
+Coder stores the system prompt and the organization instructions when it creates a chat, so a change to either applies to chats created afterward.
 Refer to [Organization scope](./platform-controls/organizations.md) for the settings that belong to each scope.
 
 ### User identity on every action
