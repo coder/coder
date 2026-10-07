@@ -180,14 +180,18 @@ export const useChatStore = (
 	>(undefined);
 	const pageHistoryVersion = chatMessagesData?.history_version;
 	useEffect(() => {
-		if (
-			chatID &&
-			pageHistoryVersion !== undefined &&
-			historyVersionRef.current?.chatID !== chatID
-		) {
-			historyVersionRef.current = { chatID, version: pageHistoryVersion };
+		if (historyVersionRef.current?.chatID === chatID) {
+			return;
 		}
+		historyVersionRef.current =
+			chatID && pageHistoryVersion !== undefined
+				? { chatID, version: pageHistoryVersion }
+				: undefined;
 	}, [chatID, pageHistoryVersion]);
+	const historyVersionFor = (id: string): number | undefined =>
+		historyVersionRef.current?.chatID === id
+			? historyVersionRef.current.version
+			: undefined;
 
 	// Wrap error-reason callbacks so the WebSocket effect can call
 	// them without including them in its dependency array.
@@ -640,7 +644,7 @@ export const useChatStore = (
 							const syncedVersion = streamEvent.status?.history_version;
 							if (
 								syncedVersion !== undefined &&
-								syncedVersion > (historyVersionRef.current?.version ?? 0)
+								syncedVersion > (historyVersionFor(chatID) ?? 0)
 							) {
 								historyVersionRef.current = { chatID, version: syncedVersion };
 							}
@@ -750,7 +754,7 @@ export const useChatStore = (
 				const socket = watchChat(
 					chatID,
 					lastMessageIdRef.current,
-					historyVersionRef.current?.version,
+					historyVersionFor(chatID),
 				);
 				socket.addEventListener("message", handleMessage);
 				return socket;

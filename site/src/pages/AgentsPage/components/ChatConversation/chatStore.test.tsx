@@ -3950,6 +3950,52 @@ describe("useChatStore", () => {
 		);
 	});
 
+	it("does not carry one chat's history version into another chat", async () => {
+		mockWatchChatWithFreshSockets();
+		const wrapper = createWrapper(createTestQueryClient());
+		const messagesByChat = new Map([
+			["chat-a", [buildMessage("chat-a", 1, "user", "hello")]],
+			["chat-b", [buildMessage("chat-b", 1, "user", "hello")]],
+		]);
+
+		const { rerender } = renderHook(
+			(props: { chatID: string; pageVersion?: number }) => {
+				const messages = messagesByChat.get(props.chatID) ?? [];
+				useChatStore({
+					chatID: props.chatID,
+					chatMessages: messages,
+					chatRecord: buildChat(props.chatID),
+					chatRecordUpdatedAt: 0,
+					chatMessagesData: {
+						messages,
+						queued_messages: [],
+						has_more: false,
+						history_version: props.pageVersion,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+			},
+			{
+				wrapper,
+				initialProps: { chatID: "chat-a", pageVersion: 100 } as {
+					chatID: string;
+					pageVersion?: number;
+				},
+			},
+		);
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenLastCalledWith("chat-a", 1, 100);
+		});
+
+		// An older server omits history_version.
+		rerender({ chatID: "chat-b", pageVersion: undefined });
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenLastCalledWith("chat-b", 1, undefined);
+		});
+	});
+
 	it("sets reconnectState on WebSocket disconnect and clears it after reconnect", async () => {
 		immediateAnimationFrame();
 		vi.spyOn(Math, "random").mockReturnValue(0.5);
