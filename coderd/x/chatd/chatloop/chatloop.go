@@ -73,10 +73,6 @@ type PersistedStep struct {
 	// Runtime is the wall-clock duration from opening to consuming the
 	// model stream.
 	Runtime time.Duration
-	// PromptTextBytes is the text size of the request's prompt and tool
-	// definitions, or zero when the prompt carried media. Compaction
-	// divides it by the step's prompt tokens to convert bytes to tokens.
-	PromptTextBytes int64
 	// ProviderResponseID is the response ID the model endpoint reported, if
 	// any. Through the AI Gateway, Anthropic Messages responses carry the
 	// gateway's interception ID instead of the upstream message ID.
@@ -424,7 +420,6 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 		Usage:                result.usage,
 		ContextLimit:         contextLimit,
 		Runtime:              opts.Clock.Since(stepStart),
-		PromptTextBytes:      requestTextBytes(call.Prompt, call.Tools),
 		ProviderResponseID:   result.providerResponseID,
 		ToolCallCreatedAt:    result.toolCallCreatedAt,
 		ToolResultCreatedAt:  result.toolResultCreatedAt,

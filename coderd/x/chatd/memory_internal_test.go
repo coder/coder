@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -216,67 +215,5 @@ func TestMemoryIndexMessage(t *testing.T) {
 		text, ok := run(t, []database.GetChatProjectMemoriesByProjectIDRow{memory("alpha", "First")}, []database.ChatMessage{row(database.ChatMessageVisibilityBoth, false, forged)})
 		require.True(t, ok)
 		require.Equal(t, snapshot, text)
-	})
-}
-
-// TestMemoryIndexAfterCompaction verifies the post-compaction estimate
-// counts the snapshot memoryIndexMessage sends after the boundary.
-func TestMemoryIndexAfterCompaction(t *testing.T) {
-	t.Parallel()
-
-	projectID := uuid.New()
-	chat := database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}}
-	run := func(t *testing.T, memories []database.GetChatProjectMemoriesByProjectIDRow, listErr error) (fantasy.Message, bool) {
-		t.Helper()
-		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{ID: projectID, Name: "platform"}, nil)
-		db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), projectID).Return(memories, listErr)
-		server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), experiments: codersdk.ExperimentsKnown}
-		return server.memoryIndexAfterCompaction(t.Context(), chat, nil)
-	}
-
-	t.Run("Snapshot", func(t *testing.T) {
-		t.Parallel()
-		msg, ok := run(t, []database.GetChatProjectMemoriesByProjectIDRow{
-			{ChatProjectMemory: database.ChatProjectMemory{Name: "alpha", Description: "First"}},
-		}, nil)
-		require.True(t, ok)
-		require.Equal(t, fantasy.MessageRoleUser, msg.Role)
-		require.Equal(t, []fantasy.MessagePart{fantasy.TextPart{
-			Text: chattool.FormatMemoryIndexSnapshot([]chattool.MemoryIndexEntry{{Name: "alpha", Description: "First"}}),
-		}}, msg.Content)
-	})
-	t.Run("NoMemories", func(t *testing.T) {
-		t.Parallel()
-		_, ok := run(t, nil, nil)
-		require.False(t, ok)
-	})
-	t.Run("ListFailure", func(t *testing.T) {
-		t.Parallel()
-		_, ok := run(t, nil, xerrors.New("connection reset"))
-		require.False(t, ok)
-	})
-	t.Run("OutsideProject", func(t *testing.T) {
-		t.Parallel()
-		server := &Server{db: dbmock.NewMockStore(gomock.NewController(t)), logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
-		_, ok := server.memoryIndexAfterCompaction(t.Context(), database.Chat{ID: uuid.New()}, nil)
-		require.False(t, ok)
-	})
-	t.Run("SnapshotInPendingTail", func(t *testing.T) {
-		t.Parallel()
-		// syncMemoryIndex committed a snapshot after the last step, so it
-		// is replayed with the pending tail and nothing more is sent.
-		snapshot := chattool.FormatMemoryIndexSnapshot([]chattool.MemoryIndexEntry{{Name: "alpha", Description: "First"}})
-		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(snapshot)})
-		require.NoError(t, err)
-		pending := []database.ChatMessage{{
-			Role:           database.ChatMessageRoleUser,
-			Visibility:     database.ChatMessageVisibilityModel,
-			Content:        content,
-			ContentVersion: chatprompt.CurrentContentVersion,
-		}}
-		server := &Server{db: dbmock.NewMockStore(gomock.NewController(t)), logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
-		_, ok := server.memoryIndexAfterCompaction(t.Context(), chat, pending)
-		require.False(t, ok)
 	})
 }

@@ -207,7 +207,6 @@ func assistantMessage(
 	// invocation shorter than a millisecond persists the same way an
 	// unmeasured one does.
 	msg.RuntimeMs = nullInt64IfNonZero(step.Runtime.Milliseconds())
-	msg.PromptTextBytes = nullInt64IfNonZero(step.PromptTextBytes)
 	msg.ProviderResponseID = sql.NullString{String: step.ProviderResponseID, Valid: step.ProviderResponseID != ""}
 	return msg
 }

@@ -1045,8 +1045,7 @@ inserted AS (
         provider_response_id,
         queued_message_id,
         automation_id,
-        input_id,
-        prompt_text_bytes
+        input_id
     )
     SELECT
         allocated.id,
@@ -1071,8 +1070,7 @@ inserted AS (
         -- Queue ids start at 1, so 0 is a safe "not promoted" sentinel.
         NULLIF((@queued_message_id::bigint[])[allocated.ord], 0),
         NULLIF((@automation_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
-        NULLIF((@input_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
-        NULLIF((@prompt_text_bytes::bigint[])[allocated.ord], 0)
+        NULLIF((@input_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid)
     FROM allocated
     RETURNING *
 )

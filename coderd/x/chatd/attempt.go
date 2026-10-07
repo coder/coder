@@ -24,7 +24,6 @@ type stepData struct {
 	Usage              fantasy.Usage
 	ContextLimit       sql.NullInt64
 	Runtime            time.Duration
-	PromptTextBytes    int64
 	ProviderResponseID string
 
 	// BatchRuntime is the local-tool batch window. Model steps use Runtime.

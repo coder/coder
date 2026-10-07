@@ -1,7 +1,6 @@
 package chatd //nolint:testpackage // Exercises unexported re-derivation helpers.
 
 import (
-	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -179,7 +178,6 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	// tools are retained.
 	nextPrompt := prepared.Compaction.Options.NextPrompt
 	require.Equal(t, prepared.Compaction.Options.ToolDefinitions, nextPrompt.Tools)
-	require.Empty(t, nextPrompt.DroppedTools)
 	require.Empty(t, nextPrompt.Pending)
 	require.Equal(t, fantasy.MessageRoleUser, nextPrompt.History[len(nextPrompt.History)-1].Role)
 
@@ -854,84 +852,6 @@ func TestLatestPromptUsage(t *testing.T) {
 		t.Parallel()
 		assert.Equal(t, fantasy.Usage{}, latestPromptUsage(nil))
 	})
-}
-
-// TestFirstStepCalibration verifies which step calibrates the
-// post-compaction estimate and when calibration is skipped.
-func TestFirstStepCalibration(t *testing.T) {
-	t.Parallel()
-
-	modelConfigID := uuid.New()
-	assistant := func(t *testing.T, id, inputTokens, promptTextBytes int64, configID uuid.UUID) database.ChatMessage {
-		t.Helper()
-		msg := withUsage(dbMessage(t, id, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("step")), inputTokens, 0)
-		msg.ModelConfigID = uuid.NullUUID{UUID: configID, Valid: true}
-		msg.PromptTextBytes = sql.NullInt64{Int64: promptTextBytes, Valid: promptTextBytes != 0}
-		return msg
-	}
-	user := func(t *testing.T) database.ChatMessage {
-		t.Helper()
-		return dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hi"))
-	}
-
-	t.Run("returns the first step", func(t *testing.T) {
-		t.Parallel()
-		usage, promptTextBytes := firstStepCalibration([]database.ChatMessage{
-			user(t), assistant(t, 2, 5000, 25000, modelConfigID), assistant(t, 3, 5200, 26000, modelConfigID),
-		}, modelConfigID)
-		assert.Equal(t, int64(5000), usage.InputTokens)
-		assert.Equal(t, int64(25000), promptTextBytes)
-	})
-
-	t.Run("returns zero bytes for a step recorded without them", func(t *testing.T) {
-		t.Parallel()
-		usage, promptTextBytes := firstStepCalibration([]database.ChatMessage{user(t), assistant(t, 2, 5000, 0, modelConfigID)}, modelConfigID)
-		assert.Equal(t, int64(5000), usage.InputTokens)
-		assert.Zero(t, promptTextBytes)
-	})
-
-	for _, tc := range []struct {
-		name     string
-		messages func(t *testing.T) []database.ChatMessage
-	}{
-		{
-			name: "returns zero when the first step has no usage",
-			messages: func(t *testing.T) []database.ChatMessage {
-				return []database.ChatMessage{user(t), assistant(t, 2, 0, 0, modelConfigID), assistant(t, 3, 5200, 26000, modelConfigID)}
-			},
-		},
-		{
-			name: "returns zero when the first step ran on another model config",
-			messages: func(t *testing.T) []database.ChatMessage {
-				return []database.ChatMessage{user(t), assistant(t, 2, 5000, 25000, uuid.New()), assistant(t, 3, 5200, 26000, modelConfigID)}
-			},
-		},
-		{
-			name: "returns zero when the first step has no model config",
-			messages: func(t *testing.T) []database.ChatMessage {
-				msg := assistant(t, 2, 5000, 25000, modelConfigID)
-				msg.ModelConfigID = uuid.NullUUID{}
-				return []database.ChatMessage{user(t), msg}
-			},
-		},
-		{
-			name: "returns zero without an assistant message",
-			messages: func(t *testing.T) []database.ChatMessage {
-				return []database.ChatMessage{user(t)}
-			},
-		},
-		{
-			name:     "returns zero for no messages",
-			messages: func(*testing.T) []database.ChatMessage { return nil },
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			usage, promptTextBytes := firstStepCalibration(tc.messages(t), modelConfigID)
-			assert.Equal(t, fantasy.Usage{}, usage)
-			assert.Zero(t, promptTextBytes)
-		})
-	}
 }
 
 // TestShouldCompactPromptUsage verifies the compaction threshold decision

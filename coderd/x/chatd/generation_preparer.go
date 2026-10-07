@@ -756,7 +756,6 @@ func (server *Server) prepareGeneration(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 	var allowInactiveTools map[string]bool
-	var deferredActivations []string
 	// The owner is the subject: only the owner posts turns and descendant
 	// chats inherit it. Preparation runs for every step, so the first step
 	// with MCP candidates decides and later steps of the same turn reuse
@@ -804,13 +803,12 @@ func (server *Server) prepareGeneration(
 				)
 			},
 		})
-		deferredActivations = deriveDeferredMCPActivations(promptRows, deferredCandidates, activationTokenBudget)
 		tools, activeToolNames, allowInactiveTools = configureDeferredMCPToolSearch(
 			tools,
 			activeToolNames,
 			deferredCandidates,
 			findTools,
-			deferredActivations,
+			deriveDeferredMCPActivations(promptRows, deferredCandidates, activationTokenBudget),
 		)
 		builtinToolNames[chattool.FindToolsName] = true
 	}
@@ -853,18 +851,12 @@ func (server *Server) prepareGeneration(
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
-	firstStepUsage, firstStepPromptTextBytes := firstStepCalibration(promptRows, modelConfig.ID)
 	compactionNextPrompt := chatloop.CompactionNextPrompt{
 		History: compactionPromptMessages,
 		// A nonempty pending tail is kept out of the summarizer input
 		// and replayed after the boundary.
 		Pending: pendingPrompt,
 		Tools:   toolDefinitions,
-		// Deferred MCP tool activations are derived from the history
-		// after the latest boundary, so the next request drops them.
-		DroppedTools:             deferredActivations,
-		FirstStepUsage:           firstStepUsage,
-		FirstStepPromptTextBytes: firstStepPromptTextBytes,
 	}
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
@@ -957,26 +949,6 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 		}
 	}
 	return fantasy.Usage{}
-}
-
-// firstStepCalibration returns the usage and request text bytes of the
-// first assistant message, the first step since the latest compaction
-// boundary. Both are zero when that step ran on another model config,
-// whose tokenizer can differ. A model changed within the same config is
-// not detected: updated_at also moves on unrelated edits such as setting
-// a new default, and the fallback ratio reads about 27% high on
-// gpt-5-mini.
-func firstStepCalibration(messages []database.ChatMessage, modelConfigID uuid.UUID) (fantasy.Usage, int64) {
-	for _, msg := range messages {
-		if msg.Role != database.ChatMessageRoleAssistant {
-			continue
-		}
-		if !msg.ModelConfigID.Valid || msg.ModelConfigID.UUID != modelConfigID {
-			return fantasy.Usage{}, 0
-		}
-		return usageFromMessage(msg), msg.PromptTextBytes.Int64
-	}
-	return fantasy.Usage{}, 0
 }
 
 func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, thresholdPercent int32) bool {

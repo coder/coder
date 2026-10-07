@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"slices"
 	"strings"
 	"time"
 
@@ -1264,9 +1263,6 @@ func (s *taskStarter) generateCompaction(
 	compactionOpts.Source = source
 	compactionOpts.Force = source == chatloop.CompactionSourceManual
 	compactionOpts.Clock = s.opts.Clock
-	if memoryIndex, ok := s.server.memoryIndexAfterCompaction(ctx, prepared.Chat, prepared.Compaction.PendingUserRows); ok {
-		compactionOpts.NextPrompt.Pending = append(slices.Clip(compactionOpts.NextPrompt.Pending), memoryIndex)
-	}
 	// Attach the turn debug run so the compaction call records a child
 	// debug run; without it startCompactionDebugRun finds no parent and
 	// skips debug instrumentation entirely.
@@ -1830,7 +1826,6 @@ func stepDataFromPersisted(step chatloop.PersistedStep) stepData {
 		Usage:                step.Usage,
 		ContextLimit:         step.ContextLimit,
 		Runtime:              step.Runtime,
-		PromptTextBytes:      step.PromptTextBytes,
 		ProviderResponseID:   step.ProviderResponseID,
 		BatchRuntime:         step.BatchRuntime,
 		BatchBilledCalls:     step.BatchBilledCalls,

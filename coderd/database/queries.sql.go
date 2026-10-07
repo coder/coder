@@ -10405,7 +10405,7 @@ func (q *sqlQuerier) GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatP
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id, prompt_text_bytes
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
 FROM
     chat_messages
 WHERE
@@ -10445,7 +10445,6 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.QueuedMessageID,
 		&i.AutomationID,
 		&i.InputID,
-		&i.PromptTextBytes,
 	)
 	return i, err
 }
@@ -10532,7 +10531,7 @@ func (q *sqlQuerier) GetChatMessageSummariesPerChat(ctx context.Context, created
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id, prompt_text_bytes
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
 FROM
     chat_messages
 WHERE
@@ -10590,7 +10589,6 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 			&i.QueuedMessageID,
 			&i.AutomationID,
 			&i.InputID,
-			&i.PromptTextBytes,
 		); err != nil {
 			return nil, err
 		}
@@ -10607,7 +10605,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 
 const getChatMessagesByChatIDAscPaginated = `-- name: GetChatMessagesByChatIDAscPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id, prompt_text_bytes
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
 FROM
     chat_messages
 WHERE
@@ -10665,7 +10663,6 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 			&i.QueuedMessageID,
 			&i.AutomationID,
 			&i.InputID,
-			&i.PromptTextBytes,
 		); err != nil {
 			return nil, err
 		}
@@ -10682,7 +10679,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 
 const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id, prompt_text_bytes
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
 FROM
     chat_messages
 WHERE
@@ -10753,7 +10750,6 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 			&i.QueuedMessageID,
 			&i.AutomationID,
 			&i.InputID,
-			&i.PromptTextBytes,
 		); err != nil {
 			return nil, err
 		}
@@ -10770,7 +10766,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 
 const getChatMessagesByRevisionForStream = `-- name: GetChatMessagesByRevisionForStream :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id, prompt_text_bytes
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
 FROM
     chat_messages
 WHERE
@@ -10825,7 +10821,6 @@ func (q *sqlQuerier) GetChatMessagesByRevisionForStream(ctx context.Context, arg
 			&i.QueuedMessageID,
 			&i.AutomationID,
 			&i.InputID,
-			&i.PromptTextBytes,
 		); err != nil {
 			return nil, err
 		}
@@ -10857,7 +10852,7 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id, prompt_text_bytes
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
 FROM
     chat_messages
 WHERE
@@ -10937,7 +10932,6 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.QueuedMessageID,
 			&i.AutomationID,
 			&i.InputID,
-			&i.PromptTextBytes,
 		); err != nil {
 			return nil, err
 		}
@@ -12309,7 +12303,7 @@ func (q *sqlQuerier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 
 const getDeletedChatMessagesFromLastAssistant = `-- name: GetDeletedChatMessagesFromLastAssistant :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id, prompt_text_bytes
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
 FROM
     chat_messages
 WHERE
@@ -12379,7 +12373,6 @@ func (q *sqlQuerier) GetDeletedChatMessagesFromLastAssistant(ctx context.Context
 			&i.QueuedMessageID,
 			&i.AutomationID,
 			&i.InputID,
-			&i.PromptTextBytes,
 		); err != nil {
 			return nil, err
 		}
@@ -12396,7 +12389,7 @@ func (q *sqlQuerier) GetDeletedChatMessagesFromLastAssistant(ctx context.Context
 
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id, prompt_text_bytes
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
 FROM
     chat_messages
 WHERE
@@ -12448,7 +12441,6 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 		&i.QueuedMessageID,
 		&i.AutomationID,
 		&i.InputID,
-		&i.PromptTextBytes,
 	)
 	return i, err
 }
@@ -12974,8 +12966,7 @@ inserted AS (
         provider_response_id,
         queued_message_id,
         automation_id,
-        input_id,
-        prompt_text_bytes
+        input_id
     )
     SELECT
         allocated.id,
@@ -13000,12 +12991,11 @@ inserted AS (
         -- Queue ids start at 1, so 0 is a safe "not promoted" sentinel.
         NULLIF(($19::bigint[])[allocated.ord], 0),
         NULLIF(($20::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
-        NULLIF(($21::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
-        NULLIF(($22::bigint[])[allocated.ord], 0)
+        NULLIF(($21::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid)
     FROM allocated
-    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id, prompt_text_bytes
+    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
 )
-SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id, prompt_text_bytes
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
 FROM inserted
 ORDER BY id
 `
@@ -13032,7 +13022,6 @@ type InsertChatMessagesParams struct {
 	QueuedMessageID     []int64                 `db:"queued_message_id" json:"queued_message_id"`
 	AutomationID        []uuid.UUID             `db:"automation_id" json:"automation_id"`
 	InputID             []uuid.UUID             `db:"input_id" json:"input_id"`
-	PromptTextBytes     []int64                 `db:"prompt_text_bytes" json:"prompt_text_bytes"`
 }
 
 type InsertChatMessagesRow struct {
@@ -13064,7 +13053,6 @@ type InsertChatMessagesRow struct {
 	QueuedMessageID     sql.NullInt64                  `db:"queued_message_id" json:"queued_message_id"`
 	AutomationID        uuid.NullUUID                  `db:"automation_id" json:"automation_id"`
 	InputID             uuid.NullUUID                  `db:"input_id" json:"input_id"`
-	PromptTextBytes     sql.NullInt64                  `db:"prompt_text_bytes" json:"prompt_text_bytes"`
 }
 
 // Returns the inserted rows in input array order. Ids are allocated before the
@@ -13093,7 +13081,6 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		pq.Array(arg.QueuedMessageID),
 		pq.Array(arg.AutomationID),
 		pq.Array(arg.InputID),
-		pq.Array(arg.PromptTextBytes),
 	)
 	if err != nil {
 		return nil, err
@@ -13131,7 +13118,6 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 			&i.QueuedMessageID,
 			&i.AutomationID,
 			&i.InputID,
-			&i.PromptTextBytes,
 		); err != nil {
 			return nil, err
 		}

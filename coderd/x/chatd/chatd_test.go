@@ -5931,20 +5931,10 @@ func TestActiveServer_Compaction(t *testing.T) {
 		require.NoError(t, json.Unmarshal(resultPart.Result, &result))
 		estimated, ok := result["estimated_context_tokens"].(float64)
 		require.True(t, ok, "estimated_context_tokens is a number")
-		// The first step records its request size. Its 80 reported
-		// tokens make an implausible ratio, so the estimate uses the
-		// fallback of 4 bytes per token on the retained system prompt
-		// and tools: the first request without its user message.
-		var firstStep database.ChatMessage
-		for _, msg := range messages {
-			if msg.Role == database.ChatMessageRoleAssistant {
-				firstStep = msg
-				break
-			}
-		}
-		require.True(t, firstStep.PromptTextBytes.Valid, "first step records its request size")
-		retainedBytes := firstStep.PromptTextBytes.Int64 - int64(len("read the file and continue"))
-		require.Equal(t, float64((retainedBytes+int64(len(summaryText))+3)/4), estimated)
+		// The estimate also covers the system prompt and tool
+		// definitions sent with the summary, so it exceeds the summary
+		// alone at 4 bytes per token.
+		require.Greater(t, estimated, float64((len(summaryText)+3)/4))
 		delete(result, "estimated_context_tokens")
 		require.Equal(t, map[string]any{
 			"summary":              "summary text for compaction",
