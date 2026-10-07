@@ -247,6 +247,7 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
+		Workspace:       server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(env.Close)
@@ -538,7 +539,11 @@ func TestBuildTurnEnvironmentMemory(t *testing.T) {
 				serverOpts = append(serverOpts, withInternalTestServerExperiments([]codersdk.Experiment{}))
 			}
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, serverOpts...)
-			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
+			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+				Chat:      created.Chat,
+				Messages:  created.InitialMessages,
+				Workspace: server.newTurnWorkspaceContext(),
+			})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Close)
 
@@ -627,7 +632,11 @@ func TestBuildTurnEnvironmentWorkspaceAgentLookup(t *testing.T) {
 
 			store := &workspaceLookupErrorStore{Store: db, workspaceID: ws.ID, err: tt.lookupErr}
 			server := newInternalTestServer(t, store, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerTransportFactory(&aibridgeTestFactory{}))
-			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
+			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+				Chat:      created.Chat,
+				Messages:  created.InitialMessages,
+				Workspace: server.newTurnWorkspaceContext(),
+			})
 			if tt.wantErr {
 				require.ErrorIs(t, err, tt.lookupErr)
 				require.ErrorContains(t, err, "get workspace agent")
@@ -934,6 +943,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				Chat:            chat,
 				Messages:        messages,
 				TurnExperiments: &turnExperimentDecisions{},
+				Workspace:       server.newTurnWorkspaceContext(),
 			})
 			require.NoError(t, err)
 			t.Cleanup(env.Close)
