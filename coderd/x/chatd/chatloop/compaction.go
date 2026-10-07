@@ -411,7 +411,6 @@ func startCompactionDebugRun(
 		historyTipMessageID = parentRun.HistoryTipMessageID
 	}
 
-	// Prefer the caller-supplied summary model identity.
 	provider := parentRun.Provider
 	if options.ResolvedProvider != "" {
 		provider = options.ResolvedProvider
