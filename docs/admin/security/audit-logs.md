@@ -348,6 +348,20 @@ Actions: `write`
 </tbody>
 </table>
 
+### ChatOrganizationSystemPrompt
+
+Actions: `write`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>system_prompt</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
+
 ### ChatProject
 
 Actions: `create`, `write`, `delete`
@@ -363,6 +377,24 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
 <tr><td><code>owner_id</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
+
+### ChatProjectMemory
+
+Actions: `create`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>body</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>created_by</code></td><td>Yes</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>Yes</td></tr>
+<tr><td><code>project_id</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 

@@ -104,14 +104,8 @@ import { pickReasoningEffort } from "./utils/reasoningEffort";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
-type AgentChatPageProps = {
-	/** Overrides the route param so several chat panes can render at once. */
-	readonly chatId?: string;
-};
-
-const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
-	chatId: agentId,
-}) => {
+const AgentChatPage: React.FC = () => {
+	const { agentId } = useParams() as { agentId: string };
 	const {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -837,9 +831,8 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 // Keyed so that navigating between agents (changing the :agentId param)
 // fully remounts the component, resetting all internal state (drafts,
 // editing, queries, scroller) cleanly.
-const KeyedAgentChatPage: React.FC<AgentChatPageProps> = ({ chatId }) => {
-	const params = useParams<{ agentId: string }>();
-	const agentId = chatId ?? params.agentId;
+const KeyedAgentChatPage: React.FC = () => {
+	const { agentId } = useParams<{ agentId: string }>();
 	if (!agentId) {
 		return <AgentChatPageNotFoundView />;
 	}
@@ -849,7 +842,7 @@ const KeyedAgentChatPage: React.FC<AgentChatPageProps> = ({ chatId }) => {
 			autoScroll
 			defaultScrollPosition="end"
 		>
-			<AgentChatPage chatId={agentId} />
+			<AgentChatPage />
 		</MessageScroller.Provider>
 	);
 };

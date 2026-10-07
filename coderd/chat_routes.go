@@ -150,6 +150,15 @@ func (api *API) registerExperimentalOrganizationChatRoutes(r chi.Router) {
 			r.Get("/", api.getChatProject)
 			r.Patch("/", api.patchChatProject)
 			r.Delete("/", api.deleteChatProject)
+			r.Route("/memories", func(r chi.Router) {
+				r.Get("/", api.listChatProjectMemories)
+				r.Post("/", api.postChatProjectMemory)
+				r.Route("/{memory}", func(r chi.Router) {
+					r.Use(httpmw.ExtractChatProjectMemoryParam(api.Database))
+					r.Get("/", api.getChatProjectMemory)
+					r.Delete("/", api.deleteChatProjectMemory)
+				})
+			})
 		})
 	})
 }
@@ -185,6 +194,10 @@ func (api *API) registerOrganizationChatRoutes(r chi.Router) {
 			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
 				policy.ActionRead)).Get("/oauth2/connect", api.mcpServerOAuth2Connect)
 		})
+	})
+	r.Route("/chats/config/system-prompt", func(r chi.Router) {
+		r.Get("/", api.getOrganizationChatSystemPrompt)
+		r.Put("/", api.putOrganizationChatSystemPrompt)
 	})
 	r.Route("/chats/model-overrides", func(r chi.Router) {
 		r.Get("/", api.getOrganizationChatModelOverrides)

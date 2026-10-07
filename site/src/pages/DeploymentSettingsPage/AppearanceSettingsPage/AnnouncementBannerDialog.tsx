@@ -1,9 +1,6 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import { useState } from "react";
-import { SliderPicker, TwitterPicker } from "react-color";
 import type { BannerConfig } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
 	DialogActions,
@@ -15,8 +12,8 @@ import {
 import { Label } from "#/components/Label/Label";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
-import { useTheme } from "#/theme/context";
 import { getFormHelpers } from "#/utils/formUtils";
+import { BannerColorPicker } from "./BannerColorPicker";
 
 type AnnouncementBannerDialogProps = {
 	banner: BannerConfig;
@@ -27,7 +24,6 @@ type AnnouncementBannerDialogProps = {
 export const AnnouncementBannerDialog: React.FC<
 	AnnouncementBannerDialogProps
 > = ({ banner, onCancel, onUpdate }) => {
-	const theme = useTheme();
 	const isCreating = banner.message === "";
 
 	const bannerForm = useFormik<{
@@ -47,7 +43,6 @@ export const AnnouncementBannerDialog: React.FC<
 	const messageHelperId = `${messageField.id}-helper`;
 	const messageErrorId = `${messageField.id}-error`;
 
-	const [showHuePicker, setShowHuePicker] = useState(false);
 	const previewMessage = bannerForm.values.message.trim();
 
 	return (
@@ -121,67 +116,15 @@ export const AnnouncementBannerDialog: React.FC<
 						<h4 className="m-0 mb-2 text-base font-semibold text-content-primary">
 							Background color
 						</h4>
-						<div className="flex flex-col gap-4">
-							{showHuePicker ? (
-								<SliderPicker
-									color={bannerForm.values.background_color}
-									onChange={async (color) => {
-										await bannerForm.setFieldValue(
-											"background_color",
-											color.hex,
-										);
-									}}
-								/>
-							) : (
-								<TwitterPicker
-									color={bannerForm.values.background_color}
-									onChange={async (color) => {
-										await bannerForm.setFieldValue(
-											"background_color",
-											color.hex,
-										);
-									}}
-									triangle="hide"
-									colors={[
-										"#8b5cf6",
-										"#d94a5d",
-										"#f78da7",
-										"#d65d0f",
-										"#ff6900",
-										"#fcb900",
-										"#0693e3",
-
-										"#8ed1fc",
-										"#4cd473",
-										"#abb8c3",
-									]}
-									styles={{
-										default: {
-											input: {
-												color: "white",
-												backgroundColor: theme.palette.background.default,
-											},
-											body: {
-												backgroundColor: "transparent",
-												color: "white",
-												padding: 0,
-											},
-											card: {
-												backgroundColor: "transparent",
-											},
-										},
-									}}
-								/>
-							)}
-							<div>
-								<Button
-									variant="outline"
-									onClick={() => setShowHuePicker((it) => !it)}
-								>
-									Show {showHuePicker ? "palette" : "slider"}
-								</Button>
-							</div>
-						</div>
+						<BannerColorPicker
+							color={bannerForm.values.background_color}
+							onChange={(backgroundColor) => {
+								void bannerForm.setFieldValue(
+									"background_color",
+									backgroundColor,
+								);
+							}}
+						/>
 					</div>
 				</div>
 

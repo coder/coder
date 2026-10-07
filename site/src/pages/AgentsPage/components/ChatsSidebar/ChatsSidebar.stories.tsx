@@ -12,11 +12,16 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -68,6 +73,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 });
 
 const agentsRouting = [
+	{ path: "/agents/projects/:projectId", useStoryElement: true },
 	{ path: "/agents/:agentId", useStoryElement: true },
 	{ path: "/agents", useStoryElement: true },
 ] satisfies [
@@ -2541,6 +2547,67 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 	},
 };
 
+const mockProjectChats = [
+	buildChat({ id: "loose-chat", title: "Loose chat" }),
+	buildChat({
+		id: "project-chat",
+		title: "Project chat",
+		organization_id: MockChatProject.organization_id,
+		project_id: MockChatProject.id,
+	}),
+];
+
+export const ProjectFolderCollapsed: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+	},
+};
+
+export const ProjectFolderExpanded: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const ProjectsSectionCollapsed: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Projects" }),
+		);
+	},
+};
+
 export const MobileWithAutomations: Story = {
 	args: {
 		chats: sectionHeaderChats,
@@ -2570,6 +2637,71 @@ export const AutomationsActive: Story = {
 		experiments: ["chat-automations"],
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/automations" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const ProjectChatWithoutLoadedProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "unloaded-project-chat",
+				title: "Chat in an unloaded project",
+				project_id: "unloaded-project",
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+	},
+};
+
+export const ProjectsLoading: Story = {
+	args: { chats: mockProjectChats },
+	parameters: { experiments: ["chat-projects"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
+export const ProjectsLoadError: Story = {
+	args: { chats: mockProjectChats },
+	parameters: { experiments: ["chat-projects"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to load projects." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Retry" });
+	},
+};
+
+const mockEmojiProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	icon: "/emojis/1f680.png",
+};
+
+export const ProjectFolderEmptyWithEmojiIcon: Story = {
+	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [mockEmojiProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${mockEmojiProject.id}`,
+				pathParams: { projectId: mockEmojiProject.id },
+			},
 			routing: agentsRouting,
 		}),
 	},

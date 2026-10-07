@@ -8211,6 +8211,273 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 	return err
 }
 
+const getChatOrganizationSystemPrompt = `-- name: GetChatOrganizationSystemPrompt :one
+SELECT organization_id, system_prompt, created_at, updated_at
+FROM chat_organization_system_prompts
+WHERE organization_id = $1
+`
+
+func (q *sqlQuerier) GetChatOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (ChatOrganizationSystemPrompt, error) {
+	row := q.db.QueryRowContext(ctx, getChatOrganizationSystemPrompt, organizationID)
+	var i ChatOrganizationSystemPrompt
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.SystemPrompt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertChatOrganizationSystemPrompt = `-- name: UpsertChatOrganizationSystemPrompt :one
+INSERT INTO chat_organization_system_prompts (organization_id, system_prompt)
+VALUES ($1, $2)
+ON CONFLICT (organization_id) DO UPDATE
+SET system_prompt = EXCLUDED.system_prompt,
+    updated_at = now()
+RETURNING organization_id, system_prompt, created_at, updated_at
+`
+
+type UpsertChatOrganizationSystemPromptParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	SystemPrompt   string    `db:"system_prompt" json:"system_prompt"`
+}
+
+func (q *sqlQuerier) UpsertChatOrganizationSystemPrompt(ctx context.Context, arg UpsertChatOrganizationSystemPromptParams) (ChatOrganizationSystemPrompt, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatOrganizationSystemPrompt, arg.OrganizationID, arg.SystemPrompt)
+	var i ChatOrganizationSystemPrompt
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.SystemPrompt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const countChatProjectMemoriesByProjectID = `-- name: CountChatProjectMemoriesByProjectID :one
+SELECT COUNT(*)::bigint
+FROM chat_project_memories
+WHERE project_id = $1::uuid
+`
+
+func (q *sqlQuerier) CountChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countChatProjectMemoriesByProjectID, projectID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const deleteChatProjectMemoryByID = `-- name: DeleteChatProjectMemoryByID :exec
+DELETE FROM chat_project_memories
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatProjectMemoryByID, id)
+	return err
+}
+
+const deleteChatProjectMemoryByName = `-- name: DeleteChatProjectMemoryByName :one
+DELETE FROM chat_project_memories
+WHERE project_id = $1::uuid
+    AND lower(name) = lower($2::text)
+RETURNING id, project_id, organization_id, name, description, body, created_by, created_at
+`
+
+type DeleteChatProjectMemoryByNameParams struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (ChatProjectMemory, error) {
+	row := q.db.QueryRowContext(ctx, deleteChatProjectMemoryByName, arg.ProjectID, arg.Name)
+	var i ChatProjectMemory
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.Body,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getChatProjectMemoriesByProjectID = `-- name: GetChatProjectMemoriesByProjectID :many
+SELECT
+    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.created_by, chat_project_memories.created_at,
+    visible_users.username AS created_by_username
+FROM chat_project_memories
+JOIN visible_users ON visible_users.id = chat_project_memories.created_by
+WHERE chat_project_memories.project_id = $1::uuid
+ORDER BY lower(chat_project_memories.name)
+`
+
+type GetChatProjectMemoriesByProjectIDRow struct {
+	ChatProjectMemory ChatProjectMemory `db:"chat_project_memory" json:"chat_project_memory"`
+	CreatedByUsername string            `db:"created_by_username" json:"created_by_username"`
+}
+
+func (q *sqlQuerier) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectMemoriesByProjectID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatProjectMemoriesByProjectIDRow
+	for rows.Next() {
+		var i GetChatProjectMemoriesByProjectIDRow
+		if err := rows.Scan(
+			&i.ChatProjectMemory.ID,
+			&i.ChatProjectMemory.ProjectID,
+			&i.ChatProjectMemory.OrganizationID,
+			&i.ChatProjectMemory.Name,
+			&i.ChatProjectMemory.Description,
+			&i.ChatProjectMemory.Body,
+			&i.ChatProjectMemory.CreatedBy,
+			&i.ChatProjectMemory.CreatedAt,
+			&i.CreatedByUsername,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatProjectMemoryByID = `-- name: GetChatProjectMemoryByID :one
+SELECT
+    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.created_by, chat_project_memories.created_at,
+    visible_users.username AS created_by_username
+FROM chat_project_memories
+JOIN visible_users ON visible_users.id = chat_project_memories.created_by
+WHERE chat_project_memories.id = $1::uuid
+`
+
+type GetChatProjectMemoryByIDRow struct {
+	ChatProjectMemory ChatProjectMemory `db:"chat_project_memory" json:"chat_project_memory"`
+	CreatedByUsername string            `db:"created_by_username" json:"created_by_username"`
+}
+
+func (q *sqlQuerier) GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectMemoryByID, id)
+	var i GetChatProjectMemoryByIDRow
+	err := row.Scan(
+		&i.ChatProjectMemory.ID,
+		&i.ChatProjectMemory.ProjectID,
+		&i.ChatProjectMemory.OrganizationID,
+		&i.ChatProjectMemory.Name,
+		&i.ChatProjectMemory.Description,
+		&i.ChatProjectMemory.Body,
+		&i.ChatProjectMemory.CreatedBy,
+		&i.ChatProjectMemory.CreatedAt,
+		&i.CreatedByUsername,
+	)
+	return i, err
+}
+
+const getChatProjectMemoryByName = `-- name: GetChatProjectMemoryByName :one
+SELECT
+    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.created_by, chat_project_memories.created_at,
+    visible_users.username AS created_by_username
+FROM chat_project_memories
+JOIN visible_users ON visible_users.id = chat_project_memories.created_by
+WHERE chat_project_memories.project_id = $1::uuid
+    AND lower(chat_project_memories.name) = lower($2::text)
+`
+
+type GetChatProjectMemoryByNameParams struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
+}
+
+type GetChatProjectMemoryByNameRow struct {
+	ChatProjectMemory ChatProjectMemory `db:"chat_project_memory" json:"chat_project_memory"`
+	CreatedByUsername string            `db:"created_by_username" json:"created_by_username"`
+}
+
+func (q *sqlQuerier) GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectMemoryByName, arg.ProjectID, arg.Name)
+	var i GetChatProjectMemoryByNameRow
+	err := row.Scan(
+		&i.ChatProjectMemory.ID,
+		&i.ChatProjectMemory.ProjectID,
+		&i.ChatProjectMemory.OrganizationID,
+		&i.ChatProjectMemory.Name,
+		&i.ChatProjectMemory.Description,
+		&i.ChatProjectMemory.Body,
+		&i.ChatProjectMemory.CreatedBy,
+		&i.ChatProjectMemory.CreatedAt,
+		&i.CreatedByUsername,
+	)
+	return i, err
+}
+
+const insertChatProjectMemory = `-- name: InsertChatProjectMemory :one
+INSERT INTO chat_project_memories (
+    id,
+    project_id,
+    organization_id,
+    name,
+    description,
+    body,
+    created_by
+)
+VALUES (
+    COALESCE($1::uuid, gen_random_uuid()),
+    $2::uuid,
+    $3::uuid,
+    $4::text,
+    $5::text,
+    $6::text,
+    $7::uuid
+)
+RETURNING id, project_id, organization_id, name, description, body, created_by, created_at
+`
+
+type InsertChatProjectMemoryParams struct {
+	ID             uuid.NullUUID `db:"id" json:"id"`
+	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Body           string        `db:"body" json:"body"`
+	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+}
+
+func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChatProjectMemoryParams) (ChatProjectMemory, error) {
+	row := q.db.QueryRowContext(ctx, insertChatProjectMemory,
+		arg.ID,
+		arg.ProjectID,
+		arg.OrganizationID,
+		arg.Name,
+		arg.Description,
+		arg.Body,
+		arg.CreatedBy,
+	)
+	var i ChatProjectMemory
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.Body,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const countChatProjectsByOwnerID = `-- name: CountChatProjectsByOwnerID :one
 SELECT COUNT(*)::bigint
 FROM chat_projects
@@ -9974,7 +10241,7 @@ FROM
 WHERE
     chat_id = $1::uuid
 ORDER BY
-    updated_at DESC,
+    created_at,
     git_remote_origin,
     git_branch
 `
@@ -10034,7 +10301,7 @@ FROM
 WHERE
     chat_id = ANY($1::uuid[])
 ORDER BY
-    updated_at DESC,
+    created_at,
     git_remote_origin,
     git_branch
 `
@@ -11397,14 +11664,14 @@ WHERE
                         OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $18))
                     )
             )
-            -- Skip an explicit pr_number lookup unless the search is a valid bigint.
+            -- Digits only, so LIKE sees no metacharacters; a per-chat PK probe.
             OR CASE
-                WHEN $18 ~ '^[0-9]{1,18}$' THEN EXISTS (
+                WHEN $18 ~ '^[0-9]+$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number = $18::bigint
+                        AND cds.pr_number::text LIKE $18 || '%'
                 )
                 ELSE false
             END

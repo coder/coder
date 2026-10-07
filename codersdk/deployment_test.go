@@ -54,7 +54,6 @@ func TestExperimentDisplayNames(t *testing.T) {
 		codersdk.ExperimentAgentLifecycleHooks:       "Agent Lifecycle Hooks",
 		codersdk.ExperimentChatInlineMCPServers:      "Chat Inline MCP Servers",
 		codersdk.ExperimentEnableAIWorkspaceDebug:    "AI Workspace Debugging",
-		codersdk.ExperimentChatBoard:                 "Chat Board",
 		codersdk.ExperimentChatStageMetrics:          "Chat Stage Metrics",
 		codersdk.ExperimentChatAutomations:           "Chat Automations",
 	}

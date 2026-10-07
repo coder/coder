@@ -540,6 +540,10 @@ const (
 	ApiKeyScopeChatAutomationRead                  APIKeyScope = "chat_automation:read"
 	ApiKeyScopeChatAutomationUpdate                APIKeyScope = "chat_automation:update"
 	ApiKeyScopeChatAutomationDelete                APIKeyScope = "chat_automation:delete"
+	ApiKeyScopeChatProjectMemory                   APIKeyScope = "chat_project_memory:*"
+	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
+	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
+	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -831,7 +835,11 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatAutomationCreate,
 		ApiKeyScopeChatAutomationRead,
 		ApiKeyScopeChatAutomationUpdate,
-		ApiKeyScopeChatAutomationDelete:
+		ApiKeyScopeChatAutomationDelete,
+		ApiKeyScopeChatProjectMemory,
+		ApiKeyScopeChatProjectMemoryCreate,
+		ApiKeyScopeChatProjectMemoryRead,
+		ApiKeyScopeChatProjectMemoryDelete:
 		return true
 	}
 	return false
@@ -1092,6 +1100,10 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatAutomationRead,
 		ApiKeyScopeChatAutomationUpdate,
 		ApiKeyScopeChatAutomationDelete,
+		ApiKeyScopeChatProjectMemory,
+		ApiKeyScopeChatProjectMemoryCreate,
+		ApiKeyScopeChatProjectMemoryRead,
+		ApiKeyScopeChatProjectMemoryDelete,
 	}
 }
 
@@ -3951,49 +3963,51 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization                ResourceType = "organization"
-	ResourceTypeTemplate                    ResourceType = "template"
-	ResourceTypeTemplateVersion             ResourceType = "template_version"
-	ResourceTypeUser                        ResourceType = "user"
-	ResourceTypeWorkspace                   ResourceType = "workspace"
-	ResourceTypeGitSshKey                   ResourceType = "git_ssh_key"
-	ResourceTypeApiKey                      ResourceType = "api_key"
-	ResourceTypeGroup                       ResourceType = "group"
-	ResourceTypeWorkspaceBuild              ResourceType = "workspace_build"
-	ResourceTypeLicense                     ResourceType = "license"
-	ResourceTypeWorkspaceProxy              ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin                ResourceType = "convert_login"
-	ResourceTypeHealthSettings              ResourceType = "health_settings"
-	ResourceTypeOauth2ProviderApp           ResourceType = "oauth2_provider_app"
-	ResourceTypeOauth2ProviderAppSecret     ResourceType = "oauth2_provider_app_secret"
-	ResourceTypeCustomRole                  ResourceType = "custom_role"
-	ResourceTypeOrganizationMember          ResourceType = "organization_member"
-	ResourceTypeNotificationsSettings       ResourceType = "notifications_settings"
-	ResourceTypeNotificationTemplate        ResourceType = "notification_template"
-	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
-	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
-	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
-	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
-	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
-	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
-	ResourceTypeTask                        ResourceType = "task"
-	ResourceTypeAISeat                      ResourceType = "ai_seat"
-	ResourceTypeChat                        ResourceType = "chat"
-	ResourceTypeUserSecret                  ResourceType = "user_secret"
-	ResourceTypeAIProvider                  ResourceType = "ai_provider"
-	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
-	ResourceTypeGroupAIBudget               ResourceType = "group_ai_budget"
-	ResourceTypeUserSkill                   ResourceType = "user_skill"
-	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
-	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
-	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
-	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
-	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
-	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
-	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
-	ResourceTypeExperimentRule              ResourceType = "experiment_rule"
-	ResourceTypeChatProject                 ResourceType = "chat_project"
-	ResourceTypeChatAutomation              ResourceType = "chat_automation"
+	ResourceTypeOrganization                 ResourceType = "organization"
+	ResourceTypeTemplate                     ResourceType = "template"
+	ResourceTypeTemplateVersion              ResourceType = "template_version"
+	ResourceTypeUser                         ResourceType = "user"
+	ResourceTypeWorkspace                    ResourceType = "workspace"
+	ResourceTypeGitSshKey                    ResourceType = "git_ssh_key"
+	ResourceTypeApiKey                       ResourceType = "api_key"
+	ResourceTypeGroup                        ResourceType = "group"
+	ResourceTypeWorkspaceBuild               ResourceType = "workspace_build"
+	ResourceTypeLicense                      ResourceType = "license"
+	ResourceTypeWorkspaceProxy               ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin                 ResourceType = "convert_login"
+	ResourceTypeHealthSettings               ResourceType = "health_settings"
+	ResourceTypeOauth2ProviderApp            ResourceType = "oauth2_provider_app"
+	ResourceTypeOauth2ProviderAppSecret      ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeCustomRole                   ResourceType = "custom_role"
+	ResourceTypeOrganizationMember           ResourceType = "organization_member"
+	ResourceTypeNotificationsSettings        ResourceType = "notifications_settings"
+	ResourceTypeNotificationTemplate         ResourceType = "notification_template"
+	ResourceTypeIdpSyncSettingsOrganization  ResourceType = "idp_sync_settings_organization"
+	ResourceTypeIdpSyncSettingsGroup         ResourceType = "idp_sync_settings_group"
+	ResourceTypeIdpSyncSettingsRole          ResourceType = "idp_sync_settings_role"
+	ResourceTypeWorkspaceAgent               ResourceType = "workspace_agent"
+	ResourceTypeWorkspaceApp                 ResourceType = "workspace_app"
+	ResourceTypePrebuildsSettings            ResourceType = "prebuilds_settings"
+	ResourceTypeTask                         ResourceType = "task"
+	ResourceTypeAISeat                       ResourceType = "ai_seat"
+	ResourceTypeChat                         ResourceType = "chat"
+	ResourceTypeUserSecret                   ResourceType = "user_secret"
+	ResourceTypeAIProvider                   ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey                ResourceType = "ai_provider_key"
+	ResourceTypeGroupAIBudget                ResourceType = "group_ai_budget"
+	ResourceTypeUserSkill                    ResourceType = "user_skill"
+	ResourceTypeAIGatewayKey                 ResourceType = "ai_gateway_key"
+	ResourceTypeUserAIBudgetOverride         ResourceType = "user_ai_budget_override"
+	ResourceTypeOauth2ProviderSettings       ResourceType = "oauth2_provider_settings"
+	ResourceTypeChatInstructionSettings      ResourceType = "chat_instruction_settings"
+	ResourceTypeMCPServerConfig              ResourceType = "mcp_server_config"
+	ResourceTypeChatModelConfig              ResourceType = "chat_model_config"
+	ResourceTypeChatOperationalSettings      ResourceType = "chat_operational_settings"
+	ResourceTypeExperimentRule               ResourceType = "experiment_rule"
+	ResourceTypeChatProject                  ResourceType = "chat_project"
+	ResourceTypeChatAutomation               ResourceType = "chat_automation"
+	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
+	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -4075,7 +4089,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatOperationalSettings,
 		ResourceTypeExperimentRule,
 		ResourceTypeChatProject,
-		ResourceTypeChatAutomation:
+		ResourceTypeChatAutomation,
+		ResourceTypeChatProjectMemory,
+		ResourceTypeChatOrganizationSystemPrompt:
 		return true
 	}
 	return false
@@ -4126,6 +4142,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeExperimentRule,
 		ResourceTypeChatProject,
 		ResourceTypeChatAutomation,
+		ResourceTypeChatProjectMemory,
+		ResourceTypeChatOrganizationSystemPrompt,
 	}
 }
 
@@ -5644,6 +5662,14 @@ type ChatOrganizationModelOverride struct {
 	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
+// Organization-scoped system prompts added after the deployment system prompt when Coder Agents chats are created.
+type ChatOrganizationSystemPrompt struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	SystemPrompt   string    `db:"system_prompt" json:"system_prompt"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+}
+
 // Organization-scoped projects that group agent chats.
 type ChatProject struct {
 	ID             uuid.UUID `db:"id" json:"id"`
@@ -5655,6 +5681,18 @@ type ChatProject struct {
 	Icon      string    `db:"icon" json:"icon"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.
+type ChatProjectMemory struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	ProjectID      uuid.UUID `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	Body           string    `db:"body" json:"body"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
 type ChatQueuedMessage struct {

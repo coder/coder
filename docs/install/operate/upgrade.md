@@ -5,21 +5,17 @@ title: Upgrade
 This article describes how to upgrade your Coder deployment.
 
 > [!CAUTION]
-> Prior to upgrading a production Coder deployment, take a database snapshot since
-> Coder does not support rollbacks.
+> Prior to upgrading a production Coder deployment, take a database snapshot since Coder does not support rollbacks.
 
-For upgrade recommendations and troubleshooting, see
-[Upgrading Best Practices](./upgrade/best-practices.md).
+For upgrade recommendations and troubleshooting, see [Upgrading Best Practices](./upgrade/best-practices.md).
 
 ## Reinstall Coder to upgrade
 
-To upgrade your Coder deployment, reinstall Coder using your original method
-of [install](../index.md).
+To upgrade your Coder deployment, reinstall Coder using your original method of [install](../index.md).
 
 ### Coder install script
 
-1. If you installed Coder using the `install.sh` script, re-run the below command
-   on the host:
+1. If you installed Coder using the `install.sh` script, re-run the below command on the host:
 
    ```sh
    curl -fsSL https://coder.com/install.sh | sh
@@ -38,8 +34,7 @@ of [install](../index.md).
 
 ### docker-compose
 
-If you installed using `docker-compose`, run the below command to upgrade the
-Coder container:
+If you installed using `docker-compose`, run the below command to upgrade the Coder container:
 
 ```sh
 docker-compose pull coder && docker-compose up -d coder
@@ -47,8 +42,7 @@ docker-compose pull coder && docker-compose up -d coder
 
 ### Kubernetes
 
-See
-[Upgrade Coder via Helm](../server/kubernetes/index.md#upgrade-coder-via-helm).
+See [Upgrade Coder via Helm](../server/kubernetes/index.md#upgrade-coder-via-helm).
 
 ### Coder AMI on AWS
 
@@ -58,8 +52,7 @@ See
    curl -fsSL https://coder.com/install.sh | sh
    ```
 
-   The script will unpack the new `coder` binary version over the one currently
-   installed.
+   The script will unpack the new `coder` binary version over the one currently installed.
 
 1. Restart the Coder system process with `systemctl`:
 
@@ -70,9 +63,7 @@ See
 
 ### Windows
 
-Download the latest Windows installer or binary from
-[GitHub releases](https://github.com/coder/coder/releases/latest), or upgrade
-from Winget.
+Download the latest Windows installer or binary from [GitHub releases](https://github.com/coder/coder/releases/latest), or upgrade from Winget.
 
 ```ps1
 winget install Coder.Coder

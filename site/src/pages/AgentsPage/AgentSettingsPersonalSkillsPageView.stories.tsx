@@ -60,6 +60,7 @@ const baseArgs: AgentSettingsPersonalSkillsPageViewProps = {
 	onDelete: fn(),
 	onDownload: fn(),
 	onExportAll: fn(),
+	isExportingAll: false,
 };
 
 const meta = {
