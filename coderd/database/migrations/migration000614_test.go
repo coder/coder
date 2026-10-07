@@ -24,6 +24,46 @@ const (
 	selectConnectionLog000614 = `SELECT connection_method::text, app_name_or_port FROM connection_logs WHERE id = $1`
 )
 
+// A pending migration batch can add tunnel to the old enum and then replace
+// that enum. Comparisons must not materialize its uncommitted new value.
+func TestMigration000614ConnectionLogsMethodInSingleTxn(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	applyMigrationsInTxn(ctx, t, sqlDB, 1, 556)
+	orgID, ownerID, templateID, workspaceID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	_, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO organizations (id, name, description, display_name, created_at, updated_at, default_org_member_roles)
+		VALUES ($1, 'migration-org', '', '', now(), now(), '{}');
+	`, orgID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO users (id, email, username, hashed_password, created_at, updated_at) VALUES ($1, 'migration@example.com', 'migration-user', '', now(), now());
+	`, ownerID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO templates (id, created_at, updated_at, organization_id, name, provisioner, active_version_id, created_by)
+		VALUES ($1, now(), now(), $2, 'migration-template', 'echo', $3, $4);
+	`, templateID, orgID, uuid.New(), ownerID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name)
+		VALUES ($1, now(), now(), $2, $3, $4, 'migration-workspace');
+	`, workspaceID, ownerID, orgID, templateID)
+	require.NoError(t, err)
+	id := uuid.New()
+	_, err = sqlDB.ExecContext(ctx, insertConnectionLog000613, id, orgID, ownerID, workspaceID, "migration-workspace", "vscode", nil)
+	require.NoError(t, err)
+
+	applyMigrationsInTxn(ctx, t, sqlDB, 557, 614)
+	var method string
+	var appName sql.NullString
+	require.NoError(t, sqlDB.QueryRowContext(ctx, selectConnectionLog000614, id).Scan(&method, &appName))
+	require.Equal(t, "ssh", method)
+	require.Equal(t, sql.NullString{String: "vscode", Valid: true}, appName)
+}
+
 // The up migration splits each connection type into a method and a client
 // identity, and the down migration folds identities back into types.
 func TestMigration000614ConnectionLogsMethod(t *testing.T) {
