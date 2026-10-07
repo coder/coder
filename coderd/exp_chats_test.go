@@ -10224,6 +10224,13 @@ func TestStreamChat(t *testing.T) {
 			}
 			require.Equal(t, 1, resets)
 		}
+		requireNoHistory := func(events []codersdk.ChatStreamEvent) {
+			t.Helper()
+			for _, event := range events {
+				require.NotEqual(t, codersdk.ChatStreamEventTypeHistoryReset, event.Type, "the stream reset the history")
+				require.NotEqual(t, codersdk.ChatStreamEventTypeMessage, event.Type, "the stream resent a message the tab holds")
+			}
+		}
 
 		// Opening a chat edited earlier must send no history, even though the
 		// rows the edit soft-deleted are still in the chat.
@@ -10232,10 +10239,7 @@ func TestStreamChat(t *testing.T) {
 		page := newestPage()
 		live := newChatTab(page)
 		applied, events := live.connect(ctx, t, client, chat.ID)
-		for _, event := range applied {
-			require.NotEqual(t, codersdk.ChatStreamEventTypeHistoryReset, event.Type, "opening the chat reset its history")
-			require.NotEqual(t, codersdk.ChatStreamEventTypeMessage, event.Type, "opening the chat resent a message the page holds")
-		}
+		requireNoHistory(applied)
 
 		// An edit while the stream is open resets the history from the
 		// edited message.
@@ -10249,6 +10253,11 @@ func TestStreamChat(t *testing.T) {
 		})
 		requireResetFrom(applied, editedID)
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), live.sortedIDs())
+
+		// Reconnecting with the version from the last preview_reset sends
+		// nothing.
+		applied, _ = live.connect(ctx, t, client, chat.ID)
+		requireNoHistory(applied)
 
 		// A tab that missed the edit and then sent a message holds both the
 		// deleted messages and a newer message ID. Its reconnect must still
@@ -13970,7 +13979,8 @@ func (tab *chatTab) sortedIDs() []int64 {
 
 // connect opens the stream with the tab's newest message ID and history
 // version, and applies events through the first status event, which every
-// initial sync sends.
+// initial sync sends. That sync's preview_reset follows the status, so the
+// next applyUntil applies its history version.
 func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent) {
 	t.Helper()
 	afterID := slices.Max(append(tab.sortedIDs(), 0))

@@ -4082,17 +4082,12 @@ describe("useChatStore", () => {
 		// A page refetch does not advance the history version.
 		rerender({ pageVersion: 9 });
 
-		// The version advances on preview_reset, which ends every sync that
-		// changes the history, and not on status.
 		act(() => {
-			mockSocket1.emitDataBatch([
-				{ type: "status", chat_id: chatID, status: { status: "running" } },
-				{
-					type: "preview_reset",
-					chat_id: chatID,
-					preview_reset: { history_version: 7 },
-				},
-			]);
+			mockSocket1.emitData({
+				type: "preview_reset",
+				chat_id: chatID,
+				preview_reset: { history_version: 7 },
+			});
 		});
 
 		const mockSocket2 = createMockSocket();
