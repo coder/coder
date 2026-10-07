@@ -62,6 +62,7 @@ import {
 	ModelSelector,
 	type ModelSelectorOption,
 } from "#/modules/aiModels/ModelSelector";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import {
@@ -849,6 +850,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const overflowBadges = allBadges.slice(visibleCount);
 
 	const isReadOnlyView = readOnlyNotice !== undefined;
+	const readOnlyModel = isReadOnlyView
+		? modelOptions.find((option) => option.id === selectedModel)
+		: undefined;
 	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
 	const removeWorkspaceHandler =
 		onWorkspaceChange && !isReadOnlyView ? handleRemoveWorkspace : undefined;
@@ -1809,6 +1813,19 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						</Popover>
 						{isModelCatalogLoading ? (
 							<Skeleton className="h-6 w-24 rounded" />
+						) : isReadOnlyView ? (
+							<span className="inline-flex min-w-0 shrink items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
+								{readOnlyModel && (
+									<ProviderIcon
+										provider={readOnlyModel.provider}
+										icon={readOnlyModel.providerIcon}
+										className="size-3 shrink-0"
+									/>
+								)}
+								<span className="truncate">
+									{readOnlyModel?.displayName ?? modelSelectorPlaceholder}
+								</span>
+							</span>
 						) : (
 							<ModelSelector
 								value={selectedModel}
