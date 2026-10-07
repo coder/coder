@@ -104,7 +104,7 @@ describe("ChatTopBar", () => {
 			parent_chat_id: rootChat.id,
 			root_chat_id: rootChat.id,
 		};
-		const chatsById = new Map([
+		const chatsById = new Map<string, TypesGen.Chat>([
 			[rootChat.id, rootChat],
 			[parentChat.id, parentChat],
 		]);
