@@ -173,12 +173,16 @@ type TemplateInsightsResponse struct {
 
 // TemplateInsightsReport is the report from the template insights endpoint.
 type TemplateInsightsReport struct {
-	StartTime       time.Time                `json:"start_time" format:"date-time"`
-	EndTime         time.Time                `json:"end_time" format:"date-time"`
-	TemplateIDs     []uuid.UUID              `json:"template_ids" format:"uuid"`
-	ActiveUsers     int64                    `json:"active_users" example:"22"`
-	AppsUsage       []TemplateAppUsage       `json:"apps_usage"`
-	ParametersUsage []TemplateParameterUsage `json:"parameters_usage"`
+	StartTime   time.Time   `json:"start_time" format:"date-time"`
+	EndTime     time.Time   `json:"end_time" format:"date-time"`
+	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
+	ActiveUsers int64       `json:"active_users" example:"22"`
+	// UsageTotalSeconds is the active time of every user in the report, a
+	// minute counting once per user however many apps were open. No app's
+	// seconds exceed it, but apps used at the same time sum past it.
+	UsageTotalSeconds int64                    `json:"usage_total_seconds" example:"120000"`
+	AppsUsage         []TemplateAppUsage       `json:"apps_usage"`
+	ParametersUsage   []TemplateParameterUsage `json:"parameters_usage"`
 }
 
 // TemplateInsightsIntervalReport is the report from the template insights
@@ -213,12 +217,23 @@ const (
 type TemplateAppUsage struct {
 	TemplateIDs []uuid.UUID      `json:"template_ids" format:"uuid"`
 	Type        TemplateAppsType `json:"type" example:"builtin"`
-	DisplayName string           `json:"display_name" example:"Visual Studio Code"`
+	DisplayName string           `json:"display_name" example:"VS Code"`
 	Slug        string           `json:"slug" example:"vscode"`
 	Icon        string           `json:"icon"`
 	Seconds     int64            `json:"seconds" example:"80500"`
 	TimesUsed   int64            `json:"times_used" example:"2"`
+	Family      AppFamilyName    `json:"family" example:"vscode"`
+	// SecondsIsUpperBound is set on the builtin overflow row when it also
+	// holds unregistered apps past TemplateInsightsMaxUnregisteredApps. Which
+	// minutes those apps shared is not stored, so Seconds is an upper bound
+	// on the time at least one of them was open.
+	SecondsIsUpperBound bool `json:"seconds_is_upper_bound,omitempty" example:"false"`
 }
+
+// TemplateInsightsMaxUnregisteredApps is how many unregistered session apps
+// template insights list on their own, busiest first. Registered apps are
+// always listed, and the rest fold into the overflow row.
+const TemplateInsightsMaxUnregisteredApps = 64
 
 // TemplateParameterUsage shows the usage of a parameter for one or more
 // templates.

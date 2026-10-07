@@ -56,6 +56,7 @@ export const Empty: Story = {
 				interval_reports: [],
 				report: {
 					active_users: 0,
+					usage_total_seconds: 0,
 					end_time: "",
 					start_time: "",
 					template_ids: [],
@@ -100,15 +101,17 @@ export const Loaded: Story = {
 					end_time: "2023-07-25T00:00:00Z",
 					template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
 					active_users: 14,
+					usage_total_seconds: 3600000,
 					apps_usage: [
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
 							type: "builtin",
-							display_name: "Visual Studio Code",
+							display_name: "VS Code",
 							slug: "vscode",
 							icon: "/icon/code.svg",
 							seconds: 2513400,
 							times_used: 0,
+							family: "vscode",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -118,15 +121,17 @@ export const Loaded: Story = {
 							icon: "/icon/intellij.svg",
 							seconds: 2013400,
 							times_used: 20,
+							family: "jetbrains",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
 							type: "builtin",
 							display_name: "Web Terminal",
-							slug: "reconnecting-pty",
+							slug: "reconnecting_pty",
 							icon: "/icon/terminal.svg",
 							seconds: 110400,
 							times_used: 0,
+							family: "reconnecting_pty",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -136,6 +141,7 @@ export const Loaded: Story = {
 							icon: "/icon/terminal.svg",
 							seconds: 1020900,
 							times_used: 0,
+							family: "ssh",
 						},
 					],
 					parameters_usage: [
@@ -943,6 +949,99 @@ export const Loaded: Story = {
 							username: "sharkymark",
 							avatar_url: "https://avatars.githubusercontent.com/u/2022166?v=4",
 							seconds: 124440,
+						},
+					],
+				},
+			},
+			error: null,
+		},
+	},
+};
+
+const loadedReport = Loaded.args?.templateInsights?.data?.report;
+
+// Per-app rows: an unregistered app, the accounting rows with Other apps as an
+// upper bound, and template apps sharing a session app's or accounting slug.
+export const AppUsageAccounting: Story = {
+	args: {
+		...Loaded.args,
+		templateInsights: {
+			data: {
+				interval_reports: Loaded.args?.templateInsights?.data?.interval_reports,
+				report: loadedReport && {
+					...loadedReport,
+					usage_total_seconds: 360000,
+					apps_usage: [
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							type: "builtin",
+							display_name: "VS Code",
+							slug: "vscode",
+							icon: "/icon/code.svg",
+							seconds: 252000,
+							times_used: 0,
+							family: "vscode",
+						},
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							type: "builtin",
+							display_name: "Cursor",
+							slug: "cursor",
+							icon: "/icon/cursor.svg",
+							seconds: 180000,
+							times_used: 0,
+							family: "vscode",
+						},
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							type: "builtin",
+							display_name: "future_ide",
+							slug: "future_ide",
+							icon: "",
+							seconds: 36000,
+							times_used: 0,
+							family: "unknown",
+						},
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							type: "builtin",
+							display_name: "Other apps",
+							slug: "overflow",
+							icon: "",
+							seconds: 7200,
+							times_used: 0,
+							family: "unknown",
+							seconds_is_upper_bound: true,
+						},
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							type: "builtin",
+							display_name: "Unknown",
+							slug: "unknown",
+							icon: "",
+							seconds: 3600,
+							times_used: 0,
+							family: "unknown",
+						},
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							type: "app",
+							display_name: "VS Code Web",
+							slug: "vscode",
+							icon: "/icon/code.svg",
+							seconds: 90000,
+							times_used: 12,
+							family: "workspace_app",
+						},
+						{
+							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+							type: "app",
+							display_name: "Overflow Dashboard",
+							slug: "overflow",
+							icon: "",
+							seconds: 18000,
+							times_used: 3,
+							family: "workspace_app",
 						},
 					],
 				},

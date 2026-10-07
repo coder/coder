@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -309,36 +308,25 @@ func TestDecodeAppMap(t *testing.T) {
 	}
 }
 
-func TestUnionByFamily(t *testing.T) {
-	t.Parallel()
-
-	shared, cursorOnly, sshOnly := uuid.New(), uuid.New(), uuid.New()
-	got := codersdk.UnionByFamily(map[string][]uuid.UUID{
-		"vscode": {shared},
-		"cursor": {shared, cursorOnly},
-		"ssh":    {sshOnly},
-		// An app the registry does not know still lands somewhere.
-		"some_new_ide": {cursorOnly},
-	})
-
-	// A template both apps saw appears once for the family.
-	require.ElementsMatch(t, []uuid.UUID{shared, cursorOnly}, got[codersdk.AppFamilyVSCode])
-	require.Equal(t, []uuid.UUID{sshOnly}, got[codersdk.AppFamilySSH])
-	require.Equal(t, []uuid.UUID{cursorOnly}, got[codersdk.AppFamilyUnknown])
-	require.Empty(t, got[codersdk.AppFamilyJetBrains])
-}
-
 func TestSessionCountApps(t *testing.T) {
 	t.Parallel()
 
-	apps := codersdk.SessionCountApps(map[string]int64{"cursor": 2, "vscodium": 1, "future_ide": 3})
+	apps := codersdk.SessionCountApps(map[string]int64{"cursor": 2, "vscodium": 1, "future_ide": 3, "overflow": 4, "unknown": 5})
 	require.Equal(t, map[string]codersdk.SessionCountApp{
 		"cursor":   {Count: 2, DisplayName: "Cursor", Icon: "/icon/cursor.svg", Family: codersdk.AppFamilyVSCode},
 		"vscodium": {Count: 1, DisplayName: "VSCodium", Family: codersdk.AppFamilyVSCode},
 		// An app the registry does not know shows its own name.
 		"future_ide": {Count: 3, DisplayName: "future_ide", Family: codersdk.AppFamilyUnknown},
+		// The accounting names show a label, still under the unknown family.
+		"overflow": {Count: 4, DisplayName: "Other apps", Family: codersdk.AppFamilyUnknown},
+		"unknown":  {Count: 5, DisplayName: "Unknown", Family: codersdk.AppFamilyUnknown},
 	}, apps)
 	require.Equal(t, map[string]codersdk.SessionCountApp{}, codersdk.SessionCountApps(nil))
+
+	// The accounting names stay out of the registry, so they never rank or
+	// export as registered apps.
+	require.NotContains(t, codersdk.SessionCountAppFamilies(), codersdk.AppNameOverflow)
+	require.NotContains(t, codersdk.SessionCountAppFamilies(), string(codersdk.AppFamilyUnknown))
 }
 
 func TestSessionCountAppIcons(t *testing.T) {

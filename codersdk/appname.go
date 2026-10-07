@@ -3,8 +3,6 @@ package codersdk
 import (
 	"cmp"
 	"encoding/json"
-	"maps"
-	"slices"
 	"strings"
 	"unicode"
 
@@ -29,6 +27,8 @@ const (
 	AppFamilyPortForwarding  AppFamilyName = "port_forwarding"
 	AppFamilySFTP            AppFamilyName = "sftp"
 	AppFamilyUnknown         AppFamilyName = "unknown"
+	// AppFamilyWorkspaceApp groups template apps, which no agent reports.
+	AppFamilyWorkspaceApp AppFamilyName = "workspace_app"
 )
 
 // appFamilyDisplayNames names each family.
@@ -40,6 +40,7 @@ var appFamilyDisplayNames = map[AppFamilyName]string{
 	AppFamilyPortForwarding:  "Port Forwarding",
 	AppFamilySFTP:            "SFTP",
 	AppFamilyUnknown:         "Unknown",
+	AppFamilyWorkspaceApp:    "Workspace App",
 }
 
 // DisplayName returns the family's human-readable name.
@@ -111,7 +112,7 @@ var sessionApps = map[string]sessionApp{
 	// Zed speaks SSH, so it counts toward the SSH total.
 	"zed":              {AppFamilySSH, "Zed", "/icon/zed.svg"},
 	"ssh":              {AppFamilySSH, "SSH", "/icon/terminal.svg"},
-	"reconnecting_pty": {AppFamilyReconnectingPTY, "Web Terminal", ""},
+	"reconnecting_pty": {AppFamilyReconnectingPTY, "Web Terminal", "/icon/terminal.svg"},
 	"port_forwarding":  {AppFamilyPortForwarding, "Port Forwarding", ""},
 }
 
@@ -119,15 +120,33 @@ var sessionApps = map[string]sessionApp{
 func SessionCountApps(counts map[string]int64) map[string]SessionCountApp {
 	apps := make(map[string]SessionCountApp, len(counts))
 	for appName, count := range counts {
-		app := sessionApps[NormalizeAppName(appName)]
+		displayName, icon, family := SessionAppPresentation(appName)
 		apps[appName] = SessionCountApp{
 			Count:       count,
-			DisplayName: cmp.Or(app.displayName, appName),
-			Icon:        app.icon,
-			Family:      cmp.Or(app.family, AppFamilyUnknown),
+			DisplayName: displayName,
+			Icon:        icon,
+			Family:      family,
 		}
 	}
 	return apps
+}
+
+// accountingAppDisplayNames labels the app names Coder records for usage it
+// cannot attribute to a reported app. They stay out of the registry, so they
+// rank and total as unregistered apps under AppFamilyUnknown.
+var accountingAppDisplayNames = map[string]string{
+	// An empty name, or one reporting the reserved overflow name.
+	string(AppFamilyUnknown): "Unknown",
+	AppNameOverflow:          "Other apps",
+}
+
+// SessionAppPresentation returns an app's display name, icon, and family. An
+// unregistered app shows its normalized name under AppFamilyUnknown, except
+// the accounting names, which show a label.
+func SessionAppPresentation(appName string) (displayName, icon string, family AppFamilyName) {
+	appName = NormalizeAppName(appName)
+	app := sessionApps[appName]
+	return cmp.Or(app.displayName, accountingAppDisplayNames[appName], appName), app.icon, cmp.Or(app.family, AppFamilyUnknown)
 }
 
 // SessionCountAppFamilies returns a copy of the registry's app-to-family mapping.
@@ -145,27 +164,6 @@ func SumByFamily(byApp map[string]int64) map[AppFamilyName]int64 {
 	byFamily := make(map[AppFamilyName]int64)
 	for appName, value := range byApp {
 		byFamily[AppNameFamily(appName)] += value
-	}
-	return byFamily
-}
-
-// UnionByFamily folds per-app template IDs into the distinct set each family
-// was seen in, ordered by app name.
-func UnionByFamily(byApp map[string][]uuid.UUID) map[AppFamilyName][]uuid.UUID {
-	byFamily := make(map[AppFamilyName][]uuid.UUID, len(byApp))
-	seen := make(map[AppFamilyName]map[uuid.UUID]struct{}, len(byApp))
-	for _, appName := range slices.Sorted(maps.Keys(byApp)) {
-		family := AppNameFamily(appName)
-		if seen[family] == nil {
-			seen[family] = map[uuid.UUID]struct{}{}
-		}
-		for _, id := range byApp[appName] {
-			if _, ok := seen[family][id]; ok {
-				continue
-			}
-			seen[family][id] = struct{}{}
-			byFamily[family] = append(byFamily[family], id)
-		}
 	}
 	return byFamily
 }

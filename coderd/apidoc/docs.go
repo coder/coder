@@ -20502,7 +20502,8 @@ const docTemplate = `{
                 "reconnecting_pty",
                 "port_forwarding",
                 "sftp",
-                "unknown"
+                "unknown",
+                "workspace_app"
             ],
             "x-enum-varnames": [
                 "AppFamilyVSCode",
@@ -20511,7 +20512,8 @@ const docTemplate = `{
                 "AppFamilyReconnectingPTY",
                 "AppFamilyPortForwarding",
                 "AppFamilySFTP",
-                "AppFamilyUnknown"
+                "AppFamilyUnknown",
+                "AppFamilyWorkspaceApp"
             ]
         },
         "codersdk.AppHostResponse": {
@@ -30710,7 +30712,15 @@ const docTemplate = `{
             "properties": {
                 "display_name": {
                     "type": "string",
-                    "example": "Visual Studio Code"
+                    "example": "VS Code"
+                },
+                "family": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AppFamilyName"
+                        }
+                    ],
+                    "example": "vscode"
                 },
                 "icon": {
                     "type": "string"
@@ -30718,6 +30728,11 @@ const docTemplate = `{
                 "seconds": {
                     "type": "integer",
                     "example": 80500
+                },
+                "seconds_is_upper_bound": {
+                    "description": "SecondsIsUpperBound is set on the builtin overflow row when it also\nholds unregistered apps past TemplateInsightsMaxUnregisteredApps. Which\nminutes those apps shared is not stored, so Seconds is an upper bound\non the time at least one of them was open.",
+                    "type": "boolean",
+                    "example": false
                 },
                 "slug": {
                     "type": "string",
@@ -31269,6 +31284,11 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid"
                     }
+                },
+                "usage_total_seconds": {
+                    "description": "UsageTotalSeconds is the active time of every user in the report, a\nminute counting once per user however many apps were open. No app's\nseconds exceed it, but apps used at the same time sum past it.",
+                    "type": "integer",
+                    "example": 120000
                 }
             }
         },

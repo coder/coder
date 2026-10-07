@@ -1636,7 +1636,8 @@ export type AppFamilyName =
 	| "sftp"
 	| "ssh"
 	| "unknown"
-	| "vscode";
+	| "vscode"
+	| "workspace_app";
 
 export const AppFamilyNames: AppFamilyName[] = [
 	"jetbrains",
@@ -1646,6 +1647,7 @@ export const AppFamilyNames: AppFamilyName[] = [
 	"ssh",
 	"unknown",
 	"vscode",
+	"workspace_app",
 ];
 
 // From codersdk/deployment.go
@@ -10106,6 +10108,14 @@ export interface TemplateAppUsage {
 	readonly icon: string;
 	readonly seconds: number;
 	readonly times_used: number;
+	readonly family: AppFamilyName;
+	/**
+	 * SecondsIsUpperBound is set on the builtin overflow row when it also
+	 * holds unregistered apps past TemplateInsightsMaxUnregisteredApps. Which
+	 * minutes those apps shared is not stored, so Seconds is an upper bound
+	 * on the time at least one of them was open.
+	 */
+	readonly seconds_is_upper_bound?: boolean;
 }
 
 // From codersdk/insights.go
@@ -10385,6 +10395,14 @@ export interface TemplateInsightsIntervalReport {
 
 // From codersdk/insights.go
 /**
+ * TemplateInsightsMaxUnregisteredApps is how many unregistered session apps
+ * template insights list on their own, busiest first. Registered apps are
+ * always listed, and the rest fold into the overflow row.
+ */
+export const TemplateInsightsMaxUnregisteredApps = 64;
+
+// From codersdk/insights.go
+/**
  * TemplateInsightsReport is the report from the template insights endpoint.
  */
 export interface TemplateInsightsReport {
@@ -10392,6 +10410,12 @@ export interface TemplateInsightsReport {
 	readonly end_time: string;
 	readonly template_ids: readonly string[];
 	readonly active_users: number;
+	/**
+	 * UsageTotalSeconds is the active time of every user in the report, a
+	 * minute counting once per user however many apps were open. No app's
+	 * seconds exceed it, but apps used at the same time sum past it.
+	 */
+	readonly usage_total_seconds: number;
 	readonly apps_usage: readonly TemplateAppUsage[];
 	readonly parameters_usage: readonly TemplateParameterUsage[];
 }
