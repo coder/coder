@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import React, { useEffect, useRef } from "react";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	SearchField,
 	type SearchFieldProps,
@@ -23,50 +24,62 @@ export const Chart = (props: React.HTMLProps<HTMLDivElement>) => {
 	);
 };
 
-export const ChartContent: React.FC<React.HTMLProps<HTMLDivElement>> = (
-	props,
-) => {
-	const contentRef = useRef<HTMLDivElement>(null);
+export const ChartContent: React.FC<React.HTMLProps<HTMLDivElement>> = ({
+	className,
+	children,
+	...props
+}) => {
+	const containerRef = useRef<HTMLDivElement>(null);
+	const viewportRef = useRef<HTMLDivElement>(null);
 
-	// Display a scroll mask when the content is scrollable and update its
-	// position on scroll. Remove the mask when the scroll reaches the bottom to
-	// ensure the last item is visible.
+	// Display a scroll mask when the content is scrollable. Remove the mask when
+	// the scroll reaches the bottom to ensure the last item is visible.
 	useEffect(() => {
-		const contentEl = contentRef.current;
-		if (!contentEl) return;
+		const containerEl = containerRef.current;
+		const viewportEl = viewportRef.current;
+		if (!containerEl || !viewportEl) return;
 
-		const hasScroll = contentEl.scrollHeight > contentEl.clientHeight;
-		contentEl.style.setProperty("--scroll-mask-opacity", hasScroll ? "1" : "0");
+		const hasScroll = viewportEl.scrollHeight > viewportEl.clientHeight;
+		containerEl.style.setProperty(
+			"--scroll-mask-opacity",
+			hasScroll ? "1" : "0",
+		);
 
 		const handler = () => {
 			if (!hasScroll) {
 				return;
 			}
-			contentEl.style.setProperty("--scroll-top", `${contentEl.scrollTop}px`);
 			const isBottom =
-				contentEl.scrollTop + contentEl.clientHeight >= contentEl.scrollHeight;
-			contentEl.style.setProperty(
+				viewportEl.scrollTop + viewportEl.clientHeight >=
+				viewportEl.scrollHeight;
+			containerEl.style.setProperty(
 				"--scroll-mask-opacity",
 				isBottom ? "0" : "1",
 			);
 		};
-		contentEl.addEventListener("scroll", handler);
-		return () => contentEl.removeEventListener("scroll", handler);
+		viewportEl.addEventListener("scroll", handler);
+		return () => viewportEl.removeEventListener("scroll", handler);
 	}, []);
 
 	return (
 		<div
 			{...props}
-			ref={contentRef}
+			ref={containerRef}
 			className={cn(
-				"relative flex flex-1 items-stretch overflow-auto text-xs font-medium",
-				props.className,
+				"relative flex min-h-0 flex-1 text-xs font-medium",
+				className,
 			)}
 		>
-			{props.children}
+			<ScrollArea
+				className="min-h-0 flex-1"
+				viewportRef={viewportRef}
+				orientation="both"
+			>
+				<div className="flex items-stretch">{children}</div>
+			</ScrollArea>
 			<div
 				aria-hidden="true"
-				className="pointer-events-none absolute inset-x-0 z-1 h-[100px] transition-opacity duration-200 bottom-[calc(-1*var(--scroll-top,0px))] opacity-(--scroll-mask-opacity) [background:linear-gradient(180deg,rgba(0,0,0,0)_0%,var(--surface-primary)_81.93%)]"
+				className="pointer-events-none absolute inset-x-0 bottom-0 z-1 h-[100px] transition-opacity duration-200 opacity-(--scroll-mask-opacity) [background:linear-gradient(180deg,rgba(0,0,0,0)_0%,var(--surface-primary)_81.93%)]"
 			/>
 		</div>
 	);

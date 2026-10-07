@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 
 type WorkspaceBuildLogsSectionProps = {
@@ -21,7 +22,12 @@ export const WorkspaceBuildLogsSection: React.FC<
 			>
 				Build logs
 			</header>
-			<div className="h-[400px] overflow-y-auto">
+			<ScrollArea
+				className="h-[400px]"
+				// Radix wraps content in display: table, which lets long log lines
+				// widen the viewport instead of using the logs' own x scrolling.
+				viewportClassName="[&>div]:block!"
+			>
 				{logs ? (
 					<WorkspaceBuildLogs
 						sticky
@@ -29,11 +35,11 @@ export const WorkspaceBuildLogsSection: React.FC<
 						className="rounded-none border-none"
 					/>
 				) : (
-					<div className="flex items-center justify-center w-full h-full">
+					<div className="flex items-center justify-center w-full h-[400px]">
 						<Loader />
 					</div>
 				)}
-			</div>
+			</ScrollArea>
 		</div>
 	);
 };
