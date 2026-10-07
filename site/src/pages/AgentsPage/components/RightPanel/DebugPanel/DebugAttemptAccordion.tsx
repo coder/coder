@@ -99,7 +99,7 @@ export const DebugAttemptAccordion: React.FC<DebugAttemptAccordionProps> = ({
 					key={`${attempt.attempt_number}-${attempt.started_at ?? index}`}
 					defaultOpen={false}
 				>
-					<div className="border-l border-l-border-default/50">
+					<div className="border-l border-l-border/50">
 						<CollapsibleTrigger asChild>
 							<button
 								type="button"
