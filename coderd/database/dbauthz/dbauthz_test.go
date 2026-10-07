@@ -308,6 +308,26 @@ func TestUpdateChatACLByIDGuards(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // It toggles the global chat ACL flag.
+func TestUpdateChatProjectACLByIDDisabled(t *testing.T) {
+	rbac.SetChatACLDisabled(true)
+	t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	q := dbauthz.New(db, &coderdtest.FakeAuthorizer{}, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+	ctx := dbauthz.As(context.Background(), rbac.Subject{ID: uuid.NewString(), Scope: rbac.ScopeAll})
+
+	err := q.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       uuid.New(),
+		UserACL:  database.ChatACL{},
+		GroupACL: database.ChatACL{},
+	})
+	require.True(t, dbauthz.IsNotAuthorizedError(err))
+	require.ErrorContains(t, err, "chat sharing is disabled")
+}
+
 func TestUpdateChatModelConfigACLByIDAuthorization(t *testing.T) {
 	t.Parallel()
 
@@ -1342,6 +1362,21 @@ func (s *MethodTestSuite) TestChats() {
 		rows := []database.ChatProject{project}
 		dbm.EXPECT().GetChatProjectsAccessibleByUserID(gomock.Any(), userID).Return(rows, nil).AnyTimes()
 		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("GetChatProjectChatsForDelete", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		projectID := uuid.New()
+		dbm.EXPECT().GetChatProjectChatsForDelete(gomock.Any(), projectID).Return([]database.Chat{}, nil).AnyTimes()
+		check.Args(projectID).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns([]database.Chat{})
+	}))
+	s.Run("DeleteChatProjectChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		projectID := uuid.New()
+		dbm.EXPECT().DeleteChatProjectChats(gomock.Any(), projectID).Return(nil).AnyTimes()
+		check.Args(projectID).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns()
+	}))
+	s.Run("IsChatProjectAccessibleByUserID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.IsChatProjectAccessibleByUserIDParams{ProjectID: uuid.New(), UserID: uuid.New()}
+		dbm.EXPECT().IsChatProjectAccessibleByUserID(gomock.Any(), arg).Return(true, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatProject, policy.ActionRead).Returns(true)
 	}))
 	s.Run("GetChatProjectByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})

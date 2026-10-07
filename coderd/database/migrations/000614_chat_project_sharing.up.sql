@@ -12,3 +12,6 @@ ALTER TABLE chat_projects
 
 COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, keyed by user ID.';
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
+
+CREATE INDEX idx_chat_projects_user_acl ON chat_projects USING gin (user_acl);
+CREATE INDEX idx_chat_projects_group_acl ON chat_projects USING gin (group_acl);

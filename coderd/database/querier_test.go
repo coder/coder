@@ -2269,25 +2269,125 @@ func TestGetChatProjectsAccessibleByUserID(t *testing.T) {
 	// User grants only apply to members of the project's organization.
 	outsiderShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 	share(outsiderShared, database.ChatACL{outsider.ID.String(): read}, database.ChatACL{})
+	// The query matches ACL keys without checking actions, so this row is
+	// returned raw and removed by dbauthz.
+	noRead := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(noRead, database.ChatACL{direct.ID.String(): {Permissions: []policy.Action{policy.ActionShare}}}, database.ChatACL{})
+	all := []uuid.UUID{private.ID, userShared.ID, groupShared.ID, everyoneShared.ID, outsiderShared.ID, noRead.ID}
 
-	for _, tc := range []struct {
-		name string
-		user database.User
-		want []uuid.UUID
-	}{
-		{"Owner", owner, []uuid.UUID{private.ID, userShared.ID, groupShared.ID, everyoneShared.ID, outsiderShared.ID}},
-		{"Direct", direct, []uuid.UUID{userShared.ID, everyoneShared.ID}},
-		{"Group", groupMember, []uuid.UUID{groupShared.ID, everyoneShared.ID}},
-		{"Everyone", orgMember, []uuid.UUID{everyoneShared.ID}},
-		{"Outsider", outsider, nil},
-	} {
-		projects, err := db.GetChatProjectsAccessibleByUserID(ctx, tc.user.ID)
-		require.NoError(t, err, tc.name)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	ids := func(projects []database.ChatProject) []uuid.UUID {
 		got := make([]uuid.UUID, 0, len(projects))
 		for _, project := range projects {
 			got = append(got, project.ID)
 		}
-		require.ElementsMatch(t, tc.want, got, tc.name)
+		return got
+	}
+
+	for _, tc := range []struct {
+		name string
+		user database.User
+		raw  []uuid.UUID
+		// authorized is what a sharee sees through dbauthz, where only ACL
+		// grants with read apply.
+		authorized []uuid.UUID
+	}{
+		{"Direct", direct, []uuid.UUID{userShared.ID, everyoneShared.ID, noRead.ID}, []uuid.UUID{userShared.ID, everyoneShared.ID}},
+		{"Group", groupMember, []uuid.UUID{groupShared.ID, everyoneShared.ID}, []uuid.UUID{groupShared.ID, everyoneShared.ID}},
+		{"Everyone", orgMember, []uuid.UUID{everyoneShared.ID}, []uuid.UUID{everyoneShared.ID}},
+		{"Outsider", outsider, nil, nil},
+	} {
+		projects, err := db.GetChatProjectsAccessibleByUserID(ctx, tc.user.ID)
+		require.NoError(t, err, tc.name)
+		require.ElementsMatch(t, tc.raw, ids(projects), tc.name)
+
+		subject, _, err := httpmw.UserRBACSubject(ctx, db, tc.user.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err, tc.name)
+		projects, err = authzdb.GetChatProjectsAccessibleByUserID(dbauthz.As(ctx, subject), tc.user.ID)
+		require.NoError(t, err, tc.name)
+		require.ElementsMatch(t, tc.authorized, ids(projects), tc.name)
+
+		for _, projectID := range all {
+			accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{
+				ProjectID: projectID,
+				UserID:    tc.user.ID,
+			})
+			require.NoError(t, err, tc.name)
+			require.Equal(t, slices.Contains(tc.authorized, projectID), accessible, "%s: project %s", tc.name, projectID)
+		}
+	}
+
+	projects, err := db.GetChatProjectsAccessibleByUserID(ctx, owner.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, all, ids(projects))
+	for _, projectID := range all {
+		accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: projectID, UserID: owner.ID})
+		require.NoError(t, err)
+		require.True(t, accessible)
+	}
+}
+
+func TestDeleteChatProjectChats(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	sharee := dbgen.User(t, db, database.User{})
+	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	newChat := func(ownerID uuid.UUID, projectID uuid.NullUUID, parent *database.Chat) database.Chat {
+		seed := database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelCfg.ID,
+			ProjectID:         projectID,
+		}
+		if parent != nil {
+			seed.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+			seed.RootChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+		}
+		return dbgen.Chat(t, db, seed)
+	}
+	inProject := uuid.NullUUID{UUID: project.ID, Valid: true}
+
+	ownerRoot := newChat(owner.ID, inProject, nil)
+	ownerChild := newChat(owner.ID, uuid.NullUUID{}, &ownerRoot)
+	shareeRoot := newChat(sharee.ID, inProject, nil)
+	unrelated := newChat(owner.ID, uuid.NullUUID{}, nil)
+	otherProjectChat := newChat(owner.ID, uuid.NullUUID{UUID: otherProject.ID, Valid: true}, nil)
+
+	family := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID}
+	locked, err := db.GetChatProjectChatsForDelete(ctx, project.ID)
+	require.NoError(t, err)
+	got := make([]uuid.UUID, 0, len(locked))
+	for _, chat := range locked {
+		got = append(got, chat.ID)
+	}
+	require.ElementsMatch(t, family, got)
+
+	require.NoError(t, db.DeleteChatProjectChats(ctx, project.ID))
+	for _, id := range family {
+		_, err := db.GetChatByID(ctx, id)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	}
+	for _, id := range []uuid.UUID{unrelated.ID, otherProjectChat.ID} {
+		_, err := db.GetChatByID(ctx, id)
+		require.NoError(t, err)
 	}
 }
 

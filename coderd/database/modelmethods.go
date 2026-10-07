@@ -182,32 +182,38 @@ func (p ChatProject) RBACObject() rbac.Object {
 		WithGroupACL(p.GroupACL.RBACACL())
 }
 
-// chatProjectMemoryActions are granted on a project's memories to everyone
-// the project is shared with. Memories are the project's shared context,
-// and agents running in a sharee's chats read and rewrite them.
-var chatProjectMemoryActions = []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete}
-
-// chatProjectMemoryACL derives a memory ACL from a project ACL: every
-// principal that can read the project gets chatProjectMemoryActions.
+// chatProjectMemoryACL converts a project ACL into the ACL for its
+// memories. Reading the project grants reading its memories, and only
+// principals who can update the project change memories directly. Sharees
+// who can only read change memories through their chats' agents, which
+// chatd authorizes separately.
 func chatProjectMemoryACL(projectACL ChatACL) map[string][]policy.Action {
 	memoryACL := make(map[string][]policy.Action, len(projectACL))
 	for id, entry := range projectACL {
-		if slices.Contains(entry.Permissions, policy.ActionRead) {
-			memoryACL[id] = chatProjectMemoryActions
+		if chatACLGrants(entry, policy.ActionUpdate) {
+			memoryACL[id] = []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete}
+		} else if chatACLGrants(entry, policy.ActionRead) {
+			memoryACL[id] = []policy.Action{policy.ActionRead}
 		}
 	}
 	return memoryACL
 }
 
-// RBACObject scopes a memory to its project so the project owner owns it
-// and the project's sharees reach it through the project ACL. Memories
-// carry no owner of their own, so the parent project must be supplied.
+// chatACLGrants reports whether entry grants action, honoring the wildcard
+// as the RBAC policy does.
+func chatACLGrants(entry ChatACLEntry, action policy.Action) bool {
+	return slices.Contains(entry.Permissions, action) || slices.Contains(entry.Permissions, policy.WildcardSymbol)
+}
+
+// RBACObject is ChatProjectMemoryRBACObject for this memory. Memories store
+// no owner, so the caller passes the parent project.
 func (m ChatProjectMemory) RBACObject(project ChatProject) rbac.Object {
 	return ChatProjectMemoryRBACObject(project).WithID(m.ID)
 }
 
-// ChatProjectMemoryRBACObject is the object to authorize when creating a
-// memory in the project, before an ID exists.
+// ChatProjectMemoryRBACObject is the object for a project's memories. The
+// project owner owns it, and chatProjectMemoryACL converts the project ACL.
+// Authorize listing and creating memories against it.
 func ChatProjectMemoryRBACObject(project ChatProject) rbac.Object {
 	obj := rbac.ResourceChatProjectMemory.InOrg(project.OrganizationID).WithOwner(project.OwnerID.String())
 	if rbac.ChatACLDisabled() {
