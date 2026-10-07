@@ -552,6 +552,44 @@ export const applyWatchedChatArchived = (
 };
 
 /**
+ * Watch-event effect for the `hard_deleted` kind, published when a chat is
+ * removed permanently, as when its project is deleted. Unlike archive, the
+ * chat is evicted from every list, archived ones included, so nothing
+ * offers to unarchive it, and an open route refetches and finds it gone.
+ */
+export const applyWatchedChatHardDeleted = (
+	queryClient: QueryClient,
+	chatId: string,
+) => {
+	void cancelChatListRefetches(queryClient);
+	removeChildFromParentInCache(queryClient, chatId);
+	const withoutChat = (page: TypesGen.Chat[]) => {
+		const next = page.filter((row) => row.id !== chatId);
+		return next.length === page.length ? page : next;
+	};
+	for (const queryKey of [chatListFamilyKey, chatProjectListFamilyKey]) {
+		queryClient.setQueriesData<InfiniteChatsCacheData>({ queryKey }, (prev) => {
+			if (!isInfiniteChatsCacheData(prev)) {
+				return prev;
+			}
+			const pages = prev.pages.map(withoutChat);
+			return pages.some((page, i) => page !== prev.pages[i])
+				? { ...prev, pages }
+				: prev;
+		});
+	}
+	queryClient.setQueriesData<TypesGen.Chat[]>(
+		{ queryKey: chatSearchFamilyKey },
+		(prev) => (prev ? withoutChat(prev) : prev),
+	);
+	removeChatFromChatsByWorkspace(queryClient, chatId);
+	void invalidateChatEntity(queryClient, chatId);
+	void invalidateChatListQueries(queryClient);
+	void invalidateChatsByWorkspace(queryClient);
+	void invalidateChatSearches(queryClient);
+};
+
+/**
  * Watch-event effect for a root `created` event, which the server
  * publishes both for new chats and for unarchive transitions (one event
  * per family member). A cached entity marked archived identifies the

@@ -22,6 +22,7 @@ import {
 	applyChatArchiveStateToCaches,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
+	applyWatchedChatHardDeleted,
 	archiveChat,
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
@@ -602,10 +603,13 @@ const AgentsPageLayout: React.FC = () => {
 						);
 					}
 
+					if (chatEvent.kind === "hard_deleted") {
+						applyWatchedChatHardDeleted(queryClient, updatedChat.id);
+						return;
+					}
 					if (chatEvent.kind === "deleted") {
 						// The server publishes `deleted` when a chat is
-						// archived (one event per family member); there is
-						// no hard-delete wire event. Patch archive state in
+						// archived (one event per family member). Patch archive state in
 						// place so an open route stays mounted and flips to
 						// its read-only state.
 						applyWatchedChatArchived(queryClient, updatedChat);

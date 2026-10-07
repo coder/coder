@@ -30,12 +30,12 @@ func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (
 	}
 	project, err := p.db.GetChatProjectByID(ctx, chat.ProjectID.UUID)
 	if err != nil {
-		p.logger.Debug(ctx, "failed to load chat project for memory", slog.F("chat_id", chat.ID), slog.Error(err))
+		p.logger.Warn(ctx, "failed to load chat project for memory", slog.F("chat_id", chat.ID), slog.F("project_id", chat.ProjectID.UUID), slog.Error(err))
 		return nil, "", false
 	}
 	usable, err := ChatProjectUsableBy(ctx, p.db, project, chat.OwnerID)
 	if err != nil {
-		p.logger.Debug(ctx, "failed to check chat project access for memory", slog.F("chat_id", chat.ID), slog.Error(err))
+		p.logger.Warn(ctx, "failed to check chat project access for memory", slog.F("chat_id", chat.ID), slog.F("project_id", chat.ProjectID.UUID), slog.Error(err))
 		return nil, "", false
 	}
 	if !usable {

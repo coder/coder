@@ -71,8 +71,12 @@ func TestChatProjectSharing(t *testing.T) {
 		require.Equal(t, codersdk.ChatProjectRoleUse, acl.Users[0].Role)
 
 		requireChatProjectListed(t, sharee, project.ID)
-		_, err = sharee.GetChatProject(ctx, project.OrganizationID, project.ID)
+		shared, err := sharee.GetChatProject(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatProjectPermissions{}, shared.Permissions)
+		owned, err := client.GetChatProject(ctx, project.OrganizationID, project.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatProjectPermissions{Update: true, Delete: true, Share: true}, owned.Permissions)
 		memories, err := sharee.ListChatProjectMemories(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
 		require.Len(t, memories, 1)
@@ -144,6 +148,7 @@ func TestChatProjectSharing(t *testing.T) {
 		updated, err := admin.UpdateChatProject(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectRequest{Name: &name})
 		require.NoError(t, err)
 		require.Equal(t, name, updated.Name)
+		require.Equal(t, codersdk.ChatProjectPermissions{Update: true, Share: true}, updated.Permissions)
 		// Renaming keeps the ACL.
 		acl, err := client.ChatProjectACL(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
@@ -259,7 +264,7 @@ func TestChatProjectSharing(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "The project owner cannot be added to the project's sharing list.", sdkErr.Message)
 
-		// Two spellings of one ID would leave the outcome to map order.
+		// Two spellings of one ID in one request are rejected.
 		err = client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{
 				member.ID.String():                  codersdk.ChatProjectRoleAdmin,
@@ -389,13 +394,15 @@ func TestChatProjectSharing(t *testing.T) {
 				UserID:       firstUser.UserID,
 			}))
 		}
+		// Sub-chats go with their root and are not audited separately.
+		require.False(t, mAudit.Contains(t, database.AuditLog{ResourceType: database.ResourceTypeChat, ResourceID: shareeChild.ID}))
 
-		// The sharee's sidebar learns that their chats are gone.
+		// The sharee's chat watch receives hard_deleted events for their chats.
 		pending := map[uuid.UUID]bool{shareeChat.ID: true, shareeChild.ID: true}
 		for len(pending) > 0 {
 			select {
 			case event := <-events:
-				if event.Kind == codersdk.ChatWatchEventKindDeleted {
+				if event.Kind == codersdk.ChatWatchEventKindHardDeleted {
 					delete(pending, event.Chat.ID)
 				}
 			case <-ctx.Done():
@@ -449,6 +456,16 @@ func TestChatProjectSharing(t *testing.T) {
 			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "not shared"}},
 		})
 		requireChatProjectNotFound(t, err)
+
+		// Nor can they reach it by sharing it with a group they belong to.
+		err = client.UpdateChatProjectACL(ctx, memberProject.OrganizationID, memberProject.ID, codersdk.UpdateChatProjectACL{
+			GroupRoles: map[string]codersdk.ChatProjectRole{memberProject.OrganizationID.String(): codersdk.ChatProjectRoleAdmin},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Cannot share a project with a group you belong to unless it is already shared with you.", sdkErr.Message)
+		acl, err := member.ChatProjectACL(ctx, memberProject.OrganizationID, memberProject.ID)
+		require.NoError(t, err)
+		require.Empty(t, acl.Groups)
 	})
 }
 

@@ -3586,6 +3586,11 @@ export interface ChatProject {
 	readonly icon: string;
 	readonly created_at: string;
 	readonly updated_at: string;
+	/**
+	 * Permissions are what the caller may do with the project, counting
+	 * role grants as well as the project ACL.
+	 */
+	readonly permissions: ChatProjectPermissions;
 }
 
 // From codersdk/chats.go
@@ -3618,6 +3623,16 @@ export interface ChatProjectMemory {
 	readonly created_by: string;
 	readonly created_by_username: string;
 	readonly created_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectPermissions are the actions the caller may take on a project.
+ */
+export interface ChatProjectPermissions {
+	readonly update: boolean;
+	readonly delete: boolean;
+	readonly share: boolean;
 }
 
 // From codersdk/chats.go
@@ -4046,6 +4061,7 @@ export type ChatWatchEventKind =
 	| "created"
 	| "deleted"
 	| "diff_status_change"
+	| "hard_deleted"
 	| "status_change"
 	| "summary_change"
 	| "title_change";
@@ -4057,6 +4073,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"created",
 	"deleted",
 	"diff_status_change",
+	"hard_deleted",
 	"status_change",
 	"summary_change",
 	"title_change",

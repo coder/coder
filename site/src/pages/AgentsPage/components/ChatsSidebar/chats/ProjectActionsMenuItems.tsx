@@ -1,5 +1,6 @@
 import { SquarePenIcon } from "lucide-react";
 import { Link, type To } from "react-router";
+import type { ChatProjectPermissions } from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
 	ContextMenuSeparator,
@@ -19,6 +20,8 @@ type ProjectActionsMenuItemsProps = {
 	readonly Separator: ProjectActionsMenuSeparator;
 	/** Adds a "New chat" item linking here. Omit on the project page itself. */
 	readonly projectPath?: To;
+	/** The caller's permissions, so actions that would fail are hidden. */
+	readonly permissions: ChatProjectPermissions;
 	readonly onEdit: () => void;
 	readonly onDelete: () => void;
 };
@@ -26,7 +29,7 @@ type ProjectActionsMenuItemsProps = {
 /** Project actions shared by dropdown and context menus. */
 export const ProjectActionsMenuItems: React.FC<
 	ProjectActionsMenuItemsProps
-> = ({ Item, Separator, projectPath, onEdit, onDelete }) => (
+> = ({ Item, Separator, projectPath, permissions, onEdit, onDelete }) => (
 	<>
 		{projectPath !== undefined && (
 			<>
@@ -36,15 +39,17 @@ export const ProjectActionsMenuItems: React.FC<
 						New chat
 					</Link>
 				</Item>
-				<Separator />
+				{(permissions.update || permissions.delete) && <Separator />}
 			</>
 		)}
-		<Item onSelect={onEdit}>Edit project</Item>
-		<Item
-			className="text-content-destructive focus:text-content-destructive"
-			onSelect={onDelete}
-		>
-			Delete project
-		</Item>
+		{permissions.update && <Item onSelect={onEdit}>Edit project</Item>}
+		{permissions.delete && (
+			<Item
+				className="text-content-destructive focus:text-content-destructive"
+				onSelect={onDelete}
+			>
+				Delete project
+			</Item>
+		)}
 	</>
 );

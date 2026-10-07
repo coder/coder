@@ -23074,6 +23074,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "permissions": {
+                    "description": "Permissions are what the caller may do with the project, counting\nrole grants as well as the project ACL.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectPermissions"
+                        }
+                    ]
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -23187,6 +23195,20 @@ const docTemplate = `{
                 "project_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatProjectPermissions": {
+            "type": "object",
+            "properties": {
+                "delete": {
+                    "type": "boolean"
+                },
+                "share": {
+                    "type": "boolean"
+                },
+                "update": {
+                    "type": "boolean"
                 }
             }
         },
@@ -23589,6 +23611,7 @@ const docTemplate = `{
                 "title_change",
                 "created",
                 "deleted",
+                "hard_deleted",
                 "diff_status_change",
                 "action_required",
                 "context_dirty"
@@ -23600,6 +23623,7 @@ const docTemplate = `{
                 "ChatWatchEventKindTitleChange",
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",
+                "ChatWatchEventKindHardDeleted",
                 "ChatWatchEventKindDiffStatusChange",
                 "ChatWatchEventKindActionRequired",
                 "ChatWatchEventKindContextDirty"

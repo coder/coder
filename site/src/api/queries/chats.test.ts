@@ -30,6 +30,7 @@ import {
 	applyChatArchiveStateToCaches,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
+	applyWatchedChatHardDeleted,
 	archiveChat,
 	type ChatListInput,
 	cancelChatEntity,
@@ -4426,6 +4427,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			context_dirty: false,
 			created: false,
 			deleted: false,
+			hard_deleted: false,
 			diff_status_change: false,
 			status_change: true,
 			summary_change: false,
@@ -4505,6 +4507,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			context_dirty: false,
 			created: false,
 			deleted: false,
+			hard_deleted: false,
 			diff_status_change: true,
 			status_change: true,
 			summary_change: false,
@@ -5103,6 +5106,44 @@ describe("applyChatArchiveStateToCaches search rows", () => {
 				`${label} entry should NOT be invalidated`,
 			).not.toBe(true);
 		}
+	});
+});
+
+describe("applyWatchedChatHardDeleted", () => {
+	it("evicts the chat from every list, archived ones included", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const other = makeChat("chat-2");
+		seedInfiniteChats(queryClient, [makeChat(chatId), other]);
+		seedInfiniteChats(queryClient, [makeChat(chatId, { archived: true })], {
+			archived: true,
+		});
+		queryClient.setQueryData<InfiniteData>(projectChatsKey("project-1"), {
+			pages: [[makeChat(chatId), other]],
+			pageParams: [0],
+		});
+		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
+
+		applyWatchedChatHardDeleted(queryClient, chatId);
+
+		expect(readInfiniteChats(queryClient)?.map((c) => c.id)).toEqual([
+			other.id,
+		]);
+		expect(readInfiniteChats(queryClient, { archived: true })).toEqual([]);
+		expect(
+			queryClient
+				.getQueryData<InfiniteData>(projectChatsKey("project-1"))
+				?.pages.flat()
+				.map((c) => c.id),
+		).toEqual([other.id]);
+		// The entity is refetched rather than patched to archived, so the
+		// open route never offers Unarchive.
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.archived,
+		).toBe(false);
+		expect(
+			queryClient.getQueryState(chatEntityKey(chatId))?.isInvalidated,
+		).toBe(true);
 	});
 });
 

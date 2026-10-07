@@ -240,6 +240,16 @@ type ChatProject struct {
 	Icon      string    `json:"icon"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
+	// Permissions are what the caller may do with the project, counting
+	// role grants as well as the project ACL.
+	Permissions ChatProjectPermissions `json:"permissions"`
+}
+
+// ChatProjectPermissions are the actions the caller may take on a project.
+type ChatProjectPermissions struct {
+	Update bool `json:"update"`
+	Delete bool `json:"delete"`
+	Share  bool `json:"share"`
 }
 
 // CreateChatProjectRequest creates a chat project in the organization named
@@ -2192,9 +2202,13 @@ const (
 	// ChatWatchEventKindTitleChange is published after each title write.
 	// Take only the title fields from it, ordered by title_updated_at,
 	// because a title write does not change updated_at.
-	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
-	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
-	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
+	ChatWatchEventKindTitleChange ChatWatchEventKind = "title_change"
+	ChatWatchEventKindCreated     ChatWatchEventKind = "created"
+	// ChatWatchEventKindDeleted is published when a chat is archived.
+	ChatWatchEventKindDeleted ChatWatchEventKind = "deleted"
+	// ChatWatchEventKindHardDeleted is published when a chat is removed
+	// permanently, as when its project is deleted. It cannot be unarchived.
+	ChatWatchEventKindHardDeleted      ChatWatchEventKind = "hard_deleted"
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
@@ -2438,7 +2452,8 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 
 // DeleteChatProject deletes a chat project and every chat in it, including
 // chats started by users it is shared with. It fails with 409 Conflict while
-// any of those chats is running.
+// any of those chats is running. A 409 can come after some chats were
+// already deleted; retrying deletes the rest.
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
 	if err != nil {

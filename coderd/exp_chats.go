@@ -1618,6 +1618,11 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
+			// The project was deleted after the access check.
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
+			return
+		}
 		if dbauthz.IsNotAuthorizedError(err) {
 			httpapi.Forbidden(rw)
 			return

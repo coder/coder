@@ -106,29 +106,32 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 			<ProjectPageHeader
 				project={project}
 				actions={
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								ref={actionsButtonRef}
-								variant="subtle"
-								size="icon"
-								aria-label="Project actions"
-							>
-								<EllipsisVerticalIcon />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<ProjectActionsMenuItems
-								Item={DropdownMenuItem}
-								Separator={DropdownMenuSeparator}
-								onEdit={() => {
-									updateMutation.reset();
-									setIsEditOpen(true);
-								}}
-								onDelete={() => setIsDeleteOpen(true)}
-							/>
-						</DropdownMenuContent>
-					</DropdownMenu>
+					(project.permissions.update || project.permissions.delete) && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									ref={actionsButtonRef}
+									variant="subtle"
+									size="icon"
+									aria-label="Project actions"
+								>
+									<EllipsisVerticalIcon />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<ProjectActionsMenuItems
+									Item={DropdownMenuItem}
+									Separator={DropdownMenuSeparator}
+									permissions={project.permissions}
+									onEdit={() => {
+										updateMutation.reset();
+										setIsEditOpen(true);
+									}}
+									onDelete={() => setIsDeleteOpen(true)}
+								/>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)
 				}
 				metadata={
 					<ProjectMetadataBadges

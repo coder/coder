@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -20,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -159,6 +161,10 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("get chat project for update: %w", err)
 		}
+		usableBefore, err := chatd.ChatProjectUsableBy(ctx, tx, current, apiKey.UserID)
+		if err != nil {
+			return err
+		}
 		userACL := applyChatProjectRoles(current.UserACL, userRoles)
 		groupACL := applyChatProjectRoles(current.GroupACL, groupRoles)
 		if err := tx.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
@@ -172,10 +178,28 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("get updated chat project: %w", err)
 		}
+		// An administrator's role lets them share any project, but role
+		// grants do not let them run chats in it. Sharing with a group they
+		// belong to would turn that role grant into an ACL grant.
+		if !usableBefore {
+			usableAfter, err := chatd.ChatProjectUsableBy(ctx, tx, updated, apiKey.UserID)
+			if err != nil {
+				return err
+			}
+			if usableAfter {
+				return errChatProjectSelfShare
+			}
+		}
 		aReq.New = updated
 		return nil
 	}, nil)
 	if err != nil {
+		if errors.Is(err, errChatProjectSelfShare) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot share a project with a group you belong to unless it is already shared with you.",
+			})
+			return
+		}
 		if dbauthz.IsNotAuthorizedError(err) {
 			httpapi.Forbidden(rw)
 			return
@@ -187,21 +211,27 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// canonicalChatProjectRoles drops keys that are not UUIDs, so callers must
-// run acl.Validate first. Two spellings of one UUID are a validation error,
-// because which role wins would otherwise depend on map order.
+var errChatProjectSelfShare = xerrors.New("chat project shared with the caller")
+
+// canonicalChatProjectRoles parses ACL keys into UUIDs. Two spellings of one
+// UUID are a validation error, because which role wins would otherwise
+// depend on map order.
 func canonicalChatProjectRoles(roles map[string]codersdk.ChatProjectRole, field string) (map[uuid.UUID]codersdk.ChatProjectRole, []codersdk.ValidationError) {
 	canonical := make(map[uuid.UUID]codersdk.ChatProjectRole, len(roles))
 	var validErrs []codersdk.ValidationError
 	for rawID, role := range roles {
 		id, err := uuid.Parse(rawID)
 		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field:  field,
+				Detail: fmt.Sprintf("%q is not a valid UUID", rawID),
+			})
 			continue
 		}
 		if _, ok := canonical[id]; ok {
 			validErrs = append(validErrs, codersdk.ValidationError{
 				Field:  field,
-				Detail: fmt.Sprintf("ID %v appears more than once", id),
+				Detail: fmt.Sprintf("ID %v is listed more than once under different spellings", id),
 			})
 			continue
 		}

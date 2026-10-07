@@ -46,7 +46,9 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, slice.List(projects, db2sdk.ChatProject))
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(projects, func(project database.ChatProject) codersdk.ChatProject {
+		return api.convertChatProject(r, project)
+	}))
 }
 
 // @Summary Create chat project
@@ -136,7 +138,7 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = project
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatProject(project))
+	httpapi.Write(ctx, rw, http.StatusCreated, api.convertChatProject(r, project))
 }
 
 // @Summary Get chat project
@@ -158,7 +160,7 @@ func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProject(project))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertChatProject(r, project))
 }
 
 // @Summary Update chat project
@@ -225,7 +227,7 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = updated
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProject(updated))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertChatProject(r, updated))
 }
 
 // @Summary Delete chat project
@@ -261,13 +263,15 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	} else {
 		// Without the AI Gateway no worker runs chats and no sidebar needs
 		// watch events, so the deletion runs directly.
-		deleted, err = chatd.DeleteChatProjectWithChats(ctx, api.Database, project.ID, chatd.DefaultInFlightChatStaleAfter)
+		deleted, err = chatd.DeleteChatProjectWithoutEvents(ctx, api.Database, project.ID, chatd.DefaultInFlightChatStaleAfter)
 	}
 	api.auditChatProjectChatDeletes(ctx, r, project, deleted)
 	if errors.Is(err, chatd.ErrChatProjectHasRunningChats) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "A chat in this project is running, possibly one started by a user the project is shared with. Try again after it finishes.",
-		})
+		message := "A chat in this project is running, possibly one started by a user the project is shared with. Try again after it finishes."
+		if len(deleted) > 0 {
+			message = "Some of the project's chats were already deleted. A chat in this project is running, possibly one started by a user the project is shared with. Try again after it finishes to delete the rest."
+		}
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: message})
 		return
 	}
 	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
@@ -323,6 +327,17 @@ func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Reque
 		return false
 	}
 	return true
+}
+
+// convertChatProject includes the caller's permissions so clients show
+// only the actions that will succeed.
+func (api *API) convertChatProject(r *http.Request, project database.ChatProject) codersdk.ChatProject {
+	obj := project.RBACObject()
+	return db2sdk.ChatProject(project, codersdk.ChatProjectPermissions{
+		Update: api.Authorize(r, policy.ActionUpdate, obj),
+		Delete: api.Authorize(r, policy.ActionDelete, obj),
+		Share:  api.Authorize(r, policy.ActionShare, obj),
+	})
 }
 
 // maxChatProjectsPerOwner caps how many projects one user owns across all

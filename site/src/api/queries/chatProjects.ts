@@ -67,14 +67,14 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 		mutationFn: (project: TypesGen.ChatProject) =>
 			API.experimental.deleteChatProject(project.organization_id, project.id),
 		onSettled: () =>
-			// Deleting a project clears project_id on its chats.
+			// Deleting a project deletes its chats.
 			Promise.all([
 				queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 				invalidateChatListQueries(queryClient),
 				invalidateChatSearches(queryClient),
-				// Only the chats themselves carry project_id. Their nested
-				// queries (messages, ACL, diffs, ...) would refetch every loaded
-				// page for nothing.
+				// Refetching the chat entities lets open routes find a deleted
+				// chat gone. Their nested queries (messages, ACL, diffs, ...)
+				// would only refetch into 404s.
 				queryClient.invalidateQueries({
 					queryKey: chatEntitiesFamilyKey,
 					predicate: ({ queryKey }) =>
