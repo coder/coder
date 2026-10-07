@@ -23,7 +23,7 @@ coder secret list [flags] [name]
 ```console
 Secret values are omitted from the output.
 
-When listing all secrets inside a workspace, or with --workspace or --build-id, the workspace build's secrets are included and the source and "replaced by" columns are shown by default. If a build secret uses the same env var or file as a user secret, the user secret is not delivered on that target and its "replaced by" column names the build secret, for example "env: github-token".
+When listing all secrets inside a workspace, or with --workspace or --build-id, the workspace build's secrets are included and the source and "replaced by" columns are shown by default. If a build secret uses the same env var or file as a user secret, the user secret is not delivered on that target and its "replaced by" column names the build secret, for example "env: build/github-token".
 ```
 
 ## Options

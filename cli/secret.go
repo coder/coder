@@ -534,10 +534,10 @@ func secretListRows(userSecrets []codersdk.UserSecret, buildSecrets []codersdk.W
 	replacedBy := make(map[uuid.UUID][]string)
 	for _, s := range buildSecrets {
 		if s.EnvReplaces != nil {
-			replacedBy[*s.EnvReplaces] = append(replacedBy[*s.EnvReplaces], "env: "+s.Name)
+			replacedBy[*s.EnvReplaces] = append(replacedBy[*s.EnvReplaces], "env: build/"+s.Name)
 		}
 		if s.FileReplaces != nil {
-			replacedBy[*s.FileReplaces] = append(replacedBy[*s.FileReplaces], "file: "+s.Name)
+			replacedBy[*s.FileReplaces] = append(replacedBy[*s.FileReplaces], "file: build/"+s.Name)
 		}
 	}
 	rows := make([]secretListRow, 0, len(userSecrets)+len(buildSecrets))
@@ -761,7 +761,7 @@ func (r *RootCmd) secretList() *serpent.Command {
 			"the workspace build's secrets are included and the source and \"replaced by\" columns " +
 			"are shown by default. If a build secret uses the same env var " +
 			"or file as a user secret, the user secret is not delivered on that target and its " +
-			"\"replaced by\" column names the build secret, for example \"env: github-token\".",
+			"\"replaced by\" column names the build secret, for example \"env: build/github-token\".",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
