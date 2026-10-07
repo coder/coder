@@ -1,4 +1,4 @@
-import { ListChecksIcon, TriangleAlertIcon } from "lucide-react";
+import { ListChecksIcon } from "lucide-react";
 import { Component } from "react";
 import { useTime } from "#/hooks/useTime";
 import { humanDurationShort } from "#/utils/time";
@@ -140,8 +140,6 @@ type WorkingBlockDisclosureProps = {
 
 /**
  * Folds a block's step rows behind a summary row that reads like a tool row.
- * Failed steps stay inside the block but are counted on the summary so a
- * failure is never hidden without a trace.
  */
 export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 	block,
@@ -164,14 +162,6 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 					<LiveLabel block={block} />
 				) : (
 					<ToolCall.Label>{getCompletedWorkingLabel(block)}</ToolCall.Label>
-				)}
-				{block.failedCount > 0 && (
-					<span className="flex shrink-0 items-center gap-1 text-[13px] leading-6 text-content-destructive">
-						{/* Separates the badge from the label in the button's accessible name. */}
-						<span className="sr-only">, </span>
-						<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
-						{countLabel(block, block.failedCount, "failed step")}
-					</span>
 				)}
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
