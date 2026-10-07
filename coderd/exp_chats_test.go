@@ -18451,6 +18451,35 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		require.Equal(t, want, got)
 	})
 
+	// history_version certifies the newest messages, so only the
+	// uncursored page carries it. An after_id page with has_more stops
+	// short of the newest message; passing its version as after_revision
+	// would skip the rest.
+	t.Run("HistoryVersionOnlyOnUncursoredPage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+
+		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 4)
+
+		newest, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Positive(t, newest.HistoryVersion)
+
+		for name, opts := range map[string]*codersdk.ChatMessagesPaginationOptions{
+			"before_id": {BeforeID: ids[2]},
+			"after_id":  {AfterID: ids[0], Limit: 1},
+		} {
+			resp, err := client.GetChatMessages(ctx, chat.ID, opts)
+			require.NoError(t, err)
+			require.NotEmpty(t, resp.Messages, name)
+			require.Zero(t, resp.HistoryVersion, "%s page must not carry history_version", name)
+		}
+	})
+
 	t.Run("AfterIDReturnsNewerInASCOrderForMonotonicPolling", func(t *testing.T) {
 		t.Parallel()
 

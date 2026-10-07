@@ -3155,7 +3155,8 @@ export interface ChatMessagesResponse {
 	readonly turn_start_id?: number;
 	/**
 	 * HistoryVersion is the chat history_version this page was read at.
-	 * Pass it as after_revision when opening the stream.
+	 * Pass it as after_revision when opening the stream. Set only on the
+	 * page requested without before_id or after_id.
 	 */
 	readonly history_version?: number;
 }

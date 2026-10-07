@@ -22292,7 +22292,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "history_version": {
-                    "description": "HistoryVersion is the chat history_version this page was read at.\nPass it as after_revision when opening the stream.",
+                    "description": "HistoryVersion is the chat history_version this page was read at.\nPass it as after_revision when opening the stream. Set only on the\npage requested without before_id or after_id.",
                     "type": "integer"
                 },
                 "messages": {
