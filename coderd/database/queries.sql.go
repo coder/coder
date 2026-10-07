@@ -8211,6 +8211,50 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 	return err
 }
 
+const getChatOrganizationSystemPrompt = `-- name: GetChatOrganizationSystemPrompt :one
+SELECT organization_id, system_prompt, created_at, updated_at
+FROM chat_organization_system_prompts
+WHERE organization_id = $1
+`
+
+func (q *sqlQuerier) GetChatOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (ChatOrganizationSystemPrompt, error) {
+	row := q.db.QueryRowContext(ctx, getChatOrganizationSystemPrompt, organizationID)
+	var i ChatOrganizationSystemPrompt
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.SystemPrompt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertChatOrganizationSystemPrompt = `-- name: UpsertChatOrganizationSystemPrompt :one
+INSERT INTO chat_organization_system_prompts (organization_id, system_prompt)
+VALUES ($1, $2)
+ON CONFLICT (organization_id) DO UPDATE
+SET system_prompt = EXCLUDED.system_prompt,
+    updated_at = now()
+RETURNING organization_id, system_prompt, created_at, updated_at
+`
+
+type UpsertChatOrganizationSystemPromptParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	SystemPrompt   string    `db:"system_prompt" json:"system_prompt"`
+}
+
+func (q *sqlQuerier) UpsertChatOrganizationSystemPrompt(ctx context.Context, arg UpsertChatOrganizationSystemPromptParams) (ChatOrganizationSystemPrompt, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatOrganizationSystemPrompt, arg.OrganizationID, arg.SystemPrompt)
+	var i ChatOrganizationSystemPrompt
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.SystemPrompt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const countChatProjectMemoriesByProjectID = `-- name: CountChatProjectMemoriesByProjectID :one
 SELECT COUNT(*)::bigint
 FROM chat_project_memories
@@ -10197,7 +10241,7 @@ FROM
 WHERE
     chat_id = $1::uuid
 ORDER BY
-    updated_at DESC,
+    created_at,
     git_remote_origin,
     git_branch
 `
@@ -10257,7 +10301,7 @@ FROM
 WHERE
     chat_id = ANY($1::uuid[])
 ORDER BY
-    updated_at DESC,
+    created_at,
     git_remote_origin,
     git_branch
 `
@@ -11620,14 +11664,14 @@ WHERE
                         OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $18))
                     )
             )
-            -- Skip an explicit pr_number lookup unless the search is a valid bigint.
+            -- Digits only, so LIKE sees no metacharacters; a per-chat PK probe.
             OR CASE
-                WHEN $18 ~ '^[0-9]{1,18}$' THEN EXISTS (
+                WHEN $18 ~ '^[0-9]+$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number = $18::bigint
+                        AND cds.pr_number::text LIKE $18 || '%'
                 )
                 ELSE false
             END

@@ -690,9 +690,10 @@ func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat, s
 func (api *API) getChatDiffStatusesByChatID(
 	ctx context.Context,
 	chats []database.Chat,
-) (map[uuid.UUID]database.ChatDiffStatus, error) {
+) (map[uuid.UUID][]database.ChatDiffStatus, error) {
+	result := make(map[uuid.UUID][]database.ChatDiffStatus, len(chats))
 	if len(chats) == 0 {
-		return map[uuid.UUID]database.ChatDiffStatus{}, nil
+		return result, nil
 	}
 
 	chatIDs := make([]uuid.UUID, 0, len(chats))
@@ -705,14 +706,10 @@ func (api *API) getChatDiffStatusesByChatID(
 		return nil, xerrors.Errorf("get chat diff statuses: %w", err)
 	}
 
-	statusesByChatID := make(map[uuid.UUID]database.ChatDiffStatus, len(statuses))
 	for _, status := range statuses {
-		if _, ok := statusesByChatID[status.ChatID]; ok {
-			continue
-		}
-		statusesByChatID[status.ChatID] = status
+		result[status.ChatID] = append(result[status.ChatID], status)
 	}
-	return statusesByChatID, nil
+	return result, nil
 }
 
 func planModeToNullChatPlanMode(mode codersdk.ChatPlanMode) database.NullChatPlanMode {
@@ -1670,12 +1667,11 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	// Use the cached diff status from the database rather than
-	// resolving it inline. Inline resolution calls out to the
+	// Use the cached diff statuses from the database rather than
+	// resolving them inline. Inline resolution calls out to the
 	// git provider API (e.g. GitHub) on every request which
 	// blocks the response for 200-800ms. The background gitsync
-	// worker keeps the cached status fresh.
-	var diffStatus *database.ChatDiffStatus
+	// worker keeps the cached statuses fresh.
 	diffStatuses, err := api.Database.GetChatDiffStatusesByChatID(ctx, chat.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		api.Logger.Error(ctx, "failed to get cached chat diff status",
@@ -1683,14 +1679,11 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 			slog.Error(err),
 		)
 	}
-	if len(diffStatuses) > 0 {
-		diffStatus = &diffStatuses[0]
-	}
 
 	// Hydrate file metadata for all files linked to this chat.
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
-	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
+	sdkChat := db2sdk.ChatWithDiffStatuses(chat, db2sdk.PrimaryChatDiffStatus(diffStatuses), diffStatuses, chatFiles)
 
 	if api.chatDaemon != nil {
 		queued, err := api.chatDaemon.ChatQueuedForCapacity(ctx, chat)
@@ -3953,6 +3946,8 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
+// @Param origin query string false "Remote origin selecting the ref to diff"
+// @Param branch query string false "Git branch selecting the ref to diff"
 // @Success 200 {object} codersdk.ChatDiffContents
 // @Router /api/v2/chats/{chat}/diff [get]
 //
@@ -3961,8 +3956,26 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	diff, err := api.resolveChatDiffContents(ctx, chat)
+	selector := codersdk.DiffStatusRef{
+		RemoteOrigin: strings.TrimSpace(r.URL.Query().Get("origin")),
+		GitBranch:    strings.TrimSpace(r.URL.Query().Get("branch")),
+	}
+	if (selector.RemoteOrigin == "") != (selector.GitBranch == "") {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Set the origin and branch query parameters together, or omit both.",
+		})
+		return
+	}
+
+	diff, err := api.resolveChatDiffContents(ctx, chat, selector)
 	if err != nil {
+		if xerrors.Is(err, errNoDiffStatusForRef) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "The chat does not track that ref.",
+				Detail:  fmt.Sprintf("origin %q, branch %q", selector.RemoteOrigin, selector.GitBranch),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat diff.",
 			Detail:  err.Error(),
@@ -4207,19 +4220,24 @@ func chatWorkspaceAuditStatus(err error) int {
 func (api *API) resolveChatDiffContents(
 	ctx context.Context,
 	chat database.Chat,
+	selector codersdk.DiffStatusRef,
 ) (codersdk.ChatDiffContents, error) {
 	result := codersdk.ChatDiffContents{ChatID: chat.ID}
 
-	status, found, err := api.getCachedChatDiffStatus(ctx, chat.ID)
-	if err != nil {
+	statuses, err := api.Database.GetChatDiffStatusesByChatID(ctx, chat.ID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return result, err
+	}
+
+	status, found := selectChatDiffStatus(statuses, selector)
+	if !found && selector.RemoteOrigin != "" {
+		return result, errNoDiffStatusForRef
 	}
 
 	reference, err := api.resolveChatDiffReference(ctx, chat, found, status)
 	if err != nil {
 		return result, err
 	}
-
 	if reference.RepositoryRef != nil {
 		provider := strings.TrimSpace(reference.RepositoryRef.Provider)
 		if provider != "" {
@@ -4411,21 +4429,26 @@ func (api *API) buildChatRepositoryRefFromStatus(ctx context.Context, status dat
 	return repoRef
 }
 
-func (api *API) getCachedChatDiffStatus(
-	ctx context.Context,
-	chatID uuid.UUID,
-) (database.ChatDiffStatus, bool, error) {
-	statuses, err := api.Database.GetChatDiffStatusesByChatID(ctx, chatID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return database.ChatDiffStatus{}, false, xerrors.Errorf(
-			"get chat diff status: %w",
-			err,
-		)
+// selectChatDiffStatus returns the status row a diff request targets.
+// A non-empty selector must match a stored ref exactly.
+func selectChatDiffStatus(
+	statuses []database.ChatDiffStatus,
+	selector codersdk.DiffStatusRef,
+) (database.ChatDiffStatus, bool) {
+	if selector.RemoteOrigin == "" && selector.GitBranch == "" {
+		primary := db2sdk.PrimaryChatDiffStatus(statuses)
+		if primary == nil {
+			return database.ChatDiffStatus{}, false
+		}
+
+		return *primary, true
 	}
-	if len(statuses) == 0 {
-		return database.ChatDiffStatus{}, false, nil
+	for i := range statuses {
+		if statuses[i].GitRemoteOrigin == selector.RemoteOrigin && statuses[i].GitBranch == selector.GitBranch {
+			return statuses[i], true
+		}
 	}
-	return statuses[0], true, nil
+	return database.ChatDiffStatus{}, false
 }
 
 // resolveExternalAuth finds the external auth config matching the
@@ -4943,6 +4966,124 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	if noChange {
 		// Stage the no-op decision until after the transaction commits,
 		// so a commit failure cannot suppress an attempt row.
+		commitAudit(false)
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Get organization chat system prompt
+// @ID get-organization-chat-system-prompt
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {object} codersdk.OrganizationChatSystemPromptResponse
+// @Router /api/v2/organizations/{organization}/chats/config/system-prompt [get]
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceChatModelConfig.InOrg(organization.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	row, err := api.Database.GetChatOrganizationSystemPrompt(ctx, organization.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching organization chat system prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OrganizationChatSystemPromptResponse{
+		SystemPrompt: row.SystemPrompt,
+	})
+}
+
+// @Summary Update organization chat system prompt
+// @ID update-organization-chat-system-prompt
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param request body codersdk.UpdateOrganizationChatSystemPromptRequest true "Request body"
+// @Success 204
+// @Router /api/v2/organizations/{organization}/chats/config/system-prompt [put]
+func (api *API) putOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+
+	// As with the deployment prompt, the audit request is initialized before
+	// authorization so denied attempts are recorded without request content.
+	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatOrganizationSystemPrompt](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: organization.ID,
+	})
+	defer commitAudit(true)
+	aReq.Old = database.ChatOrganizationSystemPrompt{OrganizationID: organization.ID}
+	aReq.New = aReq.Old
+
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(organization.ID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateOrganizationChatSystemPromptRequest
+	if !httpapi.ReadLimit(ctx, rw, r, api.maxPromptRequestBodyBytes(), &req) {
+		return
+	}
+	sanitizedPrompt := codersdk.SanitizePromptText(req.SystemPrompt)
+	if len(sanitizedPrompt) > api.chatLimits.MaxPromptBytes {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "System prompt exceeds maximum length.",
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedPrompt)),
+		})
+		return
+	}
+
+	var noChange bool
+	// The per-organization lock serializes audit change detection with the
+	// write, like the deployment prompt.
+	lockCtx, lockCancel := context.WithTimeout(ctx, chatInstructionSettingsLockTimeout)
+	defer lockCancel()
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(lockCtx, database.LockIDChatOrganizationSystemPrompt(organization.ID)); err != nil {
+			return xerrors.Errorf("acquire organization chat system prompt write lock: %w", err)
+		}
+		// The ActionUpdate check above gates this endpoint. Read the previous
+		// value for the audit diff under a system context so a custom role
+		// that grants update without read can still write.
+		//nolint:gocritic // See above.
+		old, err := tx.GetChatOrganizationSystemPrompt(dbauthz.AsSystemRestricted(ctx), organization.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if err == nil {
+			aReq.Old = old
+		}
+		updated, err := tx.UpsertChatOrganizationSystemPrompt(ctx, database.UpsertChatOrganizationSystemPromptParams{
+			OrganizationID: organization.ID,
+			SystemPrompt:   sanitizedPrompt,
+		})
+		if err != nil {
+			return err
+		}
+		aReq.New = updated
+		noChange = aReq.New.SystemPrompt == aReq.Old.SystemPrompt
+		return nil
+	}, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating organization chat system prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if noChange {
 		commitAudit(false)
 	}
 	rw.WriteHeader(http.StatusNoContent)
@@ -8989,6 +9130,7 @@ var (
 	errChatProviderDisabled    = xerrors.New("AI provider is disabled")
 	errChatProviderMissing     = xerrors.New("AI provider is not configured")
 	errChatModelConfigNotFound = xerrors.New("chat model config not found")
+	errNoDiffStatusForRef      = xerrors.New("no diff status for ref")
 )
 
 // @Summary Submit chat tool results

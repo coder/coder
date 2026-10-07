@@ -2,9 +2,7 @@
 title: Mirror the Coder Registry with JFrog Artifactory
 ---
 
-This guide shows you how to use JFrog Artifactory to mirror the
-[Coder Registry](https://registry.coder.com) for air-gapped or restricted
-network deployments.
+This guide shows you how to use JFrog Artifactory to mirror the [Coder Registry](https://registry.coder.com) for air-gapped or restricted network deployments.
 
 By configuring Artifactory as a Remote Terraform Repository, you can:
 
@@ -36,22 +34,21 @@ By configuring Artifactory as a Remote Terraform Repository, you can:
 
 ## Step 2: Verify the Repository Configuration
 
-Test that Artifactory can proxy the Coder registry by querying the module
-versions API:
+Test that Artifactory can proxy the Coder registry by querying the module versions API:
 
 ```sh
 curl -u '<username>:<token>' \
   'https://<your-artifactory-host>/artifactory/api/terraform/coder-registry/v1/modules/coder/code-server/coder/versions'
 ```
 
-You should see a JSON response listing all available versions of the
-`code-server` module.
+You should see a JSON response listing all available versions of the `code-server` module.
 
 ## Step 3: Configure Terraform CLI
 
 Create or update your Terraform CLI configuration file to use Artifactory.
 
-On Linux/macOS, create `~/.terraformrc`. On Windows, create `%APPDATA%\terraform.rc`.
+On Linux/macOS, create `~/.terraformrc`.
+On Windows, create `%APPDATA%\terraform.rc`.
 
 ```tf
 host "<your-artifactory-host>" {
@@ -67,15 +64,12 @@ credentials "<your-artifactory-host>" {
 
 Replace:
 
-- `<your-artifactory-host>` with your Artifactory hostname (e.g.,
-  `artifactory.example.com` or `mycompany.jfrog.io`)
+- `<your-artifactory-host>` with your Artifactory hostname (e.g., `artifactory.example.com` or `mycompany.jfrog.io`)
 - `<your-artifactory-token>` with your Artifactory access token with read permissions to the `coder-registry` repository
 
 > [!NOTE]
-> The `host` block with `services` is required because Artifactory's global
-> service discovery endpoint doesn't include the repository name in the modules
-> path. This explicitly tells Terraform where to find modules in your specific
-> repository.
+> The `host` block with `services` is required because Artifactory's global service discovery endpoint doesn't include the repository name in the modules path.
+> This explicitly tells Terraform where to find modules in your specific repository.
 
 ## Step 4: Update Template Module Sources
 
@@ -99,8 +93,7 @@ module "code-server" {
 
 ## Step 5: Configure the control plane or provisioners
 
-For Coder to use the Artifactory mirror, configure the Terraform CLI on your
-control plane or external provisioners.
+For Coder to use the Artifactory mirror, configure the Terraform CLI on your control plane or external provisioners.
 
 <div class="tabs">
 
@@ -150,30 +143,24 @@ services:
 
 ## Step 6: Point the template builder at your mirror
 
-The [template builder](../../admin/templates/creating-templates.md) resolves module
-sources against `registry.coder.com` by default. To make it generate module
-source paths that point at your Artifactory mirror instead, set the
-`CODER_TEMPLATE_BUILDER_REGISTRY_URL` environment variable on your control plane:
+The [template builder](../../admin/templates/creating-templates.md) resolves module sources against `registry.coder.com` by default.
+To make it generate module source paths that point at your Artifactory mirror instead, set the `CODER_TEMPLATE_BUILDER_REGISTRY_URL` environment variable on your control plane:
 
 ```sh
 CODER_TEMPLATE_BUILDER_REGISTRY_URL=<your-artifactory-host>
 ```
 
-The value is a bare host, optionally with a port (for example,
-`artifactory.example.com` or `mycompany.jfrog.io:8443`). A leading `http(s)://`
-scheme and trailing slash are stripped, and a path, query, fragment, or
-credentials is rejected at server start.
+The value is a bare host, optionally with a port (for example, `artifactory.example.com` or `mycompany.jfrog.io:8443`).
+A leading `http(s)://` scheme and trailing slash are stripped, and a path, query, fragment, or credentials is rejected at server start.
 
-Without this variable, the template builder still requires outbound access to
-`registry.coder.com`. For fully air-gapped deployments that cannot set a mirror,
-disable the builder instead with `CODER_DISABLE_TEMPLATE_BUILDER=true`. See
-[Air-gapped Deployments](./airgap.md#template-builder) for details.
+Without this variable, the template builder still requires outbound access to `registry.coder.com`.
+For fully air-gapped deployments that cannot set a mirror, disable the builder instead with `CODER_DISABLE_TEMPLATE_BUILDER=true`.
+See [Air-gapped Deployments](./airgap.md#template-builder) for details.
 
 ## Caching Behavior
 
 Artifactory uses **lazy caching**, meaning modules are cached on first request.
-For fully air-gapped deployments, pre-warm the cache while connected to the
-internet:
+For fully air-gapped deployments, pre-warm the cache while connected to the internet:
 
 1. Create a test template that references all modules you need
 1. Run `terraform init` to trigger downloads
@@ -201,14 +188,12 @@ source = "<your-artifactory-host>/<namespace>/<module>/coder"
 
 ### Module not found errors
 
-Verify your `.terraformrc` includes both the `host` block with `services` and
-the `credentials` block. The `host.services` configuration is required for
-Artifactory.
+Verify your `.terraformrc` includes both the `host` block with `services` and the `credentials` block.
+The `host.services` configuration is required for Artifactory.
 
 ### 401 Unauthorized errors
 
-Check that your Artifactory token is valid and has read access to the
-`coder-registry` repository.
+Check that your Artifactory token is valid and has read access to the `coder-registry` repository.
 
 ### Modules not caching
 
