@@ -247,8 +247,9 @@ func (m *Manager) evaluateUnsafe(id ID) (Evaluation, error) {
 	if id == "" {
 		return Evaluation{}, xerrors.Errorf("unit ID cannot be empty: %w", ErrUnitIDRequired)
 	}
-	// Unlike IsReady, this path never answers for a unit it does not know. A
-	// dependent must not run before its prerequisites are even registered.
+	// Unlike IsReady, this path never answers for a unit it does not know. An
+	// unregistered unit has no edges, so it would otherwise look runnable.
+	// Prerequisites are checked when AddConditionalDependency adds the edge.
 	if !m.registered(id) {
 		return Evaluation{}, xerrors.Errorf("evaluating unit %q: %w", id, ErrUnitNotFound)
 	}
