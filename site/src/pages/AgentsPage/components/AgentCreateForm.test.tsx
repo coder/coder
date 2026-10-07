@@ -16,6 +16,7 @@ import {
 } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
@@ -33,6 +34,7 @@ import {
 } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
 	MockUserPreferenceSettings,
@@ -895,5 +897,139 @@ describe("AgentCreateForm prefill", () => {
 		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBe(
 			userDraftAttachments,
 		);
+	});
+});
+
+describe("AgentCreateForm project picker", () => {
+	const otherOrganizationProject: TypesGen.ChatProject = {
+		...MockChatProject,
+		id: "chat-project-org-2",
+		organization_id: MockOrganization2.id,
+		name: "Elsewhere",
+	};
+
+	const createProjectQueryClient = () => {
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(chatProjectsKey, [
+			MockChatProject,
+			otherOrganizationProject,
+		]);
+		return queryClient;
+	};
+
+	const pickProject = async (name: string) => {
+		await user().click(
+			await screen.findByRole("button", { name: /^Project:/ }),
+		);
+		await user().click(await screen.findByRole("option", { name }));
+	};
+
+	beforeEach(() => {
+		dashboard.experiments = ["chat-projects"];
+	});
+
+	afterEach(() => {
+		dashboard.experiments = [];
+	});
+
+	it("creates the chat outside any project by default", async () => {
+		const { onCreateChat } = renderForm(
+			{},
+			{ queryClient: createProjectQueryClient() },
+		);
+
+		await screen.findByRole("button", { name: "Project: No project" });
+		await submitMessage("no project here");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).projectId).toBeUndefined();
+	});
+
+	it("creates the chat in the picked project", async () => {
+		const { onCreateChat } = renderForm(
+			{},
+			{ queryClient: createProjectQueryClient() },
+		);
+
+		await pickProject(MockChatProject.name);
+		await submitMessage("file this under launch");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).projectId).toBe(MockChatProject.id);
+	});
+
+	it("clears the picked project when the organization changes", async () => {
+		dashboard.showOrganizations = true;
+		const queryClient = createProjectQueryClient();
+		queryClient.setQueryData(
+			organizationChatModelsKey(MockOrganization2.id),
+			mockModelCatalog,
+		);
+		queryClient.setQueryData(
+			userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
+			mockPersonalModelOverrides,
+		);
+		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await pickProject(MockChatProject.name);
+		const switchOrganization = async (name: string) => {
+			await user().click(
+				screen.getByRole("button", { name: /^Organization:/ }),
+			);
+			await user().click(await screen.findByRole("option", { name }));
+		};
+		await switchOrganization(MockOrganization2.display_name);
+		await switchOrganization(MockDefaultOrganization.display_name);
+		await submitMessage("back in the first organization");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat)).toMatchObject({
+			organizationId: MockDefaultOrganization.id,
+			projectId: undefined,
+		});
+	});
+
+	it("selects a project created from the picker", async () => {
+		const createdProject: TypesGen.ChatProject = {
+			...MockChatProject,
+			id: "chat-project-new",
+			name: "Fresh start",
+		};
+		const createChatProject = vi
+			.spyOn(API.experimental, "createChatProject")
+			.mockResolvedValue(createdProject);
+		vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			MockChatProject,
+			createdProject,
+		]);
+		const { onCreateChat } = renderForm(
+			{},
+			{ queryClient: createProjectQueryClient() },
+		);
+
+		await user().click(
+			await screen.findByRole("button", { name: /^Project:/ }),
+		);
+		await user().click(
+			await screen.findByRole("button", { name: "New project" }),
+		);
+		await user().type(
+			await screen.findByRole("textbox", { name: /Project name/ }),
+			createdProject.name,
+		);
+		await user().click(screen.getByRole("button", { name: "Create project" }));
+		// The modal hides the composer until it closes.
+		await screen.findByRole("button", {
+			name: `Project: ${createdProject.name}`,
+		});
+		await submitMessage("start fresh");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(createChatProject).toHaveBeenCalledWith(
+			MockDefaultOrganization.id,
+			expect.objectContaining({ name: createdProject.name }),
+		);
+		expect(submittedOptions(onCreateChat).projectId).toBe(createdProject.id);
 	});
 });
