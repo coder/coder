@@ -71,16 +71,15 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
 
-	const endRef = useRef<HTMLDivElement>(null);
-	const hasScrolledRef = useRef(false);
+	// Scrolls only the box. scrollIntoView would also scroll the chat
+	// transcript.
+	const viewportRef = useRef<HTMLDivElement>(null);
 	useLayoutEffect(() => {
-		// After the call completes, scroll only for the first batch: scrollIntoView
-		// also moves the chat transcript.
-		if (logs.length > 0 && (isCallRunning || !hasScrolledRef.current)) {
-			endRef.current?.scrollIntoView({ block: "end" });
-			hasScrolledRef.current = true;
+		const viewport = viewportRef.current;
+		if (viewport) {
+			viewport.scrollTop = viewport.scrollHeight;
 		}
-	}, [logs, isCallRunning]);
+	}, [logs]);
 
 	if (logs.length === 0) {
 		return isCallRunning ? <WaitingForAgentStartup /> : null;
@@ -98,6 +97,7 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 		<ScrollArea
 			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 			viewportClassName="max-h-64"
+			viewportRef={viewportRef}
 			viewportTabIndex={0}
 			viewportAriaLabel="Workspace agent startup log"
 			scrollBarClassName="w-1.5"
@@ -105,7 +105,6 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 			<div className="font-mono">
 				<LogsHeader title="Agent startup" detail={agent.name} />
 				<Logs lines={lines} LineOutput={AgentLogOutput} className="min-h-0" />
-				<div ref={endRef} />
 			</div>
 		</ScrollArea>
 	);

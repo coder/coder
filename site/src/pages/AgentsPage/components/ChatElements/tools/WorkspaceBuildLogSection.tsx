@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceById } from "#/api/queries/workspaces";
@@ -99,6 +99,16 @@ export const WorkspaceBuildLogSection: React.FC<
 		return () => clearTimeout(timer);
 	}, [effectiveBuildId, hasLogs]);
 
+	// Scrolls only the box. The autoscroll in WorkspaceBuildLogs uses
+	// scrollIntoView, which also scrolls the chat transcript.
+	const viewportRef = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		const viewport = viewportRef.current;
+		if (viewport) {
+			viewport.scrollTop = viewport.scrollHeight;
+		}
+	}, [logs]);
+
 	const fetchFailed = !isRunning && completedLogsQuery.isError;
 
 	if (!effectiveBuildId) {
@@ -137,6 +147,7 @@ export const WorkspaceBuildLogSection: React.FC<
 		<ScrollArea
 			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 			viewportClassName="max-h-64"
+			viewportRef={viewportRef}
 			viewportTabIndex={0}
 			viewportAriaLabel="Workspace build log"
 			scrollBarClassName="w-1.5"
@@ -144,6 +155,7 @@ export const WorkspaceBuildLogSection: React.FC<
 			<WorkspaceBuildLogs
 				logs={logs}
 				sticky
+				disableAutoscroll
 				className="border-0 rounded-none"
 			/>
 		</ScrollArea>
