@@ -225,13 +225,25 @@ func startAIGatewayCommand(ctx context.Context, t *testing.T, coderURL, key stri
 	return "http://" + matches[1], waiter
 }
 
-// aiGatewayStatus probes probeURL and reports transport errors.
-func aiGatewayStatus(ctx context.Context, probeURL string) (int, error) {
+// newAIGatewayProbeClient returns an HTTP client with its own transport.
+// Parallel CLI tests call http.DefaultClient.CloseIdleConnections() during
+// command cleanup, which breaks in-flight requests on the shared default
+// transport, so probes must not use http.DefaultClient.
+func newAIGatewayProbeClient(t *testing.T) *http.Client {
+	t.Helper()
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	t.Cleanup(transport.CloseIdleConnections)
+	return &http.Client{Transport: transport}
+}
+
+// aiGatewayStatus probes probeURL with client and reports transport errors.
+func aiGatewayStatus(ctx context.Context, client *http.Client, probeURL string) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, probeURL, nil)
 	if err != nil {
 		return 0, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -243,7 +255,7 @@ func aiGatewayStatus(ctx context.Context, probeURL string) (int, error) {
 func requireAIGatewayStatus(ctx context.Context, t *testing.T, probeURL string, want int) {
 	t.Helper()
 
-	got, err := aiGatewayStatus(ctx, probeURL)
+	got, err := aiGatewayStatus(ctx, newAIGatewayProbeClient(t), probeURL)
 	require.NoError(t, err)
 	require.Equal(t, want, got, "unexpected status for %s", probeURL)
 }
@@ -253,8 +265,9 @@ func requireAIGatewayStatus(ctx context.Context, t *testing.T, probeURL string, 
 func requireEventualAIGatewayStatus(ctx context.Context, t *testing.T, probeURL string, want int) {
 	t.Helper()
 
+	client := newAIGatewayProbeClient(t)
 	require.Eventuallyf(t, func() bool {
-		got, err := aiGatewayStatus(ctx, probeURL)
+		got, err := aiGatewayStatus(ctx, client, probeURL)
 		return err == nil && got == want
 	}, testutil.WaitLong, testutil.IntervalFast, "%s never returned %d", probeURL, want)
 }
