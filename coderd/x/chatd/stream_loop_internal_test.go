@@ -573,8 +573,11 @@ func TestStreamLoopHistoryVersion(t *testing.T) {
 				switch {
 				case event.Message != nil:
 					gotIDs = append(gotIDs, event.Message.ID)
-				case event.Status != nil:
-					require.Equal(t, chat.HistoryVersion, event.Status.HistoryVersion, "status must carry the version the client can reconnect with")
+				case event.Type == codersdk.ChatStreamEventTypePreviewReset && tt.cursor.HistoryVersion == 0:
+					require.Nil(t, event.PreviewReset, "an after_id stream skips messages, so it must not report a version")
+				case event.Type == codersdk.ChatStreamEventTypePreviewReset:
+					require.NotNil(t, event.PreviewReset)
+					require.Equal(t, chat.HistoryVersion, event.PreviewReset.HistoryVersion)
 				case event.Type == codersdk.ChatStreamEventTypeHistoryReset && tt.wantResetFrom == 0:
 					require.Nil(t, event.HistoryReset, "a full reset carries no from_message_id")
 				case event.Type == codersdk.ChatStreamEventTypeHistoryReset:
@@ -585,6 +588,33 @@ func TestStreamLoopHistoryVersion(t *testing.T) {
 			require.Equal(t, tt.wantIDs, gotIDs)
 		})
 	}
+}
+
+// A running turn persists its steps without changing the status, and the
+// client must be able to reconnect from the last step.
+func TestStreamLoopHistoryVersionWithoutStatusChange(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusRunning, HistoryVersion: 1, SnapshotVersion: 1, GenerationAttempt: 1}
+	prompt := streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "prompt", false)
+	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), StreamCursor{AfterMessageID: 1, HistoryVersion: 1})
+	requireEventTypes(t, syncAgainst(t, loop, chat, []database.ChatMessage{prompt}),
+		codersdk.ChatStreamEventTypeStatus,
+		codersdk.ChatStreamEventTypePreviewReset,
+	)
+
+	// Persisting a step advances the history and resets the generation
+	// attempt; the status stays running.
+	chat.HistoryVersion, chat.SnapshotVersion, chat.GenerationAttempt = 2, 2, 0
+	step := streamMessage(t, chatID, 2, 2, database.ChatMessageRoleAssistant, "step", false)
+	events := syncAgainst(t, loop, chat, []database.ChatMessage{prompt, step})
+	requireEventTypes(t, events,
+		codersdk.ChatStreamEventTypeMessage,
+		codersdk.ChatStreamEventTypePreviewReset,
+	)
+	require.NotNil(t, events[1].PreviewReset, "the sync reported no version to reconnect with")
+	require.Equal(t, int64(2), events[1].PreviewReset.HistoryVersion)
 }
 
 func requireEventTypes(t *testing.T, events []codersdk.ChatStreamEvent, types ...codersdk.ChatStreamEventType) {
