@@ -2740,6 +2740,15 @@ export const ProjectFolderAllChatsPinned: Story = {
 	},
 };
 
+/**
+ * The same folder while more chats can still load: an unpinned chat may be on
+ * a later page, so the folder does not claim that all agents are pinned.
+ */
+export const ProjectFolderPinnedChatsPartiallyLoaded: Story = {
+	...ProjectFolderAllChatsPinned,
+	args: { ...ProjectFolderAllChatsPinned.args, hasNextPage: true },
+};
+
 export const ProjectsSectionCollapsed: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {

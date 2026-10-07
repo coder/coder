@@ -11,15 +11,7 @@ import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { toast } from "sonner";
-import {
-	afterEach,
-	beforeEach,
-	describe,
-	expect,
-	it,
-	onTestFinished,
-	vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
@@ -268,49 +260,6 @@ describe("ChatsSidebar projects", () => {
 		await screen.findByRole("link", { name: MockChatProject.name });
 		expect(screen.getByText("No agents yet")).toBeInTheDocument();
 		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
-	});
-
-	it("says a folder's agents are all pinned only once every chat is loaded", async () => {
-		// hasNextPage renders the load-more sentinel.
-		vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
-		onTestFinished(() => {
-			vi.unstubAllGlobals();
-		});
-		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject]),
-			),
-		);
-		const mockPinnedProjectChat = buildChat({
-			id: "pinned-project-chat",
-			title: "Pinned project chat",
-			organization_id: MockChatProject.organization_id,
-			project_id: MockChatProject.id,
-			pin_order: 1,
-		});
-		const renderSidebar = (hasNextPage: boolean) => (
-			<Wrapper
-				experiments={["chat-projects"]}
-				initialEntry={`/agents/projects/${MockChatProject.id}`}
-			>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[mockPinnedProjectChat]}
-					hasNextPage={hasNextPage}
-				/>
-			</Wrapper>
-		);
-
-		// An unpinned chat in this project may be on a page not loaded yet.
-		const { unmount } = render(renderSidebar(true));
-		await screen.findByRole("img", {
-			name: `Project: ${MockChatProject.name}`,
-		});
-		expect(screen.queryByText("All agents are pinned")).toBeNull();
-		unmount();
-
-		render(renderSidebar(false));
-		expect(await screen.findByText("All agents are pinned")).toBeVisible();
 	});
 
 	it("keeps project chats out of the chat sections while projects load", async () => {
