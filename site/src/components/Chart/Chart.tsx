@@ -64,10 +64,9 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 	const uniqueId = useId();
 	const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`;
 	const [announcement, setAnnouncement] = useState("");
-	const contextValue = useMemo(() => ({ config, setAnnouncement }), [config]);
 
 	return (
-		<ChartContext.Provider value={contextValue}>
+		<ChartContext.Provider value={{ config, setAnnouncement }}>
 			<div
 				data-chart={chartId}
 				className={cn(
