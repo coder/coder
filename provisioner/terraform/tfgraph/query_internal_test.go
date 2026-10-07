@@ -1,6 +1,7 @@
 package tfgraph
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,9 +10,10 @@ import (
 func TestQueryBoundsWork(t *testing.T) {
 	t.Parallel()
 
-	index, err := Parse(t.Context(), `digraph {
+	sourceGraph, err := Parse(t.Context(), `digraph {
 		"[root] local.bridge.attribute (expand)"
 		"[root] coder_agent.main (expand)"
+		"[root] coder_agent.other (expand)"
 		"[root] local.bridge.attribute (expand)" -> "[root] coder_agent.main (expand)"
 	}`)
 	require.NoError(t, err)
@@ -19,7 +21,7 @@ func TestQueryBoundsWork(t *testing.T) {
 	t.Run("ReferenceLookups", func(t *testing.T) {
 		t.Parallel()
 
-		query, err := newQueryWithLimits(index, queryLimits{
+		query, err := newQueryWithLimits(sourceGraph, queryLimits{
 			referenceLookups: 0,
 			nodeVisits:       defaultQueryLimits().nodeVisits,
 			traversedEdges:   defaultQueryLimits().traversedEdges,
@@ -31,10 +33,65 @@ func TestQueryBoundsWork(t *testing.T) {
 		require.ErrorContains(t, err, "Terraform graph reference lookups")
 	})
 
+	t.Run("ResolverReferenceLookupsShareBudget", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := func(
+			_ context.Context,
+			lookup ReferenceLookup,
+			_ Node,
+			_ []NodeID,
+		) ([]NodeID, error) {
+			return lookup("", []string{"coder_agent.other"})
+		}
+		resolvedGraph, err := sourceGraph.WithResolvedDependencies(resolver)
+		require.NoError(t, err)
+		query, err := newQueryWithLimits(resolvedGraph, queryLimits{
+			referenceLookups: 0,
+			nodeVisits:       defaultQueryLimits().nodeVisits,
+			traversedEdges:   defaultQueryLimits().traversedEdges,
+		})
+		require.NoError(t, err)
+		_, err = query.ReachableBoundaryNodes(
+			t.Context(),
+			sourceGraph.NodesForConfigurationAddress("local.bridge.attribute"),
+			func(Node) bool { return false },
+		)
+		require.ErrorContains(t, err, "Terraform graph reference lookups")
+	})
+
+	t.Run("ResolverReferenceLookupsUseTraversalContext", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+		resolver := func(
+			_ context.Context,
+			lookup ReferenceLookup,
+			_ Node,
+			_ []NodeID,
+		) ([]NodeID, error) {
+			cancel()
+			_, err := lookup("", []string{"coder_agent.other"})
+			require.ErrorIs(t, err, context.Canceled)
+			return nil, err
+		}
+		resolvedGraph, err := sourceGraph.WithResolvedDependencies(resolver)
+		require.NoError(t, err)
+		query, err := newQueryWithLimits(resolvedGraph, defaultQueryLimits())
+		require.NoError(t, err)
+		_, err = query.ReachableBoundaryNodes(
+			ctx,
+			sourceGraph.NodesForConfigurationAddress("local.bridge.attribute"),
+			func(Node) bool { return false },
+		)
+		require.ErrorIs(t, err, context.Canceled)
+	})
+
 	t.Run("DuplicateReferencesConsumeWorkOnce", func(t *testing.T) {
 		t.Parallel()
 
-		query, err := newQueryWithLimits(index, queryLimits{
+		query, err := newQueryWithLimits(sourceGraph, queryLimits{
 			referenceLookups: 1,
 			nodeVisits:       1,
 			traversedEdges:   defaultQueryLimits().traversedEdges,
@@ -49,7 +106,7 @@ func TestQueryBoundsWork(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(
 			t,
-			index.NodesForConfigurationAddress("local.bridge.attribute"),
+			sourceGraph.NodesForConfigurationAddress("local.bridge.attribute"),
 			nodes,
 		)
 		require.Equal(t, 1, query.referenceLookups)
@@ -59,7 +116,7 @@ func TestQueryBoundsWork(t *testing.T) {
 	t.Run("MultipleMatchingNodesCountTowardVisitLimit", func(t *testing.T) {
 		t.Parallel()
 
-		matchingIndex := &Index{
+		matchingIndex := &graphIndex{
 			nodes: []Node{
 				{address: "local.bridge.attribute", operation: "expand"},
 				{address: "local.bridge.attribute", operation: "expand"},
@@ -72,11 +129,13 @@ func TestQueryBoundsWork(t *testing.T) {
 				nodeID(matchingIndex, 1),
 			},
 		}
-		query, err := newQueryWithLimits(matchingIndex, queryLimits{
-			referenceLookups: defaultQueryLimits().referenceLookups,
-			nodeVisits:       1,
-			traversedEdges:   defaultQueryLimits().traversedEdges,
-		})
+		matchingGraph := &Graph{index: matchingIndex}
+		query, err := newQueryWithLimits(
+			matchingGraph, queryLimits{
+				referenceLookups: defaultQueryLimits().referenceLookups,
+				nodeVisits:       1,
+				traversedEdges:   defaultQueryLimits().traversedEdges,
+			})
 		require.NoError(t, err)
 		_, err = query.ConfigurationNodesForReferences(
 			t.Context(), "", []string{"local.bridge.attribute"},
@@ -87,9 +146,9 @@ func TestQueryBoundsWork(t *testing.T) {
 	t.Run("DuplicateStartNodesConsumeWorkOnce", func(t *testing.T) {
 		t.Parallel()
 
-		start := index.NodesForConfigurationAddress("local.bridge.attribute")
+		start := sourceGraph.NodesForConfigurationAddress("local.bridge.attribute")
 		require.Len(t, start, 1)
-		query, err := newQueryWithLimits(index, queryLimits{
+		query, err := newQueryWithLimits(sourceGraph, queryLimits{
 			referenceLookups: defaultQueryLimits().referenceLookups,
 			nodeVisits:       1,
 			traversedEdges:   defaultQueryLimits().traversedEdges,
@@ -123,11 +182,12 @@ func TestQueryBoundsWork(t *testing.T) {
 		// The budget permits each graph edge once. Requeuing local.merge
 		// would traverse its outgoing edge twice and exceed the limit.
 		const edgeCount = 5
-		query, err := newQueryWithLimits(converging, queryLimits{
-			referenceLookups: defaultQueryLimits().referenceLookups,
-			nodeVisits:       defaultQueryLimits().nodeVisits,
-			traversedEdges:   edgeCount,
-		})
+		query, err := newQueryWithLimits(
+			converging, queryLimits{
+				referenceLookups: defaultQueryLimits().referenceLookups,
+				nodeVisits:       defaultQueryLimits().nodeVisits,
+				traversedEdges:   edgeCount,
+			})
 		require.NoError(t, err)
 		boundaries, err := query.ReachableBoundaryNodes(
 			t.Context(), start,
@@ -166,7 +226,7 @@ func TestQueryBoundsWork(t *testing.T) {
 	t.Run("TraversedEdges", func(t *testing.T) {
 		t.Parallel()
 
-		query, err := newQueryWithLimits(index, queryLimits{
+		query, err := newQueryWithLimits(sourceGraph, queryLimits{
 			referenceLookups: defaultQueryLimits().referenceLookups,
 			nodeVisits:       defaultQueryLimits().nodeVisits,
 			traversedEdges:   0,
@@ -174,7 +234,39 @@ func TestQueryBoundsWork(t *testing.T) {
 		require.NoError(t, err)
 		_, err = query.ReachableBoundaryNodes(
 			t.Context(),
-			index.NodesForConfigurationAddress("local.bridge.attribute"),
+			sourceGraph.NodesForConfigurationAddress("local.bridge.attribute"),
+			func(Node) bool { return false },
+		)
+		require.ErrorContains(t, err, "Terraform graph traversed edges")
+	})
+
+	t.Run("AddedDependenciesCountTowardEdgeLimit", func(t *testing.T) {
+		t.Parallel()
+
+		additional := sourceGraph.NodesForConfigurationAddress("coder_agent.other")
+		require.Len(t, additional, 1)
+		resolver := func(
+			_ context.Context,
+			_ ReferenceLookup,
+			source Node,
+			graphDependencies []NodeID,
+		) ([]NodeID, error) {
+			if source.ConfigurationAddress() != "local.bridge.attribute" {
+				return graphDependencies, nil
+			}
+			return append(graphDependencies, additional[0]), nil
+		}
+		resolvedGraph, err := sourceGraph.WithResolvedDependencies(resolver)
+		require.NoError(t, err)
+		query, err := newQueryWithLimits(resolvedGraph, queryLimits{
+			referenceLookups: defaultQueryLimits().referenceLookups,
+			nodeVisits:       defaultQueryLimits().nodeVisits,
+			traversedEdges:   1,
+		})
+		require.NoError(t, err)
+		_, err = query.ReachableBoundaryNodes(
+			t.Context(),
+			sourceGraph.NodesForConfigurationAddress("local.bridge.attribute"),
 			func(Node) bool { return false },
 		)
 		require.ErrorContains(t, err, "Terraform graph traversed edges")
@@ -184,13 +276,13 @@ func TestQueryBoundsWork(t *testing.T) {
 func TestQueryAccumulatesWorkPerRequest(t *testing.T) {
 	t.Parallel()
 
-	index, err := Parse(t.Context(), `digraph {
+	graph, err := Parse(t.Context(), `digraph {
 		"[root] local.bridge.attribute (expand)"
 		"[root] coder_agent.main (expand)"
 		"[root] local.bridge.attribute (expand)" -> "[root] coder_agent.main (expand)"
 	}`)
 	require.NoError(t, err)
-	start := index.NodesForConfigurationAddress("local.bridge.attribute")
+	start := graph.NodesForConfigurationAddress("local.bridge.attribute")
 	require.Len(t, start, 1)
 
 	for _, test := range []struct {
@@ -248,12 +340,12 @@ func TestQueryAccumulatesWorkPerRequest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			query, err := newQueryWithLimits(index, test.limits)
+			query, err := newQueryWithLimits(graph, test.limits)
 			require.NoError(t, err)
 			require.NoError(t, test.run(t, query))
 			require.ErrorContains(t, test.run(t, query), test.errorContains)
 
-			freshQuery, err := newQueryWithLimits(index, test.limits)
+			freshQuery, err := newQueryWithLimits(graph, test.limits)
 			require.NoError(t, err)
 			require.NoError(t, test.run(t, freshQuery))
 		})

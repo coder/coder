@@ -18,10 +18,10 @@ const addressGraphDOT = `digraph {
 	"[root] data.coder_script_order.old (destroy)"
 }`
 
-func TestIndexAddresses(t *testing.T) {
+func TestGraphAddresses(t *testing.T) {
 	t.Parallel()
 
-	index, err := tfgraph.Parse(t.Context(), addressGraphDOT)
+	graph, err := tfgraph.Parse(t.Context(), addressGraphDOT)
 	require.NoError(t, err)
 
 	for _, address := range []string{
@@ -33,7 +33,7 @@ func TestIndexAddresses(t *testing.T) {
 			t.Parallel()
 
 			node := requireSingleNode(
-				t, index, index.NodesForConfigurationAddress(address),
+				t, graph, graph.NodesForConfigurationAddress(address),
 			)
 			require.Equal(t, address, node.Address())
 			require.Equal(t, address, node.ConfigurationAddress())
@@ -50,7 +50,7 @@ func TestIndexAddresses(t *testing.T) {
 			t.Parallel()
 
 			node := requireSingleNode(
-				t, index, index.NodesForInstanceAddress(address),
+				t, graph, graph.NodesForInstanceAddress(address),
 			)
 			require.Equal(t, address, node.Address())
 			require.Empty(t, node.ConfigurationAddress())
@@ -61,8 +61,8 @@ func TestIndexAddresses(t *testing.T) {
 	t.Run("Missing", func(t *testing.T) {
 		t.Parallel()
 
-		require.Empty(t, index.NodesForConfigurationAddress("coder_script.missing"))
-		require.Empty(t, index.NodesForInstanceAddress("coder_script.missing"))
+		require.Empty(t, graph.NodesForConfigurationAddress("coder_script.missing"))
+		require.Empty(t, graph.NodesForInstanceAddress("coder_script.missing"))
 	})
 	// Saved-plan graphs retain destroy nodes for data-resource deletes omitted
 	// from plan JSON.
@@ -70,7 +70,7 @@ func TestIndexAddresses(t *testing.T) {
 		t.Parallel()
 
 		var destroyNode *tfgraph.Node
-		for _, node := range graphNodes(index) {
+		for _, node := range graphNodes(graph) {
 			if node.Operation() == "destroy" {
 				destroyNode = &node
 				break
@@ -83,23 +83,23 @@ func TestIndexAddresses(t *testing.T) {
 	})
 }
 
-func TestIndexNodeOrderIsDeterministic(t *testing.T) {
+func TestGraphNodeOrderIsDeterministic(t *testing.T) {
 	t.Parallel()
 
-	firstIndex, err := tfgraph.Parse(t.Context(), addressGraphDOT)
+	firstGraph, err := tfgraph.Parse(t.Context(), addressGraphDOT)
 	require.NoError(t, err)
-	secondIndex, err := tfgraph.Parse(t.Context(), addressGraphDOT)
+	secondGraph, err := tfgraph.Parse(t.Context(), addressGraphDOT)
 	require.NoError(t, err)
 	require.Equal(t,
-		graphNodeDescriptors(firstIndex),
-		graphNodeDescriptors(secondIndex),
+		graphNodeDescriptors(firstGraph),
+		graphNodeDescriptors(secondGraph),
 	)
 }
 
-func TestIndexAddressLookupsReturnCopies(t *testing.T) {
+func TestGraphAddressLookupsReturnCopies(t *testing.T) {
 	t.Parallel()
 
-	index, err := tfgraph.Parse(t.Context(), addressGraphDOT)
+	graph, err := tfgraph.Parse(t.Context(), addressGraphDOT)
 	require.NoError(t, err)
 
 	for _, test := range []struct {
@@ -109,13 +109,13 @@ func TestIndexAddressLookupsReturnCopies(t *testing.T) {
 		{
 			name: "Configuration",
 			lookup: func() []tfgraph.NodeID {
-				return index.NodesForConfigurationAddress("coder_script.direct")
+				return graph.NodesForConfigurationAddress("coder_script.direct")
 			},
 		},
 		{
 			name: "Instance",
 			lookup: func() []tfgraph.NodeID {
-				return index.NodesForInstanceAddress(`coder_script.work["api"]`)
+				return graph.NodesForInstanceAddress(`coder_script.work["api"]`)
 			},
 		},
 	} {
@@ -131,23 +131,23 @@ func TestIndexAddressLookupsReturnCopies(t *testing.T) {
 	}
 }
 
-func TestNodeIDIsScopedToIndex(t *testing.T) {
+func TestNodeIDIsScopedToParsedGraph(t *testing.T) {
 	t.Parallel()
 
-	firstIndex, err := tfgraph.Parse(t.Context(), addressGraphDOT)
+	firstGraph, err := tfgraph.Parse(t.Context(), addressGraphDOT)
 	require.NoError(t, err)
-	secondIndex, err := tfgraph.Parse(t.Context(), addressGraphDOT)
+	secondGraph, err := tfgraph.Parse(t.Context(), addressGraphDOT)
 	require.NoError(t, err)
 
-	ids := firstIndex.NodesForConfigurationAddress("coder_script.direct")
+	ids := firstGraph.NodesForConfigurationAddress("coder_script.direct")
 	require.Len(t, ids, 1)
-	node, ok := firstIndex.Node(ids[0])
+	node, ok := firstGraph.Node(ids[0])
 	require.True(t, ok)
 	require.Equal(t, `"[root] coder_script.direct (expand)"`, node.RawID())
 
-	_, ok = secondIndex.Node(ids[0])
+	_, ok = secondGraph.Node(ids[0])
 	require.False(t, ok)
-	_, ok = firstIndex.Node(tfgraph.NodeID{})
+	_, ok = firstGraph.Node(tfgraph.NodeID{})
 	require.False(t, ok)
 }
 
@@ -200,15 +200,15 @@ func TestParseCapturedTerraformGraphs(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			index := graphIndexFromFile(t, test.path)
+			graph := graphFromFile(t, test.path)
 			for _, address := range test.configurationAddresses {
 				require.NotEmpty(
-					t, index.NodesForConfigurationAddress(address), address,
+					t, graph.NodesForConfigurationAddress(address), address,
 				)
 			}
 			for _, address := range test.instanceAddresses {
 				require.NotEmpty(
-					t, index.NodesForInstanceAddress(address), address,
+					t, graph.NodesForInstanceAddress(address), address,
 				)
 			}
 		})
@@ -223,9 +223,9 @@ type graphNodeDescriptor struct {
 	operation            string
 }
 
-func graphNodeDescriptors(index *tfgraph.Index) []graphNodeDescriptor {
+func graphNodeDescriptors(graph *tfgraph.Graph) []graphNodeDescriptor {
 	descriptors := make([]graphNodeDescriptor, 0)
-	for _, node := range graphNodes(index) {
+	for _, node := range graphNodes(graph) {
 		descriptors = append(descriptors, graphNodeDescriptor{
 			rawID:                node.RawID(),
 			address:              node.Address(),
@@ -237,9 +237,9 @@ func graphNodeDescriptors(index *tfgraph.Index) []graphNodeDescriptor {
 	return descriptors
 }
 
-func graphNodes(index *tfgraph.Index) []tfgraph.Node {
+func graphNodes(graph *tfgraph.Graph) []tfgraph.Node {
 	nodes := make([]tfgraph.Node, 0)
-	for _, node := range index.Nodes() {
+	for _, node := range graph.Nodes() {
 		nodes = append(nodes, node)
 	}
 	return nodes
@@ -247,12 +247,12 @@ func graphNodes(index *tfgraph.Index) []tfgraph.Node {
 
 func requireSingleNode(
 	t *testing.T,
-	index *tfgraph.Index,
+	graph *tfgraph.Graph,
 	nodeIDs []tfgraph.NodeID,
 ) tfgraph.Node {
 	t.Helper()
 	require.Len(t, nodeIDs, 1)
-	node, ok := index.Node(nodeIDs[0])
+	node, ok := graph.Node(nodeIDs[0])
 	require.True(t, ok)
 	return node
 }

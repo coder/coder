@@ -24,7 +24,7 @@ func (c *cancelOnErrCheckContext) Err() error {
 	return c.Context.Err()
 }
 
-func TestIndexRejectsExcessiveTerraformOutput(t *testing.T) {
+func TestParseRejectsExcessiveTerraformOutput(t *testing.T) {
 	t.Parallel()
 
 	validGraph := `digraph {
