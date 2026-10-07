@@ -20,7 +20,10 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 
-type OrganizationAutocompleteProps = {
+type OrganizationAutocompleteProps = Pick<
+	React.ComponentProps<"button">,
+	"aria-invalid" | "aria-describedby"
+> & {
 	value: Organization | null;
 	onChange: (organization: Organization | null) => void;
 	options: readonly Organization[];
@@ -70,6 +73,7 @@ export const OrganizationAutocomplete: React.FC<
 	disabled,
 	triggerClassName,
 	optionsTabbable = false,
+	...ariaProps
 }) => {
 	const [open, setOpen] = useState(false);
 	const contentId = useId();
@@ -88,6 +92,7 @@ export const OrganizationAutocomplete: React.FC<
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
 				<Button
+					{...ariaProps}
 					id={id}
 					role="combobox"
 					aria-label={ariaLabel}
