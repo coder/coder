@@ -328,6 +328,12 @@ func TestIsChatProjectAccessibleByUserIDDisabled(t *testing.T) {
 	accessible, err = q.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: project.ID, UserID: uuid.New()})
 	require.NoError(t, err)
 	require.False(t, accessible)
+
+	missing := uuid.New()
+	db.EXPECT().GetChatProjectByID(gomock.Any(), missing).Return(database.ChatProject{}, sql.ErrNoRows)
+	accessible, err = q.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: missing, UserID: project.OwnerID})
+	require.NoError(t, err)
+	require.False(t, accessible)
 }
 
 //nolint:paralleltest // It toggles the global chat ACL flag.
@@ -1378,10 +1384,15 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProjectsOwnedOrSharedWithUserID(gomock.Any(), userID).Return(rows, nil).AnyTimes()
 		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
 	}))
-	s.Run("LockChatProjectChatsForDelete", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.LockChatProjectChatsForDeleteParams{ProjectID: uuid.New(), LimitCount: 10}
-		dbm.EXPECT().LockChatProjectChatsForDelete(gomock.Any(), arg).Return([]database.LockChatProjectChatsForDeleteRow{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns([]database.LockChatProjectChatsForDeleteRow{})
+	s.Run("LockChatProjectRootChatsForDelete", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.LockChatProjectRootChatsForDeleteParams{ProjectID: uuid.New(), LimitCount: 10}
+		dbm.EXPECT().LockChatProjectRootChatsForDelete(gomock.Any(), arg).Return([]database.LockChatProjectRootChatsForDeleteRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns([]database.LockChatProjectRootChatsForDeleteRow{})
+	}))
+	s.Run("LockSubChatsByRootIDsForDelete", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().LockSubChatsByRootIDsForDelete(gomock.Any(), ids).Return([]database.LockSubChatsByRootIDsForDeleteRow{}, nil).AnyTimes()
+		check.Args(ids).Asserts(rbac.ResourceChat, policy.ActionDelete).Returns([]database.LockSubChatsByRootIDsForDeleteRow{})
 	}))
 	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

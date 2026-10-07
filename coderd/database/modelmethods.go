@@ -182,12 +182,12 @@ func (p ChatProject) RBACObject() rbac.Object {
 		WithGroupACL(p.GroupACL.RBACACL())
 }
 
-// chatProjectMemoryACL converts a project ACL into the ACL for its
-// memories. Reading the project grants reading its memories, and also
-// updating it grants creating and deleting them. A read share still lets
-// the sharee's chats change memories through agent tools, which is the
-// intended use of a share; those tools run as chatd, so chatd must check
-// IsChatProjectAccessibleByUserID for the chat owner before they run.
+// chatProjectMemoryACL derives memory grants from project grants: read
+// grants memory read, and read with update grants create, read, and
+// delete. A read share still lets the sharee's chats change memories
+// through agent tools, which is the intended use of a share; those tools
+// run as chatd, so chatd must check IsChatProjectAccessibleByUserID for the
+// chat owner before they run.
 func chatProjectMemoryACL(projectACL ChatACL) map[string][]policy.Action {
 	memoryACL := make(map[string][]policy.Action, len(projectACL))
 	for id, entry := range projectACL {
@@ -203,8 +203,7 @@ func chatProjectMemoryACL(projectACL ChatACL) map[string][]policy.Action {
 	return memoryACL
 }
 
-// chatACLGrants reports whether entry grants action, honoring the wildcard
-// as the RBAC policy does.
+// chatACLGrants honors the wildcard as the RBAC policy does.
 func chatACLGrants(entry ChatACLEntry, action policy.Action) bool {
 	return slices.Contains(entry.Permissions, action) || slices.Contains(entry.Permissions, policy.WildcardSymbol)
 }

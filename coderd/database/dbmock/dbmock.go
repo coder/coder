@@ -9878,19 +9878,19 @@ func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatByID", reflect.TypeOf((*MockStore)(nil).LockChatByID), ctx, id)
 }
 
-// LockChatProjectChatsForDelete mocks base method.
-func (m *MockStore) LockChatProjectChatsForDelete(ctx context.Context, arg database.LockChatProjectChatsForDeleteParams) ([]database.LockChatProjectChatsForDeleteRow, error) {
+// LockChatProjectRootChatsForDelete mocks base method.
+func (m *MockStore) LockChatProjectRootChatsForDelete(ctx context.Context, arg database.LockChatProjectRootChatsForDeleteParams) ([]database.LockChatProjectRootChatsForDeleteRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LockChatProjectChatsForDelete", ctx, arg)
-	ret0, _ := ret[0].([]database.LockChatProjectChatsForDeleteRow)
+	ret := m.ctrl.Call(m, "LockChatProjectRootChatsForDelete", ctx, arg)
+	ret0, _ := ret[0].([]database.LockChatProjectRootChatsForDeleteRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// LockChatProjectChatsForDelete indicates an expected call of LockChatProjectChatsForDelete.
-func (mr *MockStoreMockRecorder) LockChatProjectChatsForDelete(ctx, arg any) *gomock.Call {
+// LockChatProjectRootChatsForDelete indicates an expected call of LockChatProjectRootChatsForDelete.
+func (mr *MockStoreMockRecorder) LockChatProjectRootChatsForDelete(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatProjectChatsForDelete", reflect.TypeOf((*MockStore)(nil).LockChatProjectChatsForDelete), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatProjectRootChatsForDelete", reflect.TypeOf((*MockStore)(nil).LockChatProjectRootChatsForDelete), ctx, arg)
 }
 
 // LockProvisionerKeyByIDForShare mocks base method.
@@ -9906,6 +9906,21 @@ func (m *MockStore) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.
 func (mr *MockStoreMockRecorder) LockProvisionerKeyByIDForShare(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockProvisionerKeyByIDForShare", reflect.TypeOf((*MockStore)(nil).LockProvisionerKeyByIDForShare), ctx, id)
+}
+
+// LockSubChatsByRootIDsForDelete mocks base method.
+func (m *MockStore) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]database.LockSubChatsByRootIDsForDeleteRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockSubChatsByRootIDsForDelete", ctx, rootIds)
+	ret0, _ := ret[0].([]database.LockSubChatsByRootIDsForDeleteRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockSubChatsByRootIDsForDelete indicates an expected call of LockSubChatsByRootIDsForDelete.
+func (mr *MockStoreMockRecorder) LockSubChatsByRootIDsForDelete(ctx, rootIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockSubChatsByRootIDsForDelete", reflect.TypeOf((*MockStore)(nil).LockSubChatsByRootIDsForDelete), ctx, rootIds)
 }
 
 // MarkAllInboxNotificationsAsRead mocks base method.

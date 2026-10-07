@@ -5216,11 +5216,11 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
-func (m queryMetricsStore) LockChatProjectChatsForDelete(ctx context.Context, arg database.LockChatProjectChatsForDeleteParams) ([]database.LockChatProjectChatsForDeleteRow, error) {
+func (m queryMetricsStore) LockChatProjectRootChatsForDelete(ctx context.Context, arg database.LockChatProjectRootChatsForDeleteParams) ([]database.LockChatProjectRootChatsForDeleteRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.LockChatProjectChatsForDelete(ctx, arg)
-	m.queryLatencies.WithLabelValues("LockChatProjectChatsForDelete").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatProjectChatsForDelete").Inc()
+	r0, r1 := m.s.LockChatProjectRootChatsForDelete(ctx, arg)
+	m.queryLatencies.WithLabelValues("LockChatProjectRootChatsForDelete").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatProjectRootChatsForDelete").Inc()
 	return r0, r1
 }
 
@@ -5229,6 +5229,14 @@ func (m queryMetricsStore) LockProvisionerKeyByIDForShare(ctx context.Context, i
 	r0, r1 := m.s.LockProvisionerKeyByIDForShare(ctx, id)
 	m.queryLatencies.WithLabelValues("LockProvisionerKeyByIDForShare").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockProvisionerKeyByIDForShare").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]database.LockSubChatsByRootIDsForDeleteRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockSubChatsByRootIDsForDelete(ctx, rootIds)
+	m.queryLatencies.WithLabelValues("LockSubChatsByRootIDsForDelete").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockSubChatsByRootIDsForDelete").Inc()
 	return r0, r1
 }
 

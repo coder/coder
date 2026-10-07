@@ -17,7 +17,8 @@ WHERE id = @id::uuid;
 
 -- name: GetChatProjectByIDForUpdate :one
 -- Locks the row so ACL updates read, modify, and write it in one
--- transaction.
+-- transaction. Project deletion also takes it before locking chats, which
+-- blocks new root chats from joining the project.
 SELECT *
 FROM chat_projects
 WHERE id = @id::uuid
@@ -112,37 +113,32 @@ SELECT COUNT(*)::bigint
 FROM chat_projects
 WHERE owner_id = @owner_id::uuid;
 
--- name: LockChatProjectChatsForDelete :many
--- Locks up to limit_count of a project's root chats with their sub-chats,
--- returning the locked rows' current worker fields so callers can tell
--- whether a worker holds one. Deleting a project in batches keeps each
--- transaction short. Callers must first lock the project row with
--- GetChatProjectByIDForUpdate in the same transaction, which blocks new
--- chats from joining the project. Roots lock before sub-chats, the order
--- chat archiving uses, to avoid deadlocks.
-WITH roots AS (
-    SELECT chats.id
-    FROM chats
-    WHERE chats.project_id = @project_id::uuid
-    ORDER BY chats.id
-    LIMIT @limit_count::int
-)
+-- name: LockChatProjectRootChatsForDelete :many
+-- Locks up to limit_count of a project's root chats. Callers use worker_id
+-- and runner_id to tell whether a worker holds a chat. Deleting a project
+-- in batches keeps each transaction short. Callers must first lock the
+-- project row with GetChatProjectByIDForUpdate in an earlier statement of
+-- the same transaction: each statement takes its own snapshot, so only a
+-- later one sees root chats whose inserts that lock waited for.
 SELECT chats.id, chats.worker_id, chats.runner_id
 FROM chats
--- ANY(ARRAY(...)) lets each branch use its index; IN (subquery) under OR
--- scans the table.
-WHERE chats.id = ANY(ARRAY(SELECT id FROM roots))
-    OR chats.root_chat_id = ANY(ARRAY(SELECT id FROM roots))
-ORDER BY (chats.root_chat_id IS NULL) DESC, chats.id
+WHERE chats.project_id = @project_id::uuid
+LIMIT @limit_count::int
 FOR UPDATE;
 
--- name: GetChatsByIDs :many
-SELECT *
-FROM chats_expanded
-WHERE id = ANY(@ids::uuid[])
-ORDER BY id;
+-- name: LockSubChatsByRootIDsForDelete :many
+-- Locks the sub-chats of root chats the caller already locked. It must run
+-- as a later statement than the root lock: a sub-chat insert holds a lock
+-- on its root until it commits, and only a later snapshot sees it.
+SELECT chats.id, chats.worker_id, chats.runner_id
+FROM chats
+WHERE chats.root_chat_id = ANY(@root_ids::uuid[])
+ORDER BY chats.id
+FOR UPDATE;
 
 -- name: DeleteChatsByIDs :exec
--- Chat-scoped tables cascade.
+-- Chat-scoped tables cascade. Sub-chats not in ids lose their root and
+-- parent, and chat_automations references are set to NULL, so callers
+-- must pass whole chat families.
 DELETE FROM chats
 WHERE id = ANY(@ids::uuid[]);
