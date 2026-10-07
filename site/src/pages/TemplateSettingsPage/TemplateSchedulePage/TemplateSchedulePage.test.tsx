@@ -154,14 +154,14 @@ describe("TemplateSchedulePage", () => {
 			bumpHours: "1",
 			allowUserAutostop: true,
 			expectedDefault: 0,
-			expectedBump: 3600000,
+			expectedBump: 1000 * 60 * 60,
 		},
 		{
 			name: "disables activity bump while preserving default autostop",
 			defaultHours: "8",
 			bumpHours: "0",
 			allowUserAutostop: true,
-			expectedDefault: 8 * 3600000,
+			expectedDefault: 8 * 1000 * 60 * 60,
 			expectedBump: 0,
 		},
 		{
@@ -185,8 +185,8 @@ describe("TemplateSchedulePage", () => {
 			defaultHours: "2",
 			bumpHours: "3",
 			allowUserAutostop: true,
-			expectedDefault: 2 * 3600000,
-			expectedBump: 3 * 3600000,
+			expectedDefault: 2 * 1000 * 60 * 60,
+			expectedBump: 3 * 1000 * 60 * 60,
 		},
 	])(
 		"$name",
@@ -199,8 +199,8 @@ describe("TemplateSchedulePage", () => {
 		}) => {
 			const template = {
 				...MockTemplate,
-				default_ttl_ms: 8 * 3600000,
-				activity_bump_ms: 3600000,
+				default_ttl_ms: 8 * 1000 * 60 * 60,
+				activity_bump_ms: 1000 * 60 * 60,
 				allow_user_autostop: allowUserAutostop,
 			};
 			const onSubmit = vi.fn();
