@@ -29,12 +29,11 @@ func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, proj
 	//nolint:gocritic // Sharees own some of the chats; the caller authorized deleting the project.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	var deleted []database.Chat
-	err := db.InTx(func(tx database.Store) error {
-		rootIDs, chatIDs, err := database.LockChatProjectForDelete(chatdCtx, tx, projectID)
-		if err != nil {
-			return err
-		}
+	err := database.InChatProjectDeleteTx(chatdCtx, db, projectID, func(tx database.Store, rootIDs, chatIDs []uuid.UUID) error {
+		// InChatProjectDeleteTx reruns this on deadlock.
+		deleted = nil
 		if len(rootIDs) > 0 {
+			var err error
 			deleted, err = tx.GetChatsByIDs(chatdCtx, chatIDs)
 			if err != nil {
 				return xerrors.Errorf("get project chats: %w", err)
@@ -47,7 +46,7 @@ func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, proj
 			return xerrors.Errorf("delete project: %w", err)
 		}
 		return nil
-	}, nil)
+	})
 	if err != nil {
 		return nil, err
 	}
