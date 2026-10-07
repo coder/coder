@@ -23488,6 +23488,9 @@ const docTemplate = `{
                 "error": {
                     "$ref": "#/definitions/codersdk.ChatError"
                 },
+                "history_reset": {
+                    "$ref": "#/definitions/codersdk.ChatStreamHistoryReset"
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },
@@ -23535,6 +23538,14 @@ const docTemplate = `{
                 "ChatStreamEventTypePreviewReset",
                 "ChatStreamEventTypeHistoryReset"
             ]
+        },
+        "codersdk.ChatStreamHistoryReset": {
+            "type": "object",
+            "properties": {
+                "from_message_id": {
+                    "type": "integer"
+                }
+            }
         },
         "codersdk.ChatStreamMessagePart": {
             "type": "object",
