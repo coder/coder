@@ -227,6 +227,20 @@ func IntersectAllowLists(scopeList []AllowListElement, dbList []AllowListElement
 	return normalized
 }
 
+// FirstAllowListEntryNotCovered returns the first requested entry no ceiling
+// entry subsumes, or false if the ceiling covers them all.
+func FirstAllowListEntryNotCovered(ceiling, requested []AllowListElement) (AllowListElement, bool) {
+	for _, want := range requested {
+		if !slices.ContainsFunc(ceiling, func(have AllowListElement) bool {
+			return (have.Type == policy.WildcardSymbol || have.Type == want.Type) &&
+				(have.ID == policy.WildcardSymbol || have.ID == want.ID)
+		}) {
+			return want, true
+		}
+	}
+	return AllowListElement{}, false
+}
+
 func allowListContainsAll(elements []AllowListElement) bool {
 	if len(elements) == 0 {
 		return false
