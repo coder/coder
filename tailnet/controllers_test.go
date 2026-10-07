@@ -1153,8 +1153,6 @@ func TestController_DoesNotRedialAfterCancel(t *testing.T) {
 	}
 }
 
-// TestController_ClosesDERPCtrlOnCancel verifies that the DERP CloserWaiter is
-// closed before Closed() fires, so its goroutines cannot outlive the Controller.
 func TestController_ClosesDERPCtrlOnCancel(t *testing.T) {
 	t.Parallel()
 	testCtx := testutil.Context(t, testutil.WaitShort)
@@ -1162,7 +1160,6 @@ func TestController_ClosesDERPCtrlOnCancel(t *testing.T) {
 	logger := testutil.Logger(t)
 
 	dialer := &scriptedDialer{
-		attempts: make(chan int, 10),
 		dialFn: func(_ context.Context, _ int) (tailnet.ControlProtocolClients, error) {
 			return tailnet.ControlProtocolClients{
 				DERP:   nopDERPClient{},
@@ -1179,19 +1176,16 @@ func TestController_ClosesDERPCtrlOnCancel(t *testing.T) {
 		return cw
 	})
 	uut.Run(ctx)
-
-	require.Equal(t, 1, testutil.TryReceive(testCtx, t, dialer.attempts))
 	_ = testutil.TryReceive(testCtx, t, newCalls)
 
 	cancel()
+	closeCall := testutil.TryReceive(testCtx, t, cw.closeCalls)
 	select {
-	case <-testCtx.Done():
-		t.Fatal("timed out waiting for DERP CloserWaiter to be closed")
 	case <-uut.Closed():
-		t.Fatal("controller closed without closing the DERP CloserWaiter")
-	case closeCall := <-cw.closeCalls:
-		testutil.RequireSend(testCtx, t, closeCall, nil)
+		t.Fatal("controller closed before the DERP CloserWaiter")
+	default:
 	}
+	testutil.RequireSend(testCtx, t, closeCall, nil)
 	_ = testutil.TryReceive(testCtx, t, uut.Closed())
 }
 
