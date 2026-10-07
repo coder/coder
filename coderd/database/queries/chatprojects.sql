@@ -114,23 +114,22 @@ FROM chat_projects
 WHERE owner_id = @owner_id::uuid;
 
 -- name: LockChatProjectRootChatsForDelete :many
--- Locks up to limit_count of a project's root chats; run it through
--- LockChatProjectDeleteBatch, which takes the locks in the required order.
--- Rows lock in index-scan order, not id order, so this can deadlock with
--- another statement that locks some of the same chats in id order, such
--- as the MCP resource sync. Postgres aborts one side, and retrying the
--- delete is the intended recovery.
-SELECT chats.id, chats.worker_id, chats.runner_id
+-- Locks a project's root chats; run it through LockChatProjectForDelete,
+-- which takes the locks in the required order. Rows lock in index-scan
+-- order, not id order, so this can deadlock with another statement that
+-- locks some of the same chats in id order, such as the MCP resource sync.
+-- Postgres aborts one side, and retrying the delete is the intended
+-- recovery.
+SELECT chats.id
 FROM chats
 WHERE chats.project_id = @project_id::uuid
     AND chats.parent_chat_id IS NULL
-LIMIT @limit_count::int
 FOR UPDATE;
 
 -- name: LockSubChatsByRootIDsForDelete :many
 -- Locks the sub-chats of root chats the caller already locked; run it
--- through LockChatProjectDeleteBatch.
-SELECT chats.id, chats.worker_id, chats.runner_id
+-- through LockChatProjectForDelete.
+SELECT chats.id
 FROM chats
 WHERE chats.root_chat_id = ANY(@root_ids::uuid[])
 ORDER BY chats.id

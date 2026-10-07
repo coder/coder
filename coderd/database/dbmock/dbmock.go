@@ -9879,18 +9879,18 @@ func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 }
 
 // LockChatProjectRootChatsForDelete mocks base method.
-func (m *MockStore) LockChatProjectRootChatsForDelete(ctx context.Context, arg database.LockChatProjectRootChatsForDeleteParams) ([]database.LockChatProjectRootChatsForDeleteRow, error) {
+func (m *MockStore) LockChatProjectRootChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LockChatProjectRootChatsForDelete", ctx, arg)
-	ret0, _ := ret[0].([]database.LockChatProjectRootChatsForDeleteRow)
+	ret := m.ctrl.Call(m, "LockChatProjectRootChatsForDelete", ctx, projectID)
+	ret0, _ := ret[0].([]uuid.UUID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // LockChatProjectRootChatsForDelete indicates an expected call of LockChatProjectRootChatsForDelete.
-func (mr *MockStoreMockRecorder) LockChatProjectRootChatsForDelete(ctx, arg any) *gomock.Call {
+func (mr *MockStoreMockRecorder) LockChatProjectRootChatsForDelete(ctx, projectID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatProjectRootChatsForDelete", reflect.TypeOf((*MockStore)(nil).LockChatProjectRootChatsForDelete), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatProjectRootChatsForDelete", reflect.TypeOf((*MockStore)(nil).LockChatProjectRootChatsForDelete), ctx, projectID)
 }
 
 // LockProvisionerKeyByIDForShare mocks base method.
@@ -9909,10 +9909,10 @@ func (mr *MockStoreMockRecorder) LockProvisionerKeyByIDForShare(ctx, id any) *go
 }
 
 // LockSubChatsByRootIDsForDelete mocks base method.
-func (m *MockStore) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]database.LockSubChatsByRootIDsForDeleteRow, error) {
+func (m *MockStore) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LockSubChatsByRootIDsForDelete", ctx, rootIds)
-	ret0, _ := ret[0].([]database.LockSubChatsByRootIDsForDeleteRow)
+	ret0, _ := ret[0].([]uuid.UUID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

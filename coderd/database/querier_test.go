@@ -2390,43 +2390,20 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	projectChild := newChat(sharee.ID, inProject, &shareeRoot)
 
 	family := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID, projectChild.ID}
-	roots, err := db.LockChatProjectRootChatsForDelete(ctx, database.LockChatProjectRootChatsForDeleteParams{ProjectID: project.ID, LimitCount: 10})
+	rootIDs, chatIDs, err := database.LockChatProjectForDelete(ctx, db, project.ID)
 	require.NoError(t, err)
-	rootIDs := make([]uuid.UUID, 0, len(roots))
-	for _, row := range roots {
-		rootIDs = append(rootIDs, row.ID)
-	}
 	require.ElementsMatch(t, []uuid.UUID{ownerRoot.ID, shareeRoot.ID}, rootIDs)
-
-	limited, err := db.LockChatProjectRootChatsForDelete(ctx, database.LockChatProjectRootChatsForDeleteParams{ProjectID: project.ID, LimitCount: 1})
-	require.NoError(t, err)
-	require.Len(t, limited, 1)
+	require.ElementsMatch(t, family, chatIDs)
 
 	lockBatch := func(tx database.Store) ([]uuid.UUID, error) {
-		locked, err := database.LockChatProjectDeleteBatch(ctx, tx, project.ID, 10)
-		ids := make([]uuid.UUID, 0, len(locked))
-		for _, chat := range locked {
-			ids = append(ids, chat.ID)
-		}
+		_, ids, err := database.LockChatProjectForDelete(ctx, tx, project.ID)
 		return ids, err
 	}
-	locked, err := database.LockChatProjectDeleteBatch(ctx, db, project.ID, 10)
-	require.NoError(t, err)
-	var lockedRoots, lockedSubs []uuid.UUID
-	for _, chat := range locked {
-		if chat.IsRoot {
-			lockedRoots = append(lockedRoots, chat.ID)
-		} else {
-			lockedSubs = append(lockedSubs, chat.ID)
-		}
-	}
-	require.ElementsMatch(t, rootIDs, lockedRoots)
-	require.ElementsMatch(t, []uuid.UUID{ownerChild.ID, projectChild.ID}, lockedSubs)
 
 	// lock_not_available is what NOWAIT returns for a row another
 	// transaction holds.
 	const lockNotAvailable = pq.ErrorCode("55P03")
-	// While a delete batch holds its locks, workers cannot take the chats
+	// While a delete holds its locks, workers cannot take the chats
 	// and inserts cannot reference the project. NOWAIT probes stand in for
 	// both, failing instead of blocking.
 	requireLocked := func(query string, id uuid.UUID) {
@@ -2448,8 +2425,8 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 
-	// requireLateInsertLocked holds a chat insert open until a batch is
-	// waiting on it, then commits it and requires the batch to lock it.
+	// requireLateInsertLocked holds a chat insert open until a delete is
+	// waiting on it, then commits it and requires the delete to lock it.
 	requireLateInsertLocked := func(seed database.Chat) database.Chat {
 		t.Helper()
 		inserted := make(chan database.Chat, 1)
