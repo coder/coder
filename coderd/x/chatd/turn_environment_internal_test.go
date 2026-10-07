@@ -555,7 +555,11 @@ func TestBuildTurnEnvironmentMemory(t *testing.T) {
 
 			serverOpts := []internalTestServerOpt{withInternalTestServerTransportFactory(&aibridgeTestFactory{})}
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, serverOpts...)
-			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
+			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+				Chat:      created.Chat,
+				Messages:  created.InitialMessages,
+				Workspace: server.newTurnWorkspaceContext(),
+			})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Close)
 
