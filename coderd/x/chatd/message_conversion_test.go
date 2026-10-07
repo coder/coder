@@ -987,6 +987,44 @@ func TestBufferedPartsToPartialMessages_CoalescesStreamedTextDeltas(t *testing.T
 	}, summary, "adjacent deltas of the same type must be persisted as one part")
 }
 
+func TestBufferedPartsToPartialMessages_SplitsAdjacentReasoningBlocks(t *testing.T) {
+	t.Parallel()
+
+	firstStart := time.Date(2026, 3, 4, 5, 6, 1, 0, time.UTC)
+	secondStart := time.Date(2026, 3, 4, 5, 6, 2, 0, time.UTC)
+	reasoning := func(text string, startedAt time.Time) codersdk.ChatMessagePart {
+		part := codersdk.ChatMessageReasoning(text)
+		part.CreatedAt = &startedAt
+		return part
+	}
+	parts := []messagepartbuffer.Part{
+		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: reasoning("first ", firstStart)},
+		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: reasoning("thought", firstStart)},
+		{Seq: 3, Role: codersdk.ChatMessageRoleAssistant, MessagePart: reasoning("second ", secondStart)},
+		{Seq: 4, Role: codersdk.ChatMessageRoleAssistant, MessagePart: reasoning("thought", secondStart)},
+	}
+	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          parts,
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		interruptedAt:  time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC),
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assistantParts := parseMessageParts(t, got[0].Role, got[0].Content)
+
+	var summary []string
+	for _, part := range assistantParts {
+		require.NotNil(t, part.CreatedAt)
+		summary = append(summary, part.Text+"@"+part.CreatedAt.Format(time.TimeOnly))
+	}
+	require.Equal(t, []string{
+		"first thought@05:06:01",
+		"second thought@05:06:02",
+	}, summary, "each reasoning block must keep its own part and start time")
+}
+
 // BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas persists N text
 // deltas; B/op should be linear in N. A measured interrupted turn had 3,987.
 func BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas(b *testing.B) {

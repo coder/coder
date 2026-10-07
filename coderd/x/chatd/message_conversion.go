@@ -894,6 +894,9 @@ func (s *partialMessageConversionState) appendStreamedDelta(part codersdk.ChatMe
 	if prev.Type != part.Type {
 		return false
 	}
+	if part.Type == codersdk.ChatMessagePartTypeReasoning && !sameTime(prev.CreatedAt, part.CreatedAt) {
+		return false
+	}
 	_, _ = s.streamedRun.WriteString(part.Text)
 	if len(part.ProviderMetadata) > 0 {
 		prev.ProviderMetadata = part.ProviderMetadata
@@ -929,6 +932,13 @@ func (s *partialMessageConversionState) closeStreamedRun() {
 	s.assistantParts[s.streamedRunIndex].Text = s.streamedRun.String()
 	s.streamedRun.Reset()
 	s.streamedRunOpen = false
+}
+
+func sameTime(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Equal(*b)
 }
 
 func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuffer.Part) error {
