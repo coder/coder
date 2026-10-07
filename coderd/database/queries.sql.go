@@ -8506,7 +8506,9 @@ DELETE FROM chats
 WHERE id = ANY($1::uuid[])
 `
 
-// Chat-scoped tables cascade.
+// Chat-scoped tables cascade. Sub-chats not in ids lose their root and
+// parent, and chat_automations references are set to NULL, so callers
+// must pass whole chat families.
 func (q *sqlQuerier) DeleteChatsByIDs(ctx context.Context, ids []uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteChatsByIDs, pq.Array(ids))
 	return err
@@ -8544,7 +8546,8 @@ FOR UPDATE
 `
 
 // Locks the row so ACL updates read, modify, and write it in one
-// transaction.
+// transaction. Project deletion also takes it before locking chats, which
+// blocks new root chats from joining the project.
 func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error) {
 	row := q.db.QueryRowContext(ctx, getChatProjectByIDForUpdate, id)
 	var i ChatProject
@@ -8670,89 +8673,6 @@ func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context,
 	return items, nil
 }
 
-const getChatsByIDs = `-- name: GetChatsByIDs :many
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at, automation_id, manage_automations_enabled
-FROM chats_expanded
-WHERE id = ANY($1::uuid[])
-ORDER BY id
-`
-
-func (q *sqlQuerier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, getChatsByIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Chat
-	for rows.Next() {
-		var i Chat
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Status,
-			&i.WorkerID,
-			&i.StartedAt,
-			&i.HeartbeatAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ParentChatID,
-			&i.RootChatID,
-			&i.LastModelConfigID,
-			&i.LastReasoningEffort,
-			&i.Archived,
-			&i.LastError,
-			&i.Mode,
-			pq.Array(&i.MCPServerIDs),
-			&i.Labels,
-			&i.BuildID,
-			&i.AgentID,
-			&i.PinOrder,
-			&i.LastReadMessageID,
-			&i.DynamicTools,
-			&i.OrganizationID,
-			&i.ProjectID,
-			&i.PlanMode,
-			&i.ClientType,
-			&i.LastTurnSummary,
-			&i.Summary,
-			&i.SummaryGeneratedAt,
-			&i.SnapshotVersion,
-			&i.HistoryVersion,
-			&i.QueueVersion,
-			&i.GenerationAttempt,
-			&i.RetryState,
-			&i.RetryStateVersion,
-			&i.RunnerID,
-			&i.RequiresActionDeadlineAt,
-			&i.UserACL,
-			&i.GroupACL,
-			&i.OwnerUsername,
-			&i.OwnerName,
-			&i.ContextAggregateHash,
-			&i.ContextDirtySince,
-			&i.ContextDirtyResources,
-			&i.ContextError,
-			&i.CompactionRequestedAt,
-			&i.TitleSource,
-			&i.TitleUpdatedAt,
-			&i.AutomationID,
-			&i.ManageAutomationsEnabled,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertChatProject = `-- name: InsertChatProject :one
 INSERT INTO chat_projects (id, organization_id, owner_id, name, description, icon)
 VALUES (
@@ -8845,51 +8765,80 @@ func (q *sqlQuerier) IsChatProjectAccessibleByUserID(ctx context.Context, arg Is
 	return column_1, err
 }
 
-const lockChatProjectChatsForDelete = `-- name: LockChatProjectChatsForDelete :many
-WITH roots AS (
-    SELECT chats.id
-    FROM chats
-    WHERE chats.project_id = $1::uuid
-    ORDER BY chats.id
-    LIMIT $2::int
-)
+const lockChatProjectRootChatsForDelete = `-- name: LockChatProjectRootChatsForDelete :many
 SELECT chats.id, chats.worker_id, chats.runner_id
 FROM chats
-WHERE chats.id = ANY(ARRAY(SELECT id FROM roots))
-    OR chats.root_chat_id = ANY(ARRAY(SELECT id FROM roots))
-ORDER BY (chats.root_chat_id IS NULL) DESC, chats.id
+WHERE chats.project_id = $1::uuid
+LIMIT $2::int
 FOR UPDATE
 `
 
-type LockChatProjectChatsForDeleteParams struct {
+type LockChatProjectRootChatsForDeleteParams struct {
 	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
 	LimitCount int32     `db:"limit_count" json:"limit_count"`
 }
 
-type LockChatProjectChatsForDeleteRow struct {
+type LockChatProjectRootChatsForDeleteRow struct {
 	ID       uuid.UUID     `db:"id" json:"id"`
 	WorkerID uuid.NullUUID `db:"worker_id" json:"worker_id"`
 	RunnerID uuid.NullUUID `db:"runner_id" json:"runner_id"`
 }
 
-// Locks up to limit_count of a project's root chats with their sub-chats,
-// returning the locked rows' current worker fields so callers can tell
-// whether a worker holds one. Deleting a project in batches keeps each
-// transaction short. Callers must first lock the project row with
-// GetChatProjectByIDForUpdate in the same transaction, which blocks new
-// chats from joining the project. Roots lock before sub-chats, the order
-// chat archiving uses, to avoid deadlocks.
-// ANY(ARRAY(...)) lets each branch use its index; IN (subquery) under OR
-// scans the table.
-func (q *sqlQuerier) LockChatProjectChatsForDelete(ctx context.Context, arg LockChatProjectChatsForDeleteParams) ([]LockChatProjectChatsForDeleteRow, error) {
-	rows, err := q.db.QueryContext(ctx, lockChatProjectChatsForDelete, arg.ProjectID, arg.LimitCount)
+// Locks up to limit_count of a project's root chats. Callers use worker_id
+// and runner_id to tell whether a worker holds a chat. Deleting a project
+// in batches keeps each transaction short. Callers must first lock the
+// project row with GetChatProjectByIDForUpdate in an earlier statement of
+// the same transaction: each statement takes its own snapshot, so only a
+// later one sees root chats whose inserts that lock waited for.
+func (q *sqlQuerier) LockChatProjectRootChatsForDelete(ctx context.Context, arg LockChatProjectRootChatsForDeleteParams) ([]LockChatProjectRootChatsForDeleteRow, error) {
+	rows, err := q.db.QueryContext(ctx, lockChatProjectRootChatsForDelete, arg.ProjectID, arg.LimitCount)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []LockChatProjectChatsForDeleteRow
+	var items []LockChatProjectRootChatsForDeleteRow
 	for rows.Next() {
-		var i LockChatProjectChatsForDeleteRow
+		var i LockChatProjectRootChatsForDeleteRow
+		if err := rows.Scan(&i.ID, &i.WorkerID, &i.RunnerID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockSubChatsByRootIDsForDelete = `-- name: LockSubChatsByRootIDsForDelete :many
+SELECT chats.id, chats.worker_id, chats.runner_id
+FROM chats
+WHERE chats.root_chat_id = ANY($1::uuid[])
+ORDER BY chats.id
+FOR UPDATE
+`
+
+type LockSubChatsByRootIDsForDeleteRow struct {
+	ID       uuid.UUID     `db:"id" json:"id"`
+	WorkerID uuid.NullUUID `db:"worker_id" json:"worker_id"`
+	RunnerID uuid.NullUUID `db:"runner_id" json:"runner_id"`
+}
+
+// Locks the sub-chats of root chats the caller already locked. It must run
+// as a later statement than the root lock: a sub-chat insert holds a lock
+// on its root until it commits, and only a later snapshot sees it.
+func (q *sqlQuerier) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]LockSubChatsByRootIDsForDeleteRow, error) {
+	rows, err := q.db.QueryContext(ctx, lockSubChatsByRootIDsForDelete, pq.Array(rootIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LockSubChatsByRootIDsForDeleteRow
+	for rows.Next() {
+		var i LockSubChatsByRootIDsForDeleteRow
 		if err := rows.Scan(&i.ID, &i.WorkerID, &i.RunnerID); err != nil {
 			return nil, err
 		}
@@ -12179,6 +12128,89 @@ WHERE
 
 func (q *sqlQuerier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, getChatsByChatFileID, fileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+			&i.CompactionRequestedAt,
+			&i.TitleSource,
+			&i.TitleUpdatedAt,
+			&i.AutomationID,
+			&i.ManageAutomationsEnabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsByIDs = `-- name: GetChatsByIDs :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at, automation_id, manage_automations_enabled
+FROM chats_expanded
+WHERE id = ANY($1::uuid[])
+ORDER BY id
+`
+
+func (q *sqlQuerier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}

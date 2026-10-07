@@ -2280,8 +2280,13 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	everyoneNoRead := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 	share(everyoneNoRead, database.ChatACL{}, database.ChatACL{org.ID.String(): noReadEntry})
 	wildcardShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
-	share(wildcardShared, database.ChatACL{wildcard.ID.String(): {Permissions: []policy.Action{policy.WildcardSymbol}}}, database.ChatACL{})
-	all := []uuid.UUID{private.ID, userShared.ID, groupShared.ID, everyoneShared.ID, outsiderShared.ID, noRead.ID, groupNoRead.ID, everyoneNoRead.ID, wildcardShared.ID}
+	wildcardEntry := database.ChatACLEntry{Permissions: []policy.Action{policy.WildcardSymbol}}
+	share(wildcardShared, database.ChatACL{wildcard.ID.String(): wildcardEntry}, database.ChatACL{})
+	groupWildcard := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(groupWildcard, database.ChatACL{}, database.ChatACL{group.ID.String(): wildcardEntry})
+	everyoneWildcard := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(everyoneWildcard, database.ChatACL{}, database.ChatACL{org.ID.String(): wildcardEntry})
+	all := []uuid.UUID{private.ID, userShared.ID, groupShared.ID, everyoneShared.ID, outsiderShared.ID, noRead.ID, groupNoRead.ID, everyoneNoRead.ID, wildcardShared.ID, groupWildcard.ID, everyoneWildcard.ID}
 
 	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 	authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
@@ -2297,14 +2302,14 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 		name string
 		user database.User
 		raw  []uuid.UUID
-		// authorized is what a sharee sees through dbauthz, where only ACL
-		// grants with read apply.
+		// authorized holds the projects the user has a read grant on: what
+		// dbauthz returns, and where IsChatProjectAccessibleByUserID is true.
 		authorized []uuid.UUID
 	}{
-		{"Direct", direct, []uuid.UUID{userShared.ID, everyoneShared.ID, noRead.ID, everyoneNoRead.ID}, []uuid.UUID{userShared.ID, everyoneShared.ID}},
-		{"Group", groupMember, []uuid.UUID{groupShared.ID, everyoneShared.ID, groupNoRead.ID, everyoneNoRead.ID}, []uuid.UUID{groupShared.ID, everyoneShared.ID}},
-		{"Everyone", orgMember, []uuid.UUID{everyoneShared.ID, everyoneNoRead.ID}, []uuid.UUID{everyoneShared.ID}},
-		{"Wildcard", wildcard, []uuid.UUID{wildcardShared.ID, everyoneShared.ID, everyoneNoRead.ID}, []uuid.UUID{wildcardShared.ID, everyoneShared.ID}},
+		{"Direct", direct, []uuid.UUID{userShared.ID, everyoneShared.ID, noRead.ID, everyoneNoRead.ID, everyoneWildcard.ID}, []uuid.UUID{userShared.ID, everyoneShared.ID, everyoneWildcard.ID}},
+		{"Group", groupMember, []uuid.UUID{groupShared.ID, everyoneShared.ID, groupNoRead.ID, everyoneNoRead.ID, groupWildcard.ID, everyoneWildcard.ID}, []uuid.UUID{groupShared.ID, everyoneShared.ID, groupWildcard.ID, everyoneWildcard.ID}},
+		{"Everyone", orgMember, []uuid.UUID{everyoneShared.ID, everyoneNoRead.ID, everyoneWildcard.ID}, []uuid.UUID{everyoneShared.ID, everyoneWildcard.ID}},
+		{"Wildcard", wildcard, []uuid.UUID{wildcardShared.ID, everyoneShared.ID, everyoneNoRead.ID, everyoneWildcard.ID}, []uuid.UUID{wildcardShared.ID, everyoneShared.ID, everyoneWildcard.ID}},
 		{"Outsider", outsider, nil, nil},
 	} {
 		projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, tc.user.ID)
@@ -2381,29 +2386,26 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	otherProjectChat := newChat(owner.ID, uuid.NullUUID{UUID: otherProject.ID, Valid: true}, nil)
 
 	family := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID}
-	locked, err := db.LockChatProjectChatsForDelete(ctx, database.LockChatProjectChatsForDeleteParams{ProjectID: project.ID, LimitCount: 10})
+	roots, err := db.LockChatProjectRootChatsForDelete(ctx, database.LockChatProjectRootChatsForDeleteParams{ProjectID: project.ID, LimitCount: 10})
 	require.NoError(t, err)
-	got := make([]uuid.UUID, 0, len(locked))
-	for _, row := range locked {
-		got = append(got, row.ID)
+	rootIDs := make([]uuid.UUID, 0, len(roots))
+	for _, row := range roots {
+		rootIDs = append(rootIDs, row.ID)
 	}
-	require.ElementsMatch(t, family, got)
-	// Roots lock before sub-chats, the order chat archiving uses.
-	require.Equal(t, ownerChild.ID, got[len(got)-1])
+	require.ElementsMatch(t, []uuid.UUID{ownerRoot.ID, shareeRoot.ID}, rootIDs)
 
-	// The limit counts root chats and brings each root's sub-chats along.
-	locked, err = db.LockChatProjectChatsForDelete(ctx, database.LockChatProjectChatsForDeleteParams{ProjectID: project.ID, LimitCount: 1})
+	limited, err := db.LockChatProjectRootChatsForDelete(ctx, database.LockChatProjectRootChatsForDeleteParams{ProjectID: project.ID, LimitCount: 1})
 	require.NoError(t, err)
-	got = got[:0]
-	for _, row := range locked {
-		got = append(got, row.ID)
-	}
-	if slices.Contains(got, ownerRoot.ID) {
-		require.ElementsMatch(t, []uuid.UUID{ownerRoot.ID, ownerChild.ID}, got)
-	} else {
-		require.Equal(t, []uuid.UUID{shareeRoot.ID}, got)
-	}
+	require.Len(t, limited, 1)
 
+	subs, err := db.LockSubChatsByRootIDsForDelete(ctx, rootIDs)
+	require.NoError(t, err)
+	require.Len(t, subs, 1)
+	require.Equal(t, ownerChild.ID, subs[0].ID)
+
+	// lock_not_available is what NOWAIT returns for a row another
+	// transaction holds.
+	const lockNotAvailable = pq.ErrorCode("55P03")
 	// While a delete batch holds its locks, workers cannot take the chats
 	// and inserts cannot reference the project. NOWAIT probes stand in for
 	// both, failing instead of blocking.
@@ -2412,13 +2414,31 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		_, err := sqlDB.ExecContext(ctx, query, id)
 		var pqErr *pq.Error
 		require.ErrorAs(t, err, &pqErr, query)
-		require.Equal(t, pq.ErrorCode("55P03"), pqErr.Code, query)
+		require.Equal(t, lockNotAvailable, pqErr.Code, query)
+	}
+	lockBatch := func(tx database.Store) ([]uuid.UUID, error) {
+		if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
+			return nil, err
+		}
+		roots, err := tx.LockChatProjectRootChatsForDelete(ctx, database.LockChatProjectRootChatsForDeleteParams{ProjectID: project.ID, LimitCount: 10})
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]uuid.UUID, 0, len(roots))
+		for _, row := range roots {
+			ids = append(ids, row.ID)
+		}
+		subs, err := tx.LockSubChatsByRootIDsForDelete(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range subs {
+			ids = append(ids, row.ID)
+		}
+		return ids, nil
 	}
 	err = db.InTx(func(tx database.Store) error {
-		if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
-			return err
-		}
-		if _, err := tx.LockChatProjectChatsForDelete(ctx, database.LockChatProjectChatsForDeleteParams{ProjectID: project.ID, LimitCount: 10}); err != nil {
+		if _, err := lockBatch(tx); err != nil {
 			return err
 		}
 		for _, id := range family {
@@ -2428,6 +2448,48 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		return nil
 	}, nil)
 	require.NoError(t, err)
+
+	// A sub-chat whose insert commits while the batch waits on its root's
+	// lock is still locked with the batch.
+	inserted := make(chan database.Chat, 1)
+	release := make(chan struct{})
+	insertDone := make(chan error, 1)
+	go func() {
+		insertDone <- db.InTx(func(tx database.Store) error {
+			inserted <- dbgen.Chat(t, tx, database.Chat{
+				OrganizationID:    org.ID,
+				OwnerID:           sharee.ID,
+				LastModelConfigID: modelCfg.ID,
+				ParentChatID:      uuid.NullUUID{UUID: shareeRoot.ID, Valid: true},
+				RootChatID:        uuid.NullUUID{UUID: shareeRoot.ID, Valid: true},
+			})
+			<-release
+			return nil
+		}, nil)
+	}()
+	lateChild := testutil.RequireReceive(ctx, t, inserted)
+	batchDone := make(chan []uuid.UUID, 1)
+	batchErr := make(chan error, 1)
+	go func() {
+		var ids []uuid.UUID
+		err := db.InTx(func(tx database.Store) error {
+			var err error
+			ids, err = lockBatch(tx)
+			return err
+		}, nil)
+		batchErr <- err
+		batchDone <- ids
+	}()
+	require.True(t, testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var waiting int
+		err := sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'").Scan(&waiting)
+		return err == nil && waiting > 0
+	}, testutil.IntervalFast, "batch never waited on the inserting transaction"))
+	close(release)
+	require.NoError(t, testutil.RequireReceive(ctx, t, insertDone))
+	require.NoError(t, testutil.RequireReceive(ctx, t, batchErr))
+	require.Contains(t, testutil.RequireReceive(ctx, t, batchDone), lateChild.ID)
+	family = append(family, lateChild.ID)
 
 	chats, err := db.GetChatsByIDs(ctx, family)
 	require.NoError(t, err)
