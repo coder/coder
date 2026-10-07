@@ -505,13 +505,3 @@ func (a AllowList) Value() (driver.Value, error) {
 	}
 	return pq.Array(raw).Value()
 }
-
-// ConnectionSource is what logged a connection.
-type ConnectionSource string
-
-const (
-	ConnectionSourceAgent          ConnectionSource = "agent"
-	ConnectionSourceWorkspaceApp   ConnectionSource = "workspace_app"
-	ConnectionSourcePortForwarding ConnectionSource = "port_forwarding"
-	ConnectionSourceTunnel         ConnectionSource = "tunnel"
-)

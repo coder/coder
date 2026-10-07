@@ -42,7 +42,10 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	if err != nil {
 		return nil, err
 	}
-	appName := sdk2db.ConnectionLogAppName(req.GetConnection().GetType())
+	method, appName, err := sdk2db.ConnectionLogFromAgentType(req.GetConnection().GetType())
+	if err != nil {
+		return nil, err
+	}
 
 	var code sql.NullInt32
 	if action == database.ConnectionStatusDisconnected {
@@ -86,8 +89,8 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		WorkspaceID:      ws.ID,
 		WorkspaceName:    ws.Name,
 		AgentName:        a.AgentName,
-		Source:           database.ConnectionSourceAgent,
-		AppNameOrPort:    sql.NullString{String: appName, Valid: true},
+		ConnectionMethod: method,
+		AppNameOrPort:    sql.NullString{String: appName, Valid: appName != ""},
 		Code:             code,
 		IP:               logIP,
 		ConnectionID: uuid.NullUUID{

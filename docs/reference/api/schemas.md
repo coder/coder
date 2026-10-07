@@ -6045,6 +6045,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "app_display_name": "string",
   "app_name": "string",
   "connect_time": "2019-08-24T14:15:22Z",
+  "connection_method": "ssh",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "ip": "string",
   "organization": {
@@ -6059,7 +6060,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "disconnect_time": "2019-08-24T14:15:22Z",
     "exit_code": 0
   },
-  "type": "ssh",
+  "type": "string",
   "web_info": {
     "slug_or_port": "string",
     "status_code": 0,
@@ -6099,22 +6100,37 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                       | Type                                                           | Required | Restrictions | Description                                                                                                                          |
-|----------------------------|----------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_name`               | string                                                         | false    |              |                                                                                                                                      |
-| `app_display_name`         | string                                                         | false    |              |                                                                                                                                      |
-| `app_name`                 | string                                                         | false    |              | App name is the agent-reported app, such as "cursor", or a workspace app slug. Empty for port forwarding and tunnels.                |
-| `connect_time`             | string                                                         | false    |              |                                                                                                                                      |
-| `id`                       | string                                                         | false    |              |                                                                                                                                      |
-| `ip`                       | string                                                         | false    |              |                                                                                                                                      |
-| `organization`             | [codersdk.MinimalOrganization](#codersdkminimalorganization)   | false    |              |                                                                                                                                      |
-| `ssh_info`                 | [codersdk.ConnectionLogSSHInfo](#codersdkconnectionlogsshinfo) | false    |              | Ssh info is set for every other `type`.                                                                                              |
-| `type`                     | [codersdk.ConnectionType](#codersdkconnectiontype)             | false    |              |                                                                                                                                      |
-| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo) | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp` - `ConnectionTypeTunnel` |
-| `workspace_id`             | string                                                         | false    |              |                                                                                                                                      |
-| `workspace_name`           | string                                                         | false    |              |                                                                                                                                      |
-| `workspace_owner_id`       | string                                                         | false    |              |                                                                                                                                      |
-| `workspace_owner_username` | string                                                         | false    |              |                                                                                                                                      |
+| Name                       | Type                                                           | Required | Restrictions | Description                                                                                                                |
+|----------------------------|----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
+| `agent_name`               | string                                                         | false    |              |                                                                                                                            |
+| `app_display_name`         | string                                                         | false    |              | App display name is the registry display name for a known client identity, or its normalized identifier when unregistered. |
+| `app_name`                 | string                                                         | false    |              | App name identifies the originating client, when known. Web destinations are reported separately in WebInfo.               |
+| `connect_time`             | string                                                         | false    |              |                                                                                                                            |
+| `connection_method`        | [codersdk.ConnectionLogMethod](#codersdkconnectionlogmethod)   | false    |              |                                                                                                                            |
+| `id`                       | string                                                         | false    |              |                                                                                                                            |
+| `ip`                       | string                                                         | false    |              |                                                                                                                            |
+| `organization`             | [codersdk.MinimalOrganization](#codersdkminimalorganization)   | false    |              |                                                                                                                            |
+| `ssh_info`                 | [codersdk.ConnectionLogSSHInfo](#codersdkconnectionlogsshinfo) | false    |              | Ssh info is set for SSH and reconnecting PTY connections.                                                                  |
+| `type`                     | string                                                         | false    |              | Deprecated: Use ConnectionMethod and AppName.                                                                              |
+| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo) | false    |              | Web info is set for server-recorded workspace apps, port forwards and tunnels.                                             |
+| `workspace_id`             | string                                                         | false    |              |                                                                                                                            |
+| `workspace_name`           | string                                                         | false    |              |                                                                                                                            |
+| `workspace_owner_id`       | string                                                         | false    |              |                                                                                                                            |
+| `workspace_owner_username` | string                                                         | false    |              |                                                                                                                            |
+
+## codersdk.ConnectionLogMethod
+
+```json
+"ssh"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                |
+|-------------------------------------------------------------------------|
+| `port_forwarding`, `reconnecting_pty`, `ssh`, `tunnel`, `workspace_app` |
 
 ## codersdk.ConnectionLogResponse
 
@@ -6126,6 +6142,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "app_display_name": "string",
       "app_name": "string",
       "connect_time": "2019-08-24T14:15:22Z",
+      "connection_method": "ssh",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "ip": "string",
       "organization": {
@@ -6140,7 +6157,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "disconnect_time": "2019-08-24T14:15:22Z",
         "exit_code": 0
       },
-      "type": "ssh",
+      "type": "string",
       "web_info": {
         "slug_or_port": "string",
         "status_code": 0,
@@ -6253,20 +6270,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `status_code`  | integer                        | false    |              | Status code is the HTTP status code or tunnel authorization outcome. |
 | `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was unauthenticated.         |
 | `user_agent`   | string                         | false    |              |                                                                      |
-
-## codersdk.ConnectionType
-
-```json
-"ssh"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                                                                                  |
-|-----------------------------------------------------------------------------------------------------------|
-| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `tunnel`, `unknown`, `vscode`, `workspace_app` |
 
 ## codersdk.ConvertLoginRequest
 

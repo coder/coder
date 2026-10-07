@@ -1002,13 +1002,12 @@ func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
 	return []policy.Action{}
 }
 
-// Agent rows take the type of their app's family. Other sources are types
-// themselves.
-func ConnectionLogType(source database.ConnectionSource, appNameOrPort string) codersdk.ConnectionType {
-	if source == database.ConnectionSourceAgent {
-		return codersdk.ConnectionTypeOfApp(appNameOrPort)
+// ConnectionLogType returns the deprecated HTTP compatibility type.
+func ConnectionLogType(method database.ConnectionLogMethod, appNameOrPort string) string {
+	if method == database.ConnectionLogMethodSSH {
+		return string(codersdk.ConnectionTypeOfApp(appNameOrPort))
 	}
-	return codersdk.ConnectionType(source)
+	return string(method)
 }
 
 func ConnectionLogStatusFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.ConnectionStatus, error) {

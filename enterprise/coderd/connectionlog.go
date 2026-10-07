@@ -133,10 +133,12 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 	)
 
 	var appName, appDisplayName string
-	switch source := dblog.ConnectionLog.Source; source {
-	case database.ConnectionSourceAgent:
+	switch dblog.ConnectionLog.ConnectionMethod {
+	case database.ConnectionLogMethodSSH, database.ConnectionLogMethodReconnectingPTY:
 		appName = dblog.ConnectionLog.AppNameOrPort.String
-		appDisplayName = codersdk.AppDisplayName(appName)
+		if appName != "" {
+			appDisplayName = codersdk.AppDisplayName(appName)
+		}
 		sshInfo = &codersdk.ConnectionLogSSHInfo{
 			ConnectionID:     dblog.ConnectionLog.ConnectionID.UUID,
 			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
@@ -148,10 +150,6 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 			sshInfo.ExitCode = &dblog.ConnectionLog.Code.Int32
 		}
 	default:
-		if source == database.ConnectionSourceWorkspaceApp {
-			appName = dblog.ConnectionLog.AppNameOrPort.String
-			appDisplayName = appName
-		}
 		webInfo = &codersdk.ConnectionLogWebInfo{
 			UserAgent:  dblog.ConnectionLog.UserAgent.String,
 			User:       user,
@@ -174,7 +172,8 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		WorkspaceID:            dblog.ConnectionLog.WorkspaceID,
 		WorkspaceName:          dblog.ConnectionLog.WorkspaceName,
 		AgentName:              dblog.ConnectionLog.AgentName,
-		Type:                   db2sdk.ConnectionLogType(dblog.ConnectionLog.Source, dblog.ConnectionLog.AppNameOrPort.String),
+		Type:                   db2sdk.ConnectionLogType(dblog.ConnectionLog.ConnectionMethod, dblog.ConnectionLog.AppNameOrPort.String),
+		ConnectionMethod:       codersdk.ConnectionLogMethod(dblog.ConnectionLog.ConnectionMethod),
 		AppName:                appName,
 		AppDisplayName:         appDisplayName,
 		IP:                     ip,

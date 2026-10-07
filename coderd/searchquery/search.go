@@ -114,14 +114,13 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 		Status:              string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[codersdk.ConnectionLogStatus])),
 	}
 
-	source, appNames, excludedAppNames := sdk2db.ConnectionLogTypeFilter(
+	method, appNames, excludedAppNames := sdk2db.ConnectionLogTypeFilter(
 		httpapi.ParseCustom(parser, values, "", "type", httpapi.ParseEnum[codersdk.ConnectionType]),
 	)
-	filter.Source, filter.AppNames, filter.ExcludedAppNames = string(source), appNames, excludedAppNames
+	filter.LegacyMethod, filter.AppNames, filter.ExcludedAppNames = method, appNames, excludedAppNames
+	filter.ConnectionMethod = string(httpapi.ParseCustom(parser, values, "", "method", httpapi.ParseEnum[codersdk.ConnectionLogMethod]))
 	if app := parser.String(values, "", "app"); app != "" {
-		// Agent app names are normalized, while slugs keep their hyphens.
 		filter.AppName = codersdk.NormalizeAppName(app)
-		filter.AppSlug = strings.ToLower(app)
 	}
 
 	if filter.Username == "me" {
@@ -141,19 +140,20 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 		WorkspaceOwner:      filter.WorkspaceOwner,
 		WorkspaceOwnerID:    filter.WorkspaceOwnerID,
 		WorkspaceOwnerEmail: filter.WorkspaceOwnerEmail,
-		Source:              filter.Source,
+		ConnectionMethod:    filter.ConnectionMethod,
+		LegacyMethod:        filter.LegacyMethod,
 		AppNames:            filter.AppNames,
 		ExcludedAppNames:    filter.ExcludedAppNames,
 		AppName:             filter.AppName,
-		AppSlug:             filter.AppSlug,
-		UserID:              filter.UserID,
-		Username:            filter.Username,
-		UserEmail:           filter.UserEmail,
-		ConnectedAfter:      filter.ConnectedAfter,
-		ConnectedBefore:     filter.ConnectedBefore,
-		WorkspaceID:         filter.WorkspaceID,
-		ConnectionID:        filter.ConnectionID,
-		Status:              filter.Status,
+
+		UserID:          filter.UserID,
+		Username:        filter.Username,
+		UserEmail:       filter.UserEmail,
+		ConnectedAfter:  filter.ConnectedAfter,
+		ConnectedBefore: filter.ConnectedBefore,
+		WorkspaceID:     filter.WorkspaceID,
+		ConnectionID:    filter.ConnectionID,
+		Status:          filter.Status,
 	}
 	parser.ErrorExcessParams(values)
 	return filter, countFilter, parser.Errors

@@ -2,6 +2,8 @@
 package sdk2db
 
 import (
+	"golang.org/x/xerrors"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -16,34 +18,34 @@ func ProvisionerDaemonStatuses(params []codersdk.ProvisionerDaemonStatus) []data
 	return slice.List(params, ProvisionerDaemonStatus)
 }
 
-// Returns what a `type:` filter matches: a web source, or the apps of a
-// family. Unknown excludes the registered apps.
-func ConnectionLogTypeFilter(t codersdk.ConnectionType) (source database.ConnectionSource, appNames, excludedAppNames []string) {
-	switch {
-	case t == "":
+// ConnectionLogTypeFilter translates the deprecated type filter into methods
+// and SSH app families. Plain SSH includes absent and unregistered identities.
+func ConnectionLogTypeFilter(t codersdk.ConnectionType) (method string, appNames, excludedAppNames []string) {
+	switch t {
+	case "":
 		return "", nil, nil
-	case t == codersdk.ConnectionTypeUnknown:
-		return "", nil, codersdk.KnownConnectionAppNames()
-	case t.IsWeb():
-		return database.ConnectionSource(t), nil, nil
+	case codersdk.ConnectionTypeVSCode, codersdk.ConnectionTypeJetBrains:
+		return string(database.ConnectionLogMethodSSH), t.AppNames(), nil
+	case codersdk.ConnectionTypeSSH:
+		return string(database.ConnectionLogMethodSSH), nil, append(codersdk.ConnectionTypeVSCode.AppNames(), codersdk.ConnectionTypeJetBrains.AppNames()...)
 	default:
-		return "", t.AppNames(), nil
+		return string(t), nil, nil
 	}
 }
 
-// Each family is also a registered app name. Any other type is an unknown app,
-// so the connection is still logged.
-func ConnectionLogAppName(typ agentproto.Connection_Type) string {
+// ConnectionLogFromAgentType recovers method and identity from legacy reports.
+// An unspecified legacy type was used by SSH handlers for unfamiliar apps.
+func ConnectionLogFromAgentType(typ agentproto.Connection_Type) (database.ConnectionLogMethod, string, error) {
 	switch typ {
-	case agentproto.Connection_SSH:
-		return string(codersdk.AppFamilySSH)
+	case agentproto.Connection_SSH, agentproto.Connection_TYPE_UNSPECIFIED:
+		return database.ConnectionLogMethodSSH, "", nil
 	case agentproto.Connection_JETBRAINS:
-		return string(codersdk.AppFamilyJetBrains)
+		return database.ConnectionLogMethodSSH, "jetbrains", nil
 	case agentproto.Connection_VSCODE:
-		return string(codersdk.AppFamilyVSCode)
+		return database.ConnectionLogMethodSSH, "vscode", nil
 	case agentproto.Connection_RECONNECTING_PTY:
-		return string(codersdk.AppFamilyReconnectingPTY)
+		return database.ConnectionLogMethodReconnectingPTY, "", nil
 	default:
-		return string(codersdk.AppFamilyUnknown)
+		return "", "", xerrors.Errorf("unsupported agent connection type %d", typ)
 	}
 }

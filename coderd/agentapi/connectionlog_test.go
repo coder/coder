@@ -45,6 +45,7 @@ func TestConnectionLog(t *testing.T) {
 		id              uuid.UUID
 		action          *agentproto.Connection_Action
 		typ             *agentproto.Connection_Type
+		method          database.ConnectionLogMethod
 		appName         string
 		time            time.Time
 		ip              string
@@ -57,7 +58,7 @@ func TestConnectionLog(t *testing.T) {
 			id:              uuid.New(),
 			action:          agentproto.Connection_CONNECT.Enum(),
 			typ:             agentproto.Connection_SSH.Enum(),
-			appName:         "ssh",
+			method:          database.ConnectionLogMethodSSH,
 			time:            dbtime.Now(),
 			ip:              "127.0.0.1",
 			status:          200,
@@ -68,6 +69,7 @@ func TestConnectionLog(t *testing.T) {
 			id:      uuid.New(),
 			action:  agentproto.Connection_CONNECT.Enum(),
 			typ:     agentproto.Connection_VSCODE.Enum(),
+			method:  database.ConnectionLogMethodSSH,
 			appName: "vscode",
 			time:    dbtime.Now(),
 			ip:      "8.8.8.8",
@@ -77,6 +79,7 @@ func TestConnectionLog(t *testing.T) {
 			id:      uuid.New(),
 			action:  agentproto.Connection_CONNECT.Enum(),
 			typ:     agentproto.Connection_JETBRAINS.Enum(),
+			method:  database.ConnectionLogMethodSSH,
 			appName: "jetbrains",
 			time:    dbtime.Now(),
 			// Sometimes, JetBrains clients report as localhost, see
@@ -84,38 +87,48 @@ func TestConnectionLog(t *testing.T) {
 			ip: "localhost",
 		},
 		{
-			name:    "Reconnecting PTY Connect",
-			id:      uuid.New(),
-			action:  agentproto.Connection_CONNECT.Enum(),
-			typ:     agentproto.Connection_RECONNECTING_PTY.Enum(),
-			appName: "reconnecting_pty",
-			time:    dbtime.Now(),
+			name:   "Reconnecting PTY Connect",
+			id:     uuid.New(),
+			action: agentproto.Connection_CONNECT.Enum(),
+			typ:    agentproto.Connection_RECONNECTING_PTY.Enum(),
+			method: database.ConnectionLogMethodReconnectingPTY,
+			time:   dbtime.Now(),
 		},
 		{
-			name:    "Unspecified Connect",
-			id:      uuid.New(),
-			action:  agentproto.Connection_CONNECT.Enum(),
-			typ:     agentproto.Connection_TYPE_UNSPECIFIED.Enum(),
-			appName: "unknown",
-			time:    dbtime.Now(),
+			// SSH handlers reported unfamiliar apps as unspecified.
+			name:   "Unspecified Connect",
+			id:     uuid.New(),
+			action: agentproto.Connection_CONNECT.Enum(),
+			typ:    agentproto.Connection_TYPE_UNSPECIFIED.Enum(),
+			method: database.ConnectionLogMethodSSH,
+			time:   dbtime.Now(),
 		},
 		{
-			name:    "SSH Disconnect",
+			name:   "SSH Disconnect",
+			id:     uuid.New(),
+			action: agentproto.Connection_DISCONNECT.Enum(),
+			typ:    agentproto.Connection_SSH.Enum(),
+			method: database.ConnectionLogMethodSSH,
+			time:   dbtime.Now(),
+		},
+		{
+			name:   "SSH Disconnect",
+			id:     uuid.New(),
+			action: agentproto.Connection_DISCONNECT.Enum(),
+			typ:    agentproto.Connection_SSH.Enum(),
+			method: database.ConnectionLogMethodSSH,
+			time:   dbtime.Now(),
+			status: 500,
+			reason: "because error says so",
+		},
+		{
+			name:    "VS Code Disconnect",
 			id:      uuid.New(),
 			action:  agentproto.Connection_DISCONNECT.Enum(),
-			typ:     agentproto.Connection_SSH.Enum(),
-			appName: "ssh",
+			typ:     agentproto.Connection_VSCODE.Enum(),
+			method:  database.ConnectionLogMethodSSH,
+			appName: "vscode",
 			time:    dbtime.Now(),
-		},
-		{
-			name:    "SSH Disconnect",
-			id:      uuid.New(),
-			action:  agentproto.Connection_DISCONNECT.Enum(),
-			typ:     agentproto.Connection_SSH.Enum(),
-			appName: "ssh",
-			time:    dbtime.Now(),
-			status:  500,
-			reason:  "because error says so",
 		},
 	}
 	for _, tt := range tests {
@@ -134,7 +147,7 @@ func TestConnectionLog(t *testing.T) {
 				AgentName:        agent.Name,
 				Workspace:        &agentapi.CachedWorkspaceFields{},
 			}
-			api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
+			_, err := api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
 				Connection: &agentproto.Connection{
 					Id:              tt.id[:],
 					Action:          *tt.action,
@@ -146,6 +159,7 @@ func TestConnectionLog(t *testing.T) {
 					ClientSessionId: tt.clientSessionID,
 				},
 			})
+			require.NoError(t, err)
 
 			expectedIPRaw := tt.ip
 			if expectedIPRaw == "localhost" {
@@ -170,9 +184,9 @@ func TestConnectionLog(t *testing.T) {
 					Int32: tt.status,
 					Valid: *tt.action == agentproto.Connection_DISCONNECT,
 				},
-				IP:            expectedIP,
-				Source:        database.ConnectionSourceAgent,
-				AppNameOrPort: sql.NullString{String: tt.appName, Valid: true},
+				IP:               expectedIP,
+				ConnectionMethod: tt.method,
+				AppNameOrPort:    sql.NullString{String: tt.appName, Valid: tt.appName != ""},
 				DisconnectReason: sql.NullString{
 					String: tt.reason,
 					Valid:  tt.reason != "",
@@ -186,8 +200,37 @@ func TestConnectionLog(t *testing.T) {
 					Valid:  tt.clientSessionID != "",
 				},
 			}))
+			// Contains skips fields left unset, so check the app is absent.
+			logs := connLogger.ConnectionLogs()
+			require.Len(t, logs, 1)
+			require.Equal(t, sql.NullString{String: tt.appName, Valid: tt.appName != ""}, logs[0].AppNameOrPort)
 		})
 	}
+}
+
+// An agent connection type this coderd does not know is rejected rather than
+// logged with a guessed method.
+func TestConnectionLogRejectsUnknownType(t *testing.T) {
+	t.Parallel()
+
+	connLogger := connectionlog.NewFake()
+	api := &agentapi.ConnLogAPI{
+		ConnectionLogger: asAtomicPointer[connectionlog.ConnectionLogger](connLogger),
+		Database:         dbmock.NewMockStore(gomock.NewController(t)),
+		AgentID:          uuid.New(),
+		Workspace:        &agentapi.CachedWorkspaceFields{},
+	}
+	id := uuid.New()
+	_, err := api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
+		Connection: &agentproto.Connection{
+			Id:        id[:],
+			Action:    agentproto.Connection_CONNECT,
+			Type:      agentproto.Connection_Type(1000),
+			Timestamp: timestamppb.New(dbtime.Now()),
+		},
+	})
+	require.Error(t, err)
+	require.Empty(t, connLogger.ConnectionLogs())
 }
 
 func agentProtoConnectionActionToConnectionLog(t *testing.T, action agentproto.Connection_Action) database.ConnectionStatus {

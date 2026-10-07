@@ -21,34 +21,55 @@ type ConnectionLog struct {
 	WorkspaceName          string              `json:"workspace_name"`
 	AgentName              string              `json:"agent_name"`
 	IP                     *netip.Addr         `json:"ip,omitempty"`
-	Type                   ConnectionType      `json:"type"`
-	// AppName is the agent-reported app, such as "cursor", or a workspace app
-	// slug. Empty for port forwarding and tunnels.
-	AppName        string `json:"app_name"`
-	AppDisplayName string `json:"app_display_name"`
+	// Deprecated: Use ConnectionMethod and AppName.
+	Type             string              `json:"type"`
+	ConnectionMethod ConnectionLogMethod `json:"connection_method"`
+	// AppName identifies the originating client, when known. Web destinations
+	// are reported separately in WebInfo.
+	AppName string `json:"app_name,omitempty"`
+	// AppDisplayName is the registry display name for a known client identity,
+	// or its normalized identifier when unregistered.
+	AppDisplayName string `json:"app_display_name,omitempty"`
 
-	// WebInfo is only set when `type` is one of:
-	// - `ConnectionTypePortForwarding`
-	// - `ConnectionTypeWorkspaceApp`
-	// - `ConnectionTypeTunnel`
+	// WebInfo is set for server-recorded workspace apps, port forwards and tunnels.
 	WebInfo *ConnectionLogWebInfo `json:"web_info,omitempty"`
 
-	// SSHInfo is set for every other `type`.
+	// SSHInfo is set for SSH and reconnecting PTY connections.
 	SSHInfo *ConnectionLogSSHInfo `json:"ssh_info,omitempty"`
 }
 
-// ConnectionType groups connection logs and is the `type` filter value: the
-// app family for agent connections, such as "vscode" for Cursor, otherwise
-// the web connection type.
+// ConnectionLogMethod identifies how a connection was established.
+type ConnectionLogMethod string
+
+const (
+	ConnectionLogMethodSSH             ConnectionLogMethod = "ssh"
+	ConnectionLogMethodReconnectingPTY ConnectionLogMethod = "reconnecting_pty"
+	ConnectionLogMethodWorkspaceApp    ConnectionLogMethod = "workspace_app"
+	ConnectionLogMethodPortForwarding  ConnectionLogMethod = "port_forwarding"
+	ConnectionLogMethodTunnel          ConnectionLogMethod = "tunnel"
+)
+
+// Valid reports whether m is a supported connection-log method.
+func (m ConnectionLogMethod) Valid() bool {
+	switch m {
+	case ConnectionLogMethodSSH, ConnectionLogMethodReconnectingPTY,
+		ConnectionLogMethodWorkspaceApp, ConnectionLogMethodPortForwarding,
+		ConnectionLogMethodTunnel:
+		return true
+	default:
+		return false
+	}
+}
+
+// ConnectionType lists compatibility categories for the deprecated type filter.
 type ConnectionType string
 
 const (
-	// App families, one per registry family.
+	// Compatibility categories retained for the deprecated type filter.
 	ConnectionTypeSSH             = ConnectionType(AppFamilySSH)
 	ConnectionTypeVSCode          = ConnectionType(AppFamilyVSCode)
 	ConnectionTypeJetBrains       = ConnectionType(AppFamilyJetBrains)
 	ConnectionTypeReconnectingPTY = ConnectionType(AppFamilyReconnectingPTY)
-	ConnectionTypeUnknown         = ConnectionType(AppFamilyUnknown)
 
 	// Web connection types.
 	ConnectionTypeWorkspaceApp   ConnectionType = "workspace_app"
@@ -64,25 +85,28 @@ var webConnectionTypeNames = map[ConnectionType]string{
 	ConnectionTypeTunnel:         "Tunnel",
 }
 
-// Returns the type of an agent-reported app.
+// ConnectionTypeOfApp returns the deprecated compatibility type for an SSH app.
 func ConnectionTypeOfApp(appName string) ConnectionType {
-	family := AppNameFamily(appName)
-	// Only usage tracking records sftp.
-	if family == AppFamilySFTP {
-		return ConnectionTypeUnknown
+	switch AppNameFamily(appName) {
+	case AppFamilyVSCode:
+		return ConnectionTypeVSCode
+	case AppFamilyJetBrains:
+		return ConnectionTypeJetBrains
+	default:
+		return ConnectionTypeSSH
 	}
-	return ConnectionType(family)
 }
 
-// Lists the values the `type` filter accepts.
+// FilterableConnectionTypes lists the values the deprecated type filter accepts.
 func FilterableConnectionTypes() []ConnectionType {
-	types := []ConnectionType{ConnectionTypeUnknown}
+	types := []ConnectionType{
+		ConnectionTypeSSH, ConnectionTypeVSCode,
+		ConnectionTypeJetBrains, ConnectionTypeReconnectingPTY,
+	}
 	for t := range webConnectionTypeNames {
 		types = append(types, t)
 	}
-	for appName := range sessionApps {
-		types = append(types, ConnectionTypeOfApp(appName))
-	}
+
 	slices.Sort(types)
 	return slices.Compact(types)
 }
@@ -100,8 +124,6 @@ func (t ConnectionType) IsWeb() bool {
 // Returns the human-readable name of t.
 func (t ConnectionType) DisplayName() string {
 	switch {
-	case t == ConnectionTypeUnknown:
-		return "Unknown"
 	case t.IsWeb():
 		return webConnectionTypeNames[t]
 	// Names the family apart from the VS Code app.
@@ -112,27 +134,11 @@ func (t ConnectionType) DisplayName() string {
 	}
 }
 
-// Lists the registered apps of type t, sorted. It is empty for
-// ConnectionTypeUnknown, which matches unregistered apps.
+// AppNames lists the registered SSH apps with compatibility type t, sorted.
 func (t ConnectionType) AppNames() []string {
-	if t == ConnectionTypeUnknown {
-		return nil
-	}
 	var names []string
 	for appName := range sessionApps {
 		if ConnectionTypeOfApp(appName) == t {
-			names = append(names, appName)
-		}
-	}
-	slices.Sort(names)
-	return names
-}
-
-// Lists the registered apps that `type:unknown` excludes.
-func KnownConnectionAppNames() []string {
-	var names []string
-	for appName := range sessionApps {
-		if ConnectionTypeOfApp(appName) != ConnectionTypeUnknown {
 			names = append(names, appName)
 		}
 	}

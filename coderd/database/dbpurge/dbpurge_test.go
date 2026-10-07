@@ -1339,7 +1339,7 @@ func TestDeleteOldConnectionLogs(t *testing.T) {
 				WorkspaceID:      workspace.ID,
 				WorkspaceName:    workspace.Name,
 				AgentName:        "agent1",
-				Source:           database.ConnectionSourceAgent,
+				ConnectionMethod: database.ConnectionLogMethodSSH,
 				ConnectionStatus: database.ConnectionStatusConnected,
 			})
 
@@ -1354,7 +1354,7 @@ func TestDeleteOldConnectionLogs(t *testing.T) {
 					WorkspaceID:      workspace.ID,
 					WorkspaceName:    workspace.Name,
 					AgentName:        "agent2",
-					Source:           database.ConnectionSourceAgent,
+					ConnectionMethod: database.ConnectionLogMethodSSH,
 					ConnectionStatus: database.ConnectionStatusConnected,
 				})
 			}

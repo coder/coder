@@ -59,29 +59,33 @@ WHERE
 			)
 		ELSE true
 	END
-	-- Filter by source
+	-- Filter by method, independently of the legacy type filter
 	AND CASE
-		WHEN @source :: text != '' THEN
-			source = @source :: text
+		WHEN @connection_method :: text != '' THEN
+			connection_method = @connection_method :: connection_log_method
+		ELSE true
+	END
+	AND CASE
+		WHEN @legacy_method :: text != '' THEN
+			connection_method = @legacy_method :: connection_log_method
 		ELSE true
 	END
 	-- Filter by app name
 	AND CASE
 		WHEN cardinality(@app_names :: text[]) > 0 THEN
-			source = 'agent' AND app_name_or_port = ANY(@app_names :: text[])
+			connection_method = 'ssh' AND app_name_or_port = ANY(@app_names :: text[])
 		ELSE true
 	END
 	-- Filter by excluded app name
 	AND CASE
 		WHEN cardinality(@excluded_app_names :: text[]) > 0 THEN
-			source = 'agent' AND app_name_or_port != ALL(@excluded_app_names :: text[])
+			connection_method = 'ssh' AND (app_name_or_port IS NULL OR app_name_or_port != ALL(@excluded_app_names :: text[]))
 		ELSE true
 	END
-	-- Filter by agent app name or workspace app slug
+	-- Filter by client app identity
 	AND CASE
 		WHEN @app_name :: text != '' THEN
-			(source = 'agent' AND app_name_or_port = @app_name) OR
-			(source = 'workspace_app' AND app_name_or_port = @app_slug :: text)
+			connection_method IN ('ssh', 'reconnecting_pty') AND app_name_or_port = @app_name
 		ELSE true
 	END
 	-- Filter by user_id
@@ -136,7 +140,7 @@ WHERE
 			(@status = 'completed' AND disconnect_time IS NOT NULL)) AND
 			-- Exclude point-in-time events reported by coderd, since we
 			-- don't know their close time.
-			source = 'agent'
+			connection_method IN ('ssh', 'reconnecting_pty')
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -194,29 +198,33 @@ SELECT COUNT(*) AS count FROM (
 				)
 			ELSE true
 		END
-		-- Filter by source
+		-- Filter by method, independently of the legacy type filter
 		AND CASE
-			WHEN @source :: text != '' THEN
-				source = @source :: text
+			WHEN @connection_method :: text != '' THEN
+				connection_method = @connection_method :: connection_log_method
+			ELSE true
+		END
+		AND CASE
+			WHEN @legacy_method :: text != '' THEN
+				connection_method = @legacy_method :: connection_log_method
 			ELSE true
 		END
 		-- Filter by app name
 		AND CASE
 			WHEN cardinality(@app_names :: text[]) > 0 THEN
-				source = 'agent' AND app_name_or_port = ANY(@app_names :: text[])
+				connection_method = 'ssh' AND app_name_or_port = ANY(@app_names :: text[])
 			ELSE true
 		END
 		-- Filter by excluded app name
 		AND CASE
 			WHEN cardinality(@excluded_app_names :: text[]) > 0 THEN
-				source = 'agent' AND app_name_or_port != ALL(@excluded_app_names :: text[])
+				connection_method = 'ssh' AND (app_name_or_port IS NULL OR app_name_or_port != ALL(@excluded_app_names :: text[]))
 			ELSE true
 		END
-		-- Filter by agent app name or workspace app slug
+		-- Filter by client app identity
 		AND CASE
 			WHEN @app_name :: text != '' THEN
-				(source = 'agent' AND app_name_or_port = @app_name) OR
-				(source = 'workspace_app' AND app_name_or_port = @app_slug :: text)
+				connection_method IN ('ssh', 'reconnecting_pty') AND app_name_or_port = @app_name
 			ELSE true
 		END
 		-- Filter by user_id
@@ -271,7 +279,7 @@ SELECT COUNT(*) AS count FROM (
 				(@status = 'completed' AND disconnect_time IS NOT NULL)) AND
 				-- Exclude point-in-time events reported by coderd, since we
 				-- don't know their close time.
-				source = 'agent'
+				connection_method IN ('ssh', 'reconnecting_pty')
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in
@@ -296,7 +304,7 @@ WHERE connection_logs.id = old_logs.id;
 -- name: BatchUpsertConnectionLogs :exec
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
-    workspace_name, agent_name, source, code, ip, user_agent, user_id,
+    workspace_name, agent_name, connection_method, code, ip, user_agent, user_id,
     app_name_or_port, connection_id, disconnect_reason, disconnect_time,
     client_session_id
 )
@@ -308,7 +316,7 @@ SELECT
     u.workspace_id,
     u.workspace_name,
     u.agent_name,
-    u.source,
+    u.connection_method,
     -- Use the validity flag to distinguish "no code" (NULL) from a
     -- legitimate zero exit code.
     CASE WHEN u.code_valid THEN u.code ELSE NULL END,
@@ -329,7 +337,7 @@ FROM (
         unnest(sqlc.arg('workspace_id')::uuid[]) AS workspace_id,
         unnest(sqlc.arg('workspace_name')::text[]) AS workspace_name,
         unnest(sqlc.arg('agent_name')::text[]) AS agent_name,
-        unnest(sqlc.arg('source')::text[]) AS source,
+        unnest(sqlc.arg('connection_method')::connection_log_method[]) AS connection_method,
         unnest(sqlc.arg('code')::int4[]) AS code,
         unnest(sqlc.arg('code_valid')::bool[]) AS code_valid,
         unnest(sqlc.arg('ip')::inet[]) AS ip,

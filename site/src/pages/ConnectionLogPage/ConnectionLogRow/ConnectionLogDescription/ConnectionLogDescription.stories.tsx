@@ -16,9 +16,15 @@ const meta: Meta<typeof ConnectionLogDescription> = {
 export default meta;
 type Story = StoryObj<typeof ConnectionLogDescription>;
 
+// Stories that set connection_method also set a contradictory deprecated
+// `type`, so the screenshots prove rendering follows connection_method.
 export const SSH: Story = {
 	args: {
-		connectionLog: MockConnectedSSHConnectionLog,
+		connectionLog: {
+			...MockConnectedSSHConnectionLog,
+			type: "port_forwarding",
+			connection_method: "ssh",
+		},
 	},
 };
 
@@ -58,9 +64,8 @@ export const PortForwardingAuthenticated: Story = {
 	args: {
 		connectionLog: {
 			...MockWebConnectionLog,
-			type: "port_forwarding",
-			app_name: "",
-			app_display_name: "",
+			type: "workspace_app",
+			connection_method: "port_forwarding",
 			web_info: {
 				...MockWebConnectionLog.web_info!,
 				slug_or_port: "8080",
@@ -82,46 +87,26 @@ export const AppUnauthenticatedRedirect: Story = {
 	},
 };
 
-export const VSCode: Story = {
+export const SSHWithApp: Story = {
 	args: {
 		connectionLog: {
-			...MockWebConnectionLog,
-			type: "vscode",
-			app_name: "vscode",
-			app_display_name: "VS Code",
-		},
-	},
-};
-
-export const Cursor: Story = {
-	args: {
-		connectionLog: {
-			...MockWebConnectionLog,
-			type: "vscode",
+			...MockConnectedSSHConnectionLog,
+			type: "workspace_app",
+			connection_method: "ssh",
 			app_name: "cursor",
 			app_display_name: "Cursor",
 		},
 	},
 };
 
-export const UnregisteredApp: Story = {
+export const SSHWithUnknownApp: Story = {
 	args: {
 		connectionLog: {
-			...MockWebConnectionLog,
-			type: "unknown",
+			...MockConnectedSSHConnectionLog,
+			type: "tunnel",
+			connection_method: "ssh",
 			app_name: "an_unregistered_ide",
 			app_display_name: "an_unregistered_ide",
-		},
-	},
-};
-
-export const JetBrains: Story = {
-	args: {
-		connectionLog: {
-			...MockWebConnectionLog,
-			type: "jetbrains",
-			app_name: "jetbrains",
-			app_display_name: "JetBrains",
 		},
 	},
 };
@@ -157,13 +142,12 @@ export const TunnelDenied: Story = {
 	},
 };
 
-export const WebTerminal: Story = {
+export const ReconnectingPTY: Story = {
 	args: {
 		connectionLog: {
-			...MockWebConnectionLog,
-			type: "reconnecting_pty",
-			app_name: "reconnecting_pty",
-			app_display_name: "Web Terminal",
+			...MockConnectedSSHConnectionLog,
+			type: "ssh",
+			connection_method: "reconnecting_pty",
 		},
 	},
 };

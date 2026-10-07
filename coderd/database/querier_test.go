@@ -4744,7 +4744,7 @@ func TestCountConnectionLogs(t *testing.T) {
 			OrganizationID:   wsA.OrganizationID,
 			WorkspaceOwnerID: wsA.OwnerID,
 			WorkspaceID:      wsA.ID,
-			Source:           database.ConnectionSourceAgent,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 		})
 	}
 	for i := 0; i < 10; i++ {
@@ -4752,7 +4752,7 @@ func TestCountConnectionLogs(t *testing.T) {
 			OrganizationID:   wsB.OrganizationID,
 			WorkspaceOwnerID: wsB.OwnerID,
 			WorkspaceID:      wsB.ID,
-			Source:           database.ConnectionSourceAgent,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 		})
 	}
 
@@ -4822,7 +4822,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		WorkspaceOwnerID: ws1.OwnerID,
 		WorkspaceID:      ws1.ID,
 		WorkspaceName:    ws1.Name,
-		Source:           database.ConnectionSourceWorkspaceApp,
+		ConnectionMethod: database.ConnectionLogMethodWorkspaceApp,
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user1.ID, Valid: true},
 		UserAgent:        sql.NullString{String: "Mozilla/5.0", Valid: true},
@@ -4837,7 +4837,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		WorkspaceOwnerID: ws1.OwnerID,
 		WorkspaceID:      ws1.ID,
 		WorkspaceName:    ws1.Name,
-		Source:           database.ConnectionSourceAgent,
+		ConnectionMethod: database.ConnectionLogMethodSSH,
 		AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		ConnectionID:     uuid.NullUUID{UUID: log2ConnID, Valid: true},
@@ -4862,8 +4862,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		WorkspaceOwnerID: ws2.OwnerID,
 		WorkspaceID:      ws2.ID,
 		WorkspaceName:    ws2.Name,
-		Source:           database.ConnectionSourceAgent,
-		AppNameOrPort:    sql.NullString{String: "ssh", Valid: true},
+		ConnectionMethod: database.ConnectionLogMethodSSH,
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user2.ID, Valid: true},
 		ConnectionID:     uuid.NullUUID{UUID: log3ConnID, Valid: true},
@@ -4887,7 +4886,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		WorkspaceOwnerID: ws2.OwnerID,
 		WorkspaceID:      ws2.ID,
 		WorkspaceName:    ws2.Name,
-		Source:           database.ConnectionSourceAgent,
+		ConnectionMethod: database.ConnectionLogMethodSSH,
 		AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user3.ID, Valid: true},
@@ -4902,7 +4901,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		WorkspaceOwnerID: ws1.OwnerID,
 		WorkspaceID:      ws1.ID,
 		WorkspaceName:    ws1.Name,
-		Source:           database.ConnectionSourceTunnel,
+		ConnectionMethod: database.ConnectionLogMethodTunnel,
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user1.ID, Valid: true},
 	})
@@ -4913,7 +4912,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		WorkspaceOwnerID: ws1.OwnerID,
 		WorkspaceID:      ws1.ID,
 		WorkspaceName:    ws1.Name,
-		Source:           database.ConnectionSourceAgent,
+		ConnectionMethod: database.ConnectionLogMethodSSH,
 		AppNameOrPort:    sql.NullString{String: "cursor", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
@@ -4925,12 +4924,49 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		WorkspaceOwnerID: ws1.OwnerID,
 		WorkspaceID:      ws1.ID,
 		WorkspaceName:    ws1.Name,
-		Source:           database.ConnectionSourceAgent,
+		ConnectionMethod: database.ConnectionLogMethodSSH,
 		AppNameOrPort:    sql.NullString{String: "an_unregistered_ide", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
 	})
 
+	log8 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-5 * time.Minute),
+		OrganizationID:   ws1.OrganizationID,
+		WorkspaceOwnerID: ws1.OwnerID,
+		WorkspaceID:      ws1.ID,
+		WorkspaceName:    ws1.Name,
+		ConnectionMethod: database.ConnectionLogMethodReconnectingPTY,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	})
+
+	log9 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-4 * time.Minute),
+		OrganizationID:   ws1.OrganizationID,
+		WorkspaceOwnerID: ws1.OwnerID,
+		WorkspaceID:      ws1.ID,
+		WorkspaceName:    ws1.Name,
+		ConnectionMethod: database.ConnectionLogMethodSSH,
+		AppNameOrPort:    sql.NullString{String: "goland", Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	})
+
+	// A client identity reported over the web terminal.
+	log10 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-3 * time.Minute),
+		OrganizationID:   ws1.OrganizationID,
+		WorkspaceOwnerID: ws1.OwnerID,
+		WorkspaceID:      ws1.ID,
+		WorkspaceName:    ws1.Name,
+		ConnectionMethod: database.ConnectionLogMethodReconnectingPTY,
+		AppNameOrPort:    sql.NullString{String: "cursor", Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	})
+
+	sshFamilyApps := slices.Concat(codersdk.ConnectionTypeVSCode.AppNames(), codersdk.ConnectionTypeJetBrains.AppNames())
 	testCases := []struct {
 		name           string
 		params         database.GetConnectionLogsOffsetParams
@@ -4940,7 +4976,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			name:   "NoFilter",
 			params: database.GetConnectionLogsOffsetParams{},
 			expectedLogIDs: []uuid.UUID{
-				log1.ID, log2.ID, log3.ID, log4.ID, log5.ID, log6.ID, log7.ID,
+				log1.ID, log2.ID, log3.ID, log4.ID, log5.ID, log6.ID, log7.ID, log8.ID, log9.ID, log10.ID,
 			},
 		},
 		{
@@ -4955,14 +4991,14 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			params: database.GetConnectionLogsOffsetParams{
 				WorkspaceOwner: user1.Username,
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID, log5.ID, log6.ID, log7.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID, log5.ID, log6.ID, log7.ID, log8.ID, log9.ID, log10.ID},
 		},
 		{
 			name: "WorkspaceOwnerID",
 			params: database.GetConnectionLogsOffsetParams{
 				WorkspaceOwnerID: user1.ID,
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID, log5.ID, log6.ID, log7.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID, log5.ID, log6.ID, log7.ID, log8.ID, log9.ID, log10.ID},
 		},
 		{
 			name: "WorkspaceOwnerEmail",
@@ -4972,50 +5008,115 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log3.ID, log4.ID},
 		},
 		{
-			name: "TypeFamily",
+			name: "TypeVSCode",
 			params: database.GetConnectionLogsOffsetParams{
-				AppNames: codersdk.ConnectionTypeVSCode.AppNames(),
+				LegacyMethod: string(database.ConnectionLogMethodSSH),
+				AppNames:     codersdk.ConnectionTypeVSCode.AppNames(),
 			},
 			expectedLogIDs: []uuid.UUID{log2.ID, log4.ID, log6.ID},
 		},
 		{
-			name: "TypeSSHFamily",
+			name: "TypeJetBrains",
 			params: database.GetConnectionLogsOffsetParams{
-				AppNames: codersdk.ConnectionTypeSSH.AppNames(),
+				LegacyMethod: string(database.ConnectionLogMethodSSH),
+				AppNames:     codersdk.ConnectionTypeJetBrains.AppNames(),
 			},
-			expectedLogIDs: []uuid.UUID{log3.ID},
+			expectedLogIDs: []uuid.UUID{log9.ID},
 		},
 		{
-			// Excluding known apps leaves only agent connections.
-			name: "TypeUnknown",
+			// Plain SSH includes absent and unregistered identities.
+			name: "TypeSSH",
 			params: database.GetConnectionLogsOffsetParams{
-				ExcludedAppNames: codersdk.KnownConnectionAppNames(),
+				LegacyMethod:     string(database.ConnectionLogMethodSSH),
+				ExcludedAppNames: sshFamilyApps,
 			},
-			expectedLogIDs: []uuid.UUID{log7.ID},
+			expectedLogIDs: []uuid.UUID{log3.ID, log7.ID},
+		},
+		{
+			name: "TypeReconnectingPTY",
+			params: database.GetConnectionLogsOffsetParams{
+				LegacyMethod: string(database.ConnectionLogMethodReconnectingPTY),
+			},
+			expectedLogIDs: []uuid.UUID{log8.ID, log10.ID},
 		},
 		{
 			name: "TypeTunnel",
 			params: database.GetConnectionLogsOffsetParams{
-				Source: string(database.ConnectionSourceTunnel),
+				LegacyMethod: string(database.ConnectionLogMethodTunnel),
 			},
 			expectedLogIDs: []uuid.UUID{log5.ID},
 		},
 		{
+			name: "MethodSSH",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectionMethod: string(database.ConnectionLogMethodSSH),
+			},
+			expectedLogIDs: []uuid.UUID{log2.ID, log3.ID, log4.ID, log6.ID, log7.ID, log9.ID},
+		},
+		{
+			name: "MethodReconnectingPTY",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectionMethod: string(database.ConnectionLogMethodReconnectingPTY),
+			},
+			expectedLogIDs: []uuid.UUID{log8.ID, log10.ID},
+		},
+		{
+			name: "MethodWorkspaceApp",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectionMethod: string(database.ConnectionLogMethodWorkspaceApp),
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID},
+		},
+		{
+			// Matches the client identity over any agent method.
 			name: "App",
 			params: database.GetConnectionLogsOffsetParams{
 				AppName: "cursor",
-				AppSlug: "cursor",
+			},
+			expectedLogIDs: []uuid.UUID{log6.ID, log10.ID},
+		},
+		{
+			// A workspace app slug is a destination, not a client identity.
+			name: "AppDoesNotMatchDestination",
+			params: database.GetConnectionLogsOffsetParams{
+				AppName: "code-server",
+			},
+			expectedLogIDs: []uuid.UUID{},
+		},
+		{
+			name: "MethodAndApp",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectionMethod: string(database.ConnectionLogMethodSSH),
+				AppName:          "cursor",
 			},
 			expectedLogIDs: []uuid.UUID{log6.ID},
 		},
 		{
-			// Matches the slug, not the code_server agent app.
-			name: "AppWorkspaceAppSlug",
+			name: "MethodAndDestinationApp",
 			params: database.GetConnectionLogsOffsetParams{
-				AppName: "code_server",
-				AppSlug: "code-server",
+				ConnectionMethod: string(database.ConnectionLogMethodWorkspaceApp),
+				AppName:          "code-server",
 			},
-			expectedLogIDs: []uuid.UUID{log1.ID},
+			expectedLogIDs: []uuid.UUID{},
+		},
+		{
+			// The method and deprecated type filters intersect.
+			name: "MethodAndConflictingType",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectionMethod: string(database.ConnectionLogMethodReconnectingPTY),
+				LegacyMethod:     string(database.ConnectionLogMethodSSH),
+				AppNames:         codersdk.ConnectionTypeVSCode.AppNames(),
+			},
+			expectedLogIDs: []uuid.UUID{},
+		},
+		{
+			name: "TypeAndApp",
+			params: database.GetConnectionLogsOffsetParams{
+				LegacyMethod: string(database.ConnectionLogMethodSSH),
+				AppNames:     codersdk.ConnectionTypeVSCode.AppNames(),
+				AppName:      "cursor",
+			},
+			expectedLogIDs: []uuid.UUID{log6.ID},
 		},
 		{
 			name: "UserID",
@@ -5043,7 +5144,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			params: database.GetConnectionLogsOffsetParams{
 				ConnectedAfter: now.Add(-90 * time.Minute), // 1.5 hours ago
 			},
-			expectedLogIDs: []uuid.UUID{log4.ID, log5.ID, log6.ID, log7.ID},
+			expectedLogIDs: []uuid.UUID{log4.ID, log5.ID, log6.ID, log7.ID, log8.ID, log9.ID, log10.ID},
 		},
 		{
 			name: "ConnectedBefore",
@@ -5071,7 +5172,8 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			params: database.GetConnectionLogsOffsetParams{
 				Status: string(codersdk.ConnectionLogStatusOngoing),
 			},
-			expectedLogIDs: []uuid.UUID{log4.ID, log6.ID, log7.ID},
+			// Web and tunnel events have no lifecycle, so they are excluded.
+			expectedLogIDs: []uuid.UUID{log4.ID, log6.ID, log7.ID, log8.ID, log9.ID, log10.ID},
 		},
 		{
 			name: "StatusCompleted",
@@ -5084,6 +5186,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			name: "OrganizationAndTypeAndStatus",
 			params: database.GetConnectionLogsOffsetParams{
 				OrganizationID: orgA.Org.ID,
+				LegacyMethod:   string(database.ConnectionLogMethodSSH),
 				AppNames:       codersdk.ConnectionTypeVSCode.AppNames(),
 				Status:         string(codersdk.ConnectionLogStatusCompleted),
 			},
@@ -5100,11 +5203,11 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			count, err := db.CountConnectionLogs(ctx, database.CountConnectionLogsParams{
 				OrganizationID:      tc.params.OrganizationID,
 				WorkspaceOwner:      tc.params.WorkspaceOwner,
-				Source:              tc.params.Source,
+				ConnectionMethod:    tc.params.ConnectionMethod,
+				LegacyMethod:        tc.params.LegacyMethod,
 				AppNames:            tc.params.AppNames,
 				ExcludedAppNames:    tc.params.ExcludedAppNames,
 				AppName:             tc.params.AppName,
-				AppSlug:             tc.params.AppSlug,
 				UserID:              tc.params.UserID,
 				Username:            tc.params.Username,
 				UserEmail:           tc.params.UserEmail,
@@ -5186,7 +5289,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Source:           []string{string(database.ConnectionSourceAgent)},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{0},
 			CodeValid:        []bool{false},
 			Ip:               []pqtype.Inet{defaultIP},
@@ -5225,7 +5328,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Source:           []string{string(database.ConnectionSourceAgent)},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{0},
 			CodeValid:        []bool{false},
 			Ip:               []pqtype.Inet{defaultIP},
@@ -5249,7 +5352,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Source:           []string{string(database.ConnectionSourceAgent)},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{1},
 			CodeValid:        []bool{true},
 			Ip:               []pqtype.Inet{defaultIP},
@@ -5291,7 +5394,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				WorkspaceID:      []uuid.UUID{ws.ID},
 				WorkspaceName:    []string{ws.Name},
 				AgentName:        []string{"agent"},
-				Source:           []string{string(database.ConnectionSourceAgent)},
+				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 				Code:             []int32{0},
 				CodeValid:        []bool{false},
 				Ip:               []pqtype.Inet{ip},
@@ -5351,7 +5454,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Source:           []string{string(database.ConnectionSourceAgent)},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{0},
 			CodeValid:        []bool{true},
 			Ip:               []pqtype.Inet{defaultIP},
@@ -5374,7 +5477,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Source:           []string{string(database.ConnectionSourceAgent)},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{0},
 			CodeValid:        []bool{false},
 			Ip:               []pqtype.Inet{defaultIP},
@@ -5412,7 +5515,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				WorkspaceID:      []uuid.UUID{ws.ID},
 				WorkspaceName:    []string{ws.Name},
 				AgentName:        []string{"agent"},
-				Source:           []string{string(database.ConnectionSourceAgent)},
+				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 				Code:             []int32{code},
 				CodeValid:        []bool{true},
 				Ip:               []pqtype.Inet{defaultIP},
@@ -5460,7 +5563,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				WorkspaceID:      []uuid.UUID{ws.ID},
 				WorkspaceName:    []string{ws.Name},
 				AgentName:        []string{"agent"},
-				Source:           []string{string(database.ConnectionSourceAgent)},
+				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 				Code:             []int32{0},
 				CodeValid:        []bool{true},
 				Ip:               []pqtype.Inet{defaultIP},
@@ -5487,6 +5590,62 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		require.Equal(t, "0123456789abcdef0123456789abcdef", row.ClientSessionID.String,
 			"client_session_id should not be overwritten")
 	})
+
+	// A later report for the same connection, such as its disconnect, cannot
+	// change how the connection was established or who opened it.
+	t.Run("ConnectionIdentityIsWriteOnce", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		ws := createWorkspace(t, db)
+		connID := uuid.New()
+		connectTime := dbtime.Now()
+		disconnectTime := connectTime.Add(time.Second)
+
+		mkParams := func(method database.ConnectionLogMethod, appName, sessionID, reason string, disconnect time.Time) database.BatchUpsertConnectionLogsParams {
+			return database.BatchUpsertConnectionLogsParams{
+				ID:               []uuid.UUID{uuid.New()},
+				ConnectTime:      []time.Time{connectTime},
+				OrganizationID:   []uuid.UUID{ws.OrganizationID},
+				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+				WorkspaceID:      []uuid.UUID{ws.ID},
+				WorkspaceName:    []string{ws.Name},
+				AgentName:        []string{"agent"},
+				ConnectionMethod: []database.ConnectionLogMethod{method},
+				Code:             []int32{0},
+				CodeValid:        []bool{!disconnect.IsZero()},
+				Ip:               []pqtype.Inet{defaultIP},
+				UserAgent:        []string{""},
+				UserID:           []uuid.UUID{uuid.Nil},
+				AppNameOrPort:    []string{appName},
+				ConnectionID:     []uuid.UUID{connID},
+				DisconnectReason: []string{reason},
+				DisconnectTime:   []time.Time{disconnect},
+				ClientSessionID:  []string{sessionID},
+			}
+		}
+
+		err := db.BatchUpsertConnectionLogs(ctx, mkParams(
+			database.ConnectionLogMethodSSH, "cursor", "0123456789abcdef0123456789abcdef", "", zeroTime))
+		require.NoError(t, err)
+		err = db.BatchUpsertConnectionLogs(ctx, mkParams(
+			database.ConnectionLogMethodReconnectingPTY, "vscode", "fedcba9876543210fedcba9876543210", "bye", disconnectTime))
+		require.NoError(t, err)
+		// An overlapping report with no identity does not clear it either.
+		err = db.BatchUpsertConnectionLogs(ctx, mkParams(
+			database.ConnectionLogMethodSSH, "", "", "", zeroTime))
+		require.NoError(t, err)
+
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		row := rows[0].ConnectionLog
+		require.Equal(t, database.ConnectionLogMethodSSH, row.ConnectionMethod)
+		require.Equal(t, sql.NullString{String: "cursor", Valid: true}, row.AppNameOrPort)
+		require.Equal(t, sql.NullString{String: "0123456789abcdef0123456789abcdef", Valid: true}, row.ClientSessionID)
+		require.True(t, disconnectTime.Equal(row.DisconnectTime.Time))
+		require.Equal(t, "bye", row.DisconnectReason.String)
+	})
 	t.Run("NullConnectionIDEvents", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -5505,7 +5664,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				WorkspaceID:      []uuid.UUID{ws.ID},
 				WorkspaceName:    []string{ws.Name},
 				AgentName:        []string{"agent"},
-				Source:           []string{string(database.ConnectionSourceAgent)},
+				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodWorkspaceApp},
 				Code:             []int32{200},
 				CodeValid:        []bool{true},
 				Ip:               []pqtype.Inet{defaultIP},
@@ -5540,7 +5699,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Source:           []string{string(database.ConnectionSourceAgent)},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{42},
 			CodeValid:        []bool{true},
 			Ip:               []pqtype.Inet{defaultIP},
@@ -5572,7 +5731,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Source:           []string{string(database.ConnectionSourceAgent)},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{0},
 			CodeValid:        []bool{true},
 			Ip:               []pqtype.Inet{defaultIP},
@@ -5610,7 +5769,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      []uuid.UUID{ws.ID},
 			WorkspaceName:    []string{ws.Name},
 			AgentName:        []string{"agent"},
-			Source:           []string{string(database.ConnectionSourceAgent)},
+			ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodSSH},
 			Code:             []int32{99},
 			CodeValid:        []bool{false},
 			Ip:               []pqtype.Inet{defaultIP},
@@ -5649,7 +5808,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				WorkspaceID:      []uuid.UUID{ws.ID},
 				WorkspaceName:    []string{ws.Name},
 				AgentName:        []string{"agent"},
-				Source:           []string{string(database.ConnectionSourceAgent)},
+				ConnectionMethod: []database.ConnectionLogMethod{database.ConnectionLogMethodWorkspaceApp},
 				Code:             []int32{200},
 				CodeValid:        []bool{true},
 				Ip:               []pqtype.Inet{defaultIP},
@@ -5685,7 +5844,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		wsIDs := make([]uuid.UUID, n)
 		wsNames := make([]string, n)
 		agentNames := make([]string, n)
-		sources := make([]string, n)
+		methods := make([]database.ConnectionLogMethod, n)
 		codes := make([]int32, n)
 		codeValids := make([]bool, n)
 		ips := make([]pqtype.Inet, n)
@@ -5705,7 +5864,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			wsIDs[i] = ws.ID
 			wsNames[i] = ws.Name
 			agentNames[i] = "agent"
-			sources[i] = string(database.ConnectionSourceAgent)
+			methods[i] = database.ConnectionLogMethodSSH
 			codes[i] = 0
 			codeValids[i] = false
 			ips[i] = defaultIP
@@ -5726,7 +5885,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			WorkspaceID:      wsIDs,
 			WorkspaceName:    wsNames,
 			AgentName:        agentNames,
-			Source:           sources,
+			ConnectionMethod: methods,
 			Code:             codes,
 			CodeValid:        codeValids,
 			Ip:               ips,

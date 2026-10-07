@@ -424,6 +424,13 @@ CREATE TYPE chat_title_source AS ENUM (
 
 COMMENT ON TYPE chat_title_source IS 'Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
 
+CREATE TYPE connection_log_method AS ENUM (
+    'ssh',
+    'reconnecting_pty',
+    'workspace_app',
+    'port_forwarding',
+    'tunnel'
+);
 
 CREATE TYPE connection_status AS ENUM (
     'connected',
@@ -2575,7 +2582,7 @@ CREATE TABLE connection_logs (
     workspace_id uuid NOT NULL,
     workspace_name text NOT NULL,
     agent_name text NOT NULL,
-    source text NOT NULL,
+    connection_method connection_log_method NOT NULL,
     ip inet,
     code integer,
     user_agent text,
@@ -2588,7 +2595,7 @@ CREATE TABLE connection_logs (
     CONSTRAINT connection_logs_client_session_id_check CHECK (((client_session_id IS NULL) OR (client_session_id ~ '^[0-9a-f]{32}$'::text)))
 );
 
-COMMENT ON COLUMN connection_logs.source IS 'What logged the connection, such as agent or workspace_app.';
+COMMENT ON COLUMN connection_logs.connection_method IS 'How the connection was established.';
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.';
 
@@ -2596,7 +2603,7 @@ COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH events. For web co
 
 COMMENT ON COLUMN connection_logs.user_id IS 'Null for SSH events. For web connections, this is the ID of the user that made the request.';
 
-COMMENT ON COLUMN connection_logs.app_name_or_port IS 'Null for tunnels. For agent connections, this is the reported app name. For web connections, this is the slug of the app or the port number being forwarded.';
+COMMENT ON COLUMN connection_logs.app_name_or_port IS 'Client identity for SSH and reconnecting PTY; destination slug or port for workspace apps and port forwarding. Null when absent.';
 
 COMMENT ON COLUMN connection_logs.connection_id IS 'The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.';
 

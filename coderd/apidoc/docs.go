@@ -23424,15 +23424,19 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "app_display_name": {
+                    "description": "AppDisplayName is the registry display name for a known client identity,\nor its normalized identifier when unregistered.",
                     "type": "string"
                 },
                 "app_name": {
-                    "description": "AppName is the agent-reported app, such as \"cursor\", or a workspace app\nslug. Empty for port forwarding and tunnels.",
+                    "description": "AppName identifies the originating client, when known. Web destinations\nare reported separately in WebInfo.",
                     "type": "string"
                 },
                 "connect_time": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "connection_method": {
+                    "$ref": "#/definitions/codersdk.ConnectionLogMethod"
                 },
                 "id": {
                     "type": "string",
@@ -23445,7 +23449,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.MinimalOrganization"
                 },
                 "ssh_info": {
-                    "description": "SSHInfo is set for every other ` + "`" + `type` + "`" + `.",
+                    "description": "SSHInfo is set for SSH and reconnecting PTY connections.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ConnectionLogSSHInfo"
@@ -23453,10 +23457,11 @@ const docTemplate = `{
                     ]
                 },
                 "type": {
-                    "$ref": "#/definitions/codersdk.ConnectionType"
+                    "description": "Deprecated: Use ConnectionMethod and AppName.",
+                    "type": "string"
                 },
                 "web_info": {
-                    "description": "WebInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypePortForwarding` + "`" + `\n- ` + "`" + `ConnectionTypeWorkspaceApp` + "`" + `\n- ` + "`" + `ConnectionTypeTunnel` + "`" + `",
+                    "description": "WebInfo is set for server-recorded workspace apps, port forwards and tunnels.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ConnectionLogWebInfo"
@@ -23478,6 +23483,23 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.ConnectionLogMethod": {
+            "type": "string",
+            "enum": [
+                "ssh",
+                "reconnecting_pty",
+                "workspace_app",
+                "port_forwarding",
+                "tunnel"
+            ],
+            "x-enum-varnames": [
+                "ConnectionLogMethodSSH",
+                "ConnectionLogMethodReconnectingPTY",
+                "ConnectionLogMethodWorkspaceApp",
+                "ConnectionLogMethodPortForwarding",
+                "ConnectionLogMethodTunnel"
+            ]
         },
         "codersdk.ConnectionLogResponse": {
             "type": "object",
@@ -23540,29 +23562,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "codersdk.ConnectionType": {
-            "type": "string",
-            "enum": [
-                "ssh",
-                "vscode",
-                "jetbrains",
-                "reconnecting_pty",
-                "unknown",
-                "workspace_app",
-                "port_forwarding",
-                "tunnel"
-            ],
-            "x-enum-varnames": [
-                "ConnectionTypeSSH",
-                "ConnectionTypeVSCode",
-                "ConnectionTypeJetBrains",
-                "ConnectionTypeReconnectingPTY",
-                "ConnectionTypeUnknown",
-                "ConnectionTypeWorkspaceApp",
-                "ConnectionTypePortForwarding",
-                "ConnectionTypeTunnel"
-            ]
         },
         "codersdk.ConvertLoginRequest": {
             "type": "object",

@@ -669,7 +669,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 			OrganizationID:      orgID,
 			WorkspaceOwner:      "testowner",
 			WorkspaceOwnerEmail: "owner@example.com",
-			Source:              string(database.ConnectionSourcePortForwarding),
+			LegacyMethod:        string(database.ConnectionLogMethodPortForwarding),
 			Username:            "testuser",
 			UserEmail:           "test@example.com",
 			ConnectedAfter:      time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -682,37 +682,83 @@ func TestSearchConnectionLogs(t *testing.T) {
 		require.Equal(t, expected, values)
 	})
 
-	// A family matches every app in it, and only those apps.
+	// type: is the deprecated filter. A family matches every app in it, and
+	// only those apps.
 	t.Run("Type", func(t *testing.T) {
 		t.Parallel()
 
 		db, _ := dbtestutil.NewDB(t)
 
-		values, _, errs := searchquery.ConnectionLogs(context.Background(), db, "type:vscode", database.APIKey{})
+		values, count, errs := searchquery.ConnectionLogs(context.Background(), db, "type:vscode", database.APIKey{})
 		require.Len(t, errs, 0)
-		require.Empty(t, values.Source)
+		require.Equal(t, string(database.ConnectionLogMethodSSH), values.LegacyMethod)
+		require.Empty(t, values.ConnectionMethod)
 		require.Contains(t, values.AppNames, "vscode")
 		require.Contains(t, values.AppNames, "cursor")
 		require.NotContains(t, values.AppNames, "jetbrains")
+		require.Empty(t, values.ExcludedAppNames)
+		require.Equal(t, values.LegacyMethod, count.LegacyMethod)
+		require.Equal(t, values.AppNames, count.AppNames)
 
-		values, _, errs = searchquery.ConnectionLogs(context.Background(), db, "type:unknown", database.APIKey{})
+		// Plain SSH excludes the VS Code and JetBrains families.
+		values, count, errs = searchquery.ConnectionLogs(context.Background(), db, "type:ssh", database.APIKey{})
 		require.Len(t, errs, 0)
+		require.Equal(t, string(database.ConnectionLogMethodSSH), values.LegacyMethod)
 		require.Empty(t, values.AppNames)
 		require.Contains(t, values.ExcludedAppNames, "cursor")
-		require.NotContains(t, values.ExcludedAppNames, "tunnel")
+		require.Contains(t, values.ExcludedAppNames, "goland")
+		require.NotContains(t, values.ExcludedAppNames, "ssh")
+		require.NotContains(t, values.ExcludedAppNames, "zed")
+		require.Equal(t, values.ExcludedAppNames, count.ExcludedAppNames)
 
-		// A web type matches its source, not an app.
+		values, _, errs = searchquery.ConnectionLogs(context.Background(), db, "type:reconnecting_pty", database.APIKey{})
+		require.Len(t, errs, 0)
+		require.Equal(t, string(database.ConnectionLogMethodReconnectingPTY), values.LegacyMethod)
+		require.Empty(t, values.AppNames)
+		require.Empty(t, values.ExcludedAppNames)
+
+		// A web type matches its method, not an app.
 		values, _, errs = searchquery.ConnectionLogs(context.Background(), db, "type:tunnel", database.APIKey{})
 		require.Len(t, errs, 0)
-		require.Equal(t, string(database.ConnectionSourceTunnel), values.Source)
+		require.Equal(t, string(database.ConnectionLogMethodTunnel), values.LegacyMethod)
 		require.Empty(t, values.AppNames)
 
 		// An app name is not a family, so it is not a type.
 		_, _, errs = searchquery.ConnectionLogs(context.Background(), db, "type:cursor", database.APIKey{})
 		require.Len(t, errs, 1)
+
+		// Unknown was never a released type.
+		_, _, errs = searchquery.ConnectionLogs(context.Background(), db, "type:unknown", database.APIKey{})
+		require.Len(t, errs, 1)
 	})
 
-	// app: matches a normalized agent app name or a slug as written.
+	t.Run("Method", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+
+		values, count, errs := searchquery.ConnectionLogs(context.Background(), db, "method:reconnecting_pty", database.APIKey{})
+		require.Len(t, errs, 0)
+		require.Equal(t, string(database.ConnectionLogMethodReconnectingPTY), values.ConnectionMethod)
+		require.Empty(t, values.LegacyMethod)
+		require.Equal(t, values.ConnectionMethod, count.ConnectionMethod)
+
+		// method: and type: are separate constraints, so both are kept.
+		values, count, errs = searchquery.ConnectionLogs(context.Background(), db, "method:ssh type:reconnecting_pty", database.APIKey{})
+		require.Len(t, errs, 0)
+		require.Equal(t, string(database.ConnectionLogMethodSSH), values.ConnectionMethod)
+		require.Equal(t, string(database.ConnectionLogMethodReconnectingPTY), values.LegacyMethod)
+		require.Equal(t, values.ConnectionMethod, count.ConnectionMethod)
+		require.Equal(t, values.LegacyMethod, count.LegacyMethod)
+
+		// A legacy type or app identity is not a method.
+		for _, q := range []string{"method:vscode", "method:jetbrains", "method:unknown"} {
+			_, _, errs = searchquery.ConnectionLogs(context.Background(), db, q, database.APIKey{})
+			require.Len(t, errs, 1, q)
+		}
+	})
+
+	// app: matches a normalized client identity.
 	t.Run("App", func(t *testing.T) {
 		t.Parallel()
 
@@ -721,9 +767,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 		values, count, errs := searchquery.ConnectionLogs(context.Background(), db, "app:Code-Server", database.APIKey{})
 		require.Len(t, errs, 0)
 		require.Equal(t, "code_server", values.AppName)
-		require.Equal(t, "code-server", values.AppSlug)
 		require.Equal(t, values.AppName, count.AppName)
-		require.Equal(t, values.AppSlug, count.AppSlug)
 	})
 
 	t.Run("Me", func(t *testing.T) {

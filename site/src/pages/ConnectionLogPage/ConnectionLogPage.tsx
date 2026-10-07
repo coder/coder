@@ -9,7 +9,11 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { useOrganizationsFilterMenu } from "#/modules/tableFiltering/options";
 import { pageTitle } from "#/utils/page";
-import { useStatusFilterMenu, useTypeFilterMenu } from "./ConnectionLogFilter";
+import {
+	useMethodFilterMenu,
+	useStatusFilterMenu,
+	useTypeFilterMenu,
+} from "./ConnectionLogFilter";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
 const ConnectionLogPage: React.FC = () => {
@@ -61,6 +65,15 @@ const ConnectionLogPage: React.FC = () => {
 			}),
 	});
 
+	const methodMenu = useMethodFilterMenu({
+		value: filter.values.method,
+		onChange: (option) =>
+			filter.update({
+				...filter.values,
+				method: option?.value,
+			}),
+	});
+
 	const organizationsMenu = useOrganizationsFilterMenu({
 		value: filter.values.organization,
 		onChange: (option) =>
@@ -88,6 +101,7 @@ const ConnectionLogPage: React.FC = () => {
 						user: userMenu,
 						status: statusMenu,
 						type: typeMenu,
+						method: methodMenu,
 						organization: showOrganizations ? organizationsMenu : undefined,
 					},
 				}}

@@ -3110,8 +3110,7 @@ export const MockWebConnectionLog: TypesGen.ConnectionLog = {
 	agent_name: "dev",
 	ip: "127.0.0.1",
 	type: "workspace_app",
-	app_name: "code-server",
-	app_display_name: "code-server",
+	connection_method: "workspace_app",
 	web_info: {
 		user_agent:
 			'"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
@@ -3131,8 +3130,7 @@ const MockTunnelWebInfo: TypesGen.ConnectionLogWebInfo = {
 export const MockTunnelConnectionLog: TypesGen.ConnectionLog = {
 	...MockWebConnectionLog,
 	type: "tunnel",
-	app_name: "",
-	app_display_name: "",
+	connection_method: "tunnel",
 	web_info: MockTunnelWebInfo,
 };
 
@@ -3161,8 +3159,7 @@ export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 	agent_name: "dev",
 	ip: "127.0.0.1",
 	type: "ssh",
-	app_name: "ssh",
-	app_display_name: "SSH",
+	connection_method: "ssh",
 	ssh_info: {
 		connection_id: "026c8c11-fc5c-4df8-a286-5fe6d7f54f98",
 		disconnect_reason: undefined,
@@ -3187,8 +3184,7 @@ export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 	agent_name: "dev",
 	ip: "127.0.0.1",
 	type: "ssh",
-	app_name: "ssh",
-	app_display_name: "SSH",
+	connection_method: "ssh",
 	ssh_info: {
 		connection_id: "026c8c11-fc5c-4df8-a286-5fe6d7f54f98",
 		disconnect_reason: "server shut down",

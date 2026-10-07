@@ -79,7 +79,7 @@ func TestDBBackendIntegration(t *testing.T) {
 			WorkspaceID:      ws.ID,
 			WorkspaceName:    ws.Name,
 			AgentName:        "main",
-			Source:           database.ConnectionSourceAgent,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
 			ConnectionStatus: database.ConnectionStatusConnected,
 			IP:               testIP(),
@@ -110,6 +110,7 @@ func TestDBBackendIntegration(t *testing.T) {
 
 		connID := uuid.New()
 		connectTime := dbtime.Now()
+		const sessionID = "0123456789abcdef0123456789abcdef"
 
 		// First batcher: insert connect, close to flush.
 		//nolint:gocritic // Test needs system context for the batcher.
@@ -126,7 +127,9 @@ func TestDBBackendIntegration(t *testing.T) {
 			WorkspaceID:      ws.ID,
 			WorkspaceName:    ws.Name,
 			AgentName:        "main",
-			Source:           database.ConnectionSourceAgent,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
+			AppNameOrPort:    sql.NullString{String: "cursor", Valid: true},
+			ClientSessionID:  sql.NullString{String: sessionID, Valid: true},
 			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
 			ConnectionStatus: database.ConnectionStatusConnected,
 			IP:               testIP(),
@@ -134,7 +137,8 @@ func TestDBBackendIntegration(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, b1.Close())
 
-		// Second batcher: insert disconnect, close to flush.
+		// Second batcher: insert disconnect, close to flush. Its identity
+		// differs so the test shows the first report's identity is kept.
 		//nolint:gocritic // Test needs system context for the batcher.
 		b2 := connectionlog.NewDBBatcher(
 			dbauthz.AsConnectionLogger(ctx), db, log,
@@ -150,7 +154,9 @@ func TestDBBackendIntegration(t *testing.T) {
 			WorkspaceID:      ws.ID,
 			WorkspaceName:    ws.Name,
 			AgentName:        "main",
-			Source:           database.ConnectionSourceAgent,
+			ConnectionMethod: database.ConnectionLogMethodReconnectingPTY,
+			AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
+			ClientSessionID:  sql.NullString{String: "fedcba9876543210fedcba9876543210", Valid: true},
 			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
 			ConnectionStatus: database.ConnectionStatusDisconnected,
 			Code:             sql.NullInt32{Int32: 0, Valid: true},
@@ -165,8 +171,12 @@ func TestDBBackendIntegration(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, rows, 1, "connect+disconnect should produce one row")
-		require.True(t, rows[0].ConnectionLog.DisconnectTime.Valid)
-		require.Equal(t, "client left", rows[0].ConnectionLog.DisconnectReason.String)
+		row := rows[0].ConnectionLog
+		require.True(t, row.DisconnectTime.Valid)
+		require.Equal(t, "client left", row.DisconnectReason.String)
+		require.Equal(t, database.ConnectionLogMethodSSH, row.ConnectionMethod)
+		require.Equal(t, sql.NullString{String: "cursor", Valid: true}, row.AppNameOrPort)
+		require.Equal(t, sql.NullString{String: sessionID, Valid: true}, row.ClientSessionID)
 	})
 
 	t.Run("ConnectAndDisconnectSameBatch", func(t *testing.T) {
@@ -199,7 +209,7 @@ func TestDBBackendIntegration(t *testing.T) {
 			WorkspaceID:      ws.ID,
 			WorkspaceName:    ws.Name,
 			AgentName:        "main",
-			Source:           database.ConnectionSourceAgent,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
 			ConnectionStatus: database.ConnectionStatusConnected,
 			IP:               testIP(),
@@ -214,7 +224,7 @@ func TestDBBackendIntegration(t *testing.T) {
 			WorkspaceID:      ws.ID,
 			WorkspaceName:    ws.Name,
 			AgentName:        "main",
-			Source:           database.ConnectionSourceAgent,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
 			ConnectionStatus: database.ConnectionStatusDisconnected,
 			Code:             sql.NullInt32{Int32: 0, Valid: true},
@@ -234,6 +244,8 @@ func TestDBBackendIntegration(t *testing.T) {
 		require.Len(t, rows, 1)
 		require.True(t, rows[0].ConnectionLog.DisconnectTime.Valid)
 		require.Equal(t, "done", rows[0].ConnectionLog.DisconnectReason.String)
+		require.Equal(t, database.ConnectionLogMethodSSH, rows[0].ConnectionLog.ConnectionMethod)
+		require.False(t, rows[0].ConnectionLog.AppNameOrPort.Valid, "an absent app is stored as NULL")
 	})
 
 	t.Run("MultipleIndependentConnections", func(t *testing.T) {
@@ -263,7 +275,7 @@ func TestDBBackendIntegration(t *testing.T) {
 				WorkspaceID:      ws.ID,
 				WorkspaceName:    ws.Name,
 				AgentName:        "main",
-				Source:           database.ConnectionSourceAgent,
+				ConnectionMethod: database.ConnectionLogMethodSSH,
 				ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
 				ConnectionStatus: database.ConnectionStatusConnected,
 				IP:               testIP(),
@@ -308,7 +320,7 @@ func TestDBBackendIntegration(t *testing.T) {
 				WorkspaceID:      ws.ID,
 				WorkspaceName:    ws.Name,
 				AgentName:        "main",
-				Source:           database.ConnectionSourceWorkspaceApp,
+				ConnectionMethod: database.ConnectionLogMethodWorkspaceApp,
 				ConnectionID:     uuid.NullUUID{},
 				ConnectionStatus: database.ConnectionStatusConnected,
 				IP:               testIP(),
@@ -351,7 +363,7 @@ func TestDBBackendIntegration(t *testing.T) {
 			WorkspaceID:      ws.ID,
 			WorkspaceName:    ws.Name,
 			AgentName:        "main",
-			Source:           database.ConnectionSourceAgent,
+			ConnectionMethod: database.ConnectionLogMethodSSH,
 			ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			ConnectionStatus: database.ConnectionStatusConnected,
 			IP:               testIP(),

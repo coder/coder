@@ -82,8 +82,8 @@ func (m *FakeConnectionLogger) Contains(t testing.TB, expected database.UpsertCo
 			t.Logf("connection log %d: expected AgentName %s, got %s", idx+1, expected.AgentName, cl.AgentName)
 			continue
 		}
-		if expected.Source != "" && cl.Source != expected.Source {
-			t.Logf("connection log %d: expected Source %s, got %s", idx+1, expected.Source, cl.Source)
+		if expected.ConnectionMethod != "" && cl.ConnectionMethod != expected.ConnectionMethod {
+			t.Logf("connection log %d: expected ConnectionMethod %s, got %s", idx+1, expected.ConnectionMethod, cl.ConnectionMethod)
 			continue
 		}
 		if expected.Code.Valid && cl.Code.Int32 != expected.Code.Int32 {

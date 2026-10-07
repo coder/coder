@@ -16308,7 +16308,7 @@ func (q *sqlQuerier) UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHear
 const batchUpsertConnectionLogs = `-- name: BatchUpsertConnectionLogs :exec
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
-    workspace_name, agent_name, source, code, ip, user_agent, user_id,
+    workspace_name, agent_name, connection_method, code, ip, user_agent, user_id,
     app_name_or_port, connection_id, disconnect_reason, disconnect_time,
     client_session_id
 )
@@ -16320,7 +16320,7 @@ SELECT
     u.workspace_id,
     u.workspace_name,
     u.agent_name,
-    u.source,
+    u.connection_method,
     -- Use the validity flag to distinguish "no code" (NULL) from a
     -- legitimate zero exit code.
     CASE WHEN u.code_valid THEN u.code ELSE NULL END,
@@ -16341,7 +16341,7 @@ FROM (
         unnest($5::uuid[]) AS workspace_id,
         unnest($6::text[]) AS workspace_name,
         unnest($7::text[]) AS agent_name,
-        unnest($8::text[]) AS source,
+        unnest($8::connection_log_method[]) AS connection_method,
         unnest($9::int4[]) AS code,
         unnest($10::bool[]) AS code_valid,
         unnest($11::inet[]) AS ip,
@@ -16383,24 +16383,24 @@ DO UPDATE SET
 `
 
 type BatchUpsertConnectionLogsParams struct {
-	ID               []uuid.UUID   `db:"id" json:"id"`
-	ConnectTime      []time.Time   `db:"connect_time" json:"connect_time"`
-	OrganizationID   []uuid.UUID   `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID []uuid.UUID   `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      []uuid.UUID   `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    []string      `db:"workspace_name" json:"workspace_name"`
-	AgentName        []string      `db:"agent_name" json:"agent_name"`
-	Source           []string      `db:"source" json:"source"`
-	Code             []int32       `db:"code" json:"code"`
-	CodeValid        []bool        `db:"code_valid" json:"code_valid"`
-	Ip               []pqtype.Inet `db:"ip" json:"ip"`
-	UserAgent        []string      `db:"user_agent" json:"user_agent"`
-	UserID           []uuid.UUID   `db:"user_id" json:"user_id"`
-	AppNameOrPort    []string      `db:"app_name_or_port" json:"app_name_or_port"`
-	ConnectionID     []uuid.UUID   `db:"connection_id" json:"connection_id"`
-	DisconnectReason []string      `db:"disconnect_reason" json:"disconnect_reason"`
-	DisconnectTime   []time.Time   `db:"disconnect_time" json:"disconnect_time"`
-	ClientSessionID  []string      `db:"client_session_id" json:"client_session_id"`
+	ID               []uuid.UUID           `db:"id" json:"id"`
+	ConnectTime      []time.Time           `db:"connect_time" json:"connect_time"`
+	OrganizationID   []uuid.UUID           `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID []uuid.UUID           `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      []uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    []string              `db:"workspace_name" json:"workspace_name"`
+	AgentName        []string              `db:"agent_name" json:"agent_name"`
+	ConnectionMethod []ConnectionLogMethod `db:"connection_method" json:"connection_method"`
+	Code             []int32               `db:"code" json:"code"`
+	CodeValid        []bool                `db:"code_valid" json:"code_valid"`
+	Ip               []pqtype.Inet         `db:"ip" json:"ip"`
+	UserAgent        []string              `db:"user_agent" json:"user_agent"`
+	UserID           []uuid.UUID           `db:"user_id" json:"user_id"`
+	AppNameOrPort    []string              `db:"app_name_or_port" json:"app_name_or_port"`
+	ConnectionID     []uuid.UUID           `db:"connection_id" json:"connection_id"`
+	DisconnectReason []string              `db:"disconnect_reason" json:"disconnect_reason"`
+	DisconnectTime   []time.Time           `db:"disconnect_time" json:"disconnect_time"`
+	ClientSessionID  []string              `db:"client_session_id" json:"client_session_id"`
 }
 
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
@@ -16412,7 +16412,7 @@ func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUps
 		pq.Array(arg.WorkspaceID),
 		pq.Array(arg.WorkspaceName),
 		pq.Array(arg.AgentName),
-		pq.Array(arg.Source),
+		pq.Array(arg.ConnectionMethod),
 		pq.Array(arg.Code),
 		pq.Array(arg.CodeValid),
 		pq.Array(arg.Ip),
@@ -16469,29 +16469,33 @@ SELECT COUNT(*) AS count FROM (
 				)
 			ELSE true
 		END
-		-- Filter by source
+		-- Filter by method, independently of the legacy type filter
 		AND CASE
 			WHEN $5 :: text != '' THEN
-				source = $5 :: text
+				connection_method = $5 :: connection_log_method
+			ELSE true
+		END
+		AND CASE
+			WHEN $6 :: text != '' THEN
+				connection_method = $6 :: connection_log_method
 			ELSE true
 		END
 		-- Filter by app name
 		AND CASE
-			WHEN cardinality($6 :: text[]) > 0 THEN
-				source = 'agent' AND app_name_or_port = ANY($6 :: text[])
+			WHEN cardinality($7 :: text[]) > 0 THEN
+				connection_method = 'ssh' AND app_name_or_port = ANY($7 :: text[])
 			ELSE true
 		END
 		-- Filter by excluded app name
 		AND CASE
-			WHEN cardinality($7 :: text[]) > 0 THEN
-				source = 'agent' AND app_name_or_port != ALL($7 :: text[])
+			WHEN cardinality($8 :: text[]) > 0 THEN
+				connection_method = 'ssh' AND (app_name_or_port IS NULL OR app_name_or_port != ALL($8 :: text[]))
 			ELSE true
 		END
-		-- Filter by agent app name or workspace app slug
+		-- Filter by client app identity
 		AND CASE
-			WHEN $8 :: text != '' THEN
-				(source = 'agent' AND app_name_or_port = $8) OR
-				(source = 'workspace_app' AND app_name_or_port = $9 :: text)
+			WHEN $9 :: text != '' THEN
+				connection_method IN ('ssh', 'reconnecting_pty') AND app_name_or_port = $9
 			ELSE true
 		END
 		-- Filter by user_id
@@ -16546,7 +16550,7 @@ SELECT COUNT(*) AS count FROM (
 				($17 = 'completed' AND disconnect_time IS NOT NULL)) AND
 				-- Exclude point-in-time events reported by coderd, since we
 				-- don't know their close time.
-				source = 'agent'
+				connection_method IN ('ssh', 'reconnecting_pty')
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in
@@ -16562,11 +16566,11 @@ type CountConnectionLogsParams struct {
 	WorkspaceOwner      string    `db:"workspace_owner" json:"workspace_owner"`
 	WorkspaceOwnerID    uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
 	WorkspaceOwnerEmail string    `db:"workspace_owner_email" json:"workspace_owner_email"`
-	Source              string    `db:"source" json:"source"`
+	ConnectionMethod    string    `db:"connection_method" json:"connection_method"`
+	LegacyMethod        string    `db:"legacy_method" json:"legacy_method"`
 	AppNames            []string  `db:"app_names" json:"app_names"`
 	ExcludedAppNames    []string  `db:"excluded_app_names" json:"excluded_app_names"`
 	AppName             string    `db:"app_name" json:"app_name"`
-	AppSlug             string    `db:"app_slug" json:"app_slug"`
 	UserID              uuid.UUID `db:"user_id" json:"user_id"`
 	Username            string    `db:"username" json:"username"`
 	UserEmail           string    `db:"user_email" json:"user_email"`
@@ -16584,11 +16588,11 @@ func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectio
 		arg.WorkspaceOwner,
 		arg.WorkspaceOwnerID,
 		arg.WorkspaceOwnerEmail,
-		arg.Source,
+		arg.ConnectionMethod,
+		arg.LegacyMethod,
 		pq.Array(arg.AppNames),
 		pq.Array(arg.ExcludedAppNames),
 		arg.AppName,
-		arg.AppSlug,
 		arg.UserID,
 		arg.Username,
 		arg.UserEmail,
@@ -16632,7 +16636,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.source, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.app_name_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.connection_method, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.app_name_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -16691,29 +16695,33 @@ WHERE
 			)
 		ELSE true
 	END
-	-- Filter by source
+	-- Filter by method, independently of the legacy type filter
 	AND CASE
 		WHEN $5 :: text != '' THEN
-			source = $5 :: text
+			connection_method = $5 :: connection_log_method
+		ELSE true
+	END
+	AND CASE
+		WHEN $6 :: text != '' THEN
+			connection_method = $6 :: connection_log_method
 		ELSE true
 	END
 	-- Filter by app name
 	AND CASE
-		WHEN cardinality($6 :: text[]) > 0 THEN
-			source = 'agent' AND app_name_or_port = ANY($6 :: text[])
+		WHEN cardinality($7 :: text[]) > 0 THEN
+			connection_method = 'ssh' AND app_name_or_port = ANY($7 :: text[])
 		ELSE true
 	END
 	-- Filter by excluded app name
 	AND CASE
-		WHEN cardinality($7 :: text[]) > 0 THEN
-			source = 'agent' AND app_name_or_port != ALL($7 :: text[])
+		WHEN cardinality($8 :: text[]) > 0 THEN
+			connection_method = 'ssh' AND (app_name_or_port IS NULL OR app_name_or_port != ALL($8 :: text[]))
 		ELSE true
 	END
-	-- Filter by agent app name or workspace app slug
+	-- Filter by client app identity
 	AND CASE
-		WHEN $8 :: text != '' THEN
-			(source = 'agent' AND app_name_or_port = $8) OR
-			(source = 'workspace_app' AND app_name_or_port = $9 :: text)
+		WHEN $9 :: text != '' THEN
+			connection_method IN ('ssh', 'reconnecting_pty') AND app_name_or_port = $9
 		ELSE true
 	END
 	-- Filter by user_id
@@ -16768,7 +16776,7 @@ WHERE
 			($17 = 'completed' AND disconnect_time IS NOT NULL)) AND
 			-- Exclude point-in-time events reported by coderd, since we
 			-- don't know their close time.
-			source = 'agent'
+			connection_method IN ('ssh', 'reconnecting_pty')
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -16790,11 +16798,11 @@ type GetConnectionLogsOffsetParams struct {
 	WorkspaceOwner      string    `db:"workspace_owner" json:"workspace_owner"`
 	WorkspaceOwnerID    uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
 	WorkspaceOwnerEmail string    `db:"workspace_owner_email" json:"workspace_owner_email"`
-	Source              string    `db:"source" json:"source"`
+	ConnectionMethod    string    `db:"connection_method" json:"connection_method"`
+	LegacyMethod        string    `db:"legacy_method" json:"legacy_method"`
 	AppNames            []string  `db:"app_names" json:"app_names"`
 	ExcludedAppNames    []string  `db:"excluded_app_names" json:"excluded_app_names"`
 	AppName             string    `db:"app_name" json:"app_name"`
-	AppSlug             string    `db:"app_slug" json:"app_slug"`
 	UserID              uuid.UUID `db:"user_id" json:"user_id"`
 	Username            string    `db:"username" json:"username"`
 	UserEmail           string    `db:"user_email" json:"user_email"`
@@ -16833,11 +16841,11 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 		arg.WorkspaceOwner,
 		arg.WorkspaceOwnerID,
 		arg.WorkspaceOwnerEmail,
-		arg.Source,
+		arg.ConnectionMethod,
+		arg.LegacyMethod,
 		pq.Array(arg.AppNames),
 		pq.Array(arg.ExcludedAppNames),
 		arg.AppName,
-		arg.AppSlug,
 		arg.UserID,
 		arg.Username,
 		arg.UserEmail,
@@ -16864,7 +16872,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.WorkspaceID,
 			&i.ConnectionLog.WorkspaceName,
 			&i.ConnectionLog.AgentName,
-			&i.ConnectionLog.Source,
+			&i.ConnectionLog.ConnectionMethod,
 			&i.ConnectionLog.Ip,
 			&i.ConnectionLog.Code,
 			&i.ConnectionLog.UserAgent,

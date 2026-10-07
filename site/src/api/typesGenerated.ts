@@ -4120,25 +4120,46 @@ export interface ConnectionLog {
 	readonly workspace_name: string;
 	readonly agent_name: string;
 	readonly ip?: string;
-	readonly type: ConnectionType;
 	/**
-	 * AppName is the agent-reported app, such as "cursor", or a workspace app
-	 * slug. Empty for port forwarding and tunnels.
+	 * @deprecated Use ConnectionMethod and AppName.
 	 */
-	readonly app_name: string;
-	readonly app_display_name: string;
+	readonly type: string;
+	readonly connection_method: ConnectionLogMethod;
 	/**
-	 * WebInfo is only set when `type` is one of:
-	 * - `ConnectionTypePortForwarding`
-	 * - `ConnectionTypeWorkspaceApp`
-	 * - `ConnectionTypeTunnel`
+	 * AppName identifies the originating client, when known. Web destinations
+	 * are reported separately in WebInfo.
+	 */
+	readonly app_name?: string;
+	/**
+	 * AppDisplayName is the registry display name for a known client identity,
+	 * or its normalized identifier when unregistered.
+	 */
+	readonly app_display_name?: string;
+	/**
+	 * WebInfo is set for server-recorded workspace apps, port forwards and tunnels.
 	 */
 	readonly web_info?: ConnectionLogWebInfo;
 	/**
-	 * SSHInfo is set for every other `type`.
+	 * SSHInfo is set for SSH and reconnecting PTY connections.
 	 */
 	readonly ssh_info?: ConnectionLogSSHInfo;
 }
+
+// From codersdk/connectionlog.go
+export type ConnectionLogMethod =
+	| "port_forwarding"
+	| "reconnecting_pty"
+	| "ssh"
+	| "tunnel"
+	| "workspace_app";
+
+export const ConnectionLogMethods: ConnectionLogMethod[] = [
+	"port_forwarding",
+	"reconnecting_pty",
+	"ssh",
+	"tunnel",
+	"workspace_app",
+];
 
 // From codersdk/connectionlog.go
 export interface ConnectionLogResponse {
@@ -4206,7 +4227,6 @@ export type ConnectionType =
 	| "reconnecting_pty"
 	| "ssh"
 	| "tunnel"
-	| "unknown"
 	| "vscode"
 	| "workspace_app";
 
@@ -4216,7 +4236,6 @@ export const ConnectionTypes: ConnectionType[] = [
 	"reconnecting_pty",
 	"ssh",
 	"tunnel",
-	"unknown",
 	"vscode",
 	"workspace_app",
 ];

@@ -228,6 +228,43 @@ func Test_addToBatch(t *testing.T) {
 	})
 }
 
+func Test_buildParams(t *testing.T) {
+	t.Parallel()
+
+	b := &DBBatcher{
+		maxBatchSize: 100,
+		dedupedBatch: make(map[uuid.UUID]batchEntry),
+	}
+
+	ssh := fakeConnectEvent(uuid.New(), "agent1", uuid.New())
+	ssh.AppNameOrPort = sql.NullString{String: "cursor", Valid: true}
+	pty := fakeConnectEvent(uuid.New(), "agent1", uuid.New())
+	pty.ConnectionMethod = database.ConnectionLogMethodReconnectingPTY
+	app := fakeNullConnIDEvent()
+	app.AppNameOrPort = sql.NullString{String: "code-server", Valid: true}
+	for _, e := range []database.UpsertConnectionLogParams{ssh, pty, app} {
+		b.addToBatch(e)
+	}
+
+	params := b.buildParams()
+	require.Len(t, params.ConnectionMethod, 3)
+	require.Len(t, params.AppNameOrPort, 3)
+
+	type identity struct {
+		method database.ConnectionLogMethod
+		app    string
+	}
+	got := map[uuid.UUID]identity{}
+	for i, id := range params.ID {
+		got[id] = identity{params.ConnectionMethod[i], params.AppNameOrPort[i]}
+	}
+	require.Equal(t, map[uuid.UUID]identity{
+		ssh.ID: {database.ConnectionLogMethodSSH, "cursor"},
+		pty.ID: {database.ConnectionLogMethodReconnectingPTY, ""},
+		app.ID: {database.ConnectionLogMethodWorkspaceApp, "code-server"},
+	}, got)
+}
+
 func Test_batcherFlush(t *testing.T) {
 	t.Parallel()
 
@@ -495,7 +532,7 @@ func fakeConnectEvent(workspaceID uuid.UUID, agentName string, connectionID uuid
 		WorkspaceID:      workspaceID,
 		WorkspaceName:    "test-workspace",
 		AgentName:        agentName,
-		Source:           database.ConnectionSourceAgent,
+		ConnectionMethod: database.ConnectionLogMethodSSH,
 		ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 	}
@@ -510,7 +547,7 @@ func fakeDisconnectEvent(workspaceID uuid.UUID, agentName string, connectionID u
 		WorkspaceID:      workspaceID,
 		WorkspaceName:    "test-workspace",
 		AgentName:        agentName,
-		Source:           database.ConnectionSourceAgent,
+		ConnectionMethod: database.ConnectionLogMethodSSH,
 		ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
 		ConnectionStatus: database.ConnectionStatusDisconnected,
 		Code:             sql.NullInt32{Int32: 0, Valid: true},
@@ -527,7 +564,7 @@ func fakeNullConnIDEvent() database.UpsertConnectionLogParams {
 		WorkspaceID:      uuid.New(),
 		WorkspaceName:    "test-workspace",
 		AgentName:        "test-agent",
-		Source:           database.ConnectionSourceWorkspaceApp,
+		ConnectionMethod: database.ConnectionLogMethodWorkspaceApp,
 		ConnectionID:     uuid.NullUUID{},
 		ConnectionStatus: database.ConnectionStatusConnected,
 	}

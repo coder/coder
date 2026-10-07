@@ -9,7 +9,6 @@ export const connectionTypeDisplayNames: Record<ConnectionType, string> = {
 	reconnecting_pty: "Web Terminal",
 	ssh: "SSH",
 	tunnel: "Tunnel",
-	unknown: "Unknown",
 	vscode: "VS Code Family",
 	workspace_app: "Workspace App",
 };

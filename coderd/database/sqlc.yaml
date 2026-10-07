@@ -115,9 +115,6 @@ sql:
           - column: "template_with_names.group_acl"
             go_type:
               type: "TemplateACL"
-          - column: "connection_logs.source"
-            go_type:
-              type: "ConnectionSource"
           - column: "template_usage_stats.app_usage_mins"
             go_type:
               type: "StringMapOfInt"
@@ -202,6 +199,8 @@ sql:
               type: "NullDecimal"
               package: "decimal"
         rename:
+          connection_log_method_ssh: ConnectionLogMethodSSH
+          connection_log_method_reconnecting_pty: ConnectionLogMethodReconnectingPTY
           ai_provider_id: AIProviderID
           chat: ChatTable
           chats_expanded: Chat
