@@ -7,17 +7,19 @@ package codersdk
 // manifest (as an environment variable, a file, or both). They are never
 // passed to the provisioner, so they do not appear in workspace build
 // parameters or Terraform state, and they cannot be read back through the
-// API. Each secret is linked to the build it was set on. Non-ephemeral
-// secrets are copied forward to every later build until a request replaces
-// them by Name or removes them with a null Value; ephemeral secrets are
-// delivered to that build only.
+// API. Every build holds its own copy of the secrets it receives.
+// Non-ephemeral secrets carry forward to later builds until a request
+// replaces them by name, removes them with a null value, or sets another
+// secret on their env_name or file_path. A secret applies as a whole, so
+// taking over either of its targets drops it entirely. Ephemeral secrets
+// are delivered to that build only.
 type WorkspaceSecretInput struct {
 	Name string `json:"name"`
-	// Value is the plaintext secret. A null Value removes the secret. An
+	// Value is the plaintext secret. A null value removes the secret. An
 	// empty string sets an empty secret.
 	Value *string `json:"value"`
 	// EnvName is the environment variable to inject the secret as. Empty
-	// means no env injection. Required when FilePath is empty and Value is
+	// means no env injection. Required when file_path is empty and value is
 	// set.
 	EnvName string `json:"env_name,omitempty"`
 	// FilePath is the path to write the secret to inside the workspace.
@@ -29,9 +31,9 @@ type WorkspaceSecretInput struct {
 	Ephemeral bool `json:"ephemeral,omitempty"`
 }
 
-// Remove reports whether the input removes the secret instead of setting
+// IsRemoval reports whether the input removes the secret instead of setting
 // it.
-func (s WorkspaceSecretInput) Remove() bool {
+func (s WorkspaceSecretInput) IsRemoval() bool {
 	return s.Value == nil
 }
 
@@ -42,8 +44,15 @@ func ValidateWorkspaceSecretInput(in WorkspaceSecretInput) []ValidationError {
 	if err := UserSecretNameValid(in.Name); err != nil {
 		validations = append(validations, ValidationError{Field: UserSecretNameField, Detail: err.Error()})
 	}
-	if in.Remove() {
-		// Removal needs only a valid name.
+	if in.IsRemoval() {
+		// An omitted value also decodes as null, so reject removals that
+		// look like a set request with a missing value.
+		if in.EnvName != "" || in.FilePath != "" || in.Ephemeral {
+			validations = append(validations, ValidationError{
+				Field:  UserSecretValueField,
+				Detail: WorkspaceSecretRemovalWithFieldsDetail,
+			})
+		}
 		return validations
 	}
 	if err := UserSecretValueValid(*in.Value); err != nil {
@@ -63,6 +72,10 @@ func ValidateWorkspaceSecretInput(in WorkspaceSecretInput) []ValidationError {
 	}
 	return validations
 }
+
+// WorkspaceSecretRemovalWithFieldsDetail explains that a removal carries
+// only a name.
+const WorkspaceSecretRemovalWithFieldsDetail = "A null value removes the secret, so env_name, file_path, and ephemeral must not be set. Set value to set the secret." //nolint:gosec // G101: message text, not a hardcoded credential.
 
 // WorkspaceSecretInjectionTargetRequiredDetail explains that a workspace
 // secret has no disabled state, so every set request needs a delivery

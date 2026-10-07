@@ -129,9 +129,9 @@ type CreateWorkspaceBuildRequest struct {
 	// This will overwrite any existing parameters with the same name.
 	// This will not delete old params not included in this list.
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
-	// Secrets sets or removes workspace secrets for this build. Secrets not
-	// listed here are carried forward from the previous build unless they
-	// were ephemeral.
+	// Secrets sets or removes workspace secrets for this build. Previous
+	// secrets that are not listed carry forward unless they were ephemeral or
+	// a listed secret uses their env_name or file_path.
 	Secrets []WorkspaceSecretInput `json:"secrets,omitempty"`
 
 	// Log level changes the default logging verbosity of a provider ("info" if empty).

@@ -4923,9 +4923,9 @@ export interface CreateWorkspaceBuildRequest {
 	 */
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	/**
-	 * Secrets sets or removes workspace secrets for this build. Secrets not
-	 * listed here are carried forward from the previous build unless they
-	 * were ephemeral.
+	 * Secrets sets or removes workspace secrets for this build. Previous
+	 * secrets that are not listed carry forward unless they were ephemeral or
+	 * a listed secret uses their env_name or file_path.
 	 */
 	readonly secrets?: readonly WorkspaceSecretInput[];
 	/**
@@ -4988,8 +4988,7 @@ export interface CreateWorkspaceRequest {
 	 */
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	/**
-	 * Secrets sets workspace secrets that are delivered to the workspace
-	 * through the agent manifest instead of the provisioner.
+	 * Secrets sets the workspace's initial secrets.
 	 */
 	readonly secrets?: readonly WorkspaceSecretInput[];
 	readonly automatic_updates?: AutomaticUpdates;
@@ -12904,21 +12903,23 @@ export const WorkspaceSecretInjectionTargetRequiredDetail =
  * manifest (as an environment variable, a file, or both). They are never
  * passed to the provisioner, so they do not appear in workspace build
  * parameters or Terraform state, and they cannot be read back through the
- * API. Each secret is linked to the build it was set on. Non-ephemeral
- * secrets are copied forward to every later build until a request replaces
- * them by Name or removes them with a null Value; ephemeral secrets are
- * delivered to that build only.
+ * API. Every build holds its own copy of the secrets it receives.
+ * Non-ephemeral secrets carry forward to later builds until a request
+ * replaces them by name, removes them with a null value, or sets another
+ * secret on their env_name or file_path. A secret applies as a whole, so
+ * taking over either of its targets drops it entirely. Ephemeral secrets
+ * are delivered to that build only.
  */
 export interface WorkspaceSecretInput {
 	readonly name: string;
 	/**
-	 * Value is the plaintext secret. A null Value removes the secret. An
+	 * Value is the plaintext secret. A null value removes the secret. An
 	 * empty string sets an empty secret.
 	 */
 	readonly value: string | null;
 	/**
 	 * EnvName is the environment variable to inject the secret as. Empty
-	 * means no env injection. Required when FilePath is empty and Value is
+	 * means no env injection. Required when file_path is empty and value is
 	 * set.
 	 */
 	readonly env_name?: string;
@@ -12934,6 +12935,14 @@ export interface WorkspaceSecretInput {
 	 */
 	readonly ephemeral?: boolean;
 }
+
+// From codersdk/workspacesecrets.go
+/**
+ * WorkspaceSecretRemovalWithFieldsDetail explains that a removal carries
+ * only a name.
+ */
+export const WorkspaceSecretRemovalWithFieldsDetail =
+	"A null value removes the secret, so env_name, file_path, and ephemeral must not be set. Set value to set the secret."; //nolint:gosec // G101: message text, not a hardcoded credential.
 
 // From codersdk/workspacesharing.go
 /**

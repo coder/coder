@@ -24771,7 +24771,7 @@ const docTemplate = `{
                     }
                 },
                 "secrets": {
-                    "description": "Secrets sets or removes workspace secrets for this build. Secrets not\nlisted here are carried forward from the previous build unless they\nwere ephemeral.",
+                    "description": "Secrets sets or removes workspace secrets for this build. Previous\nsecrets that are not listed carry forward unless they were ephemeral or\na listed secret uses their env_name or file_path.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceSecretInput"
@@ -24847,7 +24847,7 @@ const docTemplate = `{
                     }
                 },
                 "secrets": {
-                    "description": "Secrets sets workspace secrets that are delivered to the workspace\nthrough the agent manifest instead of the provisioner.",
+                    "description": "Secrets sets the workspace's initial secrets.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceSecretInput"
@@ -35008,7 +35008,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "env_name": {
-                    "description": "EnvName is the environment variable to inject the secret as. Empty\nmeans no env injection. Required when FilePath is empty and Value is\nset.",
+                    "description": "EnvName is the environment variable to inject the secret as. Empty\nmeans no env injection. Required when file_path is empty and value is\nset.",
                     "type": "string"
                 },
                 "ephemeral": {
@@ -35023,7 +35023,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
-                    "description": "Value is the plaintext secret. A null Value removes the secret. An\nempty string sets an empty secret.",
+                    "description": "Value is the plaintext secret. A null value removes the secret. An\nempty string sets an empty secret.",
                     "type": "string"
                 }
             }
