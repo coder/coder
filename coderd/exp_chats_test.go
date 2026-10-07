@@ -13965,12 +13965,7 @@ func (tab *chatTab) hold(messages ...codersdk.ChatMessage) {
 }
 
 func (tab *chatTab) sortedIDs() []int64 {
-	ids := make([]int64, 0, len(tab.ids))
-	for id := range tab.ids {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
-	return ids
+	return slices.Sorted(maps.Keys(tab.ids))
 }
 
 // connect opens the stream with the tab's newest message ID and history

@@ -836,7 +836,7 @@ describe("useChatStore", () => {
 		queryClient.setQueryData(chatMessagesKey(chatID), {
 			pages: [
 				{
-					messages: [...initialMessages].reverse(),
+					messages: initialMessages.toReversed(),
 					queued_messages: [],
 					has_more: false,
 				},
