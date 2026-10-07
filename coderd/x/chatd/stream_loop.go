@@ -221,18 +221,12 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		}
 
 		if chat.Status == database.ChatStatusRequiresAction {
-			var history []database.ChatMessage
-			if snapshot.historyReset && snapshot.resetFromID == 0 {
-				history = snapshot.resetMessages
-			}
-			if len(history) == 0 {
-				history, err = tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-					ChatID:  l.chatID,
-					AfterID: 0,
-				})
-				if err != nil {
-					return xerrors.Errorf("get requires_action history: %w", err)
-				}
+			history, err := tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+				ChatID:  l.chatID,
+				AfterID: 0,
+			})
+			if err != nil {
+				return xerrors.Errorf("get requires_action history: %w", err)
 			}
 			actionRequired, err := l.actionRequiredFromHistory(chat, history)
 			if err != nil {
