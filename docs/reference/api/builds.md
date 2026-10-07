@@ -1015,6 +1015,84 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get workspace build secrets
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/secrets \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/workspacebuilds/{workspacebuild}/secrets`
+
+Lists the metadata of the secrets linked to a workspace build,
+including secrets whose values a later build cleared. Values
+are never returned. env_replaces and file_replaces name the
+workspace owner's user secrets that each live secret displaces,
+and are omitted when the caller cannot read those user secrets.
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description        |
+|------------------|------|--------------|----------|--------------------|
+| `workspacebuild` | path | string(uuid) | true     | Workspace build ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "description": "string",
+    "enabled": true,
+    "env_name": "string",
+    "env_replaces": "84a889b2-94af-4f34-9249-aa46f6f7b463",
+    "ephemeral": true,
+    "file_path": "string",
+    "file_replaces": "1fdcc987-93b6-4e8f-afdc-b4eba4090da4",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceSecret](schemas.md#codersdkworkspacesecret) |
+
+<h3 id="get-workspace-build-secrets-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                   | Type              | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|------------------------|-------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`         | array             | false    |              |                                                                                                                                                                                                                                      |
+| `» cleared_at`         | string(date-time) | false    |              | Cleared at is set once a later build superseded the secret and its value was dropped. Cleared secrets are not delivered and replace nothing.                                                                                         |
+| `» created_at`         | string(date-time) | false    |              |                                                                                                                                                                                                                                      |
+| `» description`        | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» enabled`            | boolean           | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
+| `» env_name`           | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» env_replaces`       | string(uuid)      | false    |              | Env replaces is the ID of the workspace owner's user secret that this secret displaces on env_name.                                                                                                                                  |
+| `» ephemeral`          | boolean           | false    |              | Ephemeral secrets are delivered to their build only and not copied to the next one.                                                                                                                                                  |
+| `» file_path`          | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» file_replaces`      | string(uuid)      | false    |              | File replaces is the ID of the workspace owner's user secret that this secret displaces on file_path.                                                                                                                                |
+| `» id`                 | string(uuid)      | false    |              |                                                                                                                                                                                                                                      |
+| `» name`               | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» updated_at`         | string(date-time) | false    |              |                                                                                                                                                                                                                                      |
+| `» workspace_build_id` | string(uuid)      | false    |              |                                                                                                                                                                                                                                      |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get provisioner state for workspace build
 
 ### Code samples

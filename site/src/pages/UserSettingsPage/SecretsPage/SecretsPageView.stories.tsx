@@ -89,8 +89,6 @@ const createSecretFromRequest = (
 	enabled: request.enabled ?? true,
 	created_at: "2026-05-04T00:00:00Z",
 	updated_at: "2026-05-04T00:00:00Z",
-	source: "user",
-	ephemeral: false,
 });
 
 const findVisibleSecretByName = (name: string): UserSecret => {

@@ -9,22 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// WorkspaceSecretSource identifies where a secret delivered to a workspace
-// comes from.
-type WorkspaceSecretSource string
-
-const (
-	// WorkspaceSecretSourceUser is a user secret, shared by all of the
-	// user's workspaces.
-	WorkspaceSecretSourceUser WorkspaceSecretSource = "user"
-	// WorkspaceSecretSourceBuild is a workspace secret set on a workspace
-	// build.
-	WorkspaceSecretSourceBuild WorkspaceSecretSource = "build"
-)
-
-// WorkspaceSecret represents a secret's metadata. The secret value is never
-// included in API responses.
-type WorkspaceSecret struct {
+// UserSecret represents a user secret's metadata. The secret value
+// is never included in API responses.
+type UserSecret struct {
 	ID          uuid.UUID `json:"id" format:"uuid"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
@@ -34,26 +21,10 @@ type WorkspaceSecret struct {
 	// Disabled secrets remain visible and editable, but are not added
 	// to the agent manifest, so they are not exposed as environment
 	// variables or written to secret files.
-	Enabled   bool                  `json:"enabled"`
-	CreatedAt time.Time             `json:"created_at" format:"date-time"`
-	UpdatedAt time.Time             `json:"updated_at" format:"date-time"`
-	Source    WorkspaceSecretSource `json:"source" enums:"user,build"`
-	// Ephemeral build secrets are delivered to their build only and not
-	// copied to the next one. User secrets are never ephemeral.
-	Ephemeral bool `json:"ephemeral"`
-	// EnvReplacedBy is the ID of the secret delivered on this secret's
-	// env_name instead of it. Only set when listing secrets for a
-	// workspace build.
-	EnvReplacedBy *uuid.UUID `json:"env_replaced_by,omitempty" format:"uuid"`
-	// FileReplacedBy is the ID of the secret delivered on this secret's
-	// file_path instead of it. Only set when listing secrets for a
-	// workspace build.
-	FileReplacedBy *uuid.UUID `json:"file_replaced_by,omitempty" format:"uuid"`
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
 }
-
-// UserSecret is the previous name of WorkspaceSecret, kept for backwards
-// compatibility.
-type UserSecret = WorkspaceSecret
 
 // CreateUserSecretRequest is the payload for creating a new user
 // secret. Name and Value are required. An enabled secret must have at
@@ -126,23 +97,7 @@ func (c *Client) CreateUserSecret(ctx context.Context, user string, req CreateUs
 }
 
 func (c *Client) UserSecrets(ctx context.Context, user string) ([]UserSecret, error) {
-	return c.listUserSecrets(ctx, user, uuid.Nil)
-}
-
-// UserSecretsForWorkspaceBuild lists the user's secrets together with the
-// workspace secrets of the given build, and reports which secrets are
-// replaced by another on the same env_name or file_path. The build must
-// belong to one of the user's workspaces.
-func (c *Client) UserSecretsForWorkspaceBuild(ctx context.Context, user string, workspaceBuildID uuid.UUID) ([]WorkspaceSecret, error) {
-	return c.listUserSecrets(ctx, user, workspaceBuildID)
-}
-
-func (c *Client) listUserSecrets(ctx context.Context, user string, workspaceBuildID uuid.UUID) ([]WorkspaceSecret, error) {
-	var opts []RequestOption
-	if workspaceBuildID != uuid.Nil {
-		opts = append(opts, WithQueryParam("workspace_build", workspaceBuildID.String()))
-	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/secrets", user), nil, opts...)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/secrets", user), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +105,7 @@ func (c *Client) listUserSecrets(ctx context.Context, user string, workspaceBuil
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	var secrets []WorkspaceSecret
+	var secrets []UserSecret
 	return secrets, ReadBodyAsJSON(res, &secrets)
 }
 

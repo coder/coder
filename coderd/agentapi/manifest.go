@@ -317,7 +317,7 @@ func dbSecretsToProto(userSecrets []database.UserSecret, workspaceSecrets []data
 	for _, s := range userSecrets {
 		candidates = append(candidates, workspacesecrets.Secret{
 			ID:       s.ID,
-			Source:   codersdk.WorkspaceSecretSourceUser,
+			Source:   workspacesecrets.SourceUser,
 			Name:     s.Name,
 			EnvName:  s.EnvName,
 			FilePath: s.FilePath,
@@ -333,7 +333,7 @@ func dbSecretsToProto(userSecrets []database.UserSecret, workspaceSecrets []data
 		}
 		candidates = append(candidates, workspacesecrets.Secret{
 			ID:       s.ID,
-			Source:   codersdk.WorkspaceSecretSourceBuild,
+			Source:   workspacesecrets.SourceBuild,
 			Name:     s.Name,
 			EnvName:  s.EnvName,
 			FilePath: s.FilePath,

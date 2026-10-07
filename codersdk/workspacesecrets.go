@@ -1,5 +1,51 @@
 package codersdk
 
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// WorkspaceSecret is the metadata of a secret linked to a workspace build.
+// Workspace secrets have no description, cannot be disabled, and are never
+// updated, so Description is empty, Enabled is true, and UpdatedAt equals
+// CreatedAt. The secret value is never included in API responses.
+type WorkspaceSecret struct {
+	UserSecret
+	WorkspaceBuildID uuid.UUID `json:"workspace_build_id" format:"uuid"`
+	// Ephemeral secrets are delivered to their build only and not copied to
+	// the next one.
+	Ephemeral bool `json:"ephemeral"`
+	// ClearedAt is set once a later build superseded the secret and its
+	// value was dropped. Cleared secrets are not delivered and replace
+	// nothing.
+	ClearedAt *time.Time `json:"cleared_at,omitempty" format:"date-time"`
+	// EnvReplaces is the ID of the workspace owner's user secret that this
+	// secret displaces on env_name.
+	EnvReplaces *uuid.UUID `json:"env_replaces,omitempty" format:"uuid"`
+	// FileReplaces is the ID of the workspace owner's user secret that this
+	// secret displaces on file_path.
+	FileReplaces *uuid.UUID `json:"file_replaces,omitempty" format:"uuid"`
+}
+
+// WorkspaceBuildSecrets lists the metadata of the secrets linked to a
+// workspace build, including secrets whose values a later build cleared.
+func (c *Client) WorkspaceBuildSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceSecret, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s/secrets", workspaceBuildID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var secrets []WorkspaceSecret
+	return secrets, ReadBodyAsJSON(res, &secrets)
+}
+
 // WorkspaceSecretInput sets or removes a workspace secret as part of a
 // workspace or workspace build request.
 //

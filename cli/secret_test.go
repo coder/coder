@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
@@ -559,10 +558,19 @@ func TestSecretListWorkspaceBuild(t *testing.T) {
 	require.NoError(t, err)
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
 		req.Secrets = []codersdk.WorkspaceSecretInput{
-			{Name: "build-token", Value: ptr.Ref("b"), EnvName: "TOKEN"},
+			{Name: "build-token", Value: new("b"), EnvName: "TOKEN"},
 		}
 	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// A workspace owned by another user, which the logged-in owner can read.
+	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	memberWorkspace := coderdtest.CreateWorkspace(t, member, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.Secrets = []codersdk.WorkspaceSecretInput{
+			{Name: "member-token", Value: new("m"), EnvName: "TOKEN"},
+		}
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, memberWorkspace.LatestBuild.ID)
 
 	cases := []struct {
 		name string
@@ -570,7 +578,7 @@ func TestSecretListWorkspaceBuild(t *testing.T) {
 		env  map[string]string
 	}{
 		{name: "InsideWorkspace", env: map[string]string{"CODER_WORKSPACE_BUILD_ID": workspace.LatestBuild.ID.String()}},
-		{name: "InsideWorkspaceOlderServer", env: map[string]string{"CODER_WORKSPACE_ID": workspace.ID.String()}},
+		{name: "InsideWorkspaceOlderAgent", env: map[string]string{"CODER_WORKSPACE_ID": workspace.ID.String()}},
 		{name: "WorkspaceFlag", args: []string{"--workspace", workspace.Name}},
 		{name: "BuildIDFlag", args: []string{"--build-id", workspace.LatestBuild.ID.String()}},
 	}
@@ -622,7 +630,39 @@ func TestSecretListWorkspaceBuild(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		require.Error(t, inv.WithContext(ctx).Run())
+		err := inv.WithContext(ctx).Run()
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	// Another user's build from the workspace environment is skipped
+	// silently, so only the logged-in user's secrets are listed.
+	t.Run("OtherOwnerFromEnv", func(t *testing.T) {
+		t.Parallel()
+
+		inv, root := clitest.New(t, "secret", "list")
+		inv.Environ.Set("CODER_WORKSPACE_BUILD_ID", memberWorkspace.LatestBuild.ID.String())
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.NoError(t, inv.WithContext(ctx).Run())
+		assert.Empty(t, output.Stderr())
+		assert.Contains(t, output.Stdout(), "user-token")
+		assert.NotContains(t, output.Stdout(), "member-token")
+	})
+
+	// An explicitly requested build of another user's workspace fails.
+	t.Run("OtherOwnerBuildIDFlag", func(t *testing.T) {
+		t.Parallel()
+
+		inv, root := clitest.New(t, "secret", "list", "--build-id", memberWorkspace.LatestBuild.ID.String())
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "belongs to")
 	})
 
 	t.Run("NameWithFlag", func(t *testing.T) {

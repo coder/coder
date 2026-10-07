@@ -14625,7 +14625,6 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/secrets": {
             "get": {
-                "description": "With workspace_build set, the response also includes that\nbuild's workspace secrets, and reports which secrets are\nreplaced on their env_name or file_path by another secret.",
                 "produces": [
                     "application/json"
                 ],
@@ -14641,13 +14640,6 @@ const docTemplate = `{
                         "name": "user",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace build ID owned by the user",
-                        "name": "workspace_build",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -14656,7 +14648,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceSecret"
+                                "$ref": "#/definitions/codersdk.UserSecret"
                             }
                         }
                     }
@@ -14701,7 +14693,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceSecret"
+                            "$ref": "#/definitions/codersdk.UserSecret"
                         }
                     },
                     "400": {
@@ -14761,7 +14753,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceSecret"
+                                "$ref": "#/definitions/codersdk.UserSecret"
                             }
                         }
                     },
@@ -14821,7 +14813,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceSecret"
+                            "$ref": "#/definitions/codersdk.UserSecret"
                         }
                     }
                 },
@@ -14905,7 +14897,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceSecret"
+                            "$ref": "#/definitions/codersdk.UserSecret"
                         }
                     },
                     "400": {
@@ -16518,6 +16510,45 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/codersdk.WorkspaceResource"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/workspacebuilds/{workspacebuild}/secrets": {
+            "get": {
+                "description": "Lists the metadata of the secrets linked to a workspace build,\nincluding secrets whose values a later build cleared. Values\nare never returned. env_replaces and file_replaces name the\nworkspace owner's user secrets that each live secret displaces,\nand are omitted when the caller cannot read those user secrets.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Get workspace build secrets",
+                "operationId": "get-workspace-build-secrets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceSecret"
                             }
                         }
                     }
@@ -33327,6 +33358,39 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UserSecret": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "description": "Enabled controls whether the secret is injected into workspaces.\nDisabled secrets remain visible and editable, but are not added\nto the agent manifest, so they are not exposed as environment\nvariables or written to secret files.",
+                    "type": "boolean"
+                },
+                "env_name": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.UserSecretsCapabilities": {
             "type": "object",
             "properties": {
@@ -34982,6 +35046,11 @@ const docTemplate = `{
         "codersdk.WorkspaceSecret": {
             "type": "object",
             "properties": {
+                "cleared_at": {
+                    "description": "ClearedAt is set once a later build superseded the secret and its\nvalue was dropped. Cleared secrets are not delivered and replace\nnothing.",
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -34996,20 +35065,20 @@ const docTemplate = `{
                 "env_name": {
                     "type": "string"
                 },
-                "env_replaced_by": {
-                    "description": "EnvReplacedBy is the ID of the secret delivered on this secret's\nenv_name instead of it. Only set when listing secrets for a\nworkspace build.",
+                "env_replaces": {
+                    "description": "EnvReplaces is the ID of the workspace owner's user secret that this\nsecret displaces on env_name.",
                     "type": "string",
                     "format": "uuid"
                 },
                 "ephemeral": {
-                    "description": "Ephemeral build secrets are delivered to their build only and not\ncopied to the next one. User secrets are never ephemeral.",
+                    "description": "Ephemeral secrets are delivered to their build only and not copied to\nthe next one.",
                     "type": "boolean"
                 },
                 "file_path": {
                     "type": "string"
                 },
-                "file_replaced_by": {
-                    "description": "FileReplacedBy is the ID of the secret delivered on this secret's\nfile_path instead of it. Only set when listing secrets for a\nworkspace build.",
+                "file_replaces": {
+                    "description": "FileReplaces is the ID of the workspace owner's user secret that this\nsecret displaces on file_path.",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -35020,20 +35089,13 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "source": {
-                    "enum": [
-                        "user",
-                        "build"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceSecretSource"
-                        }
-                    ]
-                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "workspace_build_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -35060,17 +35122,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "codersdk.WorkspaceSecretSource": {
-            "type": "string",
-            "enum": [
-                "user",
-                "build"
-            ],
-            "x-enum-varnames": [
-                "WorkspaceSecretSourceUser",
-                "WorkspaceSecretSourceBuild"
-            ]
         },
         "codersdk.WorkspaceSharingSettings": {
             "type": "object",
