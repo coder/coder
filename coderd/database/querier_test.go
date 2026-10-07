@@ -2426,7 +2426,7 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	require.NoError(t, err)
 
 	// requireLateInsertLocked holds a chat insert open until a delete is
-	// waiting on it, then commits it and requires the batch to lock it.
+	// waiting on it, then commits it and requires the delete to lock it.
 	requireLateInsertLocked := func(seed database.Chat) database.Chat {
 		t.Helper()
 		inserted := make(chan database.Chat, 1)
