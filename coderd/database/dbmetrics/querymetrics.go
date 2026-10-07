@@ -608,6 +608,14 @@ func (m queryMetricsStore) DeleteChatProjectByID(ctx context.Context, id uuid.UU
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatProjectChats(ctx context.Context, projectID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatProjectChats(ctx, projectID)
+	m.queryLatencies.WithLabelValues("DeleteChatProjectChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatProjectChats").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatProjectMemoryByID(ctx, id)
@@ -1909,6 +1917,14 @@ func (m queryMetricsStore) GetChatProjectByIDForUpdate(ctx context.Context, id u
 	r0, r1 := m.s.GetChatProjectByIDForUpdate(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatProjectByIDForUpdate").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectByIDForUpdate").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectChatsForDelete(ctx, projectID)
+	m.queryLatencies.WithLabelValues("GetChatProjectChatsForDelete").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectChatsForDelete").Inc()
 	return r0, r1
 }
 
@@ -4981,6 +4997,14 @@ func (m queryMetricsStore) IsChatHeartbeatStale(ctx context.Context, arg databas
 	r0, r1 := m.s.IsChatHeartbeatStale(ctx, arg)
 	m.queryLatencies.WithLabelValues("IsChatHeartbeatStale").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IsChatHeartbeatStale").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) IsChatProjectAccessibleByUserID(ctx context.Context, arg database.IsChatProjectAccessibleByUserIDParams) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.IsChatProjectAccessibleByUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("IsChatProjectAccessibleByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IsChatProjectAccessibleByUserID").Inc()
 	return r0, r1
 }
 

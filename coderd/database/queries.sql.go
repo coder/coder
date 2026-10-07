@@ -8501,6 +8501,21 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 	return err
 }
 
+const deleteChatProjectChats = `-- name: DeleteChatProjectChats :exec
+DELETE FROM chats
+WHERE project_id = $1::uuid
+    OR root_chat_id IN (
+        SELECT root.id FROM chats root WHERE root.project_id = $1::uuid
+    )
+`
+
+// Deletes a project's root chats and their sub-chats. Chat-scoped tables
+// cascade.
+func (q *sqlQuerier) DeleteChatProjectChats(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatProjectChats, projectID)
+	return err
+}
+
 const getChatProjectByID = `-- name: GetChatProjectByID :one
 SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
 FROM chat_projects
@@ -8532,6 +8547,8 @@ WHERE id = $1::uuid
 FOR UPDATE
 `
 
+// Locks the row so ACL updates read, modify, and write it in one
+// transaction.
 func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error) {
 	row := q.db.QueryRowContext(ctx, getChatProjectByIDForUpdate, id)
 	var i ChatProject
@@ -8550,34 +8567,131 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 	return i, err
 }
 
+const getChatProjectChatsForDelete = `-- name: GetChatProjectChatsForDelete :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at, automation_id, manage_automations_enabled
+FROM chats_expanded
+WHERE id IN (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.project_id = $1::uuid
+        OR chats.root_chat_id IN (
+            SELECT root.id FROM chats root WHERE root.project_id = $1::uuid
+        )
+    FOR UPDATE
+)
+ORDER BY id
+`
+
+// Returns a project's root chats and their sub-chats. The rows stay locked
+// until the transaction ends, so no worker acquires one before
+// DeleteChatProjectChats runs.
+func (q *sqlQuerier) GetChatProjectChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectChatsForDelete, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+			&i.CompactionRequestedAt,
+			&i.TitleSource,
+			&i.TitleUpdatedAt,
+			&i.AutomationID,
+			&i.ManageAutomationsEnabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatProjectsAccessibleByUserID = `-- name: GetChatProjectsAccessibleByUserID :many
 SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl
 FROM chat_projects
 WHERE chat_projects.owner_id = $1::uuid
     OR (
-        EXISTS (
+        (
+            chat_projects.user_acl ? ($1::uuid)::text
+            OR chat_projects.group_acl ?| ARRAY(
+                SELECT group_members.group_id::text
+                FROM group_members
+                WHERE group_members.user_id = $1::uuid
+                UNION ALL
+                SELECT organization_members.organization_id::text
+                FROM organization_members
+                WHERE organization_members.user_id = $1::uuid
+            )
+        )
+        AND EXISTS (
             SELECT 1
             FROM organization_members
             WHERE organization_members.user_id = $1::uuid
                 AND organization_members.organization_id = chat_projects.organization_id
         )
-        AND (
-            chat_projects.user_acl ? ($1::uuid)::text
-            OR chat_projects.group_acl ? chat_projects.organization_id::text
-            OR chat_projects.group_acl ?| ARRAY(
-                SELECT group_members.group_id::text
-                FROM group_members
-                WHERE group_members.user_id = $1::uuid
-            )
-        )
     )
 ORDER BY lower(chat_projects.name), chat_projects.id
 `
 
-// Returns the projects a user owns or that are shared with them directly,
-// through a group, or through the organization's Everyone group, whose ID
-// is the organization ID. ACL grants only apply to organization members,
-// matching the RBAC policy; callers still authorize each row.
+// The Everyone group's ID is the organization ID, so the user's
+// organization IDs join their group IDs. As in the RBAC policy, ACL grants
+// count only for members of the project's organization. ACL keys match
+// regardless of the actions they grant; callers authorize each row.
 func (q *sqlQuerier) GetChatProjectsAccessibleByUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error) {
 	rows, err := q.db.QueryContext(ctx, getChatProjectsAccessibleByUserID, userID)
 	if err != nil {
@@ -8657,6 +8771,51 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.GroupACL,
 	)
 	return i, err
+}
+
+const isChatProjectAccessibleByUserID = `-- name: IsChatProjectAccessibleByUserID :one
+SELECT EXISTS (
+    SELECT 1
+    FROM chat_projects
+    WHERE chat_projects.id = $1::uuid
+        AND (
+            chat_projects.owner_id = $2::uuid
+            OR (
+                EXISTS (
+                    SELECT 1
+                    FROM organization_members
+                    WHERE organization_members.user_id = $2::uuid
+                        AND organization_members.organization_id = chat_projects.organization_id
+                )
+                AND (
+                    chat_projects.user_acl -> ($2::uuid)::text -> 'permissions' ?| ARRAY['read', '*']
+                    OR chat_projects.group_acl -> chat_projects.organization_id::text -> 'permissions' ?| ARRAY['read', '*']
+                    OR EXISTS (
+                        SELECT 1
+                        FROM group_members
+                        WHERE group_members.user_id = $2::uuid
+                            AND chat_projects.group_acl -> group_members.group_id::text -> 'permissions' ?| ARRAY['read', '*']
+                    )
+                )
+            )
+        )
+)::boolean
+`
+
+type IsChatProjectAccessibleByUserIDParams struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+// Reports whether the user owns the project or holds a read grant on it
+// directly, through a group, or through the Everyone group. chatd runs
+// memory tools under its own subject, so it checks this for the chat owner
+// to honor revoked shares. Grants count only for organization members.
+func (q *sqlQuerier) IsChatProjectAccessibleByUserID(ctx context.Context, arg IsChatProjectAccessibleByUserIDParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isChatProjectAccessibleByUserID, arg.ProjectID, arg.UserID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const updateChatProjectACLByID = `-- name: UpdateChatProjectACLByID :exec

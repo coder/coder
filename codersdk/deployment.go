@@ -3831,7 +3831,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Chat Sharing",
-			Description: "Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.",
+			Description: "Disable chat and chat project sharing. ACL checking is disabled and only owners can access their chats and chat projects.",
 			Flag:        "disable-chat-sharing",
 			Env:         "CODER_DISABLE_CHAT_SHARING",
 

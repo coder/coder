@@ -1246,7 +1246,7 @@ Disable workspace sharing. Workspace ACL checking is disabled and only owners ca
 | Environment | <code>$CODER_DISABLE_CHAT_SHARING</code> |
 | YAML        | <code>disableChatSharing</code>          |
 
-Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
+Disable chat and chat project sharing. ACL checking is disabled and only owners can access their chats and chat projects.
 
 ### --disable-chat-caller-supplied-tools
 

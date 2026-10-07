@@ -2345,6 +2345,15 @@ func (q *querier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error
 	return deleteQ(q.log, q.auth, q.db.GetChatProjectByID, q.db.DeleteChatProjectByID)(ctx, id)
 }
 
+// DeleteChatProjectChats deletes chats owned by any user, so it requires
+// deleting every chat, as chatd and dbpurge can.
+func (q *querier) DeleteChatProjectChats(ctx context.Context, projectID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
+		return err
+	}
+	return q.db.DeleteChatProjectChats(ctx, projectID)
+}
+
 func (q *querier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
 	row, err := q.db.GetChatProjectMemoryByID(ctx, id)
 	if err != nil {
@@ -3769,6 +3778,13 @@ func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (databas
 
 func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForUpdate)(ctx, id)
+}
+
+func (q *querier) GetChatProjectChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatProjectChatsForDelete(ctx, projectID)
 }
 
 func (q *querier) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
@@ -7153,6 +7169,15 @@ func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatH
 		return false, err
 	}
 	return q.db.IsChatHeartbeatStale(ctx, arg)
+}
+
+// IsChatProjectAccessibleByUserID requires reading every project, because
+// it answers for a user other than the caller.
+func (q *querier) IsChatProjectAccessibleByUserID(ctx context.Context, arg database.IsChatProjectAccessibleByUserIDParams) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatProject); err != nil {
+		return false, err
+	}
+	return q.db.IsChatProjectAccessibleByUserID(ctx, arg)
 }
 
 func (q *querier) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
