@@ -549,10 +549,12 @@ func TestConn_BlockEndpoints(t *testing.T) {
 	require.Empty(t, conn2Status.CurAddr)
 }
 
-// TestConn_ReusedSourcePortAfterServerClose checks that a SYN reusing a
-// 4-tuple the listener side holds in TIME_WAIT is accepted (PLAT-717).
+// TestConn_ReusedSourcePortAfterServerClose checks that the agent accepts a
+// SYN that reopens a 4-tuple it holds in TIME_WAIT. The agent's netstack has
+// no listening endpoint, and unpatched gVisor only hands such a SYN to one
+// (google/gvisor#15013).
 //
-//nolint:paralleltest // TUNDev enables the process-global tailscale netns setting, which would leak into parallel NewConn calls.
+//nolint:paralleltest // NewConn with TUNDev enables tailscale's process-global netns setting, which sockets opened by Conns in parallel tests would pick up.
 func TestConn_ReusedSourcePortAfterServerClose(t *testing.T) {
 	logger := testutil.Logger(t)
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
@@ -601,21 +603,24 @@ func TestConn_ReusedSourcePortAfterServerClose(t *testing.T) {
 		}
 	}()
 
-	local := tcpip.FullAddress{NIC: 1, Addr: tcpip.AddrFrom16(clientIP.As16()), Port: 40000}
+	local := tcpip.FullAddress{Addr: tcpip.AddrFrom16(clientIP.As16()), Port: 40000}
 	remote := tcpip.FullAddress{Addr: tcpip.AddrFrom16(agentIP.As16()), Port: port}
 	for i := range 2 {
 		dialCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
 		c, err := gonet.DialTCPWithBind(dialCtx, clientStack, local, remote, ipv6.ProtocolNumber)
 		cancel()
-		require.NoError(t, err, "dial %d from reused source port %d", i, local.Port)
+		require.NoError(t, err, "dial %d from source port %d", i, local.Port)
 		b, err := io.ReadAll(c)
 		require.NoError(t, err)
 		require.Equal(t, "x", string(b))
 		require.NoError(t, c.Close())
-		// The port is free again once the client's LAST_ACK completes, at
-		// which point the agent is in TIME_WAIT.
+		// The client's port is free once its LAST_ACK completes, leaving the
+		// agent in TIME_WAIT. gVisor unregisters the endpoint before it
+		// releases the port and drops it from CleanupEndpoints after, so
+		// check in this order.
 		testutil.Eventually(ctx, t, func(context.Context) bool {
-			return len(clientStack.RegisteredEndpoints()) == 0
+			return len(clientStack.RegisteredEndpoints()) == 0 &&
+				len(clientStack.CleanupEndpoints()) == 0
 		}, testutil.IntervalFast)
 	}
 }
