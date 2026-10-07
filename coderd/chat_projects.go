@@ -353,10 +353,21 @@ func (api *API) convertChatProject(r *http.Request, project database.ChatProject
 	can := func(action policy.Action) bool {
 		return ok && api.HTTPAuth.Authorizer.Authorize(ctx, subject, action, obj) == nil
 	}
+	// Callers who cannot use the project may only remove ACL entries, so
+	// they are not offered sharing.
+	share := can(policy.ActionShare)
+	if share && subject.ID != project.OwnerID.String() {
+		userID, err := uuid.Parse(subject.ID)
+		share = err == nil
+		if share {
+			usable, err := chatd.ChatProjectUsableBy(ctx, api.Database, project, userID)
+			share = err == nil && usable
+		}
+	}
 	return db2sdk.ChatProject(project, codersdk.ChatProjectPermissions{
 		Update: can(policy.ActionUpdate),
 		Delete: can(policy.ActionDelete),
-		Share:  can(policy.ActionShare),
+		Share:  share,
 	})
 }
 
