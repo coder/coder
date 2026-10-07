@@ -165,7 +165,7 @@ const createComponents = (
 						"align-middle relative -top-px",
 						checked
 							? "border-content-link bg-content-link text-white"
-							: "border-border-default bg-surface-primary",
+							: "border-border bg-surface-primary",
 					)}
 				>
 					{checked && (
@@ -196,7 +196,7 @@ const createComponents = (
 		// Horizontal rule: render a clean 1px solid line using theme
 		// tokens instead of the default border.
 		hr: () => (
-			<hr className="my-6 border-0 border-t border-solid border-border-default" />
+			<hr className="my-6 border-0 border-t border-solid border-border" />
 		),
 		// Table cells: streamdown defaults to text-sm (14px).
 		// Drop the explicit size so cells inherit the 13px base.
@@ -234,7 +234,7 @@ const createComponents = (
 					const codeBlock = (
 						<ScrollArea
 							orientation="both"
-							className="my-4 rounded-md border border-solid border-border-default bg-surface-primary"
+							className="my-4 rounded-md border border-solid border-border bg-surface-primary"
 							scrollBarClassName="w-1.5"
 							horizontalScrollBarClassName="h-1.5"
 						>

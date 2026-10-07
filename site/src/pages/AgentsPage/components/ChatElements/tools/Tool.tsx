@@ -877,7 +877,7 @@ const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
 			</div>
 		)}
 		<ScrollArea
-			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 			viewportClassName="max-h-64"
 			viewportTabIndex={0}
 			viewportAriaLabel={`Contents of ${file.name}`}
