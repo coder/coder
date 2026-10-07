@@ -482,6 +482,7 @@ func (a *agent) init() {
 		MCPCatalog: func() []agentcontext.MCPServerStatus {
 			return mcpCatalogToContext(a.mcpManager.Catalog())
 		},
+		MCPReconnect: a.mcpManager.Reconnect,
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
 	// Re-resolve and re-push KindMCPServer resources whenever the MCP
