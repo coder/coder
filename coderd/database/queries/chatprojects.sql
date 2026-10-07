@@ -114,31 +114,31 @@ FROM chat_projects
 WHERE owner_id = @owner_id::uuid;
 
 -- name: LockChatProjectRootChatsForDelete :many
--- Locks up to limit_count of a project's root chats. Callers use worker_id
--- and runner_id to tell whether a worker holds a chat. Deleting a project
--- in batches keeps each transaction short. Callers must first lock the
--- project row with GetChatProjectByIDForUpdate in an earlier statement of
--- the same transaction: each statement takes its own snapshot, so only a
--- later one sees root chats whose inserts that lock waited for.
+-- Locks up to limit_count of a project's root chats; run it through
+-- LockChatProjectDeleteBatch, which takes the locks in the required order.
+-- Rows lock in index-scan order, not id order, so this can deadlock with
+-- another statement that locks some of the same chats in id order, such
+-- as the MCP resource sync. Postgres aborts one side, and retrying the
+-- delete is the intended recovery.
 SELECT chats.id, chats.worker_id, chats.runner_id
 FROM chats
 WHERE chats.project_id = @project_id::uuid
+    AND chats.parent_chat_id IS NULL
 LIMIT @limit_count::int
 FOR UPDATE;
 
 -- name: LockSubChatsByRootIDsForDelete :many
--- Locks the sub-chats of root chats the caller already locked. It must run
--- as a later statement than the root lock: a sub-chat insert holds a lock
--- on its root until it commits, and only a later snapshot sees it.
+-- Locks the sub-chats of root chats the caller already locked; run it
+-- through LockChatProjectDeleteBatch.
 SELECT chats.id, chats.worker_id, chats.runner_id
 FROM chats
 WHERE chats.root_chat_id = ANY(@root_ids::uuid[])
 ORDER BY chats.id
 FOR UPDATE;
 
--- name: DeleteChatsByIDs :exec
--- Chat-scoped tables cascade. Sub-chats not in ids lose their root and
--- parent, and chat_automations references are set to NULL, so callers
--- must pass whole chat families.
+-- name: DeleteChatFamiliesByRootIDs :exec
+-- Deletes root chats with all their sub-chats. Chat-scoped tables cascade,
+-- and chat_automations references are set to NULL.
 DELETE FROM chats
-WHERE id = ANY(@ids::uuid[]);
+WHERE id = ANY(@root_ids::uuid[])
+    OR root_chat_id = ANY(@root_ids::uuid[]);

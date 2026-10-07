@@ -952,6 +952,20 @@ func (mr *MockStoreMockRecorder) DeleteChatDebugDataByChatID(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatDebugDataByChatID", reflect.TypeOf((*MockStore)(nil).DeleteChatDebugDataByChatID), ctx, arg)
 }
 
+// DeleteChatFamiliesByRootIDs mocks base method.
+func (m *MockStore) DeleteChatFamiliesByRootIDs(ctx context.Context, rootIds []uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatFamiliesByRootIDs", ctx, rootIds)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatFamiliesByRootIDs indicates an expected call of DeleteChatFamiliesByRootIDs.
+func (mr *MockStoreMockRecorder) DeleteChatFamiliesByRootIDs(ctx, rootIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatFamiliesByRootIDs", reflect.TypeOf((*MockStore)(nil).DeleteChatFamiliesByRootIDs), ctx, rootIds)
+}
+
 // DeleteChatMCPServersByChatIDExcludingSlugs mocks base method.
 func (m *MockStore) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg database.DeleteChatMCPServersByChatIDExcludingSlugsParams) error {
 	m.ctrl.T.Helper()
@@ -1065,20 +1079,6 @@ func (m *MockStore) DeleteChatQueuedMessageReturningCount(ctx context.Context, a
 func (mr *MockStoreMockRecorder) DeleteChatQueuedMessageReturningCount(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatQueuedMessageReturningCount", reflect.TypeOf((*MockStore)(nil).DeleteChatQueuedMessageReturningCount), ctx, arg)
-}
-
-// DeleteChatsByIDs mocks base method.
-func (m *MockStore) DeleteChatsByIDs(ctx context.Context, ids []uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatsByIDs", ctx, ids)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteChatsByIDs indicates an expected call of DeleteChatsByIDs.
-func (mr *MockStoreMockRecorder) DeleteChatsByIDs(ctx, ids any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatsByIDs", reflect.TypeOf((*MockStore)(nil).DeleteChatsByIDs), ctx, ids)
 }
 
 // DeleteCryptoKey mocks base method.

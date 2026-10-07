@@ -172,6 +172,9 @@ type sqlcQuerier interface {
 	// window (for example, after an unarchive races with a pending
 	// archive-cleanup retry).
 	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
+	// Deletes root chats with all their sub-chats. Chat-scoped tables cascade,
+	// and chat_automations references are set to NULL.
+	DeleteChatFamiliesByRootIDs(ctx context.Context, rootIds []uuid.UUID) error
 	DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg DeleteChatMCPServersByChatIDExcludingSlugsParams) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
@@ -183,10 +186,6 @@ type sqlcQuerier interface {
 	// number of affected rows so callers can detect missing rows without
 	// a follow-up read.
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
-	// Chat-scoped tables cascade. Sub-chats not in ids lose their root and
-	// parent, and chat_automations references are set to NULL, so callers
-	// must pass whole chat families.
-	DeleteChatsByIDs(ctx context.Context, ids []uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
@@ -635,6 +634,8 @@ type sqlcQuerier interface {
 	GetChatWorkspaceTTL(ctx context.Context) (string, error)
 	GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error)
 	GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error)
+	// Same rows as GetChatsByIDsForRunnerSync, but dbauthz authorizes each row
+	// for read instead of requiring update on every chat.
 	GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
@@ -1440,21 +1441,20 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
-	// Locks up to limit_count of a project's root chats. Callers use worker_id
-	// and runner_id to tell whether a worker holds a chat. Deleting a project
-	// in batches keeps each transaction short. Callers must first lock the
-	// project row with GetChatProjectByIDForUpdate in an earlier statement of
-	// the same transaction: each statement takes its own snapshot, so only a
-	// later one sees root chats whose inserts that lock waited for.
+	// Locks up to limit_count of a project's root chats; run it through
+	// LockChatProjectDeleteBatch, which takes the locks in the required order.
+	// Rows lock in index-scan order, not id order, so this can deadlock with
+	// another statement that locks some of the same chats in id order, such
+	// as the MCP resource sync. Postgres aborts one side, and retrying the
+	// delete is the intended recovery.
 	LockChatProjectRootChatsForDelete(ctx context.Context, arg LockChatProjectRootChatsForDeleteParams) ([]LockChatProjectRootChatsForDeleteRow, error)
 	// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
 	// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
 	// is held the key cannot be deleted, and a committed deletion is observed as
 	// no rows by later calls.
 	LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
-	// Locks the sub-chats of root chats the caller already locked. It must run
-	// as a later statement than the root lock: a sub-chat insert holds a lock
-	// on its root until it commits, and only a later snapshot sees it.
+	// Locks the sub-chats of root chats the caller already locked; run it
+	// through LockChatProjectDeleteBatch.
 	LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]LockSubChatsByRootIDsForDeleteRow, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
