@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -16,7 +17,6 @@ import (
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	aibtestutil "github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
-	"github.com/coder/coder/v2/aibridge/recorder"
 	testutil "github.com/coder/coder/v2/testutil"
 )
 
@@ -138,7 +138,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		req.Header.Set("Editor-Version", "vscode/1.85.0")
 		req.Header.Set("Copilot-Integration-Id", "test-integration")
-		req = req.WithContext(aibcontext.AsActor(req.Context(), "actor-id", "", recorder.Metadata{"Username": "actor-username"}))
+		req = req.WithContext(aibcontext.AsActor(req.Context(), aibcontext.Actor{ID: uuid.MustParse("6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b"), Username: "actor-username"}))
 		w := httptest.NewRecorder()
 
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)

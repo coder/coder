@@ -8,7 +8,7 @@ import { API } from "#/api/api";
 import {
 	chat as chatById,
 	chatEntityKey,
-	readInfiniteChatsCache,
+	infiniteChats,
 } from "#/api/queries/chats";
 import type { ChatWatchEvent, WorkspaceBuild } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -30,6 +30,7 @@ import AgentsPageLayout, {
 } from "./AgentsPageLayout";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { ChatTopBar } from "./components/ChatTopBar";
+import { DEFAULT_AGENT_SIDEBAR_FILTERS } from "./utils/agentSidebarFilters";
 
 const ChatPage = () => {
 	const { agentId = "" } = useParams();
@@ -49,6 +50,8 @@ const renderLayout = (route = "/agents") =>
 		route,
 		children: [
 			{ index: true, element: null },
+			{ path: "projects/:projectId", element: null },
+			{ path: "automations", element: null },
 			{ path: ":agentId", element: <ChatPage /> },
 		],
 		extraRoutes: [{ path: "/workspaces", element: null }],
@@ -94,6 +97,24 @@ describe("AgentsPageLayout New chat", () => {
 			expect(localStorage.getItem(emptyInputStorageKey)).toBe(expectedDraft);
 		},
 	);
+
+	it.each([
+		"/agents/chat-1",
+		"/agents/projects/project-1",
+		"/agents/automations",
+	])("keeps the plain composer's draft when leaving %s", async (route) => {
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
+		const user = userEvent.setup();
+
+		const { router } = renderLayout(route);
+		await user.click(await screen.findByRole("link", { name: "New chat" }));
+
+		await waitFor(() => expect(router.state.location.pathname).toBe("/agents"));
+		expect(localStorage.getItem(emptyInputStorageKey)).toBe(
+			"draft the user typed earlier",
+		);
+	});
 });
 
 describe("AgentsPageLayout archive state", () => {
@@ -594,7 +615,15 @@ describe("AgentsPageLayout archive and delete", () => {
 							),
 						);
 						await waitFor(() =>
-							expect(readInfiniteChatsCache(queryClient)).toEqual([otherChat]),
+							expect(
+								queryClient
+									.getQueryData(
+										infiniteChats({
+											sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+										}).queryKey,
+									)
+									?.pages.flat(),
+							).toEqual([otherChat]),
 						);
 
 						const destination = chatId ? `/agents/${chatId}` : "/workspaces";

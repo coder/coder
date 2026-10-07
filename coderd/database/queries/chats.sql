@@ -787,14 +787,14 @@ WHERE
                         OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', @search))
                     )
             )
-            -- Skip an explicit pr_number lookup unless the search is a valid bigint.
+            -- Digits only, so LIKE sees no metacharacters; a per-chat PK probe.
             OR CASE
-                WHEN @search ~ '^[0-9]{1,18}$' THEN EXISTS (
+                WHEN @search ~ '^[0-9]+$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number = @search::bigint
+                        AND cds.pr_number::text LIKE @search || '%'
                 )
                 ELSE false
             END
@@ -2080,7 +2080,7 @@ FROM
 WHERE
     chat_id = @chat_id::uuid
 ORDER BY
-    updated_at DESC,
+    created_at,
     git_remote_origin,
     git_branch;
 
@@ -2092,7 +2092,7 @@ FROM
 WHERE
     chat_id = ANY(@chat_ids::uuid[])
 ORDER BY
-    updated_at DESC,
+    created_at,
     git_remote_origin,
     git_branch;
 

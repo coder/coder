@@ -7,8 +7,8 @@ import type { LiveStatusModel } from "./liveStatusModel";
 import { BlockList, type BlockListProps } from "./MessageBlocks";
 import { shouldShowGenericThinking } from "./streamingActivity";
 
-const LiveActivitySlot: React.FC<{ interrupting?: boolean }> = ({
-	interrupting = false,
+const LiveActivitySlot: React.FC<{ interrupting: boolean }> = ({
+	interrupting,
 }) => (
 	<div
 		data-testid="live-activity-slot"

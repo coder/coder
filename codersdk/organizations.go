@@ -149,8 +149,8 @@ type CreateTemplateRequest struct {
 	// DisplayName is the displayed name of the template.
 	DisplayName string `json:"display_name,omitempty" validate:"template_display_name"`
 	// Description is a description of what the template contains. It must be
-	// less than 128 bytes.
-	Description string `json:"description,omitempty" validate:"lt=128"`
+	// no longer than 128 Unicode code points.
+	Description string `json:"description,omitempty" validate:"lte=128"`
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.
 	Icon string `json:"icon,omitempty"`

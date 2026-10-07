@@ -89,6 +89,10 @@ const CoderAgentsPage: React.FC = () => {
 					!organizationSelection.requestedOrganizationDenied &&
 					(activeOrganizationPermissions?.editChatModelConfigs ?? false)
 				}
+				canViewInstructions={
+					!organizationSelection.requestedOrganizationDenied &&
+					(activeOrganizationPermissions?.viewChatModelConfigs ?? false)
+				}
 				showAdvisor={showAdvisorSettings}
 			/>
 		) : undefined;

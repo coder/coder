@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -18,7 +19,10 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -26,7 +30,7 @@ import (
 
 func TestNewRecorder(t *testing.T) {
 	t.Parallel()
-	drpcErr := xerrors.New("DRPC recording was attempted")
+	drpcErr := xerrors.New("client unavailable")
 	for _, tc := range []struct {
 		structuredLogging       bool
 		disableContentRecording bool
@@ -57,24 +61,24 @@ func TestNewRecorder(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("Structured=%t/DisableContent=%t", tc.structuredLogging, tc.disableContentRecording), func(t *testing.T) {
 			t.Parallel()
-			apiKeyID, interceptionID := uuid.NewString(), uuid.NewString()
+			actor := aibridge.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()}
+			id := uuid.NewString()
 			now := time.Now().UTC()
-			type contextKey struct{}
 			sink := testutil.NewFakeSink(t)
 			clientCalls := 0
-			rec := newRecorder(sink.Logger(), noop.NewTracerProvider().Tracer(t.Name()), apiKeyID, tc.structuredLogging, tc.disableContentRecording, func(ctx context.Context) (DRPCClient, error) {
+			rec := newRecorder(sink.Logger(), noop.NewTracerProvider().Tracer(t.Name()), tc.structuredLogging, tc.disableContentRecording, func(ctx context.Context) (DRPCClient, error) {
 				clientCalls++
-				require.Equal(t, "record context", ctx.Value(contextKey{}))
+				require.Equal(t, &actor, aibcontext.ActorFromContext(ctx), "the client must be acquired with the record call's actor")
 				return nil, drpcErr
 			})
 			require.Zero(t, clientCalls, "creating a recorder must not acquire a client")
-			ctx := context.WithValue(t.Context(), contextKey{}, "record context")
-			require.ErrorIs(t, rec.RecordInterception(ctx, &recorder.InterceptionRecord{ID: interceptionID, StartedAt: now}), drpcErr)
-			require.ErrorIs(t, rec.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{ID: interceptionID, EndedAt: now}), drpcErr)
-			require.ErrorIs(t, rec.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{InterceptionID: interceptionID, CreatedAt: now, Input: 1}), drpcErr)
-			require.ErrorIs(t, rec.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{InterceptionID: interceptionID, CreatedAt: now, Prompt: "prompt"}), tc.wantContentErr)
-			require.ErrorIs(t, rec.RecordToolUsage(ctx, &recorder.ToolUsageRecord{InterceptionID: interceptionID, CreatedAt: now, Tool: "tool"}), tc.wantContentErr)
-			require.ErrorIs(t, rec.RecordModelThought(ctx, &recorder.ModelThoughtRecord{InterceptionID: interceptionID, CreatedAt: now, Content: "thought"}), tc.wantContentErr)
+			ctx := aibridge.AsActor(t.Context(), actor)
+			require.ErrorIs(t, rec.RecordInterception(ctx, &recorder.InterceptionRecord{ID: id, InitiatorID: actor.ID.String(), StartedAt: now}), drpcErr)
+			require.ErrorIs(t, rec.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{ID: id, EndedAt: now}), drpcErr)
+			require.ErrorIs(t, rec.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{InterceptionID: id, CreatedAt: now, Input: 1}), drpcErr)
+			require.ErrorIs(t, rec.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{InterceptionID: id, CreatedAt: now, Prompt: "prompt"}), tc.wantContentErr)
+			require.ErrorIs(t, rec.RecordToolUsage(ctx, &recorder.ToolUsageRecord{InterceptionID: id, CreatedAt: now, Tool: "tool"}), tc.wantContentErr)
+			require.ErrorIs(t, rec.RecordModelThought(ctx, &recorder.ModelThoughtRecord{InterceptionID: id, CreatedAt: now, Content: "thought"}), tc.wantContentErr)
 			require.Equal(t, tc.wantClientCalls, clientCalls, "each forwarded record acquires its own client")
 			logs := sink.Entries(func(entry slog.SinkEntry) bool { return entry.Message == recorder.InterceptionLogMarker })
 			require.Len(t, logs, tc.wantLogs, "logging must precede content filtering")
@@ -82,29 +86,79 @@ func TestNewRecorder(t *testing.T) {
 			require.Equal(t, tc.wantClientCalls, clientCalls)
 		})
 	}
-	t.Run("APIKeyID", func(t *testing.T) {
+
+	t.Run("RecorderSharedAcrossRequestsDoesNotMixActorData", func(t *testing.T) {
 		t.Parallel()
-		apiKeyID, interceptionID := uuid.NewString(), uuid.NewString()
-		client := &interceptionRecordingClient{}
-		rec := newRecorder(testutil.NewFakeSink(t).Logger(), noop.NewTracerProvider().Tracer(t.Name()), apiKeyID, false, false, func(context.Context) (DRPCClient, error) {
+		sink := testutil.NewFakeSink(t)
+		client := &recordingClient{}
+		rec := newRecorder(sink.Logger(), noop.NewTracerProvider().Tracer(t.Name()), true, false, func(context.Context) (DRPCClient, error) {
 			return client, nil
 		})
-		require.NoError(t, rec.RecordInterception(t.Context(), &recorder.InterceptionRecord{ID: interceptionID, StartedAt: time.Now().UTC()}))
-		require.Len(t, client.requests, 1)
-		require.Equal(t, apiKeyID, client.requests[0].GetApiKeyId())
-		require.Equal(t, interceptionID, client.requests[0].GetId())
+		record := func(t *testing.T) {
+			t.Helper()
+			actor := aibridge.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()}
+			in := &recorder.InterceptionRecord{ID: uuid.NewString(), InitiatorID: actor.ID.String(), StartedAt: time.Now().UTC()}
+			require.NoError(t, rec.RecordInterception(aibridge.AsActor(t.Context(), actor), in))
+
+			value, ok := client.requests.Load(in.ID)
+			require.True(t, ok, "interception must reach the DRPC client")
+			rpc := value.(*proto.RecordInterceptionRequest)
+			require.Equal(t, in.InitiatorID, rpc.GetInitiatorId())
+			require.Equal(t, actor.APIKeyID, rpc.GetApiKeyId())
+			logs := sink.Entries(func(entry slog.SinkEntry) bool {
+				return entry.Message == recorder.InterceptionLogMarker && slices.ContainsFunc(entry.Fields, func(field slog.Field) bool {
+					return field.Name == "interception_id" && field.Value == in.ID
+				})
+			})
+			require.Len(t, logs, 1)
+			require.Contains(t, logs[0].Fields, slog.F("initiator_id", in.InitiatorID))
+			require.Contains(t, logs[0].Fields, slog.F("api_key_id", actor.APIKeyID))
+		}
+
+		t.Run("Sequential", func(t *testing.T) {
+			t.Parallel()
+			record(t)
+			record(t)
+		})
+		t.Run("Concurrent", func(t *testing.T) {
+			t.Parallel()
+			for i := range 2 {
+				t.Run(fmt.Sprintf("Request%d", i), func(t *testing.T) {
+					t.Parallel()
+					record(t)
+				})
+			}
+		})
+	})
+
+	t.Run("DetachedContext", func(t *testing.T) {
+		t.Parallel()
+		actor := aibridge.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()}
+		clientCalls := 0
+		rec := newRecorder(testutil.NewFakeSink(t).Logger(), noop.NewTracerProvider().Tracer(t.Name()), false, false, func(ctx context.Context) (DRPCClient, error) {
+			clientCalls++
+			require.NoError(t, ctx.Err(), "client acquisition must not inherit request cancellation")
+			require.Equal(t, &actor, aibcontext.ActorFromContext(ctx))
+			return nil, drpcErr
+		})
+		ctx, cancel := context.WithCancel(aibridge.AsActor(t.Context(), actor))
+		cancel()
+		require.ErrorIs(t, rec.RecordInterception(context.WithoutCancel(ctx), &recorder.InterceptionRecord{ID: uuid.NewString(), InitiatorID: actor.ID.String(), StartedAt: time.Now().UTC()}), drpcErr)
+		require.Equal(t, 1, clientCalls)
 	})
 }
 
-// interceptionRecordingClient captures interception records. Its nil embedded
-// client makes any other call fail loudly.
-type interceptionRecordingClient struct {
+// recordingClient captures interception RPCs by ID for concurrent assertions.
+// Its nil embedded client makes unexpected calls fail.
+type recordingClient struct {
 	DRPCClient
-	requests []*proto.RecordInterceptionRequest
+	requests sync.Map
 }
 
-func (c *interceptionRecordingClient) RecordInterception(_ context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
-	c.requests = append(c.requests, in)
+func (c *recordingClient) RecordInterception(_ context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
+	if _, loaded := c.requests.LoadOrStore(in.GetId(), in); loaded {
+		return nil, xerrors.New("interception recorded more than once")
+	}
 	return &proto.RecordInterceptionResponse{}, nil
 }
 
@@ -125,13 +179,14 @@ func blockingHandler() (h http.Handler, started <-chan struct{}, release func())
 	return h, startedCh, func() { close(releaseCh) }
 }
 
-// serveAsync invokes an acquired handler and reports the response status.
+// serveAsync invokes an acquired handler on a passthrough route and reports
+// the response status.
 func serveAsync(handler http.Handler) <-chan int {
 	done := make(chan int, 1)
 	go func() {
 		defer close(done)
 		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/openai/v1/models", nil))
 		done <- rec.Code
 	}()
 	return done
@@ -161,7 +216,8 @@ func TestServerProxy_Shutdown(t *testing.T) {
 		wantErr    error
 	}{
 		{name: "Graceful", wantStatus: http.StatusNoContent},
-		{name: "Canceled", cancel: true, wantStatus: http.StatusServiceUnavailable, wantErr: context.Canceled},
+		// Canceling the request aborts the upstream round trip.
+		{name: "Canceled", cancel: true, wantStatus: http.StatusBadGateway, wantErr: context.Canceled},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -255,8 +311,8 @@ func TestServerProxy_CancelsWithLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = tracker.Close() })
 	handler, started, release := blockingHandler()
+	tracker.backend.Store(&backend{proxyRouter: newProxyTestRouter(t, handler, tracker.inflight)})
 	t.Cleanup(release)
-	tracker.backend.Store(&backend{proxyRouter: tracker.inflight.Middleware(handler)})
 	acquired, err := tracker.GetRequestHandler(t.Context(), Request{})
 	require.NoError(t, err)
 	done := serveAsync(acquired)
@@ -264,7 +320,7 @@ func TestServerProxy_CancelsWithLifecycle(t *testing.T) {
 	testutil.RequireReceive(testCtx, t, started)
 
 	cancel()
-	require.Equal(t, http.StatusServiceUnavailable, testutil.RequireReceive(testCtx, t, done))
+	require.Equal(t, http.StatusBadGateway, testutil.RequireReceive(testCtx, t, done))
 	require.ErrorIs(t, tracker.Err(), context.Canceled)
 	refused, err := tracker.GetRequestHandler(testCtx, Request{})
 	require.NoError(t, err)
@@ -276,41 +332,68 @@ func TestServerProxy_CancelsWithLifecycle(t *testing.T) {
 	}
 }
 
+// blockingWriter blocks the first response write until release is closed,
+// ignoring request cancellation.
+type blockingWriter struct {
+	*httptest.ResponseRecorder
+	started chan struct{}
+	release <-chan struct{}
+	once    sync.Once
+}
+
+func (w *blockingWriter) Write(p []byte) (int, error) {
+	w.once.Do(func() { close(w.started) })
+	<-w.release
+	return w.ResponseRecorder.Write(p)
+}
+
 // TestServerProxy_DeadlineDoesNotWaitForHandler ensures shutdown returns
 // even if an admitted handler cannot observe cancellation, such as a blocked
 // response write.
 func TestServerProxy_DeadlineDoesNotWaitForHandler(t *testing.T) {
 	t.Parallel()
 
-	started := make(chan context.Context, 1)
+	upstreamCanceled := make(chan struct{})
+	upstreamDone := make(chan struct{})
 	release := make(chan struct{})
 	unblock := sync.OnceFunc(func() { close(release) })
-	tracker := newProxyTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		started <- r.Context()
-		<-release
-		w.WriteHeader(http.StatusNoContent)
+	testSrv := newProxyTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("chunk"))
+		w.(http.Flusher).Flush()
+		select {
+		case <-r.Context().Done():
+			close(upstreamCanceled)
+		case <-upstreamDone:
+		}
 	}))
-	handler, err := tracker.GetRequestHandler(t.Context(), Request{})
+	handler, err := testSrv.GetRequestHandler(t.Context(), Request{})
 	require.NoError(t, err)
-	inflightReqDone := serveAsync(handler)
+	writer := &blockingWriter{ResponseRecorder: httptest.NewRecorder(), started: make(chan struct{}), release: release}
+	inflightReqDone := make(chan int, 1)
+	go func() {
+		defer close(inflightReqDone)
+		handler.ServeHTTP(writer, httptest.NewRequest(http.MethodPost, "/openai/v1/models", nil))
+		inflightReqDone <- writer.Code
+	}()
 	t.Cleanup(func() {
 		unblock()
+		close(upstreamDone)
 		select {
 		case <-inflightReqDone:
-		case <-time.After(testutil.WaitLong):
+		case <-time.After(testutil.WaitShort):
 			t.Error("handler did not finish after release")
 		}
 	})
-	testCtx := testutil.Context(t, testutil.WaitLong)
-	requestCtx := testutil.RequireReceive(testCtx, t, started)
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.TryReceive(testCtx, t, writer.started)
 
 	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 	defer cancel()
 	shutdownDone := make(chan error, 1)
-	go func() { shutdownDone <- tracker.Shutdown(ctx) }()
+	go func() { shutdownDone <- testSrv.Shutdown(ctx) }()
 	require.ErrorIs(t, testutil.RequireReceive(testCtx, t, shutdownDone), context.DeadlineExceeded)
-	testutil.TryReceive(testCtx, t, requestCtx.Done())
-	require.ErrorIs(t, requestCtx.Err(), context.Canceled)
+	// Forced shutdown cancels the request, which aborts the upstream connection.
+	testutil.TryReceive(testCtx, t, upstreamCanceled)
 
 	select {
 	case <-inflightReqDone:
@@ -320,10 +403,10 @@ func TestServerProxy_DeadlineDoesNotWaitForHandler(t *testing.T) {
 
 	// Release the test handler so incorrect re-admission fails rather than hangs.
 	unblock()
-	require.Equal(t, http.StatusNoContent, testutil.RequireReceive(testCtx, t, inflightReqDone))
-	refused, err := tracker.GetRequestHandler(testCtx, Request{})
+	require.Equal(t, http.StatusOK, testutil.RequireReceive(testCtx, t, inflightReqDone))
+	afterShutdownHandler, err := testSrv.GetRequestHandler(testCtx, Request{})
 	require.NoError(t, err)
-	for _, h := range []http.Handler{handler, refused} {
+	for _, h := range []http.Handler{handler, afterShutdownHandler} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
 		require.Equal(t, http.StatusServiceUnavailable, rec.Code)
@@ -336,11 +419,11 @@ func TestServerProxy_DeadlineDoesNotWaitForHandler(t *testing.T) {
 func TestServerProxy_RefusesAfterShutdown(t *testing.T) {
 	t.Parallel()
 
-	tracker := newProxyTestServer(t, http.NotFoundHandler())
-	acquired, err := tracker.GetRequestHandler(t.Context(), Request{})
+	testSrv := newProxyTestServer(t, http.NotFoundHandler())
+	acquired, err := testSrv.GetRequestHandler(t.Context(), Request{})
 	require.NoError(t, err)
-	require.NoError(t, tracker.Shutdown(t.Context()))
-	refused, err := tracker.GetRequestHandler(t.Context(), Request{})
+	require.NoError(t, testSrv.Shutdown(t.Context()))
+	afterShutdownHandler, err := testSrv.GetRequestHandler(t.Context(), Request{})
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
@@ -348,7 +431,7 @@ func TestServerProxy_RefusesAfterShutdown(t *testing.T) {
 		handler http.Handler
 	}{
 		{name: "Retained", handler: acquired},
-		{name: "AcquiredAfterShutdown", handler: refused},
+		{name: "AcquiredAfterShutdown", handler: afterShutdownHandler},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -361,18 +444,32 @@ func TestServerProxy_RefusesAfterShutdown(t *testing.T) {
 	}
 }
 
-// newProxyTestServer publishes a test handler behind the proxy admission gate.
-// It registers cleanup but leaves DRPC setup and the connection loop to the test.
-func newProxyTestServer(t *testing.T, handler http.Handler) *Server {
+// newProxyTestRouter creates an OpenAI proxy router admitting requests through
+// gate and forwarding to an httptest upstream served by upstreamHandler.
+func newProxyTestRouter(t *testing.T, upstreamHandler http.Handler, gate *aibridge.InflightGate) *proxy.Router {
+	t.Helper()
+	upstream := httptest.NewServer(upstreamHandler)
+	t.Cleanup(upstream.Close)
+	router, err := proxy.NewRouter(t.Context(), []aibridge.Provider{aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})},
+		slogtest.Make(t, nil), nil, noop.NewTracerProvider().Tracer(t.Name()), gate, nil)
+	require.NoError(t, err)
+	return router
+}
+
+// newProxyTestServer publishes a proxy router sharing the server's inflight
+// gate. It registers cleanup but leaves DRPC setup and the connection loop to
+// the test.
+func newProxyTestServer(t *testing.T, upstreamHandler http.Handler) *Server {
 	t.Helper()
 	ctx, cancel := context.WithCancelCause(t.Context())
 	s := &Server{
 		lifecycleCtx: ctx,
 		cancelFn:     cancel,
 		logger:       slogtest.Make(t, nil),
+		tracer:       noop.NewTracerProvider().Tracer(t.Name()),
 		inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
 	}
-	s.backend.Store(&backend{proxyRouter: s.inflight.Middleware(handler)})
+	s.backend.Store(&backend{proxyRouter: newProxyTestRouter(t, upstreamHandler, s.inflight)})
 	t.Cleanup(func() { _ = s.Close() })
 	return s
 }
