@@ -1650,7 +1650,8 @@ export type AppFamilyName =
 	| "sftp"
 	| "ssh"
 	| "unknown"
-	| "vscode";
+	| "vscode"
+	| "workspace_app";
 
 export const AppFamilyNames: AppFamilyName[] = [
 	"jetbrains",
@@ -1660,6 +1661,7 @@ export const AppFamilyNames: AppFamilyName[] = [
 	"ssh",
 	"unknown",
 	"vscode",
+	"workspace_app",
 ];
 
 // From codersdk/deployment.go
@@ -10052,6 +10054,12 @@ export interface TemplateAppUsage {
 	readonly icon: string;
 	readonly seconds: number;
 	readonly times_used: number;
+	readonly family: AppFamilyName;
+	/**
+	 * SecondsIsUpperBound marks overflow usage that includes folded apps.
+	 * Their overlap is not stored, so Seconds may overestimate active time.
+	 */
+	readonly seconds_is_upper_bound?: boolean;
 }
 
 // From codersdk/insights.go
@@ -10301,6 +10309,14 @@ export interface TemplateInsightsIntervalReport {
 
 // From codersdk/insights.go
 /**
+ * TemplateInsightsMaxUnregisteredApps limits individually listed unregistered
+ * apps to the busiest names. Registered apps are exempt; the rest fold into
+ * overflow.
+ */
+export const TemplateInsightsMaxUnregisteredApps = 64;
+
+// From codersdk/insights.go
+/**
  * TemplateInsightsReport is the report from the template insights endpoint.
  */
 export interface TemplateInsightsReport {
@@ -10308,6 +10324,11 @@ export interface TemplateInsightsReport {
 	readonly end_time: string;
 	readonly template_ids: readonly string[];
 	readonly active_users: number;
+	/**
+	 * UsageTotalSeconds counts each user's active minutes once, even when apps
+	 * overlap. Summed per-app seconds can exceed this total.
+	 */
+	readonly usage_total_seconds: number;
 	readonly apps_usage: readonly TemplateAppUsage[];
 	readonly parameters_usage: readonly TemplateParameterUsage[];
 }

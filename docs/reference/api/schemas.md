@@ -1615,9 +1615,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                                               |
-|----------------------------------------------------------------------------------------|
-| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `sftp`, `ssh`, `unknown`, `vscode` |
+| Value(s)                                                                                                |
+|---------------------------------------------------------------------------------------------------------|
+| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `sftp`, `ssh`, `unknown`, `vscode`, `workspace_app` |
 
 ## codersdk.AppHostResponse
 
@@ -15114,9 +15114,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
-  "display_name": "Visual Studio Code",
+  "display_name": "VS Code",
+  "family": "vscode",
   "icon": "string",
   "seconds": 80500,
+  "seconds_is_upper_bound": false,
   "slug": "vscode",
   "template_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
@@ -15128,15 +15130,17 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name           | Type                                                   | Required | Restrictions | Description |
-|----------------|--------------------------------------------------------|----------|--------------|-------------|
-| `display_name` | string                                                 | false    |              |             |
-| `icon`         | string                                                 | false    |              |             |
-| `seconds`      | integer                                                | false    |              |             |
-| `slug`         | string                                                 | false    |              |             |
-| `template_ids` | array of string                                        | false    |              |             |
-| `times_used`   | integer                                                | false    |              |             |
-| `type`         | [codersdk.TemplateAppsType](#codersdktemplateappstype) | false    |              |             |
+| Name                     | Type                                                   | Required | Restrictions | Description                                                                                                                                  |
+|--------------------------|--------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `display_name`           | string                                                 | false    |              |                                                                                                                                              |
+| `family`                 | [codersdk.AppFamilyName](#codersdkappfamilyname)       | false    |              |                                                                                                                                              |
+| `icon`                   | string                                                 | false    |              |                                                                                                                                              |
+| `seconds`                | integer                                                | false    |              |                                                                                                                                              |
+| `seconds_is_upper_bound` | boolean                                                | false    |              | Seconds is upper bound marks overflow usage that includes folded apps. Their overlap is not stored, so Seconds may overestimate active time. |
+| `slug`                   | string                                                 | false    |              |                                                                                                                                              |
+| `template_ids`           | array of string                                        | false    |              |                                                                                                                                              |
+| `times_used`             | integer                                                | false    |              |                                                                                                                                              |
+| `type`                   | [codersdk.TemplateAppsType](#codersdktemplateappstype) | false    |              |                                                                                                                                              |
 
 ## codersdk.TemplateAppsType
 
@@ -15791,9 +15795,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "active_users": 22,
   "apps_usage": [
     {
-      "display_name": "Visual Studio Code",
+      "display_name": "VS Code",
+      "family": "vscode",
       "icon": "string",
       "seconds": 80500,
+      "seconds_is_upper_bound": false,
       "slug": "vscode",
       "template_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
@@ -15831,20 +15837,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "start_time": "2019-08-24T14:15:22Z",
   "template_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-  ]
+  ],
+  "usage_total_seconds": 120000
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                                        | Required | Restrictions | Description |
-|--------------------|-----------------------------------------------------------------------------|----------|--------------|-------------|
-| `active_users`     | integer                                                                     | false    |              |             |
-| `apps_usage`       | array of [codersdk.TemplateAppUsage](#codersdktemplateappusage)             | false    |              |             |
-| `end_time`         | string                                                                      | false    |              |             |
-| `parameters_usage` | array of [codersdk.TemplateParameterUsage](#codersdktemplateparameterusage) | false    |              |             |
-| `start_time`       | string                                                                      | false    |              |             |
-| `template_ids`     | array of string                                                             | false    |              |             |
+| Name                  | Type                                                                        | Required | Restrictions | Description                                                                                                                       |
+|-----------------------|-----------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `active_users`        | integer                                                                     | false    |              |                                                                                                                                   |
+| `apps_usage`          | array of [codersdk.TemplateAppUsage](#codersdktemplateappusage)             | false    |              |                                                                                                                                   |
+| `end_time`            | string                                                                      | false    |              |                                                                                                                                   |
+| `parameters_usage`    | array of [codersdk.TemplateParameterUsage](#codersdktemplateparameterusage) | false    |              |                                                                                                                                   |
+| `start_time`          | string                                                                      | false    |              |                                                                                                                                   |
+| `template_ids`        | array of string                                                             | false    |              |                                                                                                                                   |
+| `usage_total_seconds` | integer                                                                     | false    |              | Usage total seconds counts each user's active minutes once, even when apps overlap. Summed per-app seconds can exceed this total. |
 
 ## codersdk.TemplateInsightsResponse
 
@@ -15865,9 +15873,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "active_users": 22,
     "apps_usage": [
       {
-        "display_name": "Visual Studio Code",
+        "display_name": "VS Code",
+        "family": "vscode",
         "icon": "string",
         "seconds": 80500,
+        "seconds_is_upper_bound": false,
         "slug": "vscode",
         "template_ids": [
           "497f6eca-6276-4993-bfeb-53cbbbba6f08"
@@ -15905,7 +15915,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "start_time": "2019-08-24T14:15:22Z",
     "template_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-    ]
+    ],
+    "usage_total_seconds": 120000
   }
 }
 ```
