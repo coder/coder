@@ -447,7 +447,6 @@ func TestChatProjectSharing(t *testing.T) {
 			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "not shared"}},
 		})
 		requireChatProjectNotFound(t, err)
-
 	})
 }
 
