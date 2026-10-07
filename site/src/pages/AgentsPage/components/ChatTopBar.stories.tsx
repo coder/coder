@@ -114,7 +114,7 @@ export const SharedChat: Story = {
 	},
 };
 
-/** Viewers of another user's chat get no owner actions menu. */
+/** Viewers of another user's chat get a lock instead of the shared icon. */
 export const SharedChatViewer: Story = {
 	args: {
 		chat: {

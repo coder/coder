@@ -809,7 +809,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		chat.owner_name?.trim() ||
 		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
 	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
-	const chatOwnerWarning = isOtherUserReadOnly
+	const readOnlyNotice = isOtherUserReadOnly
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
 
@@ -871,16 +871,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									>
 										<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
 										{unavailableModelNotice}
-									</div>
-								)}
-								{chatOwnerWarning && (
-									<div
-										role="status"
-										aria-live="polite"
-										className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
-									>
-										<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
-										{chatOwnerWarning}
 									</div>
 								)}
 								{isArchived && (
@@ -952,6 +942,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										onInterrupt={handleInterrupt}
 										isInputDisabled={isInputDisabled}
 										isReadOnly={isOtherUserReadOnly}
+										readOnlyNotice={readOnlyNotice}
 										isSendPending={isSubmissionPending}
 										isInterruptPending={isInterruptPending}
 										hasModelOptions={hasModelOptions}

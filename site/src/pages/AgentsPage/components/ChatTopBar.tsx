@@ -3,6 +3,7 @@ import {
 	ArrowLeftIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
+	LockIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
@@ -143,6 +144,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const isArchived = chat?.archived ?? false;
 	const isSharedChat = chat?.shared;
 	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
+	const isReadOnlyViewer = chat !== undefined && !canManage && !isArchived;
 	const hasWorkspace = Boolean(chat?.workspace_id);
 	const isArchivingThisChat = Boolean(
 		isArchiving &&
@@ -231,7 +233,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
-						{isSharedChat && (
+						{isSharedChat && canManage && (
 							<UsersIcon
 								className="size-3.5 shrink-0 text-content-secondary"
 								aria-label="Shared chat"
@@ -338,6 +340,12 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
+				{!isEmbedded && isReadOnlyViewer && (
+					<LockIcon
+						className="size-4 text-content-secondary"
+						aria-label="Read-only chat"
+					/>
+				)}
 				{!isEmbedded && canShareChat && chat && (
 					<ChatSharingTopBarButton
 						chatId={chat.id}
