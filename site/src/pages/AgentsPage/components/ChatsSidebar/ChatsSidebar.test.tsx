@@ -1018,68 +1018,86 @@ describe("ChatsSidebar copy actions", () => {
 		await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
 	};
 
-	it("copies the chat ID", async () => {
-		// userEvent.setup() swaps in its own clipboard stub, so the spy has to
-		// come after it.
-		const user = userEvent.setup();
-		const writeText = vi
-			.spyOn(navigator.clipboard, "writeText")
-			.mockResolvedValue();
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[buildChat({ id: "copy-chat", title: "Copy chat" })]}
-				/>
-			</Wrapper>,
-		);
+	it.each(["dropdown", "context"])(
+		"copies the chat ID directly from the %s menu without a branch",
+		async (menu) => {
+			// userEvent.setup() swaps in its own clipboard stub, so the spy has to
+			// come after it.
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue();
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[buildChat({ id: "copy-chat", title: "Copy chat" })]}
+					/>
+				</Wrapper>,
+			);
 
-		await openCopySubmenu(user, "Copy chat");
-		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy ID" }));
+			if (menu === "dropdown") {
+				await user.click(
+					screen.getByRole("button", { name: "Open actions for Copy chat" }),
+				);
+			} else {
+				await user.pointer({
+					target: screen.getByTestId("agents-tree-node-copy-chat"),
+					keys: "[MouseRight]",
+				});
+			}
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Copy ID" }),
+			);
 
-		await waitFor(() => {
-			expect(writeText).toHaveBeenCalledWith("copy-chat");
-		});
-	});
+			await waitFor(() => {
+				expect(writeText).toHaveBeenCalledWith("copy-chat");
+			});
+		},
+	);
 
-	it("copies the chat's branch", async () => {
-		const user = userEvent.setup();
-		const writeText = vi
-			.spyOn(navigator.clipboard, "writeText")
-			.mockResolvedValue();
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "branch-chat",
-							title: "Branch chat",
-							diff_status: {
-								chat_id: "branch-chat",
-								pull_request_title: "",
-								pull_request_draft: false,
-								changes_requested: false,
-								additions: 0,
-								deletions: 0,
-								changed_files: 0,
-								head_branch: "jakehwll/copy-branch",
-							},
-						}),
-					]}
-				/>
-			</Wrapper>,
-		);
+	it.each([
+		["Copy ID", "branch-chat"],
+		["Copy branch", "jakehwll/copy-branch"],
+	])(
+		"copies %s from the submenu when a branch is available",
+		async (label, value) => {
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue();
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({
+								id: "branch-chat",
+								title: "Branch chat",
+								diff_status: {
+									chat_id: "branch-chat",
+									pull_request_title: "",
+									pull_request_draft: false,
+									changes_requested: false,
+									additions: 0,
+									deletions: 0,
+									changed_files: 0,
+									head_branch: "jakehwll/copy-branch",
+								},
+							}),
+						]}
+					/>
+				</Wrapper>,
+			);
 
-		await openCopySubmenu(user, "Branch chat");
-		fireEvent.click(
-			await screen.findByRole("menuitem", { name: "Copy branch" }),
-		);
+			await openCopySubmenu(user, "Branch chat");
+			fireEvent.click(await screen.findByRole("menuitem", { name: label }));
 
-		await waitFor(() => {
-			expect(writeText).toHaveBeenCalledWith("jakehwll/copy-branch");
-		});
-	});
+			await waitFor(() => {
+				expect(writeText).toHaveBeenCalledWith(value);
+			});
+		},
+	);
 
 	it("copies the ID of a chat the user does not own", async () => {
 		const user = userEvent.setup();
@@ -1102,8 +1120,10 @@ describe("ChatsSidebar copy actions", () => {
 			</Wrapper>,
 		);
 
-		await openCopySubmenu(user, "Shared copy chat");
-		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy ID" }));
+		await user.click(
+			screen.getByRole("button", { name: "Open actions for Shared copy chat" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Copy ID" }));
 
 		await waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith("shared-copy-chat");

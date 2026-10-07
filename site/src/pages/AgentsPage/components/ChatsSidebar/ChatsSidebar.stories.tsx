@@ -2141,9 +2141,6 @@ export const ArchivedChildChatRowHasCopyMenu: Story = {
 		fireEvent.contextMenu(
 			canvas.getByTestId("agents-tree-node-child-archived"),
 		);
-		await userEvent.click(
-			await within(document.body).findByRole("menuitem", { name: "Copy" }),
-		);
 		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
 	},
 };
@@ -2378,7 +2375,7 @@ export const CopySubmenuContextMenu: Story = {
 	},
 };
 
-export const CopySubmenuWithoutBranch: Story = {
+export const CopyIDWithoutBranch: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -2400,15 +2397,12 @@ export const CopySubmenuWithoutBranch: Story = {
 		await userEvent.click(
 			await canvas.findByLabelText("Open actions for No branch agent"),
 		);
-		await userEvent.click(
-			await within(document.body).findByRole("menuitem", { name: "Copy" }),
-		);
 		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
 	},
 };
 
 /** Copying is read-only, so it stays available on another user's shared chat. */
-export const CopySubmenuOnSharedChat: Story = {
+export const CopyIDOnSharedChat: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -2433,18 +2427,15 @@ export const CopySubmenuOnSharedChat: Story = {
 		await userEvent.click(
 			await canvas.findByLabelText("Open actions for Shared copy agent"),
 		);
-		await userEvent.click(
-			await within(document.body).findByRole("menuitem", { name: "Copy" }),
-		);
 		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
 	},
 };
 
 /**
- * Archived child chats have no archive or unarchive actions, so the copy
- * submenu is the whole menu.
+ * Archived child chats have no archive or unarchive actions, so Copy ID
+ * is the whole menu when no branch is available.
  */
-export const CopySubmenuOnArchivedChildChat: Story = {
+export const CopyIDOnArchivedChildChat: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -2492,7 +2483,6 @@ export const CopySubmenuOnArchivedChildChat: Story = {
 		await userEvent.click(
 			await canvas.findByLabelText("Open actions for Archived copy child"),
 		);
-		await userEvent.click(await body.findByRole("menuitem", { name: "Copy" }));
 		await body.findByRole("menuitem", { name: "Copy ID" });
 	},
 };

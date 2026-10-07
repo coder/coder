@@ -77,14 +77,14 @@ export const canManageChat = (
 ): boolean => chat.owner_id === currentUserId;
 
 /**
- * Every chat exposes the copy submenu, so the menu itself is never empty and
+ * Every chat exposes copy actions, so the menu itself is never empty and
  * call sites always render their trigger.
  */
 type ChatActionsMenuItemsProps = {
 	readonly chat: TypesGen.Chat;
 	/**
 	 * See {@link canManageChat}. When false, only the subagents toggle and the
-	 * copy submenu render.
+	 * copy actions render.
 	 */
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
@@ -184,41 +184,49 @@ export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		</Item>
 	) : null;
 
-	const copySubmenu = (
-		<Sub>
-			<SubTrigger>
-				<CopyIcon className="size-3.5" />
-				Copy
-			</SubTrigger>
-			<SubContent>
-				<Item
-					onSelect={() => {
-						void copyToClipboard(chat.id);
-					}}
-				>
-					<HashIcon className="size-3.5" />
-					Copy ID
-				</Item>
-				{branch && (
-					<Item
-						onSelect={() => {
-							void copyToClipboard(branch);
-						}}
-					>
-						<GitBranchIcon className="size-3.5" />
-						Copy branch
-					</Item>
-				)}
-			</SubContent>
-		</Sub>
-	);
+	const copyItems = [
+		<Item
+			key="id"
+			onSelect={() => {
+				void copyToClipboard(chat.id);
+			}}
+		>
+			<HashIcon className="size-3.5" />
+			Copy ID
+		</Item>,
+	];
+	if (branch) {
+		copyItems.push(
+			<Item
+				key="branch"
+				onSelect={() => {
+					void copyToClipboard(branch);
+				}}
+			>
+				<GitBranchIcon className="size-3.5" />
+				Copy branch
+			</Item>,
+		);
+	}
+	const copyActions =
+		copyItems.length > 1 ? (
+			<Sub>
+				<SubTrigger>
+					<CopyIcon className="size-3.5" />
+					Copy
+				</SubTrigger>
+				<SubContent>{copyItems}</SubContent>
+			</Sub>
+		) : (
+			copyItems
+		);
 
 	if (!canManage) {
 		return (
 			<>
 				{subagentToggle}
 				{hasActionsAboveCopy && <Separator />}
-				{copySubmenu}
+				{copyActions}
 			</>
 		);
 	}
@@ -264,7 +272,7 @@ export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 				</>
 			)}
 			{hasActionsAboveCopy && <Separator />}
-			{copySubmenu}
+			{copyActions}
 			{showArchiveActions && (
 				<>
 					<Separator />
