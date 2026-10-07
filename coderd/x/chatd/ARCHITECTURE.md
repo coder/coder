@@ -1282,13 +1282,13 @@ The following chat stream events, delivered to the client over WebSocket, are su
 
 - `message_part`: a streaming message part emitted by the chat worker. Each carries the `history_version` and `generation_attempt` of the episode it belongs to, so a client knows which episode a message part comes from.
 - `message`: a committed chat message present in the database. Messages promoted from the queue carry `queued_message_id`, so clients can match them to the queued entry without comparing content. A missing field means unknown, since older servers don't write it.
-- `status`: the chat's status.
+- `status`: the chat's status. It carries the synchronized `history_version` and follows the sync's `message` events, so a client that applied them can reconnect with it as `after_revision`.
 - `error`: the chat's persisted error payload.
 - `queue_update`: the full current queued-message list.
 - `action_required`: a dynamic tool call was issued by the chat worker, the client must execute it and submit the result.
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
 - `preview_reset`: a reset of the stream's preview state (message parts), emitted when the history version changes or a new generation attempt starts.
-- `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history.
+- `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history. On streams opened with `after_revision` it carries `from_message_id`: the client keeps its messages with lower IDs and replaces the rest with the `message` events that follow. Without it, those events replace the whole history.
 
 ## Endpoint lifecycle
 
@@ -1336,6 +1336,8 @@ Initial null state:
 - preview part sequence is `0`;
 - `attempt_retired` is false;
 
+A client may open the stream with `after_revision`, the `history_version` of the newest messages page or of its last `status` event. The synchronized `history_version` then starts at that value instead of `0`, so the first sync sends only history changed after it, and the endpoint ignores `after_id`: a client can hold a newer message ID without holding every older message.
+
 ## Stream loop operations
 
 The loop has two operations:
@@ -1374,7 +1376,7 @@ The loop processes one operation at a time. It must not process another input ha
 
 After fetching, if `db.snapshot_version <= local.snapshot_version`, return no-op. Otherwise apply the database result.
 
-The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fetches unconditionally, and applies the database result the same way. Because it runs against the null local state, every database field is newer and the full state is emitted.
+The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fetches unconditionally, and applies the database result the same way. Because it runs against the null local state, every database field is newer and the full state is emitted, except history at or before the client's `after_revision`.
 
 Applying the database result means, in deterministic order:
 
@@ -1446,10 +1448,17 @@ If no fetched rows are soft-deleted:
 1. Emit `message` events for rows whose revision is newer than the local known-message revision.
 2. Update the known-message revision map.
 
-If any fetched row is soft-deleted, mirror the current stream endpoint's full-refresh behavior with the addition of emitting the `history_reset` event:
+If any fetched row is soft-deleted, emit `history_reset` and resend messages. On a stream opened with `after_revision`, every message below the lowest fetched ID is unchanged since the client's version, so the reset starts there:
+
+1. Fetch the current non-deleted messages with IDs at or above the lowest fetched ID, in client-visible order.
+2. Emit the `history_reset` event with that ID as `from_message_id`.
+3. Resend those messages as `message` events.
+4. Replace the known-message revisions at or above that ID with the revisions from the resent messages.
+
+On a stream opened without `after_revision`, the reset covers the whole history:
 
 1. Fetch all current non-deleted messages from the beginning in client-visible order.
-2. Emit the `history_reset` event.
+2. Emit the `history_reset` event without `from_message_id`.
 3. Resend all messages as `message` events.
 4. Replace the known-message revision map with the revisions from the resent messages.
 
