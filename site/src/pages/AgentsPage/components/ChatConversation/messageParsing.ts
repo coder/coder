@@ -405,7 +405,8 @@ export const parseMessagesWithMergedTools = (
 	}
 
 	// Annotate execute/process_output tools whose process was
-	// later killed or terminated via process_signal.
+	// later killed or terminated via process_signal, and execute
+	// tools an interrupt canceled.
 	const signaledProcesses = new Map<string, "kill" | "terminate">();
 	for (const { parsed } of rawParsed) {
 		for (const tool of parsed.tools) {
@@ -419,19 +420,21 @@ export const parseMessagesWithMergedTools = (
 				signaledProcesses.set(pid, sig);
 		}
 	}
-	if (signaledProcesses.size > 0) {
-		for (const { parsed } of rawParsed) {
-			for (const tool of parsed.tools) {
-				if (tool.name !== "execute" && tool.name !== "process_output") continue;
-				const rec = asRecord(tool.result);
-				const args = asRecord(tool.args);
-				const pid =
-					(rec ? asString(rec.background_process_id) : "") ||
-					(rec ? asString(rec.process_id) : "") ||
-					(args ? asString(args.process_id) : "");
-				const sig = pid ? signaledProcesses.get(pid) : undefined;
-				if (sig) tool.killedBySignal = sig;
+	for (const { parsed } of rawParsed) {
+		for (const tool of parsed.tools) {
+			if (tool.name !== "execute" && tool.name !== "process_output") continue;
+			const rec = asRecord(tool.result);
+			if (tool.name === "execute" && rec?.canceled === true) {
+				tool.killedBySignal = "kill";
+				continue;
 			}
+			const args = asRecord(tool.args);
+			const pid =
+				(rec ? asString(rec.background_process_id) : "") ||
+				(rec ? asString(rec.process_id) : "") ||
+				(args ? asString(args.process_id) : "");
+			const sig = pid ? signaledProcesses.get(pid) : undefined;
+			if (sig) tool.killedBySignal = sig;
 		}
 	}
 

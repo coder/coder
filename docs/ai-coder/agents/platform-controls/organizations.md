@@ -1,4 +1,6 @@
-# Organization scope
+---
+title: Organization scope
+---
 
 Coder Agents configuration is split between deployment-wide settings and organization-scoped settings.
 Deployment-wide settings apply to every chat in the deployment.
@@ -21,6 +23,7 @@ Running more than 1 organization requires a [Premium license](../../../admin/use
 | Personal override toggle        | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
 | MCP servers                     | Organization           | **Admin settings** > **AI** > **Coder Agents** > **MCP servers**           |
 | System prompt                   | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
+| Organization instructions       | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
 | Plan mode instructions          | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
 | Agent access to a template      | Template               | **Admin settings** > **AI** > **Coder Agents** > **Templates**             |
 | Advisor runtime limits          | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
@@ -38,6 +41,17 @@ A chat model belongs to 1 organization and references 1 provider.
 You select a provider when you add a model, but the dashboard never shows the provider's credentials.
 
 Refer to [Models](../models.md) for provider setup and model options.
+
+### Organization instructions add to the system prompt
+
+Organization instructions add guidance for the chats in 1 organization, such as which templates, skills, or conventions to use.
+They never replace the deployment system prompt.
+When a user creates a chat, Coder adds the organization instructions after the deployment system prompt.
+Subagents receive the instructions of their parent chat's organization.
+Coder applies the instructions only when it creates a chat, so a change affects new chats and leaves existing chats unchanged.
+Chats in other organizations never receive them.
+
+Refer to [System prompt](./index.md#system-prompt) for the full order.
 
 ## What an upgrade does
 
@@ -82,10 +96,11 @@ Chats in that organization offer no MCP servers.
 ## Who configures each scope
 
 - Deployment administrators configure the providers and every setting in the **Deployment settings** section.
-- Users with edit access to an organization's models configure that organization's models and admin model overrides.
+- Users with edit access to an organization's models configure that organization's models, admin model overrides, and organization instructions.
 - Users with read access to an organization's models can open the **Models** page and the **Coder Agents** page, and Coder shows the fields as read-only.
 - Users with access to an organization's MCP servers can open the **MCP servers** page.
 - Auditors and custom roles can hold read access without edit access.
+- Users with a custom role that grants edit access without read access can save organization instructions through the API, but they can't view them.
 
 The dashboard shows the organization picker when you can access more than 1 organization.
 Your access applies to the selected organization, so your controls can differ between organizations.

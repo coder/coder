@@ -1531,6 +1531,209 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	})
 }
 
+// TestChatAutomationShapeConstraints checks the schema invariants that later
+// automation services rely on instead of re-validating every row.
+func TestChatAutomationShapeConstraints(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
+	otherOrgModelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: otherOrg.ID})
+
+	webhook := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: owner.ID})
+	got, err := db.GetChatAutomationByID(ctx, webhook.ID)
+	require.NoError(t, err)
+	require.Equal(t, webhook, got)
+	require.NoError(t, db.DeleteChatAutomationByID(ctx, webhook.ID))
+	_, err = db.GetChatAutomationByID(ctx, webhook.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	_ = dbgen.ChatAutomation(t, db, database.ChatAutomation{
+		OrganizationID:       org.ID,
+		OwnerID:              owner.ID,
+		Kind:                 database.ChatAutomationKindSchedule,
+		TargetMode:           database.ChatAutomationTargetModeNewChat,
+		NewChatModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+	})
+
+	// Referenced chats must be in the automation's organization. A trigger
+	// enforces this, so the constraint name is not generated.
+	const chatOrganization database.CheckConstraint = "chat_automations_chat_organization"
+	sameOrgChat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+	otherOrgChat := dbgen.Chat(t, db, database.Chat{OrganizationID: otherOrg.ID, OwnerID: owner.ID, LastModelConfigID: otherOrgModelCfg.ID})
+	sameOrgTarget := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+		OrganizationID:  org.ID,
+		OwnerID:         owner.ID,
+		TargetChatID:    uuid.NullUUID{UUID: sameOrgChat.ID, Valid: true},
+		CreatedByChatID: uuid.NullUUID{UUID: sameOrgChat.ID, Valid: true},
+	})
+
+	valid := func() database.InsertChatAutomationParams {
+		return database.InsertChatAutomationParams{
+			ID:             uuid.New(),
+			OrganizationID: org.ID,
+			OwnerID:        owner.ID,
+			Name:           "automation",
+			Kind:           database.ChatAutomationKindWebhook,
+			TargetMode:     database.ChatAutomationTargetModeExistingChat,
+			WhenBusy:       database.NullChatAutomationWhenBusy{ChatAutomationWhenBusy: database.ChatAutomationWhenBusyQueue, Valid: true},
+			WebhookUse:     database.NullChatAutomationWebhookUse{ChatAutomationWebhookUse: database.ChatAutomationWebhookUseSingle, Valid: true},
+			Prompt:         "prompt",
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
+		}
+	}
+	for _, tc := range []struct {
+		name  string
+		munge func(*database.InsertChatAutomationParams)
+		check database.CheckConstraint
+		fkey  database.ForeignKeyConstraint
+	}{
+		{
+			name:  "EmptyName",
+			munge: func(p *database.InsertChatAutomationParams) { p.Name = "" },
+			check: database.CheckChatAutomationsNameLength,
+		},
+		{
+			name: "ExistingChatWithNewChatModel",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: modelCfg.ID, Valid: true}
+			},
+			check: database.CheckChatAutomationsTargetShape,
+		},
+		{
+			name: "NewChatWithWhenBusy",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetMode = database.ChatAutomationTargetModeNewChat
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: modelCfg.ID, Valid: true}
+			},
+			check: database.CheckChatAutomationsTargetShape,
+		},
+		{
+			name: "WebhookWithCron",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.ScheduleCron = sql.NullString{String: "0 9 * * *", Valid: true}
+			},
+			check: database.CheckChatAutomationsKindShape,
+		},
+		{
+			name: "ScheduleWithWebhookSecret",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.Kind = database.ChatAutomationKindSchedule
+				p.WebhookUse = database.NullChatAutomationWebhookUse{}
+				p.WebhookSecretHash = []byte{0x01}
+				p.ScheduleCron = sql.NullString{String: "0 9 * * *", Valid: true}
+				p.ScheduleTimeZone = sql.NullString{String: "UTC", Valid: true}
+			},
+			check: database.CheckChatAutomationsKindShape,
+		},
+		{
+			name: "NewChatModelFromOtherOrg",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetMode = database.ChatAutomationTargetModeNewChat
+				p.WhenBusy = database.NullChatAutomationWhenBusy{}
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: otherOrgModelCfg.ID, Valid: true}
+			},
+			fkey: database.ForeignKeyChatAutomationsNewChatModelConfig,
+		},
+		{
+			name: "TargetChatFromOtherOrg",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetChatID = uuid.NullUUID{UUID: otherOrgChat.ID, Valid: true}
+			},
+			check: chatOrganization,
+		},
+		{
+			name: "CreatedByChatFromOtherOrg",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.CreatedByChatID = uuid.NullUUID{UUID: otherOrgChat.ID, Valid: true}
+			},
+			check: chatOrganization,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			params := valid()
+			tc.munge(&params)
+			_, err := db.InsertChatAutomation(ctx, params)
+			require.Error(t, err)
+			if tc.check != "" {
+				require.True(t, database.IsCheckViolation(err, tc.check), "want %s, got %v", tc.check, err)
+			} else {
+				require.True(t, database.IsForeignKeyViolation(err, tc.fkey), "want %s, got %v", tc.fkey, err)
+			}
+		})
+	}
+
+	t.Run("RetargetToOtherOrgChat", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := sqlDB.ExecContext(ctx, `UPDATE chat_automations SET target_chat_id = $1 WHERE id = $2`, otherOrgChat.ID, sameOrgTarget.ID)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, chatOrganization), "got %v", err)
+	})
+
+	// Deleting a chat runs one ON DELETE SET NULL update per reference. The
+	// organization check must not re-validate the other, unchanged
+	// reference, which may point at a chat deleted by the same statement.
+	t.Run("DeleteReferencedChats", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		shared := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+		target := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+		creator := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+		sameChat := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+			OrganizationID:  org.ID,
+			OwnerID:         owner.ID,
+			TargetChatID:    uuid.NullUUID{UUID: shared.ID, Valid: true},
+			CreatedByChatID: uuid.NullUUID{UUID: shared.ID, Valid: true},
+		})
+		twoChats := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+			OrganizationID:  org.ID,
+			OwnerID:         owner.ID,
+			TargetChatID:    uuid.NullUUID{UUID: target.ID, Valid: true},
+			CreatedByChatID: uuid.NullUUID{UUID: creator.ID, Valid: true},
+		})
+		_, err := sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, shared.ID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = ANY($1::uuid[])`, pq.Array([]uuid.UUID{target.ID, creator.ID}))
+		require.NoError(t, err)
+		for _, id := range []uuid.UUID{sameChat.ID, twoChats.ID} {
+			got, err := db.GetChatAutomationByID(ctx, id)
+			require.NoError(t, err)
+			require.False(t, got.TargetChatID.Valid)
+			require.False(t, got.CreatedByChatID.Valid)
+		}
+	})
+
+	// Queued-message provenance is all or nothing. No query writes these
+	// columns yet, so insert directly.
+	t.Run("QueuedMessagePartialProvenance", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+		})
+		_, err := sqlDB.ExecContext(ctx, `INSERT INTO chat_queued_messages (chat_id, content, created_by, automation_id)
+			VALUES ($1, '[]'::jsonb, $2, $3)`, chat.ID, owner.ID, uuid.New())
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckChatQueuedMessagesAutomationShape), "got %v", err)
+	})
+}
+
 func TestChatContextHydration(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2304,6 +2507,93 @@ func TestLinkChatFilesRejectsOverCapBatchOfLinkedFiles(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 3, rejected, "a batch above the lowered cap must be rejected even though nothing is new")
+}
+
+func TestChatTitleSource(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	newChat := func(t *testing.T, db database.Store, seed database.Chat) database.Chat {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		seed.OrganizationID = org.ID
+		seed.OwnerID = user.ID
+		seed.LastModelConfigID = model.ID
+		return dbgen.Chat(t, db, seed)
+	}
+
+	// Two writes in one transaction share NOW(), so this proves the stamp
+	// advances even when the clock does not.
+	t.Run("TitleUpdatedAtStrictlyIncreasesPerWrite", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+		chat := newChat(t, db, database.Chat{Title: "before"})
+		require.Equal(t, database.ChatTitleSourceFallback, chat.TitleSource, "insert without a source must default to fallback")
+
+		var first, second database.Chat
+		err := db.InTx(func(tx database.Store) error {
+			var err error
+			first, err = tx.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+				ID: chat.ID, Title: "first", TitleSource: database.ChatTitleSourceUser,
+			})
+			if err != nil {
+				return err
+			}
+			second, err = tx.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+				ID: chat.ID, Title: "second", TitleSource: database.ChatTitleSourceUser,
+			})
+			return err
+		}, nil)
+		require.NoError(t, err)
+		require.True(t, first.TitleUpdatedAt.After(chat.TitleUpdatedAt))
+		require.True(t, second.TitleUpdatedAt.After(first.TitleUpdatedAt))
+	})
+
+	t.Run("WritesOnlyAtOrAboveCurrentSource", func(t *testing.T) {
+		t.Parallel()
+
+		// Ascending rank.
+		sources := []database.ChatTitleSource{
+			database.ChatTitleSourceFallback,
+			database.ChatTitleSourceGenerated,
+			database.ChatTitleSourceUser,
+		}
+		for currentRank, current := range sources {
+			for incomingRank, incoming := range sources {
+				wantWrite := incomingRank >= currentRank
+				t.Run(string(current)+"_then_"+string(incoming), func(t *testing.T) {
+					t.Parallel()
+					ctx := testutil.Context(t, testutil.WaitMedium)
+					db, _ := dbtestutil.NewDB(t)
+					chat := newChat(t, db, database.Chat{Title: "before", TitleSource: current})
+
+					updated, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+						ID:          chat.ID,
+						Title:       "after",
+						TitleSource: incoming,
+					})
+					fetched, fetchErr := db.GetChatByID(ctx, chat.ID)
+					require.NoError(t, fetchErr)
+					if !wantWrite {
+						require.ErrorIs(t, err, sql.ErrNoRows)
+						require.Equal(t, "before", fetched.Title)
+						require.Equal(t, current, fetched.TitleSource)
+						return
+					}
+					require.NoError(t, err)
+					require.Equal(t, "after", updated.Title)
+					require.Equal(t, incoming, updated.TitleSource)
+					require.Equal(t, incoming, fetched.TitleSource)
+					require.True(t, updated.UpdatedAt.Equal(chat.UpdatedAt), "title writes must not reorder chat lists")
+				})
+			}
+		}
+	})
 }
 
 func TestLinkChatFilesEvictsOldest(t *testing.T) {
@@ -15420,10 +15710,11 @@ func TestChatLabels(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Update title only — labels must survive.
-		updated, err := db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
-			ID:    chat.ID,
-			Title: "new-title",
+		// Update title only; labels must survive.
+		updated, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+			ID:          chat.ID,
+			Title:       "new-title",
+			TitleSource: database.ChatTitleSourceUser,
 		})
 		require.NoError(t, err)
 		require.Equal(t, "new-title", updated.Title)
@@ -15587,11 +15878,11 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, affected)
 
-	// Advance updated_at with a title write so the next assertion can
+	// Advance updated_at with a labels write so the next assertion can
 	// prove the summary update preserves the stored value.
-	advanced, err := db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
-		ID:    chat.ID,
-		Title: "summary-chat-advanced",
+	advanced, err := db.UpdateChatLabelsByID(ctx, database.UpdateChatLabelsByIDParams{
+		ID:     chat.ID,
+		Labels: json.RawMessage(`{"advanced":"true"}`),
 	})
 	require.NoError(t, err)
 
@@ -17466,6 +17757,8 @@ func TestGetChatsFilter(t *testing.T) {
 		now := time.Now()
 		_, err := store.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
 			ChatID:           chatID,
+			GitRemoteOrigin:  "https://github.com/coder/coder.git",
+			GitBranch:        "main",
 			Url:              sql.NullString{String: url, Valid: true},
 			PullRequestState: sql.NullString{String: state, Valid: true},
 			PullRequestTitle: "PR " + state,
@@ -17496,6 +17789,8 @@ func TestGetChatsFilter(t *testing.T) {
 		// Then set PR metadata via the status upsert.
 		_, err := store.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
 			ChatID:           chatID,
+			GitRemoteOrigin:  gitRemoteOrigin,
+			GitBranch:        "main",
 			Url:              sql.NullString{String: url, Valid: url != ""},
 			PullRequestState: sql.NullString{String: state, Valid: state != ""},
 			PullRequestTitle: prTitle,
@@ -17957,7 +18252,9 @@ func TestGetChatsSearch(t *testing.T) {
 		{"Message/UserVisibilityMatch", database.GetChatsParams{Search: "vault rotation"}, []uuid.UUID{userVisMsgChat.ID}},
 		{"Message/AssistantUserVisibilityMatch", database.GetChatsParams{Search: "redis eviction"}, []uuid.UUID{assistantUserVisMsgChat.ID}},
 		{"PRNumber/Match", database.GetChatsParams{Search: "42"}, []uuid.UUID{prTitleChat.ID}},
-		{"PRNumber/NonNumericNoMatch", database.GetChatsParams{Search: "42abc"}, nil},
+		{"PRNumber/PrefixMatch", database.GetChatsParams{Search: "4"}, []uuid.UUID{prTitleChat.ID}},
+		{"PRNumber/NotSubstringMatch", database.GetChatsParams{Search: "2"}, nil},
+		{"PRNumber/LikeWildcardNoMatch", database.GetChatsParams{Search: "4%"}, nil},
 		{"PRNumber/OversizedDigitsNoError", database.GetChatsParams{Search: "1111111111111111111111111"}, nil},
 		{"NoMatch", database.GetChatsParams{Search: "zzzqqq"}, nil},
 		{"Message/PendingBackfillNoMatch", database.GetChatsParams{Search: "elasticsearch"}, nil},

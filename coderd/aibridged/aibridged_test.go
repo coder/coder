@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
@@ -112,11 +113,12 @@ func sdkError(status int, message string) error {
 func shutdownAndRequirePoolClosed(t *testing.T, srv *aibridged.Server) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	require.NotNil(t, srv.InterceptionPoolForTest())
+	pool := srv.InterceptionPoolForTest()
+	require.NotNil(t, pool)
 	require.NoError(t, srv.Shutdown(ctx))
 
-	// Use a live context so cancellation cannot mask a pool left open.
-	handler, err := srv.GetRequestHandler(ctx, aibridged.Request{})
+	// Check the pool directly so the server's admission check cannot mask it.
+	handler, err := pool.Acquire(ctx, aibridged.Request{}, nil, nil)
 	require.ErrorContains(t, err, "pool shutting down")
 	require.Nil(t, handler)
 }
@@ -293,7 +295,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			name: "budget exceeded",
 			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
 				// Authorization passes.
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{
 					Exceeded:         true,
 					SpendLimitMicros: new(int64(1_000)),
@@ -306,7 +308,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			name: "budget check failed",
 			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
 				// Authorization passes.
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
 			},
 			expectedErr:    aibridged.ErrBudgetCheck,
@@ -318,7 +320,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			name: "pool instance",
 			applyMocksFn: func(client *mock.MockDRPCClient, pool *mock.MockPooler) {
 				// Should pass authorization and budget check.
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 				// But fail when acquiring a pool instance.
 				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
@@ -371,6 +373,54 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			require.NoError(t, err, "read response body")
 			require.Contains(t, string(body), tc.expectedErr.Error())
 			require.Equal(t, tc.expectedStatus, resp.StatusCode)
+		})
+	}
+}
+
+func TestServeHTTP_ActorIdentity(t *testing.T) {
+	t.Parallel()
+	for _, delegated := range []bool{false, true} {
+		name := "Direct"
+		if delegated {
+			name = "Delegated"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			srv, client, pool := newTestServer(t)
+			ownerID := uuid.New()
+			verified := aibridge.Actor{
+				ID:       ownerID,
+				APIKeyID: uuid.NewString(),
+				Username: "verified-user",
+				Email:    "verified@example.test",
+			}
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(&proto.IsAuthorizedResponse{
+				OwnerId:  ownerID.String(),
+				ApiKeyId: verified.APIKeyID,
+				Username: verified.Username,
+				Email:    verified.Email,
+			}, nil)
+			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
+			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+				func(ctx context.Context, request aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder) (http.Handler, error) {
+					require.Equal(t, verified, *aibcontext.ActorFromContext(ctx))
+					require.Equal(t, verified.APIKeyID, request.APIKeyID)
+					return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						require.Equal(t, verified, *aibcontext.ActorFromContext(r.Context()))
+						w.WriteHeader(http.StatusNoContent)
+					}), nil
+				})
+			ctx := aibridge.AsActor(t.Context(), aibridge.Actor{ID: uuid.New(), APIKeyID: "unverified-key", Username: "unverified"})
+			if delegated {
+				ctx = agplaibridge.WithDelegatedAPIKeyID(ctx, "delegated-key")
+			}
+			req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", nil).WithContext(ctx)
+			if !delegated {
+				req.Header.Set("Authorization", "Bearer coder-secret")
+			}
+			rw := httptest.NewRecorder()
+			srv.ServeHTTP(rw, req)
+			require.Equal(t, http.StatusNoContent, rw.Code)
 		})
 	}
 }
@@ -676,7 +726,7 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 			srv, client, pool := newTestServer(t)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
-			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockH, nil)
 
@@ -809,29 +859,29 @@ func (h *mockHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 // TestServeHTTP_ActorHeaders validates that actor headers are correctly forwarded to
-// upstream AI providers when SendActorHeaders is enabled in the provider configuration.
+// upstream AI providers when configured.
 // These headers allow upstream providers to identify the user making the request for
 // tracking and auditing purposes.
 func TestServeHTTP_ActorHeaders(t *testing.T) {
 	t.Parallel()
 
 	testUsername := "testuser"
+	testEmail := "testuser@coder.com"
 	testUserID := uuid.New()
 
 	cases := []struct {
-		path string
+		name   string
+		path   string
+		legacy bool
 	}{
 		// Not a complete set of paths; we're not testing the specific APIs - just the provider configs.
-		{
-			path: "/openai/v1/chat/completions",
-		},
-		{
-			path: "/anthropic/v1/messages",
-		},
+		{name: "openai with email", path: "/openai/v1/chat/completions"},
+		{name: "anthropic with email", path: "/anthropic/v1/messages"},
+		{name: "openai with legacy response", path: "/openai/v1/chat/completions", legacy: true},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.path, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Setup mock upstream AI server that captures headers.
@@ -843,36 +893,52 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			}))
 			t.Cleanup(upstreamSrv.Close)
 
-			// Setup with SendActorHeaders enabled.
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			ctrl := gomock.NewController(t)
 			client := mock.NewMockDRPCClient(ctrl)
 
-			// Create providers with SendActorHeaders=true.
+			// Create providers with actor headers configured.
 			providers := []aibridge.Provider{
 				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
-					BaseURL:          upstreamSrv.URL,
-					KeyPool:          singleKeyPool(t, "openai", "test-key"),
-					SendActorHeaders: true,
+					BaseURL: upstreamSrv.URL,
+					KeyPool: singleKeyPool(t, "openai", "test-key"),
+					ActorHeaderNames: map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+						"email":    aibheaders.ActorMetadataHeader("Email"),
+					},
 				}),
 				aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{
-					BaseURL:          upstreamSrv.URL,
-					KeyPool:          singleKeyPool(t, "anthropic", "test-key"),
-					SendActorHeaders: true,
+					BaseURL: upstreamSrv.URL,
+					KeyPool: singleKeyPool(t, "anthropic", "test-key"),
+					ActorHeaderNames: map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+						"email":    aibheaders.ActorMetadataHeader("Email"),
+					},
 				}, nil),
 			}
 
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
-			// Return authorization response with user ID and username.
-			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
+			// Return authorization response with user ID, API key ID, username, and email.
+			authResponse := &proto.IsAuthorizedResponse{
 				OwnerId:  testUserID.String(),
+				ApiKeyId: uuid.NewString(),
 				Username: testUsername,
-			}, nil)
+			}
+			if !tc.legacy {
+				authResponse.Email = testEmail
+			}
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(authResponse, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			client.EXPECT().GetMCPServerConfigs(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.GetMCPServerConfigsResponse{}, nil)
-			client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.RecordInterceptionResponse{}, nil)
+			var recorded *proto.RecordInterceptionRequest
+			client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(_ context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
+				recorded = in
+				return &proto.RecordInterceptionResponse{}, nil
+			})
 			client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).AnyTimes()
 
 			// Given: aibridged is started.
@@ -901,11 +967,20 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			require.NotEmpty(t, receivedHeaders, "upstream server should have received headers")
 
 			// Verify the actor ID header is present with the correct value.
-			actorIDHeader := receivedHeaders.Get(aibheaders.ActorIDHeader())
-			assert.Equal(t, testUserID.String(), actorIDHeader, "actor ID header should contain user ID")
-			// Verify the actor metadata header for username is present.
-			usernameHeader := receivedHeaders.Get(aibheaders.ActorMetadataHeader("Username"))
-			assert.Equal(t, testUsername, usernameHeader, "actor metadata username header should contain username")
+			assert.Equal(t, testUserID.String(), receivedHeaders.Get(aibheaders.ActorIDHeader), "actor ID header should contain user ID")
+			assert.Equal(t, testUsername, receivedHeaders.Get(aibheaders.ActorMetadataHeader("Username")), "actor metadata username header should contain username")
+			if tc.legacy {
+				assert.Empty(t, receivedHeaders.Get(aibheaders.ActorMetadataHeader("Email")))
+			} else {
+				assert.Equal(t, testEmail, receivedHeaders.Get(aibheaders.ActorMetadataHeader("Email")), "actor metadata email header should contain email")
+			}
+
+			// Email is forwarded upstream but never recorded.
+			require.NotNil(t, recorded, "interception should be recorded")
+			require.Equal(t, authResponse.ApiKeyId, recorded.GetApiKeyId())
+			require.Equal(t, testUserID.String(), recorded.GetInitiatorId())
+			require.Contains(t, recorded.GetMetadata(), "Username")
+			require.NotContains(t, recorded.GetMetadata(), "Email")
 		})
 	}
 }
@@ -968,7 +1043,10 @@ func TestRouting(t *testing.T) {
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
-			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
+				OwnerId:  uuid.NewString(),
+				ApiKeyId: uuid.NewString(),
+			}, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			client.EXPECT().GetMCPServerConfigs(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.GetMCPServerConfigsResponse{}, nil)
 			// This is the only recording we really care about in this test. This is called before the provider-specific logic processes
@@ -1046,7 +1124,7 @@ func TestServeHTTP_StripInternalHeaders(t *testing.T) {
 			srv, client, pool := newTestServer(t)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
-			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString(), ApiKeyId: uuid.NewString()}, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockH, nil)
 

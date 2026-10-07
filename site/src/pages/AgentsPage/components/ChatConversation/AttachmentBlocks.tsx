@@ -33,7 +33,7 @@ import type { RenderBlock } from "./types";
 
 export type PreviewTextAttachment = {
 	content: string;
-	fileName?: string;
+	fileName: string;
 	mediaType?: string;
 };
 
@@ -188,7 +188,7 @@ const DownloadOverlay: React.FC<{
 };
 
 const AttachmentPreviewFrame: React.FC<{
-	href: string | null;
+	href: string;
 	displayName: string;
 	downloadName: string;
 	mediaType: string;
@@ -197,14 +197,12 @@ const AttachmentPreviewFrame: React.FC<{
 	return (
 		<div className="group/attachment relative inline-flex flex-col items-start">
 			{children}
-			{href ? (
-				<DownloadOverlay
-					href={href}
-					displayName={displayName}
-					downloadName={downloadName}
-					mediaType={mediaType}
-				/>
-			) : null}
+			<DownloadOverlay
+				href={href}
+				displayName={displayName}
+				downloadName={downloadName}
+				mediaType={mediaType}
+			/>
 		</div>
 	);
 };
@@ -276,23 +274,21 @@ const AttachmentFallbackTile: React.FC<{
 
 const InlineTextAttachmentButton: React.FC<{
 	content: string;
-	fileName?: string;
-	onPreview?: (attachment: PreviewTextAttachment) => void | Promise<void>;
-	isPlaceholder?: boolean;
+	fileName: string;
+	onPreview: (attachment: PreviewTextAttachment) => void | Promise<void>;
+	isPlaceholder: boolean;
 	icon?: React.ReactNode;
 }> = ({ content, fileName, onPreview, isPlaceholder, icon }) => {
 	return (
 		<button
 			type="button"
 			aria-label={
-				fileName && fileName !== "Pasted text"
-					? `View ${fileName}`
-					: "View text attachment"
+				fileName !== "Pasted text" ? `View ${fileName}` : "View text attachment"
 			}
 			className="inline-flex h-16 max-w-sm items-center gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			onClick={(event) => {
 				event.stopPropagation();
-				void onPreview?.({ content, fileName });
+				void onPreview({ content, fileName });
 			}}
 		>
 			{icon ?? (
@@ -315,21 +311,12 @@ const InlineTextAttachmentButton: React.FC<{
 
 const RemoteTextAttachmentButton: React.FC<{
 	fileId: string;
-	fileName?: string;
-	mediaType?: string;
+	fileName: string;
+	mediaType: string;
 	frameHref?: string | null;
 	downloadName: string;
-	onPreview?: (attachment: PreviewTextAttachment) => void | Promise<void>;
-	showStatus?: boolean;
-}> = ({
-	fileId,
-	fileName,
-	mediaType,
-	frameHref,
-	downloadName,
-	onPreview,
-	showStatus = false,
-}) => {
+	onPreview: (attachment: PreviewTextAttachment) => void | Promise<void>;
+}> = ({ fileId, fileName, mediaType, frameHref, downloadName, onPreview }) => {
 	const { hasExpired, markExpired } = useFileProbes();
 	const isKnownExpired = hasExpired(fileId);
 	const [content, setContent] = useState<string | null>(null);
@@ -360,10 +347,10 @@ const RemoteTextAttachmentButton: React.FC<{
 
 	const button = (
 		<InlineTextAttachmentButton
-			content={content ?? fileName ?? "Pasted text"}
+			content={content ?? fileName}
 			fileName={fileName}
 			icon={
-				showStatus && isLoading ? (
+				isLoading ? (
 					<Spinner
 						size="sm"
 						loading
@@ -377,7 +364,7 @@ const RemoteTextAttachmentButton: React.FC<{
 					return;
 				}
 				if (content !== null) {
-					void onPreview?.({ content, fileName, mediaType });
+					void onPreview({ content, fileName, mediaType });
 					return;
 				}
 
@@ -412,7 +399,7 @@ const RemoteTextAttachmentButton: React.FC<{
 					return;
 				}
 				setContent(result.content);
-				void onPreview?.({ content: result.content, fileName, mediaType });
+				void onPreview({ content: result.content, fileName, mediaType });
 			}}
 		/>
 	);
@@ -420,9 +407,9 @@ const RemoteTextAttachmentButton: React.FC<{
 	const framedButton = frameHref ? (
 		<AttachmentPreviewFrame
 			href={frameHref}
-			displayName={fileName ?? "Pasted text"}
+			displayName={fileName}
 			downloadName={downloadName}
-			mediaType={mediaType ?? ""}
+			mediaType={mediaType}
 		>
 			{button}
 		</AttachmentPreviewFrame>
@@ -433,7 +420,7 @@ const RemoteTextAttachmentButton: React.FC<{
 	return (
 		<div className="flex flex-col items-start gap-1">
 			{framedButton}
-			{showStatus && isLoading ? (
+			{isLoading ? (
 				<span
 					role="status"
 					aria-live="polite"
@@ -450,7 +437,7 @@ const RemoteImageBlock: React.FC<{
 	fileId?: string;
 	href: string;
 	displayName: string;
-	onImageClick?: (src: string) => void;
+	onImageClick: (src: string) => void;
 }> = ({ fileId, href, displayName, onImageClick }) => {
 	const {
 		hasExpired,
@@ -493,7 +480,7 @@ const RemoteImageBlock: React.FC<{
 			className="inline-block rounded-md border-0 bg-transparent p-0"
 			onClick={(event) => {
 				event.stopPropagation();
-				onImageClick?.(href);
+				onImageClick(href);
 			}}
 		>
 			<ImageThumbnail
@@ -618,17 +605,10 @@ const FileCard: React.FC<{
 
 export const AttachmentBlock: React.FC<{
 	block: FileAttachmentBlock;
-	onImageClick?: (src: string) => void;
-	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
+	onImageClick: (src: string) => void;
+	onTextFileClick: (attachment: PreviewTextAttachment) => void;
 	framePreview?: boolean;
-	showTextStatus?: boolean;
-}> = ({
-	block,
-	onImageClick,
-	onTextFileClick,
-	framePreview = false,
-	showTextStatus = false,
-}) => {
+}> = ({ block, onImageClick, onTextFileClick, framePreview = false }) => {
 	const [revealedInlineText, setRevealedInlineText] = useState(false);
 	const href = getAttachmentHref(block);
 	const displayName = getAttachmentDisplayName(block);
@@ -644,7 +624,6 @@ export const AttachmentBlock: React.FC<{
 					frameHref={framePreview ? href : undefined}
 					downloadName={downloadName}
 					onPreview={onTextFileClick}
-					showStatus={showTextStatus}
 				/>
 			);
 		}
@@ -659,7 +638,7 @@ export const AttachmentBlock: React.FC<{
 				isPlaceholder={!revealedInlineText}
 				onPreview={() => {
 					setRevealedInlineText(true);
-					void onTextFileClick?.({
+					void onTextFileClick({
 						content,
 						fileName: displayName,
 						mediaType: block.media_type,

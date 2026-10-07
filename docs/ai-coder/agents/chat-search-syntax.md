@@ -12,7 +12,7 @@ full-text search.
 | Key          | Values                                                           | Description                                                                                                           |
 |--------------|------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
 | `title`      | substring                                                        | Case-insensitive substring match. Quote multi-word values.                                                            |
-| `archived`   | `true`, `false`                                                  | Filter by archived state. Default: `false`.                                                                           |
+| `archived`   | `true`, `false`, `any`                                           | Filter by archived state. `any` matches archived and active conversations. Default: `false` hides archived ones.      |
 | `has_unread` | `true`, `false`                                                  | Conversations with unread assistant messages.                                                                         |
 | `status`     | `waiting`, `running`, `error`, `requires_action`, `interrupting` | Conversation state. Comma-separated or repeated values match any of them.                                             |
 | `pr_status`  | `draft`, `open`, `merged`, `closed`, `none`                      | Linked pull request state. Comma-separated for OR. `none` matches conversations with no linked pull request.          |
@@ -37,8 +37,8 @@ be combined with `title:`, `pr_title:`, or `pr:`.
 - Message content matches English word stems (`refactor` matches
   `refactoring`) and ignores English stopwords. Titles and PR titles
   do not stem.
-- No fuzzy, semantic, or prefix matching.
-- Whole-number values also match exact PR numbers.
+- No fuzzy, semantic, or word-prefix matching.
+- Whole-number values also match PR numbers by prefix: `302` matches PR `30281`.
 - A value with no searchable words (punctuation only) returns an empty
   list; an empty value returns HTTP 400.
 - Results use the standard chat list ordering (pinned first, then most

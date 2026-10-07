@@ -1,5 +1,6 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { watchChat } from "#/api/api";
+import { chatAutomationsKey } from "#/api/queries/chatAutomations";
 import {
 	chatListKey,
 	chatMessagesKey,
@@ -285,6 +286,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -358,6 +360,7 @@ describe("useChatStore", () => {
 		renderHook(
 			() =>
 				useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -401,6 +404,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -499,6 +503,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -591,6 +596,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -652,6 +658,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -749,6 +756,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: initialMessages,
 					chatRecord: buildChat(chatID),
@@ -848,6 +856,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: initialMessages,
 					chatRecord: buildChat(chatID),
@@ -955,6 +964,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: initialMessages,
 					chatRecord: buildChat(chatID),
@@ -1045,6 +1055,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: initialMessages,
 					chatRecord: buildChat(chatID),
@@ -1115,6 +1126,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1188,6 +1200,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1284,6 +1297,7 @@ describe("useChatStore", () => {
 
 		const TestHarness: React.FC = () => {
 			const { store } = useChatStore({
+				chatRecordUpdatedAt: 0,
 				chatID,
 				chatMessages: [existingMessage],
 				chatRecord: buildChat(chatID),
@@ -1356,6 +1370,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1429,6 +1444,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					// REST hydrates the store with a waiting status, but the
@@ -1492,6 +1508,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: { ...buildChat(chatID), status: "waiting" },
@@ -1644,6 +1661,7 @@ describe("useChatStore", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 		const initialOptions = {
+			chatRecordUpdatedAt: 0,
 			chatID,
 			chatMessages: [existingMessage],
 			chatRecord: buildChat(chatID),
@@ -1720,6 +1738,7 @@ describe("useChatStore", () => {
 		// This simulates coming back to a chat whose queue was drained
 		// server-side while the user was viewing a different chat.
 		const staleOptions = {
+			chatRecordUpdatedAt: 0,
 			chatID,
 			chatMessages: [existingMessage],
 			chatRecord: buildChat(chatID),
@@ -1809,6 +1828,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1846,6 +1866,124 @@ describe("useChatStore", () => {
 		expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
 	});
 
+	const mockQueuedAutomationInput: TypesGen.ChatQueuedMessage = {
+		...buildQueuedMessage("chat-1", 10, "nightly"),
+		automation_id: "automation-1",
+		input_id: "input-1",
+	};
+
+	it.each<{
+		name: string;
+		initialQueued?: TypesGen.ChatQueuedMessage[];
+		event: TypesGen.ChatStreamEvent;
+		rows: number;
+		refreshesNames: boolean;
+	}>([
+		{
+			name: "a live automation message",
+			event: {
+				type: "message",
+				chat_id: "chat-1",
+				message: {
+					...buildMessage("chat-1", 2, "user", "nightly"),
+					automation_id: "automation-1",
+					input_id: "input-1",
+				},
+			},
+			rows: 2,
+			refreshesNames: true,
+		},
+		{
+			name: "newly queued automation input",
+			event: {
+				type: "queue_update",
+				chat_id: "chat-1",
+				queued_messages: [mockQueuedAutomationInput],
+			},
+			rows: 2,
+			refreshesNames: true,
+		},
+		{
+			name: "a queue update with already queued automation input",
+			initialQueued: [mockQueuedAutomationInput],
+			event: {
+				type: "queue_update",
+				chat_id: "chat-1",
+				queued_messages: [
+					mockQueuedAutomationInput,
+					buildQueuedMessage("chat-1", 11, "hi"),
+				],
+			},
+			rows: 3,
+			refreshesNames: false,
+		},
+		{
+			name: "an ordinary live message",
+			event: {
+				type: "message",
+				chat_id: "chat-1",
+				message: buildMessage("chat-1", 2, "user", "hi"),
+			},
+			rows: 2,
+			refreshesNames: false,
+		},
+	])(
+		"refreshes automation names on $name: $refreshesNames",
+		async ({ initialQueued = [], event, rows, refreshesNames }) => {
+			immediateAnimationFrame();
+			const chatID = "chat-1";
+			const existingMessage = buildMessage(chatID, 1, "user", "hello");
+			const mockSocket = createMockSocket();
+			mockWatchChatReturn(mockSocket);
+			const queryClient = new QueryClient({
+				defaultOptions: { queries: { gcTime: Number.POSITIVE_INFINITY } },
+			});
+			queryClient.setQueryData(chatAutomationsKey("org-1"), []);
+			const wrapper = createWrapper(queryClient);
+
+			const { result } = renderHook(
+				() => {
+					const { store } = useChatStore({
+						chatID,
+						chatMessages: [existingMessage],
+						chatRecord: buildChat(chatID),
+						chatRecordUpdatedAt: 0,
+						chatMessagesData: {
+							messages: [existingMessage],
+							queued_messages: initialQueued,
+							has_more: false,
+						},
+						chatQueuedMessages: initialQueued,
+						setChatErrorReason: vi.fn(),
+						clearChatErrorReason: vi.fn(),
+					});
+					return {
+						messageCount: useChatSelector(store, selectOrderedMessageIDs)
+							.length,
+						queuedCount: useChatSelector(store, selectQueuedMessages).length,
+					};
+				},
+				{ wrapper },
+			);
+
+			await waitFor(() => {
+				expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+			});
+			act(() => {
+				mockSocket.emitData(event);
+			});
+
+			await waitFor(() => {
+				expect(result.current.messageCount + result.current.queuedCount).toBe(
+					rows,
+				);
+			});
+			expect(
+				queryClient.getQueryState(chatAutomationsKey("org-1"))?.isInvalidated,
+			).toBe(refreshesNames);
+		},
+	);
+
 	it("caches the filtered queue when a queue_update still contains a suppressed message", async () => {
 		const chatID = "chat-1";
 		const existingMessage = buildMessage(chatID, 1, "user", "hello");
@@ -1880,6 +2018,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -1954,6 +2093,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -2049,6 +2189,7 @@ describe("useChatStore", () => {
 		const clearChatErrorReason = vi.fn();
 
 		const initialOptions = {
+			chatRecordUpdatedAt: 0,
 			chatID: chatID1,
 			chatMessages: [msg1] as TypesGen.ChatMessage[],
 			chatRecord: buildChat(chatID1),
@@ -2134,6 +2275,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -2188,6 +2330,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -2293,6 +2436,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -2387,6 +2531,7 @@ describe("useChatStore", () => {
 		const clearChatErrorReason = vi.fn();
 
 		const initialOptions = {
+			chatRecordUpdatedAt: 0,
 			chatID: chatID1,
 			chatMessages: [msg1] as TypesGen.ChatMessage[],
 			chatRecord: buildChat(chatID1),
@@ -2476,6 +2621,7 @@ describe("useChatStore", () => {
 		const clearChatErrorReason = vi.fn();
 
 		const initialOptions = {
+			chatRecordUpdatedAt: 0,
 			chatID: chatID1,
 			chatMessages: [msg1] as TypesGen.ChatMessage[],
 			chatRecord: buildChat(chatID1),
@@ -2546,6 +2692,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -2853,6 +3000,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -2938,6 +3086,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -3065,6 +3214,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -3159,6 +3309,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -3257,6 +3408,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -3334,6 +3486,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: { ...buildChat(chatID), status: "running" },
@@ -3398,6 +3551,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -3452,6 +3606,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -3515,6 +3670,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -3595,6 +3751,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -3679,6 +3836,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -3740,6 +3898,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -3819,6 +3978,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -3894,6 +4054,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -3969,6 +4130,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: { ...buildChat(chatID), status: "waiting" },
@@ -4016,6 +4178,7 @@ describe("useChatStore", () => {
 		renderHook(
 			() =>
 				useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -4067,6 +4230,7 @@ describe("useChatStore", () => {
 		renderHook(
 			() =>
 				useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [msg],
 					chatRecord: buildChat(chatID),
@@ -4130,6 +4294,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -4253,6 +4418,7 @@ describe("useChatStore", () => {
 		renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -4310,6 +4476,7 @@ describe("useChatStore", () => {
 		const initialMessages = [msg1, msg2, msg3];
 
 		const initialOptions = {
+			chatRecordUpdatedAt: 0,
 			chatID,
 			chatMessages: initialMessages,
 			chatRecord: buildChat(chatID),
@@ -4379,6 +4546,7 @@ describe("useChatStore", () => {
 		const initialMessages = [msg1, msg2];
 
 		const initialOptions = {
+			chatRecordUpdatedAt: 0,
 			chatID,
 			chatMessages: initialMessages,
 			chatRecord: buildChat(chatID),
@@ -4486,6 +4654,7 @@ describe("useChatStore", () => {
 		const initialMessages = [msg1, msg2];
 
 		const initialOptions = {
+			chatRecordUpdatedAt: 0,
 			chatID,
 			chatMessages: initialMessages,
 			chatRecord: buildChat(chatID),
@@ -4585,6 +4754,7 @@ describe("useChatStore", () => {
 		const { result, rerender } = renderHook(
 			(props: { chatRecord: TypesGen.Chat }) => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: props.chatRecord,
@@ -4655,6 +4825,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -4731,6 +4902,7 @@ describe("useChatStore", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -4829,6 +5001,7 @@ describe("thinking indicator event ordering", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: { ...buildChat(chatID), status: "running" },
@@ -4912,6 +5085,7 @@ describe("thinking indicator event ordering", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: { ...buildChat(chatID), status: "running" },
@@ -4990,6 +5164,7 @@ describe("thinking indicator event ordering", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: { ...buildChat(chatID), status: "running" },
@@ -5077,6 +5252,7 @@ describe("updateSidebarChat via stream events", () => {
 		renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
@@ -5139,6 +5315,7 @@ describe("updateSidebarChat via stream events", () => {
 		renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
@@ -5210,6 +5387,7 @@ describe("updateSidebarChat via stream events", () => {
 		renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
@@ -5274,6 +5452,7 @@ describe("updateSidebarChat via stream events", () => {
 		renderHook(
 			() => {
 				useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: activeChat,
@@ -5345,6 +5524,7 @@ describe("updateSidebarChat via stream events", () => {
 		renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
@@ -5414,6 +5594,7 @@ describe("updateSidebarChat via stream events", () => {
 		renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
@@ -5478,6 +5659,7 @@ describe("updateSidebarChat via stream events", () => {
 		renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: initialChat,
@@ -5530,6 +5712,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: buildChat(chatID),
@@ -5615,6 +5798,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: buildChat(chatID),
@@ -5701,6 +5885,7 @@ describe("partsBuf cleanup on reconnect (Bug 2)", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [userMsg],
 					chatRecord: buildChat(chatID),
@@ -5824,6 +6009,7 @@ describe("store/cache desync protection", () => {
 
 		const initialMessages = [msg1, msg2];
 		const initialOptions = {
+			chatRecordUpdatedAt: 0,
 			chatID,
 			chatMessages: initialMessages,
 			chatRecord: buildChat(chatID),
@@ -5912,6 +6098,7 @@ describe("store/cache desync protection", () => {
 		const wrapper = createWrapper(queryClient);
 
 		const initialOptions = {
+			chatRecordUpdatedAt: 0,
 			chatID,
 			chatMessages: [msg1, msg2, msg3],
 			chatRecord: buildChat(chatID),
@@ -5982,6 +6169,7 @@ describe("store/cache desync protection", () => {
 		const queryClient = createTestQueryClient();
 		const wrapper = createWrapper(queryClient);
 		const initialOptions = {
+			chatRecordUpdatedAt: 0,
 			chatID,
 			chatMessages: [msg1, msg2, msg3],
 			chatRecord: buildChat(chatID),
@@ -6068,6 +6256,7 @@ describe("parse errors", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [],
 					chatRecord: buildChat(chatID),
@@ -6121,6 +6310,7 @@ describe("parse errors", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),
@@ -6195,6 +6385,7 @@ describe("parse errors", () => {
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
 					chatID,
 					chatMessages: [existingMessage],
 					chatRecord: buildChat(chatID),

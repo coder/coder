@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent } from "storybook/test";
+import { MockSkills } from "#/testHelpers/skills";
 import { filterSkillsByQuery } from "../../utils/personalSkills";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import {
@@ -9,7 +10,7 @@ import {
 	type SkillMetadata,
 	SkillsTriggerMenu,
 } from "./SkillsTriggerMenu";
-import { findVisibleText, MockSkills } from "./storyHelpers";
+import { findVisibleText } from "./storyHelpers";
 
 const mockWorkspaceSkills: SkillMetadata[] = [
 	{
@@ -56,13 +57,18 @@ const meta: Meta<typeof SkillsTriggerMenu> = {
 		open: true,
 		anchor: null,
 		query: "",
+		commands: [],
 		personalSkills: mockPersonalSkillItems,
 		workspaceSkills: [],
 		workspaceSkillsEnabled: false,
+		isPersonalLoading: false,
+		isPersonalError: false,
+		isWorkspaceLoading: false,
 		onSelectedIndexChange: fn(),
 		selectedIndex: 0,
 		onSelect: fn(),
 		onClose: fn(),
+		onEscapeKeyDown: fn(),
 	},
 	render: (args) => <MenuStoryHarness {...args} />,
 	decorators: [
