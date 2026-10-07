@@ -129,8 +129,8 @@ you chose, and `instance_type` only when the user asked for a type or a
 `c7i.large` workspace moves to `full` (use `c7i.xlarge`).
 
 - Nothing to change: if `outdated` is true, run `coder update "$ws" -y`,
-  which also starts a stopped workspace. Otherwise, if it is stopped, run
-  `coder start "$ws" -y`.
+  which also starts a stopped workspace. Otherwise, if its status is
+  `stopped`, `failed`, or `canceled`, run `coder start "$ws" -y`.
 - Values to change: `coder start`, `restart`, and `update` replace
   `--parameter` values of mutable parameters with the previous build's
   values, so make this build through the API. Stop the workspace unless it is
@@ -200,6 +200,10 @@ Every remote command goes through `coder ssh "$ws" -- ...`, which runs as
    `needs_full_mode` instead of `running`: the workspace serves the frontend,
    and `message` names the files it cannot serve.
 
+   If `target_sha` differs from `headRefOid`, re-read `headRefOid` with
+   `gh pr view`. When the branch has a newer commit, wait for that one
+   instead and say so in the report.
+
    A missing file means the VM is still being set up. If the agent's
    lifecycle is `start_error`, the setup script failed: report the tail of
    `coder ssh "$ws" -- 'sudo tail -n 40 /tmp/coder-script-*.log'` and offer
@@ -215,7 +219,8 @@ Every remote command goes through `coder ssh "$ws" -- ...`, which runs as
    changes take seconds. Give up after 45 minutes for a first deployment and 25
    minutes otherwise.
 
-4. On `failed`, report `message` and the tail of the log it names, for example
+4. On `failed`, quote `message`. When it names `build.log`, `develop.log`, or
+   `vite.log`, report the tail of that log, for example
    `coder ssh "$ws" -- tail -n 60 /var/lib/eph/status/build.log`. A later sync
    retries a failed commit.
 
@@ -273,7 +278,7 @@ license.
 
 ## 9. Teardown
 
-For a merged or closed PR:
+For a merged or closed PR, with `ws=eph-pr-$number`:
 
 1. If the workspace is running, delete its OAuth client:
    `coder ssh "$ws" -- sudo /opt/eph/bin/eph-proxy deregister`. It prints
