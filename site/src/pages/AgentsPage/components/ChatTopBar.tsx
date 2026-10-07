@@ -113,10 +113,20 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		enabled: Boolean(parentChatID),
 	});
 	const parentChat = parentChatQuery.data;
+	const chatProjectsEnabled = experiments.includes("chat-projects");
+	// Delegated chats do not copy project_id, so they take the root chat's.
+	const rootChatID =
+		chat?.root_chat_id && chat.root_chat_id !== chat.id
+			? chat.root_chat_id
+			: undefined;
+	const rootChatQuery = useQuery({
+		...chatById(rootChatID ?? ""),
+		enabled: chatProjectsEnabled && !chat?.project_id && Boolean(rootChatID),
+	});
 	// Chats keep project_id when the experiment is turned off, but project
 	// pages are unreachable then.
-	const projectId = experiments.includes("chat-projects")
-		? chat?.project_id
+	const projectId = chatProjectsEnabled
+		? (chat?.project_id ?? rootChatQuery.data?.project_id)
 		: undefined;
 	const projectQuery = useQuery({
 		...chatProject(projectId),

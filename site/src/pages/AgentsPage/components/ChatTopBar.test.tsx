@@ -4,6 +4,7 @@ import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
@@ -32,6 +33,51 @@ const LocationProbe: React.FC = () => {
 	);
 };
 
+const renderTopBar = (chat: TypesGen.Chat) =>
+	render(
+		<QueryClientProvider client={createTestQueryClient()}>
+			<MemoryRouter initialEntries={[`/agents/${chat.id}?archived=archived`]}>
+				<DashboardContext.Provider
+					value={{
+						entitlements: MockEntitlements,
+						experiments: ["chat-projects"],
+						appearance: MockAppearanceConfig,
+						buildInfo: MockBuildInfo,
+						organizations: [MockDefaultOrganization],
+						showOrganizations: false,
+						canViewOrganizationSettings: false,
+					}}
+				>
+					<Routes>
+						<Route
+							path="/agents/:agentId"
+							element={
+								<ChatTopBar
+									chat={chat}
+									panel={{ showSidebarPanel: false, onToggleSidebar: vi.fn() }}
+								/>
+							}
+						/>
+						<Route
+							path="/agents/projects/:projectId"
+							element={<LocationProbe />}
+						/>
+					</Routes>
+				</DashboardContext.Provider>
+			</MemoryRouter>
+		</QueryClientProvider>,
+	);
+
+const expectProjectLinkNavigates = async () => {
+	const user = userEvent.setup();
+	await user.click(
+		await screen.findByRole("link", { name: MockChatProject.name }),
+	);
+	expect(await screen.findByTestId("location")).toHaveTextContent(
+		`/agents/projects/${MockChatProject.id}?archived=archived`,
+	);
+};
+
 describe("ChatTopBar", () => {
 	beforeEach(() => {
 		vi.spyOn(API, "checkAuthorization").mockResolvedValue({});
@@ -41,50 +87,23 @@ describe("ChatTopBar", () => {
 	});
 
 	it("links a project chat to its project page, keeping the search", async () => {
-		const user = userEvent.setup();
-		render(
-			<QueryClientProvider client={createTestQueryClient()}>
-				<MemoryRouter initialEntries={["/agents/chat-1?archived=archived"]}>
-					<DashboardContext.Provider
-						value={{
-							entitlements: MockEntitlements,
-							experiments: ["chat-projects"],
-							appearance: MockAppearanceConfig,
-							buildInfo: MockBuildInfo,
-							organizations: [MockDefaultOrganization],
-							showOrganizations: false,
-							canViewOrganizationSettings: false,
-						}}
-					>
-						<Routes>
-							<Route
-								path="/agents/:agentId"
-								element={
-									<ChatTopBar
-										chat={{ ...MockChat, project_id: MockChatProject.id }}
-										panel={{
-											showSidebarPanel: false,
-											onToggleSidebar: vi.fn(),
-										}}
-									/>
-								}
-							/>
-							<Route
-								path="/agents/projects/:projectId"
-								element={<LocationProbe />}
-							/>
-						</Routes>
-					</DashboardContext.Provider>
-				</MemoryRouter>
-			</QueryClientProvider>,
-		);
+		renderTopBar({ ...MockChat, project_id: MockChatProject.id });
+		await expectProjectLinkNavigates();
+	});
 
-		await user.click(
-			await screen.findByRole("link", { name: MockChatProject.name }),
-		);
-
-		expect(await screen.findByTestId("location")).toHaveTextContent(
-			`/agents/projects/${MockChatProject.id}?archived=archived`,
-		);
+	it("links a delegated chat to its root chat's project", async () => {
+		const rootChat = {
+			...MockChat,
+			id: "root-chat",
+			project_id: MockChatProject.id,
+		};
+		vi.spyOn(API.experimental, "getChat").mockResolvedValue(rootChat);
+		renderTopBar({
+			...MockChat,
+			id: "child-chat",
+			parent_chat_id: rootChat.id,
+			root_chat_id: rootChat.id,
+		});
+		await expectProjectLinkNavigates();
 	});
 });
