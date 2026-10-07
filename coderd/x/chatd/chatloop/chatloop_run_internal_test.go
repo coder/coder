@@ -234,13 +234,6 @@ func TestGenerateAssistant_ProviderResponseID(t *testing.T) {
 func TestGenerateAssistant_PromptTextBytes(t *testing.T) {
 	t.Parallel()
 
-	tool := fantasy.NewAgentTool(
-		"read_file",
-		"Reads a file.",
-		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			return fantasy.NewTextResponse("ok"), nil
-		},
-	)
 	for _, tc := range []struct {
 		name     string
 		messages []fantasy.Message
@@ -268,6 +261,15 @@ func TestGenerateAssistant_PromptTextBytes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			// Info caches the schema on first use, so parallel subtests
+			// must not share a tool.
+			tool := fantasy.NewAgentTool(
+				"read_file",
+				"Reads a file.",
+				func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+					return fantasy.NewTextResponse("ok"), nil
+				},
+			)
 			var sent fantasy.Call
 			model := &chattest.FakeModel{
 				ProviderName: "fake",
