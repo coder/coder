@@ -44,11 +44,11 @@ func TestScriptDependenciesRoundTrip(t *testing.T) {
 	require.True(t, proto.Equal(want, got))
 }
 
-// An unordered script must encode to the same bytes it did before fields
-// 10 and 11 existed, so an older coderd sees nothing new. Walking the tags
-// instead of comparing against a recorded byte string keeps the test
-// stable when unrelated fields are added later.
-func TestUnorderedScriptEncodesWithoutNewFields(t *testing.T) {
+// A script with neither new field set must encode to the same bytes it did
+// before fields 10 and 11 existed. Walking the tags instead of comparing
+// against a recorded byte string keeps the test stable when unrelated
+// fields are added later.
+func TestScriptWithoutNewFieldsEncodesAsBefore(t *testing.T) {
 	t.Parallel()
 
 	script := &provisionerproto.Script{
@@ -64,7 +64,7 @@ func TestUnorderedScriptEncodesWithoutNewFields(t *testing.T) {
 	for len(data) > 0 {
 		num, typ, n := protowire.ConsumeTag(data)
 		require.Positive(t, n)
-		require.LessOrEqual(t, int(num), 9, "field %d must not be encoded for an unordered script", num)
+		require.LessOrEqual(t, int(num), 9, "field %d must not be encoded when it is not set", num)
 		data = data[n:]
 
 		n = protowire.ConsumeFieldValue(num, typ, data)
