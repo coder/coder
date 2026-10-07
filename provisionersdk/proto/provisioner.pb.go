@@ -2367,7 +2367,9 @@ type ScriptDependency struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// For example "coder_script.clone_repo".
+	// Full Terraform address of the prerequisite script, equal to that
+	// script's resource_address, such as
+	// "module.git_clone.coder_script.clone". Never module-relative.
 	PrerequisiteResourceAddress string                      `protobuf:"bytes,1,opt,name=prerequisite_resource_address,json=prerequisiteResourceAddress,proto3" json:"prerequisite_resource_address,omitempty"`
 	Requirement                 ScriptDependencyRequirement `protobuf:"varint,2,opt,name=requirement,proto3,enum=provisioner.ScriptDependencyRequirement" json:"requirement,omitempty"`
 }

@@ -338,7 +338,11 @@ export interface Script {
  * from it.
  */
 export interface ScriptDependency {
-  /** For example "coder_script.clone_repo". */
+  /**
+   * Full Terraform address of the prerequisite script, equal to that
+   * script's resource_address, such as
+   * "module.git_clone.coder_script.clone". Never module-relative.
+   */
   prerequisiteResourceAddress: string;
   requirement: ScriptDependencyRequirement;
 }
