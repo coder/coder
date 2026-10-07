@@ -990,46 +990,57 @@ describe("AgentCreateForm project picker", () => {
 		});
 	});
 
-	it("selects a project created from the picker", async () => {
-		const createdProject: TypesGen.ChatProject = {
-			...MockChatProject,
-			id: "chat-project-new",
-			name: "Fresh start",
-		};
-		const createChatProject = vi
-			.spyOn(API.experimental, "createChatProject")
-			.mockResolvedValue(createdProject);
-		vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
-			MockChatProject,
-			createdProject,
-		]);
-		const { onCreateChat } = renderForm(
-			{},
-			{ queryClient: createProjectQueryClient() },
-		);
+	it.each([
+		{ listRefetch: "succeeds", refetchFails: false },
+		{ listRefetch: "fails", refetchFails: true },
+	])(
+		"selects a project created from the picker when the list refetch $listRefetch",
+		async ({ refetchFails }) => {
+			const createdProject: TypesGen.ChatProject = {
+				...MockChatProject,
+				id: "chat-project-new",
+				name: "Fresh start",
+			};
+			const createChatProject = vi
+				.spyOn(API.experimental, "createChatProject")
+				.mockResolvedValue(createdProject);
+			const getChatProjects = vi.spyOn(API.experimental, "getChatProjects");
+			if (refetchFails) {
+				getChatProjects.mockRejectedValue(new Error("Network down"));
+			} else {
+				getChatProjects.mockResolvedValue([MockChatProject, createdProject]);
+			}
+			const { onCreateChat } = renderForm(
+				{},
+				{ queryClient: createProjectQueryClient() },
+			);
 
-		await user().click(
-			await screen.findByRole("button", { name: /^Project:/ }),
-		);
-		await user().click(
-			await screen.findByRole("button", { name: "New project" }),
-		);
-		await user().type(
-			await screen.findByRole("textbox", { name: /Project name/ }),
-			createdProject.name,
-		);
-		await user().click(screen.getByRole("button", { name: "Create project" }));
-		// The modal hides the composer until it closes.
-		await screen.findByRole("button", {
-			name: `Project: ${createdProject.name}`,
-		});
-		await submitMessage("start fresh");
+			await user().click(
+				await screen.findByRole("button", { name: /^Project:/ }),
+			);
+			await user().click(
+				await screen.findByRole("button", { name: "New project" }),
+			);
+			await user().type(
+				await screen.findByRole("textbox", { name: /Project name/ }),
+				createdProject.name,
+			);
+			await user().click(
+				screen.getByRole("button", { name: "Create project" }),
+			);
+			// The modal hides the composer until it closes.
+			await screen.findByRole("button", {
+				name: `Project: ${createdProject.name}`,
+			});
+			await submitMessage("start fresh");
 
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(createChatProject).toHaveBeenCalledWith(
-			MockDefaultOrganization.id,
-			expect.objectContaining({ name: createdProject.name }),
-		);
-		expect(submittedOptions(onCreateChat).projectId).toBe(createdProject.id);
-	});
+			await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+			expect(createChatProject).toHaveBeenCalledWith(
+				MockDefaultOrganization.id,
+				expect.objectContaining({ name: createdProject.name }),
+			);
+			expect(getChatProjects).toHaveBeenCalled();
+			expect(submittedOptions(onCreateChat).projectId).toBe(createdProject.id);
+		},
+	);
 });

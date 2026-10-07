@@ -3,7 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import { chatProjects, createChatProject } from "#/api/queries/chatProjects";
+import {
+	chatProjects,
+	chatProjectsKey,
+	createChatProject,
+} from "#/api/queries/chatProjects";
 import {
 	chatModels,
 	mcpServerConfigs,
@@ -1148,12 +1152,20 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						if (!projectOrganizationId) {
 							return;
 						}
-						// The per-call onSuccess runs after the list refetch, so the new
-						// project is selectable when it is selected.
 						createProjectMutation.mutate(
 							{ organizationId: projectOrganizationId, request },
 							{
+								// Runs after the list refetch settles. Adding the project
+								// keeps it selectable when that refetch failed; an unloaded
+								// list is left alone rather than replaced by a partial one.
 								onSuccess: (chatProject) => {
+									queryClient.setQueryData(
+										chatProjectsKey,
+										(projects: TypesGen.ChatProject[] | undefined) =>
+											projects?.some(({ id }) => id === chatProject.id)
+												? projects
+												: projects && [...projects, chatProject],
+									);
 									setSelectedProjectId(chatProject.id);
 									setIsCreateProjectOpen(false);
 								},
