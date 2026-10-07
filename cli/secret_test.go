@@ -556,9 +556,15 @@ func TestSecretListWorkspaceBuild(t *testing.T) {
 		Name: "user-token", Value: "u", EnvName: "TOKEN",
 	})
 	require.NoError(t, err)
+	// A user secret and the build secret that replaces it may share a name.
+	_, err = client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name: "API_KEY", Value: "u", EnvName: "API_KEY",
+	})
+	require.NoError(t, err)
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
 		req.Secrets = []codersdk.WorkspaceSecretInput{
 			{Name: "build-token", Value: new("b"), EnvName: "TOKEN"},
+			{Name: "API_KEY", Value: new("b"), EnvName: "API_KEY"},
 		}
 	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
@@ -600,7 +606,8 @@ func TestSecretListWorkspaceBuild(t *testing.T) {
 			assert.Contains(t, out, "SOURCE")
 			assert.Contains(t, out, "REPLACED BY")
 			assert.Contains(t, out, "build-token")
-			assert.Contains(t, out, "env: build-token")
+			assert.Contains(t, out, "env: build/build-token")
+			assert.Contains(t, out, "env: build/API_KEY")
 			assert.NotContains(t, out, "EPHEMERAL", "ephemeral is hidden by default")
 		})
 	}
