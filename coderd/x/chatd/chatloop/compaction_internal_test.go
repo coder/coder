@@ -949,18 +949,8 @@ func TestGenerateCompaction_DefaultSourceAutomatic(t *testing.T) {
 
 func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 	t.Parallel()
-	// A zero NextPrompt estimates the summary alone, rounding its bytes
-	// up at nextPromptBytesPerToken bytes per token. "界" is
-	// three bytes, so the summaries are 7, 8 and 9 bytes long.
-	for _, tc := range []struct {
-		prefix string
-		want   int64
-	}{
-		{prefix: "P", want: 2},
-		{prefix: "Pr", want: 2},
-		{prefix: "Pre", want: 3},
-	} {
-		t.Run(tc.prefix, func(t *testing.T) {
+	for _, prefix := range []string{"P", "Pr", "Pre"} {
+		t.Run(prefix, func(t *testing.T) {
 			t.Parallel()
 			var parts []codersdk.ChatMessagePart
 			result, err := GenerateCompaction(t.Context(), GenerateCompactionOptions{
@@ -975,7 +965,7 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 					},
 				},
 				Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
-				SystemSummaryPrefix: tc.prefix,
+				SystemSummaryPrefix: prefix,
 				Force:               true,
 				ContextLimit:        1000,
 				StepUsage:           fantasy.Usage{InputTokens: 800},
@@ -987,97 +977,18 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 				Clock: quartz.NewMock(t),
 			})
 			require.NoError(t, err)
-			require.Equal(t, tc.prefix+"\n\n界x", result.SystemSummary)
-			require.Equal(t, tc.want, result.EstimatedContextTokens)
+			require.Equal(t, prefix+"\n\n界x", result.SystemSummary)
+			require.Equal(t, int64(3), result.EstimatedContextTokens)
 			require.Equal(t, int64(800), result.ContextTokens)
 			require.Len(t, parts, 2)
 			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[1].Type)
 			require.False(t, parts[1].IsError)
 			var metadata map[string]any
 			require.NoError(t, json.Unmarshal(parts[1].Result, &metadata))
-			require.Equal(t, float64(tc.want), metadata["estimated_context_tokens"])
+			require.Equal(t, float64(3), metadata["estimated_context_tokens"])
 			require.Equal(t, float64(1000), metadata["context_limit_tokens"])
 		})
 	}
-}
-
-// TestGenerateCompaction_NextPromptEstimate verifies the published
-// estimate covers the retained system prompt besides the summary.
-func TestGenerateCompaction_NextPromptEstimate(t *testing.T) {
-	t.Parallel()
-	system := textMessage(fantasy.MessageRoleSystem, strings.Repeat("s", 9985))
-	history := []fantasy.Message{system, textMessage(fantasy.MessageRoleUser, "hello")}
-	var parts []codersdk.ChatMessagePart
-	result, err := GenerateCompaction(t.Context(), GenerateCompactionOptions{
-		Model: &chattest.FakeModel{
-			StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
-				return compactionStream(
-					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
-					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"},
-					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
-					fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
-				), nil
-			},
-		},
-		Messages:            history,
-		SystemSummaryPrefix: "Prefix",
-		NextPrompt:          CompactionNextPrompt{History: history},
-		Force:               true,
-		ContextLimit:        100000,
-		StepUsage:           fantasy.Usage{InputTokens: 800},
-		ToolCallID:          "summary",
-		ToolName:            "chat_summarized",
-		PublishMessagePart: func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
-			parts = append(parts, part)
-		},
-		Clock: quartz.NewMock(t),
-	})
-	require.NoError(t, err)
-	// "Prefix\n\nsummary" is 15 bytes: (9985 + 15) / 4. The user
-	// message is summarized, so it is not counted.
-	require.Equal(t, int64(2500), result.EstimatedContextTokens)
-	require.Len(t, parts, 2)
-	var metadata map[string]any
-	require.NoError(t, json.Unmarshal(parts[1].Result, &metadata))
-	require.Equal(t, float64(2500), metadata["estimated_context_tokens"])
-}
-
-// TestCompactionNextPrompt_EstimateTokens verifies which parts of the
-// next request the estimate counts.
-func TestCompactionNextPrompt_EstimateTokens(t *testing.T) {
-	t.Parallel()
-
-	t.Run("CountsSystemToolsAndPending", func(t *testing.T) {
-		t.Parallel()
-		next := CompactionNextPrompt{
-			History: []fantasy.Message{
-				textMessage(fantasy.MessageRoleSystem, strings.Repeat("s", 3000)),
-				textMessage(fantasy.MessageRoleUser, strings.Repeat("u", 500)),
-				textMessage(fantasy.MessageRoleAssistant, strings.Repeat("a", 500)),
-			},
-			Pending: []fantasy.Message{textMessage(fantasy.MessageRoleUser, strings.Repeat("p", 100))},
-			Tools: []fantasy.Tool{
-				fantasy.FunctionTool{Name: "read_file", Description: strings.Repeat("d", 891), InputSchema: map[string]any{"type": "object"}},
-				fantasy.ProviderDefinedTool{ID: "anthropic.web_search", Name: "web_search", Args: map[string]any{"max_uses": 5}},
-			},
-		}
-		// System 3000 + pending 100 + read_file 917 (9 + 891 + 17) +
-		// web_search 24 (10 + 14) + summary 83 = 4124 bytes.
-		require.Equal(t, int64(1031), next.estimateTokens(83))
-	})
-
-	t.Run("SkipsMedia", func(t *testing.T) {
-		t.Parallel()
-		next := CompactionNextPrompt{Pending: []fantasy.Message{{
-			Role: fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: strings.Repeat("t", 40)},
-				fantasy.FilePart{Data: make([]byte, 50000), MediaType: "image/png"},
-				fantasy.ToolResultPart{Output: fantasy.ToolResultOutputContentMedia{Data: strings.Repeat("x", 50000)}},
-			},
-		}}}
-		require.Equal(t, int64(10), next.estimateTokens(0))
-	})
 }
 
 // TestGenerateCompaction_RequiresClock verifies a nil clock is

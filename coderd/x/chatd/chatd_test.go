@@ -5927,23 +5927,7 @@ func TestActiveServer_Compaction(t *testing.T) {
 		resultPart := singlePartOfType(t, compressed.results[0], codersdk.ChatMessagePartTypeToolResult)
 		require.Equal(t, callPart.ToolCallID, resultPart.ToolCallID)
 		require.Equal(t, "chat_summarized", resultPart.ToolName)
-		var result map[string]any
-		require.NoError(t, json.Unmarshal(resultPart.Result, &result))
-		estimated, ok := result["estimated_context_tokens"].(float64)
-		require.True(t, ok, "estimated_context_tokens is a number")
-		// The estimate also covers the system prompt and tool
-		// definitions sent with the summary, so it exceeds the summary
-		// alone at 4 bytes per token.
-		require.Greater(t, estimated, float64((len(summaryText)+3)/4))
-		delete(result, "estimated_context_tokens")
-		require.Equal(t, map[string]any{
-			"summary":              "summary text for compaction",
-			"source":               "automatic",
-			"threshold_percent":    float64(70),
-			"usage_percent":        float64(80),
-			"context_tokens":       float64(80),
-			"context_limit_tokens": float64(100),
-		}, result)
+		require.JSONEq(t, fmt.Sprintf(`{"summary":"summary text for compaction","source":"automatic","threshold_percent":70,"usage_percent":80,"context_tokens":80,"context_limit_tokens":100,"estimated_context_tokens":%d}`, (len(summaryText)+2)/3), string(resultPart.Result))
 		for _, msg := range []database.ChatMessage{compressed.summaries[0], compressed.calls[0], compressed.results[0]} {
 			require.False(t, msg.InputTokens.Valid)
 			require.False(t, msg.OutputTokens.Valid)

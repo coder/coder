@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -137,9 +136,7 @@ type CompactionResult struct {
 	UsagePercent     float64
 	ContextTokens    int64
 	ContextLimit     int64
-	// EstimatedContextTokens estimates the prompt of the next request
-	// from SystemSummary and GenerateCompactionOptions.NextPrompt. Hook
-	// messages committed after the boundary are not included.
+	// EstimatedContextTokens covers only SystemSummary, not the full prompt.
 	EstimatedContextTokens int64
 	// Runtime is the wall-clock duration of the summarization model
 	// call, the compaction step's billable runtime (see
@@ -237,7 +234,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		Runtime:            summaryRuntime,
 		ProviderResponseID: responseID,
 	}
-	result.EstimatedContextTokens = opts.NextPrompt.estimateTokens(len(result.SystemSummary))
+	result.EstimatedContextTokens = int64((len(result.SystemSummary) + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(map[string]any{
 			"summary":                  summary,
@@ -370,78 +367,6 @@ func contextTokensFromUsage(usage fantasy.Usage) int64 {
 		total = usage.TotalTokens
 	}
 
-	return total
-}
-
-// nextPromptBytesPerToken converts the next prompt's text bytes to
-// tokens. The system prompt and tool definitions measured 4.0 bytes per
-// token on Claude Sonnet 4.6 and 5.3 on gpt-5-mini. The estimate shows
-// only until the next response reports measured usage, so one ratio is
-// close enough: on gpt-5-mini it reads about 0.5% of a 400K context
-// window high.
-const nextPromptBytesPerToken = 4.0
-
-// CompactionNextPrompt describes the request that follows a compaction,
-// apart from the summary, so the estimate published with the summary
-// also covers the system prompt, tool definitions and replayed user
-// messages. It is sized only when a compaction runs.
-type CompactionNextPrompt struct {
-	// History is the chat model's prompt before compaction, system
-	// messages included. Its system messages are sent again.
-	History []fantasy.Message
-	// Pending holds the user messages replayed after the boundary.
-	Pending []fantasy.Message
-	// Tools are the tool definitions of the next request.
-	Tools []fantasy.Tool
-}
-
-func (p CompactionNextPrompt) estimateTokens(summaryBytes int) int64 {
-	total := summaryBytes + toolDefinitionBytes(p.Tools)
-	for _, msg := range p.Pending {
-		total += messageTextBytes(msg)
-	}
-	for _, msg := range p.History {
-		if msg.Role == fantasy.MessageRoleSystem {
-			total += messageTextBytes(msg)
-		}
-	}
-	return int64(math.Ceil(float64(total) / nextPromptBytesPerToken))
-}
-
-// messageTextBytes sums the text of a message. Files and media are not
-// counted: their token count does not follow their byte size.
-func messageTextBytes(msg fantasy.Message) int {
-	total := 0
-	for _, part := range msg.Content {
-		switch p := part.(type) {
-		case fantasy.FilePart:
-		case fantasy.ToolResultPart:
-			if _, media := p.Output.(fantasy.ToolResultOutputContentMedia); !media {
-				total += ContentPartSize(p)
-			}
-		default:
-			total += ContentPartSize(part)
-		}
-	}
-	return total
-}
-
-// toolDefinitionBytes sums each tool's name, description, and JSON
-// schema. Provider-defined tools count their name and arguments only.
-func toolDefinitionBytes(tools []fantasy.Tool) int {
-	total := 0
-	for _, tool := range tools {
-		switch t := tool.(type) {
-		case fantasy.FunctionTool:
-			schema, _ := json.Marshal(t.InputSchema)
-			total += len(t.Name) + len(t.Description) + len(schema)
-		case fantasy.ProviderDefinedTool:
-			args, _ := json.Marshal(t.Args)
-			total += len(t.Name) + len(args)
-		default:
-			total += len(tool.GetName())
-		}
-	}
 	return total
 }
 

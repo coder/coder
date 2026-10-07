@@ -173,13 +173,6 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 		chatloop.BuildToolDefinitions(prepared.Tools, prepared.ActiveTools, prepared.ProviderTools),
 		prepared.Compaction.Options.ToolDefinitions,
 	)
-	// The next prompt keeps the chat model's tools. A first turn has no
-	// pending tail: "hello" is summarized, so only system messages and
-	// tools are retained.
-	nextPrompt := prepared.Compaction.Options.NextPrompt
-	require.Equal(t, prepared.Compaction.Options.ToolDefinitions, nextPrompt.Tools)
-	require.Empty(t, nextPrompt.Pending)
-	require.Equal(t, fantasy.MessageRoleUser, nextPrompt.History[len(nextPrompt.History)-1].Role)
 
 	require.NotNil(t, providerOptions.User)
 	require.Equal(t, "turn-options-sentinel", *providerOptions.User)

@@ -217,10 +217,6 @@ type GenerateCompactionOptions struct {
 	SummaryHint          string
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
-	// NextPrompt describes the request that follows the compaction. It
-	// holds the chat model's prompt and tools, which stay unchanged when
-	// a compaction override sanitizes Messages or clears ToolDefinitions.
-	NextPrompt CompactionNextPrompt
 
 	// Force skips the threshold gate (including the threshold=100
 	// disable and the zero-usage early return). Set for manual,

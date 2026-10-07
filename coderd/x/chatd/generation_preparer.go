@@ -851,13 +851,6 @@ func (server *Server) prepareGeneration(
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
-	compactionNextPrompt := chatloop.CompactionNextPrompt{
-		History: compactionPromptMessages,
-		// A nonempty pending tail is kept out of the summarizer input
-		// and replayed after the boundary.
-		Pending: pendingPrompt,
-		Tools:   toolDefinitions,
-	}
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
@@ -875,7 +868,6 @@ func (server *Server) prepareGeneration(
 		ResolvedModel:        resolved.resolvedModel,
 		ModelConfigID:        modelConfig.ID,
 		StepUsage:            compactionStepUsage,
-		NextPrompt:           compactionNextPrompt,
 		SummaryCall:          compactionSummaryCall(resolved),
 		ToolDefinitions:      toolDefinitions,
 	}
