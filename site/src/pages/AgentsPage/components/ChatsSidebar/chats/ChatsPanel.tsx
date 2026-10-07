@@ -216,6 +216,14 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
 	const { chatsByProjectId, unfiledChats: unfiledOwnedChats } =
 		groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
+	// Pinned chats leave their project folder, so their rows name the project
+	// and a folder whose chats are all pinned says so instead of looking empty.
+	const projectById = new Map(projects.map((project) => [project.id, project]));
+	const getPinnedChatProject = (chat: Chat) =>
+		chat.project_id ? projectById.get(chat.project_id) : undefined;
+	const projectIdsWithPinnedChats = new Set(
+		pinnedChats.flatMap((chat) => (chat.project_id ? [chat.project_id] : [])),
+	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -593,6 +601,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 								projects={projects}
 								organizations={organizations}
 								chatsByProjectId={chatsByProjectId}
+								projectIdsWithPinnedChats={projectIdsWithPinnedChats}
 								expandedProjectIds={Object.fromEntries(
 									projects.map((project) => [
 										project.id,
@@ -673,7 +682,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 														(disablePinnedReordering ? (
 															<div className="flex flex-col gap-0.5">
 																{sortedPinnedChats.map((chat) => (
-																	<ChatTreeNode key={chat.id} chat={chat} />
+																	<ChatTreeNode
+																		key={chat.id}
+																		chat={chat}
+																		project={getPinnedChatProject(chat)}
+																	/>
 																))}
 															</div>
 														) : (
@@ -701,6 +714,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																			<SortableChatTreeNode
 																				key={chat.id}
 																				chat={chat}
+																				project={getPinnedChatProject(chat)}
 																			/>
 																		))}
 																	</div>

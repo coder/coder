@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
+import { chatProject } from "#/api/queries/chatProjects";
 import { chat as chatById } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -27,8 +28,10 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import { buildAgentProjectPath } from "../utils/navigation";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
@@ -36,6 +39,7 @@ import {
 	chatFamilyAllowsArchive,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
+import { ChatProjectIcon } from "./ChatProjectIcon";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
@@ -107,6 +111,14 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		enabled: Boolean(parentChatID),
 	});
 	const parentChat = parentChatQuery.data;
+	const projectId = chat?.project_id;
+	const projectQuery = useQuery({
+		...chatProject(projectId),
+		enabled: Boolean(projectId),
+	});
+	// The project breadcrumb is supplementary, so a project that fails to load
+	// or is missing from the user's list leaves just the chat title.
+	const project = projectQuery.data ?? undefined;
 	const isRootChat = chat !== undefined && parentChatID === undefined;
 	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
 	if (chat !== undefined && isRootChat) {
@@ -208,6 +220,35 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						aria-live="polite"
 						className="flex min-w-0 items-center gap-1.5"
 					>
+						{projectQuery.isLoading && (
+							<Skeleton
+								aria-label="Loading project"
+								className="h-3.5 w-20 shrink-0"
+							/>
+						)}
+						{project && (
+							<>
+								<Button
+									asChild
+									size="sm"
+									variant="subtle"
+									className="h-auto max-w-[16rem] gap-1.5 rounded-sm px-1 py-0.5 text-sm text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
+								>
+									<Link
+										to={{
+											pathname: buildAgentProjectPath({
+												projectId: project.id,
+											}),
+											search: location.search,
+										}}
+									>
+										<ChatProjectIcon project={project} className="size-3.5" />
+										<span className="truncate">{project.name}</span>
+									</Link>
+								</Button>
+								<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
+							</>
+						)}
 						{parentChat && (
 							<>
 								<Button

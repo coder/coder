@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatProject } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	ContextMenu,
@@ -30,6 +30,11 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { shortRelativeTime } from "#/utils/time";
 import {
 	ChatActionsMenuItems,
@@ -38,6 +43,7 @@ import {
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { ChatDiffStats } from "../../ChatDiffStats";
+import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
@@ -47,6 +53,11 @@ import { getChatDisplayConfig } from "./statusConfig";
 type ChatTreeNodeProps = {
 	readonly chat: Chat;
 	readonly depth?: number;
+	/**
+	 * The chat's project, shown next to the title for rows listed outside
+	 * their project folder.
+	 */
+	readonly project?: ChatProject;
 };
 
 const CHILD_INDENT_PX = 26;
@@ -54,6 +65,7 @@ const CHILD_INDENT_PX = 26;
 export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	chat,
 	depth = 0,
+	project,
 }) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
@@ -247,13 +259,32 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 										<span
 											className={cn(
-												"block flex-1 truncate text-[13px] text-content-primary",
+												"block min-w-0 truncate text-[13px] text-content-primary",
 												!isActive &&
 													"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
 											)}
 										>
 											{chat.title}
 										</span>
+										{project && (
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span
+														role="img"
+														aria-label={`Project: ${project.name}`}
+														className="flex shrink-0 items-center text-content-secondary"
+													>
+														<ChatProjectIcon
+															project={project}
+															className="size-3.5"
+														/>
+													</span>
+												</TooltipTrigger>
+												<TooltipContent side="right">
+													{project.name}
+												</TooltipContent>
+											</Tooltip>
+										)}
 										{chat.has_unread && !isActiveChat && (
 											<span className="sr-only">(unread)</span>
 										)}
