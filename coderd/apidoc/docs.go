@@ -4339,7 +4339,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Skip history changed at or before this history_version, as returned by the messages page",
+                        "description": "Send only history changed after this history_version, taken from the messages page or the last status event",
                         "name": "after_revision",
                         "in": "query"
                     }
@@ -22292,7 +22292,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "history_version": {
-                    "description": "HistoryVersion is the chat history_version this page was read at.\nPass it as after_revision when opening the stream. Set only on the\npage requested without before_id or after_id.",
+                    "description": "HistoryVersion is the chat's history_version for the messages in this\npage, to pass as after_revision when opening the stream. It is set only\non pages requested without before_id or after_id.",
                     "type": "integer"
                 },
                 "messages": {
@@ -23273,7 +23273,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "history_version": {
-                    "description": "HistoryVersion is the chat history_version after the message events\nsent before this status. Pass it as after_revision when reconnecting.",
+                    "description": "HistoryVersion is the chat's history_version for the messages sent\nbefore this status, to pass as after_revision when reconnecting.",
                     "type": "integer"
                 },
                 "status": {

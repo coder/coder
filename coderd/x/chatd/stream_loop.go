@@ -51,9 +51,9 @@ type streamLocalState struct {
 
 	afterMessageID         int64
 	initialMessageSyncDone bool
-	// partialResets is set for clients that sent a history version. They
-	// keep the messages below a history_reset's from_message_id, so a
-	// reset sends only the messages from that ID on.
+	// partialResets reports whether history_reset events may carry
+	// from_message_id. It is set only for clients that send after_revision,
+	// since older clients would treat a partial reset as a full one.
 	partialResets bool
 }
 
@@ -72,11 +72,9 @@ type streamDBSnapshot struct {
 
 	changedMessages []database.ChatMessage
 	historyReset    bool
-	// resetFromID is the lowest ID among changedMessages when the reset
-	// is partial, zero for a full reset.
-	resetFromID int64
-	// resetMessages are the visible messages with IDs at or above
-	// resetFromID, the whole visible history for a full reset.
+	// On a history reset, resetMessages replace the client's messages with
+	// IDs at or above resetFromID. A zero resetFromID replaces all of them.
+	resetFromID   int64
 	resetMessages []database.ChatMessage
 
 	queue []database.ChatQueuedMessage
@@ -84,16 +82,16 @@ type streamDBSnapshot struct {
 	actionRequired *codersdk.ChatStreamActionRequired
 }
 
-// StreamCursor is the history a stream client already holds; the initial
-// sync sends only what it is missing.
+// StreamCursor describes the chat history a stream client already has.
 type StreamCursor struct {
-	// AfterMessageID is the newest message ID the client holds. Ignored
-	// when AfterRevision is set: a client can hold a newer ID without
-	// holding every older message.
+	// AfterMessageID is the newest message ID the client holds. An initial
+	// sync without a history reset skips messages at or below it. It is
+	// ignored when AfterRevision is non-zero, because a client can hold an
+	// ID without holding every earlier message.
 	AfterMessageID int64
-	// AfterRevision is the chat history_version the client's messages were
-	// read at. Zero treats every past deletion as new and forces a
-	// history_reset.
+	// AfterRevision is the history version of the client's messages. If it
+	// is non-zero, the stream sends only history changed after it, and a
+	// history reset starts at the lowest changed message ID.
 	AfterRevision int64
 }
 
@@ -198,9 +196,8 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 				}
 			}
 			if snapshot.historyReset {
-				// Every message below the lowest changed ID is unchanged since
-				// the client's version, so only the messages from it on need
-				// replacing.
+				// Rows below the lowest changed ID have not changed since
+				// l.state.historyVersion, so a partial reset can start there.
 				if l.state.partialResets {
 					snapshot.resetFromID = snapshot.changedMessages[0].ID
 					for _, msg := range snapshot.changedMessages {
@@ -299,7 +296,8 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 			ChatID: l.chatID,
 			Status: &codersdk.ChatStreamStatus{
 				Status: codersdk.ChatStatus(chat.Status),
-				// Emitted after this sync's message events: clients reconnect from it.
+				// Clients reconnect with this version, so the status event
+				// must follow this sync's message events.
 				HistoryVersion: chat.HistoryVersion,
 			},
 		})

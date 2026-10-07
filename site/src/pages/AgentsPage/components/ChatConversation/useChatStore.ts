@@ -174,8 +174,10 @@ export const useChatStore = (
 				: undefined;
 	});
 
-	// Stream reconnect cursor. Page refetches must not move it: a page does
-	// not show which stream events the client has applied.
+	// The history version the stream reconnects with. It is taken from the
+	// newest page when the chat opens and then advances only on status
+	// events, because a refetched page does not remove every deleted message
+	// from the store.
 	const historyVersionRef = useRef<
 		{ chatID: string; version: number } | undefined
 	>(undefined);
@@ -438,7 +440,6 @@ export const useChatStore = (
 		// server always emits preview_reset after a history change in
 		// the same sync, so the run is guaranteed to terminate.
 		let historyResetPending = false;
-		// Set when the reset keeps the messages below this ID.
 		let historyResetFromID: number | undefined;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
@@ -573,8 +574,9 @@ export const useChatStore = (
 					if (streamEvent.type === "history_reset") {
 						discardBufferedParts();
 						store.clearStreamState();
-						// A reset that keeps older messages builds on what came
-						// before it in this frame, so apply that first.
+						// A partial reset keeps the messages below its
+						// from_message_id, which can include messages received
+						// earlier in this frame, so commit those first.
 						commitHistoryReplacement();
 						const earlierMessages = pendingMessages.splice(0);
 						if (earlierMessages.length > 0) {

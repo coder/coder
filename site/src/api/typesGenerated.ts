@@ -3154,9 +3154,9 @@ export interface ChatMessagesResponse {
 	 */
 	readonly turn_start_id?: number;
 	/**
-	 * HistoryVersion is the chat history_version this page was read at.
-	 * Pass it as after_revision when opening the stream. Set only on the
-	 * page requested without before_id or after_id.
+	 * HistoryVersion is the chat's history_version for the messages in this
+	 * page, to pass as after_revision when opening the stream. It is set only
+	 * on pages requested without before_id or after_id.
 	 */
 	readonly history_version?: number;
 }
@@ -3833,11 +3833,11 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 
 // From codersdk/chats.go
 /**
- * ChatStreamHistoryReset narrows a history_reset to the messages from
- * FromMessageID on. The client keeps its messages with lower IDs and
- * replaces the rest with the message events that follow. Without it, the
- * reset replaces the whole history. Sent only on streams opened with
- * after_revision.
+ * ChatStreamHistoryReset is set on the history_reset events of streams
+ * opened with after_revision. On such a reset, the client keeps its
+ * messages with IDs below FromMessageID and replaces the rest with the
+ * message events that follow. A history_reset without it replaces the
+ * whole history.
  */
 export interface ChatStreamHistoryReset {
 	readonly from_message_id: number;
@@ -3898,8 +3898,8 @@ export interface ChatStreamRetry {
 export interface ChatStreamStatus {
 	readonly status: ChatStatus;
 	/**
-	 * HistoryVersion is the chat history_version after the message events
-	 * sent before this status. Pass it as after_revision when reconnecting.
+	 * HistoryVersion is the chat's history_version for the messages sent
+	 * before this status, to pass as after_revision when reconnecting.
 	 */
 	readonly history_version?: number;
 }
@@ -9830,9 +9830,11 @@ export interface StreamChatOptions {
 	 */
 	readonly AfterID: number | null;
 	/**
-	 * AfterRevision is the ChatMessagesResponse.HistoryVersion the caller's
-	 * messages were read at. Without it, any past edit makes the server
-	 * resend the whole history. When set, the server ignores AfterID.
+	 * AfterRevision is the history version of the caller's messages, from
+	 * ChatMessagesResponse or ChatStreamStatus. When it is set, the server
+	 * ignores AfterID and history resets carry ChatStreamEvent.HistoryReset.
+	 * When it is nil, every connection to a chat with a deleted message
+	 * resends the whole history.
 	 */
 	readonly AfterRevision: number | null;
 }

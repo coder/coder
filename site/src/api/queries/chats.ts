@@ -1275,11 +1275,10 @@ const replaceMessagesHistory = (
 	};
 };
 
-// Replaces the cached messages with IDs at or above fromID, for a
-// history_reset that starts there. Pages the drop empties are removed,
-// except the newest, which receives the replacement messages; the last
-// remaining page keeps the original last page's has_more, so older
-// history still pages in.
+// Replaces the cached messages with IDs at or above fromID. Emptied pages
+// are dropped except the first, which receives the new messages. The last
+// remaining page inherits has_more from the original last page, because
+// has_more describes the history below the last page.
 const replaceMessagesFrom = (
 	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
 	fromID: number,

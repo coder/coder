@@ -438,8 +438,7 @@ func TestStreamLoopInitialSyncRecoversWithoutHint(t *testing.T) {
 	require.Equal(t, codersdk.ChatStatusWaiting, events[0].Status.Status)
 }
 
-// syncAgainst runs one syncDB against a store holding chat and rows and
-// answers the revision and history queries as the real store does.
+// syncAgainst runs one syncDB against a mock store holding chat and rows.
 func syncAgainst(t *testing.T, loop *streamLoop, chat database.Chat, rows []database.ChatMessage) []codersdk.ChatStreamEvent {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -483,8 +482,8 @@ func syncAgainst(t *testing.T, loop *streamLoop, chat database.Chat, rows []data
 func TestStreamLoopRevisionCursor(t *testing.T) {
 	t.Parallel()
 
-	// Two turns, then the second prompt (3) was edited at version 4: 3 and
-	// its reply 4 were soft-deleted, 5 replaced 3, and 6 answered at 5.
+	// The second prompt, 3, was edited at version 4: 3 and its reply 4 were
+	// soft-deleted, and 5 and 6 replaced them.
 	chatID := uuid.New()
 	edited := []database.ChatMessage{
 		streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "first prompt", false),
@@ -494,8 +493,8 @@ func TestStreamLoopRevisionCursor(t *testing.T) {
 		streamMessage(t, chatID, 5, 4, database.ChatMessageRoleUser, "edited prompt", false),
 		streamMessage(t, chatID, 6, 5, database.ChatMessageRoleAssistant, "edited reply", false),
 	}
-	// Message 2 was deleted at version 3 and message 3 kept: not something
-	// an edit does, but the reset must still hold.
+	// Edits delete a suffix of the history, but the reset must also handle a
+	// message deleted from the middle, as message 2 is here.
 	middleDeleted := []database.ChatMessage{
 		streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "kept", false),
 		streamMessage(t, chatID, 2, 3, database.ChatMessageRoleAssistant, "deleted", true),
@@ -535,7 +534,7 @@ func TestStreamLoopRevisionCursor(t *testing.T) {
 			wantIDs: []int64{6},
 		},
 		{
-			// The client holds 1 to 4. It keeps 1 and 2.
+			// The client holds 1 to 4 and keeps 1 and 2.
 			name:          "page is behind by an edit",
 			rows:          edited,
 			cursor:        StreamCursor{AfterMessageID: 4, AfterRevision: 2},
@@ -544,7 +543,7 @@ func TestStreamLoopRevisionCursor(t *testing.T) {
 			wantIDs:       []int64{5, 6},
 		},
 		{
-			name:          "deletion in the middle replaces from it",
+			name:          "deletion in the middle resets from it",
 			rows:          middleDeleted,
 			cursor:        StreamCursor{AfterMessageID: 3, AfterRevision: 2},
 			wantEvents:    reset(1),
@@ -552,9 +551,7 @@ func TestStreamLoopRevisionCursor(t *testing.T) {
 			wantIDs:       []int64{3},
 		},
 		{
-			// Zero cursor: every row counts as changed, the deletions
-			// included, and the client gets the whole history.
-			name:       "no cursor replays the history",
+			name:       "no history version resets the whole history",
 			rows:       edited,
 			cursor:     StreamCursor{AfterMessageID: 6},
 			wantEvents: reset(4),

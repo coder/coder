@@ -1876,9 +1876,9 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	var queuedMessages []database.ChatQueuedMessage
 	var historyVersion int64
 	if beforeID == 0 && afterID == 0 {
-		// Read by the route middleware before the page query, so never
-		// newer than the page's rows. A cursored page may stop short of
-		// the newest message, so it carries no version.
+		// Only the newest page reports a history version, since a cursored page
+		// can leave out newer messages. chat was read before the messages, so a
+		// change committed in between is resent by the stream, not lost.
 		historyVersion = chat.HistoryVersion
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
@@ -3540,7 +3540,7 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when after_revision is set"
-// @Param after_revision query int false "Skip history changed at or before this history_version, as returned by the messages page"
+// @Param after_revision query int false "Send only history changed after this history_version, taken from the messages page or the last status event"
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {

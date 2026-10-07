@@ -969,9 +969,9 @@ type ChatMessagesResponse struct {
 	// containing the page's oldest message. Omitted for after_id-only polls
 	// and when no prompt is at or before that message.
 	TurnStartID *int64 `json:"turn_start_id,omitempty"`
-	// HistoryVersion is the chat history_version this page was read at.
-	// Pass it as after_revision when opening the stream. Set only on the
-	// page requested without before_id or after_id.
+	// HistoryVersion is the chat's history_version for the messages in this
+	// page, to pass as after_revision when opening the stream. It is set only
+	// on pages requested without before_id or after_id.
 	HistoryVersion int64 `json:"history_version,omitempty"`
 }
 
@@ -1988,8 +1988,8 @@ type ChatStreamMessagePart struct {
 // ChatStreamStatus represents an updated chat status.
 type ChatStreamStatus struct {
 	Status ChatStatus `json:"status"`
-	// HistoryVersion is the chat history_version after the message events
-	// sent before this status. Pass it as after_revision when reconnecting.
+	// HistoryVersion is the chat's history_version for the messages sent
+	// before this status, to pass as after_revision when reconnecting.
 	HistoryVersion int64 `json:"history_version,omitempty"`
 }
 
@@ -2206,11 +2206,11 @@ type ChatStreamEvent struct {
 	HistoryReset   *ChatStreamHistoryReset   `json:"history_reset,omitempty"`
 }
 
-// ChatStreamHistoryReset narrows a history_reset to the messages from
-// FromMessageID on. The client keeps its messages with lower IDs and
-// replaces the rest with the message events that follow. Without it, the
-// reset replaces the whole history. Sent only on streams opened with
-// after_revision.
+// ChatStreamHistoryReset is set on the history_reset events of streams
+// opened with after_revision. On such a reset, the client keeps its
+// messages with IDs below FromMessageID and replaces the rest with the
+// message events that follow. A history_reset without it replaces the
+// whole history.
 type ChatStreamHistoryReset struct {
 	FromMessageID int64 `json:"from_message_id"`
 }
@@ -3147,9 +3147,11 @@ type StreamChatOptions struct {
 	// that only need live message_part events and can skip the
 	// full message history.
 	AfterID *int64
-	// AfterRevision is the ChatMessagesResponse.HistoryVersion the caller's
-	// messages were read at. Without it, any past edit makes the server
-	// resend the whole history. When set, the server ignores AfterID.
+	// AfterRevision is the history version of the caller's messages, from
+	// ChatMessagesResponse or ChatStreamStatus. When it is set, the server
+	// ignores AfterID and history resets carry ChatStreamEvent.HistoryReset.
+	// When it is nil, every connection to a chat with a deleted message
+	// resends the whole history.
 	AfterRevision *int64
 }
 

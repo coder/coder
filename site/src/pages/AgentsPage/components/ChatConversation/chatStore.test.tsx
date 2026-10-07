@@ -870,8 +870,8 @@ describe("useChatStore", () => {
 			expect(result.current).toEqual([1, 2, 3, 4]);
 		});
 
-		// The second prompt was edited: 3 and 4 are gone, 5 and 6 replace
-		// them. The reset is split across frames.
+		// The second prompt was edited, so 5 and 6 replace 3 and 4. The reset
+		// arrives split across two frames.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -944,8 +944,8 @@ describe("useChatStore", () => {
 			expect(result.current).toEqual([1, 2]);
 		});
 
-		// One sync adds 3; the next replaces everything from 4 on. Both
-		// arrive in one frame, and the reset does not resend 3.
+		// One sync adds 3 and the next resets from 4, both in the same frame.
+		// The reset does not resend 3, so 3 must survive it.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -4075,15 +4075,13 @@ describe("useChatStore", () => {
 			{ wrapper, initialProps: { pageVersion: 5 } },
 		);
 
-		// First connect: the newest page's version.
 		await waitFor(() => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1, 5);
 		});
 
-		// A later page refetch does not move the cursor.
+		// A page refetch does not advance the history version.
 		rerender({ pageVersion: 9 });
 
-		// Reconnect uses the last status version.
 		act(() => {
 			mockSocket1.emitData({
 				type: "status",
