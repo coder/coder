@@ -358,19 +358,11 @@ func TestChatProjectSharing(t *testing.T) {
 			RootChatID:        uuid.NullUUID{UUID: shareeChat.ID, Valid: true},
 		})
 
-		// A worker with a fresh heartbeat blocks deletion.
+		// A running chat does not block deletion.
 		runnerID := uuid.New()
 		_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET worker_id = $2, runner_id = $3 WHERE id = $1", shareeChat.ID, uuid.New(), runnerID)
 		require.NoError(t, err)
 		require.NoError(t, db.UpsertChatHeartbeat(sysCtx, database.UpsertChatHeartbeatParams{ChatID: shareeChat.ID, RunnerID: runnerID}))
-		err = client.DeleteChatProject(ctx, project.OrganizationID, project.ID)
-		requireSDKError(t, err, http.StatusConflict)
-		_, err = sharee.GetChat(ctx, shareeChat.ID)
-		require.NoError(t, err)
-
-		// A lease left behind by a dead worker does not.
-		_, err = sqlDB.ExecContext(ctx, "UPDATE chat_heartbeats SET heartbeat_at = NOW() - INTERVAL '1 hour' WHERE chat_id = $1", shareeChat.ID)
-		require.NoError(t, err)
 
 		events, closer, err := sharee.WatchChats(ctx)
 		require.NoError(t, err)
@@ -445,13 +437,10 @@ func TestChatProjectSharing(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
 		member, _ := newChatProjectMember(t, client, firstUser.OrganizationID)
-		_, otherUser := newChatProjectMember(t, client, firstUser.OrganizationID)
 		memberProject := createChatProject(t, member, firstUser.OrganizationID, "Member Project")
 
-		adminView, err := client.GetChatProject(ctx, memberProject.OrganizationID, memberProject.ID)
+		_, err := client.GetChatProject(ctx, memberProject.OrganizationID, memberProject.ID)
 		require.NoError(t, err)
-		// The role still allows removing entries, but not granting access.
-		require.Equal(t, codersdk.ChatProjectPermissions{Update: true, Delete: true}, adminView.Permissions)
 		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: memberProject.OrganizationID,
 			ProjectID:      &memberProject.ID,
@@ -459,31 +448,6 @@ func TestChatProjectSharing(t *testing.T) {
 		})
 		requireChatProjectNotFound(t, err)
 
-		// Nor can they reach it by granting access, which they could then
-		// join, for example through the Everyone group.
-		err = client.UpdateChatProjectACL(ctx, memberProject.OrganizationID, memberProject.ID, codersdk.UpdateChatProjectACL{
-			GroupRoles: map[string]codersdk.ChatProjectRole{memberProject.OrganizationID.String(): codersdk.ChatProjectRoleAdmin},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Equal(t, "Only the project owner or users it is shared with can grant access to it. You can still remove entries.", sdkErr.Message)
-		err = client.UpdateChatProjectACL(ctx, memberProject.OrganizationID, memberProject.ID, codersdk.UpdateChatProjectACL{
-			UserRoles: map[string]codersdk.ChatProjectRole{otherUser.ID.String(): codersdk.ChatProjectRoleUse},
-		})
-		requireSDKError(t, err, http.StatusForbidden)
-		acl, err := member.ChatProjectACL(ctx, memberProject.OrganizationID, memberProject.ID)
-		require.NoError(t, err)
-		require.Empty(t, acl.Groups)
-		require.Empty(t, acl.Users)
-
-		// They can still revoke a share the owner made.
-		err = member.UpdateChatProjectACL(ctx, memberProject.OrganizationID, memberProject.ID, codersdk.UpdateChatProjectACL{
-			UserRoles: map[string]codersdk.ChatProjectRole{otherUser.ID.String(): codersdk.ChatProjectRoleUse},
-		})
-		require.NoError(t, err)
-		err = client.UpdateChatProjectACL(ctx, memberProject.OrganizationID, memberProject.ID, codersdk.UpdateChatProjectACL{
-			UserRoles: map[string]codersdk.ChatProjectRole{otherUser.ID.String(): codersdk.ChatProjectRoleDeleted},
-		})
-		require.NoError(t, err)
 	})
 }
 

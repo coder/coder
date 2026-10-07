@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -13,103 +12,46 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// ErrChatProjectHasRunningChats reports that a project could not be
-// deleted because a live worker holds one of its chats.
-var ErrChatProjectHasRunningChats = xerrors.New("chat project has running chats")
-
-// chatProjectDeleteBatchSize bounds the root chats, with their sub-chats,
-// deleted per transaction, so a large project does not hold its rows
-// locked for one long transaction.
-const chatProjectDeleteBatchSize = 100
-
 // DeleteChatProject deletes a project and publishes hard_deleted watch
 // events for the chats it deleted. See DeleteChatProjectWithoutEvents.
 func (p *Server) DeleteChatProject(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
-	deleted, err := DeleteChatProjectWithoutEvents(ctx, p.db, projectID, p.inFlightChatStaleAfter)
+	deleted, err := DeleteChatProjectWithoutEvents(ctx, p.db, projectID)
 	p.publishChatPubsubEvents(deleted, codersdk.ChatWatchEventKindHardDeleted)
 	return deleted, err
 }
 
 // DeleteChatProjectWithoutEvents deletes a project together with its root
-// chats, every user's, and their sub-chats, and returns the chats it
-// deleted. It fails with ErrChatProjectHasRunningChats while a live worker
-// holds any of them, so in-flight turns are never cut off; a lease whose
-// heartbeat is older than staleAfter does not count. Chats go in batches,
-// so a failure can leave the project with some chats already deleted, and
-// the returned chats are those; retrying finishes the job. Callers must
+// chats, every user's, and their sub-chats, in one transaction, and
+// returns the chats it deleted. Running chats are deleted too: their
+// workers stop when the next heartbeat finds the lease gone. Callers must
 // have authorized deleting the project.
-func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, projectID uuid.UUID, staleAfter time.Duration) ([]database.Chat, error) {
+func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, projectID uuid.UUID) ([]database.Chat, error) {
 	//nolint:gocritic // Sharees own some of the chats; the caller authorized deleting the project.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	var deleted []database.Chat
-	for {
-		var (
-			done  bool
-			batch []database.Chat
-		)
-		err := db.InTx(func(tx database.Store) error {
-			locked, err := database.LockChatProjectDeleteBatch(chatdCtx, tx, projectID, chatProjectDeleteBatchSize)
-			if err != nil {
-				return err
-			}
-			if len(locked) == 0 {
-				if err := tx.DeleteChatProjectByID(ctx, projectID); err != nil {
-					return xerrors.Errorf("delete project: %w", err)
-				}
-				done = true
-				return nil
-			}
-			ids := make([]uuid.UUID, 0, len(locked))
-			rootIDs := make([]uuid.UUID, 0, len(locked))
-			for _, chat := range locked {
-				running, err := chatHeldByLiveWorker(chatdCtx, tx, chat, staleAfter)
-				if err != nil {
-					return err
-				}
-				if running {
-					return ErrChatProjectHasRunningChats
-				}
-				ids = append(ids, chat.ID)
-				if chat.IsRoot {
-					rootIDs = append(rootIDs, chat.ID)
-				}
-			}
-			chats, err := tx.GetChatsByIDs(chatdCtx, ids)
+	err := db.InTx(func(tx database.Store) error {
+		rootIDs, chatIDs, err := database.LockChatProjectForDelete(chatdCtx, tx, projectID)
+		if err != nil {
+			return err
+		}
+		if len(rootIDs) > 0 {
+			deleted, err = tx.GetChatsByIDs(chatdCtx, chatIDs)
 			if err != nil {
 				return xerrors.Errorf("get project chats: %w", err)
 			}
 			if err := tx.DeleteChatFamiliesByRootIDs(chatdCtx, rootIDs); err != nil {
 				return xerrors.Errorf("delete project chats: %w", err)
 			}
-			batch = chats
-			return nil
-		}, nil)
-		if err != nil {
-			return deleted, err
 		}
-		deleted = append(deleted, batch...)
-		if done {
-			return deleted, nil
+		if err := tx.DeleteChatProjectByID(ctx, projectID); err != nil {
+			return xerrors.Errorf("delete project: %w", err)
 		}
-	}
-}
-
-// chatHeldByLiveWorker reports whether a worker with a fresh heartbeat holds
-// the chat. A turn can end with worker_id still set, and a replica that dies
-// then never clears it, so worker_id alone would block deletion forever.
-func chatHeldByLiveWorker(ctx context.Context, db database.Store, chat database.LockedChatProjectChat, staleAfter time.Duration) (bool, error) {
-	if !chat.WorkerID.Valid || !chat.RunnerID.Valid {
-		return false, nil
-	}
-	stale, err := db.IsChatHeartbeatStale(ctx, database.IsChatHeartbeatStaleParams{
-		ChatID:       chat.ID,
-		RunnerID:     chat.RunnerID.UUID,
-		StaleSeconds: int32(staleAfter.Seconds()),
-	})
+		return nil
+	}, nil)
 	if err != nil {
-		return false, xerrors.Errorf("check chat heartbeat: %w", err)
+		return nil, err
 	}
-	return !stale, nil
+	return deleted, nil
 }
 
 // ChatProjectUsableBy reports whether userID may run chats in project: the

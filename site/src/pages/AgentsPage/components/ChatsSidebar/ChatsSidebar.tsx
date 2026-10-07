@@ -371,7 +371,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 						: undefined
 				}
 				confirmLoading={deleteProjectMutation.isPending}
-				info="Every chat in this project will be deleted, including chats started by people it is shared with."
+				info="Every chat in this project will be deleted, including chats started by people it is shared with. Running chats are stopped."
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

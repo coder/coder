@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -21,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
-	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -161,20 +159,6 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("get chat project for update: %w", err)
 		}
-		// An administrator's role lets them share any project, but role
-		// grants do not let them run chats in it. Granting access, even to a
-		// group they are not in yet, could turn that role grant into an ACL
-		// grant, so only the owner and sharees may grant; others may only
-		// revoke.
-		if grantsChatProjectAccess(userRoles) || grantsChatProjectAccess(groupRoles) {
-			usable, err := chatd.ChatProjectUsableBy(ctx, tx, current, apiKey.UserID)
-			if err != nil {
-				return err
-			}
-			if !usable {
-				return errChatProjectGrantWithoutAccess
-			}
-		}
 		userACL := applyChatProjectRoles(current.UserACL, userRoles)
 		groupACL := applyChatProjectRoles(current.GroupACL, groupRoles)
 		if err := tx.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
@@ -192,12 +176,6 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		if errors.Is(err, errChatProjectGrantWithoutAccess) {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "Only the project owner or users it is shared with can grant access to it. You can still remove entries.",
-			})
-			return
-		}
 		if dbauthz.IsNotAuthorizedError(err) {
 			httpapi.Forbidden(rw)
 			return
@@ -207,17 +185,6 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-var errChatProjectGrantWithoutAccess = xerrors.New("caller cannot use the chat project")
-
-func grantsChatProjectAccess(roles map[uuid.UUID]codersdk.ChatProjectRole) bool {
-	for _, role := range roles {
-		if role != codersdk.ChatProjectRoleDeleted {
-			return true
-		}
-	}
-	return false
 }
 
 // canonicalChatProjectRoles parses ACL keys into UUIDs. A key that is not a

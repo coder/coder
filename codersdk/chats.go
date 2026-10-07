@@ -2451,9 +2451,7 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 }
 
 // DeleteChatProject deletes a chat project and every chat in it, including
-// chats started by users it is shared with. It fails with 409 Conflict while
-// any of those chats is running. A 409 can come after some chats were
-// already deleted; retrying deletes the rest.
+// chats started by users it is shared with. Running chats are stopped.
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
 	if err != nil {
