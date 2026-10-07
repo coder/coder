@@ -199,11 +199,9 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 			if snapshot.historyReset {
 				// Rows below the lowest changed ID have not changed since
 				// l.state.historyVersion, so a partial reset can start there.
+				// changedMessages is ordered by ID.
 				if l.state.hasHistoryVersion {
 					snapshot.resetFromID = snapshot.changedMessages[0].ID
-					for _, msg := range snapshot.changedMessages {
-						snapshot.resetFromID = min(snapshot.resetFromID, msg.ID)
-					}
 				}
 				snapshot.resetMessages, err = tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 					ChatID:  l.chatID,
