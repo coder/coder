@@ -4737,7 +4737,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Skip snapshot messages with id at or before this cursor",
+                        "description": "Skip snapshot messages with id at or before this cursor. Ignored when after_revision is set",
                         "name": "after_id",
                         "in": "query"
                     },
