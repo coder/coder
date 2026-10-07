@@ -31,7 +31,7 @@ const (
 	// This overlap keeps the old CA valid through that transition, so it must
 	// exceed the cache refresh interval (plus a small leaf clamp buffer). Leaf
 	// lifetime imposes nothing here: leaves are clamped to just before their
-	// signing CA's NotAfter (see coderd/x/nats mintLeaf).
+	// signing CA's NotAfter (see coderd/nats mintLeaf).
 	NATSCAOverlap = time.Minute * 30
 
 	// defaultRotationInterval is the default interval at which keys are checked for rotation.
@@ -51,10 +51,12 @@ var defaultRotatedFeatures = []database.CryptoKeyFeature{
 	database.CryptoKeyFeatureOIDCConvert,
 	database.CryptoKeyFeatureChatFilesToken,
 	database.CryptoKeyFeatureTailnetResume,
+	// NATS pubsub is on by default, so its cluster mTLS CA is always rotated.
+	database.CryptoKeyFeatureNATSCA,
 }
 
 // DefaultRotatedFeatures returns the crypto key features the rotator manages by
-// default. It excludes experiment-gated features such as the NATS CA.
+// default.
 func DefaultRotatedFeatures() []database.CryptoKeyFeature {
 	return slices.Clone(defaultRotatedFeatures)
 }

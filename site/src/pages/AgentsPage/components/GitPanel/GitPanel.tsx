@@ -13,7 +13,7 @@ import {
 	RefreshCwIcon,
 	RowsIcon,
 } from "lucide-react";
-import { type FC, type RefObject, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type {
 	ChatDiffStatus,
@@ -50,12 +50,12 @@ const GIT_NOT_SETUP_BODY =
 const GIT_STATUS_LOADING_TITLE = "Waiting for Git status";
 const GIT_STATUS_LOADING_BODY = "Checking the workspace for Git repositories.";
 
-interface DiffStats {
+type DiffStats = {
 	additions: number;
 	deletions: number;
-}
+};
 
-interface GitPanelProps {
+type GitPanelProps = {
 	/** PR tab data. Omitted if no PR is associated. */
 	prTab?: {
 		prNumber: number;
@@ -65,31 +65,29 @@ interface GitPanelProps {
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/** Callback to send a refresh to the git watcher. Returns false when disconnected. */
 	onRefresh: () => boolean;
-	/** Called when the user clicks the Commit button for a working repo. */
-	onCommit: (repoRoot: string) => void;
 	/** Whether the panel is in expanded/fullscreen mode. */
-	isExpanded?: boolean;
+	isExpanded: boolean;
 	/** Whether the watcher is loading its initial repository state. */
-	isGitStatusLoading?: boolean;
+	isGitStatusLoading: boolean;
 	/** Diff status for the remote/branch view (includes PR metadata). */
 	remoteDiffStats?: ChatDiffStatus;
-	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	/** Chat composer, used to insert commit prompts and file comments. */
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	/**
 	 * Repo roots that have been dirty at some point during this session.
 	 * Used to keep a repo's entry visible after its diff goes empty, so
 	 * the view switcher does not visibly flip when the agent edits a
 	 * file and then reverts it.
 	 */
-	everDirty?: ReadonlySet<string>;
-}
+	everDirty: ReadonlySet<string>;
+};
 
 function repoLabel(repoRoot: string): string {
 	const segments = repoRoot.split("/").filter(Boolean);
 	return segments[segments.length - 1] ?? repoRoot;
 }
 
-interface ViewItemBase {
+type ViewItemBase = {
 	id: string;
 	/** Left-pill label on the trigger (e.g. "Open", "Merged", "Working"). */
 	stateLabel: string;
@@ -101,19 +99,18 @@ interface ViewItemBase {
 	itemSecondary?: string;
 	stateClasses: string;
 	icon: React.ReactNode;
-}
+};
 
 type ViewItem =
 	| (ViewItemBase & { kind: "remote" })
 	| (ViewItemBase & { kind: "local"; repoRoot: string });
 
-export const GitPanel: FC<GitPanelProps> = ({
+export const GitPanel: React.FC<GitPanelProps> = ({
 	prTab,
 	repositories,
 	onRefresh,
-	onCommit,
 	isExpanded,
-	isGitStatusLoading = false,
+	isGitStatusLoading,
 	remoteDiffStats,
 	chatInputRef,
 	everDirty,
@@ -157,11 +154,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 	// the watcher) so a clean-revert does not hide the entry.
 	const localRepos = (() => {
 		const roots = new Set<string>(repoStats.keys());
-		if (everDirty) {
-			for (const root of everDirty) {
-				if (repositories.has(root)) {
-					roots.add(root);
-				}
+		for (const root of everDirty) {
+			if (repositories.has(root)) {
+				roots.add(root);
 			}
 		}
 		return Array.from(roots).sort((a, b) => a.localeCompare(b));
@@ -322,6 +317,19 @@ export const GitPanel: FC<GitPanelProps> = ({
 		}
 	};
 
+	const handleCommit = (repoRoot: string) => {
+		const input = chatInputRef.current;
+		if (!input) {
+			return;
+		}
+		const prompt = `Commit and push the working changes in ${repoRoot}. If there are unstaged files, commit them too.`;
+		const current = input.getValue();
+		if (!current.includes(prompt)) {
+			input.insertText(current.trim() ? `\n\n${prompt}` : prompt);
+		}
+		input.focus();
+	};
+
 	return (
 		<div className="flex h-full flex-col">
 			{/* Toolbar */}
@@ -336,7 +344,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 				</div>
 				{/* Controls */}
 				<div className="flex shrink-0 items-center gap-1">
-					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
+					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border">
 						<button
 							type="button"
 							onClick={() => handleDiffStyleChange("unified")}
@@ -359,7 +367,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 							disabled={!hasGitContext}
 							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
+								"flex cursor-pointer items-center border-0 border-l border-solid border-border px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
 								diffStyle === "split"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -440,7 +448,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 								deletions: 0,
 							}
 						}
-						onCommit={onCommit}
+						onCommit={handleCommit}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
 						chatInputRef={chatInputRef}
@@ -455,7 +463,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 // Git view switcher: dropdown for the active PR/Branch/Working view.
 // ---------------------------------------------------------------
 
-interface GitViewSwitcherProps {
+type GitViewSwitcherProps = {
 	items: ReadonlyArray<ViewItem>;
 	activeItem?: ViewItem;
 	/**
@@ -464,9 +472,9 @@ interface GitViewSwitcherProps {
 	 */
 	hasRemoteItem: boolean;
 	onSelect: (item: ViewItem) => void;
-}
+};
 
-const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
+const GitViewSwitcher: React.FC<GitViewSwitcherProps> = ({
 	items,
 	activeItem,
 	hasRemoteItem,
@@ -475,7 +483,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	if (!activeItem) {
 		return (
 			<div
-				className="inline-flex h-6 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 text-xs text-content-secondary"
+				className="inline-flex h-6 items-center gap-1.5 rounded-md border border-solid border-border px-2 text-xs text-content-secondary"
 				data-testid="git-panel-view-switcher"
 			>
 				<GitBranchIcon className="size-3.5! shrink-0" />
@@ -490,7 +498,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 		<>
 			<span
 				className={cn(
-					"inline-flex h-full items-center gap-1 rounded-l-md border-0 border-r border-solid border-border-default px-1.5 font-medium leading-none",
+					"inline-flex h-full items-center gap-1 rounded-l-md border-0 border-r border-solid border-border px-1.5 font-medium leading-none",
 					activeItem.stateClasses,
 				)}
 			>
@@ -511,7 +519,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	if (isSingleItem) {
 		return (
 			<div
-				className="inline-flex h-6 min-w-0 max-w-full items-stretch overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-xs"
+				className="inline-flex h-6 min-w-0 max-w-full items-stretch overflow-hidden rounded-md border border-solid border-border bg-surface-primary text-xs"
 				data-testid="git-panel-view-switcher"
 			>
 				{triggerContent}
@@ -524,7 +532,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					className="inline-flex h-6 min-w-0 max-w-full cursor-pointer items-stretch overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-xs transition-colors hover:bg-surface-secondary"
+					className="inline-flex h-6 min-w-0 max-w-full cursor-pointer items-stretch overflow-hidden rounded-md border border-solid border-border bg-surface-primary text-xs transition-colors hover:bg-surface-secondary"
 					data-testid="git-panel-view-switcher"
 					aria-label="Switch git view"
 				>
@@ -575,12 +583,12 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 // Remote view (branch/PR diff)
 // ---------------------------------------------------------------
 
-const RemoteContent: FC<{
+const RemoteContent: React.FC<{
 	prTab?: { prNumber: number; chatId: string };
 	hasGitContext: boolean;
 	isGitStatusLoading: boolean;
-	isExpanded?: boolean;
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	isExpanded: boolean;
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: ChatDiffStatus;
 }> = ({
@@ -595,7 +603,7 @@ const RemoteContent: FC<{
 	if (!prTab) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-				<div className="mb-4 flex size-10 items-center justify-center rounded-lg border border-solid border-border-default bg-surface-secondary">
+				<div className="mb-4 flex size-10 items-center justify-center rounded-lg border border-solid border-border bg-surface-secondary">
 					{hasGitContext ? (
 						<GitCompareArrowsIcon className="size-5 text-content-secondary" />
 					) : (
@@ -635,14 +643,14 @@ const RemoteContent: FC<{
 // Local view (single repo)
 // ---------------------------------------------------------------
 
-const LocalRepoContent: FC<{
+const LocalRepoContent: React.FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges | undefined;
 	diffStats: DiffStats;
 	onCommit: (repoRoot: string) => void;
-	isExpanded?: boolean;
+	isExpanded: boolean;
 	diffStyle: DiffStyle;
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 }> = ({
 	repoRoot,
 	repo,
@@ -678,14 +686,14 @@ const LocalRepoContent: FC<{
 // Repo header for local view
 // ---------------------------------------------------------------
 
-const RepoHeader: FC<{
+const RepoHeader: React.FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges;
 	diffStats: DiffStats;
 	onCommit: () => void;
 }> = ({ repoRoot, repo, diffStats, onCommit }) => {
 	return (
-		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
+		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1.5">
 			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 				<GitBranchIcon className="size-3.5 shrink-0" />
 				<span className="truncate">
@@ -702,7 +710,7 @@ const RepoHeader: FC<{
 					type="button"
 					onClick={onCommit}
 					disabled={!repo.unified_diff}
-					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid border-border-default bg-transparent px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
+					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid border-border bg-transparent px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
 				>
 					<CheckIcon className="size-3" />
 					Commit
@@ -742,7 +750,7 @@ function prStateClasses(state: string | undefined, draft: boolean | undefined) {
 // PR state icon (compact, for the view switcher)
 // ---------------------------------------------------------------
 
-export const PrStateIcon: FC<{
+export const PrStateIcon: React.FC<{
 	state?: string;
 	draft?: boolean;
 	className?: string;

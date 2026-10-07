@@ -1,0 +1,10 @@
+title: REST API
+description: Reference for the Coder REST API, including endpoints, authentication, and schemas.
+path: ./reference/api/index.md
+icon_path: ./images/icons/api.svg
+children_from: generated/rest-api.json
+children:
+  - title: Agents
+    description: REST endpoints for the workspace agent daemon (`coder_agent`).
+  - title: Chats
+    description: REST endpoints for Coder Agents Chats API (programmatic agent sessions).

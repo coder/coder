@@ -78,6 +78,26 @@ func (b AIProviderBedrockSettings) ResolvedProtocol() AIProviderBedrockProtocol 
 	return b.Protocol
 }
 
+// ValidateCredentials checks that static credentials are paired. Callers must
+// merge omitted credential fields from storage before validating a patch.
+func (b AIProviderBedrockSettings) ValidateCredentials() []ValidationError {
+	hasKey := b.AccessKey != nil && *b.AccessKey != ""
+	hasSecret := b.AccessKeySecret != nil && *b.AccessKeySecret != ""
+	if hasKey == hasSecret {
+		return nil
+	}
+	field := "settings.access_key"
+	detail := "access_key_secret is set, but access_key is missing or empty"
+	if hasKey {
+		field = "settings.access_key_secret"
+		detail = "access_key is set, but access_key_secret is missing or empty"
+	}
+	return []ValidationError{{
+		Field:  field,
+		Detail: detail,
+	}}
+}
+
 // IsConfigured reports whether any load-bearing Bedrock field is set,
 // indicating that the operator wants the provider to authenticate via
 // AWS Bedrock rather than as a bearer-token Anthropic provider.

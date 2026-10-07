@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { WorkspaceResource } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
@@ -18,7 +18,7 @@ type ResourcesSidebarProps = {
 	isSelected: (resource: WorkspaceResource) => boolean;
 };
 
-export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
+export const ResourcesSidebar: React.FC<ResourcesSidebarProps> = ({
 	failed,
 	onChange,
 	isSelected,
@@ -83,7 +83,7 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 	);
 };
 
-const ResourceSidebarItemSkeleton: FC = () => {
+const ResourceSidebarItemSkeleton: React.FC = () => {
 	return (
 		<div className="leading-normal flex items-center gap-3 pointer-events-none">
 			<Skeleton variant="circular" width={16} height={16} />

@@ -109,7 +109,7 @@ func friendlyError(w io.Writer, err error, v1, v2 string) {
 	_, _ = fmt.Fprintf(w, "Migrating from version %q to %q failed:\n", v1, v2)
 	_, _ = fmt.Fprintf(w, "\t%s\n", err.Error())
 	_, _ = fmt.Fprintf(w, "Check the following:\n")
-	_, _ = fmt.Fprintf(w, " - All migrations from version %q must exist in version %q with the same migration numbers.\n", v2, v1)
+	_, _ = fmt.Fprintf(w, " - All migrations in version %q must also exist in version %q with the same migration numbers.\n", v1, v2)
 	_, _ = fmt.Fprintf(w, " - Each migration must have the same effect.\n")
 	_, _ = fmt.Fprintf(w, " - There must be no gaps or duplicates in the migration numbers.\n")
 }

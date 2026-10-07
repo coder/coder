@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import {
@@ -75,7 +74,7 @@ type OpenMCPServerSharingDialogProps = Omit<
 	"open"
 >;
 
-const OpenMCPServerSharingDialog: FC<OpenMCPServerSharingDialogProps> = ({
+const OpenMCPServerSharingDialog: React.FC<OpenMCPServerSharingDialogProps> = ({
 	onOpenChange,
 	organizationId,
 	serverId,
@@ -137,6 +136,6 @@ const OpenMCPServerSharingDialog: FC<OpenMCPServerSharingDialogProps> = ({
 	);
 };
 
-export const MCPServerSharingDialog: FC<MCPServerSharingDialogProps> = (
+export const MCPServerSharingDialog: React.FC<MCPServerSharingDialogProps> = (
 	props,
 ) => (props.open ? <OpenMCPServerSharingDialog {...props} /> : null);

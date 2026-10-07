@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 )
 
 // buildFromDB runs the production fetch path against a database: it calls the
@@ -359,6 +360,162 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 				assert.Equal(t, aibridged.ProviderStatusDisabled, outcomes[0].Status)
 				assert.NoError(t, outcomes[0].Err)
 			})
+		}
+	})
+}
+
+func TestProtoToProviderSpecClaudePlatform(t *testing.T) {
+	t.Parallel()
+
+	descriptor := (&proto.AIProviderKindClaudePlatformAWS{}).ProtoReflect().Descriptor()
+	require.Zero(t, descriptor.ReservedNames().Len())
+	require.Zero(t, descriptor.ReservedRanges().Len())
+
+	t.Run("AllFields", func(t *testing.T) {
+		t.Parallel()
+		spec := protoToProviderSpec(&proto.AIProvider{
+			Enabled: true,
+			Type:    string(database.AIProviderTypeAnthropic),
+			Name:    "claude-platform-full",
+			BaseUrl: "https://claude.us-east-1.example.com/",
+			ClaudePlatformAws: &proto.AIProviderKindClaudePlatformAWS{
+				Region:      "us-east-1",
+				WorkspaceId: "ws-full",
+			},
+		})
+
+		assert.Equal(t, database.AIProviderTypeAnthropic, spec.Type)
+		assert.Equal(t, "claude-platform-full", spec.Name)
+		assert.Equal(t, "https://claude.us-east-1.example.com/", spec.BaseURL)
+		assert.Nil(t, spec.Bedrock)
+		require.NotNil(t, spec.ClaudePlatformAWS)
+		cp := spec.ClaudePlatformAWS
+		assert.Equal(t, "us-east-1", cp.Region)
+		assert.Equal(t, "ws-full", cp.WorkspaceID)
+	})
+
+	t.Run("NoClaudePlatformMessage", func(t *testing.T) {
+		t.Parallel()
+		spec := protoToProviderSpec(&proto.AIProvider{
+			Enabled: true,
+			Type:    string(database.AIProviderTypeAnthropic),
+			Name:    "anthropic-plain",
+			BaseUrl: "https://api.anthropic.com/",
+			Keys:    []string{"sk-ant-plain"},
+		})
+		assert.Nil(t, spec.ClaudePlatformAWS)
+	})
+}
+
+func TestClaudePlatformConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Configured", func(t *testing.T) {
+		t.Parallel()
+		got := claudePlatformConfig("", &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-east-1",
+			WorkspaceID: "ws-configured",
+		})
+		require.NotNil(t, got)
+		assert.Equal(t, "us-east-1", got.Region)
+		assert.Equal(t, "ws-configured", got.WorkspaceID)
+		assert.Empty(t, got.BaseURL, "no provider base url means the regional endpoint applies")
+	})
+
+	t.Run("BaseURLOverridePreservesRegion", func(t *testing.T) {
+		t.Parallel()
+		// The base URL only redirects the request; SigV4 signatures stay
+		// scoped to the configured region.
+		got := claudePlatformConfig("https://proxy.example.com/anthropic/", &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "ap-southeast-2",
+			WorkspaceID: "ws-proxy",
+		})
+		require.NotNil(t, got)
+		assert.Equal(t, "https://proxy.example.com/anthropic/", got.BaseURL)
+		assert.Equal(t, "ap-southeast-2", got.Region)
+	})
+
+	t.Run("Nil", func(t *testing.T) {
+		t.Parallel()
+		assert.Nil(t, claudePlatformConfig("https://api.anthropic.com/", nil))
+	})
+
+	t.Run("Incomplete", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name     string
+			settings codersdk.AIProviderClaudePlatformAWSSettings
+		}{
+			{
+				name:     "Empty",
+				settings: codersdk.AIProviderClaudePlatformAWSSettings{},
+			},
+			{
+				name: "NoRegion",
+				settings: codersdk.AIProviderClaudePlatformAWSSettings{
+					WorkspaceID: "ws-no-region",
+				},
+			},
+			{
+				name: "NoWorkspaceID",
+				settings: codersdk.AIProviderClaudePlatformAWSSettings{
+					Region: "us-east-1",
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				assert.Nil(t, claudePlatformConfig("https://api.anthropic.com/", &tc.settings))
+			})
+		}
+	})
+}
+
+func TestBuildProviderClaudePlatformWithoutKeys(t *testing.T) {
+	t.Parallel()
+
+	provider, err := buildProvider(t.Context(), aiProviderSpec{
+		Type:    database.AIProviderTypeAnthropic,
+		Name:    "claude-platform-iam",
+		Enabled: true,
+		BaseURL: "https://api.anthropic.com/",
+		ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-east-1",
+			WorkspaceID: "ws-build-iam",
+		},
+	}, codersdk.AIBridgeConfig{AllowBYOK: serpent.Bool(false)}, slogtest.Make(t, nil), nil)
+	require.NoError(t, err)
+	assert.Equal(t, aibridge.ProviderAnthropic, provider.Type())
+	assert.Equal(t, "claude-platform-iam", provider.Name())
+}
+
+func TestBuildProviderKeyless(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Anthropic", func(t *testing.T) {
+		t.Parallel()
+		_, err := buildProvider(t.Context(), aiProviderSpec{
+			Type: database.AIProviderTypeAnthropic, Name: "anthropic", Enabled: true,
+		}, codersdk.AIBridgeConfig{AllowBYOK: serpent.Bool(false)}, slogtest.Make(t, nil), nil)
+		require.EqualError(t, err, "anthropic provider has no api keys configured and BYOK is not enabled")
+
+		p, err := buildProvider(t.Context(), aiProviderSpec{
+			Type: database.AIProviderTypeAnthropic, Name: "anthropic", Enabled: true,
+		}, codersdk.AIBridgeConfig{AllowBYOK: serpent.Bool(true)}, slogtest.Make(t, nil), nil)
+		require.NoError(t, err)
+		require.Equal(t, aibridge.ProviderAnthropic, p.Type())
+	})
+
+	t.Run("ClaudePlatform", func(t *testing.T) {
+		t.Parallel()
+		spec := aiProviderSpec{
+			Type: database.AIProviderTypeAnthropic, Name: "claude-platform", Enabled: true,
+			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{Region: "us-east-1", WorkspaceID: "ws-build"},
+		}
+		for _, allowBYOK := range []bool{false, true} {
+			p, err := buildProvider(t.Context(), spec, codersdk.AIBridgeConfig{AllowBYOK: serpent.Bool(allowBYOK)}, slogtest.Make(t, nil), nil)
+			require.NoError(t, err)
+			require.Equal(t, aibridge.ProviderAnthropic, p.Type())
 		}
 	})
 }

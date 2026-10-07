@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent } from "storybook/test";
-import type { AIBridgeThread } from "#/api/typesGenerated";
+import type { AIBridgeThread, MinimalUser } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
 	MockAIBridgeThread,
@@ -48,7 +48,9 @@ const mockThreadLong: AIBridgeThread = {
 	},
 	agentic_actions: [
 		{
+			interception_id: "interception-2",
 			model: "claude-opus-4-6",
+			attribution: { workspace_id: "workspace-2" },
 			token_usage: {
 				input_tokens: 2800,
 				output_tokens: 1100,
@@ -69,6 +71,21 @@ const mockThreadLong: AIBridgeThread = {
 					metadata: {},
 					created_at: "2026-03-09T10:00:15.000Z",
 				},
+			],
+		},
+		{
+			interception_id: "interception-3",
+			model: "claude-opus-4-6",
+			attribution: { workspace_id: "workspace-3" },
+			token_usage: {
+				input_tokens: 2800,
+				output_tokens: 1100,
+				cache_read_input_tokens: 1800,
+				cache_write_input_tokens: 500,
+				metadata: {},
+			},
+			thinking: [],
+			tool_calls: [
 				{
 					id: "tool-2b",
 					interception_id: "interception-3",
@@ -84,6 +101,20 @@ const mockThreadLong: AIBridgeThread = {
 					created_at: "2026-03-09T10:01:00.000Z",
 				},
 			],
+		},
+		{
+			interception_id: "interception-4",
+			model: "claude-opus-4-6",
+			attribution: {},
+			token_usage: {
+				input_tokens: 0,
+				output_tokens: 0,
+				cache_read_input_tokens: 0,
+				cache_write_input_tokens: 0,
+				metadata: {},
+			},
+			thinking: [],
+			tool_calls: [],
 		},
 	],
 };
@@ -109,6 +140,24 @@ type Story = StoryObj<typeof SessionTimeline>;
 
 export const OneThread: Story = {};
 
+const MockInitiatorWithLongUsername: MinimalUser = {
+	...MockSession.initiator,
+	username: "averylongusernamefortheinitiatorofthissession",
+};
+
+export const LongUsername: Story = {
+	args: {
+		initiator: MockInitiatorWithLongUsername,
+	},
+};
+
+export const Mobile: Story = {
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
 // A summary is present only for sessions that passed through Agent Firewall.
 // The panel sits above the threads because its counts are session-scoped
 // rather than tied to any one thread.
@@ -132,9 +181,9 @@ const longFiller =
 const mockThreadLongPrompt: AIBridgeThread = {
 	...MockAIBridgeThread,
 	id: "thread-3",
-	prompt:
-		longFiller.repeat(16) +
-		"Finally, coordinate the cutover using zebra-relay.",
+	prompt: `${longFiller.repeat(
+		16,
+	)}Finally, coordinate the cutover using zebra-relay.`,
 	agentic_actions: [],
 };
 

@@ -46,12 +46,14 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty"
@@ -79,32 +81,60 @@ func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*p
 
 func TestSSH(t *testing.T) {
 	t.Parallel()
-	t.Run("ImmediateExit", func(t *testing.T) {
-		t.Parallel()
 
-		logger := testutil.Logger(t)
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		inv, root := clitest.New(t, "ssh", workspace.Name)
-		clitest.SetupConfig(t, client, root)
-		stdout := expecter.NewAttachedToInvocation(t, inv)
-		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{name: "GenerateSessionID"},
+		{name: "ClientSessionID", id: "0123456789abcdef0123456789abcdef"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+			connLogger := connectionlog.NewFake()
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				ConnectionLogger: connLogger,
+			})
+			client.SetLogger(testutil.Logger(t).Named("client"))
+			first := coderdtest.CreateFirstUser(t, client)
+			userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+				r.Username = "myuser"
+			})
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				Name:           "myworkspace",
+				OrganizationID: first.OrganizationID,
+				OwnerID:        user.ID,
+			}).WithAgent().Do()
 
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
+			inv, root := clitest.New(t, "ssh", r.Workspace.Name)
+			clitest.SetupConfig(t, userClient, root)
+			if tc.id != "" {
+				inv.Environ.Set("CODER_TRACE_SESSION_ID", tc.id)
+			}
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, testutil.Logger(t).Named("stdin"), inv)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			cmdDone := tGo(t, func() {
+				err := inv.WithContext(ctx).Run()
+				assert.NoError(t, err)
+			})
+			stdout.ExpectMatch(ctx, "Waiting")
+
+			_ = agenttest.New(t, client.URL, r.AgentToken)
+			_ = coderdtest.NewWorkspaceAgentWaiter(t, userClient, r.Workspace.ID).Wait()
+
+			// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
+			stdin.WriteLine("exit")
+			<-cmdDone
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeSsh, tc.id)
 		})
-		stdout.ExpectMatch(ctx, "Waiting")
+	}
 
-		_ = agenttest.New(t, client.URL, agentToken)
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-
-		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
-		stdin.WriteLine("exit")
-		<-cmdDone
-	})
 	t.Run("WorkspaceNameInput", func(t *testing.T) {
 		t.Parallel()
 
@@ -443,66 +473,6 @@ func TestSSH(t *testing.T) {
 		case <-ctx.Done():
 			require.Fail(t, "command did not exit in time")
 		}
-	})
-
-	t.Run("Stdio", func(t *testing.T) {
-		t.Parallel()
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		_, _ = tGoContext(t, func(ctx context.Context) {
-			// Run this async so the SSH command has to wait for
-			// the build and agent to connect!
-			_ = agenttest.New(t, client.URL, agentToken)
-			<-ctx.Done()
-		})
-
-		clientOutput, clientInput := io.Pipe()
-		serverOutput, serverInput := io.Pipe()
-		defer func() {
-			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
-				_ = c.Close()
-			}
-		}()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
-		clitest.SetupConfig(t, client, root)
-		inv.Stdin = clientOutput
-		inv.Stdout = serverInput
-		inv.Stderr = io.Discard
-
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
-		})
-
-		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
-			Reader: serverOutput,
-			Writer: clientInput,
-		}, "", &ssh.ClientConfig{
-			// #nosec
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		})
-		require.NoError(t, err)
-		defer conn.Close()
-
-		sshClient := ssh.NewClient(conn, channels, requests)
-		session, err := sshClient.NewSession()
-		require.NoError(t, err)
-		defer session.Close()
-
-		command := "sh -c exit"
-		if runtime.GOOS == "windows" {
-			command = "cmd.exe /c exit"
-		}
-		err = session.Run(command)
-		require.NoError(t, err)
-		err = sshClient.Close()
-		require.NoError(t, err)
-		_ = clientOutput.Close()
-
-		<-cmdDone
 	})
 
 	t.Run("DeterministicHostKey", func(t *testing.T) {
@@ -1630,51 +1600,51 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 
 		type testCase struct {
-			name                   string
-			experiment             bool
-			usageAppName           string
-			expectedCalls          int
-			expectedCountSSH       int
-			expectedCountJetbrains int
-			expectedCountVscode    int
+			name           string
+			experiment     bool
+			usageAppName   string
+			expectedCalls  int
+			expectedCounts map[string]int64
 		}
 		tcs := []testCase{
 			{
 				name: "NoExperiment",
 			},
 			{
-				name:             "Empty",
-				experiment:       true,
-				expectedCalls:    1,
-				expectedCountSSH: 1,
+				name:           "Empty",
+				experiment:     true,
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"ssh": 1},
 			},
 			{
-				name:             "SSH",
-				experiment:       true,
-				usageAppName:     "ssh",
-				expectedCalls:    1,
-				expectedCountSSH: 1,
+				name:           "SSH",
+				experiment:     true,
+				usageAppName:   "ssh",
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"ssh": 1},
 			},
 			{
-				name:                   "Jetbrains",
-				experiment:             true,
-				usageAppName:           "jetbrains",
-				expectedCalls:          1,
-				expectedCountJetbrains: 1,
+				name:           "Jetbrains",
+				experiment:     true,
+				usageAppName:   "jetbrains",
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"jetbrains": 1},
 			},
 			{
-				name:                "Vscode",
-				experiment:          true,
-				usageAppName:        "vscode",
-				expectedCalls:       1,
-				expectedCountVscode: 1,
+				name:           "Vscode",
+				experiment:     true,
+				usageAppName:   "vscode",
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"vscode": 1},
 			},
 			{
-				name:             "InvalidDefaultsToSSH",
-				experiment:       true,
-				usageAppName:     "invalid",
-				expectedCalls:    1,
-				expectedCountSSH: 1,
+				// Arbitrary app names are accepted, normalized by the server
+				// at ingestion, so new IDEs need no CLI changes.
+				name:           "ArbitraryNamePassthrough",
+				experiment:     true,
+				usageAppName:   "Some-Future-IDE",
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"some_future_ide": 1},
 			},
 			{
 				name:         "Disable",
@@ -1729,10 +1699,18 @@ func TestSSH(t *testing.T) {
 				stdin.WriteLine("exit")
 				<-cmdDone
 
-				require.EqualValues(t, tc.expectedCalls, batcher.Called)
-				require.EqualValues(t, tc.expectedCountSSH, batcher.LastStats.SessionCountSsh)
-				require.EqualValues(t, tc.expectedCountJetbrains, batcher.LastStats.SessionCountJetbrains)
-				require.EqualValues(t, tc.expectedCountVscode, batcher.LastStats.SessionCountVscode)
+				// The agent may still be reporting stats concurrently, so
+				// the batcher fields are only safe to read under its mutex.
+				batcher.Mu.Lock()
+				called := batcher.Called
+				sessionCounts := batcher.LastStats.GetSessionCounts()
+				batcher.Mu.Unlock()
+				require.EqualValues(t, tc.expectedCalls, called)
+				if len(tc.expectedCounts) == 0 {
+					require.Empty(t, sessionCounts)
+				} else {
+					require.EqualValues(t, tc.expectedCounts, sessionCounts)
+				}
 			})
 		}
 	})
@@ -1817,6 +1795,98 @@ func TestSSH(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestSSH_Stdio(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		id          string
+		useOldAgent bool
+	}{
+		{name: "GenerateSessionID"},
+		{name: "ClientSessionID", id: "0123456789abcdef0123456789abcdef"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			connLogger := connectionlog.NewFake()
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				ConnectionLogger: connLogger,
+			})
+			client.SetLogger(testutil.Logger(t).Named("client"))
+			first := coderdtest.CreateFirstUser(t, client)
+			userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+				r.Username = "myuser"
+			})
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				Name:           "myworkspace",
+				OrganizationID: first.OrganizationID,
+				OwnerID:        user.ID,
+			}).WithAgent().Do()
+
+			_, _ = tGoContext(t, func(ctx context.Context) {
+				// Run this async so the SSH command has to wait for
+				// the build and agent to connect!
+				_ = agenttest.New(t, userClient.URL, r.AgentToken)
+				<-ctx.Done()
+			})
+
+			clientOutput, clientInput := io.Pipe()
+			serverOutput, serverInput := io.Pipe()
+			defer func() {
+				for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+					_ = c.Close()
+				}
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			inv, root := clitest.New(t, "ssh", "--stdio", r.Workspace.Name)
+			clitest.SetupConfig(t, userClient, root)
+			if tc.id != "" {
+				inv.Environ.Set("CODER_TRACE_SESSION_ID", tc.id)
+			}
+			inv.Stdin = clientOutput
+			inv.Stdout = serverInput
+			inv.Stderr = io.Discard
+
+			cmdDone := tGo(t, func() {
+				err := inv.WithContext(ctx).Run()
+				assert.NoError(t, err)
+			})
+
+			conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+				Reader: serverOutput,
+				Writer: clientInput,
+			}, "", &ssh.ClientConfig{
+				// #nosec
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			sshClient := ssh.NewClient(conn, channels, requests)
+			session, err := sshClient.NewSession()
+			require.NoError(t, err)
+			defer session.Close()
+
+			command := "sh -c exit"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c exit"
+			}
+			err = session.Run(command)
+			require.NoError(t, err)
+			err = sshClient.Close()
+			require.NoError(t, err)
+			_ = clientOutput.Close()
+
+			<-cmdDone
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeSsh, tc.id)
+		})
+	}
 }
 
 //nolint:paralleltest // This test uses t.Setenv, parent test MUST NOT be parallel.
@@ -2160,6 +2230,99 @@ func TestSSH_Container(t *testing.T) {
 func TestSSH_CoderConnect(t *testing.T) {
 	t.Parallel()
 
+	tests := []struct {
+		name        string
+		id          string
+		useOldAgent bool
+	}{
+		{name: "GenerateSessionID"},
+		{name: "ClientSessionID", id: "0123456789abcdef0123456789abcdef"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			connLogger := connectionlog.NewFake()
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				ConnectionLogger: connLogger,
+			})
+			client.SetLogger(testutil.Logger(t).Named("client"))
+			first := coderdtest.CreateFirstUser(t, client)
+			userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+				r.Username = "myuser"
+			})
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				Name:           "myworkspace",
+				OrganizationID: first.OrganizationID,
+				OwnerID:        user.ID,
+			}).WithAgent().Do()
+
+			_ = agenttest.New(t, userClient.URL, r.AgentToken)
+			resources := coderdtest.NewWorkspaceAgentWaiter(t, userClient, r.Workspace.ID).Wait()
+
+			clientOutput, clientInput := io.Pipe()
+			serverOutput, serverInput := io.Pipe()
+			defer func() {
+				for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+					_ = c.Close()
+				}
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			// Get an agent conn to use as the Coder Connect dialer.
+			agentConn, err := workspacesdk.New(userClient).DialAgent(ctx, resources[0].Agents[0].ID, nil)
+			require.NoError(t, err)
+			defer agentConn.Close()
+			require.True(t, agentConn.AwaitReachable(ctx))
+
+			inv, root := clitest.New(t, "ssh", r.Workspace.Name, "--stdio")
+			clitest.SetupConfig(t, userClient, root)
+			if tc.id != "" {
+				inv.Environ.Set("CODER_TRACE_SESSION_ID", tc.id)
+			}
+			ctx = cli.WithTestOnlyCoderConnectDialer(ctx, agentConn)
+			ctx = withCoderConnectRunning(ctx)
+			inv.Stdin = clientOutput
+			inv.Stdout = serverInput
+			inv.Stderr = io.Discard
+
+			cmdDone := tGo(t, func() {
+				err := inv.WithContext(ctx).Run()
+				assert.NoError(t, err)
+			})
+
+			conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+				Reader: serverOutput,
+				Writer: clientInput,
+			}, "", &ssh.ClientConfig{
+				// #nosec
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			sshClient := ssh.NewClient(conn, channels, requests)
+			session, err := sshClient.NewSession()
+			require.NoError(t, err)
+			defer session.Close()
+
+			command := "sh -c exit"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c exit"
+			}
+			err = session.Run(command)
+			require.NoError(t, err)
+			err = sshClient.Close()
+			require.NoError(t, err)
+			_ = clientOutput.Close()
+
+			<-cmdDone
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeSsh, tc.id)
+		})
+	}
+
 	t.Run("Enabled", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -2187,7 +2350,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 
 		err := testutil.TryReceive(ctx, t, errCh)
 		// Our mock dialer will always fail with this error, if it was called
-		require.ErrorContains(t, err, "dial coder connect host \"dev.myworkspace.myuser.coder:22\" over tcp")
+		require.ErrorContains(t, err, "dial coder connect host \"dev.myworkspace.myuser.coder:4\" over tcp")
 
 		// The network info file should be created since we passed `--stdio`
 		entries, err := afero.ReadDir(fs, "/net")
@@ -2594,4 +2757,33 @@ func TestSSH_Completion(t *testing.T) {
 		output := stdout.String()
 		require.Empty(t, output)
 	})
+}
+
+func assertConnLog(t *testing.T,
+	connLogger *connectionlog.FakeConnectionLogger,
+	workspace database.WorkspaceTable,
+	expectedType database.ConnectionType,
+	clientSessionID string,
+) {
+	t.Helper()
+	// Wait until we get at least one related log.
+	var logs []database.UpsertConnectionLogParams
+	require.Eventually(t, func() bool {
+		for _, log := range connLogger.ConnectionLogs() {
+			if log.Type == expectedType &&
+				log.WorkspaceID == workspace.ID {
+				logs = append(logs, log)
+			}
+		}
+		return len(logs) > 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	for _, log := range logs {
+		switch {
+		case clientSessionID != "":
+			require.Equal(t, clientSessionID, log.ClientSessionID.String)
+		default: // Should have generated a client session ID.
+			require.NotEmpty(t, log.ClientSessionID.String)
+		}
+	}
 }

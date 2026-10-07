@@ -8,7 +8,7 @@ import { CircleIcon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 
 export const RadioGroup: React.FC<
-	React.ComponentPropsWithRef<typeof RadioGroupPrimitive.Root>
+	React.ComponentProps<typeof RadioGroupPrimitive.Root>
 > = ({ className, ...props }) => {
 	return (
 		<RadioGroupPrimitive.Root
@@ -19,7 +19,7 @@ export const RadioGroup: React.FC<
 };
 
 export const RadioGroupItem: React.FC<
-	React.ComponentPropsWithRef<typeof RadioGroupPrimitive.Item>
+	React.ComponentProps<typeof RadioGroupPrimitive.Item>
 > = ({ className, ...props }) => {
 	return (
 		<RadioGroupPrimitive.Item

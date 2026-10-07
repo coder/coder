@@ -16,6 +16,8 @@ export const getProviderIcon = (provider: string): string | undefined => {
 			return "/icon/anthropic.svg";
 		case "bedrock":
 			return "/icon/aws.svg";
+		case "claude-platform-aws":
+			return "/icon/aws.svg";
 		case "azure":
 			return "/icon/azure.svg";
 		case "copilot":
@@ -26,6 +28,8 @@ export const getProviderIcon = (provider: string): string | undefined => {
 			return "/icon/vercel.svg";
 		case "gemini":
 			return "/icon/gemini.svg";
+		case "openrouter":
+			return "/icon/openrouter.svg";
 		default:
 			return undefined;
 	}

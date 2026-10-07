@@ -1,23 +1,16 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import { EnterpriseBadge } from "#/components/Badge/PresetBadges";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { Textarea } from "#/components/Textarea/Textarea";
+import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
@@ -31,7 +24,7 @@ type PublishTemplateVersionDialogProps = {
 	onConfirm: (data: PublishVersionData) => void;
 };
 
-export const PublishTemplateVersionDialog: FC<
+export const PublishTemplateVersionDialog: React.FC<
 	PublishTemplateVersionDialogProps
 > = ({
 	open,
@@ -134,25 +127,22 @@ export const PublishTemplateVersionDialog: FC<
 									</Label>
 								</div>
 
-								<HelpPopover>
-									<HelpPopoverIconTrigger />
-									<HelpPopoverContent>
-										<HelpPopoverTitle>Active versions</HelpPopoverTitle>
-										<HelpPopoverText>
-											Templates can enforce that the active version be used for
-											all workspaces <EnterpriseBadge />
-										</HelpPopoverText>
-										<HelpPopoverLinksGroup>
-											<HelpPopoverLink
-												href={docs(
-													"/admin/templates/managing-templates#template-update-policies",
-												)}
-											>
-												Review the documentation
-											</HelpPopoverLink>
-										</HelpPopoverLinksGroup>
-									</HelpPopoverContent>
-								</HelpPopover>
+								<InfoTooltip>
+									<TooltipTitle>Active versions</TooltipTitle>
+									<TooltipMessage>
+										Templates can enforce that the active version be used for
+										all workspaces <EnterpriseBadge />
+										<br />
+										<Link
+											size="sm"
+											href={docs(
+												"/admin/templates/managing-templates#template-update-policies",
+											)}
+										>
+											Review the documentation
+										</Link>
+									</TooltipMessage>
+								</InfoTooltip>
 							</div>
 						</FormFields>
 					</div>

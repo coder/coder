@@ -15,3 +15,6 @@ var ChatStopWorkspace = (*API).chatStopWorkspace
 // ChatRenderTemplateParameters exposes chatRenderTemplateParameters for
 // external tests.
 var ChatRenderTemplateParameters = (*API).chatRenderTemplateParameters
+
+// NormalizeWorkspaceFileReference exposes normalizeWorkspaceFileReference for tests.
+var NormalizeWorkspaceFileReference = normalizeWorkspaceFileReference

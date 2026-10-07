@@ -1,10 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fn } from "storybook/test";
+import {
+	MockDeletedWorkspace,
+	MockFailedWorkspace,
+	MockOutdatedStoppedWorkspaceRequireActiveVersion,
+	MockStartingWorkspace,
+	MockStoppedWorkspace,
+	MockWorkspace,
+} from "#/testHelpers/entities";
 import { DesktopPanelView, type DesktopPanelViewProps } from "./DesktopPanel";
 
 const defaults: DesktopPanelViewProps = {
 	status: "idle",
+	workspace: MockWorkspace,
+	agentStatus: "connected",
+	onStartWorkspace: fn(),
+	isStartingWorkspace: false,
 	reconnect: fn(),
 	attach: fn(),
 	scaleMode: "native",
@@ -69,4 +81,52 @@ export const Disconnected: Story = {
 
 export const ErrorState: Story = {
 	args: { status: "error" },
+};
+
+export const WorkspaceStopped: Story = {
+	args: { workspace: MockStoppedWorkspace, agentStatus: undefined },
+};
+
+export const WorkspaceStarting: Story = {
+	args: {
+		workspace: MockStoppedWorkspace,
+		agentStatus: undefined,
+		isStartingWorkspace: true,
+	},
+};
+
+export const WorkspaceStoppedRequiresUpdate: Story = {
+	args: {
+		workspace: MockOutdatedStoppedWorkspaceRequireActiveVersion,
+		agentStatus: undefined,
+	},
+};
+
+export const WorkspaceFailedStart: Story = {
+	args: { workspace: MockFailedWorkspace, agentStatus: undefined },
+};
+
+export const WorkspaceFailedStop: Story = {
+	args: {
+		workspace: {
+			...MockFailedWorkspace,
+			latest_build: {
+				...MockFailedWorkspace.latest_build,
+				transition: "stop",
+			},
+		},
+		agentStatus: undefined,
+	},
+};
+
+export const WorkspaceBuildStarting: Story = {
+	args: { workspace: MockStartingWorkspace, agentStatus: undefined },
+};
+
+export const WorkspaceDeleted: Story = {
+	args: { workspace: MockDeletedWorkspace, agentStatus: undefined },
+};
+
+export const AgentConnecting: Story = {
+	args: { agentStatus: "connecting" },
 };

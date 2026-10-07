@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
 import { fn, userEvent, within } from "storybook/test";
 import {
 	MockPrimaryWorkspaceProxy,
@@ -165,7 +164,7 @@ export const UserSettings: Story = {
 	},
 };
 
-function withNavbarMock(Story: FC) {
+function withNavbarMock(Story: React.FC) {
 	return (
 		<div className="h-[72px] border-0 border-b border-solid px-6 flex items-center justify-end">
 			<Story />

@@ -10,7 +10,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
-	"github.com/coder/coder/v2/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 )
@@ -145,6 +144,23 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 	logger = logger.With(slog.F("user_id", id))
 
+	// Direct and delegated carriers are mutually exclusive and request-scoped.
+	// Delegated requests carry attribution stamped by the in-process caller
+	// (chatd); direct requests carry workspace attribution parsed from the
+	// server-minted token name by IsAuthorized.
+	var attribution agplaibridge.Attribution
+	if delegated {
+		attribution, _ = agplaibridge.DelegatedAttributionFromContext(ctx)
+	} else {
+		attribution, err = attributionFromAuthorization(resp)
+		if err != nil {
+			logger.Warn(ctx, "invalid authorization attribution", slog.Error(err))
+			http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
+			return
+		}
+	}
+	ctx = agplaibridge.WithAttribution(ctx, attribution)
+
 	budgetResp, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
 		UserId: id.String(),
 	})
@@ -161,14 +177,15 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Rewire request context to include actor.
-	//
-	// [NOTE]
-	// The metadata provided here must NOT be sensitive as it could be included
-	// in requests to upstream services.
-	r = r.WithContext(aibridge.AsActor(ctx, resp.GetOwnerId(), recorder.Metadata{
-		"Username": resp.GetUsername(),
-	}))
+	// Attach only the verified identity. Key secrets remain outside the
+	// request context.
+	ctx = aibridge.AsActor(ctx, aibridge.Actor{
+		ID:       id,
+		APIKeyID: resp.GetApiKeyId(),
+		Username: resp.GetUsername(),
+		Email:    resp.GetEmail(),
+	})
+	r = r.WithContext(ctx)
 
 	handler, err := s.GetRequestHandler(ctx, Request{
 		SessionKey:  key,
@@ -182,4 +199,18 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	handler.ServeHTTP(rw, r)
+}
+
+// attributionFromAuthorization extracts the workspace ID from the
+// IsAuthorizedResponse. The proto carries only workspace_id for attribution;
+// organization and workspace name are not returned.
+func attributionFromAuthorization(resp *proto.IsAuthorizedResponse) (agplaibridge.Attribution, error) {
+	if resp.GetWorkspaceId() == "" {
+		return agplaibridge.Attribution{}, nil
+	}
+	workspaceID, err := uuid.Parse(resp.GetWorkspaceId())
+	if err != nil {
+		return agplaibridge.Attribution{}, xerrors.Errorf("parse workspace ID: %w", err)
+	}
+	return agplaibridge.Attribution{WorkspaceID: workspaceID}, nil
 }

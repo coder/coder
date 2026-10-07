@@ -1,6 +1,10 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { appendTextBlock } from "./blockUtils";
-import { ensureToolBlock, parseToolResultIsError } from "./messageParsing";
+import {
+	ensureToolBlock,
+	getToolResultStatus,
+	parseToolResultIsError,
+} from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
 import type { MergedTool, RenderBlock, StreamState } from "./types";
 
@@ -38,6 +42,7 @@ export const applyMessagePartToStreamState = (
 			}
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: appendTextBlock(nextState.blocks, "thinking", part.text),
 			};
 		}
@@ -72,6 +77,7 @@ export const applyMessagePartToStreamState = (
 
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				toolCalls: {
 					...nextState.toolCalls,
@@ -108,22 +114,22 @@ export const applyMessagePartToStreamState = (
 					: null) ||
 				`tool-result-${Object.keys(nextState.toolResults).length + 1}-${++nextFallbackID}`;
 			const existing = nextState.toolResults[toolCallID];
+			const isFinalResult = part.result !== undefined || Boolean(part.is_error);
+			const hasDelta = Boolean(part.result_delta || part.reasoning_delta);
 			if (part.result_reset) {
 				const toolResults = { ...nextState.toolResults };
 				delete toolResults[toolCallID];
 				return {
 					...nextState,
+					startedAt: nextState.startedAt ?? part.created_at,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 					toolResults,
 				};
 			}
-			if (
-				part.result_delta === "" &&
-				part.result === undefined &&
-				!part.is_error
-			) {
+			if (part.result_delta === "" && !hasDelta && !isFinalResult) {
 				return {
 					...nextState,
+					startedAt: nextState.startedAt ?? part.created_at,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				};
 			}
@@ -134,17 +140,20 @@ export const applyMessagePartToStreamState = (
 				part.result,
 				part.result_delta,
 			);
+			// Reasoning is transient, so the final result drops it.
+			const nextReasoning = isFinalResult
+				? undefined
+				: `${existing?.reasoning ?? ""}${part.reasoning_delta ?? ""}` ||
+					undefined;
 			const nextToolName = part.tool_name || existing?.name || "Tool";
-			const isFinalResult = part.result !== undefined || part.is_error;
-			const isStreaming = isFinalResult
-				? false
-				: existing?.isStreaming || Boolean(part.result_delta);
+			const isStreaming = !isFinalResult && (existing?.isStreaming || hasDelta);
 			const nextIsError =
 				existing?.isError ||
 				parseToolResultIsError(nextToolName, part, nextResult.value);
 
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				toolResults: {
 					...nextState.toolResults,
@@ -153,6 +162,7 @@ export const applyMessagePartToStreamState = (
 						name: nextToolName,
 						result: nextResult.value,
 						resultRaw: nextResult.rawText,
+						reasoning: nextReasoning,
 						isError: nextIsError,
 						isMedia: part.is_media || existing?.isMedia,
 						isStreaming: isStreaming || undefined,
@@ -216,6 +226,9 @@ export const applyMessagePartToStreamState = (
 		// Hook notices may arrive in durable message events, but not in
 		// streaming part deltas.
 		case "hook-notice":
+		// workspace-file-reference parts only appear in persisted
+		// user messages, never via SSE streaming.
+		case "workspace-file-reference":
 			return prev;
 		default: {
 			const _exhaustive: never = part;
@@ -227,13 +240,7 @@ export const applyMessagePartToStreamState = (
 const getStreamToolStatus = (
 	result: StreamState["toolResults"][string] | undefined,
 ): MergedTool["status"] => {
-	if (!result) {
-		return "running";
-	}
-	if (result.isStreaming) {
-		return "running";
-	}
-	return result.isError ? "error" : "completed";
+	return result ? getToolResultStatus(result) : "running";
 };
 
 export const buildStreamTools = (
@@ -255,6 +262,7 @@ export const buildStreamTools = (
 			name: call.name,
 			args: call.args,
 			result: result?.result,
+			reasoning: result?.reasoning,
 			isError: result?.isError ?? false,
 			isMedia: result?.isMedia,
 			status: getStreamToolStatus(result),
@@ -272,6 +280,7 @@ export const buildStreamTools = (
 					id: result.id,
 					name: result.name,
 					result: result.result,
+					reasoning: result.reasoning,
 					isError: result.isError,
 					isMedia: result.isMedia,
 					status: getStreamToolStatus(result),
@@ -282,4 +291,52 @@ export const buildStreamTools = (
 	}
 
 	return merged;
+};
+
+/**
+ * Removes live tool output whose tool call is durable. The durable call's
+ * card renders that output instead (see `MergeToolsOptions.liveToolResults`).
+ * Returns null when nothing remains, preventing an empty live row.
+ *
+ * Takes the store's message map rather than parsed messages so that
+ * per-chunk stream updates never invalidate the transcript parse.
+ */
+export const excludeDurableCallResults = (
+	streamState: StreamState,
+	messagesByID: ReadonlyMap<number, TypesGen.ChatMessage>,
+): StreamState | null => {
+	if (!streamState.blocks.some((block) => block.type === "tool")) {
+		return streamState;
+	}
+	const durableCallIDs = new Set<string>();
+	for (const message of messagesByID.values()) {
+		for (const part of message.content ?? []) {
+			if (
+				part.type === "tool-call" &&
+				part.tool_call_id &&
+				!part.provider_executed
+			) {
+				durableCallIDs.add(part.tool_call_id);
+			}
+		}
+	}
+	const blocks = streamState.blocks.filter(
+		(block) => block.type !== "tool" || !durableCallIDs.has(block.id),
+	);
+	if (blocks.length === streamState.blocks.length) {
+		return streamState;
+	}
+	if (blocks.length === 0) {
+		return null;
+	}
+	const withoutDurableCalls = <T>(entries: Record<string, T>) =>
+		Object.fromEntries(
+			Object.entries(entries).filter(([id]) => !durableCallIDs.has(id)),
+		);
+	return {
+		...streamState,
+		blocks,
+		toolCalls: withoutDurableCalls(streamState.toolCalls),
+		toolResults: withoutDurableCalls(streamState.toolResults),
+	};
 };

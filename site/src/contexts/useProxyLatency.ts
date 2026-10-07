@@ -5,7 +5,7 @@ import { generateRandomBase64String } from "#/utils/random";
 
 const proxyIntervalSeconds = 30; // seconds
 
-export interface ProxyLatencyReport {
+export type ProxyLatencyReport = {
 	// accurate identifies if the latency was calculated using the
 	// PerformanceResourceTiming API. If this is false, then the
 	// latency is calculated using the total duration of the request
@@ -19,14 +19,14 @@ export interface ProxyLatencyReport {
 	 * https://developer.mozilla.org/docs/Web/API/PerformanceResourceTiming/nextHopProtocol
 	 */
 	nextHopProtocol?: string;
-}
+};
 
-interface ProxyLatencyAction {
+type ProxyLatencyAction = {
 	proxyID: string;
 	// cached indicates if the latency was loaded from a cache (local storage)
 	cached: boolean;
 	report: ProxyLatencyReport;
-}
+};
 
 const proxyLatenciesReducer = (
 	state: Record<string, ProxyLatencyReport>,

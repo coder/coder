@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC, ReactNode } from "react";
 import * as Yup from "yup";
 import type { Group } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -36,7 +35,7 @@ type FormData = {
 };
 
 const validationSchema = Yup.object({
-	name: nameValidator("Name"),
+	name: nameValidator("Name", { maxLength: 255 }),
 	quota_allowance: Yup.number().required().min(0).integer(),
 	// Optional: empty means no budget. A value must be within the range; 0 disables.
 	monthly_budget_per_member: Yup.number()
@@ -45,7 +44,7 @@ const validationSchema = Yup.object({
 		.max(maxAIBudgetDollars, aiBudgetRangeError),
 });
 
-const BudgetDocsLink: FC = () => (
+const BudgetDocsLink: React.FC = () => (
 	<Link
 		href={docs("/ai-coder/ai-gateway/cost-controls#effective-group-resolution")}
 		target="_blank"
@@ -59,14 +58,14 @@ const BudgetDocsLink: FC = () => (
 	</Link>
 );
 
-interface AIBudgetFeedbackProps {
+type AIBudgetFeedbackProps = {
 	error: boolean;
-	helperText?: ReactNode;
+	helperText?: React.ReactNode;
 	monthlyBudgetPerMember: string;
 	memberCount: number;
-}
+};
 
-const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
+const AIBudgetFeedback: React.FC<AIBudgetFeedbackProps> = ({
 	error,
 	helperText,
 	monthlyBudgetPerMember,
@@ -132,7 +131,7 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 	return null;
 };
 
-interface UpdateGroupFormProps {
+type UpdateGroupFormProps = {
 	group: Group;
 	/** Whether the AI budget settings are shown (gated by the aibridge feature). */
 	showAISettings: boolean;
@@ -141,9 +140,9 @@ interface UpdateGroupFormProps {
 	errors: unknown;
 	onSubmit: (data: FormData) => void;
 	isLoading: boolean;
-}
+};
 
-const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
+const UpdateGroupForm: React.FC<UpdateGroupFormProps> = ({
 	group,
 	showAISettings,
 	initialBudgetDollars,
@@ -348,7 +347,7 @@ type SettingsGroupPageViewProps = {
 	isUpdating: boolean;
 };
 
-const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
+const GroupSettingsPageView: React.FC<SettingsGroupPageViewProps> = ({
 	onSubmit,
 	group,
 	showAISettings,

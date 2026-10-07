@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatUserCustomPrompt,
@@ -8,7 +7,7 @@ import {
 } from "#/api/queries/chats";
 import { AgentSettingsGeneralPageView } from "./AgentSettingsGeneralPageView";
 
-const AgentSettingsGeneralPage: FC = () => {
+const AgentSettingsGeneralPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const userPromptQuery = useQuery(chatUserCustomPrompt());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());

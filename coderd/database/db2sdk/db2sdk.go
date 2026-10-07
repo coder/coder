@@ -478,12 +478,19 @@ func TemplateVersionParameterOptionFromPreview(option *previewtypes.ParameterOpt
 }
 
 func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
+	uris := dbApp.RegisteredRedirectURIs()
 	return codersdk.OAuth2ProviderApp{
-		ID:          dbApp.ID,
-		Name:        dbApp.Name,
-		CallbackURL: dbApp.CallbackURL,
-		Icon:        dbApp.Icon,
-		ClientType:  codersdk.OAuth2ClientType(dbApp.ClientType),
+		ID:           dbApp.ID,
+		Name:         dbApp.Name,
+		RedirectURIs: uris,
+		CallbackURL:  uris[0],
+		Icon:         dbApp.Icon,
+		Scope:        rbac.CanonicalScopeList(dbApp.Scope.String),
+		ClientType:   codersdk.OAuth2ClientType(dbApp.ClientType),
+		// The column allows NULL, although every write path sets a value. A
+		// NULL reads as false, which keeps the client update guards closed but
+		// hides the scope narrowing warning for that app.
+		DynamicallyRegistered: dbApp.DynamicallyRegistered.Bool,
 		Endpoints: codersdk.OAuth2AppEndpoints{
 			Authorization: accessURL.ResolveReference(&url.URL{
 				Path: "/oauth2/authorize",
@@ -1381,13 +1388,13 @@ func buildAIBridgeThread(
 		}
 	}
 
-	// Build agentic actions grouped by interception. Each interception that
-	// has tool calls produces one action with all its tool calls, thinking
-	// blocks, and token usage.
+	// Build one action per interception. Child interceptions always produce
+	// an action, including when they have no tool calls. The root action is
+	// emitted only when the actual thread-root interception has tool calls.
 	var actions []codersdk.AIBridgeAgenticAction
 	for _, intc := range interceptions {
 		tools := toolsByInterception[intc.ID]
-		if len(tools) == 0 {
+		if intc.ID == threadID && len(tools) == 0 {
 			continue
 		}
 
@@ -1420,10 +1427,12 @@ func buildAIBridgeThread(
 		}
 
 		actions = append(actions, codersdk.AIBridgeAgenticAction{
-			Model:      intc.Model,
-			TokenUsage: actionTokenUsage,
-			Thinking:   thinking,
-			ToolCalls:  toolCalls,
+			InterceptionID: intc.ID,
+			Model:          intc.Model,
+			Attribution:    aiBridgeInterceptionAttribution(intc),
+			TokenUsage:     actionTokenUsage,
+			Thinking:       thinking,
+			ToolCalls:      toolCalls,
 		})
 	}
 
@@ -1433,6 +1442,10 @@ func buildAIBridgeThread(
 	}
 
 	thread.AgenticActions = actions
+
+	if rootIntc != nil && rootIntc.ID == threadID {
+		thread.Attribution = aiBridgeInterceptionAttribution(*rootIntc)
+	}
 
 	// Aggregate thread-level token usage.
 	var threadTokens []database.AIBridgeTokenUsage
@@ -1593,6 +1606,17 @@ func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidat
 	return presets
 }
 
+// aiBridgeInterceptionAttribution builds attribution from the dedicated
+// interception columns. It returns nil when no workspace context is recorded.
+func aiBridgeInterceptionAttribution(intc database.AIBridgeInterception) codersdk.AIBridgeAttribution {
+	if !intc.WorkspaceID.Valid {
+		return nil
+	}
+	return codersdk.AIBridgeAttribution{
+		"workspace_id": intc.WorkspaceID.UUID.String(),
+	}
+}
+
 // sanitizeCredentialHint ensures the hint looks masked before exposing
 // it in the API. The aibridge library uses "..." as the masking
 // delimiter (e.g. "sk-a...efgh"), so we check for its presence. If
@@ -1636,12 +1660,15 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		createdBy = nil
 	}
 	msg := codersdk.ChatMessage{
-		ID:            m.ID,
-		ChatID:        m.ChatID,
-		CreatedBy:     createdBy,
-		ModelConfigID: modelConfigID,
-		CreatedAt:     m.CreatedAt,
-		Role:          codersdk.ChatMessageRole(m.Role),
+		ID:              m.ID,
+		ChatID:          m.ChatID,
+		CreatedBy:       createdBy,
+		ModelConfigID:   modelConfigID,
+		CreatedAt:       m.CreatedAt,
+		Role:            codersdk.ChatMessageRole(m.Role),
+		QueuedMessageID: nullInt64Ptr(m.QueuedMessageID),
+		AutomationID:    nullUUIDPtr(m.AutomationID),
+		InputID:         nullUUIDPtr(m.InputID),
 	}
 	if m.Content.Valid {
 		parts, err := chatMessageParts(m)
@@ -1706,6 +1733,8 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
 		Content:       parts,
 		CreatedAt:     message.CreatedAt,
+		AutomationID:  nullUUIDPtr(message.AutomationID),
+		InputID:       nullUUIDPtr(message.InputID),
 	}
 }
 
@@ -1757,6 +1786,49 @@ func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 		CreatedAt:       dbPrice.CreatedAt,
 		UpdatedAt:       dbPrice.UpdatedAt,
 	}
+}
+
+// ChatAutomation converts a chat automation row to its SDK form. The
+// webhook secret hash is never included. nextRuns are the upcoming schedule
+// runs the caller computed; a nil slice is returned as empty.
+func ChatAutomation(row database.ChatAutomation, nextRuns []time.Time) codersdk.ChatAutomation {
+	automation := codersdk.ChatAutomation{
+		ID:                   row.ID,
+		OrganizationID:       row.OrganizationID,
+		OwnerID:              row.OwnerID,
+		Name:                 row.Name,
+		CreatedByChatID:      nullUUIDPtr(row.CreatedByChatID),
+		Kind:                 codersdk.ChatAutomationKind(row.Kind),
+		Enabled:              row.Enabled,
+		TargetMode:           codersdk.ChatAutomationTargetMode(row.TargetMode),
+		TargetChatID:         nullUUIDPtr(row.TargetChatID),
+		NewChatModelConfigID: nullUUIDPtr(row.NewChatModelConfigID),
+		WebhookSecretVersion: row.WebhookSecretVersion,
+		WebhookConsumedAt:    nullTimePtr(row.WebhookConsumedAt),
+		Prompt:               row.Prompt,
+		ScheduleCron:         nullStringPtr(row.ScheduleCron),
+		ScheduleTimeZone:     nullStringPtr(row.ScheduleTimeZone),
+		ScheduleNextRunAt:    nullTimePtr(row.ScheduleNextRunAt),
+		NextRunTimes:         nextRuns,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+	}
+	if automation.NextRunTimes == nil {
+		automation.NextRunTimes = []time.Time{}
+	}
+	if row.ReasoningEffort.Valid {
+		effort := string(row.ReasoningEffort.ChatReasoningEffort)
+		automation.ReasoningEffort = &effort
+	}
+	if row.WhenBusy.Valid {
+		whenBusy := codersdk.ChatAutomationWhenBusy(row.WhenBusy.ChatAutomationWhenBusy)
+		automation.WhenBusy = &whenBusy
+	}
+	if row.WebhookUse.Valid {
+		webhookUse := codersdk.ChatAutomationWebhookUse(row.WebhookUse.ChatAutomationWebhookUse)
+		automation.WebhookUse = &webhookUse
+	}
+	return automation
 }
 
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
@@ -1826,6 +1898,45 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 	return &payload
 }
 
+func ChatProject(project database.ChatProject) codersdk.ChatProject {
+	return codersdk.ChatProject{
+		ID:             project.ID,
+		OrganizationID: project.OrganizationID,
+		OwnerID:        project.OwnerID,
+		Name:           project.Name,
+		Description:    project.Description,
+		Icon:           project.Icon,
+		CreatedAt:      project.CreatedAt,
+		UpdatedAt:      project.UpdatedAt,
+	}
+}
+
+func ChatProjectMemory(row database.GetChatProjectMemoryByIDRow) codersdk.ChatProjectMemory {
+	return convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+}
+
+func ChatProjectMemoryRows(rows []database.GetChatProjectMemoriesByProjectIDRow) []codersdk.ChatProjectMemory {
+	memories := make([]codersdk.ChatProjectMemory, len(rows))
+	for i, row := range rows {
+		memories[i] = convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
+	}
+	return memories
+}
+
+func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUsername string) codersdk.ChatProjectMemory {
+	return codersdk.ChatProjectMemory{
+		ID:                memory.ID,
+		ProjectID:         memory.ProjectID,
+		OrganizationID:    memory.OrganizationID,
+		Name:              memory.Name,
+		Description:       memory.Description,
+		Body:              memory.Body,
+		CreatedBy:         memory.CreatedBy,
+		CreatedByUsername: createdByUsername,
+		CreatedAt:         memory.CreatedAt,
+	}
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
@@ -1833,6 +1944,17 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 // When files is non-empty the response includes file metadata;
 // pass nil to omit the files field (e.g. list endpoints).
 func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByChatIDRow) codersdk.Chat {
+	return ChatWithDiffStatuses(c, diffStatus, nil, files)
+}
+
+// ChatWithDiffStatuses converts a chat with its per-ref diff status
+// list. diffStatus is the primary shown in the diff_status field.
+func ChatWithDiffStatuses(
+	c database.Chat,
+	diffStatus *database.ChatDiffStatus,
+	diffStatuses []database.ChatDiffStatus,
+	files []database.GetChatFileMetadataByChatIDRow,
+) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
@@ -1850,6 +1972,8 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		OwnerName:         c.OwnerName,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
+		TitleSource:       codersdk.ChatTitleSource(c.TitleSource),
+		TitleUpdatedAt:    c.TitleUpdatedAt,
 		Status:            codersdk.ChatStatus(c.Status),
 		Archived:          c.Archived,
 		Shared:            len(c.UserACL) > 0 || len(c.GroupACL) > 0,
@@ -1860,6 +1984,8 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
 		LastError:         lastError,
+
+		ManageAutomationsEnabled: c.ManageAutomationsEnabled,
 	}
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String
@@ -1897,6 +2023,9 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
 	}
+	if c.ProjectID.Valid {
+		chat.ProjectID = &c.ProjectID.UUID
+	}
 	if c.BuildID.Valid {
 		chat.BuildID = &c.BuildID.UUID
 	}
@@ -1906,6 +2035,12 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if diffStatus != nil {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
+	}
+	if len(diffStatuses) > 0 {
+		chat.DiffStatuses = make([]codersdk.ChatDiffStatus, 0, len(diffStatuses))
+		for i := range diffStatuses {
+			chat.DiffStatuses = append(chat.DiffStatuses, ChatDiffStatus(c.ID, &diffStatuses[i]))
+		}
 	}
 	if len(files) > 0 {
 		chat.Files = make([]codersdk.ChatFileMetadata, 0, len(files))
@@ -1992,6 +2127,35 @@ func nullRawJSONObject(raw pqtype.NullRawMessage) map[string]any {
 	return rawJSONObject(raw.RawMessage)
 }
 
+// InlineMCPServer converts a database.ChatMCPServer to its redacted
+// codersdk.InlineMCPServer view, which reports only whether headers are
+// set.
+func InlineMCPServer(row database.ChatMCPServer) (codersdk.InlineMCPServer, error) {
+	var headers map[string]string
+	if err := json.Unmarshal([]byte(row.Headers), &headers); err != nil {
+		return codersdk.InlineMCPServer{}, xerrors.Errorf("parse headers for chat MCP server %q: %w", row.Slug, err)
+	}
+	return codersdk.InlineMCPServer{
+		ID:                  row.ID,
+		Slug:                row.Slug,
+		URL:                 row.Url,
+		HasCustomHeaders:    len(headers) > 0,
+		ToolAllowList:       nonNilStrings(row.ToolAllowList),
+		ToolDenyList:        nonNilStrings(row.ToolDenyList),
+		AllowInSubagents:    row.AllowInSubagents,
+		ForwardCoderHeaders: row.ForwardCoderHeaders,
+		CreatedAt:           row.CreatedAt,
+		UpdatedAt:           row.UpdatedAt,
+	}, nil
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
 // ChatDebugRunSummary converts a database.ChatDebugRun to a
 // codersdk.ChatDebugRunSummary.
 func ChatDebugRunSummary(r database.ChatDebugRun) codersdk.ChatDebugRunSummary {
@@ -2065,13 +2229,13 @@ func ChatDebugRunDetail(r database.ChatDebugRun, steps []database.ChatDebugStep)
 // is non-nil, children without an entry receive an empty DiffStatus.
 func ChildChatRows(
 	children []database.GetChildChatsByParentIDsRow,
-	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+	diffStatuses map[uuid.UUID][]database.ChatDiffStatus,
 ) []codersdk.Chat {
 	result := make([]codersdk.Chat, len(children))
 	for i, row := range children {
-		diffStatus, ok := diffStatuses[row.Chat.ID]
+		statuses, ok := diffStatuses[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus, nil)
+			result[i] = ChatWithDiffStatuses(row.Chat, PrimaryChatDiffStatus(statuses), statuses, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatuses != nil {
@@ -2090,7 +2254,7 @@ func ChildChatRows(
 func ChatRowsWithChildren(
 	roots []database.GetChatsRow,
 	children []database.GetChildChatsByParentIDsRow,
-	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+	diffStatuses map[uuid.UUID][]database.ChatDiffStatus,
 ) []codersdk.Chat {
 	// Group children by parent ID.
 	childrenByParent := make(map[uuid.UUID][]database.GetChildChatsByParentIDsRow, len(children))
@@ -2101,9 +2265,9 @@ func ChatRowsWithChildren(
 
 	result := make([]codersdk.Chat, len(roots))
 	for i, row := range roots {
-		diffStatus, ok := diffStatuses[row.Chat.ID]
+		statuses, ok := diffStatuses[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus, nil)
+			result[i] = ChatWithDiffStatuses(row.Chat, PrimaryChatDiffStatus(statuses), statuses, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatuses != nil {
@@ -2133,6 +2297,14 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	}
 
 	result.ChatID = status.ChatID
+	if status.GitRemoteOrigin != "" {
+		remoteOrigin := status.GitRemoteOrigin
+		result.RemoteOrigin = &remoteOrigin
+	}
+	if status.GitBranch != "" {
+		gitBranch := status.GitBranch
+		result.GitBranch = &gitBranch
+	}
 	if status.Url.Valid {
 		u := strings.TrimSpace(status.Url.String)
 		if u != "" {
@@ -2202,6 +2374,24 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	result.StaleAt = &staleAt
 
 	return result
+}
+
+// PrimaryChatDiffStatus returns the row with the most recent git
+// report, or nil when statuses is empty. Only a git report sets
+// updated_at. Ties go to the lowest origin, then the lowest branch.
+func PrimaryChatDiffStatus(statuses []database.ChatDiffStatus) *database.ChatDiffStatus {
+	if len(statuses) == 0 {
+		return nil
+	}
+
+	primary := slices.MinFunc(statuses, func(a, b database.ChatDiffStatus) int {
+		return cmp.Or(
+			b.UpdatedAt.Compare(a.UpdatedAt),
+			cmp.Compare(a.GitRemoteOrigin, b.GitRemoteOrigin),
+			cmp.Compare(a.GitBranch, b.GitBranch),
+		)
+	})
+	return &primary
 }
 
 // UserSecret converts a database ListUserSecretsRow (metadata only,

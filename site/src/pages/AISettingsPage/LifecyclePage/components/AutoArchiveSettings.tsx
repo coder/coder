@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DefaultChatAutoArchiveDays } from "#/api/typesGenerated";
@@ -7,12 +6,12 @@ import { useTemporarySavedState } from "#/components/TemporarySavedState/Tempora
 import { docs } from "#/utils/docs";
 import { DaysField, LifecycleSettingLayout } from "./LifecycleSettingLayout";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
-interface AutoArchiveSettingsProps {
+type AutoArchiveSettingsProps = {
 	autoArchiveDaysData: TypesGen.ChatAutoArchiveDaysResponse | undefined;
 	isAutoArchiveDaysLoading: boolean;
 	isAutoArchiveDaysLoadError: boolean;
@@ -22,7 +21,7 @@ interface AutoArchiveSettingsProps {
 	) => void;
 	isSavingAutoArchiveDays: boolean;
 	isSaveAutoArchiveDaysError: boolean;
-}
+};
 
 // Keep in sync with autoArchiveDaysMaximum in coderd/exp_chats.go.
 const DAYS_MIN = 1;
@@ -42,7 +41,7 @@ const validationSchema = Yup.object({
 	}),
 });
 
-export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
+export const AutoArchiveSettings: React.FC<AutoArchiveSettingsProps> = ({
 	autoArchiveDaysData,
 	isAutoArchiveDaysLoading,
 	isAutoArchiveDaysLoadError,

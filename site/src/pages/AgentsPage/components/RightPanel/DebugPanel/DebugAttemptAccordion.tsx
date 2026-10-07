@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronDownIcon } from "lucide-react";
-import type { FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Collapsible,
@@ -20,18 +19,22 @@ import {
 	safeJsonStringify,
 } from "./debugPanelUtils";
 
-interface DebugAttemptAccordionProps {
+type DebugAttemptAccordionProps = {
 	attempts: NormalizedAttempt[];
 	rawFallback?: string;
-}
+};
 
-interface JsonBlockProps {
+type JsonBlockProps = {
 	value: unknown;
 	emptyMessage: string;
 	copyLabel: string;
-}
+};
 
-const JsonBlock: FC<JsonBlockProps> = ({ value, emptyMessage, copyLabel }) => {
+const JsonBlock: React.FC<JsonBlockProps> = ({
+	value,
+	emptyMessage,
+	copyLabel,
+}) => {
 	if (
 		value === null ||
 		value === undefined ||
@@ -65,7 +68,7 @@ const getAttemptTimingLabel = (attempt: NormalizedAttempt): string => {
 	return `${startedLabel} → ${finishedLabel} • ${durationLabel}`;
 };
 
-export const DebugAttemptAccordion: FC<DebugAttemptAccordionProps> = ({
+export const DebugAttemptAccordion: React.FC<DebugAttemptAccordionProps> = ({
 	attempts,
 	rawFallback,
 }) => {
@@ -96,7 +99,7 @@ export const DebugAttemptAccordion: FC<DebugAttemptAccordionProps> = ({
 					key={`${attempt.attempt_number}-${attempt.started_at ?? index}`}
 					defaultOpen={false}
 				>
-					<div className="border-l border-l-border-default/50">
+					<div className="border-l border-l-border/50">
 						<CollapsibleTrigger asChild>
 							<button
 								type="button"

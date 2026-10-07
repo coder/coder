@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
+import { Link } from "#/components/Link/Link";
+import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import { InfoTooltip } from "./InfoTooltip";
 
 const meta = {
@@ -7,55 +9,76 @@ const meta = {
 	component: InfoTooltip,
 	args: {
 		type: "info",
-		title: "Hello, friend!",
-		message: "Today is a lovely day :^)",
+		children: (
+			<>
+				<TooltipTitle>Hello, friend!</TooltipTitle>
+				<TooltipMessage>Today is a lovely day :^)</TooltipMessage>
+			</>
+		),
 	},
 } satisfies Meta<typeof InfoTooltip>;
 
 export default meta;
 type Story = StoryObj<typeof InfoTooltip>;
 
-export const Example: Story = {
+export const Info: Story = {
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.click(screen.getByRole("button"));
+		await step("hover trigger reveals content", async () => {
+			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("dialog")).toHaveTextContent(meta.args.message),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					"Today is a lovely day :^)",
+				),
 			);
 		});
 	},
 };
 
-export const Notice = {
-	args: {
-		type: "notice",
-		message: "Unfortunately, there's a radio connected to my brain",
-	},
-	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.click(screen.getByRole("button"));
-			await waitFor(() =>
-				expect(screen.getByRole("dialog")).toHaveTextContent(
-					Notice.args.message,
-				),
-			);
-		});
-	},
-} satisfies Story;
-
-export const Warning = {
+export const Warning: Story = {
 	args: {
 		type: "warning",
-		message: "Unfortunately, there's a radio connected to my brain",
+		children: (
+			<>
+				<TooltipTitle>Something needs attention</TooltipTitle>
+				<TooltipMessage>
+					Unfortunately, there's a radio connected to my brain
+				</TooltipMessage>
+			</>
+		),
 	},
 	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.click(screen.getByRole("button"));
+		await step("hover trigger reveals content", async () => {
+			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("dialog")).toHaveTextContent(
-					Warning.args.message,
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					"Unfortunately, there's a radio connected to my brain",
 				),
 			);
 		});
 	},
-} satisfies Story;
+};
+
+export const WithLink: Story = {
+	args: {
+		children: (
+			<>
+				<TooltipTitle>What is a role?</TooltipTitle>
+				<TooltipMessage>
+					Coder role-based access control (RBAC) provides fine-grained access
+					management. View our docs on how to use the available roles.
+					<Link size="sm" href="https://coder.com/docs">
+						User Roles
+					</Link>
+				</TooltipMessage>
+			</>
+		),
+	},
+	play: async ({ step }) => {
+		await step("hover trigger reveals content", async () => {
+			await userEvent.hover(screen.getByRole("button"));
+			await waitFor(() =>
+				expect(screen.getByRole("tooltip")).toHaveTextContent("User Roles"),
+			);
+		});
+	},
+};

@@ -4,7 +4,7 @@ import {
 	MessageCircleQuestionIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { type FC, type FormEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
@@ -141,7 +141,7 @@ type SelectableAnswerOptionProps = {
 	isSubmitting: boolean;
 };
 
-const SelectableAnswerOption: FC<SelectableAnswerOptionProps> = ({
+const SelectableAnswerOption: React.FC<SelectableAnswerOptionProps> = ({
 	id,
 	value,
 	label,
@@ -184,7 +184,7 @@ type QuestionOptionProps = {
 	isSubmitting: boolean;
 };
 
-const QuestionOption: FC<QuestionOptionProps> = ({
+const QuestionOption: React.FC<QuestionOptionProps> = ({
 	questionIdBase,
 	option,
 	optionIndex,
@@ -213,7 +213,7 @@ type OtherQuestionOptionProps = {
 	onTextChange: (text: string) => void;
 };
 
-const OtherQuestionOption: FC<OtherQuestionOptionProps> = ({
+const OtherQuestionOption: React.FC<OtherQuestionOptionProps> = ({
 	questionHeader,
 	questionIdBase,
 	optionIndex,
@@ -264,7 +264,7 @@ type QuestionStepProps = {
 	onOtherTextChange: (text: string) => void;
 };
 
-const QuestionStep: FC<QuestionStepProps> = ({
+const QuestionStep: React.FC<QuestionStepProps> = ({
 	question,
 	questionIndex,
 	questionCount,
@@ -305,7 +305,7 @@ const QuestionStep: FC<QuestionStepProps> = ({
 					<span>{questionText}</span>
 				</p>
 			</div>
-			<div className="rounded-md border border-solid border-border-default px-3 py-1">
+			<div className="rounded-md border border-solid border-border px-3 py-1">
 				<RadioGroup
 					aria-labelledby={`${questionHeaderId} ${questionTextId}`}
 					className="space-y-1"
@@ -346,7 +346,7 @@ type AnsweredQuestionTextProps = {
 	idPrefix: string;
 };
 
-const AnsweredQuestionText: FC<AnsweredQuestionTextProps> = ({
+const AnsweredQuestionText: React.FC<AnsweredQuestionTextProps> = ({
 	question,
 	questionIndex,
 	idPrefix,
@@ -368,7 +368,7 @@ const AnsweredQuestionText: FC<AnsweredQuestionTextProps> = ({
 	);
 };
 
-export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
+export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	questions,
 	status,
 	isError,
@@ -516,7 +516,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		submitAnswerMutation.mutate(outgoingMessage);
 	};
 
-	const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+	const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		if (!isInteractive) {
 			return;
@@ -613,7 +613,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 			</div>
 
 			{showSubmittedResponse && (
-				<div className="mt-4 rounded-md border border-solid border-border-default bg-surface-secondary px-3 py-2">
+				<div className="mt-4 rounded-md border border-solid border-border bg-surface-secondary px-3 py-2">
 					<p className="text-xs font-medium text-content-secondary">
 						Submitted answer
 					</p>

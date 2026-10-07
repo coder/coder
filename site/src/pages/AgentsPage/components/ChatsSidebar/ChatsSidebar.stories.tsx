@@ -1,21 +1,27 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import {
 	expect,
 	fireEvent,
 	fn,
+	spyOn,
 	userEvent,
 	waitFor,
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -67,6 +73,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 });
 
 const agentsRouting = [
+	{ path: "/agents/projects/:projectId", useStoryElement: true },
 	{ path: "/agents/:agentId", useStoryElement: true },
 	{ path: "/agents", useStoryElement: true },
 ] satisfies [
@@ -96,6 +103,8 @@ const meta: Meta<typeof ChatsSidebar> = {
 		onArchiveAndDeleteWorkspace: fn(),
 		onPinAgent: fn(),
 		onUnpinAgent: fn(),
+		onMarkChatRead: fn(),
+		onMarkChatUnread: fn(),
 		onRenameTitle: fn(() => Promise.resolve()),
 		onBeforeNewAgent: fn(),
 		isSearchDialogOpen: false,
@@ -120,7 +129,7 @@ export default meta;
 type Story = StoryObj<typeof ChatsSidebar>;
 
 const ChatsSidebarWithKeybindings = (
-	args: ComponentProps<typeof ChatsSidebar>,
+	args: React.ComponentProps<typeof ChatsSidebar>,
 ) => {
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(
 		args.isSearchDialogOpen,
@@ -145,7 +154,7 @@ const ChatsSidebarWithKeybindings = (
 };
 
 const ChatsSidebarWithDeferredModels = (
-	args: ComponentProps<typeof ChatsSidebar>,
+	args: React.ComponentProps<typeof ChatsSidebar>,
 ) => {
 	const [modelsResolved, setModelsResolved] = useState(false);
 
@@ -238,6 +247,102 @@ export const SharedUnreadChat: Story = {
 				shared: true,
 				has_unread: true,
 				last_turn_summary: "Original unread chat summary",
+			}),
+		],
+	},
+};
+
+/** Shared chats expose the copy menu without owner-only actions. */
+export const ActiveSharedChatViewerHasCopyMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-active",
+				title: "Shared active chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/shared-active",
+				pathParams: { agentId: "shared-active" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+/** Viewers can expand subagents and copy chat details without managing the chat. */
+export const SharedChatViewerMenuWithSubagents: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-parent",
+				title: "Shared parent chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				children: [
+					buildChat({
+						id: "shared-child",
+						title: "Shared child chat",
+						owner_id: "sharing-user",
+						owner_name: "Sharing User",
+						owner_username: "sharing-user",
+						parent_chat_id: "shared-parent",
+						root_chat_id: "shared-parent",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/shared-parent",
+				pathParams: { agentId: "shared-parent" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Open actions for Shared parent chat",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", {
+			name: "Show subagents (1)",
+		});
+	},
+};
+
+/**
+ * Pin order belongs to the owner, so a chat another user pinned lists under
+ * Shared with you instead of joining the viewer's sortable Pinned section.
+ */
+export const SharedChatPinnedByOwnerStaysInSharedWithYou: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "own-pinned",
+				title: "Own pinned chat",
+				pin_order: 1,
+			}),
+			buildChat({
+				id: "shared-pinned-by-owner",
+				title: "Shared chat pinned by its owner",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				pin_order: 1,
 			}),
 		],
 	},
@@ -680,6 +785,18 @@ export const SidebarFilterMenu: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Filter agents" }),
 		);
+	},
+};
+
+export const SectionSwitcherMenu: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Agents" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Agents" });
 	},
 };
 
@@ -1666,6 +1783,33 @@ export const ActiveChatKebabPersistent: Story = {
 	},
 };
 
+export const ActiveChatContextMenuOpen: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-context-menu",
+				title: "Active context menu chat",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-context-menu",
+				pathParams: { agentId: "active-context-menu" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		fireEvent.contextMenu(
+			within(canvasElement).getByTestId("agents-tree-node-active-context-menu"),
+		);
+		await within(document.body).findByText("Pin agent");
+	},
+};
+
 export const WithUnreadChats: Story = {
 	args: {
 		chats: [
@@ -1758,6 +1902,33 @@ export const AgentWithWorkspaceMenuFull: Story = {
 			"Open actions for Agent with workspace",
 		);
 		await userEvent.click(trigger);
+		await within(document.body).findByText("Pin agent");
+	},
+};
+
+export const AgentWithWorkspaceContextMenuFull: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-with-context-menu",
+				title: "Agent with context menu",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		fireEvent.contextMenu(
+			within(canvasElement).getByTestId(
+				"agents-tree-node-chat-with-context-menu",
+			),
+		);
 		await within(document.body).findByText("Pin agent");
 	},
 };
@@ -1944,7 +2115,7 @@ export const SubagentsMenuToggle: Story = {
 	},
 };
 
-export const ArchivedChildChatRowHasNoActionsMenu: Story = {
+export const ArchivedChildChatRowHasCopyMenu: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -1975,12 +2146,10 @@ export const ArchivedChildChatRowHasNoActionsMenu: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Right-click the archived child row: it has no menu actions, so a
-		// correct render leaves the row undisturbed for the capture. An
-		// erroneous menu would appear in the screenshot.
 		fireEvent.contextMenu(
 			canvas.getByTestId("agents-tree-node-child-archived"),
 		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
 	},
 };
 
@@ -2114,6 +2283,215 @@ export const UnpinContextMenu: Story = {
 		});
 		await userEvent.click(body.getByText("Unpin agent"));
 		expect(args.onUnpinAgent).toHaveBeenCalledWith("unpin-test");
+	},
+};
+
+export const ReadStateContextMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "unread-agent",
+				title: "Unread agent",
+				updated_at: recentTimestamp,
+				has_unread: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Unread agent"),
+		);
+		await within(document.body).findByText("Mark as read");
+	},
+};
+
+/**
+ * The read toggle is hidden for the chat the user already has open,
+ * because opening a chat marks it read and would undo the toggle.
+ */
+export const ActiveChatContextMenuHasNoReadToggle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-unread-agent",
+				title: "Active unread agent",
+				updated_at: recentTimestamp,
+				has_unread: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-unread-agent",
+				pathParams: { agentId: "active-unread-agent" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Active unread agent"),
+		);
+		await within(document.body).findByText("Rename chat");
+	},
+};
+
+export const CopySubmenuContextMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "copy-agent",
+				title: "Copy agent",
+				updated_at: recentTimestamp,
+				diff_status: {
+					chat_id: "copy-agent",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 0,
+					changed_files: 0,
+					head_branch: "jakehwll/copy-branch",
+				},
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Copy agent"),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", { name: "Copy" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy branch" });
+	},
+};
+
+export const CopyIDWithoutBranch: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "no-branch-agent",
+				title: "No branch agent",
+				updated_at: recentTimestamp,
+				diff_status: undefined,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for No branch agent"),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+/** Copying is read-only, so it stays available on another user's shared chat. */
+export const CopyIDOnSharedChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-copy-agent",
+				title: "Shared copy agent",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Shared copy agent"),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+/**
+ * Archived child chats have no archive or unarchive actions, so Copy ID
+ * is the whole menu when no branch is available.
+ */
+export const CopyIDOnArchivedChildChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-copy-parent",
+				title: "Archived copy parent",
+				archived: true,
+				updated_at: recentTimestamp,
+				children: [
+					buildChat({
+						id: "archived-copy-child",
+						title: "Archived copy child",
+						archived: true,
+						parent_chat_id: "archived-copy-parent",
+						root_chat_id: "archived-copy-parent",
+						updated_at: recentTimestamp,
+					}),
+				],
+			}),
+			buildChat({
+				id: "archived-copy-child",
+				title: "Archived copy child",
+				archived: true,
+				parent_chat_id: "archived-copy-parent",
+				root_chat_id: "archived-copy-parent",
+				updated_at: recentTimestamp,
+			}),
+		],
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Archived copy parent"),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Show subagents (1)" }),
+		);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Archived copy child"),
+		);
+		await body.findByRole("menuitem", { name: "Copy ID" });
 	},
 };
 
@@ -2284,5 +2662,165 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 			expect(fromValue).toContain("/agents");
 			expect(fromValue).toContain("archived=archived");
 		});
+	},
+};
+
+const mockProjectChats = [
+	buildChat({ id: "loose-chat", title: "Loose chat" }),
+	buildChat({
+		id: "project-chat",
+		title: "Project chat",
+		organization_id: MockChatProject.organization_id,
+		project_id: MockChatProject.id,
+	}),
+];
+
+export const ProjectFolderCollapsed: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+	},
+};
+
+export const ProjectFolderExpanded: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const ProjectsSectionCollapsed: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Projects" }),
+		);
+	},
+};
+
+export const MobileWithAutomations: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		experiments: ["chat-automations"],
+		viewport: { defaultViewport: "mobile1" },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	decorators: [
+		(Story) => (
+			<div className="h-125 w-90">
+				<Story />
+			</div>
+		),
+	],
+};
+
+export const AutomationsActive: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		experiments: ["chat-automations"],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/automations" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const ProjectChatWithoutLoadedProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "unloaded-project-chat",
+				title: "Chat in an unloaded project",
+				project_id: "unloaded-project",
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+	},
+};
+
+export const ProjectsLoading: Story = {
+	args: { chats: mockProjectChats },
+	parameters: { experiments: ["chat-projects"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
+export const ProjectsLoadError: Story = {
+	args: { chats: mockProjectChats },
+	parameters: { experiments: ["chat-projects"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to load projects." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Retry" });
+	},
+};
+
+const mockEmojiProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	icon: "/emojis/1f680.png",
+};
+
+export const ProjectFolderEmptyWithEmojiIcon: Story = {
+	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [mockEmojiProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${mockEmojiProject.id}`,
+				pathParams: { projectId: mockEmojiProject.id },
+			},
+			routing: agentsRouting,
+		}),
 	},
 };

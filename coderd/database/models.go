@@ -530,6 +530,20 @@ const (
 	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
 	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
 	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
+	ApiKeyScopeChatProject                         APIKeyScope = "chat_project:*"
+	ApiKeyScopeChatProjectCreate                   APIKeyScope = "chat_project:create"
+	ApiKeyScopeChatProjectRead                     APIKeyScope = "chat_project:read"
+	ApiKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
+	ApiKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
+	ApiKeyScopeChatAutomation                      APIKeyScope = "chat_automation:*"
+	ApiKeyScopeChatAutomationCreate                APIKeyScope = "chat_automation:create"
+	ApiKeyScopeChatAutomationRead                  APIKeyScope = "chat_automation:read"
+	ApiKeyScopeChatAutomationUpdate                APIKeyScope = "chat_automation:update"
+	ApiKeyScopeChatAutomationDelete                APIKeyScope = "chat_automation:delete"
+	ApiKeyScopeChatProjectMemory                   APIKeyScope = "chat_project_memory:*"
+	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
+	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
+	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -811,7 +825,21 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatModelConfigRead,
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
-		ApiKeyScopeChatModelConfigShare:
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatProject,
+		ApiKeyScopeChatProjectCreate,
+		ApiKeyScopeChatProjectRead,
+		ApiKeyScopeChatProjectUpdate,
+		ApiKeyScopeChatProjectDelete,
+		ApiKeyScopeChatAutomation,
+		ApiKeyScopeChatAutomationCreate,
+		ApiKeyScopeChatAutomationRead,
+		ApiKeyScopeChatAutomationUpdate,
+		ApiKeyScopeChatAutomationDelete,
+		ApiKeyScopeChatProjectMemory,
+		ApiKeyScopeChatProjectMemoryCreate,
+		ApiKeyScopeChatProjectMemoryRead,
+		ApiKeyScopeChatProjectMemoryDelete:
 		return true
 	}
 	return false
@@ -1062,6 +1090,20 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
 		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatProject,
+		ApiKeyScopeChatProjectCreate,
+		ApiKeyScopeChatProjectRead,
+		ApiKeyScopeChatProjectUpdate,
+		ApiKeyScopeChatProjectDelete,
+		ApiKeyScopeChatAutomation,
+		ApiKeyScopeChatAutomationCreate,
+		ApiKeyScopeChatAutomationRead,
+		ApiKeyScopeChatAutomationUpdate,
+		ApiKeyScopeChatAutomationDelete,
+		ApiKeyScopeChatProjectMemory,
+		ApiKeyScopeChatProjectMemoryCreate,
+		ApiKeyScopeChatProjectMemoryRead,
+		ApiKeyScopeChatProjectMemoryDelete,
 	}
 }
 
@@ -1419,6 +1461,238 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonSshConnection,
 		BuildReasonVscodeConnection,
 		BuildReasonJetbrainsConnection,
+	}
+}
+
+type ChatAutomationKind string
+
+const (
+	ChatAutomationKindWebhook  ChatAutomationKind = "webhook"
+	ChatAutomationKindSchedule ChatAutomationKind = "schedule"
+)
+
+func (e *ChatAutomationKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationKind(s)
+	case string:
+		*e = ChatAutomationKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationKind: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationKind struct {
+	ChatAutomationKind ChatAutomationKind `json:"chat_automation_kind"`
+	Valid              bool               `json:"valid"` // Valid is true if ChatAutomationKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationKind), nil
+}
+
+func (e ChatAutomationKind) Valid() bool {
+	switch e {
+	case ChatAutomationKindWebhook,
+		ChatAutomationKindSchedule:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationKindValues() []ChatAutomationKind {
+	return []ChatAutomationKind{
+		ChatAutomationKindWebhook,
+		ChatAutomationKindSchedule,
+	}
+}
+
+type ChatAutomationTargetMode string
+
+const (
+	ChatAutomationTargetModeExistingChat ChatAutomationTargetMode = "existing_chat"
+	ChatAutomationTargetModeNewChat      ChatAutomationTargetMode = "new_chat"
+)
+
+func (e *ChatAutomationTargetMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationTargetMode(s)
+	case string:
+		*e = ChatAutomationTargetMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationTargetMode: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationTargetMode struct {
+	ChatAutomationTargetMode ChatAutomationTargetMode `json:"chat_automation_target_mode"`
+	Valid                    bool                     `json:"valid"` // Valid is true if ChatAutomationTargetMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationTargetMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationTargetMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationTargetMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationTargetMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationTargetMode), nil
+}
+
+func (e ChatAutomationTargetMode) Valid() bool {
+	switch e {
+	case ChatAutomationTargetModeExistingChat,
+		ChatAutomationTargetModeNewChat:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationTargetModeValues() []ChatAutomationTargetMode {
+	return []ChatAutomationTargetMode{
+		ChatAutomationTargetModeExistingChat,
+		ChatAutomationTargetModeNewChat,
+	}
+}
+
+type ChatAutomationWebhookUse string
+
+const (
+	ChatAutomationWebhookUseSingle ChatAutomationWebhookUse = "single"
+	ChatAutomationWebhookUseMulti  ChatAutomationWebhookUse = "multi"
+)
+
+func (e *ChatAutomationWebhookUse) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationWebhookUse(s)
+	case string:
+		*e = ChatAutomationWebhookUse(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationWebhookUse: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationWebhookUse struct {
+	ChatAutomationWebhookUse ChatAutomationWebhookUse `json:"chat_automation_webhook_use"`
+	Valid                    bool                     `json:"valid"` // Valid is true if ChatAutomationWebhookUse is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationWebhookUse) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationWebhookUse, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationWebhookUse.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationWebhookUse) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationWebhookUse), nil
+}
+
+func (e ChatAutomationWebhookUse) Valid() bool {
+	switch e {
+	case ChatAutomationWebhookUseSingle,
+		ChatAutomationWebhookUseMulti:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationWebhookUseValues() []ChatAutomationWebhookUse {
+	return []ChatAutomationWebhookUse{
+		ChatAutomationWebhookUseSingle,
+		ChatAutomationWebhookUseMulti,
+	}
+}
+
+type ChatAutomationWhenBusy string
+
+const (
+	ChatAutomationWhenBusyQueue ChatAutomationWhenBusy = "queue"
+	ChatAutomationWhenBusySkip  ChatAutomationWhenBusy = "skip"
+)
+
+func (e *ChatAutomationWhenBusy) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationWhenBusy(s)
+	case string:
+		*e = ChatAutomationWhenBusy(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationWhenBusy: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationWhenBusy struct {
+	ChatAutomationWhenBusy ChatAutomationWhenBusy `json:"chat_automation_when_busy"`
+	Valid                  bool                   `json:"valid"` // Valid is true if ChatAutomationWhenBusy is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationWhenBusy) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationWhenBusy, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationWhenBusy.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationWhenBusy) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationWhenBusy), nil
+}
+
+func (e ChatAutomationWhenBusy) Valid() bool {
+	switch e {
+	case ChatAutomationWhenBusyQueue,
+		ChatAutomationWhenBusySkip:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationWhenBusyValues() []ChatAutomationWhenBusy {
+	return []ChatAutomationWhenBusy{
+		ChatAutomationWhenBusyQueue,
+		ChatAutomationWhenBusySkip,
 	}
 }
 
@@ -1913,6 +2187,68 @@ func AllChatStatusValues() []ChatStatus {
 		ChatStatusError,
 		ChatStatusRequiresAction,
 		ChatStatusInterrupting,
+	}
+}
+
+// Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.
+type ChatTitleSource string
+
+const (
+	ChatTitleSourceFallback  ChatTitleSource = "fallback"
+	ChatTitleSourceGenerated ChatTitleSource = "generated"
+	ChatTitleSourceUser      ChatTitleSource = "user"
+)
+
+func (e *ChatTitleSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatTitleSource(s)
+	case string:
+		*e = ChatTitleSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatTitleSource: %T", src)
+	}
+	return nil
+}
+
+type NullChatTitleSource struct {
+	ChatTitleSource ChatTitleSource `json:"chat_title_source"`
+	Valid           bool            `json:"valid"` // Valid is true if ChatTitleSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatTitleSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatTitleSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatTitleSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatTitleSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatTitleSource), nil
+}
+
+func (e ChatTitleSource) Valid() bool {
+	switch e {
+	case ChatTitleSourceFallback,
+		ChatTitleSourceGenerated,
+		ChatTitleSourceUser:
+		return true
+	}
+	return false
+}
+
+func AllChatTitleSourceValues() []ChatTitleSource {
+	return []ChatTitleSource{
+		ChatTitleSourceFallback,
+		ChatTitleSourceGenerated,
+		ChatTitleSourceUser,
 	}
 }
 
@@ -3627,46 +3963,51 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization                ResourceType = "organization"
-	ResourceTypeTemplate                    ResourceType = "template"
-	ResourceTypeTemplateVersion             ResourceType = "template_version"
-	ResourceTypeUser                        ResourceType = "user"
-	ResourceTypeWorkspace                   ResourceType = "workspace"
-	ResourceTypeGitSshKey                   ResourceType = "git_ssh_key"
-	ResourceTypeApiKey                      ResourceType = "api_key"
-	ResourceTypeGroup                       ResourceType = "group"
-	ResourceTypeWorkspaceBuild              ResourceType = "workspace_build"
-	ResourceTypeLicense                     ResourceType = "license"
-	ResourceTypeWorkspaceProxy              ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin                ResourceType = "convert_login"
-	ResourceTypeHealthSettings              ResourceType = "health_settings"
-	ResourceTypeOauth2ProviderApp           ResourceType = "oauth2_provider_app"
-	ResourceTypeOauth2ProviderAppSecret     ResourceType = "oauth2_provider_app_secret"
-	ResourceTypeCustomRole                  ResourceType = "custom_role"
-	ResourceTypeOrganizationMember          ResourceType = "organization_member"
-	ResourceTypeNotificationsSettings       ResourceType = "notifications_settings"
-	ResourceTypeNotificationTemplate        ResourceType = "notification_template"
-	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
-	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
-	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
-	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
-	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
-	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
-	ResourceTypeTask                        ResourceType = "task"
-	ResourceTypeAISeat                      ResourceType = "ai_seat"
-	ResourceTypeChat                        ResourceType = "chat"
-	ResourceTypeUserSecret                  ResourceType = "user_secret"
-	ResourceTypeAIProvider                  ResourceType = "ai_provider"
-	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
-	ResourceTypeGroupAIBudget               ResourceType = "group_ai_budget"
-	ResourceTypeUserSkill                   ResourceType = "user_skill"
-	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
-	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
-	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
-	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
-	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
-	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
-	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
+	ResourceTypeOrganization                 ResourceType = "organization"
+	ResourceTypeTemplate                     ResourceType = "template"
+	ResourceTypeTemplateVersion              ResourceType = "template_version"
+	ResourceTypeUser                         ResourceType = "user"
+	ResourceTypeWorkspace                    ResourceType = "workspace"
+	ResourceTypeGitSshKey                    ResourceType = "git_ssh_key"
+	ResourceTypeApiKey                       ResourceType = "api_key"
+	ResourceTypeGroup                        ResourceType = "group"
+	ResourceTypeWorkspaceBuild               ResourceType = "workspace_build"
+	ResourceTypeLicense                      ResourceType = "license"
+	ResourceTypeWorkspaceProxy               ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin                 ResourceType = "convert_login"
+	ResourceTypeHealthSettings               ResourceType = "health_settings"
+	ResourceTypeOauth2ProviderApp            ResourceType = "oauth2_provider_app"
+	ResourceTypeOauth2ProviderAppSecret      ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeCustomRole                   ResourceType = "custom_role"
+	ResourceTypeOrganizationMember           ResourceType = "organization_member"
+	ResourceTypeNotificationsSettings        ResourceType = "notifications_settings"
+	ResourceTypeNotificationTemplate         ResourceType = "notification_template"
+	ResourceTypeIdpSyncSettingsOrganization  ResourceType = "idp_sync_settings_organization"
+	ResourceTypeIdpSyncSettingsGroup         ResourceType = "idp_sync_settings_group"
+	ResourceTypeIdpSyncSettingsRole          ResourceType = "idp_sync_settings_role"
+	ResourceTypeWorkspaceAgent               ResourceType = "workspace_agent"
+	ResourceTypeWorkspaceApp                 ResourceType = "workspace_app"
+	ResourceTypePrebuildsSettings            ResourceType = "prebuilds_settings"
+	ResourceTypeTask                         ResourceType = "task"
+	ResourceTypeAISeat                       ResourceType = "ai_seat"
+	ResourceTypeChat                         ResourceType = "chat"
+	ResourceTypeUserSecret                   ResourceType = "user_secret"
+	ResourceTypeAIProvider                   ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey                ResourceType = "ai_provider_key"
+	ResourceTypeGroupAIBudget                ResourceType = "group_ai_budget"
+	ResourceTypeUserSkill                    ResourceType = "user_skill"
+	ResourceTypeAIGatewayKey                 ResourceType = "ai_gateway_key"
+	ResourceTypeUserAIBudgetOverride         ResourceType = "user_ai_budget_override"
+	ResourceTypeOauth2ProviderSettings       ResourceType = "oauth2_provider_settings"
+	ResourceTypeChatInstructionSettings      ResourceType = "chat_instruction_settings"
+	ResourceTypeMCPServerConfig              ResourceType = "mcp_server_config"
+	ResourceTypeChatModelConfig              ResourceType = "chat_model_config"
+	ResourceTypeChatOperationalSettings      ResourceType = "chat_operational_settings"
+	ResourceTypeExperimentRule               ResourceType = "experiment_rule"
+	ResourceTypeChatProject                  ResourceType = "chat_project"
+	ResourceTypeChatAutomation               ResourceType = "chat_automation"
+	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
+	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3745,7 +4086,12 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
-		ResourceTypeChatOperationalSettings:
+		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
+		ResourceTypeChatProject,
+		ResourceTypeChatAutomation,
+		ResourceTypeChatProjectMemory,
+		ResourceTypeChatOrganizationSystemPrompt:
 		return true
 	}
 	return false
@@ -3793,6 +4139,11 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
+		ResourceTypeChatProject,
+		ResourceTypeChatAutomation,
+		ResourceTypeChatProjectMemory,
+		ResourceTypeChatOrganizationSystemPrompt,
 	}
 }
 
@@ -4790,6 +5141,8 @@ type AIBridgeInterception struct {
 	ErrorType NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
 	// Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
+	// The workspace in which the agent ran. NULL when no workspace context is available.
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -4818,6 +5171,10 @@ type AIBridgeTokenUsage struct {
 	CacheReadPriceMicros  sql.NullInt64         `db:"cache_read_price_micros" json:"cache_read_price_micros"`
 	CacheWritePriceMicros sql.NullInt64         `db:"cache_write_price_micros" json:"cache_write_price_micros"`
 	CostMicros            sql.NullInt64         `db:"cost_micros" json:"cost_micros"`
+	// The model reported by the upstream provider. NULL when the provider did not report one.
+	ProviderModel sql.NullString `db:"provider_model" json:"provider_model"`
+	// The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.
+	PricedModel sql.NullString `db:"priced_model" json:"priced_model"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge
@@ -5048,6 +5405,7 @@ type Chat struct {
 	LastReadMessageID        sql.NullInt64           `db:"last_read_message_id" json:"last_read_message_id"`
 	DynamicTools             pqtype.NullRawMessage   `db:"dynamic_tools" json:"dynamic_tools"`
 	OrganizationID           uuid.UUID               `db:"organization_id" json:"organization_id"`
+	ProjectID                uuid.NullUUID           `db:"project_id" json:"project_id"`
 	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
 	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
 	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
@@ -5070,6 +5428,45 @@ type Chat struct {
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
+	TitleSource              ChatTitleSource         `db:"title_source" json:"title_source"`
+	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
+	AutomationID             uuid.NullUUID           `db:"automation_id" json:"automation_id"`
+	ManageAutomationsEnabled bool                    `db:"manage_automations_enabled" json:"manage_automations_enabled"`
+}
+
+// Owner-authored webhook or schedule triggers that deliver a prompt to an existing chat or a new chat.
+type ChatAutomation struct {
+	ID              uuid.UUID                `db:"id" json:"id"`
+	OrganizationID  uuid.UUID                `db:"organization_id" json:"organization_id"`
+	OwnerID         uuid.UUID                `db:"owner_id" json:"owner_id"`
+	Name            string                   `db:"name" json:"name"`
+	CreatedByChatID uuid.NullUUID            `db:"created_by_chat_id" json:"created_by_chat_id"`
+	Kind            ChatAutomationKind       `db:"kind" json:"kind"`
+	Enabled         bool                     `db:"enabled" json:"enabled"`
+	TargetMode      ChatAutomationTargetMode `db:"target_mode" json:"target_mode"`
+	// Target chat for existing_chat automations. Set to NULL when the target chat is deleted.
+	TargetChatID         uuid.NullUUID                `db:"target_chat_id" json:"target_chat_id"`
+	NewChatModelConfigID uuid.NullUUID                `db:"new_chat_model_config_id" json:"new_chat_model_config_id"`
+	ReasoningEffort      NullChatReasoningEffort      `db:"reasoning_effort" json:"reasoning_effort"`
+	WhenBusy             NullChatAutomationWhenBusy   `db:"when_busy" json:"when_busy"`
+	WebhookUse           NullChatAutomationWebhookUse `db:"webhook_use" json:"webhook_use"`
+	// Hash of the webhook bearer secret. The plaintext secret is never stored.
+	WebhookSecretHash []byte `db:"webhook_secret_hash" json:"webhook_secret_hash"`
+	// Incremented each time the webhook secret is rotated.
+	WebhookSecretVersion int64 `db:"webhook_secret_version" json:"webhook_secret_version"`
+	// Single-use webhook marker. Set once when the webhook is consumed and never reset.
+	WebhookConsumedAt sql.NullTime   `db:"webhook_consumed_at" json:"webhook_consumed_at"`
+	Prompt            string         `db:"prompt" json:"prompt"`
+	ScheduleCron      sql.NullString `db:"schedule_cron" json:"schedule_cron"`
+	ScheduleTimeZone  sql.NullString `db:"schedule_time_zone" json:"schedule_time_zone"`
+	// Incremented whenever the schedule changes, so work computed from an older schedule can be detected as stale.
+	ScheduleRevision int64 `db:"schedule_revision" json:"schedule_revision"`
+	// Schedule cursor: the next occurrence to fire. NULL when no occurrence is pending.
+	ScheduleNextRunAt sql.NullTime `db:"schedule_next_run_at" json:"schedule_next_run_at"`
+	// Incremented to invalidate queued messages this automation delivered earlier; queued rows carry the generation they were created with.
+	QueueGeneration int64     `db:"queue_generation" json:"queue_generation"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5181,6 +5578,24 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+// MCP servers that a chat owner attached to a root chat. Experimental. chatd connects to every row on each turn of the chat.
+type ChatMCPServer struct {
+	ID     uuid.UUID `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	Slug   string    `db:"slug" json:"slug"`
+	Url    string    `db:"url" json:"url"`
+	// JSON object of HTTP header name to value sent on every request to the server. Encrypted at rest via dbcrypt when headers_key_id is set.
+	Headers string `db:"headers" json:"headers"`
+	// The ID of the key used to encrypt headers. If this is NULL, headers are not encrypted.
+	HeadersKeyID        sql.NullString `db:"headers_key_id" json:"headers_key_id"`
+	ToolAllowList       []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList        []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	AllowInSubagents    bool           `db:"allow_in_subagents" json:"allow_in_subagents"`
+	ForwardCoderHeaders bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
@@ -5210,6 +5625,12 @@ type ChatMessage struct {
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
 	// Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.
 	SearchTsvConfig NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
+	// ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.
+	QueuedMessageID sql.NullInt64 `db:"queued_message_id" json:"queued_message_id"`
+	// Automation that delivered this message. No foreign key by design.
+	AutomationID uuid.NullUUID `db:"automation_id" json:"automation_id"`
+	// Automation input (webhook delivery or schedule occurrence) that delivered this message.
+	InputID uuid.NullUUID `db:"input_id" json:"input_id"`
 }
 
 type ChatModelConfig struct {
@@ -5241,6 +5662,39 @@ type ChatOrganizationModelOverride struct {
 	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
+// Organization-scoped system prompts added after the deployment system prompt when Coder Agents chats are created.
+type ChatOrganizationSystemPrompt struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	SystemPrompt   string    `db:"system_prompt" json:"system_prompt"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Organization-scoped projects that group agent chats.
+type ChatProject struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	// Optional icon URL shown next to the project name.
+	Icon      string    `db:"icon" json:"icon"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.
+type ChatProjectMemory struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	ProjectID      uuid.UUID `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	Body           string    `db:"body" json:"body"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
 type ChatQueuedMessage struct {
 	ID            int64           `db:"id" json:"id"`
 	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
@@ -5251,6 +5705,12 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	// Automation that queued this message. No foreign key by design.
+	AutomationID uuid.NullUUID `db:"automation_id" json:"automation_id"`
+	// Automation input (webhook delivery or schedule occurrence) that queued this message.
+	InputID uuid.NullUUID `db:"input_id" json:"input_id"`
+	// chat_automations.queue_generation at queue time. A lower value than the automation's current generation marks the message stale.
+	QueueGeneration sql.NullInt64 `db:"queue_generation" json:"queue_generation"`
 }
 
 type ChatTable struct {
@@ -5308,6 +5768,16 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
+	// Optional project that groups a root chat with related chats.
+	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
+	// Rows from before this column existed are fallback regardless of who set their title.
+	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
+	// Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.
+	TitleUpdatedAt time.Time `db:"title_updated_at" json:"title_updated_at"`
+	// Automation that created this chat. No foreign key by design.
+	AutomationID uuid.NullUUID `db:"automation_id" json:"automation_id"`
+	// Interim per-chat switch that offers the manage_automations tool. Only the chat owner may change it after creation.
+	ManageAutomationsEnabled bool `db:"manage_automations_enabled" json:"manage_automations_enabled"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -5354,6 +5824,8 @@ type ConnectionLog struct {
 	DisconnectTime sql.NullTime `db:"disconnect_time" json:"disconnect_time"`
 	// The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
+	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
+	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
 type CryptoKey struct {
@@ -5552,6 +6024,8 @@ type MCPServerConfig struct {
 	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
 	GroupACL                ChatACL        `db:"group_acl" json:"group_acl"`
 	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
+	SigningSecret           string         `db:"signing_secret" json:"signing_secret"`
+	SigningSecretKeyID      sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
 }
 
 type MCPServerUserToken struct {
@@ -5619,13 +6093,14 @@ type NotificationTemplate struct {
 
 // A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.
 type OAuth2ProviderApp struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	Icon        string    `db:"icon" json:"icon"`
-	CallbackURL string    `db:"callback_url" json:"callback_url"`
-	// List of valid redirect URIs for the application
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Name      string    `db:"name" json:"name"`
+	Icon      string    `db:"icon" json:"icon"`
+	// Deprecated: the primary redirect URI is the first entry of redirect_uris. Every writer keeps this column equal to it until the column is dropped.
+	CallbackURL string `db:"callback_url" json:"callback_url"`
+	// Redirect URIs the authorize and token endpoints accept. The first entry is the primary, used when a request omits redirect_uri.
 	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`
 	// OAuth2 client type: confidential or public
 	ClientType string `db:"client_type" json:"client_type"`
@@ -6033,18 +6508,19 @@ type TemplateUsageStat struct {
 	MedianLatencyMs sql.NullFloat64 `db:"median_latency_ms" json:"median_latency_ms"`
 	// Total minutes the user has been using the template.
 	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
-	// Total minutes the user has been using SSH.
-	SshMins int16 `db:"ssh_mins" json:"ssh_mins"`
-	// Total minutes the user has been using SFTP.
-	SftpMins int16 `db:"sftp_mins" json:"sftp_mins"`
-	// Total minutes the user has been using the reconnecting PTY.
-	ReconnectingPtyMins int16 `db:"reconnecting_pty_mins" json:"reconnecting_pty_mins"`
-	// Total minutes the user has been using VSCode.
-	VscodeMins int16 `db:"vscode_mins" json:"vscode_mins"`
-	// Total minutes the user has been using JetBrains.
-	JetbrainsMins int16 `db:"jetbrains_mins" json:"jetbrains_mins"`
 	// Object with app names as keys and total minutes used as values. Null means no app usage was recorded.
 	AppUsageMins StringMapOfInt `db:"app_usage_mins" json:"app_usage_mins"`
+}
+
+// Session usage of each template_usage_stats bucket, split by app name. No row means the bucket recorded no session usage. Reads group app names into families through the codersdk registry.
+type TemplateUsageStatsSessionApp struct {
+	StartTime  time.Time `db:"start_time" json:"start_time"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	// App name as the agent reported it, so a source label rather than a curated identity. Rows converted from the fixed session columns carry a family name here instead.
+	AppName string `db:"app_name" json:"app_name"`
+	// Total minutes the user has been using the app. A minute counts once however many sessions were open.
+	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
 }
 
 // Joins in the username + avatar url of the created by user.

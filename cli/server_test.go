@@ -333,6 +333,10 @@ func TestServer(t *testing.T) {
 			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://localhost:3000/",
 			"--cache-dir", t.TempDir(),
+			// NATS pubsub is on by default and needs this replica's routable
+			// address; without it the server logs an error and falls back to
+			// PostgreSQL pubsub, which would count against the log budget.
+			"--cluster-host", "127.0.0.1",
 		)
 		pty := ptytest.New(t).Attach(inv)
 		require.NoError(t, pty.Resize(20, 80))
@@ -1228,6 +1232,22 @@ func TestServer(t *testing.T) {
 
 		cancel()
 		require.Error(t, goleak.Find())
+	})
+	t.Run("StartupErrorNoLeak", func(t *testing.T) {
+		t.Parallel()
+
+		inv, cfg := clitest.New(t,
+			"server",
+			dbArg(t),
+			"--http-address", "127.0.0.1:0",
+			"--access-url", "http://example.com",
+			"--cache-dir", t.TempDir(),
+		)
+		// A directory at the URL file path fails startup after coderd is
+		// created; the package goleak check catches a leaked API.
+		require.NoError(t, os.Mkdir(string(cfg.URL()), 0o700))
+		err := inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run()
+		require.ErrorContains(t, err, "write config url")
 	})
 	t.Run("Telemetry", func(t *testing.T) {
 		t.Parallel()
@@ -2563,7 +2583,8 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 	cacheDir := t.TempDir()
 	runServer := func(t *testing.T, opts runServerOpts) (chan error, context.CancelFunc) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		inv, _ := clitest.New(t,
+		t.Cleanup(cancelFunc)
+		inv, cfg := clitest.New(t,
 			"server",
 			"--postgres-url", dbConnURL,
 			"--http-address", "127.0.0.1:0",
@@ -2590,6 +2611,19 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 		if opts.waitForTelemetryDisabledCheck {
 			stdout.ExpectMatch(testutil.Context(t, testutil.WaitLong), "finished telemetry status check")
 		}
+
+		// Telemetry can initialize before the server is healthy.
+		// Wait for HTTP serving so context cancellation does not interrupt startup.
+		client := codersdk.New(waitAccessURL(t, cfg))
+		healthCtx := testutil.Context(t, testutil.WaitLong)
+		testutil.Eventually(healthCtx, t, func(ctx context.Context) bool {
+			resp, err := client.Request(ctx, http.MethodGet, "/healthz", nil)
+			if err != nil {
+				return false
+			}
+			defer resp.Body.Close()
+			return resp.StatusCode == http.StatusOK
+		}, testutil.IntervalFast, "server did not become healthy")
 		return errChan, cancelFunc
 	}
 	waitForShutdown := func(t *testing.T, errChan chan error) error {

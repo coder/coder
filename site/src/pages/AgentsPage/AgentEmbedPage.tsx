@@ -1,4 +1,4 @@
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useBlocker, useParams, useSearchParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
@@ -88,7 +88,7 @@ const applyEmbedTheme = (theme: ConcreteThemeName) => {
 	root.dataset.embedTheme = theme;
 };
 
-const AgentEmbedPage: FC = () => {
+const AgentEmbedPage: React.FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	if (!agentId) {
 		throw new Error("AgentEmbedPage requires an agentId route parameter.");
@@ -284,12 +284,18 @@ const AgentEmbedPage: FC = () => {
 		embedSessionMutation.reset();
 	};
 
-	if (auth.isSignedIn) {
+	// DashboardProvider requires permissions. They arrive with the user
+	// when the server embeds metadata, but load separately behind a dev
+	// proxy or when metadata is missing, so wait for both.
+	if (auth.isSignedIn && auth.permissions) {
 		return (
 			<EmbedContext value={{ isEmbedded: true }}>
 				<DashboardProvider>
 					<ProxyProvider>
-						<Outlet context={outletContext} />
+						{/* Match AgentsPageLayout's flex column so the chat stays bounded under block-level #root. */}
+						<div className="flex h-full min-h-0 min-w-0 flex-col">
+							<Outlet context={outletContext} />
+						</div>
 					</ProxyProvider>
 				</DashboardProvider>
 			</EmbedContext>

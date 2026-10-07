@@ -40,7 +40,6 @@ updates:
   - package-ecosystem: "docker"
     directories:
       - "/dogfood/coder"
-      - "/dogfood/coder-envbuilder"
       - "/scripts"
       - "/examples/templates/docker/build"
       - "/examples/parameters/build"
@@ -101,7 +100,6 @@ updates:
 
   - package-ecosystem: "terraform"
     directories:
-      - "dogfood/*/"
       - "examples/templates/*/"
     schedule:
       interval: "weekly"

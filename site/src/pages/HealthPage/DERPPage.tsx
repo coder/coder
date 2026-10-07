@@ -1,5 +1,4 @@
 import { MapPinIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link, useOutletContext } from "react-router";
 import type {
 	HealthcheckReport,
@@ -31,11 +30,11 @@ type BooleanKeys<T> = {
 	[K in keyof T]: T[K] extends boolean | null ? K : never;
 }[keyof T];
 
-interface FlagInfo {
+type FlagInfo = {
 	label: string;
 	description: string;
 	invert?: boolean;
-}
+};
 
 const flagDescriptions: Record<BooleanKeys<NetcheckReport>, FlagInfo> = {
 	UDP: {
@@ -92,10 +91,10 @@ const flagDescriptions: Record<BooleanKeys<NetcheckReport>, FlagInfo> = {
 	},
 };
 
-interface FlagGroup {
+type FlagGroup = {
 	title: string;
 	flags: BooleanKeys<NetcheckReport>[];
-}
+};
 
 const flagGroups: FlagGroup[] = [
 	{
@@ -129,7 +128,7 @@ const severityColor = (severity: HealthSeverity): string => {
 	}
 };
 
-const DERPPage: FC = () => {
+const DERPPage: React.FC = () => {
 	const { derp } = useOutletContext<HealthcheckReport>();
 	const { netcheck, regions, netcheck_logs: logs } = derp;
 	const safeNetcheck = netcheck || ({} as NetcheckReport);

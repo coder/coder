@@ -1,5 +1,4 @@
 import capitalize from "lodash/capitalize";
-import type { FC } from "react";
 import {
 	type ConnectionLogStatus,
 	ConnectionLogStatuses,
@@ -56,7 +55,7 @@ const CONNECTION_LOG_PRESET_FILTERS = [
 	},
 ] satisfies { name: string; query: string }[];
 
-interface ConnectionLogFilterProps {
+type ConnectionLogFilterProps = {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus: {
@@ -66,9 +65,9 @@ interface ConnectionLogFilterProps {
 		// The organization menu is only provided in a multi-org setup.
 		organization?: OrganizationsFilterMenu;
 	};
-}
+};
 
-export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
+export const ConnectionLogFilter: React.FC<ConnectionLogFilterProps> = ({
 	filter,
 	error,
 	menus,
@@ -127,12 +126,12 @@ export const useStatusFilterMenu = ({
 
 type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>;
 
-interface StatusMenuProps {
+type StatusMenuProps = {
 	menu: StatusFilterMenu;
 	width?: number;
-}
+};
 
-const StatusMenu: FC<StatusMenuProps> = ({ menu, width }) => {
+const StatusMenu: React.FC<StatusMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Filter by session status"
@@ -168,12 +167,12 @@ export const useTypeFilterMenu = ({
 
 type TypeFilterMenu = ReturnType<typeof useTypeFilterMenu>;
 
-interface TypeMenuProps {
+type TypeMenuProps = {
 	menu: TypeFilterMenu;
 	width?: number;
-}
+};
 
-const TypeMenu: FC<TypeMenuProps> = ({ menu, width }) => {
+const TypeMenu: React.FC<TypeMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Filter by connection type"

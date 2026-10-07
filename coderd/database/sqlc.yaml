@@ -118,6 +118,9 @@ sql:
           - column: "template_usage_stats.app_usage_mins"
             go_type:
               type: "StringMapOfInt"
+          - column: "app_usage.session_app_usage_seconds"
+            go_type:
+              type: "StringMapOfInt"
           - column: "tasks_with_status.workspace_user_acl"
             go_type:
               type: "WorkspaceACL"
@@ -287,6 +290,8 @@ sql:
           resource_type_ai_gateway_key: ResourceTypeAIGatewayKey
           mcp_server_config: MCPServerConfig
           mcp_server_configs: MCPServerConfigs
+          chat_mcp_server: ChatMCPServer
+          chat_mcp_servers: ChatMCPServers
           resource_type_mcp_server_config: ResourceTypeMCPServerConfig
           mcp_server_user_token: MCPServerUserToken
           mcp_server_user_tokens: MCPServerUserTokens

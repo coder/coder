@@ -1,7 +1,7 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { ImageLightbox } from "../../ImageLightbox";
 
-export const ToolResultImage: FC<{
+export const ToolResultImage: React.FC<{
 	data: string;
 	mimeType: string;
 	alt: string;
@@ -11,7 +11,7 @@ export const ToolResultImage: FC<{
 
 	return (
 		<>
-			<div className="mt-1.5 overflow-hidden rounded-md border border-solid border-border-default">
+			<div className="mt-1.5 overflow-hidden rounded-md border border-solid border-border">
 				<button
 					type="button"
 					className="cursor-pointer bg-transparent p-0 border-none"

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
 import type { ShareableWorkspaceOwners } from "#/api/typesGenerated";
@@ -14,16 +13,16 @@ import {
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 
-interface DisableWorkspaceSharingDialogProps {
+type DisableWorkspaceSharingDialogProps = {
 	isOpen: boolean;
 	organizationId: string;
 	newSetting: ShareableWorkspaceOwners;
 	onConfirm: () => void;
 	onCancel: () => void;
 	isLoading?: boolean;
-}
+};
 
-export const DisableWorkspaceSharingDialog: FC<
+export const DisableWorkspaceSharingDialog: React.FC<
 	DisableWorkspaceSharingDialogProps
 > = ({
 	isOpen,

@@ -12,22 +12,49 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
-// newAIBridgeDaemon constructs the in-memory aibridge daemon and wires
-// up a subscription that hot-reloads the provider pool over the in-memory
+// AIBridgeDaemonOptions configures [NewAIBridgeDaemon].
+type AIBridgeDaemonOptions struct {
+	// API is the coderd instance the daemon serves and dials over the
+	// in-memory RPC.
+	API *coderd.API
+	// Config supplies both the provider build settings and the pool's record
+	// policy.
+	Config codersdk.AIBridgeConfig
+	// Registerer receives the daemon's collectors, so it must not already
+	// hold them. Nil skips registration.
+	Registerer prometheus.Registerer
+	// BridgeMetrics is the metrics instance the bridge and key pools report
+	// to. Nil disables those metrics.
+	BridgeMetrics *aibridge.Metrics
+	// ProviderMetrics receives provider reload events. Nil builds one from
+	// Registerer; supply one to assert on reload metrics without owning the
+	// registerer.
+	ProviderMetrics *aibridged.Metrics
+	// Pubsub triggers provider hot reloads. Nil uses API.Pubsub.
+	Pubsub pubsub.Pubsub
+}
+
+// NewAIBridgeDaemon constructs the in-memory aibridge daemon and wires
+// up a subscription that hot-reloads providers over the in-memory
 // RPC on every ai_providers change event. The returned unsubscribe
 // function tears down the subscription; callers must invoke it
 // alongside Server.Close on shutdown.
+//
+// Tests reach this through [github.com/coder/coder/v2/coderd/aibridgedtest],
+// so a deployment option that does not reach the serving pool fails there too.
 //
 // Reloads fetch the provider set from coderd over the in-memory DRPC
 // (GetAIProviders) rather than reading the database directly, so embedded and
@@ -35,47 +62,47 @@ import (
 // hot-reload trigger.
 //
 // SubscribeProviderReload performs a best-effort initial reload synchronously,
-// so the pool is populated before this returns whenever the fetch succeeds.
+// so providers are populated before this returns whenever the fetch succeeds.
 // That reload blocks while acquiring a client, and it passes a background
 // context, so only the daemon lifecycle bounds the wait. That is acceptable
 // here: the embedded daemon's connection is an in-memory pipe that comes up
 // immediately.
-func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg prometheus.Registerer, metrics *aibridge.Metrics) (*aibridged.Server, func(), error) {
-	ctx := context.Background()
+func NewAIBridgeDaemon(ctx context.Context, opts AIBridgeDaemonOptions) (*aibridged.Server, func(), error) {
+	coderAPI, cfg, reg, metrics := opts.API, opts.Config, opts.Registerer, opts.BridgeMetrics
 	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
 
 	logger := coderAPI.Logger.Named("ai-gateway")
 
-	providerMetrics := aibridged.NewMetrics(reg)
-	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
-
-	// Create an empty pool for reusable stateful [aibridge.RequestBridge]
-	// instances (one per user). The reloader populates it via the initial
-	// reload below.
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger.Named("pool"), metrics, tracer) // TODO: configurable size.
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create request pool: %w", err)
+	providerMetrics := opts.ProviderMetrics
+	if providerMetrics == nil {
+		providerMetrics = aibridged.NewMetrics(reg)
 	}
-
-	// Report current key pool state per provider at scrape time.
-	reg.MustRegister(keypool.NewStateCollector(pool.KeyPools))
+	ps := opts.Pubsub
+	if ps == nil {
+		ps = coderAPI.Pubsub
+	}
+	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
 
 	// Create daemon. Construct it before subscribing so the reloader can use
 	// srv.Client to fetch providers over the in-memory RPC.
-	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
+	srv, err := aibridged.New(ctx, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
-	}, logger, tracer)
+	}, logger, tracer, coderAPI.Experiments, metrics, aibridged.WithPoolOptions(aibridged.PoolOptionsFromConfig(ctx, logger, cfg)))
 	if err != nil {
 		return nil, nil, xerrors.Errorf("start in-memory aibridge daemon: %w", err)
 	}
 
-	// Subscribe to ai_providers change events so the pool tracks the database
+	if reg != nil {
+		reg.MustRegister(srv.KeyPoolStateCollector())
+	}
+
+	// Subscribe to ai_providers change events so the backend tracks the database
 	// without a restart, and perform the initial reload. The reload data path
 	// is the in-memory RPC.
-	reloader := NewPoolRPCReloader(pool, srv.Client, cfg, logger.Named("provider-loader"), metrics, providerMetrics)
-	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, coderAPI.Pubsub, reloader, logger.Named("provider-reload"))
+	reloader := NewProviderRPCReloader(srv.ReplaceProviders, srv.Client, cfg, logger.Named("provider-loader"), metrics, providerMetrics)
+	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, ps, reloader, logger.Named("provider-reload"))
 	if err != nil {
-		// Without the subscription the pool can never track provider changes,
+		// Without the subscription the backend cannot track provider changes,
 		// so fail startup rather than serve a permanently stale snapshot.
 		_ = srv.Close()
 		return nil, nil, xerrors.Errorf("subscribe to ai providers change channel: %w", err)
@@ -84,44 +111,42 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 	return srv, unsubscribe, nil
 }
 
-// poolRPCReloader implements [aibridged.ProviderReloader] by fetching the
-// live provider set from coderd over a DRPC client and forwarding it to the
-// pool. It is shared by the embedded daemon (in-memory RPC, pubsub-triggered)
-// and the standalone gateway (WebSocket RPC, retried at startup) so the fetch,
+// providerRPCReloader implements [aibridged.ProviderReloader] by fetching the
+// live provider set from coderd over a DRPC client and publishing it to the
+// selected backend. Embedded (in-memory RPC, pubsub-triggered) and standalone
+// (WebSocket RPC, retried at startup) gateways share the fetch,
 // build, replace, and reload-metric accounting live in one place.
-type poolRPCReloader struct {
-	pool            aibridged.Pooler
-	client          aibridged.ClientFunc
-	cfg             codersdk.AIBridgeConfig
-	logger          slog.Logger
-	aibridgeMetrics *aibridge.Metrics
-	providerMetrics *aibridged.Metrics
+type providerRPCReloader struct {
+	replaceProviders func(context.Context, []aibridge.Provider) error
+	client           aibridged.ClientFunc
+	cfg              codersdk.AIBridgeConfig
+	logger           slog.Logger
+	aibridgeMetrics  *aibridge.Metrics
+	providerMetrics  *aibridged.Metrics
 }
 
-// NewPoolRPCReloader builds an [aibridged.ProviderReloader] that fetches the
-// provider set over the DRPC client returned by client and replaces pool's
-// providers, recording reload metrics against providerMetrics. client receives
-// Reload's context, so a blocking acquisition unblocks when that context is
-// canceled.
-func NewPoolRPCReloader(
-	pool aibridged.Pooler,
+// NewProviderRPCReloader fetches and builds provider snapshots over DRPC and
+// publishes them through replaceProviders. Failed publication is reported as a
+// failed reload, preserving the selected backend's previous snapshot.
+func NewProviderRPCReloader(
+	replaceProviders func(context.Context, []aibridge.Provider) error,
 	client aibridged.ClientFunc,
 	cfg codersdk.AIBridgeConfig,
 	logger slog.Logger,
 	aibridgeMetrics *aibridge.Metrics,
 	providerMetrics *aibridged.Metrics,
 ) aibridged.ProviderReloader {
-	return &poolRPCReloader{
-		pool:            pool,
-		client:          client,
-		cfg:             cfg,
-		logger:          logger,
-		aibridgeMetrics: aibridgeMetrics,
-		providerMetrics: providerMetrics,
+	return &providerRPCReloader{
+		replaceProviders: replaceProviders,
+		client:           client,
+		cfg:              cfg,
+		logger:           logger,
+		aibridgeMetrics:  aibridgeMetrics,
+		providerMetrics:  providerMetrics,
 	}
 }
 
-func (r *poolRPCReloader) Reload(ctx context.Context) error {
+func (r *providerRPCReloader) Reload(ctx context.Context) error {
 	r.providerMetrics.RecordReloadAttempt()
 	// r.client blocks until the daemon connects to coderd or ctx is canceled.
 	client, err := r.client(ctx)
@@ -136,7 +161,9 @@ func (r *poolRPCReloader) Reload(ctx context.Context) error {
 		return xerrors.Errorf("fetch ai providers: %w", err)
 	}
 	providers, outcomes := BuildProvidersFromProto(ctx, resp.GetProviders(), r.cfg, r.logger, r.aibridgeMetrics)
-	r.pool.ReplaceProviders(providers)
+	if err := r.replaceProviders(ctx, providers); err != nil {
+		return xerrors.Errorf("replace ai providers: %w", err)
+	}
 	r.providerMetrics.RecordReloadSuccess(outcomes)
 	return nil
 }
@@ -164,7 +191,7 @@ func BuildProvidersFromProto(ctx context.Context, protoProviders []*proto.AIProv
 		if spec.Enabled {
 			enabledCount++
 		}
-		prov, err := buildProvider(ctx, spec, cfg, metrics)
+		prov, err := buildProvider(ctx, spec, cfg, logger, metrics)
 		if err != nil {
 			outcome.Status = aibridged.ProviderStatusError
 			outcome.Err = err
@@ -219,6 +246,13 @@ func protoToProviderSpec(pp *proto.AIProvider) aiProviderSpec {
 		bedrock.ResolvedSmallFastModel = b.GetResolvedSmallFastModel()
 		spec.Bedrock = new(bedrock)
 	}
+	if cp := pp.GetClaudePlatformAws(); cp != nil {
+		claudePlatform := codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      cp.GetRegion(),
+			WorkspaceID: cp.GetWorkspaceId(),
+		}
+		spec.ClaudePlatformAWS = &claudePlatform
+	}
 	return spec
 }
 
@@ -236,18 +270,34 @@ type aiProviderSpec struct {
 	// Bedrock holds Bedrock-specific settings when the provider targets
 	// AWS Bedrock; nil otherwise.
 	Bedrock *codersdk.AIProviderBedrockSettings
+	// ClaudePlatformAWS holds Claude Platform for AWS settings when the
+	// provider targets Anthropic's AWS-hosted Messages API; nil otherwise.
+	// Mutually exclusive with Bedrock.
+	ClaudePlatformAWS *codersdk.AIProviderClaudePlatformAWSSettings
 }
 
 // buildProvider constructs the appropriate [aibridge.Provider] for a
 // single provider spec, independent of where the spec was sourced from.
-func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBridgeConfig, metrics *aibridge.Metrics) (aibridge.Provider, error) {
+func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBridgeConfig, logger slog.Logger, metrics *aibridge.Metrics) (aibridge.Provider, error) {
 	if !spec.Enabled {
 		return aibridge.NewDisabledProviderStub(spec.Name, string(spec.Type)), nil
 	}
 
 	cbCfg := circuitBreakerConfig(cfg)
-	sendActorHeaders := cfg.SendActorHeaders.Value()
 	dumpDir := cfg.APIDumpDir.Value()
+	var actorHeaderNames map[string]string
+	if cfg.SendActorHeaders.Value() {
+		actorHeaderNames = map[string]string{}
+		if name := cfg.ActorHeaderID.Value(); name != "" {
+			actorHeaderNames[aibheaders.ActorAttributeID] = name
+		}
+		if name := cfg.ActorHeaderUsername.Value(); name != "" {
+			actorHeaderNames[aibheaders.ActorAttributeUsername] = name
+		}
+		if name := cfg.ActorHeaderEmail.Value(); name != "" {
+			actorHeaderNames[aibheaders.ActorAttributeEmail] = name
+		}
+	}
 
 	// aibridge currently has native support for OpenAI and Anthropic
 	// only. The other ai_provider_type values (azure, google,
@@ -279,13 +329,16 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			KeyPool:          pool,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
-			SendActorHeaders: sendActorHeaders,
+			ActorHeaderNames: actorHeaderNames,
 		}), nil
 
 	case database.AIProviderTypeAnthropic:
+		claudePlatform := claudePlatformConfig(spec.BaseURL, spec.ClaudePlatformAWS)
 		// A bearer-token Anthropic without any key cannot make upstream calls.
-		if len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() {
-			return nil, xerrors.New("anthropic provider has no api keys and BYOK is not enabled")
+		// Claude Platform in IAM mode authenticates by signing, so it counts
+		// as configured here too.
+		if len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() && claudePlatform == nil {
+			return nil, xerrors.New("anthropic provider has no api keys configured and BYOK is not enabled")
 		}
 		var pool *keypool.Pool
 		if len(spec.Keys) > 0 {
@@ -296,13 +349,14 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			}
 		}
 		return aibridge.NewAnthropicProvider(ctx, aibridge.AnthropicConfig{
+			Logger:           logger.With(slog.F("provider", spec.Name)),
 			Name:             spec.Name,
 			BaseURL:          spec.BaseURL,
 			KeyPool:          pool,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
-			SendActorHeaders: sendActorHeaders,
-		}, nil)
+			ActorHeaderNames: actorHeaderNames,
+		}, nil, claudePlatform)
 
 	case database.AIProviderTypeBedrock:
 		// A spec typed 'bedrock' authenticates exclusively via settings;
@@ -318,7 +372,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			BaseURL:          spec.BaseURL,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
-			SendActorHeaders: sendActorHeaders,
+			ActorHeaderNames: actorHeaderNames,
 		}, *bedrock)
 
 	case database.AIProviderTypeCopilot:
@@ -340,6 +394,22 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 // len(keys) > 0 first; keypool.New rejects empty input.
 func buildAIProviderKeyPool(providerName string, keys []string, metrics *aibridge.Metrics) (*keypool.Pool, error) {
 	return keypool.New(providerName, keys, quartz.NewReal(), metrics)
+}
+
+// claudePlatformConfig maps Claude Platform for AWS settings into the gateway
+// config. baseURL, when set, overrides the default regional endpoint; the
+// region still determines the SigV4 signing scope. Returns nil when the
+// settings are absent or incomplete, so the provider falls back to a plain
+// bearer-token Anthropic client.
+func claudePlatformConfig(baseURL string, cp *codersdk.AIProviderClaudePlatformAWSSettings) *aibridge.AWSClaudePlatformConfig {
+	if cp == nil || !cp.IsConfigured() {
+		return nil
+	}
+	return &aibridge.AWSClaudePlatformConfig{
+		Region:      cp.Region,
+		WorkspaceID: cp.WorkspaceID,
+		BaseURL:     baseURL,
+	}
 }
 
 // circuitBreakerConfig returns nil when the breaker is disabled.

@@ -1,6 +1,6 @@
 ---
 name: doc-check
-description: Checks if code changes require documentation updates
+description: Checks if code changes require documentation updates. Use when reviewing a PR or diff for missing, stale, or incorrect docs under docs/; to write or restructure docs, use write-docs.
 ---
 
 # Documentation Check Skill
@@ -128,6 +128,23 @@ Every `[ ]` is work the author owes. Anything optional belongs in the
 sentence under an item, or nowhere. An item that says "consider" or "not
 strictly required" is not an item.
 
+### Every item carries a link
+
+An item names a page, so it can always link that page. Give the published
+URL, which is `https://coder.com/docs/` plus the path with the `docs/`
+prefix and the `.md` suffix removed. `docs/ai-coder/ai-gateway/reference.md`
+becomes `https://coder.com/docs/ai-coder/ai-gateway/reference`.
+
+Write the path in backticks so it is greppable, then link it, so a reader
+can open the page in one click:
+
+```markdown
+- [ ] `docs/ai-coder/ai-gateway/reference.md` ([open](https://coder.com/docs/ai-coder/ai-gateway/reference)) - What needs to change
+```
+
+A page this pull request creates has no published URL yet. Name the path in
+backticks alone and say the page is new.
+
 ### Links resolve on GitHub, not in the docs tree
 
 A relative docs link resolves against the repository in a comment and
@@ -137,6 +154,16 @@ such as `https://coder.com/docs/reference/api/enterprise`.
 Link an anchor only when that heading exists on the base branch today. A
 heading this pull request generates does not exist yet, so name the
 endpoint or section in words instead.
+
+### The marker is not optional
+
+The comment ends with `<!-- doc-check-sticky -->`, on its own line, every
+time. It is how the next review finds this comment instead of posting a
+second one, and how the Slack notice knows a review had findings. A
+comment without it reads as silence to everything downstream.
+
+After you post or edit, read the comment back and confirm the marker is
+there. If it is not, edit the comment to add it.
 
 ### One comment per pull request
 
@@ -159,18 +186,22 @@ Include only the sections that apply.
 ## Documentation Check
 
 ### Updates Needed
-- [ ] `docs/path/file.md` - What needs to change
-- [x] `docs/other/file.md` - This was addressed
+- [ ] `docs/path/file.md` ([open](https://coder.com/docs/path/file)) - What needs to change
+- [x] `docs/other/file.md` ([open](https://coder.com/docs/other/file)) - This was addressed
 - ~~`docs/removed.md` - No longer needed~~ *(reverted in abc123)*
 
 ### New Documentation Needed
-- [ ] `docs/suggested/path.md` - What should be documented
+- [ ] `docs/suggested/path.md` - What should be documented, on a page that does not exist yet
   > ⚠️ *Checked but no corresponding documentation changes found in this PR*
 
 ---
 *Automated review via [Coder Agents](https://coder.com/docs/ai-coder/agents)*
 <!-- doc-check-sticky -->
 ```
+
+Keep to this structure. Do not add sections it does not have, such as an
+evidence block. The evidence belongs in your answer, not in the author's
+comment.
 
 The `<!-- doc-check-sticky -->` marker goes last, so the next review can
 find this comment.
@@ -227,8 +258,10 @@ only on the user-facing portion.
 
 ## Key Documentation Info
 
-- **`docs/manifest.json`** is the navigation structure; new pages MUST be
-  added here.
+- **`docs/manifest/**/*.yml`** is the navigation structure; new pages MUST be
+  added to the right source file there. Each file holds one route and its
+  direct children, and `include` pulls in a child's own file. `docs/manifest.json` is compiled
+  from it by `make gen/docs-manifest`; don't edit the JSON directly.
 - **`docs/reference/cli/*.md`** is auto-generated from Go code. Don't
   edit directly.
 - **`docs/.style/content-guidelines.md`** is the canonical source for
@@ -236,12 +269,9 @@ only on the user-facing portion.
 
 ### Premium feature signaling
 
-A page documenting a Premium feature requires **both** of the following.
-Missing either one is a defect:
-
-1. The H1 title takes a `(Premium)` suffix. Example:
-   `# Template Insights (Premium)`.
-2. The page's `docs/manifest.json` entry includes `"state": ["premium"]`.
+Pages documenting staged features must include the applicable `state` in their route in `docs/manifest/**/*.yml`, such as `state: [premium]`.
+Do not add feature-state suffixes such as `(Premium)` or `(Beta)` to page titles or H1s.
+The state is displayed in navigation metadata.
 
 ### Evidence versus claim
 
@@ -269,13 +299,13 @@ violations it generates or suggests.
 ### Renames and moves require redirects
 
 Redirects for [coder.com/docs](https://coder.com/docs) are configured in
-a separate repo, not in this one. When a doc page is renamed or moved:
+`docs/redirects.json` in this repo, and the website rebuilds when the file
+changes. When a doc page is renamed or moved:
 
 1. Update every link that relies on the old location.
-2. Add an entry to
-   [`coder/coder.com:redirects.json`](https://github.com/coder/coder.com/blob/master/redirects.json)
-   that maps the old path to the new one. Open that PR alongside the
-   `coder/coder` rename PR.
+2. Add a rule to `docs/redirects.json` that maps the old path to the new
+   one, in the same PR as the rename. For example:
+   `{"source": "/docs/old/path", "destination": "/docs/new/path"}`.
 
 Do not create a `docs/_redirects` file in this repo; that format isn't
 processed by coder.com.

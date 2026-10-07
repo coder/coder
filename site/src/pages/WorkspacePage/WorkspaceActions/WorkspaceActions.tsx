@@ -1,4 +1,4 @@
-import { type FC, Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 import { useQuery } from "react-query";
 import { deploymentConfig } from "#/api/queries/deployment";
 import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
@@ -23,7 +23,7 @@ import { DebugButton } from "./DebugButton";
 import { RetryButton } from "./RetryButton";
 import { ShareButton } from "./ShareButton";
 
-interface WorkspaceActionsProps {
+type WorkspaceActionsProps = {
 	workspace: Workspace;
 	isUpdating: boolean;
 	isRestarting: boolean;
@@ -37,9 +37,9 @@ interface WorkspaceActionsProps {
 	handleRetry: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleDormantActivate: () => void;
-}
+};
 
-export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
+export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
 	workspace,
 	isUpdating,
 	isRestarting,
@@ -76,7 +76,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	);
 
 	// A mapping of button type to the corresponding React component
-	const buttonMapping: Record<ActionType, ReactNode> = {
+	const buttonMapping: Record<ActionType, React.ReactNode> = {
 		updateAndStart: (
 			<UpdateButton
 				handleAction={handleUpdate}

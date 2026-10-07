@@ -1,5 +1,5 @@
 import { XIcon } from "lucide-react";
-import { type FC, useId, useMemo } from "react";
+import { useId, useMemo } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 
@@ -10,7 +10,7 @@ type TagInputProps = {
 	onChange: (values: string[]) => void;
 };
 
-export const TagInput: FC<TagInputProps> = ({
+export const TagInput: React.FC<TagInputProps> = ({
 	label,
 	id,
 	values,

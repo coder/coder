@@ -1,7 +1,7 @@
-export interface Autostop {
+export type Autostop = {
 	autostopEnabled: boolean;
 	ttl: number;
-}
+};
 
 export const emptyTTL = 0;
 

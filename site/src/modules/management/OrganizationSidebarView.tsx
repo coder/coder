@@ -1,5 +1,5 @@
 import { CheckIcon, PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -23,7 +23,7 @@ import { SettingsSidebarNavItem } from "#/components/Sidebar/Sidebar";
 import type { Permissions } from "#/modules/permissions";
 import type { OrganizationPermissions } from "#/modules/permissions/organizations";
 
-interface OrganizationsSettingsNavigationProps {
+type OrganizationsSettingsNavigationProps = {
 	/** The organization selected from the dropdown */
 	activeOrganization: Organization | undefined;
 	/** Permissions for the active organization */
@@ -32,7 +32,7 @@ interface OrganizationsSettingsNavigationProps {
 	organizations: readonly Organization[];
 	/** Site-wide permissions. */
 	permissions: Permissions;
-}
+};
 
 /**
  * Displays navigation items for the active organization and a combobox to
@@ -40,7 +40,7 @@ interface OrganizationsSettingsNavigationProps {
  *
  * If organizations or their permissions are still loading, show a loader.
  */
-export const OrganizationSidebarView: FC<
+export const OrganizationSidebarView: React.FC<
 	OrganizationsSettingsNavigationProps
 > = ({ activeOrganization, orgPermissions, organizations, permissions }) => {
 	const sortedOrganizations = [...organizations].sort((a, b) => {
@@ -155,12 +155,12 @@ function urlForSubpage(organizationName: string, subpage = ""): string {
 		.join("/");
 }
 
-interface OrganizationSettingsNavigationProps {
+type OrganizationSettingsNavigationProps = {
 	organization: Organization;
 	orgPermissions: OrganizationPermissions;
-}
+};
 
-const OrganizationSettingsNavigation: FC<
+const OrganizationSettingsNavigation: React.FC<
 	OrganizationSettingsNavigationProps
 > = ({ organization, orgPermissions }) => {
 	return (

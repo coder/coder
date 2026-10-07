@@ -28,21 +28,24 @@ import (
 	"github.com/coder/coder/v2/site"
 )
 
-// Rejection reasons from scope negotiation.
+// Rejection reasons from scope negotiation and the session check.
 var (
 	// The name is not in the external scope catalog: unknown, or internal-only.
 	errUnknownScope = xerrors.New("unknown or unsupported scope")
-	// Every entry in the app's allowlist falls outside the catalog. Returned
-	// bare, never naming the registered value: that value is unvalidated RFC
-	// 7591 metadata bounded only by the request body limit, and it need not obey
-	// the ASCII subset RFC 6749 §5.2 allows in error_description. The reason
-	// alone is actionable, since the client is the party that registered it.
+	// Every entry in the app's allowlist falls outside the catalog. The stored
+	// value is not echoed: the admin API and DCR rows from before narrowing
+	// hold names unchecked against the catalog and the RFC 6749 section 5.2
+	// charset.
 	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
 	// The scope expands to permissions the allowlist does not cover.
 	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
 	// The coverage check itself failed. The underlying error names RBAC
 	// internals, so it is logged rather than rendered.
 	errCoverageUndecidable = xerrors.New("scope coverage could not be determined")
+	// The grant exceeds the signed-in session's scopes.
+	errBeyondSession = xerrors.New("scope requests permissions beyond the signed-in session")
+	// The session has an allow list, which `*:*` access tokens would escape.
+	errSessionAllowList = xerrors.New("the signed-in session is restricted to an allow list; authorize from an unrestricted session")
 )
 
 // canonicalScopes rewrites each name to its api_key_scope enum spelling and
@@ -69,24 +72,19 @@ func firstUnknownScope(names []string) (string, bool) {
 }
 
 // noScopeAllowlist reports whether an app has no scope allowlist. NULL and ""
-// are the same state: admin-created apps store NULL, DCR-registered apps store
-// a possibly empty req.Scope. Whitespace-only is a configured allowlist that
-// grants nothing, so it is not this state.
+// are the same state: apps created before the scope column existed store
+// NULL, and every write path since stores a possibly empty string.
+// Whitespace-only is a configured allowlist that grants nothing, so it is not
+// this state.
 func noScopeAllowlist(appScope sql.NullString) bool {
 	return !appScope.Valid || appScope.String == ""
 }
 
 // grantableScopes drops allowlist entries this deployment does not offer. An
-// empty result is returned rather than rejected so the caller decides: both
-// callers happen to answer errNoGrantableScope, but only one of them can say
-// whether an empty allowlist should also fail the request.
-//
-// No allocation here may be sized by appScope. It is unvalidated RFC 7591
-// metadata bounded only by the request body limit, and it is read on every
-// authorization and redemption, so a whitespace-heavy or repetitive value would
-// otherwise cost megabytes per request. Dropping duplicates as names are read,
-// rather than once the loop has collected them all, holds the slice to the size
-// of the catalog whatever the input.
+// empty result is returned rather than rejected so the caller decides:
+// authorization and redemption answer errNoGrantableScope, registration
+// answers errUnknownScope. Duplicates are dropped as names are read so the
+// slice never grows past the catalog.
 func grantableScopes(appScope string) []string {
 	var filtered []string
 	for a := range strings.FieldsSeq(appScope) {
@@ -189,10 +187,26 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	return strings.Join(granted, " "), nil
 }
 
-// scopeFailureResponse maps a negotiateScope rejection to the client's error.
-// errCoverageUndecidable is this server failing to compare, not a bad request,
-// so it answers server_error (RFC 6749 §4.1.2.1) with a fixed description;
-// negotiateScope already logged the detail.
+// withinSession also requires a `*:*` allow list, since access tokens are
+// minted with one.
+func withinSession(ctx context.Context, logger slog.Logger, appID uuid.UUID, session database.APIKey, granted string) error {
+	if !slices.Contains(session.AllowList, rbac.AllowListAll()) {
+		return errSessionAllowList
+	}
+	outside, err := firstScopeBeyondCeiling(ctx, logger, phaseAuthorize, appID, canonicalScopes(slice.ToStrings(session.Scopes)), strings.Fields(granted))
+	if err != nil {
+		return err
+	}
+	if outside != "" {
+		return xerrors.Errorf("%q: %w", outside, errBeyondSession)
+	}
+	return nil
+}
+
+// scopeFailureResponse maps a negotiateScope or withinSession rejection to the
+// client's error. errCoverageUndecidable is this server failing to compare, not
+// a bad request, so it answers server_error (RFC 6749 §4.1.2.1) with a fixed
+// description; firstScopeBeyondCeiling logged the detail.
 func scopeFailureResponse(err error) (codersdk.OAuth2ErrorCode, string) {
 	if errors.Is(err, errCoverageUndecidable) {
 		return codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated"
@@ -255,11 +269,11 @@ type authorizeFailure struct {
 	// the answer stays on this server, because the failure names the redirect
 	// URI or the client identifier.
 	redirect authorizeResponse
-	// corruptCallback is set when the app's registered callback does not parse
-	// or uses a scheme registration rejects. That is bad server state rather
-	// than a client mistake, so it answers 500, and it is decided before any
-	// parameter is read.
-	corruptCallback error
+	// corruptRedirectURI is set when one of the app's registered redirect URIs
+	// does not parse or uses a scheme registration rejects. That is bad server
+	// state rather than a client mistake, so it answers 500, and it is decided
+	// before any parameter is read.
+	corruptRedirectURI error
 	// code is the OAuth2 error to answer with. Read it through errorCode, which
 	// supplies the invalid_request default.
 	code codersdk.OAuth2ErrorCode
@@ -291,7 +305,7 @@ const (
 
 func (f authorizeFailure) kind() failureKind {
 	switch {
-	case f.corruptCallback != nil:
+	case f.corruptRedirectURI != nil:
 		return failureCorruptRegistration
 	case f.redirect.canRedirect():
 		return failureDeliverToClient
@@ -304,12 +318,17 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
+	if r.Method == http.MethodGet && clientSecretInQuery(vals) {
+		logger.Warn(r.Context(), "oauth2 authorization request carried client_secret in the URL query string",
+			append(requestSource(r), slog.F("app_id", app.ID))...)
+	}
+
 	// response_type and client_id are always required.
 	p.RequiredNotEmpty("response_type", "client_id")
 
 	response, err := newAuthorizeResponse(p, vals, app)
 	if err != nil {
-		return authorizeParams{}, &authorizeFailure{corruptCallback: err}
+		return authorizeParams{}, &authorizeFailure{corruptRedirectURI: err}
 	}
 
 	params := authorizeParams{
@@ -445,25 +464,20 @@ type authorizeResponse struct {
 	state    string
 }
 
-// registeredRedirectURIs returns the app's primary callback and its other
-// registered redirect URIs, parsed and deduplicated. CallbackURL is the primary
-// because admin-created apps have an empty RedirectUris list.
+// registeredRedirectURIs returns the app's registered redirect URIs, parsed,
+// with the primary first. It reads RegisteredRedirectURIs so enforcement and
+// the admin API agree on what is registered.
 func registeredRedirectURIs(app database.OAuth2ProviderApp) (primary *url.URL, alternates []*url.URL, err error) {
-	primary, err = url.Parse(app.CallbackURL)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("parse callback URL %q: %w", app.CallbackURL, err)
-	}
-	for _, s := range slice.Unique(app.RedirectUris) {
-		if s == app.CallbackURL {
-			continue
-		}
+	uris := app.RegisteredRedirectURIs()
+	parsed := make([]*url.URL, 0, len(uris))
+	for _, s := range uris {
 		u, err := url.Parse(s)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("parse registered redirect URI %q: %w", s, err)
 		}
-		alternates = append(alternates, u)
+		parsed = append(parsed, u)
 	}
-	return primary, alternates, nil
+	return parsed[0], parsed[1:], nil
 }
 
 // newAuthorizeResponse checks the app's registered redirect URIs, matches any
@@ -485,7 +499,9 @@ func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, app data
 	}
 	for _, u := range append([]*url.URL{primary}, alternates...) {
 		if err := codersdk.ValidateRedirectURIScheme(u); err != nil {
-			return authorizeResponse{}, err
+			// The scheme error names no URI, so the log would otherwise
+			// carry the whole list with no way to tell which entry failed.
+			return authorizeResponse{}, xerrors.Errorf("registered redirect URI %q: %w", u.Redacted(), err)
 		}
 	}
 
@@ -588,14 +604,15 @@ func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog
 	http.Redirect(rw, r, response.errorURL(code, description).String(), http.StatusFound)
 }
 
-// logCorruptCallback reports a registered callback URL this server should never
-// have stored: unparsable, or using a scheme registration rejects. The response
-// only says the callback is bad, so operators need the log to identify the app.
-func logCorruptCallback(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, err error) {
-	logger.Error(ctx, "oauth2 app has an unusable registered callback URL",
+// logCorruptRedirectURI reports a registered redirect URI this server should
+// never have stored: unparsable, or using a scheme registration rejects. The
+// response only says one entry is bad, so operators need the log to identify
+// the app and which URI failed.
+func logCorruptRedirectURI(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, err error) {
+	logger.Error(ctx, "oauth2 app has an unusable registered redirect URI",
 		slog.Error(err),
 		slog.F("app_id", app.ID.String()),
-		slog.F("callback_url", app.CallbackURL))
+		slog.F("redirect_uris", app.RegisteredRedirectURIs()))
 }
 
 // ShowAuthorizePage handles GET /oauth2/authorize requests to display the HTML authorization page.
@@ -624,9 +641,9 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		if failure != nil {
 			switch failure.kind() {
 			case failureCorruptRegistration:
-				logCorruptCallback(r.Context(), logger, app, failure.corruptCallback)
-				errorPage(http.StatusInternalServerError, "Invalid Callback URL",
-					"The application's registered callback URL is not usable.", nil)
+				logCorruptRedirectURI(r.Context(), logger, app, failure.corruptRedirectURI)
+				errorPage(http.StatusInternalServerError, "Invalid Redirect URI",
+					"One of the application's registered redirect URIs is not usable.", nil)
 
 			case failureDeliverToClient:
 				// §4.1.2.1: once the callback has been matched against the app's
@@ -680,6 +697,9 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// fails before the consent page renders rather than after the user
 		// clicks Allow. The result also decides what the page lists.
 		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
+		if err == nil {
+			err = withinSession(r.Context(), logger, app.ID, httpmw.APIKey(r), grantedScope)
+		}
 		if err != nil {
 			code, description := scopeFailureResponse(err)
 			redirectAuthorizeError(rw, r, logger, params.response, code, description)
@@ -720,10 +740,10 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		if failure != nil {
 			switch failure.kind() {
 			case failureCorruptRegistration:
-				logCorruptCallback(ctx, logger, app, failure.corruptCallback)
+				logCorruptRedirectURI(ctx, logger, app, failure.corruptRedirectURI)
 				httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
 					codersdk.OAuth2ErrorCodeServerError,
-					"The application's registered callback URL is not usable")
+					"One of the application's registered redirect URIs is not usable")
 
 			case failureDeliverToClient:
 				redirectAuthorizeError(rw, r, logger, failure.redirect,
@@ -761,6 +781,9 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		}
 
 		grantedScope, err := negotiateScope(ctx, logger, app, params.scope)
+		if err == nil {
+			err = withinSession(ctx, logger, app.ID, apiKey, grantedScope)
+		}
 		if err != nil {
 			code, description := scopeFailureResponse(err)
 			redirectAuthorizeError(rw, r, logger, params.response, code, description)

@@ -1,7 +1,6 @@
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import { type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import type { Template } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -34,7 +33,7 @@ import { timeZones } from "#/utils/timeZones";
 // Need dayjs.tz functions for timezone validation
 dayjs.extend(timezone);
 
-export interface WorkspaceScheduleFormProps {
+export type WorkspaceScheduleFormProps = {
 	template: Template;
 	error?: unknown;
 	initialValues: WorkspaceScheduleFormValues;
@@ -44,9 +43,9 @@ export interface WorkspaceScheduleFormProps {
 	// for storybook
 	initialTouched?: FormikTouched<WorkspaceScheduleFormValues>;
 	defaultTTL: number;
-}
+};
 
-export interface WorkspaceScheduleFormValues {
+export type WorkspaceScheduleFormValues = {
 	autostartEnabled: boolean;
 	sunday: boolean;
 	monday: boolean;
@@ -59,7 +58,7 @@ export interface WorkspaceScheduleFormValues {
 	timezone: string;
 	autostopEnabled: boolean;
 	ttl: number;
-}
+};
 
 export const validationSchema = Yup.object({
 	sunday: Yup.boolean(),
@@ -154,7 +153,7 @@ export const validationSchema = Yup.object({
 		),
 });
 
-export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
+export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 	error,
 	initialValues,
 	isLoading,

@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -18,17 +18,17 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 
-interface CompactOrgSelectorProps {
+type CompactOrgSelectorProps = {
 	value: Organization | null;
-	onChange?: (organization: Organization) => void;
+	onChange: (organization: Organization) => void;
 	options: readonly Organization[];
 	disabled?: boolean;
 	className?: string;
 	dropdownSide?: "top" | "bottom" | "left" | "right";
 	dropdownAlign?: "start" | "center" | "end";
-}
+};
 
-export const CompactOrgSelector: FC<CompactOrgSelectorProps> = ({
+export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 	value,
 	onChange,
 	options,
@@ -98,7 +98,7 @@ export const CompactOrgSelector: FC<CompactOrgSelectorProps> = ({
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
 									onSelect={() => {
-										onChange?.(org);
+										onChange(org);
 										setOpen(false);
 									}}
 								>

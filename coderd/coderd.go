@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
@@ -272,7 +273,7 @@ type Options struct {
 	ChatStreamPartsDialer chatd.StreamPartsDialer
 	// Nil keeps the default chat agent caps active.
 	ChatAgentCapacityUnlock chatd.AgentCapacityUnlock
-	// ChatProviderAPIKeys overrides deployment-derived provider keys.
+	// ChatProviderAPIKeys supplies fallback provider keys for chat execution.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
 	// ChatWorkerDisabled skips starting the chat daemon's background
@@ -648,32 +649,17 @@ func New(options *Options) *API {
 
 	updatesProvider := NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Pubsub, options.Database, options.Authorizer)
 
-	// The NATS cluster CA is only minted and served when NATS pubsub is in use.
-	// It is experiment-gated, so it is opted into rotation and backed by a real
-	// signing cache only when the experiment is enabled; otherwise the rotator
-	// leaves it alone and the cache is a noop, which still answers requests (the
-	// pubsub treats a missing CA as "mTLS off"). This avoids minting CA private
-	// keys on deployments that never run NATS clustering.
-	rotatedFeatures := cryptokeys.DefaultRotatedFeatures()
-	if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
-		rotatedFeatures = append(rotatedFeatures, database.CryptoKeyFeatureNATSCA)
-	}
-
 	// Start a background process that rotates keys. We intentionally start this after the caches
 	// are created to force initial requests for a key to populate the caches. This helps catch
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
-	cryptokeys.StartRotator(ctx, options.Logger, options.Database, cryptokeys.WithFeatures(rotatedFeatures))
+	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
 
 	// The NATS CA cache is read-only and depends on the rotator having minted
 	// the nats_ca CA, so it must be constructed after StartRotator.
 	if options.NATSCACache == nil {
-		if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
-			options.NATSCACache, err = cryptokeys.NewSigningCache(ctx, options.Logger.Named("nats_ca_cache"), &cryptokeys.DBFetcher{DB: options.Database}, codersdk.CryptoKeyFeatureNATSCA)
-			if err != nil {
-				options.Logger.Fatal(ctx, "failed to instantiate NATS CA cache", slog.Error(err))
-			}
-		} else {
-			options.NATSCACache = cryptokeys.NoopSigningKeycache{}
+		options.NATSCACache, err = cryptokeys.NewSigningCache(ctx, options.Logger.Named("nats_ca_cache"), &cryptokeys.DBFetcher{DB: options.Database}, codersdk.CryptoKeyFeatureNATSCA)
+		if err != nil {
+			options.Logger.Fatal(ctx, "failed to instantiate NATS CA cache", slog.Error(err))
 		}
 	}
 
@@ -744,6 +730,15 @@ func New(options *Options) *API {
 		AISeatTracker:               aiseats.Noop{},
 	}
 
+	api.ExperimentEvaluator, err = experimentrules.New(
+		options.Logger.Named("experiments"),
+		experimentrules.NewDBStore(options.Database),
+		experiments,
+	)
+	if err != nil {
+		panic(xerrors.Errorf("create experiment evaluator: %w", err))
+	}
+
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
 		options.Logger.Named("workspaceapps"),
@@ -790,11 +785,11 @@ func New(options *Options) *API {
 		Logger:                    options.Logger.Named("site"),
 		AIGatewayEnabled:          options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 		UserSecretFilePathEnabled: !options.DeploymentValues.DisableUserSecretFilePath.Value(),
+		ExperimentEvaluator:       api.ExperimentEvaluator,
 	})
 	if err != nil {
 		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
 	}
-	api.SiteHandler.Experiments.Store(&experiments)
 
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -884,6 +879,7 @@ func New(options *Options) *API {
 	api.agentProvider = stn
 
 	{ // Chat daemon and git sync worker initialization.
+		api.chatLimits = chatd.LimitsFromConfig(options.DeploymentValues.AI.Chat)
 		maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
 		if maxChatsPerAcquire > math.MaxInt32 {
 			maxChatsPerAcquire = math.MaxInt32
@@ -904,7 +900,7 @@ func New(options *Options) *API {
 				options.Logger.Named("mcp-user-oidc"),
 			)
 		}
-		providerAPIKeys := ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues)
+		providerAPIKeys := chatprovider.ProviderAPIKeys{}
 		if options.ChatProviderAPIKeys != nil {
 			providerAPIKeys = *options.ChatProviderAPIKeys
 		}
@@ -940,7 +936,7 @@ func New(options *Options) *API {
 					options.PrometheusRegistry,
 				)
 			}
-			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
+			api.chatDaemon, err = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
 				Database:                       options.Database,
 				ReplicaID:                      api.ID,
@@ -952,7 +948,10 @@ func New(options *Options) *API {
 				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
 				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 				StreamSilenceTimeout:           streamSilenceTimeout,
+				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
+				ExperimentEvaluator:            api.ExperimentEvaluator,
+				Authorizer:                     options.Authorizer,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
@@ -963,12 +962,17 @@ func New(options *Options) *API {
 				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
+				TracerProvider:                 options.TracerProvider,
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
+				Limits:                         api.chatLimits,
 			})
+			if err != nil {
+				panic(xerrors.Errorf("create chat daemon: %w", err))
+			}
 			if !options.ChatWorkerDisabled {
 				api.chatDaemon.Start()
 			}
@@ -1055,6 +1059,13 @@ func New(options *Options) *API {
 	}
 
 	wsMetrics := httpmw.NewWSMetrics(options.PrometheusRegistry)
+	api.chatWorkspaceUploadsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "chat",
+		Name:      "workspace_upload_total",
+		Help:      "Total chat workspace file uploads by HTTP response status.",
+	}, []string{"status"})
+	options.PrometheusRegistry.MustRegister(api.chatWorkspaceUploadsTotal)
 	api.wsWatcher = httpapi.NewWSWatcher(options.Clock, wsMetrics.RecordProbe)
 
 	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
@@ -1256,12 +1267,20 @@ func New(options *Options) *API {
 
 	// OAuth2 metadata endpoint for RFC 8414 discovery
 	r.Route("/.well-known/oauth-authorization-server", func(r chi.Router) {
-		r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
+		r.Use(
+			httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
+			// Discovery carries no credential, so the limiter keys on the
+			// address rather than a user.
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+		)
 		r.Get("/*", api.oauth2AuthorizationServerMetadata())
 	})
 	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
 	r.Route("/.well-known/oauth-protected-resource", func(r chi.Router) {
-		r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
+		r.Use(
+			httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+		)
 		r.Get("/*", api.oauth2ProtectedResourceMetadata())
 	})
 
@@ -1277,57 +1296,58 @@ func New(options *Options) *API {
 			// rejection carries no credential, so it needs none.
 			httpmw.NoStore,
 		)
-		r.Route("/authorize", func(r chi.Router) {
-			r.Use(
-				// Fetch the app as system for the authorize endpoint
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
-				apiKeyMiddlewareRedirect,
-			)
-			// GET shows the consent page, POST processes the consent
-			r.Get("/", api.getOAuth2ProviderAppAuthorize())
-			r.Post("/", api.postOAuth2ProviderAppAuthorize())
-		})
-		r.Route("/tokens", func(r chi.Router) {
-			r.Use(
-				// Use OAuth2-compliant error responses for the tokens endpoint
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
-			)
-			r.Group(func(r chi.Router) {
-				r.Use(apiKeyMiddleware)
-				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
-				// route used to revoke permissions from an application.  It is here for
-				// parity with POST on /tokens.
-				r.Delete("/", api.deleteOAuth2ProviderAppTokens())
-			})
-			// The POST /tokens endpoint will be called from an unauthorized client so
-			// we cannot require an API key.
-			r.Post("/", api.postOAuth2ProviderAppToken())
-		})
+		authorize := r.With(
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+			// Fetch the app as system for the authorize endpoint
+			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+			apiKeyMiddlewareRedirect,
+		)
+		// GET shows the consent page, POST processes the consent
+		authorize.Get("/authorize", api.getOAuth2ProviderAppAuthorize())
+		authorize.Post("/authorize", api.postOAuth2ProviderAppAuthorize())
+
+		tokens := r.With(
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+			// Use OAuth2-compliant error responses for the tokens endpoint
+			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+		)
+		// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
+		// route used to revoke permissions from an application.  It is here for
+		// parity with POST on /tokens.
+		tokens.With(apiKeyMiddleware).Delete("/tokens", api.deleteOAuth2ProviderAppTokens())
+		// The POST /tokens endpoint will be called from an unauthorized client so
+		// we cannot require an API key.
+		tokens.Post("/tokens", api.postOAuth2ProviderAppToken())
 
 		// RFC 7009 Token Revocation Endpoint
-		r.Route("/revoke", func(r chi.Router) {
-			r.Use(
-				// RFC 7009 endpoint uses OAuth2 client authentication, not API key
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
-			)
-			// POST /revoke is the standard OAuth2 token revocation endpoint per RFC 7009
-			r.Post("/", api.revokeOAuth2Token())
-		})
+		r.With(
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+			// RFC 7009 endpoint uses OAuth2 client authentication, not API key
+			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+		).Post("/revoke", api.revokeOAuth2Token())
 
 		// RFC 7591 Dynamic Client Registration - Public endpoint
-		r.Post("/register", api.postOAuth2ClientRegistration())
+		r.With(httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute)).
+			Post("/register", api.postOAuth2ClientRegistration())
 
 		// RFC 7592 Client Configuration Management - Protected by registration access token
-		r.Route("/clients/{client_id}", func(r chi.Router) {
-			r.Use(
-				// Middleware to validate registration access token
-				oauth2provider.RequireRegistrationAccessToken(api.Database),
-			)
-			r.Get("/", api.oauth2ClientConfiguration())          // Read client configuration
-			r.Put("/", api.putOAuth2ClientConfiguration())       // Update client configuration
-			r.Delete("/", api.deleteOAuth2ClientConfiguration()) // Delete client
-		})
+		clients := r.With(
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+			// Middleware to validate registration access token
+			oauth2provider.RequireRegistrationAccessToken(api.Database),
+		)
+		clients.Get("/clients/{client_id}", api.oauth2ClientConfiguration())          // Read client configuration
+		clients.Put("/clients/{client_id}", api.putOAuth2ClientConfiguration())       // Update client configuration
+		clients.Delete("/clients/{client_id}", api.deleteOAuth2ClientConfiguration()) // Delete client
 	})
+
+	// Webhook callers authenticate with the automation's secret, not with a
+	// Coder session, so this route has no API key middleware. It lives
+	// outside the /api/experimental group because that group's rate limiter
+	// keys unauthenticated callers by path, which gives every automation id
+	// a fresh bucket; this limiter keys by caller alone.
+	r.With(httpmw.RateLimitByEndpointKey(options.APIRateLimit, time.Minute, "chat-automation-events")).
+		Post("/api/experimental/chat-automations/{automation}/events", api.postChatAutomationEvent)
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
@@ -1358,32 +1378,38 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserSkill)
 			})
 		})
-		// Chat routes are promoted to /api/v2. CODAGT-921 decided a compatibility
-		// window, so these experimental duplicates must remain for one release.
-		// TODO(CODAGT-921): remove after the transition window (tracked in CODAGT-922).
-		r.Route("/users/{user}/ai-provider-keys", func(r chi.Router) {
+		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
+		r.Route("/organizations/{organization}/chat-automations", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractUserParam(options.Database),
+				api.requireChatAutomations,
+				httpmw.ExtractOrganizationParam(options.Database),
 			)
-			api.registerUserAIProviderKeyRoutes(r)
-		})
-		r.Route("/organizations", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Route("/{organization}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationParam(options.Database))
-				api.registerOrganizationChatRoutes(r, chatAPIPrefixExperimental)
-				r.Route("/members/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractOrganizationMemberParam(options.Database))
-					api.registerOrganizationMemberChatRoutes(r)
-				})
+			r.Get("/", api.listChatAutomations)
+			r.Post("/", api.postChatAutomation)
+			r.Post("/schedule-preview", api.postChatAutomationSchedulePreview)
+			r.Route("/{automation}", func(r chi.Router) {
+				r.Get("/", api.chatAutomation)
+				r.Patch("/", api.patchChatAutomation)
+				r.Delete("/", api.deleteChatAutomation)
+				r.Post("/secret/rotate", api.postChatAutomationSecretRotate)
+				r.Post("/runs", api.postChatAutomationRun)
 			})
 		})
-		api.registerChatAPIRoutes(r, apiKeyMiddleware, chatAPIPrefixExperimental)
+		r.Route("/organizations/{organization}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			api.registerExperimentalOrganizationChatRoutes(r)
+		})
 
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			api.registerMCPServerOAuth2Routes(r, chatAPIPrefixExperimental)
+			// Providers pin the redirect URI when a session is established,
+			// so the callback URL cannot change for existing sessions without
+			// breaking token refresh and forcing a re-auth.
+			r.Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
 				r.Use(
@@ -1392,6 +1418,12 @@ func New(options *Options) *API {
 				)
 				r.Mount("/", api.mcpHTTPHandler())
 			})
+		})
+		r.Route("/experiments/rules", func(r chi.Router) {
+			// Responses contain condition text, so they are never cached.
+			r.Use(apiKeyMiddleware, httpmw.NoStore)
+			r.Get("/", api.experimentRules)
+			r.Put("/{experiment}", api.putExperimentRule)
 		})
 		r.Route("/watch-all-workspacebuilds", func(r chi.Router) {
 			r.Use(
@@ -1437,12 +1469,14 @@ func New(options *Options) *API {
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/available", handleExperimentsAvailable)
-			r.Get("/", api.handleExperimentsGet)
+			r.With(httpmw.NoStore).Get("/", api.handleExperimentsGet)
 		})
-		api.registerChatAPIRoutes(r, apiKeyMiddleware, chatAPIPrefixV2)
+		api.registerChatAPIRoutes(r, apiKeyMiddleware)
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			api.registerMCPServerOAuth2Routes(r, chatAPIPrefixV2)
+			// Disconnect stays outside organization routes so former organization
+			// members can delete their stored token after losing config read access.
+			r.Delete("/servers/{mcpServer}/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
 		})
 
 		r.Get("/updatecheck", api.updateCheck)
@@ -1507,7 +1541,7 @@ func New(options *Options) *API {
 				r.Use(
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
-				api.registerOrganizationChatRoutes(r, chatAPIPrefixV2)
+				api.registerOrganizationChatRoutes(r)
 				r.Get("/", api.organization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
@@ -1883,6 +1917,7 @@ func New(options *Options) *API {
 			)
 			r.Get("/", api.workspaceBuild)
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
+			r.Post("/debug-events", api.postWorkspaceBuildDebugEvent)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
@@ -2182,12 +2217,6 @@ type API struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// chatFilesRateLimit is shared by the /api/experimental and /api/v2
-	// chat file mounts so the compatibility window does not double the
-	// FilesRateLimit budget.
-	chatFilesRateLimitOnce sync.Once
-	chatFilesRateLimit     func(http.Handler) http.Handler
-
 	// DeploymentID is loaded from the database on startup.
 	DeploymentID string
 
@@ -2273,6 +2302,10 @@ type API struct {
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
+	// ExperimentEvaluator decides user-scoped experiments per user from
+	// stored rules, falling back to Experiments. Use it instead of
+	// Experiments for every experiment in codersdk.ExperimentsUserScoped.
+	ExperimentEvaluator *experimentrules.Evaluator
 
 	healthCheckGroup    *singleflight.Group[string, *healthsdk.HealthcheckReport]
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
@@ -2284,12 +2317,17 @@ type API struct {
 	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
 	wsWatcher                *httpapi.WSWatcher
 
+	chatWorkspaceUploadsTotal *prometheus.CounterVec
+
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
+	// chatLimits are the deployment chat limits shared by the chat daemon
+	// and the chat HTTP handlers.
+	chatLimits chatd.Limits
 	// gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.

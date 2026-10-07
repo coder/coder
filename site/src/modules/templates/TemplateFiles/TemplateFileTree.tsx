@@ -6,7 +6,7 @@ import {
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, type JSX, useState } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	Collapsible,
@@ -40,21 +40,21 @@ function compareFileTreeEntries(
 	return isFolder(contentA) ? -1 : 1;
 }
 
-interface TemplateFilesTreeProps {
+type TemplateFilesTreeProps = {
 	onSelect: (path: string) => void;
 	onDelete?: (path: string) => void;
 	onRename?: (path: string) => void;
 	fileTree: FileTree;
 	activePath?: string;
-	Label?: FC<{
+	Label?: React.FC<{
 		path: string;
 		filename: string;
 		label: string;
 		isFolder: boolean;
 	}>;
-}
+};
 
-export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
+export const TemplateFileTree: React.FC<TemplateFilesTreeProps> = ({
 	fileTree,
 	activePath,
 	onDelete,
@@ -68,7 +68,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 		content?: FileTree | string,
 		parentPath?: string,
 		depth = 0,
-	): JSX.Element => {
+	): React.JSX.Element => {
 		const currentPath = parentPath ? `${parentPath}/${filename}` : filename;
 		// Used to group empty folders in one single label like VSCode does.
 		const shouldGroupFolder =
@@ -149,7 +149,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 	);
 };
 
-interface TreeNodeProps {
+type TreeNodeProps = {
 	label: React.ReactNode;
 	icon: React.ReactNode;
 	isHidden: boolean;
@@ -158,14 +158,14 @@ interface TreeNodeProps {
 	onClick: () => void;
 	onDelete?: () => void;
 	onRename?: () => void;
-}
+};
 
 const nodeClasses =
 	"grow flex h-8 cursor-pointer select-none items-center gap-2 " +
 	"border-none bg-transparent px-4 text-sm text-left " +
 	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset";
 
-const FileNode: FC<TreeNodeProps> = ({
+const FileNode: React.FC<TreeNodeProps> = ({
 	label,
 	icon,
 	isHidden,
@@ -201,11 +201,11 @@ const FileNode: FC<TreeNodeProps> = ({
 	);
 };
 
-interface FolderNodeProps extends Omit<TreeNodeProps, "icon"> {
+type FolderNodeProps = Omit<TreeNodeProps, "icon"> & {
 	children: React.ReactNode;
-}
+};
 
-const FolderNode: FC<FolderNodeProps> = ({
+const FolderNode: React.FC<FolderNodeProps> = ({
 	label,
 	isHidden,
 	isActive,
@@ -253,12 +253,12 @@ const FolderNode: FC<FolderNodeProps> = ({
 	);
 };
 
-interface MoreMenuProps {
+type MoreMenuProps = {
 	onRename?: () => void;
 	onDelete?: () => void;
-}
+};
 
-const MoreMenu: FC<MoreMenuProps> = ({ onRename, onDelete }) => {
+const MoreMenu: React.FC<MoreMenuProps> = ({ onRename, onDelete }) => {
 	if (!onRename && !onDelete) {
 		return null;
 	}

@@ -83,6 +83,7 @@ import (
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jobreaper"
+	"github.com/coder/coder/v2/coderd/nats"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/oauthpki"
@@ -102,7 +103,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	"github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -853,7 +853,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.Database = database.New(sqlDB)
 			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
 
-			pgPubsub, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+			// Build a single shared pubsub metrics instance, registered once
+			// when Prometheus is enabled. Both backends record into it with
+			// their own `backend` label value.
+			var pubsubMetrics *pubsub.Metrics
+			if options.DeploymentValues.Prometheus.Enable {
+				pubsubMetrics = pubsub.NewMetrics(options.PrometheusRegistry)
+			}
+
+			pgPubsub, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL, pubsubMetrics)
 			if err != nil {
 				return xerrors.Errorf("create pubsub: %w", err)
 			}
@@ -861,12 +869,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.ReplicaSyncPubsub = pgPubsub
 			defer pgPubsub.Close()
 
-			if options.DeploymentValues.Prometheus.Enable {
-				options.PrometheusRegistry.MustRegister(pgPubsub)
+			useNATSPubsub := !experiments.Enabled(codersdk.ExperimentNoNATSPubsub)
+			// NATS clustering needs this replica's routable address (clusterHost,
+			// from --cluster-host or the DERP relay URL). Neither being set is a
+			// valid legacy config (DERP disabled on the primary), so fall back to
+			// PG pubsub rather than start a NATS node that can never cluster.
+			if useNATSPubsub && options.ClusterHost == "" {
+				logger.Error(ctx, "embedded NATS pubsub is enabled but this replica has no cluster host; "+
+					"set --cluster-host (CODER_CLUSTER_HOST) to this replica's routable IP address, "+
+					"or configure the DERP relay URL; falling back to PostgreSQL pubsub")
+				useNATSPubsub = false
 			}
-
-			// Use NATS for pubsub if the experiment is enabled.
-			if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
+			if useNATSPubsub {
 				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
 				natsps, err := nats.New(ctx, logger.Named("nats_pubsub"), nats.Options{
 					ClusterAuthToken: token,
@@ -888,16 +902,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					// refactor so the CA cache can be constructed once alongside
 					// the database.
 					ClusterCA: cryptokeys.NoopSigningKeycache{},
+					Metrics:   pubsubMetrics,
 				})
 				if err != nil {
 					return xerrors.Errorf("create nats pubsub: %w", err)
 				}
 				options.Pubsub = natsps
 				defer natsps.Close()
-
-				if options.DeploymentValues.Prometheus.Enable {
-					options.PrometheusRegistry.MustRegister(natsps)
-				}
 			}
 
 			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), options.Pubsub)
@@ -1105,6 +1116,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
 				workspacestats.BatcherWithLogger(options.Logger.Named("batchstats")),
 				workspacestats.BatcherWithStore(options.Database),
+				workspacestats.BatcherWithRegisterer(options.PrometheusRegistry),
 			)
 			if err != nil {
 				return xerrors.Errorf("failed to create agent stats batcher: %w", err)
@@ -1152,6 +1164,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("create coder API: %w", err)
 			}
+			// Startup errors below return before the shutdown sequence
+			// closes the API, so close it on every return. The closer is
+			// not safe to call twice.
+			closeCoderAPI := sync.OnceValue(coderAPICloser.Close)
+			defer func() { _ = closeCoderAPI() }()
 			var aibridgeDaemon *aibridged.Server
 
 			// Run after newAPI so provider settings are decrypted by dbcrypt.
@@ -1188,7 +1205,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					defer closeBlockedUsersFunc()
 				}
 				var unsubscribeProviderReload func()
-				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
+				aibridgeDaemon, unsubscribeProviderReload, err = NewAIBridgeDaemon(ctx, AIBridgeDaemonOptions{
+					API:           coderAPI,
+					Config:        vals.AI.BridgeConfig,
+					Registerer:    aibridgeReg,
+					BridgeMetrics: aibridgeMetrics,
+				})
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
@@ -1461,7 +1483,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				_ = aibridgeDaemon.Close()
 			}
 			cliui.Info(inv.Stdout, "Waiting for WebSocket connections to close..."+"\n")
-			_ = coderAPICloser.Close()
+			_ = closeCoderAPI()
 			cliui.Info(inv.Stdout, "Done waiting for WebSocket connections"+"\n")
 
 			// Close tunnel after we no longer have in-flight connections.

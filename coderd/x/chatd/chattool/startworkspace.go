@@ -46,7 +46,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 	return fantasy.NewAgentTool(
 		"start_workspace",
 		"Start the chat's workspace if it is currently stopped. "+
-			"This tool is idempotent — if the workspace is already "+
+			"This tool is idempotent: if the workspace is already "+
 			"running, it returns immediately. Use create_workspace "+
 			"first if no workspace exists yet. Provide parameter "+
 			"values (from read_template) only if necessary or "+

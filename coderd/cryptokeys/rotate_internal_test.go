@@ -160,11 +160,9 @@ func Test_rotateKeys(t *testing.T) {
 	t.Run("IgnoresUnmanagedFeatureKeys", func(t *testing.T) {
 		t.Parallel()
 
-		// Regression: a rotator managing a subset of features (e.g. after the
-		// nats_ca experiment is toggled off) must still rotate its managed
-		// features even when the DB holds keys for features it does not manage,
-		// such as nats_ca rows left over from a prior experiment-on run.
-		// Previously such rows aborted every rotation.
+		// Regression: a rotator managing a subset of features must still rotate
+		// its managed features even when the DB holds keys for features it does
+		// not manage. Previously such rows aborted every rotation.
 		var (
 			db, _       = dbtestutil.NewDB(t)
 			clock       = quartz.NewMock(t)
@@ -513,7 +511,7 @@ func Test_rotateKeys(t *testing.T) {
 
 		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, keys, 6)
+		require.Len(t, keys, 7)
 
 		kbf := keysByFeature(keys, defaultRotatedFeatures)
 
@@ -526,15 +524,19 @@ func Test_rotateKeys(t *testing.T) {
 		require.Len(t, kbf[database.CryptoKeyFeatureTailnetResume], 1)
 		require.Len(t, kbf[database.CryptoKeyFeatureWorkspaceAppsToken], 1)
 		require.Len(t, kbf[database.CryptoKeyFeatureChatFilesToken], 1)
+		// No existing NATS CA key should've caused one to be inserted.
+		require.Len(t, kbf[database.CryptoKeyFeatureNATSCA], 1)
 
 		oidcKey := kbf[database.CryptoKeyFeatureOIDCConvert][0]
 		tailnetKey := kbf[database.CryptoKeyFeatureTailnetResume][0]
 		appTokenKey := kbf[database.CryptoKeyFeatureWorkspaceAppsToken][0]
 		chatFileTokenKey := kbf[database.CryptoKeyFeatureChatFilesToken][0]
+		natsCAKey := kbf[database.CryptoKeyFeatureNATSCA][0]
 		requireKey(t, oidcKey, database.CryptoKeyFeatureOIDCConvert, now, nullTime, validKey.Sequence)
 		requireKey(t, tailnetKey, database.CryptoKeyFeatureTailnetResume, now, nullTime, deletedKey.Sequence+1)
 		requireKey(t, appTokenKey, database.CryptoKeyFeatureWorkspaceAppsToken, now, nullTime, 1)
 		requireKey(t, chatFileTokenKey, database.CryptoKeyFeatureChatFilesToken, now, nullTime, 1)
+		requireKey(t, natsCAKey, database.CryptoKeyFeatureNATSCA, now, nullTime, 1)
 		newKey := kbf[database.CryptoKeyFeatureWorkspaceAppsAPIKey][0]
 		oldKey := kbf[database.CryptoKeyFeatureWorkspaceAppsAPIKey][1]
 		if newKey.Sequence == rotatedKey.Sequence {

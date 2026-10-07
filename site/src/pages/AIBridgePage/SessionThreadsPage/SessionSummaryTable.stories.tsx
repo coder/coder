@@ -71,8 +71,8 @@ export const NetworkDisabled: Story = {
 	},
 };
 
-// Tabbing to the disabled indicator's info button and pressing Enter reveals
-// the reason without a mouse.
+// Tabbing to the disabled indicator's info button reveals the reason tooltip
+// without a mouse.
 export const NetworkDisabledKeyboard: Story = {
 	args: {
 		...Default.args,
@@ -80,9 +80,8 @@ export const NetworkDisabledKeyboard: Story = {
 	},
 	play: async () => {
 		await userEvent.tab();
-		await userEvent.keyboard("{Enter}");
 		await waitFor(() =>
-			expect(screen.getByRole("dialog")).toHaveTextContent(
+			expect(screen.getByRole("tooltip")).toHaveTextContent(
 				"Network request monitoring was not active for this session.",
 			),
 		);

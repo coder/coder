@@ -138,6 +138,10 @@ var testCases = []testCase{
 		expectedError: "",
 	},
 	{
+		name:          "deployment_strategy",
+		expectedError: "",
+	},
+	{
 		name:          "probes_custom",
 		expectedError: "",
 	},
@@ -163,6 +167,10 @@ var testCases = []testCase{
 	},
 	{
 		name:          "listenerset_redirect",
+		expectedError: "",
+	},
+	{
+		name:          "single_stack_ipv6",
 		expectedError: "",
 	},
 }

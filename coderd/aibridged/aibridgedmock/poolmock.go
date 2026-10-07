@@ -15,6 +15,7 @@ import (
 	reflect "reflect"
 
 	aibridge "github.com/coder/coder/v2/aibridge"
+	keypool "github.com/coder/coder/v2/aibridge/keypool"
 	aibridged "github.com/coder/coder/v2/coderd/aibridged"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -56,6 +57,20 @@ func (m *MockPooler) Acquire(ctx context.Context, req aibridged.Request, clientF
 func (mr *MockPoolerMockRecorder) Acquire(ctx, req, clientFn, mcpBootstrapper any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Acquire", reflect.TypeOf((*MockPooler)(nil).Acquire), ctx, req, clientFn, mcpBootstrapper)
+}
+
+// KeyPools mocks base method.
+func (m *MockPooler) KeyPools() []*keypool.Pool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "KeyPools")
+	ret0, _ := ret[0].([]*keypool.Pool)
+	return ret0
+}
+
+// KeyPools indicates an expected call of KeyPools.
+func (mr *MockPoolerMockRecorder) KeyPools() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "KeyPools", reflect.TypeOf((*MockPooler)(nil).KeyPools))
 }
 
 // ReplaceProviders mocks base method.

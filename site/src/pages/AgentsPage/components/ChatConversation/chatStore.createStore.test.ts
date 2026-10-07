@@ -70,17 +70,6 @@ describe("replaceMessages", () => {
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
 	});
 
-	it("treats undefined as empty array", () => {
-		const store = createChatStore();
-		store.replaceMessages([makeMessage(1, "user", "hello")]);
-
-		store.replaceMessages(undefined);
-
-		const state = store.getSnapshot();
-		expect(state.messagesByID.size).toBe(0);
-		expect(state.orderedMessageIDs).toEqual([]);
-	});
-
 	it("does not notify subscribers when content is unchanged", () => {
 		const store = createChatStore();
 		const msg = makeMessage(1, "user", "hello");
@@ -419,15 +408,6 @@ describe("setQueuedMessages", () => {
 		store.setQueuedMessages([qm]);
 
 		expect(store.getSnapshot().queuedMessages).toEqual([qm]);
-	});
-
-	it("treats undefined as empty array", () => {
-		const store = createChatStore();
-		store.setQueuedMessages([makeQueuedMessage(1, "q")]);
-
-		store.setQueuedMessages(undefined);
-
-		expect(store.getSnapshot().queuedMessages).toEqual([]);
 	});
 
 	it("does not notify when queued message IDs are unchanged", () => {

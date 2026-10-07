@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { TemplateVersionVariable } from "#/api/typesGenerated";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
@@ -8,11 +7,11 @@ const isBoolean = (variable: TemplateVersionVariable) => {
 	return variable.type === "bool";
 };
 
-interface VariableLabelProps {
+type VariableLabelProps = {
 	variable: TemplateVersionVariable;
-}
+};
 
-const VariableLabel: FC<VariableLabelProps> = ({ variable }) => {
+const VariableLabel: React.FC<VariableLabelProps> = ({ variable }) => {
 	return (
 		<label htmlFor={variable.name}>
 			<span className="mb-1 block text-sm text-content-secondary">
@@ -26,14 +25,14 @@ const VariableLabel: FC<VariableLabelProps> = ({ variable }) => {
 	);
 };
 
-interface VariableInputProps {
+type VariableInputProps = {
 	disabled?: boolean;
 	variable: TemplateVersionVariable;
 	onChange: (value: string) => void;
 	defaultValue?: string;
-}
+};
 
-export const VariableInput: FC<VariableInputProps> = ({
+export const VariableInput: React.FC<VariableInputProps> = ({
 	disabled,
 	onChange,
 	variable,
@@ -54,7 +53,7 @@ export const VariableInput: FC<VariableInputProps> = ({
 	);
 };
 
-const VariableField: FC<VariableInputProps> = ({
+const VariableField: React.FC<VariableInputProps> = ({
 	disabled,
 	onChange,
 	variable,

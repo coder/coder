@@ -7,7 +7,7 @@ import {
 	WrenchIcon,
 	ZapIcon,
 } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type {
 	ChatContext,
 	ChatContextResource,
@@ -33,7 +33,7 @@ import { isMobileViewport } from "#/utils/mobile";
 import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 
-export interface AgentContextUsage {
+export type AgentContextUsage = {
 	readonly usedTokens?: number;
 	readonly estimated?: boolean;
 	readonly contextLimitTokens?: number;
@@ -47,7 +47,7 @@ export interface AgentContextUsage {
 	// Pinned workspace-context state: the resources the chat is built from and
 	// whether they have drifted from the agent's latest snapshot.
 	readonly context?: ChatContext;
-}
+};
 
 // Normalized popover entries, sourced from the chat's pinned context
 // resources.
@@ -122,7 +122,7 @@ const sumResourceBytes = (
 
 // Dimmed "(N.N KiB)" size suffix for a section header, omitted when the
 // section has no measurable size.
-const SectionSize: FC<{ bytes: number }> = ({ bytes }) =>
+const SectionSize: React.FC<{ bytes: number }> = ({ bytes }) =>
 	bytes > 0 ? (
 		<span className="ml-1 font-normal text-content-secondary">
 			{`(${formatKiB(bytes)})`}
@@ -170,7 +170,7 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-const RING_SIZE = 21.5;
+const RING_SIZE = 22;
 const RING_STROKE = 2.25;
 
 const GLYPH_HEIGHT = 11;
@@ -179,7 +179,7 @@ const GLYPH_BAR_LENGTH = 8.1;
 const GLYPH_TOP = (RING_SIZE - GLYPH_HEIGHT) / 2;
 const GLYPH_CX = RING_SIZE / 2;
 
-const ExclamationGlyph: FC = () => (
+const ExclamationGlyph: React.FC = () => (
 	<svg
 		width={RING_SIZE}
 		height={RING_SIZE}
@@ -211,7 +211,7 @@ const HOVER_CLOSE_DELAY_MS = 150;
 
 // Dimmed directory header shown above a group of context resources when a
 // section spans more than one directory.
-const ContextDirLabel: FC<{ dir: string }> = ({ dir }) => (
+const ContextDirLabel: React.FC<{ dir: string }> = ({ dir }) => (
 	<span
 		className="flex items-center gap-1 text-[11px] text-content-secondary"
 		title={dir}
@@ -221,8 +221,8 @@ const ContextDirLabel: FC<{ dir: string }> = ({ dir }) => (
 	</span>
 );
 
-export const ContextUsageIndicator: FC<{
-	usage: AgentContextUsage | null;
+export const ContextUsageIndicator: React.FC<{
+	usage: AgentContextUsage;
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;
 }> = ({ usage, onRefreshContext, isRefreshingContext }) => {
@@ -249,10 +249,10 @@ export const ContextUsageIndicator: FC<{
 		setOpen(true);
 	};
 
-	const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
+	const usedTokens = hasFiniteTokenValue(usage.usedTokens)
 		? usage.usedTokens
 		: undefined;
-	const contextLimitTokens = hasFiniteTokenValue(usage?.contextLimitTokens)
+	const contextLimitTokens = hasFiniteTokenValue(usage.contextLimitTokens)
 		? usage.contextLimitTokens
 		: undefined;
 	const percentUsed =
@@ -265,13 +265,13 @@ export const ContextUsageIndicator: FC<{
 	// Providers may report usage without token counts. Only a chat with no
 	// reported usage at all should promise numbers after the next message.
 	const hasReportedUsage = [
-		usage?.usedTokens,
-		usage?.contextLimitTokens,
-		usage?.inputTokens,
-		usage?.outputTokens,
-		usage?.cacheReadTokens,
-		usage?.cacheCreationTokens,
-		usage?.reasoningTokens,
+		usage.usedTokens,
+		usage.contextLimitTokens,
+		usage.inputTokens,
+		usage.outputTokens,
+		usage.cacheReadTokens,
+		usage.cacheCreationTokens,
+		usage.reasoningTokens,
 	].some(hasFiniteTokenValue);
 	const percentLabel =
 		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
@@ -279,7 +279,7 @@ export const ContextUsageIndicator: FC<{
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 0;
 
-	const context = usage?.context;
+	const context = usage.context;
 	const isDirty = context?.dirty ?? false;
 	const contextError = context?.error ?? "";
 	const hasContextError = contextError !== "";
@@ -386,9 +386,7 @@ export const ContextUsageIndicator: FC<{
 	const statusNote = statusNotes.length > 0 ? ` ${statusNotes.join(" ")}` : "";
 	let ariaLabel = "Context usage";
 	if (hasPercent) {
-		const label = usage?.estimated
-			? "Estimated context usage"
-			: "Context usage";
+		const label = usage.estimated ? "Estimated context usage" : "Context usage";
 		ariaLabel = `${label} ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`;
 	} else if (statusNote !== "") {
 		ariaLabel = `Context usage.${statusNote}`;
@@ -396,7 +394,7 @@ export const ContextUsageIndicator: FC<{
 
 	let usageLabel = "Context usage will appear after sending a message.";
 	if (hasPercent) {
-		const prefix = usage?.estimated ? "Estimated: " : "";
+		const prefix = usage.estimated ? "Estimated: " : "";
 		usageLabel = `${prefix}${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`;
 	} else if (hasReportedUsage) {
 		usageLabel = "Context usage unavailable";
@@ -405,14 +403,14 @@ export const ContextUsageIndicator: FC<{
 	const panelContent = (
 		<div className="text-xs text-content-primary">
 			{usageLabel}
-			{hasPercent && usage?.estimated && (
+			{hasPercent && usage.estimated && (
 				<div className="mt-1 max-w-64 text-content-secondary">
 					Based on the compacted summary only, excluding other prompt content
 					and tools. Replaced by measured usage after the next response.
 				</div>
 			)}
 			{hasPercent &&
-				usage?.compressionThreshold !== undefined &&
+				usage.compressionThreshold !== undefined &&
 				usage.compressionThreshold > 0 && (
 					<div className="mt-1 text-content-secondary">
 						{`Compacts at ${usage.compressionThreshold}%`}
@@ -588,7 +586,7 @@ export const ContextUsageIndicator: FC<{
 				</div>
 			)}
 			{(isDirty || hasContextError) && (
-				<div className="mt-2 flex flex-col gap-1.5 border-0 border-t border-solid border-border-default pt-2">
+				<div className="mt-2 flex flex-col gap-1.5 border-0 border-t border-solid border-border pt-2">
 					{hasContextError ? (
 						<span className="flex items-center gap-1.5 font-medium text-content-destructive">
 							<TriangleAlertIcon className="size-3 shrink-0" />

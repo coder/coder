@@ -2,6 +2,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { asRecord } from "../ChatElements/runtimeTypeUtils";
 import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
 import type {
+	MergedTool,
 	ParsedMessageContent,
 	ParsedMessageEntry,
 	RenderBlock,
@@ -12,13 +13,20 @@ export type UserInlineRenderBlock =
 	| Extract<RenderBlock, { type: "file-reference" }>;
 
 type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
+type WorkspaceFileReferenceBlock = Extract<
+	RenderBlock,
+	{ type: "workspace-file-reference" }
+>;
 
 export type MessageDisplayState = {
 	shouldHide: boolean;
 	userInlineContent: UserInlineRenderBlock[];
 	userFileBlocks: FileRenderBlock[];
+	workspaceFileBlocks: WorkspaceFileReferenceBlock[];
+	workspaceFileReferenceCount: number;
 	hasUserMessageBody: boolean;
 	hasFileBlocks: boolean;
+	hasWorkspaceFileReferences: boolean;
 	hasCopyableContent: boolean;
 	needsAssistantBottomSpacer: boolean;
 };
@@ -41,6 +49,11 @@ const isUserInlineRenderBlock = (
 const isFileRenderBlock = (block: RenderBlock): block is FileRenderBlock =>
 	block.type === "file";
 
+const isWorkspaceFileReferenceBlock = (
+	block: RenderBlock,
+): block is WorkspaceFileReferenceBlock =>
+	block.type === "workspace-file-reference";
+
 const isProviderToolResultOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],
 ): boolean =>
@@ -53,8 +66,11 @@ const isMetadataOnlyMessage = (
 	parts.length > 0 &&
 	parts.every((part) => part.type === "context-file" || part.type === "skill");
 
-const getRenderableContentState = (parsed: ParsedMessageContent) => {
-	const visibleTools = parsed.tools.filter((tool) =>
+export const getVisibleContent = (
+	blocks: readonly RenderBlock[],
+	tools: readonly MergedTool[],
+) => {
+	const visibleTools = tools.filter((tool) =>
 		shouldRenderTool({
 			name: tool.name,
 			status: tool.status,
@@ -63,8 +79,21 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 		}),
 	);
 	const visibleToolIds = new Set(visibleTools.map((tool) => tool.id));
-	const visibleBlocks = parsed.blocks.filter(
-		(block) => block.type !== "tool" || visibleToolIds.has(block.id),
+	// Workspace file references render as chips from the display
+	// state, not as standalone timeline blocks.
+	const visibleBlocks = blocks.filter(
+		(block) =>
+			block.type !== "workspace-file-reference" &&
+			(block.type !== "tool" || visibleToolIds.has(block.id)),
+	);
+
+	return { visibleBlocks, visibleTools };
+};
+
+const getRenderableContentState = (parsed: ParsedMessageContent) => {
+	const { visibleBlocks, visibleTools } = getVisibleContent(
+		parsed.blocks,
+		parsed.tools,
 	);
 	const hasRenderableContent =
 		visibleBlocks.length > 0 ||
@@ -128,19 +157,24 @@ export const deriveMessageDisplayState = ({
 	parsed,
 	hideActions,
 	hasActiveStream,
-	isAwaitingFirstStreamChunk = false,
+	isAwaitingFirstStreamChunk,
 }: {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 	hideActions: boolean;
 	hasActiveStream: boolean;
-	isAwaitingFirstStreamChunk?: boolean;
+	isAwaitingFirstStreamChunk: boolean;
 }): MessageDisplayState => {
 	const isUser = message.role === "user";
 	const userInlineContent = isUser
 		? parsed.blocks.filter(isUserInlineRenderBlock)
 		: [];
 	const userFileBlocks = isUser ? parsed.blocks.filter(isFileRenderBlock) : [];
+	const workspaceFileBlocks = isUser
+		? parsed.blocks.filter(isWorkspaceFileReferenceBlock)
+		: [];
+	const workspaceFileReferenceCount = workspaceFileBlocks.length;
+	const hasWorkspaceFileReferences = workspaceFileReferenceCount > 0;
 	const hasFileAttachments = parsed.blocks.some(isFileRenderBlock);
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
@@ -154,6 +188,7 @@ export const deriveMessageDisplayState = ({
 	const hasCopyableContent =
 		Boolean(parsed.markdown.trim()) &&
 		!hasFileAttachments &&
+		!hasWorkspaceFileReferences &&
 		(isUser || endsWithResponseBlock);
 	const needsAssistantBottomSpacer =
 		!hideActions &&
@@ -166,8 +201,11 @@ export const deriveMessageDisplayState = ({
 		shouldHide: shouldHideTimelineEntry({ message, parsed }),
 		userInlineContent,
 		userFileBlocks,
+		workspaceFileBlocks,
+		workspaceFileReferenceCount,
 		hasUserMessageBody,
 		hasFileBlocks,
+		hasWorkspaceFileReferences,
 		hasCopyableContent,
 		needsAssistantBottomSpacer,
 	};
