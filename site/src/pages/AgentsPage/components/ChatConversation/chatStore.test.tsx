@@ -817,6 +817,162 @@ describe("useChatStore", () => {
 		]);
 	});
 
+	it("keeps the messages below a history_reset's from_message_id", async () => {
+		const chatID = "chat-history-reset-from";
+		const initialMessages = [
+			buildMessage(chatID, 1, "user", "first prompt"),
+			buildMessage(chatID, 2, "assistant", "first answer"),
+			buildMessage(chatID, 3, "user", "second prompt"),
+			buildMessage(chatID, 4, "assistant", "second answer"),
+		];
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+			},
+		});
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [
+				{
+					messages: [...initialMessages].reverse(),
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined],
+		});
+		const wrapper = createWrapper(queryClient);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
+					chatID,
+					chatMessages: initialMessages,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: initialMessages,
+						queued_messages: [],
+						has_more: false,
+						history_version: 2,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return useChatSelector(store, selectOrderedMessageIDs);
+			},
+			{ wrapper },
+		);
+		await waitFor(() => {
+			expect(result.current).toEqual([1, 2, 3, 4]);
+		});
+
+		// The second prompt was edited: 3 and 4 are gone, 5 and 6 replace
+		// them. The reset is split across frames.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "history_reset",
+					chat_id: chatID,
+					history_reset: { from_message_id: 3 },
+				},
+				{
+					type: "message",
+					chat_id: chatID,
+					message: buildMessage(chatID, 5, "user", "edited prompt"),
+				},
+			]);
+		});
+		expect(result.current).toEqual([1, 2, 3, 4]);
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message",
+					chat_id: chatID,
+					message: buildMessage(chatID, 6, "assistant", "edited answer"),
+				},
+				{ type: "preview_reset", chat_id: chatID },
+			]);
+		});
+
+		await waitFor(() => {
+			expect(result.current).toEqual([1, 2, 5, 6]);
+		});
+		const cached = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+		}>(chatMessagesKey(chatID));
+		expect(cached?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			6, 5, 2, 1,
+		]);
+	});
+
+	it("keeps a message that arrived before a history_reset in the same frame", async () => {
+		const chatID = "chat-history-reset-same-frame";
+		const initialMessages = [
+			buildMessage(chatID, 1, "user", "prompt"),
+			buildMessage(chatID, 2, "assistant", "answer"),
+		];
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const wrapper = createWrapper(createTestQueryClient());
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
+					chatID,
+					chatMessages: initialMessages,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: initialMessages,
+						queued_messages: [],
+						has_more: false,
+						history_version: 1,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return useChatSelector(store, selectOrderedMessageIDs);
+			},
+			{ wrapper },
+		);
+		await waitFor(() => {
+			expect(result.current).toEqual([1, 2]);
+		});
+
+		// One sync adds 3; the next replaces everything from 4 on. Both
+		// arrive in one frame, and the reset does not resend 3.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message",
+					chat_id: chatID,
+					message: buildMessage(chatID, 3, "user", "next prompt"),
+				},
+				{ type: "preview_reset", chat_id: chatID },
+				{
+					type: "history_reset",
+					chat_id: chatID,
+					history_reset: { from_message_id: 4 },
+				},
+				{
+					type: "message",
+					chat_id: chatID,
+					message: buildMessage(chatID, 5, "assistant", "next answer"),
+				},
+				{ type: "preview_reset", chat_id: chatID },
+			]);
+		});
+
+		await waitFor(() => {
+			expect(result.current).toEqual([1, 2, 3, 5]);
+		});
+	});
+
 	it("buffers a history_reset replacement split across WS frames", async () => {
 		const chatID = "chat-history-reset-split";
 		const initialMessages = [

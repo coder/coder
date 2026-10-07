@@ -2203,6 +2203,16 @@ type ChatStreamEvent struct {
 	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
+	HistoryReset   *ChatStreamHistoryReset   `json:"history_reset,omitempty"`
+}
+
+// ChatStreamHistoryReset narrows a history_reset to the messages from
+// FromMessageID on. The client keeps its messages with lower IDs and
+// replaces the rest with the message events that follow. Without it, the
+// reset replaces the whole history. Sent only on streams opened with
+// after_revision.
+type ChatStreamHistoryReset struct {
+	FromMessageID int64 `json:"from_message_id"`
 }
 
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.

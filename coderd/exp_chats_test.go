@@ -9,6 +9,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"maps"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -10167,134 +10168,108 @@ func TestStreamChat(t *testing.T) {
 		}
 	})
 
-	// An edited chat keeps soft-deleted rows forever; the initial sync must
-	// start from the client's page or every connection replays the history.
-	t.Run("EditedChatDoesNotReplayHistory", func(t *testing.T) {
+	// An edited chat keeps its soft-deleted rows. A tab that sends its
+	// history version gets only what changed since: nothing when it is
+	// current, the messages from the edit on otherwise.
+	t.Run("EditedChatSyncsOnlyChangedHistory", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
-
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "first prompt",
-			}},
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "first prompt"}},
 		})
 		require.NoError(t, err)
 		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+		_ = sendChatMessage(ctx, t, client, chat.ID, "second prompt")
 
-		// newestPage is what a freshly opened chat fetches; it has no deleted rows.
-		newestPage := func(t *testing.T) (page codersdk.ChatMessagesResponse, newestID, userMessageID int64) {
+		newestPage := func() codersdk.ChatMessagesResponse {
 			t.Helper()
 			page, err := client.GetChatMessages(ctx, chat.ID, nil)
 			require.NoError(t, err)
-			require.Positive(t, page.HistoryVersion, "the messages page must report the history version it was read at")
-			for _, message := range page.Messages {
-				newestID = max(newestID, message.ID)
-				if message.Role == codersdk.ChatMessageRoleUser {
-					userMessageID = message.ID
+			require.False(t, page.HasMore)
+			return page
+		}
+		// lastPromptID is the newest user message, the one each step edits.
+		lastPromptID := func(page codersdk.ChatMessagesResponse) int64 {
+			t.Helper()
+			var id int64
+			for _, m := range page.Messages {
+				if m.Role == codersdk.ChatMessageRoleUser {
+					id = max(id, m.ID)
 				}
 			}
-			require.NotZero(t, userMessageID)
-			return page, newestID, userMessageID
+			require.NotZero(t, id)
+			return id
 		}
-
-		// editPrompt uses the real edit path, which soft-deletes the message
-		// and its suffix.
-		editPrompt := func(t *testing.T, messageID int64, text string) {
+		edit := func(messageID int64, text string) {
 			t.Helper()
-			edited, err := client.EditChatMessage(ctx, chat.ID, messageID, codersdk.EditChatMessageRequest{
-				Content: []codersdk.ChatInputPart{{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: text,
-				}},
+			resp, err := client.EditChatMessage(ctx, chat.ID, messageID, codersdk.EditChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
 			})
 			require.NoError(t, err)
-			require.NotEmpty(t, edited.DeletedMessageIDs)
+			require.NotEmpty(t, resp.DeletedMessageIDs)
 		}
-
-		// readInitialSync reads events up to and including the first status.
-		readInitialSync := func(t *testing.T, events <-chan codersdk.ChatStreamEvent) (reset bool, messageIDs []int64, version int64) {
+		// requireResetFrom checks the events replaced only the messages
+		// from fromID on.
+		requireResetFrom := func(events []codersdk.ChatStreamEvent, fromID int64) {
 			t.Helper()
-			for {
-				select {
-				case <-ctx.Done():
-					require.FailNow(t, "timed out waiting for the initial stream sync")
-				case event, ok := <-events:
-					require.True(t, ok, "stream closed before the initial sync completed")
-					switch event.Type {
-					case codersdk.ChatStreamEventTypeHistoryReset:
-						reset = true
-					case codersdk.ChatStreamEventTypeMessage:
-						messageIDs = append(messageIDs, event.Message.ID)
-					case codersdk.ChatStreamEventTypeStatus:
-						return reset, messageIDs, event.Status.HistoryVersion
-					}
-				}
-			}
-		}
-
-		// Open an already-edited chat as the web client does.
-		_, _, userMessageID := newestPage(t)
-		editPrompt(t, userMessageID, "edited prompt")
-		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
-		page, newestID, userMessageID := newestPage(t)
-
-		events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{
-			AfterID:       &newestID,
-			AfterRevision: &page.HistoryVersion,
-		})
-		require.NoError(t, err)
-		defer closer.Close()
-		reset, messageIDs, version := readInitialSync(t, events)
-		require.False(t, reset, "connecting with the page's history_version reset the client's paginated history")
-		require.Empty(t, messageIDs, "messages the client already fetched over REST were replayed on connect")
-		require.Equal(t, page.HistoryVersion, version, "status must carry the version the client can reconnect with")
-
-		// A live edit still arrives as history_reset plus full history. The
-		// last status of that turn covers everything sent.
-		editPrompt(t, userMessageID, "edited again")
-		sawReset := false
-		var latestVersion int64
-		for done := false; !done; {
-			select {
-			case <-ctx.Done():
-				require.FailNow(t, "timed out waiting for the edit to reach the stream")
-			case event, ok := <-events:
-				require.True(t, ok, "stream closed before the edit was delivered")
+			resets := 0
+			for _, event := range events {
 				switch event.Type {
 				case codersdk.ChatStreamEventTypeHistoryReset:
-					sawReset = true
-				case codersdk.ChatStreamEventTypeStatus:
-					latestVersion = max(latestVersion, event.Status.HistoryVersion)
-					done = sawReset && event.Status.Status == codersdk.ChatStatusWaiting
+					resets++
+					require.NotNil(t, event.HistoryReset, "the reset replaced the whole history")
+					require.Equal(t, fromID, event.HistoryReset.FromMessageID)
+				case codersdk.ChatStreamEventTypeMessage:
+					require.GreaterOrEqual(t, event.Message.ID, fromID, "a message below the edit was resent")
 				}
 			}
+			require.Equal(t, 1, resets)
 		}
-		require.Greater(t, latestVersion, page.HistoryVersion)
 
-		// Reconnect from that version alone: without after_id, anything the
-		// status version failed to cover would be sent again.
-		reconnected, closer2, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterRevision: &latestVersion})
-		require.NoError(t, err)
-		defer closer2.Close()
-		reset, messageIDs, _ = readInitialSync(t, reconnected)
-		require.False(t, reset, "reconnecting with the last status version reset the client's history")
-		require.Empty(t, messageIDs, "reconnecting with the last status version replayed history")
+		// Opening a chat that was edited before replays nothing.
+		edit(lastPromptID(newestPage()), "edited once")
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+		page := newestPage()
+		live := newChatTab(page)
+		applied, events := live.connect(ctx, t, client, chat.ID)
+		for _, event := range applied {
+			require.NotEqual(t, codersdk.ChatStreamEventTypeHistoryReset, event.Type, "opening the chat reset its history")
+			require.NotEqual(t, codersdk.ChatStreamEventTypeMessage, event.Type, "opening the chat resent a message the page holds")
+		}
 
-		// Without after_revision old deletions look like missed ones and the
-		// server resets the client, as before this change.
-		_, newestID, _ = newestPage(t)
-		legacy, closer3, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &newestID})
-		require.NoError(t, err)
-		defer closer3.Close()
-		reset, messageIDs, _ = readInitialSync(t, legacy)
-		require.True(t, reset, "a client without after_revision must still receive the full reset on connect")
-		require.NotEmpty(t, messageIDs)
+		// An edit while connected replaces the messages from the edit on.
+		stale := newChatTab(page)
+		editedID := lastPromptID(page)
+		edit(editedID, "edited twice")
+		applied = nil
+		for {
+			applied = append(applied, live.applyUntilStatus(ctx, t, events)...)
+			if applied[len(applied)-1].Status.Status == codersdk.ChatStatusWaiting {
+				break
+			}
+		}
+		requireResetFrom(applied, editedID)
+		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), live.sortedIDs())
+
+		// A tab whose stream was down for that edit, and which then sent
+		// a message, still holds the deleted messages and a newer ID.
+		stale.hold(sendChatMessage(ctx, t, client, chat.ID, "sent while the stream was down")...)
+		applied, _ = stale.connect(ctx, t, client, chat.ID)
+		requireResetFrom(applied, editedID)
+		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), stale.sortedIDs(), "the tab still shows deleted messages or is missing their replacements")
+
+		// A client that sends no history version gets the full reset.
+		legacy := newChatTab(newestPage())
+		legacy.version = 0
+		applied, _ = legacy.connect(ctx, t, client, chat.ID)
+		require.Equal(t, codersdk.ChatStreamEventTypeHistoryReset, applied[0].Type)
+		require.Nil(t, applied[0].HistoryReset, "a client without after_revision must get the full reset")
+		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), legacy.sortedIDs())
 	})
 
 	// A message another tab sends while this tab's stream is down has a
@@ -10319,25 +10294,10 @@ func TestStreamChat(t *testing.T) {
 		tab := newChatTab(page)
 		_, _ = tab.connect(ctx, t, client, chat.ID)
 
-		send := func(text string) []codersdk.ChatMessage {
-			t.Helper()
-			resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-				Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
-			})
-			require.NoError(t, err)
-			require.False(t, resp.Queued)
-			waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
-			if len(resp.Messages) > 0 {
-				return resp.Messages
-			}
-			require.NotNil(t, resp.Message)
-			return []codersdk.ChatMessage{*resp.Message}
-		}
-
 		// The stream is down: another tab sends, then this tab sends and
 		// stores its response, as submitChatTurn.ts does.
-		_ = send("from another tab")
-		tab.hold(send("from this tab")...)
+		_ = sendChatMessage(ctx, t, client, chat.ID, "from another tab")
+		tab.hold(sendChatMessage(ctx, t, client, chat.ID, "from this tab")...)
 
 		_, _ = tab.connect(ctx, t, client, chat.ID)
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), tab.sortedIDs(), "the tab is missing messages sent while its stream was down")
@@ -14050,7 +14010,11 @@ func (tab *chatTab) applyUntilStatus(ctx context.Context, t *testing.T, events <
 			applied = append(applied, event)
 			switch event.Type {
 			case codersdk.ChatStreamEventTypeHistoryReset:
-				clear(tab.ids)
+				var fromID int64
+				if event.HistoryReset != nil {
+					fromID = event.HistoryReset.FromMessageID
+				}
+				maps.DeleteFunc(tab.ids, func(id int64, _ bool) bool { return id >= fromID })
 			case codersdk.ChatStreamEventTypeMessage:
 				tab.hold(*event.Message)
 			case codersdk.ChatStreamEventTypeStatus:
@@ -14059,6 +14023,23 @@ func (tab *chatTab) applyUntilStatus(ctx context.Context, t *testing.T, events <
 			}
 		}
 	}
+}
+
+// sendChatMessage sends a message, waits for its turn to finish, and
+// returns the messages the response carries.
+func sendChatMessage(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID, text string) []codersdk.ChatMessage {
+	t.Helper()
+	resp, err := client.CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
+	})
+	require.NoError(t, err)
+	require.False(t, resp.Queued)
+	waitForChatStatus(ctx, t, client, chatID, codersdk.ChatStatusWaiting)
+	if len(resp.Messages) > 0 {
+		return resp.Messages
+	}
+	require.NotNil(t, resp.Message)
+	return []codersdk.ChatMessage{*resp.Message}
 }
 
 // liveChatMessageIDs returns the IDs of the chat's visible messages.

@@ -3804,6 +3804,7 @@ export interface ChatStreamEvent {
 	readonly retry?: ChatStreamRetry;
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
+	readonly history_reset?: ChatStreamHistoryReset;
 }
 
 // From codersdk/chats.go
@@ -3829,6 +3830,18 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 	"retry",
 	"status",
 ];
+
+// From codersdk/chats.go
+/**
+ * ChatStreamHistoryReset narrows a history_reset to the messages from
+ * FromMessageID on. The client keeps its messages with lower IDs and
+ * replaces the rest with the message events that follow. Without it, the
+ * reset replaces the whole history. Sent only on streams opened with
+ * after_revision.
+ */
+export interface ChatStreamHistoryReset {
+	readonly from_message_id: number;
+}
 
 // From codersdk/chats.go
 /**

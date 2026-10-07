@@ -17,6 +17,7 @@ import {
 	invalidateChatPrompts,
 	invalidateChatSearches,
 	patchChatMessages,
+	replaceChatMessagesFrom,
 	replaceChatMessagesHistory,
 	updateInfiniteChatsCache,
 	upsertChatMessages,
@@ -234,8 +235,12 @@ export const useChatStore = (
 	);
 
 	const replaceCacheMessages = useCallback(
-		(messages: readonly TypesGen.ChatMessage[]) => {
-			replaceChatMessagesHistory(queryClient, chatID, messages);
+		(messages: readonly TypesGen.ChatMessage[], fromID?: number) => {
+			if (fromID === undefined) {
+				replaceChatMessagesHistory(queryClient, chatID, messages);
+			} else {
+				replaceChatMessagesFrom(queryClient, chatID, fromID, messages);
+			}
 			void invalidateChatSearches(queryClient);
 		},
 		[chatID, queryClient],
@@ -433,6 +438,8 @@ export const useChatStore = (
 		// server always emits preview_reset after a history change in
 		// the same sync, so the run is guaranteed to terminate.
 		let historyResetPending = false;
+		// Set when the reset keeps the messages below this ID.
+		let historyResetFromID: number | undefined;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
 		// Set when the stream reports "waiting", cleared by any other
@@ -524,8 +531,15 @@ export const useChatStore = (
 				}
 				historyResetPending = false;
 				const replacement = historyReplacementBuf.splice(0);
-				store.replaceMessages(replacement);
-				replaceCacheMessages(replacement);
+				const fromID = historyResetFromID;
+				const kept =
+					fromID === undefined
+						? []
+						: [...store.getSnapshot().messagesByID.values()].filter(
+								(message) => message.id < fromID,
+							);
+				store.replaceMessages([...kept, ...replacement]);
+				replaceCacheMessages(replacement, fromID);
 			};
 
 			// Wrap all store mutations in a batch so subscribers
@@ -559,11 +573,17 @@ export const useChatStore = (
 					if (streamEvent.type === "history_reset") {
 						discardBufferedParts();
 						store.clearStreamState();
-						// A newer reset supersedes any in-flight replacement
-						// run, so restart buffering instead of committing.
+						// A reset that keeps older messages builds on what came
+						// before it in this frame, so apply that first.
+						commitHistoryReplacement();
+						const earlierMessages = pendingMessages.splice(0);
+						if (earlierMessages.length > 0) {
+							store.upsertDurableMessages(earlierMessages);
+							upsertCacheMessages(earlierMessages);
+						}
 						historyResetPending = true;
+						historyResetFromID = streamEvent.history_reset?.from_message_id;
 						historyReplacementBuf.length = 0;
-						pendingMessages.length = 0;
 						needsStreamReset = false;
 						continue;
 					}
@@ -775,6 +795,7 @@ export const useChatStore = (
 				// Drop any partial replacement run from the old
 				// socket; the new socket replays a fresh snapshot.
 				historyResetPending = false;
+				historyResetFromID = undefined;
 				historyReplacementBuf.length = 0;
 			},
 			onDisconnect(reconnectState: ReconnectSchedule) {
