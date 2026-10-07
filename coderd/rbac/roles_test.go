@@ -1531,8 +1531,7 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			// Chats are personal: only their owner may update one, even
-			// against admin roles.
+			// The owner and org-admin roles do not grant chat update.
 			Name:     "ChatUsageUpdate",
 			Actions:  []policy.Action{policy.ActionUpdate},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),

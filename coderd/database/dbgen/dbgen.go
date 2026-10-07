@@ -232,7 +232,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	role := takeFirst(seed.Role, database.ChatMessageRoleUser)
 
 	// Inserting messages requires chat update permission, which the
-	// synthetic owner subject lacks for other users' chats.
+	// synthetic owner subject lacks.
 	//nolint:gocritic // See above.
 	msgs, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(genCtx), database.InsertChatMessagesParams{
 		ChatID:              seed.ChatID,
@@ -544,8 +544,9 @@ func ChatMCPServer(t testing.TB, db database.Store, seed database.ChatMCPServer)
 		}).ID
 	}
 
-	// Configuring an MCP server requires update permission on its chat.
-	//nolint:gocritic // Seed other users' chat configurations as the system actor.
+	// Upserting an MCP server requires chat update permission, which the
+	// synthetic owner subject lacks.
+	//nolint:gocritic // See above.
 	server, err := db.UpsertChatMCPServer(dbauthz.AsSystemRestricted(genCtx), database.UpsertChatMCPServerParams{
 		ID:                  takeFirst(seed.ID, uuid.New()),
 		ChatID:              chatID,

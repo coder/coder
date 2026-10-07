@@ -404,8 +404,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
 			// Owners can inspect and delete personal skills for operability and
 			// abuse handling, but cannot create or edit user-authored instructions.
-			// Chats follow the same rule: owners can create, read, share, and
-			// delete them, but only the chat owner may update one.
+			// The Owner role does not grant site-wide chat update.
 			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUserSkill, ResourceChat, ResourceUsageEvent, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceAIGatewayKey),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
@@ -588,8 +587,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							Permissions(map[string][]policy.Action{
 								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
-								// Chats are personal: org admins can create, read, share,
-								// and delete them, but only the chat owner may update one.
+								// The org-admin role does not grant organization-wide chat update.
 								ResourceChat.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionDelete},
 								// PrebuiltWorkspaces are a subset of Workspaces.
 								// Explicitly setting PrebuiltWorkspace permissions for clarity.

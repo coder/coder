@@ -10430,7 +10430,7 @@ func TestCompactChat(t *testing.T) {
 			Authorizer: &coderdtest.FakeAuthorizer{
 				ConditionalReturn: func(_ context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
 					// dbgen seeds chat messages as the system actor and other
-					// rows with a synthetic "owner" subject; let both pass.
+					// rows as a synthetic "owner" subject.
 					if subject.ID == "owner" || subject.Type == rbac.SubjectTypeSystemRestricted {
 						return nil
 					}
@@ -10691,7 +10691,7 @@ func TestClearChat(t *testing.T) {
 			Authorizer: &coderdtest.FakeAuthorizer{
 				ConditionalReturn: func(_ context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
 					// dbgen seeds chat messages as the system actor and other
-					// rows with a synthetic "owner" subject; let both pass.
+					// rows as a synthetic "owner" subject.
 					if subject.ID == "owner" || subject.Type == rbac.SubjectTypeSystemRestricted {
 						return nil
 					}
@@ -11645,12 +11645,16 @@ func TestGetChatDiffContents(t *testing.T) {
 		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
-		user := coderdtest.CreateFirstUser(t, client.Client)
+		admin := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
+		ownerRaw, owner := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
+		sharedRaw, sharedUser := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
+		ownerClient := codersdk.NewExperimentalClient(ownerRaw)
+		sharedClient := codersdk.NewExperimentalClient(sharedRaw)
 
 		_, err := db.InsertExternalAuthLink(dbauthz.AsSystemRestricted(ctx), database.InsertExternalAuthLinkParams{
 			ProviderID:       "github-test",
-			UserID:           user.UserID,
+			UserID:           owner.ID,
 			OAuthAccessToken: gitToken,
 			OAuthExpiry:      dbtime.Now().Add(24 * time.Hour),
 			CreatedAt:        dbtime.Now(),
@@ -11658,39 +11662,56 @@ func TestGetChatDiffContents(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "discovery write keys stored ref",
-		})
-		// A reported ref with no stored PR URL, so the diff GET must
-		// resolve the PR upstream.
-		_, err = db.UpsertChatDiffStatusReference(
-			dbauthz.AsSystemRestricted(ctx),
-			database.UpsertChatDiffStatusReferenceParams{
-				ChatID:          chat.ID,
-				Url:             sql.NullString{},
-				GitBranch:       "feature/keyed-discovery",
-				GitRemoteOrigin: origin,
-				StaleAt:         time.Now().UTC().Add(time.Hour),
-			},
-		)
-		require.NoError(t, err)
+		for _, viewer := range []struct {
+			name   string
+			client *codersdk.ExperimentalClient
+		}{
+			{name: "Owner", client: ownerClient},
+			{name: "Admin", client: client},
+			{name: "SharedReadOnly", client: sharedClient},
+		} {
+			t.Run(viewer.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				chat := dbgen.Chat(t, db, database.Chat{
+					OrganizationID:    admin.OrganizationID,
+					OwnerID:           owner.ID,
+					LastModelConfigID: modelConfig.ID,
+					Title:             "discovery write keys stored ref " + viewer.name,
+				})
+				err := client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+					UserRoles: map[string]codersdk.ChatRole{sharedUser.ID.String(): codersdk.ChatRoleRead},
+				})
+				require.NoError(t, err)
+				// A reported ref with no stored PR URL, so the diff GET must
+				// resolve the PR upstream.
+				_, err = db.UpsertChatDiffStatusReference(
+					dbauthz.AsSystemRestricted(ctx),
+					database.UpsertChatDiffStatusReferenceParams{
+						ChatID:          chat.ID,
+						Url:             sql.NullString{},
+						GitBranch:       "feature/keyed-discovery",
+						GitRemoteOrigin: origin,
+						StaleAt:         time.Now().UTC().Add(time.Hour),
+					},
+				)
+				require.NoError(t, err)
 
-		diffContents, err := client.GetChatDiffContents(ctx, chat.ID)
-		require.NoError(t, err)
-		require.NotNil(t, diffContents.Provider)
-		require.NotNil(t, diffContents.PullRequestURL)
-		require.Equal(t, prURL, *diffContents.PullRequestURL)
+				diffContents, err := viewer.client.GetChatDiffContents(ctx, chat.ID)
+				require.NoError(t, err)
+				require.NotNil(t, diffContents.Provider)
+				require.NotNil(t, diffContents.PullRequestURL)
+				require.Equal(t, prURL, *diffContents.PullRequestURL)
 
-		statuses, err := db.GetChatDiffStatusesByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.Len(t, statuses, 1, "the discovery write must update the reported ref, not add a row")
-		require.Equal(t, "feature/keyed-discovery", statuses[0].GitBranch)
-		require.Equal(t, origin, statuses[0].GitRemoteOrigin)
-		require.True(t, statuses[0].Url.Valid)
-		require.Equal(t, prURL, statuses[0].Url.String)
+				statuses, err := db.GetChatDiffStatusesByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				require.NoError(t, err)
+				require.Len(t, statuses, 1, "the discovery write must update the reported ref, not add a row")
+				require.Equal(t, "feature/keyed-discovery", statuses[0].GitBranch)
+				require.Equal(t, origin, statuses[0].GitRemoteOrigin)
+				require.True(t, statuses[0].Url.Valid)
+				require.Equal(t, prURL, statuses[0].Url.String)
+			})
+		}
 	})
 
 	t.Run("DiscoveryWriteDoesNotReorderPrimary", func(t *testing.T) {
@@ -18804,11 +18825,8 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 	})
 }
 
-// TestChatOwnerOnlyWriteHandlers verifies that an org admin, whose role
-// grants create, read, share, and delete on every chat in the
-// organization, still cannot drive another user's chat. Admin roles hold
-// no chat update permission, so RBAC rejects these requests as not found
-// before the handlers' own owner checks run.
+// TestChatOwnerOnlyWriteHandlers verifies that non-owners cannot write to
+// another user's chat, including callers with custom chat update permissions.
 func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 	t.Parallel()
 
@@ -18847,6 +18865,8 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
 		)
 		adminClient = codersdk.NewExperimentalClient(orgAdminRaw)
+		_, err = adminClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
 		return ownerClient, adminClient, chat, db
 	}
 
@@ -18865,8 +18885,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	// Renaming, pinning, and archiving all go through PATCH /chats/{chat},
-	// which is the path an admin viewing a shared chat used to reach.
+	// Renaming, pinning, and archiving all go through PATCH /chats/{chat}.
 	t.Run("PatchChat", func(t *testing.T) {
 		t.Parallel()
 
@@ -18970,6 +18989,70 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
+	t.Run("CustomRoleCannotWriteOtherChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		ownerClient := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Database = rawDB
+			opts.Pubsub = pubsub
+		})
+		firstUser := coderdtest.CreateFirstUser(t, ownerClient.Client)
+		model := createChatModel(t, ownerClient)
+		chat := dbgen.Chat(t, rawDB, database.Chat{
+			OwnerID:           firstUser.UserID,
+			OrganizationID:    firstUser.OrganizationID,
+			LastModelConfigID: model.ID,
+		})
+		// Seed a stored role directly: existing roles may grant chat update
+		// even when the built-in administrator roles do not.
+		role, err := rawDB.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+			Name:           testutil.GetRandomName(t),
+			OrganizationID: uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true},
+			OrgPermissions: database.CustomRolePermissions{
+				{ResourceType: rbac.ResourceChat.Type, Action: policy.ActionRead},
+				{ResourceType: rbac.ResourceChat.Type, Action: policy.ActionUpdate},
+			},
+		})
+		require.NoError(t, err)
+		writerRaw, writer := coderdtest.CreateAnotherUser(t, ownerClient.Client, firstUser.OrganizationID)
+		_, err = ownerClient.UpdateOrganizationMemberRoles(ctx, firstUser.OrganizationID, writer.ID.String(), codersdk.UpdateRoles{Roles: []string{role.Name}})
+		require.NoError(t, err)
+		writerClient := codersdk.NewExperimentalClient(writerRaw)
+		_, err = writerClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+
+		t.Run("PostChatMessages", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := writerClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "forbidden"}},
+			})
+			sdkErr := requireSDKError(t, err, http.StatusForbidden)
+			require.Contains(t, sdkErr.Message, "Only the chat owner")
+		})
+		for name, request := range map[string]codersdk.UpdateChatRequest{
+			"Title":             {Title: ptr.Ref("forbidden")},
+			"Pin":               {PinOrder: ptr.Ref(int32(1))},
+			"Archive":           {Archived: ptr.Ref(true)},
+			"Read":              {Read: ptr.Ref(true)},
+			"ManageAutomations": {ManageAutomationsEnabled: ptr.Ref(false)},
+			"MixedFields":       {Title: ptr.Ref("forbidden"), Read: ptr.Ref(true), Archived: ptr.Ref(true)},
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				err := writerClient.UpdateChat(ctx, chat.ID, request)
+				sdkErr := requireSDKError(t, err, http.StatusForbidden)
+				require.Contains(t, sdkErr.Message, "Only the chat owner")
+				persisted, err := rawDB.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, chat, persisted)
+			})
+		}
+	})
+
 	// Verify the owner can still operate normally.
 	t.Run("OwnerCanSendMessages", func(t *testing.T) {
 		t.Parallel()
@@ -19033,7 +19116,7 @@ func TestChatReadState(t *testing.T) {
 		require.True(t, hasUnread(ctx, t, client, chat.ID))
 	})
 
-	t.Run("NonOwnerForbidden", func(t *testing.T) {
+	t.Run("NonOwnerNotFound", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)

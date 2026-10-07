@@ -91,8 +91,7 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		chat, err := memberClient.CreateChat(ctx, createRequest(nil, false))
 		require.NoError(t, err)
 
-		// RBAC rejects administrators updating another user's chat,
-		// including changing this switch in either direction.
+		// RBAC rejects administrators updating another user's chat.
 		for _, enabled := range []bool{true, false} {
 			err = admin.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ManageAutomationsEnabled: ptr.Ref(enabled)})
 			requireSDKError(t, err, http.StatusNotFound)
