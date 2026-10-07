@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"slices"
 
@@ -53,6 +54,10 @@ type streamLocalState struct {
 
 	afterMessageID         int64
 	initialMessageSyncDone bool
+	// partialResets is set for clients that sent a history version. They
+	// keep the messages below a history_reset's from_message_id, so a
+	// reset sends only the messages from that ID on.
+	partialResets bool
 }
 
 type streamSyncHint struct {
@@ -70,7 +75,12 @@ type streamDBSnapshot struct {
 
 	changedMessages []database.ChatMessage
 	historyReset    bool
-	fullHistory     []database.ChatMessage
+	// resetFromID is the lowest ID among changedMessages when the reset
+	// is partial, zero for a full reset.
+	resetFromID int64
+	// resetMessages are the visible messages with IDs at or above
+	// resetFromID, the whole visible history for a full reset.
+	resetMessages []database.ChatMessage
 
 	queue []database.ChatQueuedMessage
 
@@ -103,6 +113,7 @@ func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, cu
 			historyVersion: cursor.AfterRevision,
 			knownMessages:  make(map[int64]int64),
 			afterMessageID: afterMessageID,
+			partialResets:  cursor.AfterRevision > 0,
 		},
 	}
 }
@@ -197,12 +208,21 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 			}
 			snapshot.historyReset = l.historyResetRequired(snapshot.changedMessages)
 			if snapshot.historyReset {
-				snapshot.fullHistory, err = tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+				// Every message below the lowest changed ID is unchanged since
+				// the client's version, so only the messages from it on need
+				// replacing.
+				if l.state.partialResets {
+					snapshot.resetFromID = snapshot.changedMessages[0].ID
+					for _, msg := range snapshot.changedMessages {
+						snapshot.resetFromID = min(snapshot.resetFromID, msg.ID)
+					}
+				}
+				snapshot.resetMessages, err = tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 					ChatID:  l.chatID,
-					AfterID: 0,
+					AfterID: max(snapshot.resetFromID-1, 0),
 				})
 				if err != nil {
-					return xerrors.Errorf("get full chat history: %w", err)
+					return xerrors.Errorf("get chat history for reset: %w", err)
 				}
 			}
 		}
@@ -215,7 +235,10 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		}
 
 		if chat.Status == database.ChatStatusRequiresAction {
-			history := snapshot.fullHistory
+			var history []database.ChatMessage
+			if snapshot.historyReset && snapshot.resetFromID == 0 {
+				history = snapshot.resetMessages
+			}
 			if len(history) == 0 {
 				history, err = tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 					ChatID:  l.chatID,
@@ -406,12 +429,18 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 
 func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStreamEvent {
 	if snapshot.historyReset {
-		events := []codersdk.ChatStreamEvent{{
+		event := codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypeHistoryReset,
 			ChatID: l.chatID,
-		}}
-		clear(l.state.knownMessages)
-		for _, msg := range snapshot.fullHistory {
+		}
+		if snapshot.resetFromID > 0 {
+			event.HistoryReset = &codersdk.ChatStreamHistoryReset{FromMessageID: snapshot.resetFromID}
+		}
+		events := []codersdk.ChatStreamEvent{event}
+		maps.DeleteFunc(l.state.knownMessages, func(id, _ int64) bool {
+			return id >= snapshot.resetFromID
+		})
+		for _, msg := range snapshot.resetMessages {
 			l.state.knownMessages[msg.ID] = msg.Revision
 			sdkMsg := db2sdk.ChatMessage(msg)
 			events = append(events, codersdk.ChatStreamEvent{

@@ -413,7 +413,6 @@ title: Schemas
   "circuit_breaker_max_requests": 0,
   "circuit_breaker_timeout": 0,
   "disable_content_recording": true,
-  "embedded_enabled": true,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
@@ -442,7 +441,6 @@ title: Schemas
 | `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `disable_content_recording`         | boolean | false    |              | Disable content recording stops user prompts, tool calls and model reasoning from being recorded, including tool names and their arguments. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. |
-| `embedded_enabled`                  | boolean | false    |              | Embedded enabled controls whether coderd starts the in-memory AI Gateway. It only takes effect when Enabled is true.                                                                                                                                                   |
 | `enabled`                           | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                                                                                           |
 | `max_concurrency`                   | integer | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1131,7 +1129,6 @@ title: Schemas
     "circuit_breaker_max_requests": 0,
     "circuit_breaker_timeout": 0,
     "disable_content_recording": true,
-    "embedded_enabled": true,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
@@ -1477,9 +1474,10 @@ None
 
 #### Enumerated Values
 
-| Property | Value(s)                     |
-|----------|------------------------------|
-| `scope`  | `all`, `application_connect` |
+| Property     | Value(s)                              |
+|--------------|---------------------------------------|
+| `login_type` | `github`, `oidc`, `password`, `token` |
+| `scope`      | `all`, `application_connect`          |
 
 ## codersdk.APIKeyScope
 
@@ -2093,7 +2091,7 @@ None
 
 ```json
 {
-  "action": "read",
+  "action": "create",
   "object": {
     "any_org": true,
     "organization_id": "string",
@@ -2112,6 +2110,12 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
 |----------|--------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `action` | [codersdk.RBACAction](#codersdkrbacaction)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `object` | [codersdk.AuthorizationObject](#codersdkauthorizationobject) | false    |              | Object can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product. When defining an object, use the most specific language when possible to produce the smallest set. Meaning to set as many fields on 'Object' as you can. Example, if you want to check if you can update all workspaces owned by 'me', try to also add an 'OrganizationID' to the settings. Omitting the 'OrganizationID' could produce the incorrect value, as workspaces have both `user` and `organization` owners. |
+
+#### Enumerated Values
+
+| Property | Value(s)                             |
+|----------|--------------------------------------|
+| `action` | `create`, `delete`, `read`, `update` |
 
 ## codersdk.AuthorizationObject
 
@@ -2143,7 +2147,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "checks": {
     "property1": {
-      "action": "read",
+      "action": "create",
       "object": {
         "any_org": true,
         "organization_id": "string",
@@ -2153,7 +2157,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     },
     "property2": {
-      "action": "read",
+      "action": "create",
       "object": {
         "any_org": true,
         "organization_id": "string",
@@ -2264,9 +2268,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                          |
-|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| `autodelete`, `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
+| Value(s)                                                                                                                            |
+|-------------------------------------------------------------------------------------------------------------------------------------|
+| `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
 
 ## codersdk.CORSBehavior
 
@@ -2760,16 +2764,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.ChatBusyBehavior
 
 ```json
-"steer"
+"queue"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)         |
-|------------------|
-| `queue`, `steer` |
+| Value(s)             |
+|----------------------|
+| `interrupt`, `queue` |
 
 ## codersdk.ChatClientType
 
@@ -2784,20 +2788,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)    |
 |-------------|
 | `api`, `ui` |
-
-## codersdk.ChatComputerUseProvider
-
-```json
-"anthropic"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                               |
-|----------------------------------------|
-| `anthropic`, `openai`, `openai-compat` |
 
 ## codersdk.ChatConfig
 
@@ -3301,7 +3291,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "content": [
     {
-      "args": {},
+      "args": [
+        0
+      ],
       "args_delta": "string",
       "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
@@ -3313,7 +3305,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "context_file_skill_meta_file": "string",
       "context_file_truncated": true,
       "created_at": "2019-08-24T14:15:22Z",
-      "data": "string",
+      "data": [
+        0
+      ],
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
@@ -3330,8 +3324,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       ],
       "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
       "reasoning_delta": "string",
-      "result": {},
+      "result": [
+        0
+      ],
       "result_delta": "string",
       "result_reset": true,
       "skill_description": "string",
@@ -3389,7 +3388,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "args": {},
+  "args": [
+    0
+  ],
   "args_delta": "string",
   "completed_at": "2019-08-24T14:15:22Z",
   "content": "string",
@@ -3401,7 +3402,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "context_file_skill_meta_file": "string",
   "context_file_truncated": true,
   "created_at": "2019-08-24T14:15:22Z",
-  "data": "string",
+  "data": [
+    0
+  ],
   "end_line": 0,
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "file_name": "string",
@@ -3418,8 +3421,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ]
   ],
   "provider_executed": true,
+  "provider_metadata": [
+    0
+  ],
   "reasoning_delta": "string",
-  "result": {},
+  "result": [
+    0
+  ],
   "result_delta": "string",
   "result_reset": true,
   "skill_description": "string",
@@ -3446,7 +3454,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                           | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                |
 |--------------------------------|--------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `args`                         | object                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `args`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `args_delta`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `completed_at`                 | string                                                       | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
 | `content`                      | string                                                       | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
@@ -3458,7 +3466,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `context_file_skill_meta_file` | string                                                       | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
 | `context_file_truncated`       | boolean                                                      | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
 | `created_at`                   | string                                                       | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
-| `data`                         | string                                                       | false    |              | Data holds an inline file's bytes, which JSON carries as a base64 string.                                                                                                                                                                                                                                                                                                                                  |
+| `data`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_id`                      | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3471,8 +3479,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `narration`                    | boolean                                                      | false    |              | Narration marks assistant text that the model labeled as commentary on its work rather than its answer. Only providers that label their output set it.                                                                                                                                                                                                                                                     |
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
+| `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
 | `reasoning_delta`              | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `result`                       | object                                                       | false    |              | Result is the tool output, which can be any JSON value.                                                                                                                                                                                                                                                                                                                                                    |
+| `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
@@ -3558,7 +3567,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": {},
+          "args": [
+            0
+          ],
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3570,7 +3581,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": "string",
+          "data": [
+            0
+          ],
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3587,8 +3600,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
           "reasoning_delta": "string",
-          "result": {},
+          "result": [
+            0
+          ],
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -3629,11 +3647,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "queued_messages": [
     {
-      "busy_behavior": "steer",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": {},
+          "args": [
+            0
+          ],
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3645,7 +3664,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": "string",
+          "data": [
+            0
+          ],
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3662,8 +3683,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
           "reasoning_delta": "string",
-          "result": {},
+          "result": [
+            0
+          ],
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -3703,7 +3729,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `has_more`        | boolean                                                           | false    |              |                                                                                                                                                                                        |
 | `history_version` | integer                                                           | false    |              | History version is the chat history_version this page was read at. Pass it as after_revision when opening the stream. Set only on the page requested without before_id or after_id.    |
 | `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                        |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                        |
 | `turn_start_id`   | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message. |
 
 ## codersdk.ChatModel
@@ -3712,7 +3738,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
   "compression_threshold": 0,
-  "computer_use_provider": "anthropic",
   "context_limit": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
@@ -3885,22 +3910,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type                                                                 | Required | Restrictions | Description                                                                                                                                |
-|-------------------------|----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_provider_id`        | string                                                               | false    |              |                                                                                                                                            |
-| `compression_threshold` | integer                                                              | false    |              |                                                                                                                                            |
-| `computer_use_provider` | [codersdk.ChatComputerUseProvider](#codersdkchatcomputeruseprovider) | false    |              | Computer use provider names the computer use tool that Coder sends for this model. It is omitted when computer use can't run on the model. |
-| `context_limit`         | integer                                                              | false    |              |                                                                                                                                            |
-| `created_at`            | string                                                               | false    |              |                                                                                                                                            |
-| `display_name`          | string                                                               | false    |              |                                                                                                                                            |
-| `enabled`               | boolean                                                              | false    |              |                                                                                                                                            |
-| `id`                    | string                                                               | false    |              |                                                                                                                                            |
-| `is_default`            | boolean                                                              | false    |              |                                                                                                                                            |
-| `model`                 | string                                                               | false    |              |                                                                                                                                            |
-| `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig)         | false    |              |                                                                                                                                            |
-| `organization_id`       | string                                                               | false    |              |                                                                                                                                            |
-| `reasoning_efforts`     | array of string                                                      | false    |              | Reasoning efforts lists selectable reasoning effort values through the model's configured maximum.                                         |
-| `updated_at`            | string                                                               | false    |              |                                                                                                                                            |
+| Name                    | Type                                                         | Required | Restrictions | Description                                                                                        |
+|-------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------|
+| `ai_provider_id`        | string                                                       | false    |              |                                                                                                    |
+| `compression_threshold` | integer                                                      | false    |              |                                                                                                    |
+| `context_limit`         | integer                                                      | false    |              |                                                                                                    |
+| `created_at`            | string                                                       | false    |              |                                                                                                    |
+| `display_name`          | string                                                       | false    |              |                                                                                                    |
+| `enabled`               | boolean                                                      | false    |              |                                                                                                    |
+| `id`                    | string                                                       | false    |              |                                                                                                    |
+| `is_default`            | boolean                                                      | false    |              |                                                                                                    |
+| `model`                 | string                                                       | false    |              |                                                                                                    |
+| `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |                                                                                                    |
+| `organization_id`       | string                                                       | false    |              |                                                                                                    |
+| `reasoning_efforts`     | array of string                                              | false    |              | Reasoning efforts lists selectable reasoning effort values through the model's configured maximum. |
+| `updated_at`            | string                                                       | false    |              |                                                                                                    |
 
 ## codersdk.ChatModelACL
 
@@ -5218,11 +5242,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "busy_behavior": "steer",
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "content": [
     {
-      "args": {},
+      "args": [
+        0
+      ],
       "args_delta": "string",
       "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
@@ -5234,7 +5259,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "context_file_skill_meta_file": "string",
       "context_file_truncated": true,
       "created_at": "2019-08-24T14:15:22Z",
-      "data": "string",
+      "data": [
+        0
+      ],
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
@@ -5251,8 +5278,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       ],
       "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
       "reasoning_delta": "string",
-      "result": {},
+      "result": [
+        0
+      ],
       "result_delta": "string",
       "result_reset": true,
       "skill_description": "string",
@@ -5284,22 +5316,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name               | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                                        |
-|--------------------|---------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`    | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)        | false    |              | Busy behavior is the lane of the message. Steer messages go in before the next model call, and queue messages go in after the turn ends.                                                                                                                           |
-| `chat_id`          | string                                                        | false    |              |                                                                                                                                                                                                                                                                    |
-| `content`          | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                                                                                                    |
-| `created_at`       | string                                                        | false    |              |                                                                                                                                                                                                                                                                    |
-| `editing_since`    | string                                                        | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends. A steer message under edit also holds the steer messages ahead of it. A turn that ends at a message under edit pauses the chat. |
-| `id`               | integer                                                       | false    |              |                                                                                                                                                                                                                                                                    |
-| `model_config_id`  | string                                                        | false    |              |                                                                                                                                                                                                                                                                    |
-| `reasoning_effort` | string                                                        | false    |              |                                                                                                                                                                                                                                                                    |
-
-#### Enumerated Values
-
-| Property        | Value(s)         |
-|-----------------|------------------|
-| `busy_behavior` | `queue`, `steer` |
+| Name               | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                  |
+|--------------------|---------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`          | string                                                        | false    |              |                                                                                                                                                                                              |
+| `content`          | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                              |
+| `created_at`       | string                                                        | false    |              |                                                                                                                                                                                              |
+| `editing_since`    | string                                                        | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends; a turn that ends at a message under edit pauses the chat. |
+| `id`               | integer                                                       | false    |              |                                                                                                                                                                                              |
+| `model_config_id`  | string                                                        | false    |              |                                                                                                                                                                                              |
+| `reasoning_effort` | string                                                        | false    |              |                                                                                                                                                                                              |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -5399,11 +5424,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retryable": true,
     "status_code": 0
   },
+  "history_reset": {
+    "from_message_id": 0
+  },
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": {},
+        "args": [
+          0
+        ],
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -5415,7 +5445,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": "string",
+        "data": [
+          0
+        ],
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -5432,8 +5464,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ]
         ],
         "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
         "reasoning_delta": "string",
-        "result": {},
+        "result": [
+          0
+        ],
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -5475,7 +5512,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "generation_attempt": 0,
     "history_version": 0,
     "part": {
-      "args": {},
+      "args": [
+        0
+      ],
       "args_delta": "string",
       "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
@@ -5487,7 +5526,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "context_file_skill_meta_file": "string",
       "context_file_truncated": true,
       "created_at": "2019-08-24T14:15:22Z",
-      "data": "string",
+      "data": [
+        0
+      ],
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
@@ -5504,8 +5545,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       ],
       "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
       "reasoning_delta": "string",
-      "result": {},
+      "result": [
+        0
+      ],
       "result_delta": "string",
       "result_reset": true,
       "skill_description": "string",
@@ -5531,11 +5577,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "queued_messages": [
     {
-      "busy_behavior": "steer",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": {},
+          "args": [
+            0
+          ],
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -5547,7 +5594,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": "string",
+          "data": [
+            0
+          ],
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -5564,8 +5613,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
           "reasoning_delta": "string",
-          "result": {},
+          "result": [
+            0
+          ],
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -5613,17 +5667,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                   | Required | Restrictions | Description                                                                                             |
-|-------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                         |
-| `chat_id`         | string                                                                 | false    |              |                                                                                                         |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                         |
-| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                         |
-| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                         |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages. |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                         |
-| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                         |
-| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                         |
+| Name              | Type                                                                   | Required | Restrictions | Description |
+|-------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |             |
+| `chat_id`         | string                                                                 | false    |              |             |
+| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |             |
+| `history_reset`   | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              |             |
+| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |             |
+| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |             |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |             |
+| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |             |
+| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |             |
+| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |             |
 
 ## codersdk.ChatStreamEventType
 
@@ -5639,6 +5694,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------------------------------------------------------------------------------------------------------------|
 | `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
 
+## codersdk.ChatStreamHistoryReset
+
+```json
+{
+  "from_message_id": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description |
+|-------------------|---------|----------|--------------|-------------|
+| `from_message_id` | integer | false    |              |             |
+
 ## codersdk.ChatStreamMessagePart
 
 ```json
@@ -5646,7 +5715,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "generation_attempt": 0,
   "history_version": 0,
   "part": {
-    "args": {},
+    "args": [
+      0
+    ],
     "args_delta": "string",
     "completed_at": "2019-08-24T14:15:22Z",
     "content": "string",
@@ -5658,7 +5729,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "context_file_skill_meta_file": "string",
     "context_file_truncated": true,
     "created_at": "2019-08-24T14:15:22Z",
-    "data": "string",
+    "data": [
+      0
+    ],
     "end_line": 0,
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "file_name": "string",
@@ -5675,8 +5748,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ]
     ],
     "provider_executed": true,
+    "provider_metadata": [
+      0
+    ],
     "reasoning_delta": "string",
-    "result": {},
+    "result": [
+      0
+    ],
     "result_delta": "string",
     "result_reset": true,
     "skill_description": "string",
@@ -6430,7 +6508,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "busy_behavior": "steer",
+  "busy_behavior": "queue",
   "content": [
     {
       "content": "string",
@@ -6478,15 +6556,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                  |
-|----------------------|-----------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              | Busy behavior controls when the message reaches the agent if the chat is busy. "steer", the default, delivers it before the next model call. "queue" delivers it after the active turn ends. |
-| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                                                                                                              |
-| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                                                                                                       |
-| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                                                                                                              |
-| `model_config_id`    | string                                                                      | false    |              |                                                                                                                                                                                              |
-| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                 |
-| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                                                                                                              |
+| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                  |
+|----------------------|-----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              |                                                                                                              |
+| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                              |
+| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                       |
+| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                              |
+| `model_config_id`    | string                                                                      | false    |              |                                                                                                              |
+| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
+| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                              |
+
+#### Enumerated Values
+
+| Property        | Value(s)             |
+|-----------------|----------------------|
+| `busy_behavior` | `interrupt`, `queue` |
 
 ## codersdk.CreateChatMessageResponse
 
@@ -6496,7 +6580,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": {},
+        "args": [
+          0
+        ],
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -6508,7 +6594,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": "string",
+        "data": [
+          0
+        ],
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -6525,8 +6613,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ]
         ],
         "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
         "reasoning_delta": "string",
-        "result": {},
+        "result": [
+          0
+        ],
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -6569,7 +6662,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": {},
+          "args": [
+            0
+          ],
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -6581,7 +6676,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": "string",
+          "data": [
+            0
+          ],
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -6598,8 +6695,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
           "reasoning_delta": "string",
-          "result": {},
+          "result": [
+            0
+          ],
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -6640,11 +6742,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "queued": true,
   "queued_message": {
-    "busy_behavior": "steer",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": {},
+        "args": [
+          0
+        ],
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -6656,7 +6759,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": "string",
+        "data": [
+          0
+        ],
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -6673,8 +6778,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ]
         ],
         "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
         "reasoning_delta": "string",
-        "result": {},
+        "result": [
+          0
+        ],
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -6710,13 +6820,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name             | Type                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                           |
-|------------------|----------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                       |
-| `messages`       | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages contains all user-visible messages inserted by the send, in insertion order. A send to an errored or paused chat can also insert queued messages: a steer send inserts the queued steer messages before the new message, and a queue send to an errored chat inserts the steer lane, or the first queue message when that lane is empty. Clients must upsert the full batch. |
-| `queued`         | boolean                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                       |
-| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                       |
-| `warnings`       | array of string                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                       |
+| Name             | Type                                                     | Required | Restrictions | Description                                                                                                                                                                                        |
+|------------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                    |
+| `messages`       | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages contains all user-visible messages inserted by the send, in insertion order. A queued send on an errored chat may promote the previous queue head, so clients must upsert the full batch. |
+| `queued`         | boolean                                                  | false    |              |                                                                                                                                                                                                    |
+| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                    |
+| `warnings`       | array of string                                          | false    |              |                                                                                                                                                                                                    |
 
 ## codersdk.CreateChatModelRequest
 
@@ -6995,7 +7105,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "unsafe_dynamic_tools": [
     {
       "description": "string",
-      "input_schema": {},
+      "input_schema": [
+        0
+      ],
       "name": "string"
     }
   ],
@@ -7419,8 +7531,10 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "action": "create",
-  "additional_fields": {},
-  "build_reason": "initiator",
+  "additional_fields": [
+    0
+  ],
+  "build_reason": "autostart",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -7434,13 +7548,21 @@ This is required on creation to enable a user-flow of validating a template work
 | Name                | Type                                           | Required | Restrictions | Description |
 |---------------------|------------------------------------------------|----------|--------------|-------------|
 | `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
-| `additional_fields` | object                                         | false    |              |             |
+| `additional_fields` | array of integer                               | false    |              |             |
 | `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
 | `organization_id`   | string                                         | false    |              |             |
 | `request_id`        | string                                         | false    |              |             |
 | `resource_id`       | string                                         | false    |              |             |
 | `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
 | `time`              | string                                         | false    |              |             |
+
+#### Enumerated Values
+
+| Property        | Value(s)                                                                                                 |
+|-----------------|----------------------------------------------------------------------------------------------------------|
+| `action`        | `create`, `delete`, `start`, `stop`, `write`                                                             |
+| `build_reason`  | `autostart`, `autostop`, `initiator`                                                                     |
+| `resource_type` | `auditable_group`, `git_ssh_key`, `template`, `template_version`, `user`, `workspace`, `workspace_build` |
 
 ## codersdk.CreateTokenRequest
 
@@ -7654,7 +7776,9 @@ This is required on creation to enable a user-flow of validating a template work
       "value": "string"
     }
   ],
-  "state": "string",
+  "state": [
+    0
+  ],
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start"
@@ -7672,7 +7796,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `reason`                     | [codersdk.CreateWorkspaceBuildReason](#codersdkcreateworkspacebuildreason)                     | false    |              | Reason sets the reason for the workspace build.                                                                                                                                                               |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter)                  | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
 | `secrets`                    | array of [codersdk.WorkspaceSecretInput](#codersdkworkspacesecretinput)                        | false    |              | Secrets sets or removes workspace secrets for this build. Previous secrets that are not listed carry forward unless they were ephemeral or a listed secret uses their env_name or file_path.                  |
-| `state`                      | string                                                                                         | false    |              | State overrides the provisioner state for this build. JSON carries it as a base64 string.                                                                                                                     |
+| `state`                      | array of integer                                                                               | false    |              |                                                                                                                                                                                                               |
 | `template_version_id`        | string                                                                                         | false    |              |                                                                                                                                                                                                               |
 | `template_version_preset_id` | string                                                                                         | false    |              | Template version preset ID is the ID of the template version preset to use for the build.                                                                                                                     |
 | `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                                   | true     |              |                                                                                                                                                                                                               |
@@ -8154,7 +8278,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "circuit_breaker_max_requests": 0,
         "circuit_breaker_timeout": 0,
         "disable_content_recording": true,
-        "embedded_enabled": true,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
@@ -8490,7 +8613,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "collect_agent_stats": true,
       "collect_db_metrics": true,
-      "collect_workspace_stats": true,
       "enable": true
     },
     "provisioner": {
@@ -8794,7 +8916,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "circuit_breaker_max_requests": 0,
       "circuit_breaker_timeout": 0,
       "disable_content_recording": true,
-      "embedded_enabled": true,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
@@ -9130,7 +9251,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     ],
     "collect_agent_stats": true,
     "collect_db_metrics": true,
-    "collect_workspace_stats": true,
     "enable": true
   },
   "provisioner": {
@@ -9522,18 +9642,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
   "description": "string",
-  "input_schema": {},
+  "input_schema": [
+    0
+  ],
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                                                                                                                                  |
-|----------------|--------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| `description`  | string | false    |              |                                                                                                                                              |
-| `input_schema` | object | false    |              | Input schema JSON key "input_schema" uses snake_case for SDK consistency, deviating from the camelCase "inputSchema" convention used by MCP. |
-| `name`         | string | false    |              |                                                                                                                                              |
+| Name           | Type             | Required | Restrictions | Description                                                                                                                                  |
+|----------------|------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `description`  | string           | false    |              |                                                                                                                                              |
+| `input_schema` | array of integer | false    |              | Input schema JSON key "input_schema" uses snake_case for SDK consistency, deviating from the camelCase "inputSchema" convention used by MCP. |
+| `name`         | string           | false    |              |                                                                                                                                              |
 
 ## codersdk.EditChatMessageRequest
 
@@ -9585,7 +9707,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": {},
+        "args": [
+          0
+        ],
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -9597,7 +9721,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": "string",
+        "data": [
+          0
+        ],
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -9614,8 +9740,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           ]
         ],
         "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
         "reasoning_delta": "string",
-        "result": {},
+        "result": [
+          0
+        ],
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -9658,7 +9789,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": {},
+          "args": [
+            0
+          ],
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -9670,7 +9803,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": "string",
+          "data": [
+            0
+          ],
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -9687,8 +9822,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             ]
           ],
           "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
           "reasoning_delta": "string",
-          "result": {},
+          "result": [
+            0
+          ],
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -10887,9 +11027,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                          |
-|-----------------------------------------------------------------------------------|
-| `INSUFFICIENT_QUOTA`, `MISSING_TEMPLATE_PARAMETER`, `REQUIRED_TEMPLATE_VARIABLES` |
+| Value(s)                                            |
+|-----------------------------------------------------|
+| `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES` |
 
 ## codersdk.License
 
@@ -11034,9 +11174,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                 |
-|--------------------------------------------------------------------------|
-| ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
+| Value(s)                                          |
+|---------------------------------------------------|
+| ``, `github`, `none`, `oidc`, `password`, `token` |
 
 ## codersdk.LoginWithPasswordRequest
 
@@ -12558,7 +12698,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     {
       "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
       "compression_threshold": 0,
-      "computer_use_provider": "anthropic",
       "context_limit": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "display_name": "string",
@@ -12904,6 +13043,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `user_id`            | string                                          | false    |              |                                                                                                  |
 | `user_updated_at`    | string                                          | false    |              |                                                                                                  |
 | `username`           | string                                          | false    |              |                                                                                                  |
+
+#### Enumerated Values
+
+| Property | Value(s)              |
+|----------|-----------------------|
+| `status` | `active`, `suspended` |
 
 ## codersdk.OrganizationSkillACL
 
@@ -13775,7 +13920,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "collect_agent_stats": true,
   "collect_db_metrics": true,
-  "collect_workspace_stats": true,
   "enable": true
 }
 ```
@@ -13788,7 +13932,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `aggregate_agent_stats_by` | array of string                      | false    |              |             |
 | `collect_agent_stats`      | boolean                              | false    |              |             |
 | `collect_db_metrics`       | boolean                              | false    |              |             |
-| `collect_workspace_stats`  | boolean                              | false    |              |             |
 | `enable`                   | boolean                              | false    |              |             |
 
 ## codersdk.ProposeChatTitleResponse
@@ -13891,6 +14034,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | » `[any property]` | string                                                               | false    |              |                  |
 | `version`          | string                                                               | false    |              |                  |
 
+#### Enumerated Values
+
+| Property | Value(s)                  |
+|----------|---------------------------|
+| `status` | `busy`, `idle`, `offline` |
+
 ## codersdk.ProvisionerDaemonJob
 
 ```json
@@ -13912,6 +14061,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `template_display_name` | string                                                         | false    |              |             |
 | `template_icon`         | string                                                         | false    |              |             |
 | `template_name`         | string                                                         | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                                                             |
+|----------|----------------------------------------------------------------------|
+| `status` | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded` |
 
 ## codersdk.ProvisionerDaemonStatus
 
@@ -14000,6 +14155,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `worker_id`         | string                                                             | false    |              |             |
 | `worker_name`       | string                                                             | false    |              |             |
 
+#### Enumerated Values
+
+| Property     | Value(s)                                                             |
+|--------------|----------------------------------------------------------------------|
+| `error_code` | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                  |
+| `status`     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded` |
+
 ## codersdk.ProvisionerJobInput
 
 ```json
@@ -14041,6 +14203,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `log_source` | [codersdk.LogSource](#codersdklogsource) | false    |              |             |
 | `output`     | string                                   | false    |              |             |
 | `stage`      | string                                   | false    |              |             |
+
+#### Enumerated Values
+
+| Property    | Value(s)                                  |
+|-------------|-------------------------------------------|
+| `log_level` | `debug`, `error`, `info`, `trace`, `warn` |
 
 ## codersdk.ProvisionerJobMetadata
 
@@ -14303,6 +14471,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `expected_revision` | integer                                                    | false    |              | Expected revision must equal the current revision of the stored rule, or zero when no rule is stored or the stored rule has no readable positive revision. A different revision fails with 409 Conflict. |
 | `mode`              | [codersdk.ExperimentRuleMode](#codersdkexperimentrulemode) | false    |              |                                                                                                                                                                                                          |
 
+#### Enumerated Values
+
+| Property | Value(s)                            |
+|----------|-------------------------------------|
+| `mode`   | `condition`, `inherit`, `off`, `on` |
+
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json
@@ -14420,6 +14594,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `theme_preference`   | string                                     | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
 | `updated_at`         | string                                     | false    |              |                                                                                            |
 | `username`           | string                                     | true     |              |                                                                                            |
+
+#### Enumerated Values
+
+| Property | Value(s)              |
+|----------|-----------------------|
+| `status` | `active`, `suspended` |
 
 ## codersdk.Region
 
@@ -14902,6 +15082,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`       | string                                                                 | false    |              |             |
 | `roles`      | array of [codersdk.WorkspaceRole](#codersdkworkspacerole)              | false    |              |             |
 
+#### Enumerated Values
+
+| Property     | Value(s)        |
+|--------------|-----------------|
+| `actor_type` | `group`, `user` |
+
 ## codersdk.SharedWorkspaceActorType
 
 ```json
@@ -15015,7 +15201,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "results": [
     {
       "is_error": true,
-      "output": {},
+      "output": [
+        0
+      ],
       "tool_call_id": "string"
     }
   ]
@@ -15432,7 +15620,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "prerequisites": "string",
   "variables": [
     {
-      "default": {},
+      "default": [
+        0
+      ],
       "description": "string",
       "name": "string",
       "required": true,
@@ -15495,7 +15685,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "prerequisites": "string",
       "variables": [
         {
-          "default": {},
+          "default": [
+            0
+          ],
           "description": "string",
           "name": "string",
           "required": true,
@@ -15721,7 +15913,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "id": "string",
   "variables": [
     {
-      "default": {},
+      "default": [
+        0
+      ],
       "description": "string",
       "name": "string",
       "required": true,
@@ -15751,7 +15945,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "default": {},
+  "default": [
+    0
+  ],
   "description": "string",
   "name": "string",
   "required": true,
@@ -15762,14 +15958,14 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name          | Type                                                                         | Required | Restrictions | Description                                                                                           |
-|---------------|------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------|
-| `default`     | object                                                                       | false    |              | Default is the variable's default as a JSON string, number, or boolean, matching the variable's type. |
-| `description` | string                                                                       | false    |              |                                                                                                       |
-| `name`        | string                                                                       | false    |              |                                                                                                       |
-| `required`    | boolean                                                                      | false    |              |                                                                                                       |
-| `sensitive`   | boolean                                                                      | false    |              |                                                                                                       |
-| `type`        | [codersdk.TemplateBuilderVariableType](#codersdktemplatebuildervariabletype) | false    |              |                                                                                                       |
+| Name          | Type                                                                         | Required | Restrictions | Description |
+|---------------|------------------------------------------------------------------------------|----------|--------------|-------------|
+| `default`     | array of integer                                                             | false    |              |             |
+| `description` | string                                                                       | false    |              |             |
+| `name`        | string                                                                       | false    |              |             |
+| `required`    | boolean                                                                      | false    |              |             |
+| `sensitive`   | boolean                                                                      | false    |              |             |
+| `type`        | [codersdk.TemplateBuilderVariableType](#codersdktemplatebuildervariabletype) | false    |              |             |
 
 ## codersdk.TemplateBuilderModulesResponse
 
@@ -15790,7 +15986,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "id": "string",
       "variables": [
         {
-          "default": {},
+          "default": [
+            0
+          ],
           "description": "string",
           "name": "string",
           "required": true,
@@ -16241,9 +16439,10 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Property | Value(s)       |
-|----------|----------------|
-| `role`   | `admin`, `use` |
+| Property | Value(s)              |
+|----------|-----------------------|
+| `role`   | `admin`, `use`        |
+| `status` | `active`, `suspended` |
 
 ## codersdk.TemplateVersion
 
@@ -16417,10 +16616,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Property    | Value(s)                                                                                                            |
-|-------------|---------------------------------------------------------------------------------------------------------------------|
-| `form_type` | ``, `checkbox`, `dropdown`, `error`, `input`, `multi-select`, `radio`, `slider`, `switch`, `tag-select`, `textarea` |
-| `type`      | `bool`, `list(string)`, `number`, `string`                                                                          |
+| Property               | Value(s)                                                                                                            |
+|------------------------|---------------------------------------------------------------------------------------------------------------------|
+| `form_type`            | ``, `checkbox`, `dropdown`, `error`, `input`, `multi-select`, `radio`, `slider`, `switch`, `tag-select`, `textarea` |
+| `type`                 | `bool`, `list(string)`, `number`, `string`                                                                          |
+| `validation_monotonic` | `decreasing`, `increasing`                                                                                          |
 
 ## codersdk.TemplateVersionParameterOption
 
@@ -16563,18 +16763,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "is_error": true,
-  "output": {},
+  "output": [
+    0
+  ],
   "tool_call_id": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description                                             |
-|----------------|---------|----------|--------------|---------------------------------------------------------|
-| `is_error`     | boolean | false    |              |                                                         |
-| `output`       | object  | false    |              | Output is the tool output, which can be any JSON value. |
-| `tool_call_id` | string  | false    |              |                                                         |
+| Name           | Type             | Required | Restrictions | Description |
+|----------------|------------------|----------|--------------|-------------|
+| `is_error`     | boolean          | false    |              |             |
+| `output`       | array of integer | false    |              |             |
+| `tool_call_id` | string           | false    |              |             |
 
 ## codersdk.TraceConfig
 
@@ -17714,15 +17916,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "state": "string"
+  "state": [
+    0
+  ]
 }
 ```
 
 ### Properties
 
-| Name    | Type   | Required | Restrictions | Description                                                            |
-|---------|--------|----------|--------------|------------------------------------------------------------------------|
-| `state` | string | false    |              | State is the provisioner state, which JSON carries as a base64 string. |
+| Name    | Type             | Required | Restrictions | Description |
+|---------|------------------|----------|--------------|-------------|
+| `state` | array of integer | false    |              |             |
 
 ## codersdk.UpdateWorkspaceDormancy
 
@@ -17767,6 +17971,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |------------------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------|
 | `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                     |
 | `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes. Deprecated: use `ShareableWorkspaceOwners` instead |
+
+#### Enumerated Values
+
+| Property                     | Value(s)                               |
+|------------------------------|----------------------------------------|
+| `shareable_workspace_owners` | `everyone`, `none`, `service_accounts` |
 
 ## codersdk.UpdateWorkspaceTTLRequest
 
@@ -17905,6 +18115,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `protocol`    | [codersdk.WorkspaceAgentPortShareProtocol](#codersdkworkspaceagentportshareprotocol) | false    |              |             |
 | `share_level` | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel)       | false    |              |             |
 
+#### Enumerated Values
+
+| Property      | Value(s)                                           |
+|---------------|----------------------------------------------------|
+| `protocol`    | `http`, `https`                                    |
+| `share_level` | `authenticated`, `organization`, `owner`, `public` |
+
 ## codersdk.UsagePeriod
 
 ```json
@@ -17986,6 +18203,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead.       |
 | `updated_at`         | string                                          | false    |              |                                                                                                  |
 | `username`           | string                                          | true     |              |                                                                                                  |
+
+#### Enumerated Values
+
+| Property | Value(s)              |
+|----------|-----------------------|
+| `status` | `active`, `suspended` |
 
 ## codersdk.UserAIBudgetOverride
 
@@ -18959,6 +19182,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `ttl_ms`                                    | integer                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `updated_at`                                | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 
+#### Enumerated Values
+
+| Property            | Value(s)          |
+|---------------------|-------------------|
+| `automatic_updates` | `always`, `never` |
+
 ## codersdk.WorkspaceACL
 
 ```json
@@ -19168,7 +19397,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `directory`                  | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `disconnected_at`            | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `display_apps`               | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                                                                                                                        |
-| `environment_variables`      | object                                                                                       | false    |              | Environment variables lists the variables set on the agent. Non-empty values are redacted as "***REDACTED***" because they often hold credentials.                                                                                                                     |
+| `environment_variables`      | object                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | » `[any property]`           | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `expanded_directory`         | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `first_connected_at`         | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
@@ -19683,6 +19912,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `share_level`  | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel)       | false    |              |             |
 | `workspace_id` | string                                                                               | false    |              |             |
 
+#### Enumerated Values
+
+| Property      | Value(s)                                           |
+|---------------|----------------------------------------------------|
+| `protocol`    | `http`, `https`                                    |
+| `share_level` | `authenticated`, `organization`, `owner`, `public` |
+
 ## codersdk.WorkspaceAgentPortShareLevel
 
 ```json
@@ -19934,6 +20170,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `subdomain_name` | string                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
 | `tooltip`        | string                                                                 | false    |              | Tooltip is an optional markdown supported field that is displayed when hovering over workspace apps in the UI.                                                                                                                                 |
 | `url`            | string                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
+
+#### Enumerated Values
+
+| Property        | Value(s)                                           |
+|-----------------|----------------------------------------------------|
+| `sharing_level` | `authenticated`, `organization`, `owner`, `public` |
 
 ## codersdk.WorkspaceAppHealth
 
@@ -20285,6 +20527,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                     |
 | `workspace_owner_id`         | string                                                            | false    |              |                                                                     |
 | `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace. |
+
+#### Enumerated Values
+
+| Property     | Value(s)                                                                                                          |
+|--------------|-------------------------------------------------------------------------------------------------------------------|
+| `reason`     | `autostart`, `autostop`, `initiator`                                                                              |
+| `status`     | `canceled`, `canceling`, `deleted`, `deleting`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping` |
+| `transition` | `delete`, `start`, `stop`                                                                                         |
 
 ## codersdk.WorkspaceBuildDebugEventRequest
 
@@ -20756,6 +21006,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `type`                 | string                                                                            | false    |              |             |
 | `workspace_transition` | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                      | false    |              |             |
 
+#### Enumerated Values
+
+| Property               | Value(s)                  |
+|------------------------|---------------------------|
+| `workspace_transition` | `delete`, `start`, `stop` |
+
 ## codersdk.WorkspaceResourceMetadata
 
 ```json
@@ -20865,6 +21121,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                     |
 | `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes. Deprecated: use `ShareableWorkspaceOwners` instead |
 | `sharing_globally_disabled`  | boolean                                                                | false    |              | Sharing globally disabled is true if sharing has been disabled for this organization because of a deployment-wide setting.      |
+
+#### Enumerated Values
+
+| Property                     | Value(s)                               |
+|------------------------------|----------------------------------------|
+| `shareable_workspace_owners` | `everyone`, `none`, `service_accounts` |
 
 ## codersdk.WorkspaceStatus
 
@@ -21309,6 +21571,12 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `status_code`      | integer                                   | false    |              |                                                                                             |
 | `warnings`         | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
+#### Enumerated Values
+
+| Property   | Value(s)                 |
+|------------|--------------------------|
+| `severity` | `error`, `ok`, `warning` |
+
 ## healthsdk.DERPHealthReport
 
 ```json
@@ -21548,6 +21816,12 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`         | [health.Severity](#healthseverity)                       | false    |              |                                                                                             |
 | `warnings`         | array of [health.Message](#healthmessage)                | false    |              |                                                                                             |
 
+#### Enumerated Values
+
+| Property   | Value(s)                 |
+|------------|--------------------------|
+| `severity` | `error`, `ok`, `warning` |
+
 ## healthsdk.DERPNodeReport
 
 ```json
@@ -21619,6 +21893,12 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `stun`                  | [healthsdk.STUNReport](#healthsdkstunreport)     | false    |              |                                                                                             |
 | `uses_websocket`        | boolean                                          | false    |              |                                                                                             |
 | `warnings`              | array of [health.Message](#healthmessage)        | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value(s)                 |
+|------------|--------------------------|
+| `severity` | `error`, `ok`, `warning` |
 
 ## healthsdk.DERPRegionReport
 
@@ -21722,6 +22002,12 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`     | [health.Severity](#healthseverity)                            | false    |              |                                                                                             |
 | `warnings`     | array of [health.Message](#healthmessage)                     | false    |              |                                                                                             |
 
+#### Enumerated Values
+
+| Property   | Value(s)                 |
+|------------|--------------------------|
+| `severity` | `error`, `ok`, `warning` |
+
 ## healthsdk.DatabaseReport
 
 ```json
@@ -21756,6 +22042,12 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`     | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
 | `threshold_ms` | integer                                   | false    |              |                                                                                             |
 | `warnings`     | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value(s)                 |
+|------------|--------------------------|
+| `severity` | `error`, `ok`, `warning` |
 
 ## healthsdk.HealthSection
 
@@ -22175,6 +22467,12 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `websocket`           | [healthsdk.WebsocketReport](#healthsdkwebsocketreport)                   | false    |              |                                                                                     |
 | `workspace_proxy`     | [healthsdk.WorkspaceProxyReport](#healthsdkworkspaceproxyreport)         | false    |              |                                                                                     |
 
+#### Enumerated Values
+
+| Property   | Value(s)                 |
+|------------|--------------------------|
+| `severity` | `error`, `ok`, `warning` |
+
 ## healthsdk.ProvisionerDaemonsReport
 
 ```json
@@ -22243,6 +22541,12 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `items`     | array of [healthsdk.ProvisionerDaemonsReportItem](#healthsdkprovisionerdaemonsreportitem) | false    |              |             |
 | `severity`  | [health.Severity](#healthseverity)                                                        | false    |              |             |
 | `warnings`  | array of [health.Message](#healthmessage)                                                 | false    |              |             |
+
+#### Enumerated Values
+
+| Property   | Value(s)                 |
+|------------|--------------------------|
+| `severity` | `error`, `ok`, `warning` |
 
 ## healthsdk.ProvisionerDaemonsReportItem
 
@@ -22362,6 +22666,12 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`  | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
 | `warnings`  | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
+#### Enumerated Values
+
+| Property   | Value(s)                 |
+|------------|--------------------------|
+| `severity` | `error`, `ok`, `warning` |
+
 ## healthsdk.WorkspaceProxyReport
 
 ```json
@@ -22420,6 +22730,12 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |                                                                                             |
 | `warnings`          | array of [health.Message](#healthmessage)                                                            | false    |              |                                                                                             |
 | `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value(s)                 |
+|------------|--------------------------|
+| `severity` | `error`, `ok`, `warning` |
 
 ## key.NodePublic
 
@@ -23232,7 +23548,7 @@ None
     "transition": "start"
   },
   "error": {
-    "code": 1,
+    "code": 0,
     "details": "string",
     "message": "string",
     "retryable": true
@@ -23252,7 +23568,7 @@ None
 
 ```json
 {
-  "code": 1,
+  "code": 0,
   "details": "string",
   "message": "string",
   "retryable": true
@@ -23271,16 +23587,16 @@ None
 ## workspacesdk.WatchErrorCode
 
 ```json
-1
+0
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)                     |
-|------------------------------|
-| `1`, `2`, `3`, `4`, `5`, `6` |
+| Value(s)                          |
+|-----------------------------------|
+| `0`, `1`, `2`, `3`, `4`, `5`, `6` |
 
 ## wsproxysdk.CryptoKeysResponse
 
