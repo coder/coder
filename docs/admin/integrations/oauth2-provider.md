@@ -206,6 +206,15 @@ Ensure the redirect URI in your request exactly matches the one registered for y
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
 
+### "invalid_scope" returned to your callback
+
+A grant never exceeds the session that authorizes it. Every access token has full API access, so that session must hold the `coder:all` scope and an allow list of `*:*`, which every browser session has. Otherwise, the user is redirected to your callback with `error=invalid_scope`, and the `error_description` opens with the reason:
+
+- `scope requests permissions beyond the signed-in session`: the session authorizing the request does not hold `coder:all`.
+  Authorize from a browser session, which holds every scope.
+- `the signed-in session is restricted to an allow list`: the session authorizing the request has an allow list other than `*:*`.
+  Authorize from a browser session, which has none.
+
 ## Security Considerations
 
 - **Use HTTPS**: Always use HTTPS in production to protect tokens in transit

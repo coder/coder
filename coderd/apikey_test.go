@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -140,6 +142,150 @@ func TestTokenLegacySingularScopeCompat(t *testing.T) {
 			require.Equal(t, "*:*", keys[0].AllowList[0].String())
 		})
 	}
+}
+
+// scopedCaller returns a client authenticated with a token that has the given
+// scopes and allow list. The token is inserted directly because this release
+// does not let a token request user:read, which reaching /users/{user} needs.
+func scopedCaller(t *testing.T, client *codersdk.Client, db database.Store, userID uuid.UUID, scopes []codersdk.APIKeyScope, allow []codersdk.APIAllowListTarget, expiresAt time.Time) (*codersdk.Client, database.APIKey) {
+	t.Helper()
+
+	dbScopes := make(database.APIKeyScopes, 0, len(scopes))
+	for _, s := range scopes {
+		dbScopes = append(dbScopes, database.APIKeyScope(s))
+	}
+	dbAllow := make(database.AllowList, 0, len(allow))
+	for _, a := range allow {
+		dbAllow = append(dbAllow, rbac.AllowListElement{Type: string(a.Type), ID: a.ID})
+	}
+	key, token := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    userID,
+		LoginType: database.LoginTypeToken,
+		Scopes:    dbScopes,
+		AllowList: dbAllow,
+		ExpiresAt: expiresAt,
+		// Token names are unique per user.
+		TokenName: testutil.GetRandomName(t),
+	})
+	return codersdk.New(client.URL, codersdk.WithSessionToken(token)), key
+}
+
+func TestTokenScopeCeiling(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	first := coderdtest.CreateFirstUser(t, client)
+
+	keyCreate, userRead := codersdk.APIKeyScopeApiKeyCreate, codersdk.APIKeyScopeUserRead
+	narrow := []codersdk.APIKeyScope{keyCreate, userRead}
+	narrowAllow := []codersdk.APIAllowListTarget{
+		codersdk.AllowResourceTarget(codersdk.ResourceWorkspace, uuid.New()),
+		codersdk.AllowTypeTarget(codersdk.ResourceApiKey),
+		codersdk.AllowTypeTarget(codersdk.ResourceUser),
+	}
+	all := []codersdk.APIAllowListTarget{codersdk.AllowAllTarget()}
+
+	cases := []struct {
+		name         string
+		callerScopes []codersdk.APIKeyScope // nil uses the unscoped session
+		callerAllow  []codersdk.APIAllowListTarget
+		sessionKey   bool // POST /users/me/keys instead of /keys/tokens
+		req          codersdk.CreateTokenRequest
+		wantScopes   []codersdk.APIKeyScope
+		wantAllow    []codersdk.APIAllowListTarget
+		wantErr      string
+	}{
+		{name: "unscoped caller keeps coder:all", wantScopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll}, wantAllow: all},
+		{name: "omitted values inherit", callerScopes: narrow, callerAllow: narrowAllow, wantScopes: narrow, wantAllow: narrowAllow},
+		{name: "session key inherits", callerScopes: narrow, callerAllow: narrowAllow, sessionKey: true, wantScopes: narrow, wantAllow: narrowAllow},
+		// user:read is not requestable on this release, so narrow to api_key:create.
+		{name: "narrower scope", callerScopes: narrow, req: codersdk.CreateTokenRequest{Scopes: []codersdk.APIKeyScope{keyCreate}}, wantScopes: []codersdk.APIKeyScope{keyCreate}, wantAllow: all},
+		{name: "coder:all refused", callerScopes: narrow, req: codersdk.CreateTokenRequest{Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll}}, wantErr: "coder:all"},
+		{name: "unheld scope refused", callerScopes: narrow, req: codersdk.CreateTokenRequest{Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeUserSecretAll}}, wantErr: "user_secret:*"},
+		{
+			name:         "composite covers low-level",
+			callerScopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderWorkspacesAccess, keyCreate, userRead},
+			req:          codersdk.CreateTokenRequest{Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceSsh}},
+			wantScopes:   []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceSsh},
+			wantAllow:    all,
+		},
+		{
+			name:         "narrower allow list",
+			callerScopes: narrow,
+			callerAllow:  narrowAllow,
+			req:          codersdk.CreateTokenRequest{AllowList: narrowAllow[:1]},
+			wantScopes:   narrow,
+			wantAllow:    narrowAllow[:1],
+		},
+		{name: "wider allow list refused", callerScopes: narrow, callerAllow: narrowAllow, req: codersdk.CreateTokenRequest{AllowList: all}, wantErr: "*:*"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			caller := client
+			if tc.callerScopes != nil {
+				caller, _ = scopedCaller(t, client, db, first.UserID, tc.callerScopes, tc.callerAllow, time.Time{})
+			}
+
+			var (
+				resp codersdk.GenerateAPIKeyResponse
+				err  error
+			)
+			if tc.sessionKey {
+				resp, err = caller.CreateAPIKey(ctx, codersdk.Me)
+			} else {
+				resp, err = caller.CreateToken(ctx, codersdk.Me, tc.req)
+			}
+			if tc.wantErr != "" {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+				require.Contains(t, sdkErr.Detail, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+
+			key, err := client.APIKeyByID(ctx, codersdk.Me, strings.Split(resp.Key, "-")[0])
+			require.NoError(t, err)
+			require.ElementsMatch(t, tc.wantScopes, key.Scopes)
+			require.ElementsMatch(t, tc.wantAllow, key.AllowList)
+		})
+	}
+}
+
+// A scoped caller's key must not outlive it; a coder:all caller's may.
+func TestTokenLifetimeCeiling(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	first := coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	scoped, parentKey := scopedCaller(t, client, db, first.UserID,
+		[]codersdk.APIKeyScope{codersdk.APIKeyScopeApiKeyCreate, codersdk.APIKeyScopeUserRead}, nil, dbtime.Now().Add(time.Hour))
+
+	token, err := scoped.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{Lifetime: 7 * 24 * time.Hour})
+	require.NoError(t, err)
+	session, err := scoped.CreateAPIKey(ctx, codersdk.Me)
+	require.NoError(t, err)
+	// Unnamed token keys would collide on the per-user name index.
+	second, err := scoped.CreateAPIKey(ctx, codersdk.Me)
+	require.NoError(t, err)
+	for _, child := range []string{token.Key, session.Key, second.Key} {
+		key, err := client.APIKeyByID(ctx, codersdk.Me, strings.Split(child, "-")[0])
+		require.NoError(t, err)
+		require.False(t, key.ExpiresAt.After(parentKey.ExpiresAt), "child outlives its creator")
+		require.Equal(t, codersdk.LoginTypeToken, key.LoginType, "a password key would slide past its creator")
+	}
+
+	unscoped, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{Lifetime: 7 * 24 * time.Hour})
+	require.NoError(t, err)
+	key, err := client.APIKeyByID(ctx, codersdk.Me, strings.Split(unscoped.Key, "-")[0])
+	require.NoError(t, err)
+	require.Greater(t, key.ExpiresAt, dbtime.Now().Add(6*24*time.Hour))
 }
 
 func TestUserSetTokenDuration(t *testing.T) {
