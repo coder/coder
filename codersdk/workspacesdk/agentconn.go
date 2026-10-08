@@ -91,6 +91,7 @@ const (
 // AgentConn represents a connection to a workspace agent.
 // @typescript-ignore AgentConn
 type AgentConn interface {
+	AgentID() uuid.UUID
 	ListACPHarnesses(ctx context.Context) ([]ACPHarness, error)
 	CreateACPSession(ctx context.Context, req ACPCreateSessionRequest) (ACPSession, error)
 	ReadACPSession(ctx context.Context, id ACPSessionID, opts ACPReadOptions) (ACPSessionResponse, error)
@@ -153,6 +154,10 @@ type agentConn struct {
 	opts         AgentConnOptions
 	headersMu    sync.RWMutex
 	extraHeaders http.Header
+}
+
+func (c *agentConn) AgentID() uuid.UUID {
+	return c.opts.AgentID
 }
 
 func (c *agentConn) TailnetConn() *tailnet.Conn {
