@@ -21,25 +21,19 @@ func (p *Server) DeleteChatProject(ctx context.Context, projectID uuid.UUID) ([]
 
 // DeleteChatProjectWithoutEvents deletes a project together with its root
 // chats, every user's, and their sub-chats, and returns the chats it
-// deleted. Running chats are deleted too. Their leases end first, in a
-// short transaction, so their workers stop on the next heartbeat and lease
-// renewal never waits on the long delete. Callers must have authorized
-// deleting the project.
+// deleted. Running chats are deleted too. Once the delete has locked the
+// chats, their leases end outside it, so their workers stop on the next
+// heartbeat and lease renewal never waits on the delete. Callers must have
+// authorized deleting the project.
 func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, projectID uuid.UUID) ([]database.Chat, error) {
 	//nolint:gocritic // Sharees own some of the chats; the caller authorized deleting the project.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	err := database.InChatProjectDeleteTx(chatdCtx, db, projectID, func(tx database.Store, _, chatIDs []uuid.UUID) error {
-		if len(chatIDs) == 0 {
-			return nil
-		}
-		return tx.DeleteChatHeartbeatsByChatIDs(chatdCtx, chatIDs)
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("end project chat leases: %w", err)
-	}
 	var deleted []database.Chat
-	err = database.InChatProjectDeleteTx(chatdCtx, db, projectID, func(tx database.Store, rootIDs, chatIDs []uuid.UUID) error {
+	err := database.InChatProjectDeleteTx(chatdCtx, db, projectID, func(tx database.Store, rootIDs, chatIDs []uuid.UUID) error {
 		if len(rootIDs) > 0 {
+			if err := db.DeleteChatHeartbeatsByChatIDs(chatdCtx, chatIDs); err != nil {
+				return xerrors.Errorf("end project chat leases: %w", err)
+			}
 			var err error
 			deleted, err = tx.GetChatsByIDs(chatdCtx, chatIDs)
 			if err != nil {
