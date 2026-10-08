@@ -30,7 +30,7 @@ import (
 // delete, the returned error matches IsDeadlockError, the transaction
 // rolls back with fn's writes, and a caller that retries must retry the
 // whole transaction, including any outer one db belongs to. If it aborts
-// lease renewal, that replica renews none of its leases that tick.
+// the other transaction, that transaction fails instead.
 //
 // DeleteChatFamiliesByRootIDs cascades to the chats' heartbeat rows and
 // holds their row locks until the outermost transaction commits. A replica
