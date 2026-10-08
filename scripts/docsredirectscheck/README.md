@@ -29,6 +29,9 @@ A missing `docs/redirects.json` passes.
   Write them without a version segment such as `/@main`; the docs website adds
   that itself.
 - `permanent` is optional and defaults to `true`.
+- Rules apply in file order and the first match wins, so they must run from
+  most specific to least. Put an exact rule above any wildcard that would
+  also match it.
 - A `source` is an exact path, a trailing `/:name*` (matches the prefix and
   everything beneath it), or a trailing `/:name(.*)` (matches everything
   beneath the prefix, not the prefix itself).
@@ -52,6 +55,12 @@ These fail the check:
 - **Duplicates, chains, and loops.** Two rules with the same source, a rule
   whose destination is another rule's source (point it at the final page
   instead), and cycles.
+- **A rule that can never apply.** An earlier rule whose source matches every
+  URL a later rule would, which makes the later rule unreachable. A wildcard
+  above a rule inside its subtree is the usual cause; reorder so the specific
+  rule comes first. An exact rule above a wildcard on the same prefix is
+  allowed, because it claims the bare prefix and leaves the subtree to the
+  wildcard.
 
 ## Removed-route warning
 
