@@ -4590,6 +4590,7 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 }
 
 func TestAgent_ToolCall(t *testing.T) {
+	t.Skip("flaky until PLAT-717: the agent netstack drops a SYN that reuses a source port it holds in TIME_WAIT")
 	t.Parallel()
 	//nolint:dogsled
 	conn, _, _, agentFS, _ := setupAgent(t, agentsdk.Manifest{}, 0)

@@ -6,33 +6,29 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useIsMutating, useMutation, useQueryClient } from "react-query";
 import { NavLink, useLocation } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import {
+	archiveChat,
+	chatArchiveMutationKey,
+	chatReadStateMutationKey,
+	markChatRead,
+	markChatUnread,
+	pinChat,
+	unarchiveChat,
+	unpinChat,
+} from "#/api/queries/chats";
+
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import {
-	ContextMenu,
-	ContextMenuContent,
-	ContextMenuItem,
-	ContextMenuSeparator,
-	ContextMenuSub,
-	ContextMenuSubContent,
-	ContextMenuSubTrigger,
-	ContextMenuTrigger,
-} from "#/components/ContextMenu/ContextMenu";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuSub,
-	DropdownMenuSubContent,
-	DropdownMenuSubTrigger,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { shortRelativeTime } from "#/utils/time";
+import { clearPersistedRightPanelState } from "../../../utils/rightPanelTabStorage";
+import { clearPersistedSidebarTabId } from "../../../utils/sidebarTabStorage";
 import {
-	ChatActionsMenuItems,
+	ChatActionsMenu,
 	canManageChat,
 	chatFamilyAllowsArchive,
 } from "../../ChatActionsMenuItems";
@@ -68,16 +64,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		chatErrorReasons,
 		activeChatId,
 		currentUserId,
-		isArchiving,
-		archivingChatId,
 		toggleExpanded,
-		onArchiveAgent,
-		onUnarchiveAgent,
-		onArchiveAndDeleteWorkspace,
-		onPinAgent,
-		onUnpinAgent,
-		onMarkChatRead,
-		onMarkChatUnread,
+		onArchiveSuccess,
+		navigateAfterArchive,
 		onOpenRenameDialog,
 	} = useChatTree();
 	const chatID = chat.id;
@@ -146,7 +135,70 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		label: statusLabel,
 	} = getChatDisplayConfig(chat);
 	const workspaceId = chat.workspace_id;
-	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
+	const queryClient = useQueryClient();
+	const mutationKey = chatArchiveMutationKey(chat.id);
+	const pinOptions = pinChat(queryClient);
+	const pinMutation = useMutation({
+		...pinOptions,
+		onError: (error, chatId, context) => {
+			pinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to pin agent."));
+		},
+	});
+	const unpinOptions = unpinChat(queryClient);
+	const unpinMutation = useMutation({
+		...unpinOptions,
+		onError: (error, chatId, context) => {
+			unpinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+		},
+	});
+	const readStateMutationKey = chatReadStateMutationKey(chat.id);
+	const markReadOptions = markChatRead(queryClient);
+	const markReadMutation = useMutation({
+		...markReadOptions,
+		mutationKey: readStateMutationKey,
+		onError: (error, chatId, context) => {
+			markReadOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as read."));
+		},
+	});
+	const markUnreadOptions = markChatUnread(queryClient);
+	const markUnreadMutation = useMutation({
+		...markUnreadOptions,
+		mutationKey: readStateMutationKey,
+		onError: (error, chatId, context) => {
+			markUnreadOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as unread."));
+		},
+	});
+	const isUpdatingReadState =
+		useIsMutating({ mutationKey: readStateMutationKey }) > 0;
+	const archiveOptions = archiveChat(queryClient);
+	const archiveMutation = useMutation({
+		...archiveOptions,
+		mutationKey,
+		onSuccess: (data, chatId) => {
+			archiveOptions.onSuccess(data, chatId);
+			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
+			onArchiveSuccess?.(chatId);
+		},
+		onError: (error, chatId, context) => {
+			archiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+	const unarchiveOptions = unarchiveChat(queryClient);
+	const unarchiveMutation = useMutation({
+		...unarchiveOptions,
+		mutationKey,
+		onError: (error, chatId, context) => {
+			unarchiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+		},
+	});
+	const isArchivingThisChat = useIsMutating({ mutationKey }) > 0;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const canManage = canManageChat(chat, currentUserId);
@@ -155,24 +207,29 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		chat,
 		canManage,
 		hasWorkspace: Boolean(workspaceId),
-		isArchiving,
+		isArchiving: isArchivingThisChat,
+		isUpdatingReadState,
 		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
 		onToggleSubagents: () => toggleExpanded(chatID),
-		onPinAgent: () => onPinAgent(chat.id),
-		onUnpinAgent: () => onUnpinAgent(chat.id),
+		onPinAgent: () => pinMutation.mutate(chat.id),
+		onUnpinAgent: () => unpinMutation.mutate(chat.id),
 		// Opening a chat marks it read, so the read toggle would be undone
 		// immediately for the chat the user is already viewing.
-		onMarkRead: isActiveChat ? undefined : () => onMarkChatRead(chat.id),
-		onMarkUnread: isActiveChat ? undefined : () => onMarkChatUnread(chat.id),
-		onArchiveAgent: () => onArchiveAgent(chat.id),
-		onUnarchiveAgent: () => onUnarchiveAgent(chat.id),
-		onArchiveAndDeleteWorkspace: () => {
-			if (workspaceId) {
-				onArchiveAndDeleteWorkspace(chat.id, workspaceId);
-			}
-		},
+		onMarkRead: isActiveChat
+			? undefined
+			: () => {
+					if (!isUpdatingReadState) markReadMutation.mutate(chat.id);
+				},
+		onMarkUnread: isActiveChat
+			? undefined
+			: () => {
+					if (!isUpdatingReadState) markUnreadMutation.mutate(chat.id);
+				},
+		onArchiveAgent: () => archiveMutation.mutate(chat.id),
+		onUnarchiveAgent: () => unarchiveMutation.mutate(chat.id),
+		onArchived: navigateAfterArchive,
 		onOpenRenameDialog: onOpenRenameDialog
 			? () => onOpenRenameDialog(chat)
 			: undefined,
@@ -180,214 +237,186 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 
 	return (
 		<div className="flex min-w-0 flex-col gap-0.5">
-			<ContextMenu>
-				<ContextMenuTrigger asChild>
+			<ChatActionsMenu
+				{...sharedMenuItemProps}
+				variant="context"
+				contentClassName="[&_[role=menuitem]]:text-[13px]"
+			>
+				<div
+					data-testid={`agents-tree-node-${chat.id}`}
+					className={cn(
+						"group relative -mx-2 flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-none pl-3 pr-3.5 text-content-secondary",
+						"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary data-[state=open]:bg-surface-tertiary/50 data-[state=open]:text-content-primary has-data-[state=open]:bg-surface-tertiary/50 has-data-[state=open]:text-content-primary",
+						// pl-[11px] is pl-3 minus the active border, so content does not shift.
+						"has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:text-content-primary data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 has-data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+					)}
+				>
 					<div
-						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
-							"group relative -mx-2 flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-none pl-3 pr-3.5 text-content-secondary",
-							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary data-[state=open]:bg-surface-tertiary/50 data-[state=open]:text-content-primary has-data-[state=open]:bg-surface-tertiary/50 has-data-[state=open]:text-content-primary",
-							// pl-[11px] is pl-3 minus the active border, so content does not shift.
-							"has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:text-content-primary data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 has-data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+							"group/icon relative mt-1.5 size-5 shrink-0",
+							hasChildren && "cursor-pointer",
 						)}
+						style={
+							depth > 0 ? { marginLeft: depth * CHILD_INDENT_PX } : undefined
+						}
 					>
 						<div
 							className={cn(
-								"group/icon relative mt-1.5 size-5 shrink-0",
-								hasChildren && "cursor-pointer",
+								"flex size-5 items-center justify-center rounded-md",
+								hasChildren &&
+									"[@media(hover:hover)]:group-hover/icon:invisible",
 							)}
-							style={
-								depth > 0 ? { marginLeft: depth * CHILD_INDENT_PX } : undefined
-							}
 						>
-							<div
-								className={cn(
-									"flex size-5 items-center justify-center rounded-md",
-									hasChildren &&
-										"[@media(hover:hover)]:group-hover/icon:invisible",
-								)}
-							>
-								<StatusIcon
-									data-testid={
-										isDelegatedExecuting
-											? `agents-tree-executing-${chat.id}`
-											: undefined
-									}
-									role="img"
-									aria-label={statusLabel}
-									className={cn("size-3.5 shrink-0", statusClassName)}
-								/>
-							</div>
-							{hasChildren && (
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={() => toggleExpanded(chatID)}
-									className={cn(
-										"absolute inset-0 invisible flex size-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-										"[@media(hover:hover)]:group-hover/icon:visible",
-									)}
-									data-testid={`agents-tree-toggle-${chat.id}`}
-									aria-label={isExpanded ? "Collapse" : "Expand"}
-									aria-expanded={isExpanded}
-								>
-									{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-								</Button>
-							)}
+							<StatusIcon
+								data-testid={
+									isDelegatedExecuting
+										? `agents-tree-executing-${chat.id}`
+										: undefined
+								}
+								role="img"
+								aria-label={statusLabel}
+								className={cn("size-3.5 shrink-0", statusClassName)}
+							/>
 						</div>
-						<NavLink
-							to={{
-								pathname: `/agents/${chat.id}`,
-								search: locationSearch,
-							}}
-							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
-						>
-							{({ isActive }) => (
-								<div className="min-w-0 flex-1 overflow-hidden text-left">
-									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-										<span
-											className={cn(
-												"block flex-1 truncate text-[13px] text-content-primary",
-												!isActive &&
-													"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
-											)}
-										>
-											{chat.title}
-										</span>
-										{chat.has_unread && !isActiveChat && (
-											<span className="sr-only">(unread)</span>
-										)}
-									</div>
-									<div className="flex min-w-0 items-center gap-1.5">
-										<ChatDiffStats chat={chat} />
-										<div
-											className={cn(
-												"min-w-0 overflow-hidden text-[13px] leading-4",
-												errorReason
-													? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
-													: "truncate text-content-secondary",
-											)}
-											title={subtitle}
-										>
-											{subtitle}
-										</div>
-									</div>
-								</div>
-							)}
-						</NavLink>
-						<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
-							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
-								{isArchivingThisChat ? (
-									<Spinner
-										className="h-3.5 w-3.5 text-content-secondary"
-										loading
-									/>
-								) : (
+						{hasChildren && (
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={() => toggleExpanded(chatID)}
+								className={cn(
+									"absolute inset-0 invisible flex size-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
+									"[@media(hover:hover)]:group-hover/icon:visible",
+								)}
+								data-testid={`agents-tree-toggle-${chat.id}`}
+								aria-label={isExpanded ? "Collapse" : "Expand"}
+								aria-expanded={isExpanded}
+							>
+								{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+							</Button>
+						)}
+					</div>
+					<NavLink
+						to={{
+							pathname: `/agents/${chat.id}`,
+							search: locationSearch,
+						}}
+						className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+					>
+						{({ isActive }) => (
+							<div className="min-w-0 flex-1 overflow-hidden text-left">
+								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 									<span
 										className={cn(
-											"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
-											// The timestamp swaps out for the actions trigger on
-											// hover or while a menu is open.
-											"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
-											isActiveChat && "hidden",
+											"block flex-1 truncate text-[13px] text-content-primary",
+											!isActive &&
+												"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
 										)}
 									>
-										{chat.has_unread && !isActiveChat ? (
-											<span className="flex w-3.5 shrink-0 justify-center">
-												<span
-													className="size-2 rounded-full bg-content-link"
-													data-testid={`unread-indicator-${chat.id}`}
-													aria-hidden="true"
-												/>
-											</span>
-										) : (
-											<>
-												{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
-												<span
-													data-pixel="ignore"
-													className="inline-block w-7 text-right"
-												>
-													{shortRelativeTime(chat.updated_at)}
-												</span>
-											</>
-										)}
+										{chat.title}
 									</span>
-								)}
-							</div>
-							{isSharedChat && (
-								<UsersIcon
-									className="mt-auto size-3.5 text-content-secondary"
-									aria-label="Shared chat"
-								/>
-							)}
-							{!isArchivingThisChat && (
-								<DropdownMenu>
-									<DropdownMenuTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											className={cn(
-												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100",
-												isActiveChat && "opacity-100",
-											)}
-											aria-label={`Open actions for ${chat.title}`}
-											onContextMenuCapture={(e) => {
-												e.preventDefault();
-												e.stopPropagation();
-											}}
-											onMouseDownCapture={(e) => {
-												if (e.button === 2) {
-													e.preventDefault();
-													e.stopPropagation();
-												}
-											}}
-											onPointerDownCapture={(e) => {
-												if (e.button === 2) {
-													e.preventDefault();
-													e.stopPropagation();
-												}
-											}}
-										>
-											<EllipsisVerticalIcon className="size-3.5" />
-										</Button>
-									</DropdownMenuTrigger>
-									<DropdownMenuContent
-										align="end"
-										className="[&_[role=menuitem]]:text-[13px]"
-										// The dropdown is portaled to the body, but React
-										// portals bubble events through the React tree, so a
-										// right-click inside the menu would still reach the
-										// row's context-menu trigger and open a duplicate menu.
-										onContextMenu={(e) => {
-											e.preventDefault();
-											e.stopPropagation();
-										}}
+									{chat.has_unread && !isActiveChat && (
+										<span className="sr-only">(unread)</span>
+									)}
+								</div>
+								<div className="flex min-w-0 items-center gap-1.5">
+									<ChatDiffStats chat={chat} />
+									<div
+										className={cn(
+											"min-w-0 overflow-hidden text-[13px] leading-4",
+											errorReason
+												? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
+												: "truncate text-content-secondary",
+										)}
+										title={subtitle}
 									>
-										<ChatActionsMenuItems
-											{...sharedMenuItemProps}
-											Item={DropdownMenuItem}
-											Separator={DropdownMenuSeparator}
-											Sub={DropdownMenuSub}
-											SubTrigger={DropdownMenuSubTrigger}
-											SubContent={DropdownMenuSubContent}
-										/>
-									</DropdownMenuContent>
-								</DropdownMenu>
+										{subtitle}
+									</div>
+								</div>
+							</div>
+						)}
+					</NavLink>
+					<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
+						<div className="flex h-6 w-7 shrink-0 items-center justify-end">
+							{isArchivingThisChat ? (
+								<Spinner
+									className="h-3.5 w-3.5 text-content-secondary"
+									loading
+								/>
+							) : (
+								<span
+									className={cn(
+										"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
+										// The timestamp swaps out for the actions trigger on
+										// hover or while a menu is open.
+										"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
+										isActiveChat && "hidden",
+									)}
+								>
+									{chat.has_unread && !isActiveChat ? (
+										<span className="flex w-3.5 shrink-0 justify-center">
+											<span
+												className="size-2 rounded-full bg-content-link"
+												data-testid={`unread-indicator-${chat.id}`}
+												aria-hidden="true"
+											/>
+										</span>
+									) : (
+										<>
+											{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
+											<span
+												data-pixel="ignore"
+												className="inline-block w-7 text-right"
+											>
+												{shortRelativeTime(chat.updated_at)}
+											</span>
+										</>
+									)}
+								</span>
 							)}
 						</div>
+						{isSharedChat && (
+							<UsersIcon
+								className="mt-auto size-3.5 text-content-secondary"
+								aria-label="Shared chat"
+							/>
+						)}
+						{!isArchivingThisChat && (
+							<ChatActionsMenu
+								{...sharedMenuItemProps}
+								contentClassName="[&_[role=menuitem]]:text-[13px]"
+							>
+								<Button
+									size="icon"
+									variant="subtle"
+									className={cn(
+										"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100",
+										isActiveChat && "opacity-100",
+									)}
+									aria-label={`Open actions for ${chat.title}`}
+									onContextMenuCapture={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+									}}
+									onMouseDownCapture={(e) => {
+										if (e.button === 2) {
+											e.preventDefault();
+											e.stopPropagation();
+										}
+									}}
+									onPointerDownCapture={(e) => {
+										if (e.button === 2) {
+											e.preventDefault();
+											e.stopPropagation();
+										}
+									}}
+								>
+									<EllipsisVerticalIcon className="size-3.5" />
+								</Button>
+							</ChatActionsMenu>
+						)}
 					</div>
-				</ContextMenuTrigger>
-				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
-					<ChatActionsMenuItems
-						{...sharedMenuItemProps}
-						Item={ContextMenuItem}
-						Separator={ContextMenuSeparator}
-						Sub={ContextMenuSub}
-						SubTrigger={ContextMenuSubTrigger}
-						SubContent={ContextMenuSubContent}
-					/>
-				</ContextMenuContent>
-			</ContextMenu>
+				</div>
+			</ChatActionsMenu>
 
 			{hasChildren && isExpanded && (
 				<div className="relative flex flex-col">

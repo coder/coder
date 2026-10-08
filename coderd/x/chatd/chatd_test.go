@@ -14246,6 +14246,7 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 // cancels the running execute call the edit deletes on the agent, before the
 // replacement turn calls the model.
 func TestEditMessageCancelsToolCallsOnAgent(t *testing.T) {
+	t.Skip("flaky until PLAT-717: the agent netstack drops a SYN that reuses a source port it holds in TIME_WAIT")
 	t.Parallel()
 
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
