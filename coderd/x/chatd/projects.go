@@ -11,15 +11,16 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// DeleteChatProject deletes a project with its chats and publishes events.
+// DeleteChatProject deletes a project and publishes events for its chats.
 func (p *Server) DeleteChatProject(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
 	deleted, err := DeleteChatProjectWithoutEvents(ctx, p.db, projectID)
 	p.publishChatPubsubEvents(deleted, codersdk.ChatWatchEventKindHardDeleted)
 	return deleted, err
 }
 
-// DeleteChatProjectWithoutEvents deletes a project with every user's chats
-// in it. Callers must have authorized deleting the project.
+// DeleteChatProjectWithoutEvents marks a project deleted, which hides every
+// user's chats in it until dbpurge removes them, and returns those chats.
+// Callers must have authorized deleting the project.
 func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, projectID uuid.UUID) ([]database.Chat, error) {
 	//nolint:gocritic // Sharees own some of the chats; the caller authorized deleting the project.
 	chatdCtx := dbauthz.AsChatd(ctx)
@@ -30,23 +31,16 @@ func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, proj
 			return xerrors.Errorf("get project chats: %w", err)
 		}
 		chatIDs := make([]uuid.UUID, 0, len(chats))
-		var rootIDs []uuid.UUID
 		for _, chat := range chats {
 			chatIDs = append(chatIDs, chat.ID)
-			if !chat.ParentChatID.Valid {
-				rootIDs = append(rootIDs, chat.ID)
-			}
 		}
-		// Messages go first: the chat delete locks heartbeat rows, which
-		// lease renewal waits on, until commit.
-		if err := tx.DeleteChatMessagesByChatIDs(chatdCtx, chatIDs); err != nil {
-			return xerrors.Errorf("delete project chat messages: %w", err)
+		// Dropping the leases stops running chats, and acquisition skips
+		// chats of deleted projects so they are not picked up again.
+		if err := tx.DeleteChatHeartbeatsByChatIDs(chatdCtx, chatIDs); err != nil {
+			return xerrors.Errorf("release project chat leases: %w", err)
 		}
-		if err := tx.DeleteChatFamiliesByRootIDs(chatdCtx, rootIDs); err != nil {
-			return xerrors.Errorf("delete project chats: %w", err)
-		}
-		if err := tx.DeleteChatProjectByID(ctx, projectID); err != nil {
-			return xerrors.Errorf("delete project: %w", err)
+		if err := tx.MarkChatProjectDeleted(ctx, projectID); err != nil {
+			return xerrors.Errorf("mark project deleted: %w", err)
 		}
 		deleted = chats
 		return nil

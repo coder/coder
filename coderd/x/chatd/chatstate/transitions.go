@@ -174,6 +174,17 @@ func insertChat(
 			if root.Archived {
 				return ErrChatFamilyArchived
 			}
+			// A child inserted concurrently with the project delete is still
+			// hidden and purged with its root.
+			if root.ProjectID.Valid {
+				inDeletedProject, err := store.IsChatInDeletedProject(ctx, root.ID)
+				if err != nil {
+					return xerrors.Errorf("check root chat project: %w", err)
+				}
+				if inDeletedProject {
+					return ErrChatNotFound
+				}
+			}
 		}
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
 			ID:                chatID,

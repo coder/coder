@@ -1,7 +1,6 @@
 package coderd_test
 
 import (
-	"database/sql"
 	"net/http"
 	"strings"
 	"testing"
@@ -355,9 +354,15 @@ func TestChatProjectSharing(t *testing.T) {
 		require.NoError(t, client.DeleteChatProject(ctx, project.OrganizationID, project.ID))
 
 		for _, id := range []uuid.UUID{ownerChat.ID, shareeChat.ID, shareeChild.ID} {
-			_, err := db.GetChatByID(sysCtx, id)
-			require.ErrorIs(t, err, sql.ErrNoRows)
+			_, err := client.GetChat(ctx, id)
+			requireSDKError(t, err, http.StatusNotFound)
+			inDeleted, err := db.IsChatInDeletedProject(sysCtx, id)
+			require.NoError(t, err)
+			require.True(t, inDeleted, "chat rows stay until dbpurge removes them")
 		}
+		var heartbeats int
+		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_heartbeats WHERE chat_id = $1", shareeChat.ID).Scan(&heartbeats))
+		require.Zero(t, heartbeats)
 		_, err = client.GetChat(ctx, otherChat.ID)
 		require.NoError(t, err)
 

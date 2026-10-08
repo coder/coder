@@ -304,6 +304,38 @@ WHERE datname = current_database()
 	require.Equal(t, []uuid.UUID{root.ID}, ids, "no child may join the archived family")
 }
 
+func TestCreateChildChatRejectsDeletedProject(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+		Status:            database.ChatStatusWaiting,
+	})
+	require.NoError(t, db.MarkChatProjectDeleted(ctx, project.ID))
+
+	_, err := chatstate.CreateChat(ctx, db, newRecordingPubsub(), chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "child",
+		ClientType:        database.ChatClientTypeApi,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+		InitialStatus:     database.ChatStatusRunning,
+		InitialMessages: []chatstate.Message{
+			userTextMessage("hello", user.ID, model.ID),
+		},
+	})
+	require.ErrorIs(t, err, chatstate.ErrChatNotFound)
+}
+
 func seedFamilyDeps(t *testing.T, db database.Store) (database.User, database.Organization, database.ChatModelConfig) {
 	t.Helper()
 	user := dbgen.User(t, db, database.User{})
