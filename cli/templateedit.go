@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"net/http"
-	"slices"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -65,12 +64,8 @@ func templateEditWorkspaceImpactingChanges(template codersdk.Template, req coder
 		changes = append(changes, fmt.Sprintf("Require active version: %t -> %t", template.RequireActiveVersion, requireActiveVersion))
 	}
 
-	currentAutostopDaysOfWeek := slices.Clone(template.AutostopRequirement.DaysOfWeek)
-	slices.Sort(currentAutostopDaysOfWeek)
-	newAutostopDaysOfWeek := slices.Clone(autostopRequirementDaysOfWeek)
-	slices.Sort(newAutostopDaysOfWeek)
-	if !slices.Equal(currentAutostopDaysOfWeek, newAutostopDaysOfWeek) {
-		changes = append(changes, fmt.Sprintf("Autostop requirement days: %v -> %v", currentAutostopDaysOfWeek, newAutostopDaysOfWeek))
+	if from, to, changed := weekdaysChanged(template.AutostopRequirement.DaysOfWeek, autostopRequirementDaysOfWeek); changed {
+		changes = append(changes, fmt.Sprintf("Autostop requirement days: %v -> %v", from, to))
 	}
 
 	if autostopRequirementWeeks != template.AutostopRequirement.Weeks {
@@ -79,12 +74,8 @@ func templateEditWorkspaceImpactingChanges(template codersdk.Template, req coder
 
 	// Changing the allowed autostart days recomputes the next start time of
 	// every existing workspace.
-	currentAutostartDaysOfWeek := slices.Clone(template.AutostartRequirement.DaysOfWeek)
-	slices.Sort(currentAutostartDaysOfWeek)
-	newAutostartDaysOfWeek := slices.Clone(autostartDaysOfWeek)
-	slices.Sort(newAutostartDaysOfWeek)
-	if !slices.Equal(currentAutostartDaysOfWeek, newAutostartDaysOfWeek) {
-		changes = append(changes, fmt.Sprintf("Autostart requirement days: %v -> %v", currentAutostartDaysOfWeek, newAutostartDaysOfWeek))
+	if from, to, changed := weekdaysChanged(template.AutostartRequirement.DaysOfWeek, autostartDaysOfWeek); changed {
+		changes = append(changes, fmt.Sprintf("Autostart requirement days: %v -> %v", from, to))
 	}
 
 	// While user autostop is disabled, the server overwrites the TTL of every
@@ -99,6 +90,25 @@ func templateEditWorkspaceImpactingChanges(template codersdk.Template, req coder
 	}
 
 	return changes
+}
+
+// weekdaysChanged compares weekday lists as bitmaps, the same way the server
+// does, so differences in case, order, or duplicates are not reported as a
+// change. It returns both lists in canonical form for display. Invalid
+// weekdays are reported as unchanged so the server can reject them.
+func weekdaysChanged(current, requested []string) (from, to []string, changed bool) {
+	currentBitmap, err := codersdk.WeekdaysToBitmap(current)
+	if err != nil {
+		return nil, nil, false
+	}
+	requestedBitmap, err := codersdk.WeekdaysToBitmap(requested)
+	if err != nil {
+		return nil, nil, false
+	}
+	if currentBitmap == requestedBitmap {
+		return nil, nil, false
+	}
+	return codersdk.BitmapToWeekdays(currentBitmap), codersdk.BitmapToWeekdays(requestedBitmap), true
 }
 
 func (r *RootCmd) templateEdit() *serpent.Command {
@@ -303,9 +313,11 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 
 			changes := templateEditWorkspaceImpactingChanges(template, req)
 			if len(changes) > 0 {
-				_, _ = fmt.Fprintln(inv.Stdout, "The following changes will apply to existing workspaces created from this template:")
+				// Write the summary to stderr so scripted runs that pass -y keep
+				// the same stdout.
+				_, _ = fmt.Fprintln(inv.Stderr, "The following changes will apply to existing workspaces created from this template:")
 				for _, change := range changes {
-					_, _ = fmt.Fprintf(inv.Stdout, "  %s\n", change)
+					_, _ = fmt.Fprintf(inv.Stderr, "  %s\n", change)
 				}
 				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      "Apply these changes?",
