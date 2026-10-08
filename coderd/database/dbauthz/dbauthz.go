@@ -2316,6 +2316,13 @@ func (q *querier) DeleteChatFamiliesByRootIDs(ctx context.Context, rootIDs []uui
 	return q.db.DeleteChatFamiliesByRootIDs(ctx, rootIDs)
 }
 
+func (q *querier) DeleteChatHeartbeatsByChatIDs(ctx context.Context, chatIDs []uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return err
+	}
+	return q.db.DeleteChatHeartbeatsByChatIDs(ctx, chatIDs)
+}
+
 func (q *querier) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg database.DeleteChatMCPServersByChatIDExcludingSlugsParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {

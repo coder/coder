@@ -966,6 +966,20 @@ func (mr *MockStoreMockRecorder) DeleteChatFamiliesByRootIDs(ctx, rootIds any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatFamiliesByRootIDs", reflect.TypeOf((*MockStore)(nil).DeleteChatFamiliesByRootIDs), ctx, rootIds)
 }
 
+// DeleteChatHeartbeatsByChatIDs mocks base method.
+func (m *MockStore) DeleteChatHeartbeatsByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatHeartbeatsByChatIDs", ctx, chatIds)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatHeartbeatsByChatIDs indicates an expected call of DeleteChatHeartbeatsByChatIDs.
+func (mr *MockStoreMockRecorder) DeleteChatHeartbeatsByChatIDs(ctx, chatIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatHeartbeatsByChatIDs", reflect.TypeOf((*MockStore)(nil).DeleteChatHeartbeatsByChatIDs), ctx, chatIds)
+}
+
 // DeleteChatMCPServersByChatIDExcludingSlugs mocks base method.
 func (m *MockStore) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg database.DeleteChatMCPServersByChatIDExcludingSlugsParams) error {
 	m.ctrl.T.Helper()
