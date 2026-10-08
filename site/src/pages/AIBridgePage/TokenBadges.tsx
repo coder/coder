@@ -1,10 +1,4 @@
-import {
-	ArrowDownIcon,
-	ArrowUpIcon,
-	BookOpenIcon,
-	type LucideIcon,
-	PenLineIcon,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, type LucideIcon } from "lucide-react";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
@@ -128,13 +122,13 @@ export const CacheTokenBadges: React.FC<CacheTokenBadgesProps> = ({
 }) => (
 	<TokenPairBadges
 		first={{
-			icon: BookOpenIcon,
+			icon: ArrowDownIcon,
 			title: "Cache read tokens",
 			label: "Read",
 			value: cacheReadTokens,
 		}}
 		second={{
-			icon: PenLineIcon,
+			icon: ArrowUpIcon,
 			title: "Cache write tokens",
 			label: "Write",
 			value: cacheWriteTokens,
