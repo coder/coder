@@ -2660,26 +2660,42 @@ export const userChatPersonalModelOverrides = (
 });
 
 type UpdateUserChatPersonalModelOverrideArgs = {
+	organizationId: string;
 	context: TypesGen.ChatPersonalModelOverrideContext;
 	req: TypesGen.UpdateUserChatPersonalModelOverrideRequest;
 };
 
 export const updateUserChatPersonalModelOverride = (
 	queryClient: QueryClient,
-	organizationId: string,
 	user = "me",
 ) => ({
-	mutationFn: ({ context, req }: UpdateUserChatPersonalModelOverrideArgs) =>
+	mutationFn: ({
+		organizationId,
+		context,
+		req,
+	}: UpdateUserChatPersonalModelOverrideArgs) =>
 		API.experimental.updateUserChatPersonalModelOverride(
 			organizationId,
 			user,
 			context,
 			req,
 		),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: userChatPersonalModelOverridesKey(organizationId, user),
-		});
+	onSuccess: async (
+		_data: unknown,
+		{ organizationId, context, req }: UpdateUserChatPersonalModelOverrideArgs,
+	) => {
+		const queryKey = userChatPersonalModelOverridesKey(organizationId, user);
+		await queryClient.cancelQueries({ queryKey });
+		// Keep the confirmed save even if the subsequent refetch fails.
+		queryClient.setQueryData<TypesGen.UserChatPersonalModelOverridesResponse>(
+			queryKey,
+			(current) =>
+				current && {
+					...current,
+					[context]: { ...req, context, is_set: true },
+				},
+		);
+		await queryClient.invalidateQueries({ queryKey });
 	},
 });
 
