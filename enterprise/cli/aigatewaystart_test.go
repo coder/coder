@@ -225,13 +225,25 @@ func startAIGatewayCommand(ctx context.Context, t *testing.T, coderURL, key stri
 	return "http://" + matches[1], waiter
 }
 
-// aiGatewayStatus probes probeURL and reports transport errors.
-func aiGatewayStatus(ctx context.Context, probeURL string) (int, error) {
+// newAIGatewayTestClient returns an HTTP client with its own transport.
+// Parallel CLI tests call http.DefaultClient.CloseIdleConnections() during
+// command cleanup, which breaks in-flight requests on the shared default
+// transport, so requests to the gateway must not use http.DefaultClient.
+func newAIGatewayTestClient(t *testing.T) *http.Client {
+	t.Helper()
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	t.Cleanup(transport.CloseIdleConnections)
+	return &http.Client{Transport: transport}
+}
+
+// aiGatewayStatus probes probeURL with client and reports transport errors.
+func aiGatewayStatus(ctx context.Context, client *http.Client, probeURL string) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, probeURL, nil)
 	if err != nil {
 		return 0, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -243,7 +255,7 @@ func aiGatewayStatus(ctx context.Context, probeURL string) (int, error) {
 func requireAIGatewayStatus(ctx context.Context, t *testing.T, probeURL string, want int) {
 	t.Helper()
 
-	got, err := aiGatewayStatus(ctx, probeURL)
+	got, err := aiGatewayStatus(ctx, newAIGatewayTestClient(t), probeURL)
 	require.NoError(t, err)
 	require.Equal(t, want, got, "unexpected status for %s", probeURL)
 }
@@ -253,8 +265,9 @@ func requireAIGatewayStatus(ctx context.Context, t *testing.T, probeURL string, 
 func requireEventualAIGatewayStatus(ctx context.Context, t *testing.T, probeURL string, want int) {
 	t.Helper()
 
+	client := newAIGatewayTestClient(t)
 	require.Eventuallyf(t, func() bool {
-		got, err := aiGatewayStatus(ctx, probeURL)
+		got, err := aiGatewayStatus(ctx, client, probeURL)
 		return err == nil && got == want
 	}, testutil.WaitLong, testutil.IntervalFast, "%s never returned %d", probeURL, want)
 }
@@ -293,7 +306,7 @@ func TestAIGatewayStartE2E(t *testing.T) {
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
 	// When: a user sends an LLM request to the gateway.
-	result := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+	result := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 
 	// Then: the upstream's response reaches the caller.
@@ -397,7 +410,7 @@ func TestAIGatewayStartE2E_ReverseProxyExperiment(t *testing.T) {
 			requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
 			// When: a user sends an LLM request to the gateway.
-			result := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+			result := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 				dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 
 			// Then: the selected handler serves it.
@@ -580,11 +593,11 @@ type aiGatewayResponse struct {
 	err    error
 }
 
-// postChatCompletion sends an LLM request and returns the response with its body
-// unread. The caller owns the body.
+// postChatCompletion sends an LLM request with client and returns the response
+// with its body unread. The caller owns the body.
 //
 //nolint:bodyclose // The caller owns and closes the body.
-func postChatCompletion(ctx context.Context, endpoint, token, requestBody string) (*http.Response, error) {
+func postChatCompletion(ctx context.Context, client *http.Client, endpoint, token, requestBody string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(requestBody))
 	if err != nil {
 		return nil, err
@@ -592,13 +605,13 @@ func postChatCompletion(ctx context.Context, endpoint, token, requestBody string
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	return http.DefaultClient.Do(req)
+	return client.Do(req)
 }
 
-// postChatCompletionAndRead sends an LLM request, reads the whole response, and
-// reports transport errors.
-func postChatCompletionAndRead(ctx context.Context, endpoint, token, requestBody string) aiGatewayResponse {
-	resp, err := postChatCompletion(ctx, endpoint, token, requestBody)
+// postChatCompletionAndRead sends an LLM request with client, reads the whole
+// response, and reports transport errors.
+func postChatCompletionAndRead(ctx context.Context, client *http.Client, endpoint, token, requestBody string) aiGatewayResponse {
+	resp, err := postChatCompletion(ctx, client, endpoint, token, requestBody)
 	if err != nil {
 		return aiGatewayResponse{err: err}
 	}
@@ -649,7 +662,7 @@ func TestAIGatewayStartE2E_ReconnectAfterDisconnect(t *testing.T) {
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
 	// When: a request arrives while coderd is reachable.
-	before := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+	before := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 
 	// Then: it is served and recorded.
@@ -671,7 +684,7 @@ func TestAIGatewayStartE2E_ReconnectAfterDisconnect(t *testing.T) {
 
 	// Then: a new request is served and both interceptions are recorded, so the
 	// provider cache and the recorder recovered with the connection.
-	after := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+	after := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 	require.NoError(t, after.err)
 	require.Equal(t, http.StatusOK, after.status, "body: %s", after.body)
@@ -700,8 +713,9 @@ func TestAIGatewayStartE2E_RequestWhileDisconnected(t *testing.T) {
 
 	// When: a request arrives while the gateway has no connection to coderd.
 	responses := make(chan aiGatewayResponse, 1)
+	client := newAIGatewayTestClient(t)
 	go func() {
-		responses <- postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+		responses <- postChatCompletionAndRead(ctx, client, baseURL+aiGatewayChatCompletionPath,
 			dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 	}()
 
@@ -795,7 +809,7 @@ func TestAIGatewayStartE2E_InFlightRequestSurvivesDisconnect(t *testing.T) {
 
 	req, err := sjson.Set(aiGatewayChatCompletionRequest, "stream", true)
 	require.NoError(t, err)
-	resp, err := postChatCompletion(ctx, baseURL+aiGatewayChatCompletionPath,
+	resp, err := postChatCompletion(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -973,7 +987,7 @@ func TestAIGatewayStartE2E_DisableContentRecording(t *testing.T) {
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
 	// When: a user sends an LLM request through the gateway.
-	result := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+	result := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 
 	// Then: the request is served as usual.
