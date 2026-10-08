@@ -1418,6 +1418,33 @@ export const infiniteChats = (input?: ChatListInput) => {
 export const projectChatsKey = (projectId: string) =>
 	[...chatProjectListFamilyKey, projectId] as const;
 
+/** Unarchived chats in one project, newest first. */
+export const projectChats = (projectId: string) => {
+	const limit = DEFAULT_CHAT_PAGE_LIMIT;
+
+	return infiniteQueryOptions({
+		queryKey: projectChatsKey(projectId),
+		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
+			if (lastPage.length < limit) {
+				return undefined;
+			}
+			return pages.length + 1;
+		},
+		initialPageParam: 0,
+		queryFn: ({ pageParam, signal }) =>
+			API.experimental.getChats(
+				{
+					limit,
+					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
+					q: "archived:false",
+					project_id: projectId,
+				},
+				signal,
+			),
+		refetchOnWindowFocus: true,
+	});
+};
+
 const chatSearchKey = (params: ChatSearchParams) =>
 	[...chatSearchFamilyKey, params] as const;
 
@@ -2714,26 +2741,42 @@ export const userChatPersonalModelOverrides = (
 });
 
 type UpdateUserChatPersonalModelOverrideArgs = {
+	organizationId: string;
 	context: TypesGen.ChatPersonalModelOverrideContext;
 	req: TypesGen.UpdateUserChatPersonalModelOverrideRequest;
 };
 
 export const updateUserChatPersonalModelOverride = (
 	queryClient: QueryClient,
-	organizationId: string,
 	user = "me",
 ) => ({
-	mutationFn: ({ context, req }: UpdateUserChatPersonalModelOverrideArgs) =>
+	mutationFn: ({
+		organizationId,
+		context,
+		req,
+	}: UpdateUserChatPersonalModelOverrideArgs) =>
 		API.experimental.updateUserChatPersonalModelOverride(
 			organizationId,
 			user,
 			context,
 			req,
 		),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: userChatPersonalModelOverridesKey(organizationId, user),
-		});
+	onSuccess: async (
+		_data: unknown,
+		{ organizationId, context, req }: UpdateUserChatPersonalModelOverrideArgs,
+	) => {
+		const queryKey = userChatPersonalModelOverridesKey(organizationId, user);
+		await queryClient.cancelQueries({ queryKey });
+		// Keep the confirmed save even if the subsequent refetch fails.
+		queryClient.setQueryData<TypesGen.UserChatPersonalModelOverridesResponse>(
+			queryKey,
+			(current) =>
+				current && {
+					...current,
+					[context]: { ...req, context, is_set: true },
+				},
+		);
+		await queryClient.invalidateQueries({ queryKey });
 	},
 });
 

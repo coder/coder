@@ -390,6 +390,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
 					data-testid={`multiselect-${parameter.name}`}
 					options={options}
 					defaultOptions={selectedOptions}
+					value={selectedOptions}
 					onChange={(newValues) => {
 						const values = newValues.map((option) => option.value);
 						onChange(JSON.stringify(values));
