@@ -8,13 +8,15 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { AIBridgeModelIcon } from "#/pages/AIBridgePage/icons/AIBridgeModelIcon";
 import { formatDate } from "#/utils/time";
-import { TokenBadges } from "../../TokenBadges";
+import { CacheTokenBadges, TokenBadges } from "../../TokenBadges";
 
 type PromptTableProps = {
 	timestamp: Date;
 	model: string;
 	inputTokens: number;
 	outputTokens: number;
+	cacheReadTokens: number;
+	cacheWriteTokens: number;
 	tokenUsageMetadata?: Record<string, unknown>;
 	className?: string;
 };
@@ -24,6 +26,8 @@ export const PromptTable: React.FC<PromptTableProps> = ({
 	model,
 	inputTokens,
 	outputTokens,
+	cacheReadTokens,
+	cacheWriteTokens,
 	tokenUsageMetadata,
 	className,
 }) => {
@@ -68,6 +72,16 @@ export const PromptTable: React.FC<PromptTableProps> = ({
 						inputTokens={inputTokens}
 						outputTokens={outputTokens}
 						tokenUsageMetadata={tokenUsageMetadata}
+					/>
+				</dd>
+			</div>
+
+			<div className="flex items-center justify-between">
+				<dt className="shrink-0 whitespace-nowrap">Cache read / write</dt>
+				<dd className="ml-4 min-w-0 truncate flex justify-end">
+					<CacheTokenBadges
+						cacheReadTokens={cacheReadTokens}
+						cacheWriteTokens={cacheWriteTokens}
 					/>
 				</dd>
 			</div>

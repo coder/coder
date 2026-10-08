@@ -1,4 +1,10 @@
-import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
+import {
+	ArrowDownIcon,
+	ArrowUpIcon,
+	BookOpenIcon,
+	type LucideIcon,
+	PenLineIcon,
+} from "lucide-react";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
@@ -9,15 +15,22 @@ import {
 import { JsonPrettyPrinter } from "./JsonPrettyPrinter";
 import { roundTokenDisplay } from "./utils";
 
-type TokenBadgesProps = {
-	inputTokens: number;
-	outputTokens: number;
+type TokenCount = {
+	icon: LucideIcon;
+	title: string;
+	label: string;
+	value: number;
+};
+
+type TokenPairBadgesProps = {
+	first: TokenCount;
+	second: TokenCount;
 	tokenUsageMetadata?: Record<string, unknown>;
 };
 
-export const TokenBadges: React.FC<TokenBadgesProps> = ({
-	inputTokens,
-	outputTokens,
+const TokenPairBadges: React.FC<TokenPairBadgesProps> = ({
+	first,
+	second,
 	tokenUsageMetadata,
 }) => (
 	<div className="flex items-center whitespace-nowrap">
@@ -26,50 +39,39 @@ export const TokenBadges: React.FC<TokenBadgesProps> = ({
 				<TooltipTrigger asChild>
 					<span>
 						<Badge className="gap-0.5 rounded-e-none">
-							<ArrowDownIcon className="size-icon-xs shrink-0" />
+							<first.icon className="size-icon-xs shrink-0" />
 							<span className="truncate min-w-0">
-								{roundTokenDisplay(inputTokens)}
+								{roundTokenDisplay(first.value)}
 							</span>
 						</Badge>
 						<Badge className="gap-0.5 bg-surface-tertiary rounded-s-none">
-							<ArrowUpIcon className="size-icon-xs shrink-0" />
+							<second.icon className="size-icon-xs shrink-0" />
 							<span className="truncate min-w-0">
-								{roundTokenDisplay(outputTokens)}
+								{roundTokenDisplay(second.value)}
 							</span>
 						</Badge>
 					</span>
 				</TooltipTrigger>
 				<TooltipContent>
 					<div className="grid grid-cols-2 gap-8">
-						<div>
-							<div className="flex items-center gap-1">
-								<ArrowDownIcon className="size-icon-sm shrink-0" />
-								<span className="text-content-primary text-sm">
-									Input tokens
-								</span>
-							</div>
-							<div className="flex items-center justify-between gap-4">
-								<div className="text-sm text-content-secondary">Input</div>
-								<div className="text-sm text-content-secondary">
-									{inputTokens.toLocaleString()}
+						{[first, second].map((count) => (
+							<div key={count.title}>
+								<div className="flex items-center gap-1">
+									<count.icon className="size-icon-sm shrink-0" />
+									<span className="text-content-primary text-sm">
+										{count.title}
+									</span>
+								</div>
+								<div className="flex items-center justify-between gap-4">
+									<div className="text-sm text-content-secondary">
+										{count.label}
+									</div>
+									<div className="text-sm text-content-secondary">
+										{count.value.toLocaleString("en-US")}
+									</div>
 								</div>
 							</div>
-						</div>
-
-						<div>
-							<div className="flex items-center gap-1">
-								<ArrowUpIcon className="size-icon-sm shrink-0" />
-								<span className="text-content-primary text-sm">
-									Output tokens
-								</span>
-							</div>
-							<div className="flex items-center justify-between gap-4">
-								<div className="text-sm text-content-secondary">Output</div>
-								<div className="text-sm text-content-secondary">
-									{outputTokens.toLocaleString()}
-								</div>
-							</div>
-						</div>
+						))}
 					</div>
 					{tokenUsageMetadata && (
 						<>
@@ -85,4 +87,57 @@ export const TokenBadges: React.FC<TokenBadgesProps> = ({
 			</Tooltip>
 		</TooltipProvider>
 	</div>
+);
+
+type TokenBadgesProps = {
+	inputTokens: number;
+	outputTokens: number;
+	tokenUsageMetadata?: Record<string, unknown>;
+};
+
+export const TokenBadges: React.FC<TokenBadgesProps> = ({
+	inputTokens,
+	outputTokens,
+	tokenUsageMetadata,
+}) => (
+	<TokenPairBadges
+		first={{
+			icon: ArrowDownIcon,
+			title: "Input tokens",
+			label: "Input",
+			value: inputTokens,
+		}}
+		second={{
+			icon: ArrowUpIcon,
+			title: "Output tokens",
+			label: "Output",
+			value: outputTokens,
+		}}
+		tokenUsageMetadata={tokenUsageMetadata}
+	/>
+);
+
+type CacheTokenBadgesProps = {
+	cacheReadTokens: number;
+	cacheWriteTokens: number;
+};
+
+export const CacheTokenBadges: React.FC<CacheTokenBadgesProps> = ({
+	cacheReadTokens,
+	cacheWriteTokens,
+}) => (
+	<TokenPairBadges
+		first={{
+			icon: BookOpenIcon,
+			title: "Cache read tokens",
+			label: "Read",
+			value: cacheReadTokens,
+		}}
+		second={{
+			icon: PenLineIcon,
+			title: "Cache write tokens",
+			label: "Write",
+			value: cacheWriteTokens,
+		}}
+	/>
 );

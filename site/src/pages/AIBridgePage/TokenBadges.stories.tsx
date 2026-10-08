@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { TokenBadges } from "./TokenBadges";
+import { CacheTokenBadges, TokenBadges } from "./TokenBadges";
 
 const meta: Meta<typeof TokenBadges> = {
 	title: "pages/AIBridgePage/TokenBadges",
@@ -39,4 +39,10 @@ export const WithMetadata: Story = {
 			cache_creation_input_tokens: 800,
 		},
 	},
+};
+
+export const CacheTokens: Story = {
+	render: () => (
+		<CacheTokenBadges cacheReadTokens={1_635_778} cacheWriteTokens={130_734} />
+	),
 };

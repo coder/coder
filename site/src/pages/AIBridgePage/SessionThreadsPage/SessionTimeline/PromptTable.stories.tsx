@@ -15,6 +15,8 @@ export const Anthropic: Story = {
 		model: "claude-sonnet-4-5",
 		inputTokens: 1234,
 		outputTokens: 567,
+		cacheReadTokens: 980,
+		cacheWriteTokens: 120,
 	},
 };
 
@@ -24,6 +26,8 @@ export const OpenAI: Story = {
 		model: "gpt-4o",
 		inputTokens: 8192,
 		outputTokens: 1024,
+		cacheReadTokens: 4096,
+		cacheWriteTokens: 0,
 	},
 };
 
@@ -33,6 +37,8 @@ export const WithTokenMetadata: Story = {
 		model: "claude-sonnet-4-5",
 		inputTokens: 5000,
 		outputTokens: 2500,
+		cacheReadTokens: 3200,
+		cacheWriteTokens: 800,
 		tokenUsageMetadata: {
 			cache_read_input_tokens: 3200,
 			cache_creation_input_tokens: 800,
@@ -46,5 +52,7 @@ export const LargeTokenCounts: Story = {
 		model: "claude-opus-4-5",
 		inputTokens: 198_000,
 		outputTokens: 8_000,
+		cacheReadTokens: 1_635_778,
+		cacheWriteTokens: 130_734,
 	},
 };
