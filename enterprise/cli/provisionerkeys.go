@@ -99,7 +99,7 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 				}
 			}
 
-			return formatter.Write(inv.Context(), inv.Stdout, createProvisionerKeyResponse{
+			return formatter.WriteLine(inv.Context(), inv.Stdout, createProvisionerKeyResponse{
 				ProvisionerKey: key,
 				Key:            res.Key,
 			})
