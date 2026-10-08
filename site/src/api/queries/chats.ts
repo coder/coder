@@ -1482,9 +1482,7 @@ export const chatACL = (chatId: string) => ({
 });
 
 const MESSAGES_PAGE_SIZE = 50;
-const TURN_FILL_PAGE_SIZE = 200;
-// Bounds how much of one long turn a single history page loads; past the
-// cap the page ends mid-turn and the next page continues it.
+// Past the cap, a history page ends mid-turn and the next page continues it.
 const MAX_MESSAGES_PER_PAGE = 1000;
 
 export const chatMessagesKey = (chatId: string) =>
@@ -1503,7 +1501,7 @@ export const chatQueueConvergence = (chatId: string) => ({
 });
 
 // Extends a page back to the prompt that starts the turn containing its
-// oldest message, so a collapsed working block loads in one page.
+// oldest message.
 const fetchMessagesPage = async (
 	chatId: string,
 	beforeId: number | undefined,
@@ -1516,25 +1514,31 @@ const fetchMessagesPage = async (
 	if (turnStartId === undefined) {
 		return page;
 	}
+
 	const messages = [...page.messages];
-	while (messages.length > 0 && messages.length < MAX_MESSAGES_PER_PAGE) {
-		const oldestId = messages[messages.length - 1].id;
-		if (oldestId <= turnStartId) {
-			break;
+	try {
+		while (messages.length > 0 && messages.length < MAX_MESSAGES_PER_PAGE) {
+			const oldestId = messages[messages.length - 1].id;
+			if (oldestId <= turnStartId) {
+				break;
+			}
+			const older = await API.experimental.getChatMessages(chatId, {
+				// after_id is exclusive, so this keeps the prompt itself.
+				after_id: turnStartId - 1,
+				before_id: oldestId,
+				// 200 is the endpoint's maximum limit.
+				limit: Math.min(200, MAX_MESSAGES_PER_PAGE - messages.length),
+			});
+			messages.push(...older.messages);
+			if (!older.has_more || older.messages.length === 0) {
+				break;
+			}
 		}
-		const older = await API.experimental.getChatMessages(chatId, {
-			after_id: turnStartId - 1,
-			before_id: oldestId,
-			limit: Math.min(
-				TURN_FILL_PAGE_SIZE,
-				MAX_MESSAGES_PER_PAGE - messages.length,
-			),
-		});
-		messages.push(...older.messages);
-		if (!older.has_more || older.messages.length === 0) {
-			break;
-		}
+	} catch {
+		// Keep what loaded: the page ends mid-turn and the next page resumes
+		// from its oldest message, so a failed fill never fails the page.
 	}
+
 	return { ...page, messages };
 };
 

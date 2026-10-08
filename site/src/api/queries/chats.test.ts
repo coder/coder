@@ -4746,39 +4746,44 @@ describe("semantic cache operations: removal and patching", () => {
 });
 
 describe("chatMessagesForInfiniteScroll", () => {
+	type History = { newestId: number; turnStartId: number | undefined };
+
 	// Serves IDs 1..newestId newest-first with the endpoint's
 	// before_id/after_id/limit semantics.
-	const serveHistory = (newestId: number, turnStartId?: number) =>
+	const historyPage = (
+		{ newestId, turnStartId }: History,
+		opts: Parameters<typeof API.experimental.getChatMessages>[1],
+	): TypesGen.ChatMessagesResponse => {
+		const top = (opts?.before_id ?? newestId + 1) - 1;
+		const floor = (opts?.after_id ?? 0) + 1;
+		const bottom = Math.max(floor, top - (opts?.limit ?? 50) + 1);
+		const messages: TypesGen.ChatMessage[] = [];
+		for (let id = top; id >= bottom; id--) {
+			messages.push({ ...MockChatMessage, id });
+		}
+		return {
+			messages,
+			queued_messages: [],
+			has_more: bottom > floor,
+			turn_start_id: turnStartId,
+		};
+	};
+
+	const serveHistory = (history: History) =>
 		vi
 			.mocked(API.experimental.getChatMessages)
-			.mockImplementation(async (_chatId, opts) => {
-				const top = (opts?.before_id ?? newestId + 1) - 1;
-				const floor = (opts?.after_id ?? 0) + 1;
-				const bottom = Math.max(floor, top - (opts?.limit ?? 50) + 1);
-				const messages: TypesGen.ChatMessage[] = [];
-				for (let id = top; id >= bottom; id--) {
-					messages.push({ ...MockChatMessage, id });
-				}
-				return {
-					messages,
-					queued_messages: [],
-					has_more: bottom > floor,
-					turn_start_id: turnStartId,
-				};
-			});
+			.mockImplementation(async (_chatId, opts) => historyPage(history, opts));
 
-	const loadPage = (pageParam?: number) => {
-		const query = chatMessagesForInfiniteScroll("chat-1");
-		return query.queryFn({ pageParam });
-	};
+	const query = chatMessagesForInfiniteScroll("chat-1");
+	const loadNewestPage = () => query.queryFn({ pageParam: undefined });
 
 	it.each([
 		{ name: "the page starts at its turn prompt", turnStartId: 51 },
 		{ name: "the server omits turn_start_id", turnStartId: undefined },
 	])("makes one request when $name", async ({ turnStartId }) => {
-		const getChatMessages = serveHistory(100, turnStartId);
+		const getChatMessages = serveHistory({ newestId: 100, turnStartId });
 
-		const page = await loadPage();
+		const page = await loadNewestPage();
 
 		expect(getChatMessages).toHaveBeenCalledTimes(1);
 		expect(getChatMessages).toHaveBeenCalledWith("chat-1", {
@@ -4791,9 +4796,9 @@ describe("chatMessagesForInfiniteScroll", () => {
 	});
 
 	it("extends a mid-turn page back to the turn prompt", async () => {
-		const getChatMessages = serveHistory(300, 10);
+		const getChatMessages = serveHistory({ newestId: 300, turnStartId: 10 });
 
-		const page = await loadPage();
+		const page = await loadNewestPage();
 
 		expect(getChatMessages.mock.calls.map(([, opts]) => opts)).toEqual([
 			{ before_id: undefined, limit: 50 },
@@ -4804,15 +4809,13 @@ describe("chatMessagesForInfiniteScroll", () => {
 			Array.from({ length: 291 }, (_, i) => 300 - i),
 		);
 		expect(page.has_more).toBe(true);
-		expect(chatMessagesForInfiniteScroll("chat-1").getNextPageParam(page)).toBe(
-			10,
-		);
+		expect(query.getNextPageParam(page)).toBe(10);
 	});
 
-	it("stops at the per-page cap and continues mid-turn on the next page", async () => {
-		const getChatMessages = serveHistory(2000, 1);
+	it("stops at the per-page cap with the next page cursor mid-turn", async () => {
+		const getChatMessages = serveHistory({ newestId: 2000, turnStartId: 1 });
 
-		const page = await loadPage();
+		const page = await loadNewestPage();
 
 		expect(getChatMessages).toHaveBeenCalledTimes(6);
 		expect(getChatMessages).toHaveBeenLastCalledWith("chat-1", {
@@ -4821,9 +4824,22 @@ describe("chatMessagesForInfiniteScroll", () => {
 			limit: 150,
 		});
 		expect(page.messages).toHaveLength(1000);
-		expect(chatMessagesForInfiniteScroll("chat-1").getNextPageParam(page)).toBe(
-			1001,
-		);
+		expect(query.getNextPageParam(page)).toBe(1001);
+	});
+
+	it("keeps the loaded messages when a fill request fails", async () => {
+		const getChatMessages = vi
+			.mocked(API.experimental.getChatMessages)
+			.mockResolvedValueOnce(
+				historyPage({ newestId: 300, turnStartId: 10 }, { limit: 50 }),
+			)
+			.mockRejectedValueOnce(new Error("fill failed"));
+
+		const page = await loadNewestPage();
+
+		expect(getChatMessages).toHaveBeenCalledTimes(2);
+		expect(page.messages).toHaveLength(50);
+		expect(query.getNextPageParam(page)).toBe(251);
 	});
 });
 
