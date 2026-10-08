@@ -75,7 +75,7 @@ export const Mobile: Story = {
 	},
 };
 
-/** A sharee without edit or delete rights gets no project actions menu. */
+/** A sharee without update or delete rights gets no project actions menu. */
 export const WithoutUpdateOrDeletePermission: Story = {
 	args: {
 		project: {
