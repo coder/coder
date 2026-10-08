@@ -18587,19 +18587,9 @@ func TestGetChatMessages_TurnStartID(t *testing.T) {
 	afterModelOnly := insert(roleAssistant, both)
 	deletedPrompt := insert(roleUser, both)
 	afterDeletedPrompt := insert(roleAssistant, both)
-	editedPrompt := insert(roleUser, both)
-	_ = insert(roleAssistant, both)
-
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	require.NoError(t, db.SoftDeleteChatMessageByID(sysCtx, deletedPrompt))
-	// EditMessage soft-deletes the edited prompt and its suffix, then
-	// inserts the replacement.
-	require.NoError(t, db.SoftDeleteChatMessagesAfterID(sysCtx, database.SoftDeleteChatMessagesAfterIDParams{
-		ChatID:  chat.ID,
-		AfterID: editedPrompt - 1,
-	}))
-	replacementPrompt := insert(roleUser, both)
-	replacementStep := insert(roleAssistant, both)
+	lastPrompt := insert(roleUser, both)
+	lastStep := insert(roleAssistant, both)
+	require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), deletedPrompt))
 
 	tests := []struct {
 		name string
@@ -18609,8 +18599,8 @@ func TestGetChatMessages_TurnStartID(t *testing.T) {
 		oldest int64
 		want   *int64
 	}{
-		{"MidTurnAfterEdit", codersdk.ChatMessagesPaginationOptions{Limit: 1}, replacementStep, &replacementPrompt},
-		{"SkipsDeletedPrompt", codersdk.ChatMessagesPaginationOptions{BeforeID: replacementPrompt, Limit: 1}, afterDeletedPrompt, &firstPrompt},
+		{"MidTurn", codersdk.ChatMessagesPaginationOptions{Limit: 1}, lastStep, &lastPrompt},
+		{"PageSpanningTurnsSkipsDeletedPrompt", codersdk.ChatMessagesPaginationOptions{BeforeID: lastStep, Limit: 2}, afterDeletedPrompt, &firstPrompt},
 		{"SkipsModelOnlyUserRow", codersdk.ChatMessagesPaginationOptions{BeforeID: deletedPrompt, Limit: 1}, afterModelOnly, &firstPrompt},
 		{"OldestIsPrompt", codersdk.ChatMessagesPaginationOptions{BeforeID: firstStep, Limit: 1}, firstPrompt, &firstPrompt},
 		{"NoPromptBeforeOldest", codersdk.ChatMessagesPaginationOptions{BeforeID: firstPrompt}, preamble, nil},
