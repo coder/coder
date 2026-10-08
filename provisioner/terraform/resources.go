@@ -750,6 +750,7 @@ func convertStateWithInput(
 			RunOnStart:       attrs.RunOnStart,
 			RunOnStop:        attrs.RunOnStop,
 			TimeoutSeconds:   attrs.TimeoutSeconds,
+			ResourceAddress:  resource.Address,
 		}
 		if scriptOrderBinding != nil &&
 			scriptOrderBinding.handleSelectedScript(resource, script) {
