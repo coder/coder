@@ -98,14 +98,16 @@ const LifecycleHookNotice: React.FC<{
 	</TimelineNotice>
 );
 
+// A row that ends a working block renders its work inside the block and its
+// answer after it.
+type RowSection = "work" | "answer";
+
 const ChatMessageItem = memo<{
 	organizationId: string;
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
-	// A row that ends a working block renders its work inside the block and
-	// its answer after it. Omitted for rows rendered whole.
-	part?: "work" | "answer";
+	section?: RowSection;
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -148,7 +150,7 @@ const ChatMessageItem = memo<{
 		organizationId,
 		renderKey,
 		message,
-		part,
+		section,
 		parsed,
 		liveStatus,
 		liveBlocks = [],
@@ -232,20 +234,13 @@ const ChatMessageItem = memo<{
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
-		const isWorkPart = part === "work";
+		const isWorkSection = section === "work";
 		const rowBlocks = parsed?.blocks ?? liveBlocks;
-		const blocks =
-			part === undefined
-				? rowBlocks
-				: rowBlocks.filter((block) => isWorkBlock(block) === isWorkPart);
-		// BlockList renders tools without a block too, so the answer part
-		// takes none or it would repeat the folded tools.
-		const tools = part === "answer" ? [] : (parsed?.tools ?? liveTools);
-		const outputLiveStatus = isWorkPart ? undefined : liveStatus;
+		const outputLiveStatus = isWorkSection ? undefined : liveStatus;
 
 		return (
 			<div
-				data-testid={`chat-message-${renderKey}${isWorkPart ? "-work" : ""}`}
+				data-testid={`chat-message-${renderKey}${isWorkSection ? "-work" : ""}`}
 				className={cn(
 					isAfterEditingMessage && "opacity-40 pointer-events-none",
 					"group/msg relative transition-opacity duration-200",
@@ -269,8 +264,18 @@ const ChatMessageItem = memo<{
 								<AssistantOutput
 									organizationId={organizationId}
 									keyPrefix={renderKey}
-									blocks={blocks}
-									tools={tools}
+									blocks={
+										section === undefined
+											? rowBlocks
+											: rowBlocks.filter(
+													(block) => isWorkBlock(block) === isWorkSection,
+												)
+									}
+									// The answer section takes no tools, or it would repeat the
+									// folded ones as block-less tools.
+									tools={
+										section === "answer" ? [] : (parsed?.tools ?? liveTools)
+									}
 									isStreaming={outputLiveStatus?.phase === "streaming"}
 									liveStatus={outputLiveStatus}
 									subagentStatusOverrides={subagentStatusOverrides}
@@ -617,9 +622,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
-		// The work part keeps the row's key, so a row that becomes an answer
+		// The work section keeps the row's key, so a row that becomes an answer
 		// row inside an expanded block does not remount its reasoning.
-		const renderRowContent = (index: number, part?: "work" | "answer") => {
+		const renderRowContent = (index: number, section?: RowSection) => {
 			const row = renderRows[index];
 			if (row.type === "live") {
 				return (
@@ -627,7 +632,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						key={row.key}
 						organizationId={organizationId}
 						renderKey={row.key}
-						part={part}
+						section={section}
 						liveStatus={liveStatus}
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
@@ -645,9 +650,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			const { message, parsed } = row.entry;
 			const isUser = message.role === "user";
 			const neighbors = userNeighborsByKey.get(row.key);
-			// A block's item dims and inerts its rows as a whole.
+			// A block's item dims and inerts its rows as a whole; the answer
+			// section renders outside it, so it dims itself.
 			const isAfterEditingMessage =
-				(part === "answer" || !groupedRows.has(index)) &&
+				(section === "answer" || !groupedRows.has(index)) &&
 				afterEditingMessageIds.has(message.id);
 
 			return (
@@ -656,7 +662,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					organizationId={organizationId}
 					renderKey={row.key}
 					message={message}
-					part={part}
+					section={section}
 					parsed={parsed}
 					onEditUserMessage={isUser ? onEditUserMessage : undefined}
 					editingMessageId={editingMessageId}
@@ -671,7 +677,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					urlTransform={urlTransform}
 					isAfterEditingMessage={isAfterEditingMessage}
 					hideActions={
-						part === "work" || (!isUser && !row.isLastInAssistantChain)
+						section === "work" || (!isUser && !row.isLastInAssistantChain)
 					}
 					hasActiveStream={hasActiveStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
