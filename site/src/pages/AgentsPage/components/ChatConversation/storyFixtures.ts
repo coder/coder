@@ -123,6 +123,7 @@ export const MockWorkingBlock: WorkingBlock = {
 	startedAt: FIXTURE_NOW - 12_000,
 	endedAt: FIXTURE_NOW,
 	stepCount: 2,
+	endsWithAnswer: false,
 	isLive: false,
 	isPartial: false,
 };
@@ -184,6 +185,64 @@ export const MockWorkingMessages: TypesGen.ChatMessage[] = [
 		role: "assistant",
 		created_at: workingFixtureTime(14),
 		content: [{ type: "text", text: "Workspace inspection complete." }],
+	},
+];
+
+/**
+ * MockWorkingMessages whose final answer also reasoned and searched the web
+ * from 13s to 16s before writing its text.
+ */
+export const MockWebSearchAnswerMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 5),
+	{
+		...MockChatMessage,
+		id: 6,
+		role: "assistant",
+		created_at: workingFixtureTime(16),
+		content: [
+			{
+				type: "reasoning",
+				text: "Checking the release notes",
+				created_at: workingFixtureTime(13),
+				completed_at: workingFixtureTime(14),
+			},
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				args: { query: "coder release notes" },
+				provider_executed: true,
+				created_at: workingFixtureTime(14),
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				result: {},
+				provider_executed: true,
+				created_at: workingFixtureTime(15),
+			},
+			{
+				type: "reasoning",
+				text: "Comparing the two sources",
+				created_at: workingFixtureTime(15),
+				completed_at: workingFixtureTime(16),
+			},
+			{
+				type: "source",
+				url: "https://coder.com/changelog",
+				title: "Coder changelog",
+			},
+			{
+				type: "source",
+				url: "https://github.com/coder/coder/releases",
+				title: "Coder releases",
+			},
+			{
+				type: "text",
+				text: "The workspace runs the latest Coder release.",
+			},
+		],
 	},
 ];
 

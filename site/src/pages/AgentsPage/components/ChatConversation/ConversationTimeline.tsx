@@ -52,7 +52,7 @@ import type {
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
-import { groupWorkingBlocks } from "./workingBlockGrouping";
+import { groupWorkingBlocks, isWorkBlock } from "./workingBlockGrouping";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -103,6 +103,9 @@ const ChatMessageItem = memo<{
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
+	// A row that ends a working block renders its work inside the block and
+	// its answer after it. Omitted for rows rendered whole.
+	part?: "work" | "answer";
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -145,6 +148,7 @@ const ChatMessageItem = memo<{
 		organizationId,
 		renderKey,
 		message,
+		part,
 		parsed,
 		liveStatus,
 		liveBlocks = [],
@@ -228,10 +232,20 @@ const ChatMessageItem = memo<{
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
+		const isWorkPart = part === "work";
+		const rowBlocks = parsed?.blocks ?? liveBlocks;
+		const blocks =
+			part === undefined
+				? rowBlocks
+				: rowBlocks.filter((block) => isWorkBlock(block) === isWorkPart);
+		// BlockList renders tools without a block too, so the answer part
+		// takes none or it would repeat the folded tools.
+		const tools = part === "answer" ? [] : (parsed?.tools ?? liveTools);
+		const outputLiveStatus = isWorkPart ? undefined : liveStatus;
 
 		return (
 			<div
-				data-testid={`chat-message-${renderKey}`}
+				data-testid={`chat-message-${renderKey}${isWorkPart ? "-work" : ""}`}
 				className={cn(
 					isAfterEditingMessage && "opacity-40 pointer-events-none",
 					"group/msg relative transition-opacity duration-200",
@@ -255,10 +269,10 @@ const ChatMessageItem = memo<{
 								<AssistantOutput
 									organizationId={organizationId}
 									keyPrefix={renderKey}
-									blocks={parsed?.blocks ?? liveBlocks}
-									tools={parsed?.tools ?? liveTools}
-									isStreaming={liveStatus?.phase === "streaming"}
-									liveStatus={liveStatus}
+									blocks={blocks}
+									tools={tools}
+									isStreaming={outputLiveStatus?.phase === "streaming"}
+									liveStatus={outputLiveStatus}
 									subagentStatusOverrides={subagentStatusOverrides}
 									subagentTitles={subagentTitles}
 									subagentVariants={subagentVariants}
@@ -603,13 +617,17 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
-		const rowContents = renderRows.map((row, index) => {
+		// The work part keeps the row's key, so a row that becomes an answer
+		// row inside an expanded block does not remount its reasoning.
+		const renderRowContent = (index: number, part?: "work" | "answer") => {
+			const row = renderRows[index];
 			if (row.type === "live") {
 				return (
 					<ChatMessageItem
 						key={row.key}
 						organizationId={organizationId}
 						renderKey={row.key}
+						part={part}
 						liveStatus={liveStatus}
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
@@ -629,7 +647,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			const neighbors = userNeighborsByKey.get(row.key);
 			// A block's item dims and inerts its rows as a whole.
 			const isAfterEditingMessage =
-				!groupedRows.has(index) && afterEditingMessageIds.has(message.id);
+				(part === "answer" || !groupedRows.has(index)) &&
+				afterEditingMessageIds.has(message.id);
 
 			return (
 				<ChatMessageItem
@@ -637,6 +656,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					organizationId={organizationId}
 					renderKey={row.key}
 					message={message}
+					part={part}
 					parsed={parsed}
 					onEditUserMessage={isUser ? onEditUserMessage : undefined}
 					editingMessageId={editingMessageId}
@@ -650,7 +670,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
 					urlTransform={urlTransform}
 					isAfterEditingMessage={isAfterEditingMessage}
-					hideActions={!isUser && !row.isLastInAssistantChain}
+					hideActions={
+						part === "work" || (!isUser && !row.isLastInAssistantChain)
+					}
 					hasActiveStream={hasActiveStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 					isLastMessage={row.isLastMessage}
@@ -663,11 +685,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					onJumpToUserMessage={isUser ? jumpToUserMessage : undefined}
 				/>
 			);
-		});
+		};
 
 		return (
 			<FileProbeProvider evictedFileIds={evictedFileIds}>
-				{renderRows.map((row, index) => {
+				{renderRows.flatMap((row, index) => {
 					const block = blockByFirstRow.get(index);
 					if (block) {
 						// Keyed on durable member rows and the item key, excluding the live
@@ -687,8 +709,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						const isAfterEditingMessage =
 							row.type === "message" &&
 							afterEditingMessageIds.has(row.entry.message.id);
+						const answerRowIndex = block.endsWithAnswer
+							? block.rowIndices.at(-1)
+							: undefined;
 
-						return (
+						return [
 							<MessageScroller.Item
 								key={itemKey}
 								messageId={itemKey}
@@ -712,21 +737,36 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									}
 								>
 									{expanded &&
-										block.rowIndices.map((rowIndex) => rowContents[rowIndex])}
+										block.rowIndices.map((rowIndex) =>
+											renderRowContent(
+												rowIndex,
+												rowIndex === answerRowIndex ? "work" : undefined,
+											),
+										)}
 								</WorkingBlockDisclosure>
-							</MessageScroller.Item>
-						);
+							</MessageScroller.Item>,
+							...(answerRowIndex === undefined
+								? []
+								: [
+										<MessageScroller.Item
+											key={renderRows[answerRowIndex].key}
+											messageId={renderRows[answerRowIndex].key}
+										>
+											{renderRowContent(answerRowIndex, "answer")}
+										</MessageScroller.Item>,
+									]),
+						];
 					}
 
 					if (groupedRows.has(index)) {
-						return null;
+						return [];
 					}
 
 					const suppressInitialAnchor =
 						row.type === "message" &&
 						initialActiveTurnMaxMessageId !== undefined &&
 						row.entry.message.id <= initialActiveTurnMaxMessageId;
-					return (
+					return [
 						<MessageScroller.Item
 							key={row.key}
 							messageId={row.key}
@@ -734,9 +774,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								row.key === anchorUserRowKey && !suppressInitialAnchor
 							}
 						>
-							{rowContents[index]}
-						</MessageScroller.Item>
-					);
+							{renderRowContent(index)}
+						</MessageScroller.Item>,
+					];
 				})}
 			</FileProbeProvider>
 		);
