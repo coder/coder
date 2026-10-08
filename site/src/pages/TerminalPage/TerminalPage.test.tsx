@@ -380,36 +380,76 @@ describe("TerminalPage", () => {
 		expect(resizeReq.width).toBeGreaterThan(0);
 	});
 
-	it("uses the app's name and icon when opened via ?app=", async () => {
-		mockAgentApp({
-			slug: "my-app",
-			display_name: "My App",
-			icon: "/icon/my-app.svg",
-		});
-		// Stand-in for the static favicon declared in index.html.
-		const staticIcon = document.createElement("link");
-		staticIcon.rel = "icon";
-		staticIcon.href = "/favicons/favicon-dark.svg";
-		staticIcon.media = "(prefers-color-scheme: light)";
-		document.head.append(staticIcon);
-		createWorkspaceTerminalWebSocket();
-		const { unmount } = await renderTerminal(
-			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?app=my-app`,
-		);
+	describe("with static favicons like index.html's", () => {
+		let staticIcons: HTMLLinkElement[];
 
-		await waitFor(() => {
-			expect(document.title).toBe(
-				`My App - ${MockWorkspace.owner_name}/${MockWorkspace.name} - Coder`,
+		beforeEach(() => {
+			staticIcons = [
+				["alternate icon", "/favicons/favicon-dark.png"],
+				["icon", "/favicons/favicon-dark.svg"],
+			].map(([rel, href]) => {
+				const link = document.createElement("link");
+				link.rel = rel;
+				link.href = href;
+				link.media = "(prefers-color-scheme: light)";
+				return link;
+			});
+			document.head.append(...staticIcons);
+		});
+
+		afterEach(() => {
+			for (const link of staticIcons) {
+				link.remove();
+			}
+		});
+
+		it("uses the app's name and icon when opened via ?app=", async () => {
+			mockAgentApp({
+				slug: "my-app",
+				display_name: "My App",
+				icon: "/icon/my-app.svg",
+				command: "top",
+			});
+			createWorkspaceTerminalWebSocket();
+			const { unmount } = await renderTerminal(
+				`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?app=my-app`,
+			);
+
+			await waitFor(() => {
+				expect(document.title).toBe(
+					`My App - ${MockWorkspace.owner_name}/${MockWorkspace.name} - Coder`,
+				);
+			});
+			const icons = document.head.querySelectorAll('link[rel~="icon"]');
+			expect(icons).toHaveLength(1);
+			expect(icons[0].getAttribute("href")).toBe("/icon/my-app.svg");
+
+			unmount();
+			expect([...document.head.querySelectorAll('link[rel~="icon"]')]).toEqual(
+				staticIcons,
 			);
 		});
-		expect(
-			document.head.querySelector('link[rel="icon"][href="/icon/my-app.svg"]'),
-		).not.toBeNull();
-		expect(staticIcon.media).toBe("not all");
 
-		unmount();
-		expect(staticIcon.media).toBe("(prefers-color-scheme: light)");
-		staticIcon.remove();
+		it("keeps the default title and icon for an app without a command", async () => {
+			mockAgentApp({
+				slug: "my-app",
+				display_name: "My App",
+				icon: "/icon/my-app.svg",
+			});
+			createWorkspaceTerminalWebSocket();
+			await renderTerminal(
+				`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?app=my-app`,
+			);
+
+			await waitFor(() => {
+				expect(document.title).toBe(
+					`Terminal - ${MockWorkspace.owner_name}/${MockWorkspace.name} - Coder`,
+				);
+			});
+			expect([...document.head.querySelectorAll('link[rel~="icon"]')]).toEqual(
+				staticIcons,
+			);
+		});
 	});
 
 	it("keeps the default title and icon without ?app=", async () => {

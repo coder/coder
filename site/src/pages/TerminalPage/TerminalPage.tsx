@@ -62,14 +62,17 @@ const TerminalPage: React.FC = () => {
 		? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
 		: undefined;
 
-	// Resolve the ?app= slug to an app from the agent's app list. Its
-	// command is admin-configured in the template and trusted, so it
-	// skips the confirmation dialog.
+	// Resolve the ?app= slug to a command app from the agent's app list.
+	// Only command apps run in this terminal, so other apps don't label
+	// the page. The command is admin-configured in the template and
+	// trusted, so it skips the confirmation dialog.
 	const app = useMemo(() => {
 		if (!appSlug || !workspaceAgent) {
 			return undefined;
 		}
-		return workspaceAgent.apps.find((a) => a.slug === appSlug);
+		return workspaceAgent.apps.find(
+			(a) => a.slug === appSlug && Boolean(a.command),
+		);
 	}, [appSlug, workspaceAgent]);
 	const appCommand = app?.command || undefined;
 
@@ -150,27 +153,28 @@ const TerminalPage: React.FC = () => {
 		);
 	}, [navigate, reconnectionToken, searchParams]);
 
-	// Chrome keeps using the static icons from index.html, which carry
-	// media queries, over an icon added later. Switch them off while the
-	// app's icon is shown and restore them when leaving the page.
+	// Use the app's icon as the page icon, so a PWA installed from an
+	// app's terminal page carries the app's icon. Chrome keeps using the
+	// static icons from index.html over an icon added later, so take them
+	// out while the app's icon is shown and put them back on cleanup.
 	const appIcon = app?.icon;
 	useEffect(() => {
 		if (!appIcon) {
 			return;
 		}
 		const staticIcons = Array.from(
-			document.head.querySelectorAll<HTMLLinkElement>(
-				'link[rel~="icon"][media]',
-			),
+			document.head.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]'),
 		);
-		const media = staticIcons.map((link) => link.media);
 		for (const link of staticIcons) {
-			link.media = "not all";
+			link.remove();
 		}
+		const icon = document.createElement("link");
+		icon.rel = "icon";
+		icon.href = appIcon;
+		document.head.append(icon);
 		return () => {
-			staticIcons.forEach((link, i) => {
-				link.media = media[i];
-			});
+			icon.remove();
+			document.head.append(...staticIcons);
 		};
 	}, [appIcon]);
 
@@ -184,8 +188,6 @@ const TerminalPage: React.FC = () => {
 					)}
 				</title>
 			)}
-			{/* Lets a PWA installed from an app's terminal page carry the app's icon. */}
-			{appIcon && <link rel="icon" href={appIcon} />}
 
 			<div className="flex flex-col h-screen" data-status={connectionStatus}>
 				<WorkspaceTerminalAlerts
