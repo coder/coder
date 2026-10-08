@@ -647,6 +647,8 @@ func newTUNStack(t *testing.T, chTUN *tuntest.ChannelTUN, addr netip.Addr) *stac
 	}, stack.AddressProperties{}))
 	s.SetRouteTable([]tcpip.Route{{Destination: header.IPv6EmptySubnet, NIC: 1}})
 
+	// The pumps exit on ctx, and t.Context() is canceled before any cleanup
+	// runs, so their cleanup waits return before the one above closes linkEP.
 	testutil.Go(t, func() {
 		for {
 			pkt := linkEP.ReadContext(ctx)
