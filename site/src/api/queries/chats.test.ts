@@ -5508,35 +5508,76 @@ describe("message upsert fan-out and history replacement", () => {
 		).toBeUndefined();
 	});
 
-	it("upsertChatMessages is not overwritten by a refetch that read the page before it", async () => {
+	const messagesPage = (
+		ids: number[],
+		hasMore = false,
+	): TypesGen.ChatMessagesResponse => ({
+		messages: ids.map((id) => mockChatMessage(id)),
+		queued_messages: [],
+		has_more: hasMore,
+	});
+
+	const cachedMessageIDs = (queryClient: QueryClient) =>
+		readMessagePages(queryClient)?.pages.map((page) =>
+			page.messages.map((message) => message.id),
+		);
+
+	it("keeps both a refetch's pages and a write made while it was in flight", async () => {
 		const queryClient = createTestQueryClient();
-		const stalePage = (): InfMessages => ({
-			pages: [
-				{
-					messages: [mockChatMessage(1)],
-					queued_messages: [],
-					has_more: false,
-				},
-			],
+		seedMessagePages(queryClient, {
+			pages: [messagesPage([1])],
 			pageParams: [undefined],
 		});
-		seedMessagePages(queryClient, stalePage());
 
-		// The server answers the refetch before the stream delivers message 2,
-		// and the response arrives after it.
+		// The refetch reads message 2, sent from another tab. The stream then
+		// delivers message 3, and the refetch response arrives after it.
+		const response = createDeferred<InfMessages>();
 		const refetch = queryClient.prefetchQuery({
 			queryKey: chatMessagesKey("chat-1"),
-			queryFn: () =>
-				new Promise<InfMessages>((resolve) => {
-					setTimeout(() => resolve(stalePage()), 50);
-				}),
+			queryFn: () => response.promise,
 		});
-		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(2)]);
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(3)]);
+		response.resolve({
+			pages: [messagesPage([2, 1])],
+			pageParams: [undefined],
+		});
 		await refetch;
 
-		expect(
-			readMessagePages(queryClient)?.pages[0]?.messages.map((m) => m.id),
-		).toEqual([2, 1]);
+		expect(cachedMessageIDs(queryClient)).toEqual([[3, 2, 1]]);
+	});
+
+	it("keeps both an older page and a write made while it was loading", async () => {
+		const queryClient = createTestQueryClient();
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
+		const observer = new InfiniteQueryObserver(queryClient, {
+			...chatMessagesForInfiniteScroll("chat-1"),
+			queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
+				pageParam === undefined
+					? Promise.resolve(messagesPage([3, 2], true))
+					: olderPage.promise,
+		});
+		await observer.refetch();
+
+		const nextPage = observer.fetchNextPage();
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(4)]);
+		olderPage.resolve(messagesPage([1]));
+		await nextPage;
+
+		expect(cachedMessageIDs(queryClient)).toEqual([[4, 3, 2], [1]]);
+	});
+
+	it("keeps a write made while the first page was loading", async () => {
+		const queryClient = createTestQueryClient();
+		const response = createDeferred<InfMessages>();
+		const load = queryClient.prefetchQuery({
+			queryKey: chatMessagesKey("chat-1"),
+			queryFn: () => response.promise,
+		});
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(2)]);
+		response.resolve({ pages: [messagesPage([1])], pageParams: [undefined] });
+		await load;
+
+		expect(cachedMessageIDs(queryClient)).toEqual([[2, 1]]);
 	});
 });
 
