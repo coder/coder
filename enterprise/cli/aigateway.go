@@ -74,7 +74,7 @@ func (r *RootCmd) aiGatewayKeysCreate() *serpent.Command {
 				return xerrors.Errorf("create AI Gateway key %q: %w", inv.Args[0], err)
 			}
 
-			return formatter.Write(inv.Context(), inv.Stdout, res)
+			return formatter.WriteLine(inv.Context(), inv.Stdout, res)
 		},
 	}
 
