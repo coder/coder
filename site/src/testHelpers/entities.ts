@@ -5502,6 +5502,8 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		cache_read_input_tokens: 900,
 		cache_write_input_tokens: 140,
 		metadata: {},
+		cost_micros: 0,
+		has_unpriced_usage: false,
 	},
 	attribution: {
 		workspace_id: "workspace-1",
@@ -5519,6 +5521,8 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 				cache_read_input_tokens: 450,
 				cache_write_input_tokens: 70,
 				metadata: {},
+				cost_micros: 0,
+				has_unpriced_usage: false,
 			},
 			thinking: [],
 			tool_calls: [
