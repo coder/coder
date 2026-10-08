@@ -1536,6 +1536,9 @@ export const chatPromptsQuery = (chatId: string) => ({
 	enabled: chatId !== "",
 });
 
+export const chatArchiveMutationKey = (chatId: string) =>
+	["chats", "archive", chatId] as const;
+
 export const archiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { archived: true }),
@@ -1676,7 +1679,7 @@ type ArchiveAndDeleteChatResult = {
 };
 
 export const archiveAndDeleteChatKey = (chatId: string) =>
-	["chats", "archive-and-delete", chatId] as const;
+	[...chatArchiveMutationKey(chatId), "delete-workspace"] as const;
 
 // Archiving rejects active chat families before deletion. Keep the chat archived
 // on delete errors: the delete build may have committed despite a failed response.

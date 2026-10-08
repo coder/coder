@@ -1,8 +1,15 @@
 import { cn } from "cn";
 import { EllipsisVerticalIcon } from "lucide-react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, useLocation } from "react-router";
-import { chatCost } from "#/api/queries/chats";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import {
+	archiveChat,
+	chatArchiveMutationKey,
+	chatCost,
+	unarchiveChat,
+} from "#/api/queries/chats";
 import type { Chat, User } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
@@ -11,6 +18,8 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { buildAgentChatPath } from "../../utils/navigation";
+import { clearPersistedRightPanelState } from "../../utils/rightPanelTabStorage";
+import { clearPersistedSidebarTabId } from "../../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
@@ -24,13 +33,11 @@ import { getChatDisplayConfig } from "../ChatsSidebar/tree/statusConfig";
 /** The chat actions a project chat row offers from its menu. */
 export type ProjectChatRowActions = Pick<
 	AgentsPageOutletContext,
-	| "requestArchiveAgent"
-	| "requestUnarchiveAgent"
+	| "clearChatErrorReason"
 	| "navigateAfterArchive"
 	| "requestPinAgent"
 	| "requestUnpinAgent"
 	| "onOpenRenameDialog"
-	| "isArchiving"
 >;
 
 type ProjectChatRowProps = {
@@ -78,6 +85,32 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		? currentUser.name || currentUser.username
 		: chat.owner_name || chat.owner_username || "Unknown";
 	const workspaceId = chat.workspace_id;
+	const queryClient = useQueryClient();
+	const mutationKey = chatArchiveMutationKey(chat.id);
+	const archiveOptions = archiveChat(queryClient);
+	const archiveMutation = useMutation({
+		...archiveOptions,
+		mutationKey,
+		onSuccess: (data, chatId) => {
+			archiveOptions.onSuccess(data, chatId);
+			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
+			actions?.clearChatErrorReason(chatId);
+		},
+		onError: (error, chatId, context) => {
+			archiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+	const unarchiveOptions = unarchiveChat(queryClient);
+	const unarchiveMutation = useMutation({
+		...unarchiveOptions,
+		mutationKey,
+		onError: (error, chatId, context) => {
+			unarchiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+		},
+	});
 
 	return (
 		<li className="group -mx-2 flex min-w-0 items-center gap-2 rounded-lg pr-2 hover:bg-surface-secondary has-[[data-state=open]]:bg-surface-secondary">
@@ -117,14 +150,13 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 						chat={chat}
 						canManage={canManage}
 						hasWorkspace={Boolean(workspaceId)}
-						isArchiving={actions.isArchiving}
 						isArchiveBlocked={
 							!chatFamilyAllowsArchive(chat.status, chat.children)
 						}
 						onPinAgent={() => actions.requestPinAgent(chat.id)}
 						onUnpinAgent={() => actions.requestUnpinAgent(chat.id)}
-						onArchiveAgent={() => actions.requestArchiveAgent(chat.id)}
-						onUnarchiveAgent={() => actions.requestUnarchiveAgent(chat.id)}
+						onArchiveAgent={() => archiveMutation.mutate(chat.id)}
+						onUnarchiveAgent={() => unarchiveMutation.mutate(chat.id)}
 						onArchived={actions.navigateAfterArchive}
 						onOpenRenameDialog={
 							actions.onOpenRenameDialog

@@ -21,7 +21,6 @@ import {
 	addChildToParentInCache,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
-	archiveChat,
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
@@ -42,7 +41,6 @@ import {
 	reorderPinnedChat,
 	shouldInvalidateChatSearches,
 	shouldInvalidateChatsByWorkspace,
-	unarchiveChat,
 	unpinChat,
 	updateChatTitle,
 	updateInfiniteChatsCache,
@@ -81,21 +79,15 @@ import {
 import { shouldNavigateAfterArchive } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { readDeepLinkState } from "./utils/deepLinkState";
-import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
-import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
 export type AgentsPageOutletContext = {
 	chatErrorReasons: Record<string, ChatDetailError>;
 	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatId: string) => void;
-	requestArchiveAgent: (chatId: string) => void;
 	navigateAfterArchive: (chatId: string) => void;
-	requestUnarchiveAgent: (chatId: string) => void;
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	isArchiving: boolean;
-	archivingChatId: string | undefined;
 	/**
 	 * The active chat's children from the chat list cache, which watch
 	 * events keep fresh. The entity cache's embedded children are only a
@@ -243,28 +235,6 @@ const AgentsPageLayout: React.FC = () => {
 		});
 	};
 
-	const archiveChatBase = archiveChat(queryClient);
-	const archiveAgentMutation = useMutation({
-		...archiveChatBase,
-		onSuccess: (data, chatId) => {
-			archiveChatBase.onSuccess(data, chatId);
-			clearChatErrorReason(chatId);
-			clearPersistedSidebarTabId(chatId);
-			clearPersistedRightPanelState(chatId);
-		},
-		onError: (error, chatId, context) => {
-			archiveChatBase.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to archive agent."));
-		},
-	});
-	const unarchiveChatBase = unarchiveChat(queryClient);
-	const unarchiveAgentMutation = useMutation({
-		...unarchiveChatBase,
-		onError: (error, chatId, context) => {
-			unarchiveChatBase.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
-		},
-	});
 	const pinChatBase = pinChat(queryClient);
 	const pinAgentMutation = useMutation({
 		...pinChatBase,
@@ -312,16 +282,6 @@ const AgentsPageLayout: React.FC = () => {
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
-	const isArchiving = archiveAgentMutation.isPending;
-	const archivingChatId = archiveAgentMutation.isPending
-		? archiveAgentMutation.variables
-		: undefined;
-	const requestArchiveAgent = (chatId: string) => {
-		if (isArchiving) {
-			return;
-		}
-		archiveAgentMutation.mutate(chatId);
-	};
 
 	const activeChatIdForWatch = useEffectEvent(() => agentId);
 	const [completedArchives, setCompletedArchives] = useState<string[]>([]);
@@ -345,9 +305,6 @@ const AgentsPageLayout: React.FC = () => {
 			completed.slice(completedArchives.length),
 		);
 	}, [agentId, completedArchives, location.search, navigate, queryClient]);
-	const requestUnarchiveAgent = (chatId: string) => {
-		unarchiveAgentMutation.mutate(chatId);
-	};
 	const requestPinAgent = (chatId: string) => {
 		pinAgentMutation.mutate(chatId);
 	};
@@ -583,14 +540,10 @@ const AgentsPageLayout: React.FC = () => {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
-		requestArchiveAgent,
 		navigateAfterArchive,
-		requestUnarchiveAgent,
 		requestPinAgent,
 		requestUnpinAgent,
 		requestReorderPinnedAgent,
-		isArchiving,
-		archivingChatId,
 		activeChatChildren: chatList.find((c) => c.id === agentId)?.children,
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
@@ -622,9 +575,8 @@ const AgentsPageLayout: React.FC = () => {
 					chatErrorReasons={sidebarChatErrorReasons}
 					modelConfigs={organizationModels.models}
 					isLoadingModelConfigs={organizationModels.isLoading}
-					onArchiveAgent={requestArchiveAgent}
+					onArchiveSuccess={clearChatErrorReason}
 					navigateAfterArchive={navigateAfterArchive}
-					onUnarchiveAgent={requestUnarchiveAgent}
 					onPinAgent={requestPinAgent}
 					onUnpinAgent={requestUnpinAgent}
 					onMarkChatRead={requestMarkChatRead}
@@ -638,8 +590,6 @@ const AgentsPageLayout: React.FC = () => {
 					isSearchDialogOpen={isSearchDialogOpen}
 					onSearchDialogOpenChange={setIsSearchDialogOpen}
 					isCreating={false}
-					isArchiving={isArchiving}
-					archivingChatId={archivingChatId}
 					isLoading={chatsQuery.isLoading}
 					loadError={chatsQuery.error}
 					onRetryLoad={() => void chatsQuery.refetch()}

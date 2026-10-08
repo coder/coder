@@ -20,6 +20,7 @@ import { getErrorMessage } from "#/api/errors";
 import {
 	archiveAndDeleteChat,
 	archiveAndDeleteChatKey,
+	chatArchiveMutationKey,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -165,12 +166,12 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const [confirmation, setConfirmation] = useState<TypesGen.Workspace>();
-	const filters = { mutationKey: archiveAndDeleteChatKey(chat.id) };
-	const isDeleting = useIsMutating(filters) > 0;
+	const isArchiving =
+		useIsMutating({ mutationKey: chatArchiveMutationKey(chat.id) }) > 0;
 	const options = archiveAndDeleteChat(queryClient);
 	const mutation = useMutation({
 		...options,
-		mutationKey: filters.mutationKey,
+		mutationKey: archiveAndDeleteChatKey(chat.id),
 		onSuccess: (result, variables) => {
 			options.onSuccess(result, variables);
 			clearPersistedSidebarTabId(variables.chatId);
@@ -198,6 +199,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 		},
 	});
 
+	const filters = { mutationKey: chatArchiveMutationKey(chat.id) };
 	const requestArchiveAndDelete = async () => {
 		const workspaceId = chat.workspace_id;
 		if (chat.archived || !workspaceId || queryClient.isMutating(filters)) {
@@ -236,7 +238,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	const menuItems = (
 		<ChatActionsMenuItems
 			{...items}
-			isArchiving={items.isArchiving || isDeleting}
+			isArchiving={items.isArchiving || isArchiving}
 			onArchiveAndDeleteWorkspace={requestArchiveAndDelete}
 			Item={variant === "context" ? ContextMenuItem : DropdownMenuItem}
 			Separator={

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from "react-router";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { Chat } from "#/api/typesGenerated";
@@ -56,13 +57,9 @@ const buildOutletContext = (): AgentsPageOutletContext => ({
 	chatErrorReasons: {},
 	setChatErrorReason: vi.fn(),
 	clearChatErrorReason: vi.fn(),
-	requestArchiveAgent: vi.fn(),
-	requestUnarchiveAgent: vi.fn(),
 	navigateAfterArchive: vi.fn(),
 	requestPinAgent: vi.fn(),
 	requestUnpinAgent: vi.fn(),
-	isArchiving: false,
-	archivingChatId: undefined,
 	activeChatChildren: undefined,
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: vi.fn(),
@@ -312,9 +309,54 @@ describe("ProjectChatsList", () => {
 		},
 	);
 
-	it("archives a chat through the agents page", async () => {
+	it("restores a project row and preserves its error when archiving fails", async () => {
+		const user = userEvent.setup();
+		const getChats = vi
+			.spyOn(API.experimental, "getChats")
+			.mockResolvedValue(buildChats(1));
+		let rejectArchive!: (error: Error) => void;
+		vi.spyOn(API.experimental, "updateChat").mockImplementation(
+			() =>
+				new Promise((_resolve, reject) => {
+					rejectArchive = reject;
+				}),
+		);
+		const errorToast = vi.spyOn(toast, "error");
+		const outletContext = renderList();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open chat actions for Chat 0",
+			}),
+		);
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Archive agent" }),
+		);
+		await waitFor(() => {
+			expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
+				archived: true,
+			});
+			expect(
+				screen.queryByRole("link", { name: /Chat 0/ }),
+			).not.toBeInTheDocument();
+		});
+		getChats.mockRejectedValue(new Error("Refetch failed"));
+		rejectArchive(new Error("Archive failed"));
+
+		expect(
+			await screen.findByRole("link", { name: /Chat 0/ }),
+		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(errorToast).toHaveBeenCalledWith("Archive failed"),
+		);
+		expect(outletContext.clearChatErrorReason).not.toHaveBeenCalled();
+		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
+	});
+
+	it("archives a chat from its project row", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
+		vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
 
 		const outletContext = renderList();
 
@@ -327,6 +369,12 @@ describe("ProjectChatsList", () => {
 			await screen.findByRole("menuitem", { name: "Archive agent" }),
 		);
 
-		expect(outletContext.requestArchiveAgent).toHaveBeenCalledWith("chat-0");
+		await waitFor(() => {
+			expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
+				archived: true,
+			});
+			expect(outletContext.clearChatErrorReason).toHaveBeenCalledWith("chat-0");
+		});
+		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
 	});
 });
