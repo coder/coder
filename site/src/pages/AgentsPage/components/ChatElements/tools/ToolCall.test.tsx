@@ -297,7 +297,7 @@ describe("ToolCall in a MessageScroller", () => {
 		expect(await visibleRowsAfterLayout()).toEqual(before);
 	});
 
-	it("holds the anchored prompt when output lands far past the live edge", async () => {
+	it("holds the anchored prompt when output lands past the handoff band", async () => {
 		const update = renderTranscript([history]);
 		await update([history, prompt, <ToolRow key="reply" />]);
 		const before = await visibleRowsAfterLayout();
@@ -358,6 +358,27 @@ describe("ToolCall in a MessageScroller", () => {
 		await update([history, <ToolRow key="reply" defaultExpanded />, nextRow]);
 
 		expect(await visibleRowsAfterLayout()).toEqual(before);
+	});
+
+	it("stays put when a removed row clamps the reader after a collapse", async () => {
+		const user = userEvent.setup();
+		const update = renderTranscript([
+			history,
+			<ToolRow key="reply" defaultExpanded />,
+			row("marker", 40),
+		]);
+		await user.click(toggle());
+		await visibleRowsAfterLayout();
+
+		await update([history, <ToolRow key="reply" defaultExpanded />]);
+		// A removed row resizes the content but not the viewport.
+		const content = screen.getByRole("log");
+		MockResizeObserver.instances
+			.find(({ observe }) => observe.mock.calls[0]?.[0] === content)
+			?.simulateResize(0);
+		await update([history, <ToolRow key="reply" defaultExpanded />, nextRow]);
+
+		expect(await visibleRowsAfterLayout()).not.toContain("next");
 	});
 
 	it("resumes following in the next turn after a toggle", async () => {
