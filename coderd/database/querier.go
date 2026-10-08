@@ -176,8 +176,10 @@ type sqlcQuerier interface {
 	// and chat_automations references are set to NULL.
 	DeleteChatFamiliesByRootIDs(ctx context.Context, rootIds []uuid.UUID) error
 	// Ends the leases of chats about to be deleted with their project. Run it
-	// in its own short transaction: lease renewal waits on heartbeat rows that
-	// a long delete would otherwise hold until it commits.
+	// outside the delete transaction, after that transaction has locked the
+	// chats: the locks keep workers from acquiring them again, and lease
+	// renewal would otherwise wait on heartbeat rows the delete holds until it
+	// commits.
 	DeleteChatHeartbeatsByChatIDs(ctx context.Context, chatIds []uuid.UUID) error
 	DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg DeleteChatMCPServersByChatIDExcludingSlugsParams) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
