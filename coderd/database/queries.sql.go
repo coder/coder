@@ -2396,8 +2396,6 @@ SELECT
 	sr.providers::text[] AS providers,
 	sr.models::text[] AS models,
 	COALESCE(sr.client, '')::varchar(64) AS client,
-	-- Rows written outside the insert queries may have NULL metadata, which
-	-- cannot be scanned into json.RawMessage.
 	COALESCE(sr.metadata, '{}'::jsonb)::jsonb AS metadata,
 	sp.started_at::timestamptz AS started_at,
 	sp.ended_at::timestamptz AS ended_at,

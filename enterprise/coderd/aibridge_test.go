@@ -928,8 +928,9 @@ func TestAIBridgeListSessions(t *testing.T) {
 			ClientSessionID: sql.NullString{String: "null-metadata-session", Valid: true},
 		}, &endedAt)
 
-		// The insert queries normalize metadata to '{}', so write NULL
-		// directly to simulate rows from migrations, imports, or manual SQL.
+		// The metadata column is nullable in the schema, but the insert
+		// queries normalize it to '{}', so write NULL directly to simulate
+		// rows from migrations, imports, or manual SQL.
 		_, err := sqlDB.ExecContext(ctx, "UPDATE aibridge_interceptions SET metadata = NULL WHERE id = $1", interception.ID)
 		require.NoError(t, err)
 
