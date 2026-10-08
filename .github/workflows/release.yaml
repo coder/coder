@@ -60,7 +60,7 @@ jobs:
 
   # build-dylib is a separate job to build the dylib on macOS.
   build-dylib:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-15' || 'macos-15' }}
     needs: check-perms
     steps:
       # Harden Runner doesn't work on macOS.
