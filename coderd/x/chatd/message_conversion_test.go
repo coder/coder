@@ -948,7 +948,7 @@ func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *t
 	require.Equal(t, "call-1", syntheticParts[0].ToolCallID)
 }
 
-func TestBufferedPartsToPartialMessages_CoalescesStreamedTextDeltas(t *testing.T) {
+func TestBufferedPartsToPartialMessages_CoalescesStreamedDeltas(t *testing.T) {
 	t.Parallel()
 
 	// Whitespace-only deltas must stay inside the run: the frontend and prompt
