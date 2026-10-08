@@ -4827,32 +4827,39 @@ describe("chatMessagesForInfiniteScroll", () => {
 		expect(query.getNextPageParam(page)).toBe(1001);
 	});
 
-	it.each([
+	it.each<{ name: string; fill: () => Promise<unknown> }>([
 		{
 			name: "a fill request fails",
 			fill: () => Promise.reject(new Error("fill failed")),
 		},
 		{
 			name: "a fill response is not a messages page",
-			fill: async () => JSON.parse('{"oops":true}'),
+			fill: async () => ({ oops: true }),
 		},
 		{
-			name: "an empty fill response claims more",
+			name: "an empty fill response reports has_more",
 			fill: async () => ({ messages: [], queued_messages: [], has_more: true }),
 		},
 	])("keeps the loaded messages when $name", async ({ fill }) => {
+		const history = { newestId: 300, turnStartId: 10 };
 		const getChatMessages = vi
 			.mocked(API.experimental.getChatMessages)
+			.mockReset()
+			.mockResolvedValueOnce(historyPage(history, { limit: 50 }))
 			.mockResolvedValueOnce(
-				historyPage({ newestId: 300, turnStartId: 10 }, { limit: 50 }),
+				historyPage(history, { after_id: 9, before_id: 251, limit: 200 }),
 			)
-			.mockImplementationOnce(fill);
+			// The client returns the response body unchecked, so a fill can
+			// resolve to anything.
+			.mockImplementationOnce(
+				fill as () => Promise<TypesGen.ChatMessagesResponse>,
+			);
 
 		const page = await loadNewestPage();
 
-		expect(getChatMessages).toHaveBeenCalledTimes(2);
-		expect(page.messages).toHaveLength(50);
-		expect(query.getNextPageParam(page)).toBe(251);
+		expect(getChatMessages).toHaveBeenCalledTimes(3);
+		expect(page.messages).toHaveLength(250);
+		expect(query.getNextPageParam(page)).toBe(51);
 	});
 });
 

@@ -1539,12 +1539,14 @@ const fetchMessagesPage = async (
 				break;
 			}
 		} catch {
-			// Keep what loaded: the page ends mid-turn and the next page resumes
-			// from its oldest message, so a failed fill never fails the page.
+			// A failed fill keeps what loaded: the page ends mid-turn and the
+			// next page resumes from its oldest message.
 			break;
 		}
 	}
 
+	// Keep the first response's has_more; a fill's has_more covers only this
+	// turn.
 	return { ...page, messages };
 };
 
