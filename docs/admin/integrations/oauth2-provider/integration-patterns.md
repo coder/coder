@@ -127,7 +127,7 @@ Coder provides OAuth2 discovery endpoints for programmatic integration:
 These endpoints return server capabilities and endpoint URLs according to [RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414) and [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728).
 The REST API metadata identifies the deployment URL as its `resource`, while the MCP metadata identifies the full MCP endpoint URL.
 Both list the deployment URL in `authorization_servers` and use the same authorization server metadata endpoint.
-OAuth2 tokens issued for the MCP resource work with MCP tools, but Coder rejects them for direct REST API requests.
+OAuth2 tokens issued for the MCP resource work with MCP tools.
 
 `token_endpoint_auth_methods_supported` lists every method the token endpoint accepts, including `none`.
 It is not gated on [Dynamic Client Registration](./index.md#dynamic-client-registration), since existing public clients still exchange tokens when new registrations are disabled.
