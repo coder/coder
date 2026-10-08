@@ -58,15 +58,11 @@ until it is re-enabled. User secret values are covered by
 
 ## Workspace secrets
 
-Workspace secrets are per-workspace values supplied on the workspace create or
-workspace build API request instead of as template parameters. They are meant
-for automation that provisions workspaces on a user's behalf and needs to hand
-the workspace a credential without exposing it as a parameter.
+Workspace secrets are per-workspace values supplied on the workspace create or workspace build API request instead of as template parameters.
+They are meant for automation that provisions workspaces on a user's behalf and needs to hand the workspace a credential without exposing it as a parameter.
 
-Unlike parameters, workspace secrets are never sent to the provisioner, so they
-do not appear in build parameters, Terraform state, template insights, or
-metrics. Coder delivers them only through the workspace agent, the same way as
-user secrets, and they cannot be read back through the API.
+Unlike parameters, workspace secrets are never sent to the provisioner, so they do not appear in build parameters, Terraform state, template insights, or metrics.
+Coder delivers them only through the workspace agent, the same way as user secrets, and they cannot be read back through the API.
 
 ## Dynamic Secrets
 
