@@ -887,6 +887,8 @@ func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.Cli
 		return nil, xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
 	}
 
+	// Server-initiated handlers would not fire over HTTP: createTransport
+	// sets DisableStandaloneSSE.
 	c := mcp.NewClient(&mcp.Implementation{
 		Name:    "coder-agent",
 		Version: buildinfo.Version(),
@@ -915,8 +917,9 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Tr
 		return &mcp.StreamableClientTransport{
 			Endpoint:   cfg.URL,
 			HTTPClient: httpClientWithHeaders(cfg.Headers),
-			// Server-initiated messages are unused, and a server that never
-			// answers the standalone GET would block Connect.
+			// The SDK opens the standalone GET inside Connect on a context
+			// connectTimeout does not cancel, so a server that never answers
+			// it hangs Connect, and every later reload, indefinitely.
 			DisableStandaloneSSE: true,
 		}, nil
 	case "sse":

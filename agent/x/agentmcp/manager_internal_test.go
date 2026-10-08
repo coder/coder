@@ -274,10 +274,12 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	assert.Equal(t, "echo", result.Tools[0].Name)
 }
 
-// TestConnectServer_HTTPIgnoresUnansweredStandaloneSSE verifies that an
-// HTTP server which never answers the standalone SSE GET does not block
-// connect or tool listing.
-func TestConnectServer_HTTPIgnoresUnansweredStandaloneSSE(t *testing.T) {
+// TestConnectServer_HTTPConnectsWhenStandaloneSSEHangs guards against the
+// SDK's standalone GET, which connectTimeout does not bound, hanging
+// Connect. See DisableStandaloneSSE in createTransport. The GET is only
+// sent when the negotiated protocol is below 2026-07-28, so this test
+// stops exercising it if an SDK upgrade negotiates that version or later.
+func TestConnectServer_HTTPConnectsWhenStandaloneSSEHangs(t *testing.T) {
 	t.Parallel()
 
 	server := mcp.NewServer(&mcp.Implementation{Name: "fake", Version: "1.0.0"}, nil)
