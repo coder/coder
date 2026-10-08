@@ -1825,12 +1825,6 @@ func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.
 	return q.authorizeContext(ctx, action, memory.RBACObject(project))
 }
 
-// workspaceSecretObject is the RBAC object for a workspace's secrets, owned
-// by the workspace owner within the workspace's organization.
-func workspaceSecretObject(workspace database.Workspace) rbac.Object {
-	return rbac.ResourceWorkspaceSecret.WithOwner(workspace.OwnerID.String()).InOrg(workspace.OrganizationID)
-}
-
 func (q *querier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
@@ -2065,7 +2059,7 @@ func (q *querier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg data
 	if err != nil {
 		return err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspaceSecretObject(workspace)); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace.WorkspaceSecretRBACObject()); err != nil {
 		return err
 	}
 	return q.db.ClearWorkspaceSecretsBeforeBuild(ctx, arg)
@@ -2076,7 +2070,7 @@ func (q *querier) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, worksp
 	if err != nil {
 		return err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspaceSecretObject(workspace)); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace.WorkspaceSecretRBACObject()); err != nil {
 		return err
 	}
 	return q.db.ClearWorkspaceSecretsByWorkspaceID(ctx, workspaceID)
@@ -7215,7 +7209,7 @@ func (q *querier) InsertWorkspaceSecret(ctx context.Context, arg database.Insert
 	if err != nil {
 		return database.WorkspaceSecret{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionCreate, workspaceSecretObject(workspace)); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, workspace.WorkspaceSecretRBACObject()); err != nil {
 		return database.WorkspaceSecret{}, err
 	}
 	return q.db.InsertWorkspaceSecret(ctx, arg)

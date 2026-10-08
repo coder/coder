@@ -512,6 +512,12 @@ func (w Workspace) RBACObject() rbac.Object {
 	return w.WorkspaceTable().RBACObject()
 }
 
+// WorkspaceSecretRBACObject returns the RBAC object for the workspace's
+// secrets, owned by the workspace owner.
+func (w Workspace) WorkspaceSecretRBACObject() rbac.Object {
+	return rbac.ResourceWorkspaceSecret.WithOwner(w.OwnerID.String()).InOrg(w.OrganizationID)
+}
+
 // IsPrebuild returns true if the workspace is a prebuild workspace.
 // A workspace is considered a prebuild if its owner is the prebuild system user.
 func (w Workspace) IsPrebuild() bool {

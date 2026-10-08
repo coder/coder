@@ -7678,6 +7678,15 @@ This is required on creation to enable a user-flow of validating a template work
       "value": "string"
     }
   ],
+  "secrets": [
+    {
+      "env_name": "string",
+      "ephemeral": true,
+      "file_path": "string",
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "state": [
     0
   ],
@@ -7697,6 +7706,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `orphan`                     | boolean                                                                                        | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
 | `reason`                     | [codersdk.CreateWorkspaceBuildReason](#codersdkcreateworkspacebuildreason)                     | false    |              | Reason sets the reason for the workspace build.                                                                                                                                                               |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter)                  | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
+| `secrets`                    | array of [codersdk.WorkspaceSecretInput](#codersdkworkspacesecretinput)                        | false    |              | Secrets sets or removes workspace secrets for this build. Previous secrets that are not listed carry forward unless they were ephemeral or a listed secret uses their env_name or file_path.                  |
 | `state`                      | array of integer                                                                               | false    |              |                                                                                                                                                                                                               |
 | `template_version_id`        | string                                                                                         | false    |              |                                                                                                                                                                                                               |
 | `template_version_preset_id` | string                                                                                         | false    |              | Template version preset ID is the ID of the template version preset to use for the build.                                                                                                                     |
@@ -7741,6 +7751,15 @@ This is required on creation to enable a user-flow of validating a template work
       "value": "string"
     }
   ],
+  "secrets": [
+    {
+      "env_name": "string",
+      "ephemeral": true,
+      "file_path": "string",
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -7758,6 +7777,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `autostart_schedule`         | string                                                                        | false    |              |                                                                                                         |
 | `name`                       | string                                                                        | true     |              |                                                                                                         |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
+| `secrets`                    | array of [codersdk.WorkspaceSecretInput](#codersdkworkspacesecretinput)       | false    |              | Secrets sets the workspace's initial secrets.                                                           |
 | `template_id`                | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
 | `template_version_id`        | string                                                                        | false    |              | Template version ID can be used to specify a specific version of a template for creating the workspace. |
 | `template_version_preset_id` | string                                                                        | false    |              |                                                                                                         |
@@ -20649,6 +20669,28 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value(s)           |
 |--------------------|
 | ``, `admin`, `use` |
+
+## codersdk.WorkspaceSecretInput
+
+```json
+{
+  "env_name": "string",
+  "ephemeral": true,
+  "file_path": "string",
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description                                                                                                                                    |
+|-------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `env_name`  | string  | false    |              | Env name is the environment variable to inject the secret as. Empty means no env injection. Required when file_path is empty and value is set. |
+| `ephemeral` | boolean | false    |              | Ephemeral secrets are delivered to this build only and are not carried forward to the next build.                                              |
+| `file_path` | string  | false    |              | File path is the path to write the secret to inside the workspace. Empty means no file is written. Deployments may disable file path delivery. |
+| `name`      | string  | false    |              |                                                                                                                                                |
+| `value`     | string  | false    |              | Value is the plaintext secret. A null value removes the secret. An empty string sets an empty secret.                                          |
 
 ## codersdk.WorkspaceSharingSettings
 

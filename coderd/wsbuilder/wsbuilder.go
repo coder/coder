@@ -62,6 +62,7 @@ type Builder struct {
 	usageChecker     UsageChecker
 
 	richParameterValues     []codersdk.WorkspaceBuildParameter
+	secrets                 []codersdk.WorkspaceSecretInput
 	initiator               uuid.UUID
 	reason                  database.BuildReason
 	templateVersionPresetID uuid.UUID
@@ -209,6 +210,15 @@ func (b Builder) Reason(r database.BuildReason) Builder {
 func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Builder {
 	// nolint: revive
 	b.richParameterValues = p
+	return b
+}
+
+// Secrets sets or removes workspace secrets in the same transaction as the
+// build. Secrets are never forwarded to the provisioner; the agent manifest
+// delivers them at runtime. Inputs must already be validated.
+func (b Builder) Secrets(s []codersdk.WorkspaceSecretInput) Builder {
+	// nolint: revive
+	b.secrets = s
 	return b
 }
 
@@ -542,6 +552,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{http.StatusInternalServerError, "insert workspace build parameters: %w", err}
 		}
 
+		if err := b.persistSecrets(store, workspaceBuildID); err != nil {
+			return err
+		}
+
 		workspaceBuild, err = store.GetWorkspaceBuildByID(b.ctx, workspaceBuildID)
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "get workspace build", err}
@@ -590,6 +604,11 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 				return BuildError{http.StatusInternalServerError, "mark workspace as deleted", err}
 			}
 
+			//nolint:gocritic // Clearing a deleted workspace's secrets is bookkeeping, not a user write.
+			if err := store.ClearWorkspaceSecretsByWorkspaceID(dbauthz.AsWorkspaceSecretManager(b.ctx), b.workspace.ID); err != nil {
+				return BuildError{http.StatusInternalServerError, "clear workspace secrets on orphan delete", err}
+			}
+
 			// Soft-delete any agents tied to this workspace so the
 			// aws-instance-identity handler doesn't keep seeing
 			// orphaned rows. Mirrors the path in
@@ -607,6 +626,126 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	}
 
 	return &workspaceBuild, &provisionerJob, provisionerDaemons, nil
+}
+
+// persistSecrets links workspace secrets to the new build inside the build
+// transaction.
+//
+// Copying forward and clearing are bookkeeping, not a user writing secrets,
+// so they run as the workspace secret manager. This lets autostart, the build
+// orchestrator, and other non-user initiators rebuild workspaces that hold
+// secrets. Secrets in the request are authorized as the build's actor, and
+// removals are authorized in authorize.
+func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUID) error {
+	requestedNames := make(map[string]struct{}, len(b.secrets))
+	claimedEnvNames := make(map[string]struct{}, len(b.secrets))
+	claimedFilePaths := make(map[string]struct{}, len(b.secrets))
+	for _, secret := range b.secrets {
+		requestedNames[secret.Name] = struct{}{}
+		if secret.IsRemoval() {
+			continue
+		}
+		if secret.EnvName != "" {
+			claimedEnvNames[secret.EnvName] = struct{}{}
+		}
+		if secret.FilePath != "" {
+			claimedFilePaths[secret.FilePath] = struct{}{}
+		}
+	}
+
+	// nolint:gocritic // See the function comment.
+	managerCtx := dbauthz.AsWorkspaceSecretManager(b.ctx)
+
+	var previous []database.WorkspaceSecret
+	lastBuild, err := b.getLastBuild()
+	switch {
+	case xerrors.Is(err, sql.ErrNoRows):
+		// First build; nothing to copy forward.
+	case err != nil:
+		return BuildError{http.StatusInternalServerError, "get last build", err}
+	default:
+		// getLastBuild was cached before the new build row was inserted, so
+		// it is the build being superseded.
+		previous, err = store.ListActiveWorkspaceSecrets(managerCtx, lastBuild.ID)
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "list workspace secrets", err}
+		}
+	}
+
+	for _, prev := range previous {
+		if prev.Ephemeral {
+			continue
+		}
+		if _, named := requestedNames[prev.Name]; named {
+			continue
+		}
+		// A secret applies as a whole: a requested secret that claims any of
+		// its targets supersedes it entirely.
+		if _, claimed := claimedEnvNames[prev.EnvName]; claimed && prev.EnvName != "" {
+			continue
+		}
+		if _, claimed := claimedFilePaths[prev.FilePath]; claimed && prev.FilePath != "" {
+			continue
+		}
+		if err := b.insertSecret(managerCtx, store, workspaceBuildID, codersdk.WorkspaceSecretInput{
+			Name:     prev.Name,
+			EnvName:  prev.EnvName,
+			FilePath: prev.FilePath,
+		}, prev.Value.String, database.WorkspaceSecretSourceCarryForward); err != nil {
+			return err
+		}
+	}
+
+	for _, secret := range b.secrets {
+		if secret.IsRemoval() {
+			continue
+		}
+		if err := b.insertSecret(b.ctx, store, workspaceBuildID, secret, *secret.Value, database.WorkspaceSecretSourceRequest); err != nil {
+			return err
+		}
+	}
+
+	err = store.ClearWorkspaceSecretsBeforeBuild(managerCtx, database.ClearWorkspaceSecretsBeforeBuildParams{
+		WorkspaceID:      b.workspace.ID,
+		WorkspaceBuildID: workspaceBuildID,
+	})
+	if err != nil {
+		return BuildError{http.StatusInternalServerError, "clear previous workspace secrets", err}
+	}
+	return nil
+}
+
+// insertSecret links a secret with the given value to the build. The input's
+// Value is ignored.
+func (b *Builder) insertSecret(ctx context.Context, store database.Store, workspaceBuildID uuid.UUID, secret codersdk.WorkspaceSecretInput, value string, source database.WorkspaceSecretSource) error {
+	_, err := store.InsertWorkspaceSecret(ctx, database.InsertWorkspaceSecretParams{
+		ID:               uuid.New(),
+		WorkspaceID:      b.workspace.ID,
+		WorkspaceBuildID: workspaceBuildID,
+		Name:             secret.Name,
+		Value:            sql.NullString{String: value, Valid: true},
+		ValueKeyID:       sql.NullString{}, // dbcrypt sets this when encryption is enabled.
+		EnvName:          secret.EnvName,
+		FilePath:         secret.FilePath,
+		Ephemeral:        secret.Ephemeral,
+		Source:           source,
+	})
+	if err == nil {
+		return nil
+	}
+	switch {
+	case database.IsUniqueViolation(err, database.UniqueWorkspaceSecretsBuildEnvNameIndex):
+		return BuildError{http.StatusBadRequest, fmt.Sprintf("workspace secret %q: env_name is already used by another workspace secret", secret.Name), err}
+	case database.IsUniqueViolation(err, database.UniqueWorkspaceSecretsBuildFilePathIndex):
+		return BuildError{http.StatusBadRequest, fmt.Sprintf("workspace secret %q: file_path is already used by another workspace secret", secret.Name), err}
+	case database.IsCheckViolation(err):
+		// The per-build limit triggers are the only check violations a
+		// validated request can reach.
+		return BuildError{http.StatusBadRequest, fmt.Sprintf("Workspace secret %q exceeds a per-build limit on the number of secrets, their total value bytes, or their env value bytes.", secret.Name), err}
+	case rbac.IsUnauthorizedError(err):
+		return BuildError{http.StatusForbidden, fmt.Sprintf("Not authorized to set workspace secret %q on this workspace.", secret.Name), err}
+	}
+	return BuildError{http.StatusInternalServerError, fmt.Sprintf("set workspace secret %q", secret.Name), err}
 }
 
 func (b *Builder) getTemplate() (*database.Template, error) {
@@ -1271,6 +1410,19 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 		}
 		// We use the same wording as the httpapi to avoid leaking the existence of the workspace
 		return BuildError{http.StatusNotFound, httpapi.ResourceNotFoundResponse.Message, xerrors.New(httpapi.ResourceNotFoundResponse.Message)}
+	}
+
+	// Removals delete a stored secret without inserting a row, so dbauthz
+	// never sees them; authorize them here.
+	for _, secret := range b.secrets {
+		if !secret.IsRemoval() {
+			continue
+		}
+		if !authFunc(policy.ActionUpdate, b.workspace.WorkspaceSecretRBACObject()) {
+			msg := fmt.Sprintf("Not authorized to remove workspace secret %q on this workspace.", secret.Name)
+			return BuildError{http.StatusForbidden, msg, xerrors.New(msg)}
+		}
+		break
 	}
 
 	template, err := b.getTemplate()

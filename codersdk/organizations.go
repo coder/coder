@@ -262,9 +262,11 @@ type CreateWorkspaceRequest struct {
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// RichParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	RichParameterValues     []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
-	AutomaticUpdates        AutomaticUpdates          `json:"automatic_updates,omitempty"`
-	TemplateVersionPresetID uuid.UUID                 `json:"template_version_preset_id,omitempty" format:"uuid"`
+	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
+	// Secrets sets the workspace's initial secrets.
+	Secrets                 []WorkspaceSecretInput `json:"secrets,omitempty"`
+	AutomaticUpdates        AutomaticUpdates       `json:"automatic_updates,omitempty"`
+	TemplateVersionPresetID uuid.UUID              `json:"template_version_preset_id,omitempty" format:"uuid"`
 }
 
 func (c *Client) OrganizationByName(ctx context.Context, name string) (Organization, error) {
