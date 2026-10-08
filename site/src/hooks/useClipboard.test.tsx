@@ -243,7 +243,6 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 			const copy = result.current.copyToClipboard("cats");
 
 			unmount();
-			const setTimeout = vi.spyOn(window, "setTimeout");
 			await act(async () => {
 				write.reject(new Error("Clipboard unavailable"));
 				await copy;
@@ -251,25 +250,23 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 
 			expect(getClipboardText()).toBe(shouldFail ? "" : "cats");
 			expect(onError).toHaveBeenCalledTimes(shouldFail ? 1 : 0);
-			expect(setTimeout).not.toHaveBeenCalledWith(expect.any(Function), 1_000);
-			setTimeout.mockRestore();
+			// Flush jsdom's zero-delay select events from the fallback input.
+			act(() => vi.advanceTimersByTime(0));
+			expect(vi.getTimerCount()).toBe(0);
 		},
 	);
 
-	it("Restarts the success period on repeated copies and clears it on unmount", async () => {
+	it("Keeps only one success timer across repeated copies and clears it on unmount", async () => {
 		const { result, unmount } = renderUseClipboard();
 		await act(() => result.current.copyToClipboard("cats"));
-		act(() => vi.advanceTimersByTime(500));
 		await act(() => result.current.copyToClipboard("dogs"));
 
-		act(() => vi.advanceTimersByTime(500));
-		expect(result.current.showCopiedSuccess).toBe(true);
-		act(() => vi.advanceTimersByTime(500));
-		expect(result.current.showCopiedSuccess).toBe(false);
-
-		await act(() => result.current.copyToClipboard("birds"));
-		await act(() => result.current.copyToClipboard("wolves"));
+		// Flush jsdom's zero-delay select events from the fallback input.
 		act(() => vi.advanceTimersByTime(0));
+		expect(result.current.showCopiedSuccess).toBe(true);
+		expect(getClipboardText()).toBe("dogs");
+		expect(vi.getTimerCount()).toBe(1);
+
 		unmount();
 		expect(vi.getTimerCount()).toBe(0);
 	});
