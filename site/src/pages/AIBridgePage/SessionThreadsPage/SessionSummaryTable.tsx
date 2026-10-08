@@ -9,6 +9,7 @@ import { Badge } from "#/components/Badge/Badge";
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
 import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
 import { formatDateTime } from "#/utils/time";
+import { CostBadge } from "../CostBadge";
 import {
 	NetworkMonitoringDisabled,
 	NetworkNoActivity,
@@ -29,6 +30,8 @@ type SessionSummaryTableProps = {
 	outputTokens: number;
 	cacheReadTokens: number;
 	cacheWriteTokens: number;
+	costMicros: number;
+	hasUnpricedUsage: boolean;
 	threadCount: number;
 	toolCallCount: number;
 	tokenUsageMetadata?: Record<string, unknown>;
@@ -55,6 +58,8 @@ export const SessionSummaryTable = ({
 	outputTokens,
 	cacheReadTokens,
 	cacheWriteTokens,
+	costMicros,
+	hasUnpricedUsage,
 	threadCount,
 	toolCallCount,
 	tokenUsageMetadata,
@@ -194,6 +199,16 @@ export const SessionSummaryTable = ({
 					<CacheTokenBadges
 						cacheReadTokens={cacheReadTokens}
 						cacheWriteTokens={cacheWriteTokens}
+					/>
+				</dd>
+			</div>
+
+			<div className="flex items-center justify-between">
+				<dt className="shrink-0 font-normal whitespace-nowrap">Cost</dt>
+				<dd className="ml-4 min-w-0 truncate text-content-primary">
+					<CostBadge
+						costMicros={costMicros}
+						hasUnpricedUsage={hasUnpricedUsage}
 					/>
 				</dd>
 			</div>
