@@ -1,80 +1,69 @@
-import emojibaseEmojis from "emojibase-data/en/compact.json";
+import type { Emoji as EmojibaseEmoji, SkinTone } from "emojibase";
+import emojibaseEmojis from "emojibase-data/en/data.json";
 import emojibaseMessages from "emojibase-data/en/messages.json";
 import type { EmojiData } from "frimousse";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
 import icons from "#/theme/icons.json";
-import emojiFiles from "./emojiFiles.json";
 
 const COMPONENT_GROUP = 2;
+/** Highest Emoji version in the Apple set shipped in static/emojis. */
+const MAX_EMOJI_VERSION = 15.1;
+/** Emoji up to MAX_EMOJI_VERSION that the Apple set ships no PNG for. */
+const UNSHIPPED_EMOJI = new Set([
+	"\u2640\uFE0F",
+	"\u2642\uFE0F",
+	"\u2695\uFE0F",
+]);
 /** Category index for icons.json, placed after every Emojibase group. */
 export const ICONS_CATEGORY = 100;
 
-type SkinToneKey = keyof EmojiData["skinTones"];
-
-const SKIN_TONE_MODIFIERS: Record<SkinToneKey, string> = {
-	light: "\u{1F3FB}",
-	"medium-light": "\u{1F3FC}",
-	medium: "\u{1F3FD}",
-	"medium-dark": "\u{1F3FE}",
-	dark: "\u{1F3FF}",
-};
-const ALL_MODIFIERS = /[\u{1F3FB}-\u{1F3FF}]/gu;
-
-const availableFiles = new Set<string>(emojiFiles);
-
-const toHex = (emoji: string) =>
-	Array.from(emoji, (char) =>
-		(char.codePointAt(0) ?? 0).toString(16).padStart(4, "0"),
-	).join("-");
+const EMOJI_PRESENTATION = /\p{Emoji_Presentation}/u;
 
 /**
- * Returns the name of the shipped PNG for an emoji, without extension.
- * emoji-datasource keeps FE0F in some file names ("1f93c-200d-2642-fe0f")
- * and drops it in others ("1f610"), so both forms are checked against the
- * list of shipped files.
+ * Returns the static/emojis file name for an emoji, without extension.
+ * emoji-datasource names files after the fully-qualified sequence, which
+ * has FE0F only after characters that default to text presentation
+ * ("263a-fe0f", "1f93c-200d-2642-fe0f"). Emojibase adds FE0F after every
+ * character, so drop it where the preceding character is already emoji.
  */
-const emojiFile = (emoji: string): string | undefined => {
-	for (const name of [toHex(emoji), toHex(emoji.replaceAll("\uFE0F", ""))]) {
-		if (availableFiles.has(name)) {
-			return name;
-		}
-	}
-	return undefined;
+const emojiFile = (emoji: string): string => {
+	const chars = Array.from(emoji);
+	return chars
+		.filter(
+			(char, i) =>
+				!(char === "\uFE0F" && EMOJI_PRESENTATION.test(chars[i - 1] ?? "")),
+		)
+		.map((char) => (char.codePointAt(0) ?? 0).toString(16).padStart(4, "0"))
+		.join("-");
 };
 
 /**
  * Returns the value IconField stores for a picked entry: custom icons are
  * already paths, and Unicode emoji map to their Apple PNG.
  */
-export const emojiToValue = (emoji: string): string => {
-	if (emoji.startsWith("/")) {
-		return emoji;
-	}
-	const file = emojiFile(emoji);
-	return file ? `/emojis/${file}.png` : "";
-};
+export const emojiToValue = (emoji: string): string =>
+	emoji.startsWith("/") ? emoji : `/emojis/${emojiFile(emoji)}.png`;
+
+const isShipped = (emoji: { emoji: string; version: number }) =>
+	emoji.version <= MAX_EMOJI_VERSION && !UNSHIPPED_EMOJI.has(emoji.emoji);
 
 const singleToneSkin = (
-	skins: readonly { unicode: string }[] | undefined,
-	tone: SkinToneKey,
+	entry: EmojibaseEmoji,
+	tone: SkinTone,
 ): string | undefined => {
-	const modifier = SKIN_TONE_MODIFIERS[tone];
-	const unicode = skins?.find((skin) => {
-		const modifiers = skin.unicode.match(ALL_MODIFIERS) ?? [];
-		return modifiers.length > 0 && modifiers.every((m) => m === modifier);
-	})?.unicode;
-	return unicode && emojiFile(unicode) ? unicode : undefined;
+	const skin = entry.skins?.find((s) => s.tone === tone);
+	return skin && isShipped(skin) ? skin.emoji : undefined;
 };
 
-/** Returns all five single-tone variants, or undefined if any lacks a PNG. */
+/** Returns all five single-tone variants, or undefined if any isn't shipped. */
 const skinVariants = (
-	skins: readonly { unicode: string }[] | undefined,
+	entry: EmojibaseEmoji,
 ): EmojiData["skinTones"] | undefined => {
-	const light = singleToneSkin(skins, "light");
-	const mediumLight = singleToneSkin(skins, "medium-light");
-	const medium = singleToneSkin(skins, "medium");
-	const mediumDark = singleToneSkin(skins, "medium-dark");
-	const dark = singleToneSkin(skins, "dark");
+	const light = singleToneSkin(entry, 1);
+	const mediumLight = singleToneSkin(entry, 2);
+	const medium = singleToneSkin(entry, 3);
+	const mediumDark = singleToneSkin(entry, 4);
+	const dark = singleToneSkin(entry, 5);
 	if (!light || !mediumLight || !medium || !mediumDark || !dark) {
 		return undefined;
 	}
@@ -87,7 +76,7 @@ const skinVariants = (
 	};
 };
 
-const skinToneLabel = (tone: SkinToneKey) =>
+const skinToneLabel = (tone: keyof EmojiData["skinTones"]) =>
 	emojibaseMessages.skinTones.find((message) => message.key === tone)
 		?.message ?? tone;
 
@@ -104,18 +93,17 @@ export const buildEmojiData = (): EmojiData => {
 		if (
 			entry.group === undefined ||
 			entry.group === COMPONENT_GROUP ||
-			!emojiFile(entry.unicode)
+			!isShipped(entry)
 		) {
 			continue;
 		}
 		emojis.push({
-			emoji: entry.unicode,
+			emoji: entry.emoji,
 			category: entry.group,
 			label: entry.label,
-			// Frimousse only uses version to filter its own CDN data.
-			version: 0,
+			version: entry.version,
 			tags: entry.tags ?? [],
-			skins: skinVariants(entry.skins),
+			skins: skinVariants(entry),
 		});
 	}
 
