@@ -2351,6 +2351,11 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	// InChatProjectDeleteTx must pick READ COMMITTED itself; the late
+	// insert cases below fail under REPEATABLE READ.
+	_, err := sqlDB.ExecContext(ctx, `DO $$ BEGIN EXECUTE format('ALTER DATABASE %I SET default_transaction_isolation = ''repeatable read''', current_database()); END $$`)
+	require.NoError(t, err)
+	sqlDB.SetMaxIdleConns(0)
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{})
@@ -2391,14 +2396,14 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	projectChild := newChat(sharee.ID, inProject, &shareeRoot)
 
 	family := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID, projectChild.ID}
-	err := database.InChatProjectDeleteTx(ctx, db, project.ID, func(_ database.Store, rootIDs, chatIDs []uuid.UUID) error {
+	err = database.InChatProjectDeleteTx(ctx, db, project.ID, func(_ database.Store, rootIDs, chatIDs []uuid.UUID) error {
 		require.ElementsMatch(t, []uuid.UUID{ownerRoot.ID, shareeRoot.ID}, rootIDs)
 		require.ElementsMatch(t, family, chatIDs)
 		return nil
 	})
 	require.NoError(t, err)
 
-	lockDelete := func() ([]uuid.UUID, error) {
+	lockedForDelete := func() ([]uuid.UUID, error) {
 		var ids []uuid.UUID
 		err := database.InChatProjectDeleteTx(ctx, db, project.ID, func(_ database.Store, _, chatIDs []uuid.UUID) error {
 			ids = chatIDs
@@ -2446,12 +2451,12 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 			}, nil)
 		}()
 		late := testutil.RequireReceive(ctx, t, inserted)
-		deleteDone := make(chan []uuid.UUID, 1)
-		deleteErr := make(chan error, 1)
+		lockedIDs := make(chan []uuid.UUID, 1)
+		lockErr := make(chan error, 1)
 		go func() {
-			ids, err := lockDelete()
-			deleteErr <- err
-			deleteDone <- ids
+			ids, err := lockedForDelete()
+			lockErr <- err
+			lockedIDs <- ids
 		}()
 		require.True(t, testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			var waiting int
@@ -2460,8 +2465,8 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		}, testutil.IntervalFast, "delete never waited on the inserting transaction"))
 		releaseOnce()
 		require.NoError(t, testutil.RequireReceive(ctx, t, insertDone))
-		require.NoError(t, testutil.RequireReceive(ctx, t, deleteErr))
-		require.Contains(t, testutil.RequireReceive(ctx, t, deleteDone), late.ID)
+		require.NoError(t, testutil.RequireReceive(ctx, t, lockErr))
+		require.Contains(t, testutil.RequireReceive(ctx, t, lockedIDs), late.ID)
 		return late
 	}
 	// A root chat inserted while the delete waits on the project lock.
