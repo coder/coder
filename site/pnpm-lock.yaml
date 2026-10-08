@@ -25,12 +25,6 @@ importers:
       '@dnd-kit/utilities':
         specifier: 3.2.2
         version: 3.2.2(react@19.2.8)
-      '@emoji-mart/data':
-        specifier: 1.2.1
-        version: 1.2.1
-      '@emoji-mart/react':
-        specifier: 1.1.1
-        version: 1.1.1(emoji-mart@5.6.0)(react@19.2.8)
       '@fontsource-variable/geist':
         specifier: 5.3.0
         version: 5.3.0
@@ -118,9 +112,9 @@ importers:
       dompurify:
         specifier: 3.4.14
         version: 3.4.14
-      emoji-mart:
-        specifier: 5.6.0
-        version: 5.6.0
+      emojibase-data:
+        specifier: 17.0.0
+        version: 17.0.0(emojibase@17.0.0)
       fancy-ansi:
         specifier: 0.1.3
         version: 0.1.3
@@ -130,6 +124,9 @@ importers:
       formik:
         specifier: 2.4.9
         version: 2.4.9(@types/react@19.2.18)(react@19.2.8)
+      frimousse:
+        specifier: 0.4.0
+        version: 0.4.0(react@19.2.8)(typescript@6.0.2)
       front-matter:
         specifier: 4.0.2
         version: 4.0.2
@@ -694,15 +691,6 @@ packages:
 
   '@emnapi/wasi-threads@1.2.3':
     resolution: {integrity: sha512-ELEBe8PsLvvJ6QMr0zLt8ffvOHW/dc1m3CEzNMg7aJUv3bMaoDtw2TXyDAwkYBuroxxuHEwhRTLJSe5sya547g==, tarball: https://registry.npmjs.org/@emnapi/wasi-threads/-/wasi-threads-1.2.3.tgz}
-
-  '@emoji-mart/data@1.2.1':
-    resolution: {integrity: sha512-no2pQMWiBy6gpBEiqGeU77/bFejDqUTRY7KX+0+iur13op3bqUsXdnwoZs6Xb1zbv0gAj5VvS1PWoUUckSr5Dw==, tarball: https://registry.npmjs.org/@emoji-mart/data/-/data-1.2.1.tgz}
-
-  '@emoji-mart/react@1.1.1':
-    resolution: {integrity: sha512-NMlFNeWgv1//uPsvLxvGQoIerPuVdXwK/EUek8OOkJ6wVOWPUizRBJU0hDqWZCOROVpfBgCemaC3m6jDOXi03g==, tarball: https://registry.npmjs.org/@emoji-mart/react/-/react-1.1.1.tgz}
-    peerDependencies:
-      emoji-mart: ^5.2
-      react: ^16.8 || ^17 || ^18
 
   '@emotion/is-prop-valid@1.4.0':
     resolution: {integrity: sha512-QgD4fyscGcbbKwJmqNvUMSE02OsHUa+lAWKdEUIJKgqe5IwRSKd7+KhibEWdaKwgjLj0DRSHA9biAIqGBk05lw==, tarball: https://registry.npmjs.org/@emotion/is-prop-valid/-/is-prop-valid-1.4.0.tgz}
@@ -4232,9 +4220,6 @@ packages:
   electron-to-chromium@1.5.399:
     resolution: {integrity: sha512-lEcqhErbHjXRvd41rnWLpzbyU/IXfIYo7QwaFWmxGeLiLyY2TBCdHnWY88vB+p3ubnihRypDm66panXl7TylLA==, tarball: https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.399.tgz}
 
-  emoji-mart@5.6.0:
-    resolution: {integrity: sha512-eJp3QRe79pjwa+duv+n7+5YsNhRcMl812EcFVwrnRvYKoNPoQb5qxU8DG6Bgwji0akHdp6D4Ln6tYLG58MFSow==, tarball: https://registry.npmjs.org/emoji-mart/-/emoji-mart-5.6.0.tgz}
-
   emoji-regex@10.6.0:
     resolution: {integrity: sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A==, tarball: https://registry.npmjs.org/emoji-regex/-/emoji-regex-10.6.0.tgz}
 
@@ -4243,6 +4228,15 @@ packages:
 
   emoji-regex@9.2.2:
     resolution: {integrity: sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==, tarball: https://registry.npmjs.org/emoji-regex/-/emoji-regex-9.2.2.tgz}
+
+  emojibase-data@17.0.0:
+    resolution: {integrity: sha512-Yvgb5AWoHViHV/gq1qr5ZAarcBip+B27/ZLRsUJkbgAEaLlZ/fof9g882LTpmEpyhBNEC0m2SEmItljHsTygjA==, tarball: https://registry.npmjs.org/emojibase-data/-/emojibase-data-17.0.0.tgz}
+    peerDependencies:
+      emojibase: '*'
+
+  emojibase@17.0.0:
+    resolution: {integrity: sha512-bXdpf4HPY3p41zK5swVKZdC/VynsMZ4LoLxdYDE+GucqkFwzcM1GVc4ODfYAlwoKaf2U2oNNUoOO78N96ovpBA==, tarball: https://registry.npmjs.org/emojibase/-/emojibase-17.0.0.tgz}
+    engines: {node: '>=18.12.0'}
 
   empathic@2.0.0:
     resolution: {integrity: sha512-i6UzDscO/XfAcNYD75CfICkmfLedpyPDdozrLMmQc5ORaQcdMoc21OnlEylMIqI7U8eniKrPMxxtj8k0vhmJhA==, tarball: https://registry.npmjs.org/empathic/-/empathic-2.0.0.tgz}
@@ -4442,6 +4436,15 @@ packages:
   fresh@0.5.2:
     resolution: {integrity: sha512-zJ2mQYM18rEFOudeV4GShTGIQ7RbzA7ozbU9I/XBpm7kqgMywgmylMwXHxZJmkVoYkna9d2pVXVXPdYTP9ej8Q==, tarball: https://registry.npmjs.org/fresh/-/fresh-0.5.2.tgz}
     engines: {node: '>= 0.6'}
+
+  frimousse@0.4.0:
+    resolution: {integrity: sha512-wA/1Xt9UTk51wYNpy+EvHKPUA4jdm4NuEFzSNNZxqT0Nxrj4RFwYByjRMuaq4qSLOco/ikDCpLKesB8W1w2q+Q==, tarball: https://registry.npmjs.org/frimousse/-/frimousse-0.4.0.tgz}
+    peerDependencies:
+      react: ^18 || ^19
+      typescript: '>=5.1.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   front-matter@4.0.2:
     resolution: {integrity: sha512-I8ZuJ/qG92NWX8i5x1Y8qyj3vizhXS31OxjKDu3LKP+7/qBgfIKValiZIEwoVoJKUHlhWtYrktkxV1XsX+pPlg==, tarball: https://registry.npmjs.org/front-matter/-/front-matter-4.0.2.tgz}
@@ -7128,13 +7131,6 @@ snapshots:
     dependencies:
       tslib: 2.8.1
     optional: true
-
-  '@emoji-mart/data@1.2.1': {}
-
-  '@emoji-mart/react@1.1.1(emoji-mart@5.6.0)(react@19.2.8)':
-    dependencies:
-      emoji-mart: 5.6.0
-      react: 19.2.8
 
   '@emotion/is-prop-valid@1.4.0':
     dependencies:
@@ -10448,13 +10444,17 @@ snapshots:
 
   electron-to-chromium@1.5.399: {}
 
-  emoji-mart@5.6.0: {}
-
   emoji-regex@10.6.0: {}
 
   emoji-regex@8.0.0: {}
 
   emoji-regex@9.2.2: {}
+
+  emojibase-data@17.0.0(emojibase@17.0.0):
+    dependencies:
+      emojibase: 17.0.0
+
+  emojibase@17.0.0: {}
 
   empathic@2.0.0: {}
 
@@ -10698,6 +10698,12 @@ snapshots:
       react-dom: 19.2.8(react@19.2.8)
 
   fresh@0.5.2: {}
+
+  frimousse@0.4.0(react@19.2.8)(typescript@6.0.2):
+    dependencies:
+      react: 19.2.8
+    optionalDependencies:
+      typescript: 6.0.2
 
   front-matter@4.0.2:
     dependencies:
