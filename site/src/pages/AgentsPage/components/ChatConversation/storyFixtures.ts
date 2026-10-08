@@ -230,12 +230,12 @@ export const MockWebSearchAnswerMessages: TypesGen.ChatMessage[] = [
 			},
 			{
 				type: "source",
-				url: "https://coder.com/changelog",
+				url: "https://changelog.example.com",
 				title: "Coder changelog",
 			},
 			{
 				type: "source",
-				url: "https://github.com/coder/coder/releases",
+				url: "https://releases.example.com",
 				title: "Coder releases",
 			},
 			{

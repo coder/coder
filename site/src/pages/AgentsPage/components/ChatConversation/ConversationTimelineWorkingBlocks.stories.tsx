@@ -96,6 +96,16 @@ export const AnswerWorkFoldsExpanded: Story = {
 	},
 };
 
+// A turn whose only work is the answer's web search still folds it.
+export const SearchOnlyAnswerFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			MockWebSearchAnswerMessages[0],
+			...MockWebSearchAnswerMessages.slice(5),
+		]),
+	},
+};
+
 export const Paginated: Story = {
 	args: {
 		hasMoreMessages: true,

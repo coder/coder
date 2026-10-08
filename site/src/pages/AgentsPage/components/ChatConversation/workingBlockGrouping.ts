@@ -24,10 +24,7 @@ export type WorkingBlock = {
 	memberIds: number[];
 	/** Distinct visible tools plus web search result groups, not rows. */
 	stepCount: number;
-	/**
-	 * The last row is an answer row: only its reasoning, tools, and web
-	 * search fold into the block, and its answer renders after the block.
-	 */
+	/** The last row's answer renders after the block; only its work folds in. */
 	endsWithAnswer: boolean;
 	isLive: boolean;
 	/** Unloaded older history may hold earlier rows of this block. */
@@ -69,11 +66,9 @@ type RowContent = ReturnType<typeof getVisibleContent>;
 type MemberRow = { content: RowContent; endsWithAnswer: boolean };
 
 /**
- * A step row is assistant output that ends in tool activity, reasoning, or
- * web search rather than an answer. Text that precedes a tool call is
- * narration and folds with it. A row that ends in an answer joins only
- * when it also did work, and then closes the block. A live row with no
- * output yet is the turn working on its next step.
+ * Text before a tool call is narration that folds with it. A row ending in
+ * an answer joins only when it also did work, and then closes the block. A
+ * live row with no output yet is the turn working on its next step.
  */
 const getMemberRow = (
 	row: TimelineRow,
@@ -220,10 +215,9 @@ export const groupWorkingBlocks = (
 
 	const stepCountOf = (draft: Draft) => draft.toolIds.size + draft.sourceGroups;
 
-	// A completed block is a run of tool or search activity; reasoning on
-	// its own stays visible. The live turn folds from its first reasoning,
-	// so thinking never shows and then vanishes once a tool call arrives,
-	// but leaves the fold once a tool-less turn starts its answer.
+	// Reasoning alone stays visible. The live turn folds from its first
+	// reasoning, so thinking never shows and then vanishes once a tool call
+	// arrives, and unfolds only when a tool-less turn starts its answer.
 	const blockDrafts = drafts.filter(
 		(draft) =>
 			stepCountOf(draft) > 0 ||
@@ -254,11 +248,9 @@ export const groupWorkingBlocks = (
 		const lastRowIndex = draft.rowIndices[draft.rowIndices.length - 1];
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
 
-		const endsWithDurableAnswer =
-			draft.endsWithAnswer && rows[lastRowIndex].type === "message";
 		const isLive =
 			options.isWorking &&
-			!endsWithDurableAnswer &&
+			!(draft.endsWithAnswer && rows[lastRowIndex].type === "message") &&
 			(draft.containsLiveRow || lastRowIndex >= lastMessageRowIndex);
 
 		// The span covers hidden tool-result messages up to the next row.
