@@ -68,7 +68,10 @@ export const OrganizationMembersPageView: React.FC<
 						</p>
 					</div>
 				)}
-				<PaginationContainer query={membersQuery} paginationUnitLabel="members">
+				<PaginationContainer
+					query={membersQuery}
+					paginationUnitLabel={{ singular: "member", plural: "members" }}
+				>
 					<OrganizationMembersTable {...props} />
 				</PaginationContainer>
 			</div>

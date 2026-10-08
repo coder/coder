@@ -55,7 +55,10 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
 
 			<UsersFilter {...filterProps} />
 
-			<PaginationContainer query={usersQuery} paginationUnitLabel="users">
+			<PaginationContainer
+				query={usersQuery}
+				paginationUnitLabel={{ singular: "user", plural: "users" }}
+			>
 				<UsersTable
 					{...props}
 					users={usersQuery.data?.users}

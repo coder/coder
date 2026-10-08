@@ -69,7 +69,7 @@ export const AuditPageView: React.FC<AuditPageViewProps> = ({
 
 					<PaginationContainer
 						query={paginationResult}
-						paginationUnitLabel="logs"
+						paginationUnitLabel={{ singular: "log", plural: "logs" }}
 					>
 						<Table>
 							<TableBody>
