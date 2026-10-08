@@ -234,7 +234,10 @@ func (server *Server) prepareGeneration(
 		if advisorRuntime == nil {
 			return
 		}
-		advisorPromptSnapshot = slices.Clone(msgs)
+		// The advisor reads the transcript as text. Replayed OpenAI
+		// reasoning can be foreign to the advisor model, and textualized
+		// tool calls would leave it without its required following item.
+		advisorPromptSnapshot = dropOpenAIReasoningParts(ctx, logger, msgs)
 	}
 
 	currentChat := chat

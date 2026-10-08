@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -326,6 +327,167 @@ func TestOpenAIResponsesReasoningNotReplayedAfterModelConfigChange(t *testing.T)
 			require.NotContains(t, string(encoded), blob)
 		})
 	}
+}
+
+func TestOpenAIResponsesRetriesWithoutRejectedEncryptedReasoning(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		reasoningID = "rs_rejected_reasoning"
+		blob        = "encrypted-by-another-organization"
+	)
+	var recorder responsesRequestRecorder
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		n := recorder.record(req)
+		if n == 1 {
+			resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer")...)
+			resp.Reasoning = &chattest.OpenAIReasoningItem{
+				ID:               reasoningID,
+				EncryptedContent: blob,
+			}
+			return resp
+		}
+		// Later turns reach an organization that cannot decrypt the
+		// replayed reasoning.
+		if slices.Contains(promptItemTypes(req.Prompt), "reasoning") {
+			resp := chattest.OpenAIErrorResponse(http.StatusBadRequest, "invalid_request_error",
+				"The encrypted content could not be verified.")
+			resp.Error.Code = "invalid_encrypted_content"
+			return resp
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	model := insertChatModelConfigWithCallConfig(t, db, user.ID, "openai", "gpt-4o",
+		codersdk.ChatModelCallConfig{})
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          uniqueResponsesTitle(t, "rejected-reasoning"),
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		ModelConfigID: model.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("thanks"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+
+	requests := recorder.all()
+	require.Len(t, requests, 3)
+	requireInlineReasoningItem(t, requests[1].Prompt, reasoningID, blob, "")
+	retry := requests[2]
+	require.NotEmpty(t, retry.Prompt)
+	require.NotContains(t, promptItemTypes(retry.Prompt), "reasoning")
+}
+
+func TestOpenAIResponsesAdvisorPromptOmitsReasoning(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		reasoningID = "rs_parent_reasoning"
+		blob        = "encrypted-parent-reasoning"
+	)
+	var recorder responsesRequestRecorder
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		switch recorder.record(req) {
+		case 1:
+			resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer")...)
+			resp.Reasoning = &chattest.OpenAIReasoningItem{
+				ID:               reasoningID,
+				EncryptedContent: blob,
+			}
+			return resp
+		case 2:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("advisor", `{"question":"what next?"}`),
+			)
+		case 3:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("advice")...)
+		default:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		}
+	})
+
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	model := insertChatModelConfigWithCallConfig(t, db, user.ID, "openai", "gpt-4o",
+		codersdk.ChatModelCallConfig{})
+	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   1,
+		MaxOutputTokens: 1024,
+	})
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          uniqueResponsesTitle(t, "advisor-reasoning"),
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		ModelConfigID: model.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("ask the advisor"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+
+	requests := recorder.all()
+	require.Len(t, requests, 4)
+	requireInlineReasoningItem(t, requests[1].Prompt, reasoningID, blob, "")
+	advisorRequest := requests[2]
+	require.NotEmpty(t, advisorRequest.Prompt)
+	require.NotContains(t, promptItemTypes(advisorRequest.Prompt), "reasoning")
+	encoded, err := json.Marshal(advisorRequest.Prompt)
+	require.NoError(t, err)
+	require.Contains(t, string(encoded), "what next?")
+	require.NotContains(t, string(encoded), blob)
+	requireInlineReasoningItem(t, requests[3].Prompt, reasoningID, blob, "")
 }
 
 func TestOpenAIResponsesPersistsProviderResponseID(t *testing.T) {
