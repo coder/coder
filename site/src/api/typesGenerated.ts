@@ -3143,6 +3143,12 @@ export interface ChatMessagesResponse {
 	readonly messages: readonly ChatMessage[];
 	readonly queued_messages: readonly ChatQueuedMessage[];
 	readonly has_more: boolean;
+	/**
+	 * TurnStartID is the ID of the user prompt that starts the turn
+	 * containing the oldest message on the page. Set only on newest-first
+	 * pages that have messages and a prompt at or before the oldest one.
+	 */
+	readonly turn_start_id?: number;
 }
 
 // From codersdk/chats.go

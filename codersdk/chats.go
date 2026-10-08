@@ -963,6 +963,10 @@ type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 	HasMore        bool                `json:"has_more"`
+	// TurnStartID is the ID of the user prompt that starts the turn
+	// containing the oldest message on the page. Set only on newest-first
+	// pages that have messages and a prompt at or before the oldest one.
+	TurnStartID *int64 `json:"turn_start_id,omitempty"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by

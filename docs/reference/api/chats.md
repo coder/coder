@@ -3034,7 +3034,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
       "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
     }
-  ]
+  ],
+  "turn_start_id": 0
 }
 ```
 

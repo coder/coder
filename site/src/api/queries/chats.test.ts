@@ -51,6 +51,7 @@ import {
 	chatEntityKey,
 	chatListFamilyKey,
 	chatListKey,
+	chatMessagesForInfiniteScroll,
 	chatMessagesKey,
 	chatModel,
 	chatModelACL,
@@ -138,6 +139,7 @@ vi.mock("#/api/api", () => ({
 			getChatsByWorkspace: vi.fn(),
 			getChatCost: vi.fn(),
 			getChatDiffContents: vi.fn(),
+			getChatMessages: vi.fn(),
 			createChatMessage: vi.fn(),
 			editChatMessage: vi.fn(),
 			interruptChat: vi.fn(),
@@ -4739,6 +4741,88 @@ describe("semantic cache operations: removal and patching", () => {
 
 		expect(queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey)).toBe(
 			before,
+		);
+	});
+});
+
+describe("chatMessagesForInfiniteScroll", () => {
+	// Serves IDs 1..newestId newest-first with the endpoint's
+	// before_id/after_id/limit semantics.
+	const serveHistory = (newestId: number, turnStartId?: number) =>
+		vi
+			.mocked(API.experimental.getChatMessages)
+			.mockImplementation(async (_chatId, opts) => {
+				const top = (opts?.before_id ?? newestId + 1) - 1;
+				const floor = (opts?.after_id ?? 0) + 1;
+				const bottom = Math.max(floor, top - (opts?.limit ?? 50) + 1);
+				const messages: TypesGen.ChatMessage[] = [];
+				for (let id = top; id >= bottom; id--) {
+					messages.push({ ...MockChatMessage, id });
+				}
+				return {
+					messages,
+					queued_messages: [],
+					has_more: bottom > floor,
+					turn_start_id: turnStartId,
+				};
+			});
+
+	const loadPage = (pageParam?: number) => {
+		const query = chatMessagesForInfiniteScroll("chat-1");
+		return query.queryFn({ pageParam });
+	};
+
+	it.each([
+		{ name: "the page starts at its turn prompt", turnStartId: 51 },
+		{ name: "the server omits turn_start_id", turnStartId: undefined },
+	])("makes one request when $name", async ({ turnStartId }) => {
+		const getChatMessages = serveHistory(100, turnStartId);
+
+		const page = await loadPage();
+
+		expect(getChatMessages).toHaveBeenCalledTimes(1);
+		expect(getChatMessages).toHaveBeenCalledWith("chat-1", {
+			before_id: undefined,
+			limit: 50,
+		});
+		expect(page.messages.map((m) => m.id)).toEqual(
+			Array.from({ length: 50 }, (_, i) => 100 - i),
+		);
+	});
+
+	it("extends a mid-turn page back to the turn prompt", async () => {
+		const getChatMessages = serveHistory(300, 10);
+
+		const page = await loadPage();
+
+		expect(getChatMessages.mock.calls.map(([, opts]) => opts)).toEqual([
+			{ before_id: undefined, limit: 50 },
+			{ after_id: 9, before_id: 251, limit: 200 },
+			{ after_id: 9, before_id: 51, limit: 200 },
+		]);
+		expect(page.messages.map((m) => m.id)).toEqual(
+			Array.from({ length: 291 }, (_, i) => 300 - i),
+		);
+		expect(page.has_more).toBe(true);
+		expect(chatMessagesForInfiniteScroll("chat-1").getNextPageParam(page)).toBe(
+			10,
+		);
+	});
+
+	it("stops at the per-page cap and continues mid-turn on the next page", async () => {
+		const getChatMessages = serveHistory(2000, 1);
+
+		const page = await loadPage();
+
+		expect(getChatMessages).toHaveBeenCalledTimes(6);
+		expect(getChatMessages).toHaveBeenLastCalledWith("chat-1", {
+			after_id: 0,
+			before_id: 1151,
+			limit: 150,
+		});
+		expect(page.messages).toHaveLength(1000);
+		expect(chatMessagesForInfiniteScroll("chat-1").getNextPageParam(page)).toBe(
+			1001,
 		);
 	});
 });

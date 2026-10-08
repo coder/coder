@@ -530,6 +530,25 @@ ORDER BY
 LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 500);
 
+-- name: GetChatTurnStartID :one
+-- Returns the newest live user prompt at or before the message, which is
+-- the prompt that starts the message's turn. Backed by
+-- idx_chat_messages_user_prompts.
+SELECT
+    id
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND id <= @message_id::bigint
+    AND deleted = false
+    AND role = 'user'
+    AND visibility IN ('user', 'both')
+ORDER BY
+    id DESC
+LIMIT
+    1;
+
 -- name: GetChatMessagesForPromptByChatID :many
 -- The compaction boundary and final ordering must use the same key so tool
 -- results remain after their assistant calls.

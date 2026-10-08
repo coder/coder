@@ -1482,6 +1482,10 @@ export const chatACL = (chatId: string) => ({
 });
 
 const MESSAGES_PAGE_SIZE = 50;
+const TURN_FILL_PAGE_SIZE = 200;
+// Bounds how much of one long turn a single history page loads; past the
+// cap the page ends mid-turn and the next page continues it.
+const MAX_MESSAGES_PER_PAGE = 1000;
 
 export const chatMessagesKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "messages"] as const;
@@ -1498,14 +1502,47 @@ export const chatQueueConvergence = (chatId: string) => ({
 	gcTime: 0,
 });
 
+// Extends a page back to the prompt that starts the turn containing its
+// oldest message, so a collapsed working block loads in one page.
+const fetchMessagesPage = async (
+	chatId: string,
+	beforeId: number | undefined,
+): Promise<TypesGen.ChatMessagesResponse> => {
+	const page = await API.experimental.getChatMessages(chatId, {
+		before_id: beforeId,
+		limit: MESSAGES_PAGE_SIZE,
+	});
+	const turnStartId = page.turn_start_id;
+	if (turnStartId === undefined) {
+		return page;
+	}
+	const messages = [...page.messages];
+	while (messages.length > 0 && messages.length < MAX_MESSAGES_PER_PAGE) {
+		const oldestId = messages[messages.length - 1].id;
+		if (oldestId <= turnStartId) {
+			break;
+		}
+		const older = await API.experimental.getChatMessages(chatId, {
+			after_id: turnStartId - 1,
+			before_id: oldestId,
+			limit: Math.min(
+				TURN_FILL_PAGE_SIZE,
+				MAX_MESSAGES_PER_PAGE - messages.length,
+			),
+		});
+		messages.push(...older.messages);
+		if (!older.has_more || older.messages.length === 0) {
+			break;
+		}
+	}
+	return { ...page, messages };
+};
+
 export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
 	initialPageParam: undefined as number | undefined,
 	queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
-		API.experimental.getChatMessages(chatId, {
-			before_id: pageParam,
-			limit: MESSAGES_PAGE_SIZE,
-		}),
+		fetchMessagesPage(chatId, pageParam),
 	getNextPageParam: (lastPage: TypesGen.ChatMessagesResponse) => {
 		if (!lastPage.has_more || lastPage.messages.length === 0) {
 			return undefined;

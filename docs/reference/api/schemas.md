@@ -3821,17 +3821,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17",
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
     }
-  ]
+  ],
+  "turn_start_id": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                              | Required | Restrictions | Description |
-|-------------------|-------------------------------------------------------------------|----------|--------------|-------------|
-| `has_more`        | boolean                                                           | false    |              |             |
-| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
+| Name              | Type                                                              | Required | Restrictions | Description                                                                                                                                                                                            |
+|-------------------|-------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `has_more`        | boolean                                                           | false    |              |                                                                                                                                                                                                        |
+| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                        |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                        |
+| `turn_start_id`   | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the oldest message on the page. Set only on newest-first pages that have messages and a prompt at or before the oldest one. |
 
 ## codersdk.ChatModel
 
