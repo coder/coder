@@ -22,8 +22,9 @@ import (
 //
 // Locking every root before any sub-chat conflicts with code that locks
 // chats in id order, such as SyncAgentChatsContextMCPResources, whatever
-// order the roots lock in. Postgres then aborts one side with a deadlock
-// error, which fails the delete: the returned error matches
+// order the roots lock in, and the heartbeat cascade below conflicts with
+// lease renewal, which locks heartbeat rows in its own order. Postgres
+// then aborts one side with a deadlock error, which fails the delete: the returned error matches
 // IsDeadlockError, the transaction rolls back with fn's writes, and a
 // caller that retries must retry the whole transaction, including any
 // outer one db belongs to.
@@ -32,8 +33,9 @@ import (
 // holds their row locks until the outermost transaction commits. A replica
 // renewing one of those leases holds the deployment-wide capacity
 // admission lock while it waits, up to HeartbeatLockTimeout, and then
-// renews none of its leases that tick. Keep fn to the deletes, and delete
-// the chats last.
+// renews none of its leases that tick. In fn, call
+// DeleteChatMessagesByChatIDs before DeleteChatFamiliesByRootIDs, and keep
+// the work after the chat delete to the project row.
 func InChatProjectDeleteTx(ctx context.Context, db Store, projectID uuid.UUID, fn func(tx Store, rootIDs, chatIDs []uuid.UUID) error) error {
 	return db.InTx(func(tx Store) error {
 		if _, err := tx.GetChatProjectByIDForUpdate(ctx, projectID); err != nil {

@@ -2327,8 +2327,7 @@ func (q *querier) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context
 	return q.db.DeleteChatMCPServersByChatIDExcludingSlugs(ctx, arg)
 }
 
-// DeleteChatMessagesByChatIDs checks delete on all chats, as
-// DeleteChatFamiliesByRootIDs does.
+// DeleteChatMessagesByChatIDs is authorized as DeleteChatFamiliesByRootIDs is.
 func (q *querier) DeleteChatMessagesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
 		return err
