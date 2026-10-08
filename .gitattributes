@@ -38,6 +38,10 @@ site/src/api/countriesGenerated.tsx linguist-generated=true
 site/src/api/rbacresourcesGenerated.tsx linguist-generated=true
 site/src/api/typesGenerated.ts linguist-generated=true
 
+# Keep fixture bytes identical on every platform; tests compare and split
+# them on LF line endings.
+aibridge/fixtures/** text eol=lf
+
 # AI Gateway prices
 coderd/aibridge/prices/data/prices.json linguist-generated=true
 site/src/modules/aiModels/knownModels/knownModelsGenerated.json linguist-generated=true

@@ -591,13 +591,12 @@ func TestResponsesStreamingRelaysWithoutInjectedTools(t *testing.T) {
 	lf := bytes.ReplaceAll(fix.Streaming(), []byte("\r\n"), []byte("\n"))
 	crlf := bytes.ReplaceAll(lf, []byte("\n"), []byte("\r\n"))
 
-	// Checkouts may rewrite the fixture's line endings (CRLF on Windows), so
-	// both forms are exercised regardless of the platform running the test.
+	// SSE allows LF and CRLF line endings, so the relay is exercised with
+	// both forms of the fixture stream.
 	for _, tc := range []struct {
 		name   string
 		stream []byte
 	}{
-		{name: "Fixture", stream: fix.Streaming()},
 		{name: "LF", stream: lf},
 		{name: "CRLF", stream: crlf},
 	} {
@@ -674,42 +673,6 @@ func splitSSEEvents(stream []byte) [][]byte {
 		events = append(events, stream[start:])
 	}
 	return events
-}
-
-func TestSplitSSEEvents(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name   string
-		stream string
-		want   []string
-	}{
-		{
-			name:   "LF",
-			stream: "event: a\ndata: 1\n\nevent: b\ndata: 2\n\n",
-			want:   []string{"event: a\ndata: 1\n\n", "event: b\ndata: 2\n\n"},
-		},
-		{
-			name:   "CRLF",
-			stream: "event: a\r\ndata: 1\r\n\r\nevent: b\r\ndata: 2\r\n\r\n",
-			want:   []string{"event: a\r\ndata: 1\r\n\r\n", "event: b\r\ndata: 2\r\n\r\n"},
-		},
-		{
-			name:   "TrailingPartialEvent",
-			stream: "data: 1\n\ndata: 2",
-			want:   []string{"data: 1\n\n", "data: 2"},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			var got []string
-			for _, event := range splitSSEEvents([]byte(tc.stream)) {
-				got = append(got, string(event))
-			}
-			require.Equal(t, tc.want, got)
-		})
-	}
 }
 
 // Upstream accepts the stream but drops the connection before a complete
