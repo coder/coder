@@ -313,17 +313,16 @@ func TestChatProjectsExperimentDisabled(t *testing.T) {
 	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
 }
 
-func newChatProjectClient(t testing.TB) (*codersdk.ExperimentalClient, database.Store) {
+func newChatProjectClient(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store) {
 	t.Helper()
-	client, db := newChatClientWithDatabase(t,
+	return newChatClientWithDatabase(t, append([]func(*coderdtest.Options){
 		func(options *coderdtest.Options) {
 			options.DeploymentValues.Experiments = serpent.StringArray{
 				string(codersdk.ExperimentChatProjects),
 			}
 		},
 		withChatWorkerDisabled,
-	)
-	return client, db
+	}, overrides...)...)
 }
 
 func createChatProject(t testing.TB, client *codersdk.ExperimentalClient, organizationID uuid.UUID, name string) codersdk.ChatProject {

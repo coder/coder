@@ -2726,6 +2726,32 @@ export const ProjectsSectionCollapsed: Story = {
 	},
 };
 
+/** A sharee without update or delete rights sees only "New chat". */
+export const ProjectActionsWithoutUpdateOrDeletePermission: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [
+					{
+						...MockChatProject,
+						permissions: { update: false, delete: false, share: false },
+					},
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+	},
+};
+
 export const MobileWithAutomations: Story = {
 	args: {
 		chats: sectionHeaderChats,

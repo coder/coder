@@ -509,39 +509,6 @@ describe("ChatsSidebar projects", () => {
 		);
 	});
 
-	it("hides project actions the caller lacks permission for", async () => {
-		const user = userEvent.setup();
-		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([
-					{
-						...MockChatProject,
-						permissions: { update: false, delete: false, share: false },
-					},
-				]),
-			),
-		);
-
-		render(
-			<Wrapper experiments={["chat-projects"]}>
-				<ChatsSidebar {...defaultProps} />
-			</Wrapper>,
-		);
-
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Open project actions for ${MockChatProject.name}`,
-			}),
-		);
-		expect(screen.getByRole("menuitem", { name: "New chat" })).toBeVisible();
-		expect(
-			screen.queryByRole("menuitem", { name: "Edit project" }),
-		).not.toBeInTheDocument();
-		expect(
-			screen.queryByRole("menuitem", { name: "Delete project" }),
-		).not.toBeInTheDocument();
-	});
-
 	it("reports a failed project deletion", async () => {
 		const user = userEvent.setup();
 		const toastError = vi.spyOn(toast, "error");

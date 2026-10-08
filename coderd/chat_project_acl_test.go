@@ -28,7 +28,7 @@ func TestChatProjectSharing(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		mAudit := audit.NewMock()
-		client, _ := newChatProjectClientWithOptions(t, func(opts *coderdtest.Options) {
+		client, _ := newChatProjectClient(t, func(opts *coderdtest.Options) {
 			opts.Auditor = mAudit
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
@@ -332,7 +332,7 @@ func TestChatProjectSharing(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		mAudit := audit.NewMock()
 		store, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-		client, db := newChatProjectClientWithOptions(t, func(opts *coderdtest.Options) {
+		client, db := newChatProjectClient(t, func(opts *coderdtest.Options) {
 			opts.Auditor = mAudit
 			opts.Database = store
 			opts.Pubsub = ps
@@ -397,7 +397,7 @@ func TestChatProjectSharing(t *testing.T) {
 					delete(pending, event.Chat.ID)
 				}
 			case <-ctx.Done():
-				t.Fatalf("missing deleted events for %v", pending)
+				t.Fatalf("missing hard_deleted events for %v", pending)
 			}
 		}
 	})
@@ -426,9 +426,8 @@ func TestChatProjectSharing(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	// Role grants do not let an administrator run chats in a member's
-	// project, because the chat would read and write memory the member
-	// did not share.
+	// A role grant alone does not let an administrator run chats in a
+	// member's project; the project ACL must grant it.
 	t.Run("AdministratorCannotBindUnsharedProject", func(t *testing.T) {
 		t.Parallel()
 
@@ -448,19 +447,6 @@ func TestChatProjectSharing(t *testing.T) {
 		})
 		requireChatProjectNotFound(t, err)
 	})
-}
-
-func newChatProjectClientWithOptions(t testing.TB, override func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store) {
-	t.Helper()
-	return newChatClientWithDatabase(t,
-		func(options *coderdtest.Options) {
-			options.DeploymentValues.Experiments = serpent.StringArray{
-				string(codersdk.ExperimentChatProjects),
-			}
-		},
-		withChatWorkerDisabled,
-		override,
-	)
 }
 
 func newChatProjectMember(t testing.TB, client *codersdk.ExperimentalClient, organizationID uuid.UUID) (*codersdk.ExperimentalClient, codersdk.User) {
