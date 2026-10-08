@@ -404,7 +404,7 @@ func TestChatProjectSharing(t *testing.T) {
 		}
 	})
 
-	t.Run("DeleteConflictReturnsConflict", func(t *testing.T) {
+	t.Run("DeleteDeadlockReturnsConflict", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -421,9 +421,13 @@ func TestChatProjectSharing(t *testing.T) {
 		err := client.DeleteChatProject(ctx, project.OrganizationID, project.ID)
 		sdkErr := requireSDKError(t, err, http.StatusConflict)
 		require.Contains(t, sdkErr.Message, "Try again")
-		//nolint:gocritic // Checks the chat survived regardless of ownership.
-		_, err = db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		_, err = client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
+		// The message delete ran before the deadlock and must roll back too.
+		//nolint:gocritic // Test inspects message rows directly.
+		messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		require.NoError(t, err)
+		require.NotEmpty(t, messages)
 	})
 
 	t.Run("DeleteWithoutAIGateway", func(t *testing.T) {
@@ -496,6 +500,8 @@ func chatProjectIDs(projects []codersdk.ChatProject) []uuid.UUID {
 }
 
 // deadlockingChatDeleteStore makes every chat family delete lose a deadlock.
+// InTx rewraps the transaction store because InChatProjectDeleteTx runs the
+// delete inside a transaction.
 type deadlockingChatDeleteStore struct {
 	database.Store
 }

@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -48,7 +47,7 @@ func DeleteChatProjectWithoutEvents(ctx context.Context, logger slog.Logger, db 
 		}
 		logger.Debug(ctx, "chat project delete deadlocked", slog.F("project_id", projectID), slog.F("attempt", attempt), slog.Error(err))
 	}
-	return nil, xerrors.Errorf("delete chat project failed after %d attempts: %w", chatProjectDeleteAttempts, errors.Join(ErrChatProjectDeleteConflict, err))
+	return nil, xerrors.Errorf("delete chat project failed after %d attempts: %v: %w", chatProjectDeleteAttempts, err, ErrChatProjectDeleteConflict)
 }
 
 func deleteChatProjectOnce(ctx context.Context, db database.Store, projectID uuid.UUID) ([]database.Chat, error) {
