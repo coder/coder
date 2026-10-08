@@ -55,11 +55,37 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"chat_cleared",
 ]);
 
-/** Blocks that fold into a working block; the rest are answer content. */
-export const isWorkBlock = (block: RenderBlock): boolean =>
+const isWorkBlock = (block: RenderBlock): boolean =>
 	block.type === "thinking" ||
 	block.type === "tool" ||
 	block.type === "sources";
+
+/**
+ * Splits a row into the work that folds into a working block and the answer
+ * after its last step. Text before a step is narration that folds with it;
+ * sources can trail the answer text they cite.
+ */
+export const splitRowBlocks = (
+	blocks: readonly RenderBlock[],
+	tools: readonly MergedTool[],
+): Record<"work" | "answer", RenderBlock[]> => {
+	const visible = new Set(getVisibleContent(blocks, tools).visibleBlocks);
+	const answerEnd = blocks.findLastIndex(
+		(block) => visible.has(block) && block.type !== "sources",
+	);
+	const answerStart =
+		blocks.findLastIndex(
+			(block, index) =>
+				index <= answerEnd && visible.has(block) && isWorkBlock(block),
+		) + 1;
+	const isAnswer = (block: RenderBlock, index: number) =>
+		index >= answerStart && index <= answerEnd && !isWorkBlock(block);
+
+	return {
+		work: blocks.filter((block, index) => !isAnswer(block, index)),
+		answer: blocks.filter(isAnswer),
+	};
+};
 
 type RowContent = ReturnType<typeof getVisibleContent>;
 
@@ -109,15 +135,12 @@ const getMemberRow = (
 		return undefined;
 	}
 
-	// Sources can trail the answer text they cite.
-	const last = visibleBlocks.findLast((block) => block.type !== "sources");
-	if (last === undefined || isWorkBlock(last)) {
+	const { work, answer } = splitRowBlocks(visibleBlocks, visibleTools);
+	if (answer.length === 0) {
 		return { content, endsWithAnswer: false };
 	}
 
-	return visibleBlocks.some(isWorkBlock)
-		? { content, endsWithAnswer: true }
-		: undefined;
+	return work.length > 0 ? { content, endsWithAnswer: true } : undefined;
 };
 
 /**
