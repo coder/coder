@@ -976,7 +976,6 @@ export const HardDeleteWatchEventRemovesOpenChat: Story = {
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Waits for the eviction; cache behavior is covered in chats.test.ts.
 		await waitFor(() => {
 			if (canvas.queryByText("Watched agent")) {
 				throw new Error("hard-deleted chat is still shown");

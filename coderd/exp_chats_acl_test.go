@@ -601,8 +601,6 @@ func TestChatSharingDisabled(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, viewerChats)
 
-	// --disable-chat-sharing also turns off project sharing and ignores
-	// stored grants.
 	project := dbgen.ChatProject(t, store, database.ChatProject{
 		OrganizationID: firstUser.OrganizationID,
 		OwnerID:        firstUser.UserID,

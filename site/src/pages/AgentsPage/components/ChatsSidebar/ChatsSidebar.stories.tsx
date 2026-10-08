@@ -2728,7 +2728,6 @@ export const ProjectsSectionCollapsed: Story = {
 	},
 };
 
-/** A sharee without update or delete rights sees only "New chat". */
 export const ProjectActionsWithoutUpdateOrDeletePermission: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {

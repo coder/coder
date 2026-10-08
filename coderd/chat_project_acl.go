@@ -192,9 +192,6 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// canonicalChatProjectRoles parses ACL keys into UUIDs. A key that is not a
-// UUID, or two spellings of one UUID, is a validation error; with two
-// spellings, which role wins would depend on map order.
 func canonicalChatProjectRoles(roles map[string]codersdk.ChatProjectRole, field string) (map[uuid.UUID]codersdk.ChatProjectRole, []codersdk.ValidationError) {
 	canonical := make(map[uuid.UUID]codersdk.ChatProjectRole, len(roles))
 	var validErrs []codersdk.ValidationError
@@ -234,11 +231,6 @@ func applyChatProjectRoles(current database.ChatACL, roles map[uuid.UUID]codersd
 	return next
 }
 
-// validateChatProjectACLOrganization rejects users and groups outside the
-// project's organization. RBAC applies grants only to members of the
-// project's organization, so a foreign user would be listed but get no
-// access, and a foreign group would grant access to those of its members
-// who also belong to the project's organization.
 func (api *API) validateChatProjectACLOrganization(
 	ctx context.Context,
 	project database.ChatProject,
@@ -286,8 +278,6 @@ func (api *API) validateChatProjectACLOrganization(
 	return validErrs, nil
 }
 
-// Removals are excluded so entries for deleted principals can still be
-// removed.
 func grantedChatProjectIDs(roles map[uuid.UUID]codersdk.ChatProjectRole) []uuid.UUID {
 	ids := make([]uuid.UUID, 0, len(roles))
 	for id, role := range roles {

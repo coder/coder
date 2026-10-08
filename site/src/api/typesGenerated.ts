@@ -3586,18 +3586,13 @@ export interface ChatProject {
 	readonly icon: string;
 	readonly created_at: string;
 	readonly updated_at: string;
-	/**
-	 * Permissions count role grants as well as the project ACL, so clients
-	 * can hide actions that would fail.
-	 */
 	readonly permissions: ChatProjectPermissions;
 }
 
 // From codersdk/chats.go
 /**
- * ChatProjectACL lists who a chat project is shared with. Sharing with the
- * whole organization is a group entry for the organization's Everyone
- * group, whose ID is the organization ID.
+ * ChatProjectACL lists who a chat project is shared with. The Everyone
+ * group's ID is the organization ID.
  */
 export interface ChatProjectACL {
 	readonly users: readonly ChatProjectUser[];
@@ -10878,8 +10873,7 @@ export interface UpdateChatPlanModeInstructionsRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatProjectACL changes only the listed principals. Users and groups
- * must belong to the project's organization.
+ * UpdateChatProjectACL changes only the listed principals.
  */
 export interface UpdateChatProjectACL {
 	readonly user_roles?: Record<string, ChatProjectRole>;

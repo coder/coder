@@ -5059,17 +5059,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                               | Required | Restrictions | Description                                                                                            |
-|-------------------|--------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
-| `created_at`      | string                                                             | false    |              |                                                                                                        |
-| `description`     | string                                                             | false    |              |                                                                                                        |
-| `icon`            | string                                                             | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph.          |
-| `id`              | string                                                             | false    |              |                                                                                                        |
-| `name`            | string                                                             | false    |              | Name is a display label and is not unique; ID identifies the project.                                  |
-| `organization_id` | string                                                             | false    |              |                                                                                                        |
-| `owner_id`        | string                                                             | false    |              |                                                                                                        |
-| `permissions`     | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions) | false    |              | Permissions count role grants as well as the project ACL, so clients can hide actions that would fail. |
-| `updated_at`      | string                                                             | false    |              |                                                                                                        |
+| Name              | Type                                                               | Required | Restrictions | Description                                                                                   |
+|-------------------|--------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------|
+| `created_at`      | string                                                             | false    |              |                                                                                               |
+| `description`     | string                                                             | false    |              |                                                                                               |
+| `icon`            | string                                                             | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
+| `id`              | string                                                             | false    |              |                                                                                               |
+| `name`            | string                                                             | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
+| `organization_id` | string                                                             | false    |              |                                                                                               |
+| `owner_id`        | string                                                             | false    |              |                                                                                               |
+| `permissions`     | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions) | false    |              |                                                                                               |
+| `updated_at`      | string                                                             | false    |              |                                                                                               |
 
 ## codersdk.ChatProjectACL
 

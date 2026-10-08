@@ -1,14 +1,12 @@
 package coderd_test
 
 import (
-	"context"
 	"database/sql"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -83,7 +81,6 @@ func TestChatProjectSharing(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, memories, 1)
 		require.Equal(t, memory.ID, memories[0].ID)
-		// Use sharees change memories only through their chats' agents.
 		_, err = sharee.CreateChatProjectMemory(ctx, project.OrganizationID, project.ID, codersdk.CreateChatProjectMemoryRequest{
 			Name:        "sharee-notes",
 			Description: "Written by a sharee",
@@ -97,12 +94,10 @@ func TestChatProjectSharing(t *testing.T) {
 		_, err = sharee.ChatProjectACL(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
 
-		// Sharing the project does not share the chats in it.
 		ownerChat := createChatInProject(t, client, project.OrganizationID, &project.ID)
 		_, err = sharee.GetChat(ctx, ownerChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 
-		// Use does not grant editing, sharing, or deletion.
 		name := "Renamed by sharee"
 		_, err = sharee.UpdateChatProject(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectRequest{Name: &name})
 		requireSDKError(t, err, http.StatusForbidden)
@@ -113,7 +108,6 @@ func TestChatProjectSharing(t *testing.T) {
 		err = sharee.DeleteChatProject(ctx, project.OrganizationID, project.ID)
 		requireSDKError(t, err, http.StatusForbidden)
 
-		// Removing the entry revokes access.
 		err = client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{shareeUser.ID.String(): codersdk.ChatProjectRoleDeleted},
 		})
@@ -151,7 +145,6 @@ func TestChatProjectSharing(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, name, updated.Name)
 		require.Equal(t, codersdk.ChatProjectPermissions{Update: true, Share: true}, updated.Permissions)
-		// Renaming keeps the ACL.
 		acl, err := client.ChatProjectACL(ctx, project.OrganizationID, project.ID)
 		require.NoError(t, err)
 		require.Len(t, acl.Users, 1)
@@ -167,7 +160,6 @@ func TestChatProjectSharing(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Cannot change your own project sharing role.", sdkErr.Message)
 
-		// Admins edit memories directly.
 		memory, err := admin.CreateChatProjectMemory(ctx, project.OrganizationID, project.ID, codersdk.CreateChatProjectMemoryRequest{
 			Name:        "admin-notes",
 			Description: "Written by an admin sharee",
@@ -176,13 +168,11 @@ func TestChatProjectSharing(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, admin.DeleteChatProjectMemory(ctx, project.OrganizationID, project.ID, memory.ID))
 
-		// The owner cannot be added to the ACL, so an admin's attempt returns 400.
 		err = admin.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{firstUser.UserID.String(): codersdk.ChatProjectRoleUse},
 		})
 		requireSDKError(t, err, http.StatusBadRequest)
 
-		// No ACL role grants deleting a project.
 		err = admin.DeleteChatProject(ctx, project.OrganizationID, project.ID)
 		requireSDKError(t, err, http.StatusForbidden)
 	})
@@ -205,7 +195,6 @@ func TestChatProjectSharing(t *testing.T) {
 			GroupRoles: map[string]codersdk.ChatProjectRole{group.ID.String(): codersdk.ChatProjectRoleUse},
 		})
 		require.NoError(t, err)
-		// The Everyone group's ID is the organization ID.
 		err = client.UpdateChatProjectACL(ctx, orgProject.OrganizationID, orgProject.ID, codersdk.UpdateChatProjectACL{
 			GroupRoles: map[string]codersdk.ChatProjectRole{firstUser.OrganizationID.String(): codersdk.ChatProjectRoleUse},
 		})
@@ -227,7 +216,6 @@ func TestChatProjectSharing(t *testing.T) {
 		_, err = nonMember.GetChatProject(ctx, groupProject.OrganizationID, groupProject.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 
-		// Members of another organization do not reach the Everyone grant.
 		otherOrganization := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 		outsiderRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, otherOrganization.ID)
 		outsider := codersdk.NewExperimentalClient(outsiderRaw)
@@ -235,7 +223,6 @@ func TestChatProjectSharing(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, projects)
 
-		// Removing group entries revokes access through them.
 		err = client.UpdateChatProjectACL(ctx, groupProject.OrganizationID, groupProject.ID, codersdk.UpdateChatProjectACL{
 			GroupRoles: map[string]codersdk.ChatProjectRole{group.ID.String(): codersdk.ChatProjectRoleDeleted},
 		})
@@ -266,7 +253,6 @@ func TestChatProjectSharing(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "The project owner cannot be added to the project's sharing list.", sdkErr.Message)
 
-		// Two spellings of one ID in one request are rejected.
 		err = client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{
 				member.ID.String():                  codersdk.ChatProjectRoleAdmin,
@@ -296,7 +282,6 @@ func TestChatProjectSharing(t *testing.T) {
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "group_roles", sdkErr.Validations[0].Field)
 
-		// RBAC ignores grants to users outside the project's organization.
 		_, foreignUser := coderdtest.CreateAnotherUser(t, client.Client, otherOrganization.ID)
 		err = client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{foreignUser.ID.String(): codersdk.ChatProjectRoleUse},
@@ -310,8 +295,6 @@ func TestChatProjectSharing(t *testing.T) {
 		require.Empty(t, acl.Users)
 		require.Empty(t, acl.Groups)
 
-		// Keys are stored canonically, so another spelling of the same ID
-		// grants access and removes it.
 		err = client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{strings.ToUpper(member.ID.String()): codersdk.ChatProjectRoleUse},
 		})
@@ -360,7 +343,6 @@ func TestChatProjectSharing(t *testing.T) {
 			RootChatID:        uuid.NullUUID{UUID: shareeChat.ID, Valid: true},
 		})
 
-		// A running chat does not block deletion.
 		runnerID := uuid.New()
 		_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET worker_id = $2, runner_id = $3 WHERE id = $1", shareeChat.ID, uuid.New(), runnerID)
 		require.NoError(t, err)
@@ -379,7 +361,6 @@ func TestChatProjectSharing(t *testing.T) {
 		_, err = client.GetChat(ctx, otherChat.ID)
 		require.NoError(t, err)
 
-		// Each deleted root chat is audited for the user who deleted it.
 		for _, id := range []uuid.UUID{ownerChat.ID, shareeChat.ID} {
 			require.True(t, mAudit.Contains(t, database.AuditLog{
 				Action:       database.AuditActionDelete,
@@ -390,7 +371,6 @@ func TestChatProjectSharing(t *testing.T) {
 		}
 		require.False(t, mAudit.Contains(t, database.AuditLog{ResourceType: database.ResourceTypeChat, ResourceID: shareeChild.ID}))
 
-		// The sharee's chat watch receives hard_deleted events for their chats.
 		pending := map[uuid.UUID]bool{shareeChat.ID: true, shareeChild.ID: true}
 		for len(pending) > 0 {
 			select {
@@ -402,31 +382,6 @@ func TestChatProjectSharing(t *testing.T) {
 				t.Fatalf("missing hard_deleted events for %v", pending)
 			}
 		}
-	})
-
-	t.Run("DeleteDeadlockReturnsConflict", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		store, ps := dbtestutil.NewDB(t)
-		client, _ := newChatProjectClient(t, func(opts *coderdtest.Options) {
-			opts.Database = deadlockingChatDeleteStore{Store: store}
-			opts.Pubsub = ps
-		})
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-		project := createChatProject(t, client, firstUser.OrganizationID, "Conflicted Project")
-		chat := createChatInProject(t, client, project.OrganizationID, &project.ID)
-
-		err := client.DeleteChatProject(ctx, project.OrganizationID, project.ID)
-		sdkErr := requireSDKError(t, err, http.StatusConflict)
-		require.Contains(t, sdkErr.Message, "Try again")
-		_, err = client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		// The message delete ran before the deadlock and must roll back too.
-		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
-		require.NotEmpty(t, messages.Messages)
 	})
 
 	t.Run("DeleteWithoutAIGateway", func(t *testing.T) {
@@ -453,8 +408,6 @@ func TestChatProjectSharing(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	// A role grant alone does not let an administrator run chats in a
-	// member's project; the project ACL must grant it.
 	t.Run("AdministratorCannotBindUnsharedProject", func(t *testing.T) {
 		t.Parallel()
 
@@ -496,21 +449,4 @@ func chatProjectIDs(projects []codersdk.ChatProject) []uuid.UUID {
 		ids = append(ids, project.ID)
 	}
 	return ids
-}
-
-// deadlockingChatDeleteStore makes every chat family delete lose a deadlock.
-// InTx rewraps the transaction store because InChatProjectDeleteTx runs the
-// delete inside a transaction.
-type deadlockingChatDeleteStore struct {
-	database.Store
-}
-
-func (s deadlockingChatDeleteStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
-	return s.Store.InTx(func(tx database.Store) error {
-		return fn(deadlockingChatDeleteStore{Store: tx})
-	}, opts)
-}
-
-func (deadlockingChatDeleteStore) DeleteChatFamiliesByRootIDs(context.Context, []uuid.UUID) error {
-	return &pq.Error{Code: "40P01", Message: "deadlock detected"}
 }

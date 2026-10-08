@@ -1395,10 +1395,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		// The chat's agent reads and writes the project's memory, so the
-		// chat owner, not only the caller, must own the project or have it
-		// shared with them. This matches the unreadable-project response so
-		// callers creating chats for other users cannot probe for project IDs.
+		// The chat owner must be able to use the project because its agent
+		// reads and writes project memory. The 404 matches an unreadable
+		// project so callers cannot probe for project IDs.
 		usable, err := chatd.ChatProjectUsableBy(ctx, api.Database, project, ownerID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
@@ -1619,7 +1618,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
-			// The project was deleted after the access check.
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
 			return
 		}

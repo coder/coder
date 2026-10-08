@@ -553,12 +553,7 @@ export const applyWatchedChatArchived = (
 	void invalidateChatSearches(queryClient);
 };
 
-/**
- * Watch-event effect for the `hard_deleted` kind, published when a chat is
- * removed permanently, as when its project is deleted. Unlike archive, the
- * chat is evicted from every list, archived ones included, so nothing
- * offers to unarchive it, and an open route refetches and finds it gone.
- */
+/** Watch-event effect for the `hard_deleted` kind. */
 export const applyWatchedChatHardDeleted = (
 	queryClient: QueryClient,
 	chatId: string,
@@ -575,9 +570,7 @@ export const applyWatchedChatHardDeleted = (
 		(prev) => (prev ? withoutChat(prev) : prev),
 	);
 	removeChatFromChatsByWorkspace(queryClient, chatId);
-	// Invalidating would keep the cached chat when the refetch 404s, so
-	// an open route would keep rendering it. The reset is unconditional
-	// because it also cancels a first fetch that may predate the delete.
+	// Invalidating would keep the cached chat when the refetch 404s.
 	void queryClient.resetQueries({
 		queryKey: chatEntityKey(chatId),
 		exact: true,
@@ -585,10 +578,7 @@ export const applyWatchedChatHardDeleted = (
 	void invalidateChatListQueries(queryClient);
 	void invalidateChatsByWorkspace(queryClient);
 	void invalidateChatSearches(queryClient);
-	// `hard_deleted` comes from a project delete, so the chat's project may
-	// be gone, including one shared with this user that their project list
-	// still shows. A project delete sends one event per chat, so a refetch
-	// already in flight is kept rather than restarted for each event.
+	// A project delete sends one event per chat; keep an in-flight refetch.
 	void queryClient.invalidateQueries(
 		{ queryKey: chatProjectsKey },
 		{ cancelRefetch: false },

@@ -20,7 +20,6 @@ type ProjectActionsMenuItemsProps = {
 	readonly Separator: ProjectActionsMenuSeparator;
 	/** Adds a "New chat" item linking here. Omit on the project page itself. */
 	readonly projectPath?: To;
-	/** The caller's permissions, so actions that would fail are hidden. */
 	readonly permissions: ChatProjectPermissions;
 	readonly onEdit: () => void;
 	readonly onDelete: () => void;

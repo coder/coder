@@ -10,8 +10,7 @@ import {
 } from "./chats";
 
 /**
- * Lists the chat projects the current user owns or that are shared with
- * them, across all organizations.
+ * Lists chat projects the current user owns or that are shared with them.
  * @public
  */
 export const chatProjects = () =>
@@ -81,8 +80,7 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 			]),
 	});
 
-// Resets rather than invalidates: invalidation keeps cached data when the
-// refetch 404s, so open routes would keep rendering the chats.
+// Invalidating would keep cached chats when their refetch 404s.
 const resetDeletedProjectChats = (
 	queryClient: QueryClient,
 	projectId: string,

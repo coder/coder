@@ -237,11 +237,9 @@ type ChatProject struct {
 	Description string `json:"description"`
 	// Icon is a URL, typically an emoji image under /emojis, or empty for the
 	// default folder glyph.
-	Icon      string    `json:"icon"`
-	CreatedAt time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
-	// Permissions count role grants as well as the project ACL, so clients
-	// can hide actions that would fail.
+	Icon        string                 `json:"icon"`
+	CreatedAt   time.Time              `json:"created_at" format:"date-time"`
+	UpdatedAt   time.Time              `json:"updated_at" format:"date-time"`
 	Permissions ChatProjectPermissions `json:"permissions"`
 }
 
@@ -267,20 +265,14 @@ type UpdateChatProjectRequest struct {
 	Icon        *string `json:"icon,omitempty"`
 }
 
-// ChatProjectRole is the access a project's ACL grants a user or group.
-// Sharing a project does not share the chats in it.
+// ChatProjectRole is the access a project ACL grants.
 type ChatProjectRole string
 
 const (
-	// ChatProjectRoleUse can view the project and its memories and start
-	// chats in it. It cannot change the project or its memories directly,
-	// but the agents in its chats read and write the project's memories.
+	// ChatProjectRoleUse can start chats, whose agents read and write memories.
 	ChatProjectRoleUse ChatProjectRole = "use"
-	// ChatProjectRoleAdmin can also edit the project and its memories
-	// directly and change who it is shared with. It cannot delete the
-	// project; the owner and administrators can.
-	ChatProjectRoleAdmin ChatProjectRole = "admin"
-	// ChatProjectRoleDeleted removes an ACL entry in an update.
+	// ChatProjectRoleAdmin can also edit and share the project, but not delete it.
+	ChatProjectRoleAdmin   ChatProjectRole = "admin"
 	ChatProjectRoleDeleted ChatProjectRole = ""
 )
 
@@ -294,16 +286,14 @@ type ChatProjectGroup struct {
 	Role ChatProjectRole `json:"role" enums:"use,admin"`
 }
 
-// ChatProjectACL lists who a chat project is shared with. Sharing with the
-// whole organization is a group entry for the organization's Everyone
-// group, whose ID is the organization ID.
+// ChatProjectACL lists who a chat project is shared with. The Everyone
+// group's ID is the organization ID.
 type ChatProjectACL struct {
 	Users  []ChatProjectUser  `json:"users"`
 	Groups []ChatProjectGroup `json:"groups"`
 }
 
-// UpdateChatProjectACL changes only the listed principals. Users and groups
-// must belong to the project's organization.
+// UpdateChatProjectACL changes only the listed principals.
 type UpdateChatProjectACL struct {
 	UserRoles  map[string]ChatProjectRole `json:"user_roles,omitempty"`
 	GroupRoles map[string]ChatProjectRole `json:"group_roles,omitempty"`
@@ -2206,8 +2196,7 @@ const (
 	ChatWatchEventKindCreated     ChatWatchEventKind = "created"
 	// ChatWatchEventKindDeleted is published when a chat is archived.
 	ChatWatchEventKindDeleted ChatWatchEventKind = "deleted"
-	// ChatWatchEventKindHardDeleted is published when a chat is removed
-	// permanently, as when its project is deleted.
+	// ChatWatchEventKindHardDeleted is published when a chat is permanently deleted.
 	ChatWatchEventKindHardDeleted      ChatWatchEventKind = "hard_deleted"
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
@@ -2393,8 +2382,7 @@ func chatProjectPath(organizationID, projectID uuid.UUID) string {
 	return fmt.Sprintf("%s/%s", chatProjectsPath(organizationID), projectID)
 }
 
-// ListChatProjects lists the chat projects the authenticated user owns or
-// that are shared with them, across all organizations.
+// ListChatProjects lists projects the user owns or that are shared with them.
 func (c *ExperimentalClient) ListChatProjects(ctx context.Context) ([]ChatProject, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/projects", nil)
 	if err != nil {
@@ -2450,10 +2438,7 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 	return project, ReadBodyAsJSON(res, &project)
 }
 
-// DeleteChatProject deletes a chat project and every chat in it, including
-// chats started by users it is shared with. Running chats are stopped.
-// A 409 means the delete conflicted with concurrent chat updates and nothing
-// was deleted; it can be retried.
+// DeleteChatProject deletes a chat project and every chat in it.
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
 	if err != nil {

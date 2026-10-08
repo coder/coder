@@ -261,20 +261,10 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	if api.chatDaemon != nil {
 		deleted, err = api.chatDaemon.DeleteChatProject(ctx, project.ID)
 	} else {
-		// Without the AI Gateway no worker runs chats, so the deletion runs
-		// directly. No watch events are published; other users' sidebars
-		// drop the chats on their next refetch.
-		deleted, err = chatd.DeleteChatProjectWithoutEvents(ctx, api.Logger, api.Database, project.ID)
+		deleted, err = chatd.DeleteChatProjectWithoutEvents(ctx, api.Database, project.ID)
 	}
 	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if errors.Is(err, chatd.ErrChatProjectDeleteConflict) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "Failed to delete chat project because its chats were being updated at the same time. Nothing was deleted. Try again.",
-			Detail:  err.Error(),
-		})
 		return
 	}
 	if err != nil {
@@ -288,9 +278,6 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// auditChatProjectChatDeletes records each root chat deleted with its
-// project. Sub-chats go with their root and are not audited separately,
-// matching archive.
 func (api *API) auditChatProjectChatDeletes(ctx context.Context, r *http.Request, project database.ChatProject, chats []database.Chat) {
 	apiKey := httpmw.APIKey(r)
 	auditor := api.Auditor.Load()
@@ -314,9 +301,6 @@ func (api *API) auditChatProjectChatDeletes(ctx context.Context, r *http.Request
 	}
 }
 
-// authorizeChatProjectChange authorizes action on a project or its
-// memories. Callers who cannot read the object get 404 so the response does
-// not reveal that the project exists.
 func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Request, action policy.Action, object rbac.Objecter) bool {
 	if !api.Authorize(r, policy.ActionRead, object) {
 		httpapi.ResourceNotFound(rw)
@@ -346,8 +330,7 @@ func (api *API) convertChatProject(r *http.Request, project database.ChatProject
 }
 
 // maxChatProjectsPerOwner caps how many projects one user owns across all
-// organizations. It does not bound projects shared with the user, so the
-// project list can return more.
+// organizations.
 const maxChatProjectsPerOwner = 100
 
 var errChatProjectLimit = xerrors.New("chat project limit reached")

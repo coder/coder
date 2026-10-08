@@ -996,12 +996,9 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 }
 
 // ChatProjectRoleActions returns the chat project actions a role grants.
-// Project read grants reading memories, and update also grants creating and
-// deleting them; see ChatProjectMemoryRBACObject.
 func ChatProjectRoleActions(role codersdk.ChatProjectRole) []policy.Action {
 	switch role {
 	case codersdk.ChatProjectRoleAdmin:
-		// No ACL role grants deletion, matching workspace sharing.
 		return []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}
 	case codersdk.ChatProjectRoleUse:
 		return []policy.Action{policy.ActionRead}
