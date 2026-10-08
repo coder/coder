@@ -53,7 +53,11 @@ import type {
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
-import { groupWorkingBlocks, splitRowBlocks } from "./workingBlockGrouping";
+import {
+	groupWorkingBlocks,
+	type RowSection,
+	splitRowBlocks,
+} from "./workingBlockGrouping";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -98,10 +102,6 @@ const LifecycleHookNotice: React.FC<{
 		</div>
 	</TimelineNotice>
 );
-
-// A row that ends a working block renders its work inside the block and its
-// answer after it.
-type RowSection = "work" | "answer";
 
 const ChatMessageItem = memo<{
 	organizationId: string;

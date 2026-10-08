@@ -61,30 +61,35 @@ const isWorkBlock = (block: RenderBlock): boolean =>
 	block.type === "sources";
 
 /**
+ * A row that ends a working block renders its work inside the block and its
+ * answer after it.
+ */
+export type RowSection = "work" | "answer";
+
+/**
  * Splits a row into the work that folds into a working block and the answer
- * after its last step. Text before a step is narration that folds with it;
- * sources can trail the answer text they cite.
+ * after its last step. Text before a step is narration that folds with it,
+ * and sources fold even when they trail the answer text they cite.
  */
 export const splitRowBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
-): Record<"work" | "answer", RenderBlock[]> => {
+) => {
 	const visible = new Set(getVisibleContent(blocks, tools).visibleBlocks);
 	const answerEnd = blocks.findLastIndex(
 		(block) => visible.has(block) && block.type !== "sources",
 	);
-	const answerStart =
-		blocks.findLastIndex(
-			(block, index) =>
-				index <= answerEnd && visible.has(block) && isWorkBlock(block),
-		) + 1;
+	const lastWorkIndex = blocks.findLastIndex(
+		(block, index) =>
+			index <= answerEnd && visible.has(block) && isWorkBlock(block),
+	);
 	const isAnswer = (block: RenderBlock, index: number) =>
-		index >= answerStart && index <= answerEnd && !isWorkBlock(block);
+		index > lastWorkIndex && index <= answerEnd && !isWorkBlock(block);
 
 	return {
 		work: blocks.filter((block, index) => !isAnswer(block, index)),
 		answer: blocks.filter(isAnswer),
-	};
+	} satisfies Record<RowSection, RenderBlock[]>;
 };
 
 type RowContent = ReturnType<typeof getVisibleContent>;
@@ -92,9 +97,9 @@ type RowContent = ReturnType<typeof getVisibleContent>;
 type MemberRow = { content: RowContent; endsWithAnswer: boolean };
 
 /**
- * Text before a tool call is narration that folds with it. A row ending in
- * an answer joins only when it also did work, and then closes the block. A
- * live row with no output yet is the turn working on its next step.
+ * A row ending in an answer joins only when it also did work, and then closes
+ * the block. A live row with no output yet is the turn working on its next
+ * step.
  */
 const getMemberRow = (
 	row: TimelineRow,
@@ -238,7 +243,7 @@ export const groupWorkingBlocks = (
 
 	const stepCountOf = (draft: Draft) => draft.toolIds.size + draft.sourceGroups;
 
-	// Reasoning alone stays visible. The live turn folds from its first
+	// Completed reasoning alone stays visible. The live turn folds from its first
 	// reasoning, so thinking never shows and then vanishes once a tool call
 	// arrives, and unfolds only when a tool-less turn starts its answer.
 	const blockDrafts = drafts.filter(

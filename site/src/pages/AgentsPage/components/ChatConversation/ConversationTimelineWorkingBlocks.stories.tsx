@@ -96,7 +96,7 @@ export const AnswerWorkFoldsExpanded: Story = {
 	},
 };
 
-// A turn whose only work is the answer's web search still folds it.
+// A turn whose only step is the answer's web search still folds it.
 export const SearchOnlyAnswerFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools([
