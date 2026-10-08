@@ -405,10 +405,13 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 					<PromptTable
 						timestamp={new Date(thread.started_at)}
 						model={thread.model}
+						pricedModel={thread.priced_model}
 						inputTokens={thread.token_usage.input_tokens}
 						outputTokens={thread.token_usage.output_tokens}
 						cacheReadTokens={thread.token_usage.cache_read_input_tokens}
 						cacheWriteTokens={thread.token_usage.cache_write_input_tokens}
+						costMicros={thread.token_usage.cost_micros}
+						hasUnpricedUsage={thread.token_usage.has_unpriced_usage}
 						tokenUsageMetadata={thread.token_usage.metadata}
 					/>
 				</div>
