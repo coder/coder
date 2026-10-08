@@ -386,7 +386,7 @@ func TestPushContextState(t *testing.T) {
 
 		gotKinds := map[database.WorkspaceAgentContextBodyKind][]byte{}
 		dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), gomock.Any()).
-			Times(4).
+			Times(5).
 			DoAndReturn(func(_ context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
 				gotKinds[arg.BodyKind] = arg.Body
 				return database.WorkspaceAgentContextResource{}, nil
@@ -403,6 +403,13 @@ func TestPushContextState(t *testing.T) {
 				skillResource("/a/.agents/skills/example/SKILL.md", "example", "an example"),
 				mcpConfigResource("/a/.mcp.json"),
 				mcpServer,
+				{
+					Source: "acp/test",
+					Status: agentproto.ContextResource_OK,
+					Body: &agentproto.ContextResource_AcpHarness{AcpHarness: &agentproto.ACPHarnessBody{
+						Slug: "test", DisplayName: "Test Harness", LoadSession: true,
+					}},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -412,6 +419,7 @@ func TestPushContextState(t *testing.T) {
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindSkill)
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindMcpConfig)
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindMcpServer)
+		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindAcpHarness)
 
 		// Confirm each body deserializes as JSON; the actual proto
 		// roundtrip is exercised by the resolver tests on the agent

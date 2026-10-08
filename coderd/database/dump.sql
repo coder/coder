@@ -702,7 +702,8 @@ CREATE TYPE workspace_agent_context_body_kind AS ENUM (
     'plugin',
     'hook',
     'subagent',
-    'command'
+    'command',
+    'acp_harness'
 );
 
 CREATE TYPE workspace_agent_context_resource_status AS ENUM (

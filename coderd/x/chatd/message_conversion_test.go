@@ -1032,6 +1032,7 @@ func TestBufferedPartsToPartialMessages_DeltaOnlyToolResultDoesNotAnswer(t *test
 	parts := []messagepartbuffer.Part{
 		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-1", "advisor", json.RawMessage(`{}`))},
 		{Seq: 2, Role: codersdk.ChatMessageRoleTool, MessagePart: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolResult, ToolCallID: "call-1", ToolName: "advisor", ResultDelta: `{"type":"advice"}`}},
+		{Seq: 3, Role: codersdk.ChatMessageRoleTool, MessagePart: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolResult, ToolCallID: "call-1", ToolName: "advisor", ResultReset: true, ResultDelta: `{"type":"advice","advice":"updated"}`}},
 	}
 	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
 		parts:          parts,

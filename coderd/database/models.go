@@ -4397,6 +4397,7 @@ const (
 	WorkspaceAgentContextBodyKindHook            WorkspaceAgentContextBodyKind = "hook"
 	WorkspaceAgentContextBodyKindSubagent        WorkspaceAgentContextBodyKind = "subagent"
 	WorkspaceAgentContextBodyKindCommand         WorkspaceAgentContextBodyKind = "command"
+	WorkspaceAgentContextBodyKindAcpHarness      WorkspaceAgentContextBodyKind = "acp_harness"
 )
 
 func (e *WorkspaceAgentContextBodyKind) Scan(src interface{}) error {
@@ -4443,7 +4444,8 @@ func (e WorkspaceAgentContextBodyKind) Valid() bool {
 		WorkspaceAgentContextBodyKindPlugin,
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
-		WorkspaceAgentContextBodyKindCommand:
+		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness:
 		return true
 	}
 	return false
@@ -4459,6 +4461,7 @@ func AllWorkspaceAgentContextBodyKindValues() []WorkspaceAgentContextBodyKind {
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
 		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness,
 	}
 }
 
