@@ -93,7 +93,22 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		if err != nil {
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal tool result: %w", err)
 		}
-		messages = append(messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content))
+		userResult, err := chattool.UserResultFromMetadata(toolResult.ClientMetadata)
+		if err != nil {
+			return stepMessagesForCommit{}, err
+		}
+		visibility := database.ChatMessageVisibilityBoth
+		if len(userResult) > 0 {
+			visibility = database.ChatMessageVisibilityModel
+			userPart := part
+			userPart.Result = userResult
+			userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{userPart})
+			if err != nil {
+				return stepMessagesForCommit{}, xerrors.Errorf("marshal user tool result: %w", err)
+			}
+			messages = append(messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, userContent))
+		}
+		messages = append(messages, baseMessage(database.ChatMessageRoleTool, visibility, input.modelConfigID, contentVersion, content))
 	}
 
 	// Usage sums runtime_ms across rows, so the batch window is billed

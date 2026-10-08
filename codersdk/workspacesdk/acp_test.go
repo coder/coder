@@ -82,6 +82,8 @@ func TestACPTransport(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	require.True(t, client.AwaitReachable(ctx, agentIP))
 	conn := workspacesdk.NewAgentConn(client, workspacesdk.AgentConnOptions{AgentID: agentID, Logger: testutil.Logger(t)})
+	require.Equal(t, agentID, conn.AgentID())
+	require.Equal(t, agentID, workspacesdk.WrapAgentConn(conn, nil).AgentID())
 	ctx = workspacesdk.WithToolCallID(ctx, toolID)
 	catalog, err := conn.ListACPHarnesses(ctx)
 	require.NoError(t, err)
