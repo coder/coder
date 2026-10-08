@@ -1,5 +1,4 @@
 import type * as monaco from "monaco-editor";
-import tw from "../tailwindColors";
 import palette from "./palette";
 
 export default {
@@ -34,9 +33,5 @@ export default {
 	colors: {
 		"editor.foreground": palette.text.primary,
 		"editor.background": palette.background.paper,
-		// Matches --surface-invert-secondary so editor scrollbars meet 3:1 contrast.
-		"scrollbarSlider.background": tw.zinc[700],
-		"scrollbarSlider.hoverBackground": tw.zinc[800],
-		"scrollbarSlider.activeBackground": tw.zinc[800],
 	},
 } satisfies monaco.editor.IStandaloneThemeData as monaco.editor.IStandaloneThemeData;

@@ -12,8 +12,6 @@ type ScrollAreaProps = React.ComponentProps<typeof ScrollAreaPrimitive.Root> & {
 	/** Extra thumb classes; also reaches the thumb's `::before` hit-target. */
 	scrollThumbClassName?: string;
 	viewportClassName?: string;
-	/** Ref to the scrollable viewport element, for reading scroll position. */
-	viewportRef?: React.Ref<HTMLDivElement>;
 	viewportTabIndex?: number;
 	viewportAriaLabel?: string;
 	/** Which scrollbar(s) to show. Defaults to "vertical". */
@@ -26,7 +24,6 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	horizontalScrollBarClassName,
 	scrollThumbClassName,
 	viewportClassName,
-	viewportRef,
 	viewportTabIndex,
 	viewportAriaLabel,
 	orientation = "vertical",
@@ -39,7 +36,6 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 			{...props}
 		>
 			<ScrollAreaPrimitive.Viewport
-				ref={viewportRef}
 				tabIndex={viewportTabIndex}
 				role={viewportAriaLabel ? "region" : undefined}
 				aria-label={viewportAriaLabel}
