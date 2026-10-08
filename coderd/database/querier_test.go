@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"slices"
 	"sort"
 	"strconv"
@@ -2352,10 +2353,16 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	// InChatProjectDeleteTx must pick READ COMMITTED itself; the late
-	// insert cases below fail under REPEATABLE READ.
-	_, err := sqlDB.ExecContext(ctx, `DO $$ BEGIN EXECUTE format('ALTER DATABASE %I SET default_transaction_isolation = ''repeatable read''', current_database()); END $$`)
-	require.NoError(t, err)
-	sqlDB.SetMaxIdleConns(0)
+	// insert cases below fail under REPEATABLE READ. Skip the pin on a
+	// shared CODER_PG_CONNECTION_URL database, where it would leak into
+	// other tests.
+	if os.Getenv("CODER_PG_CONNECTION_URL") == "" {
+		_, err := sqlDB.ExecContext(ctx, `DO $$ BEGIN EXECUTE format('ALTER DATABASE %I SET default_transaction_isolation = ''repeatable read''', current_database()); END $$`)
+		require.NoError(t, err)
+		// The setting applies only to new sessions, so drop the idle
+		// connections opened before it.
+		sqlDB.SetMaxIdleConns(0)
+	}
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{})
@@ -2396,7 +2403,7 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	projectChild := newChat(sharee.ID, inProject, &shareeRoot)
 
 	family := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID, projectChild.ID}
-	err = database.InChatProjectDeleteTx(ctx, db, project.ID, func(_ database.Store, rootIDs, chatIDs []uuid.UUID) error {
+	err := database.InChatProjectDeleteTx(ctx, db, project.ID, func(_ database.Store, rootIDs, chatIDs []uuid.UUID) error {
 		require.ElementsMatch(t, []uuid.UUID{ownerRoot.ID, shareeRoot.ID}, rootIDs)
 		require.ElementsMatch(t, family, chatIDs)
 		return nil

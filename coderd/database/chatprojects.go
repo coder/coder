@@ -23,7 +23,10 @@ import (
 // Locking every root before any sub-chat conflicts with code that locks
 // chats in id order, such as SyncAgentChatsContextMCPResources, whatever
 // order the roots lock in. Postgres then aborts one side with a deadlock
-// error, which fails the delete; the caller may retry it.
+// error, which fails the delete: the returned error matches
+// IsDeadlockError, the transaction rolls back with fn's writes, and a
+// caller that retries must retry the whole transaction, including any
+// outer one db belongs to.
 func InChatProjectDeleteTx(ctx context.Context, db Store, projectID uuid.UUID, fn func(tx Store, rootIDs, chatIDs []uuid.UUID) error) error {
 	return db.InTx(func(tx Store) error {
 		if _, err := tx.GetChatProjectByIDForUpdate(ctx, projectID); err != nil {
