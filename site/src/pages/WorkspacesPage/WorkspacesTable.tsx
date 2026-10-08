@@ -114,6 +114,8 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 	const isLoading = !workspaces;
 	const isEmpty = workspaces && workspaces.length === 0;
 	const hideHeaders = isLoading || isEmpty;
+	const checkableWorkspaces =
+		workspaces?.filter((workspace) => !cantBeChecked(workspace)) ?? [];
 
 	return (
 		<Table>
@@ -130,15 +132,18 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 								)}
 							>
 								<Checkbox
-									disabled={isEmpty}
+									disabled={checkableWorkspaces.length === 0}
 									checked={
-										!isEmpty && checkedWorkspaces.length === workspaces.length
+										checkableWorkspaces.length > 0 &&
+										checkableWorkspaces.every((workspace) =>
+											checkedWorkspaces.some((w) => w.id === workspace.id),
+										)
 									}
 									onCheckedChange={(checked) => {
 										if (!checked) {
 											onCheckChange([]);
 										} else {
-											onCheckChange(workspaces);
+											onCheckChange(checkableWorkspaces);
 										}
 									}}
 									aria-label="Select all workspaces"
