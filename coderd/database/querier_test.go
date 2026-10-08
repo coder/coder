@@ -2499,9 +2499,20 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		require.NoError(t, db.UpsertChatHeartbeat(ctx, database.UpsertChatHeartbeatParams(lease)))
 	}
 
+	deletedMessage := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: ownerChild.ID, CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true}, ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true}})
+	keptMessage := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: unrelated.ID, CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true}, ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true}})
+
 	chats, err := db.GetChatsByIDs(ctx, family)
 	require.NoError(t, err)
 	require.Len(t, chats, len(family))
+
+	require.NoError(t, db.DeleteChatMessagesByChatIDs(ctx, family))
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: deletedMessage.ChatID})
+	require.NoError(t, err)
+	require.Empty(t, messages)
+	messages, err = db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: keptMessage.ChatID})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
 
 	require.NoError(t, db.DeleteChatFamiliesByRootIDs(ctx, []uuid.UUID{ownerRoot.ID, shareeRoot.ID, lateRoot.ID}))
 	_, err = db.GetChatHeartbeat(ctx, deletedLease)

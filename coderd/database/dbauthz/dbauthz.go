@@ -2327,6 +2327,15 @@ func (q *querier) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context
 	return q.db.DeleteChatMCPServersByChatIDExcludingSlugs(ctx, arg)
 }
 
+// DeleteChatMessagesByChatIDs checks delete on all chats, as
+// DeleteChatFamiliesByRootIDs does.
+func (q *querier) DeleteChatMessagesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
+		return err
+	}
+	return q.db.DeleteChatMessagesByChatIDs(ctx, chatIDs)
+}
+
 func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	config, err := q.db.GetChatModelConfigByID(ctx, id)
 	if err != nil {
