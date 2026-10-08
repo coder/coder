@@ -129,8 +129,8 @@ func flattenProviderExecutedToolParts(
 
 // dropOpenAIReasoningParts removes OpenAI reasoning parts from a copy of
 // messages, since another provider cannot resolve their item IDs and another
-// model can reject their encrypted content. Messages emptied by the drop are
-// removed.
+// model or organization can reject their encrypted content. Messages emptied
+// by the drop are removed.
 func dropOpenAIReasoningParts(
 	ctx context.Context,
 	logger slog.Logger,
@@ -154,7 +154,7 @@ func dropOpenAIReasoningParts(
 		out = append(out, msg)
 	}
 	if dropped > 0 {
-		logger.Debug(ctx, "dropped foreign OpenAI reasoning from compaction prompt",
+		logger.Debug(ctx, "dropped OpenAI reasoning from prompt",
 			slog.F("dropped_parts", dropped),
 		)
 	}
