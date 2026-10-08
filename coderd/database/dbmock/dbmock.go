@@ -3609,6 +3609,21 @@ func (mr *MockStoreMockRecorder) GetChatProjectByIDForUpdate(ctx, id any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatProjectByIDForUpdate), ctx, id)
 }
 
+// GetChatProjectChatFamilies mocks base method.
+func (m *MockStore) GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectChatFamilies", ctx, projectID)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectChatFamilies indicates an expected call of GetChatProjectChatFamilies.
+func (mr *MockStoreMockRecorder) GetChatProjectChatFamilies(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectChatFamilies", reflect.TypeOf((*MockStore)(nil).GetChatProjectChatFamilies), ctx, projectID)
+}
+
 // GetChatProjectMemoriesByProjectID mocks base method.
 func (m *MockStore) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
 	m.ctrl.T.Helper()
@@ -3937,21 +3952,6 @@ func (m *MockStore) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) 
 func (mr *MockStoreMockRecorder) GetChatsByChatFileID(ctx, fileID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByChatFileID", reflect.TypeOf((*MockStore)(nil).GetChatsByChatFileID), ctx, fileID)
-}
-
-// GetChatsByIDs mocks base method.
-func (m *MockStore) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatsByIDs", ctx, ids)
-	ret0, _ := ret[0].([]database.Chat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatsByIDs indicates an expected call of GetChatsByIDs.
-func (mr *MockStoreMockRecorder) GetChatsByIDs(ctx, ids any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByIDs", reflect.TypeOf((*MockStore)(nil).GetChatsByIDs), ctx, ids)
 }
 
 // GetChatsByIDsForRunnerSync mocks base method.
@@ -9892,21 +9892,6 @@ func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatByID", reflect.TypeOf((*MockStore)(nil).LockChatByID), ctx, id)
 }
 
-// LockChatProjectRootChatsForDelete mocks base method.
-func (m *MockStore) LockChatProjectRootChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LockChatProjectRootChatsForDelete", ctx, projectID)
-	ret0, _ := ret[0].([]uuid.UUID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LockChatProjectRootChatsForDelete indicates an expected call of LockChatProjectRootChatsForDelete.
-func (mr *MockStoreMockRecorder) LockChatProjectRootChatsForDelete(ctx, projectID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatProjectRootChatsForDelete", reflect.TypeOf((*MockStore)(nil).LockChatProjectRootChatsForDelete), ctx, projectID)
-}
-
 // LockProvisionerKeyByIDForShare mocks base method.
 func (m *MockStore) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -9920,21 +9905,6 @@ func (m *MockStore) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.
 func (mr *MockStoreMockRecorder) LockProvisionerKeyByIDForShare(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockProvisionerKeyByIDForShare", reflect.TypeOf((*MockStore)(nil).LockProvisionerKeyByIDForShare), ctx, id)
-}
-
-// LockSubChatsByRootIDsForDelete mocks base method.
-func (m *MockStore) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]uuid.UUID, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LockSubChatsByRootIDsForDelete", ctx, rootIds)
-	ret0, _ := ret[0].([]uuid.UUID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LockSubChatsByRootIDsForDelete indicates an expected call of LockSubChatsByRootIDsForDelete.
-func (mr *MockStoreMockRecorder) LockSubChatsByRootIDsForDelete(ctx, rootIds any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockSubChatsByRootIDsForDelete", reflect.TypeOf((*MockStore)(nil).LockSubChatsByRootIDsForDelete), ctx, rootIds)
 }
 
 // MarkAllInboxNotificationsAsRead mocks base method.

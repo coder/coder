@@ -5551,7 +5551,7 @@ ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_parent_chat_id_fkey FOREIGN KEY (parent_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
-    ADD CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE SET NULL;
+    ADD CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_root_chat_id_fkey FOREIGN KEY (root_chat_id) REFERENCES chats(id) ON DELETE SET NULL;

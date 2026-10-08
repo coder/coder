@@ -182,12 +182,8 @@ func (p ChatProject) RBACObject() rbac.Object {
 		WithGroupACL(p.GroupACL.RBACACL())
 }
 
-// chatProjectMemoryACL derives memory grants from project grants: read
-// grants memory read, and read with update grants create, read, and
-// delete. A read share still lets the sharee's chats change memories
-// through agent tools, which is the intended use of a share; those tools
-// run as chatd, so chatd must check IsChatProjectAccessibleByUserID for the
-// chat owner before they run.
+// Agent memory tools run as chatd and bypass this ACL, so chatd must check
+// IsChatProjectAccessibleByUserID for the chat owner before running them.
 func chatProjectMemoryACL(projectACL ChatACL) map[string][]policy.Action {
 	memoryACL := make(map[string][]policy.Action, len(projectACL))
 	for id, entry := range projectACL {
@@ -203,20 +199,16 @@ func chatProjectMemoryACL(projectACL ChatACL) map[string][]policy.Action {
 	return memoryACL
 }
 
-// chatACLGrants honors the wildcard as the RBAC policy does.
 func chatACLGrants(entry ChatACLEntry, action policy.Action) bool {
 	return slices.Contains(entry.Permissions, action) || slices.Contains(entry.Permissions, policy.WildcardSymbol)
 }
 
-// RBACObject is ChatProjectMemoryRBACObject for this memory. Memories store
-// no owner, so the caller passes the parent project.
+// RBACObject takes the parent project because memories store no owner.
 func (m ChatProjectMemory) RBACObject(project ChatProject) rbac.Object {
 	return ChatProjectMemoryRBACObject(project).WithID(m.ID)
 }
 
-// ChatProjectMemoryRBACObject is the object for a project's memories. The
-// project owner owns it, and chatProjectMemoryACL converts the project ACL.
-// Authorize listing and creating memories against it.
+// ChatProjectMemoryRBACObject authorizes listing and creating a project's memories.
 func ChatProjectMemoryRBACObject(project ChatProject) rbac.Object {
 	obj := rbac.ResourceChatProjectMemory.InOrg(project.OrganizationID).WithOwner(project.OwnerID.String())
 	if rbac.ChatACLDisabled() {
