@@ -52,15 +52,25 @@ export const useClipboard = (
 	const [error, setError] = useState<Error>();
 	const timeoutIdRef = useRef<number | undefined>(undefined);
 	const lastCopiedTextRef = useRef("");
+	const mountedRef = useRef(false);
 
 	useEffect(() => {
-		return () => window.clearTimeout(timeoutIdRef.current);
+		mountedRef.current = true;
+		return () => {
+			mountedRef.current = false;
+			window.clearTimeout(timeoutIdRef.current);
+		};
 	}, []);
 
 	const copyToClipboard = useCallback(
 		async (textToCopy: string) => {
 			const markSuccess = () => {
 				lastCopiedTextRef.current = textToCopy;
+				// A menu can unmount while the clipboard write is pending.
+				if (!mountedRef.current) {
+					return;
+				}
+				window.clearTimeout(timeoutIdRef.current);
 				setShowCopiedSuccess(true);
 				if (clearErrorOnSuccess) {
 					setError(undefined);
@@ -86,7 +96,9 @@ export const useClipboard = (
 				}
 
 				console.error(wrappedErr);
-				setError(wrappedErr);
+				if (mountedRef.current) {
+					setError(wrappedErr);
+				}
 				onError(COPY_FAILED_MESSAGE);
 			}
 		},

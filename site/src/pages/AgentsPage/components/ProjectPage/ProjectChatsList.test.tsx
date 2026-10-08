@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from "react-router";
@@ -7,6 +13,7 @@ import { API } from "#/api/api";
 import type { Chat } from "#/api/typesGenerated";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockChatProject,
 	MockUserMember,
@@ -229,9 +236,10 @@ describe("ProjectChatsList", () => {
 		["Copy branch", "feature/project-chat"],
 	])("copies %s from a project chat's submenu", async (label, value) => {
 		const user = userEvent.setup();
+		const write = createDeferred<undefined>();
 		const writeText = vi
 			.spyOn(navigator.clipboard, "writeText")
-			.mockResolvedValue();
+			.mockReturnValue(write.promise);
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
 			{
 				...MockChat,
@@ -260,6 +268,14 @@ describe("ProjectChatsList", () => {
 		await waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith(value);
 		});
+
+		// Menu selection unmounts the clipboard hook before the write settles.
+		const setTimeout = vi.spyOn(window, "setTimeout");
+		await act(async () => {
+			write.resolve(undefined);
+			await write.promise;
+		});
+		expect(setTimeout).not.toHaveBeenCalledWith(expect.any(Function), 1_000);
 	});
 
 	it.each([false, true])(
