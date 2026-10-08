@@ -1873,6 +1873,44 @@ describe("mutation invalidation scope", () => {
 		).toBe(true);
 	});
 
+	it("editChatMessage onError does not overwrite a refetch in flight", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const page = (ids: number[]): InfMessages => ({
+			pages: [
+				{
+					messages: ids.map((id) => makeMsg(chatId, id)),
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined],
+		});
+		queryClient.setQueryData<InfMessages>(
+			chatMessagesKey(chatId),
+			page([2, 1]),
+		);
+
+		const response = createDeferred<InfMessages>();
+		const refetch = queryClient.prefetchQuery({
+			queryKey: chatMessagesKey(chatId),
+			queryFn: () => response.promise,
+		});
+		editChatMessage(queryClient, chatId).onError(
+			new Error("fail"),
+			{ messageId: 2, req: editReq },
+			{ previousData: page([2, 1]) },
+		);
+		response.resolve(page([3, 2, 1]));
+		await refetch;
+
+		expect(
+			queryClient
+				.getQueryData<InfMessages>(chatMessagesKey(chatId))
+				?.pages[0]?.messages.map((message) => message.id),
+		).toEqual([3, 2, 1]);
+	});
+
 	// Shared type for the infinite messages cache shape used by
 	// editChatMessage tests below.
 	type InfMessages = {

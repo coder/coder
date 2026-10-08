@@ -2499,7 +2499,7 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		// Restore the cache on failure so the user sees the
 		// original messages again.
 		if (context?.previousData) {
-			patchChatMessages(queryClient, chatId, () => context.previousData);
+			queryClient.setQueryData(chatMessagesKey(chatId), context.previousData);
 		}
 		// Invalidate messages as a safety net: the restored snapshot
 		// may be missing WebSocket-delivered messages that arrived
