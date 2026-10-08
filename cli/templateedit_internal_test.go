@@ -101,6 +101,33 @@ func Test_templateEditWorkspaceImpactingChanges(t *testing.T) {
 		assert.Contains(t, changes[0], "Autostart requirement days")
 	})
 
+	t.Run("WeekdaysDifferOnlyInCaseOrDuplicates", func(t *testing.T) {
+		t.Parallel()
+
+		// The server compares weekdays as bitmaps, so case and duplicates
+		// don't change the effective value.
+		req := newReq(func(r *codersdk.UpdateTemplateMeta) {
+			r.AutostartRequirement.DaysOfWeek = []string{"Monday", "TUESDAY", "monday"}
+			r.AutostopRequirement.DaysOfWeek = []string{}
+		})
+		tmpl := template
+		tmpl.AutostopRequirement.DaysOfWeek = nil
+
+		changes := templateEditWorkspaceImpactingChanges(tmpl, req)
+		assert.Empty(t, changes)
+	})
+
+	t.Run("AutostopDaysChangedUsesCanonicalNames", func(t *testing.T) {
+		t.Parallel()
+
+		req := newReq(func(r *codersdk.UpdateTemplateMeta) {
+			r.AutostopRequirement.DaysOfWeek = []string{"Sunday", "saturday"}
+		})
+
+		changes := templateEditWorkspaceImpactingChanges(template, req)
+		assert.Equal(t, []string{"Autostop requirement days: [] -> [saturday sunday]"}, changes)
+	})
+
 	t.Run("AllowUserAutostopDisabled", func(t *testing.T) {
 		t.Parallel()
 
