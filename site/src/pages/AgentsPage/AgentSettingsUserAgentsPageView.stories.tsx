@@ -19,17 +19,19 @@ import {
 	type AgentSettingsUserAgentsPageViewProps,
 } from "./AgentSettingsUserAgentsPageView";
 
-const defaultModelConfig = MockPersonalDefaultChatModel;
-const claudeModelConfig = MockPersonalClaudeChatModel;
-const reasoningModelConfig = MockPersonalReasoningChatModel;
-const modelOptions = MockPersonalModelOptions;
 const buildOverridesResponse = (
 	overrides: Partial<TypesGen.UserChatPersonalModelOverridesResponse> = {},
 ): TypesGen.UserChatPersonalModelOverridesResponse => ({
 	...MockUnsetUserChatPersonalModelOverrides,
 	deployment_defaults: {
-		general: { context: "general", model_config_id: claudeModelConfig.id },
-		explore: { context: "explore", model_config_id: claudeModelConfig.id },
+		general: {
+			context: "general",
+			model_config_id: MockPersonalClaudeChatModel.id,
+		},
+		explore: {
+			context: "explore",
+			model_config_id: MockPersonalClaudeChatModel.id,
+		},
 	},
 	...overrides,
 });
@@ -51,9 +53,9 @@ const inaccessibleModelConfig: TypesGen.ChatModel = {
 };
 
 const models = [
-	defaultModelConfig,
-	claudeModelConfig,
-	reasoningModelConfig,
+	MockPersonalDefaultChatModel,
+	MockPersonalClaudeChatModel,
+	MockPersonalReasoningChatModel,
 	disabledModelConfig,
 	inaccessibleModelConfig,
 ];
@@ -85,7 +87,7 @@ const buildArgs = (
 	onRetryOverrides: fn(),
 	isRetryingOverrides: false,
 	isLoading: false,
-	modelOptions,
+	modelOptions: MockPersonalModelOptions,
 	models,
 	modelsError: undefined,
 	organizations: [MockDefaultOrganization],
@@ -122,7 +124,9 @@ const MultiOrganizationView = (props: AgentSettingsUserAgentsPageViewProps) => {
 					: buildOverridesResponse()
 			}
 			models={isOrganization2 ? [organization2ModelConfig] : models}
-			modelOptions={isOrganization2 ? [organization2ModelOption] : modelOptions}
+			modelOptions={
+				isOrganization2 ? [organization2ModelOption] : MockPersonalModelOptions
+			}
 		/>
 	);
 };
@@ -203,7 +207,7 @@ export const EnabledWithSavedValues: Story = {
 			explore: {
 				...MockUnsetUserChatPersonalModelOverrides.explore,
 				mode: "model",
-				model_config_id: claudeModelConfig.id,
+				model_config_id: MockPersonalClaudeChatModel.id,
 				is_set: true,
 			},
 		}),
@@ -214,18 +218,18 @@ export const SavedReasoningModel: Story = {
 	args: buildArgs({
 		modelOptions: [
 			{
-				id: defaultModelConfig.id,
+				id: MockPersonalDefaultChatModel.id,
 				provider: "openai",
-				model: defaultModelConfig.model,
-				displayName: defaultModelConfig.display_name,
-				contextLimit: defaultModelConfig.context_limit,
+				model: MockPersonalDefaultChatModel.model,
+				displayName: MockPersonalDefaultChatModel.display_name,
+				contextLimit: MockPersonalDefaultChatModel.context_limit,
 			},
 			{
-				id: reasoningModelConfig.id,
+				id: MockPersonalReasoningChatModel.id,
 				provider: "openai",
-				model: reasoningModelConfig.model,
-				displayName: reasoningModelConfig.display_name,
-				contextLimit: reasoningModelConfig.context_limit,
+				model: MockPersonalReasoningChatModel.model,
+				displayName: MockPersonalReasoningChatModel.display_name,
+				contextLimit: MockPersonalReasoningChatModel.context_limit,
 				reasoningEffortDefault: "medium",
 				reasoningEfforts: ["none", "minimal", "low", "medium", "high"],
 			},
@@ -234,7 +238,7 @@ export const SavedReasoningModel: Story = {
 			root: {
 				...MockUnsetUserChatPersonalModelOverrides.root,
 				mode: "model",
-				model_config_id: defaultModelConfig.id,
+				model_config_id: MockPersonalDefaultChatModel.id,
 				is_set: true,
 			},
 		}),
@@ -257,7 +261,7 @@ export const SavedLowReasoningEffort: Story = {
 			root: {
 				...MockUnsetUserChatPersonalModelOverrides.root,
 				mode: "model",
-				model_config_id: reasoningModelConfig.id,
+				model_config_id: MockPersonalReasoningChatModel.id,
 				reasoning_effort: "low",
 				is_set: true,
 			},
@@ -299,19 +303,19 @@ export const ModelsError: Story = {
 			root: {
 				...MockUnsetUserChatPersonalModelOverrides.root,
 				mode: "model",
-				model_config_id: claudeModelConfig.id,
+				model_config_id: MockPersonalClaudeChatModel.id,
 				is_set: true,
 			},
 			general: {
 				...MockUnsetUserChatPersonalModelOverrides.general,
 				mode: "model",
-				model_config_id: claudeModelConfig.id,
+				model_config_id: MockPersonalClaudeChatModel.id,
 				is_set: true,
 			},
 			explore: {
 				...MockUnsetUserChatPersonalModelOverrides.explore,
 				mode: "model",
-				model_config_id: claudeModelConfig.id,
+				model_config_id: MockPersonalClaudeChatModel.id,
 				is_set: true,
 			},
 		}),
@@ -416,7 +420,7 @@ export const AdminDisabledReadOnly: Story = {
 			root: {
 				...MockUnsetUserChatPersonalModelOverrides.root,
 				mode: "model",
-				model_config_id: defaultModelConfig.id,
+				model_config_id: MockPersonalDefaultChatModel.id,
 				is_set: true,
 			},
 		}),
