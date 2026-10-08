@@ -13,6 +13,7 @@ import {
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
 	MockQuestionCallMessage,
+	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
 	workingFixtureTime,
@@ -69,6 +70,27 @@ export const Expanded: Story = {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", {
 				name: "Worked for 12s (2 steps)",
+			}),
+		);
+	},
+};
+
+// The answer's reasoning and web search fold into the block it ends, so only
+// its text shows after the summary.
+export const AnswerWorkFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
+	},
+};
+
+export const AnswerWorkFoldsExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 15s (3 steps)",
 			}),
 		);
 	},

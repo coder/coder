@@ -22,8 +22,13 @@ export type WorkingBlock = {
 	 * at the front when history is prepended into that row.
 	 */
 	memberIds: number[];
-	/** Distinct visible tools, not rows. */
+	/** Distinct visible tools plus web search result groups, not rows. */
 	stepCount: number;
+	/**
+	 * The last row is an answer row: only its reasoning, tools, and web
+	 * search fold into the block, and its answer renders after the block.
+	 */
+	endsWithAnswer: boolean;
 	isLive: boolean;
 	/** Unloaded older history may hold earlier rows of this block. */
 	isPartial: boolean;
@@ -53,18 +58,27 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"chat_cleared",
 ]);
 
+/** Blocks that fold into a working block; the rest are answer content. */
+export const isWorkBlock = (block: RenderBlock): boolean =>
+	block.type === "thinking" ||
+	block.type === "tool" ||
+	block.type === "sources";
+
 type RowContent = ReturnType<typeof getVisibleContent>;
 
+type MemberRow = { content: RowContent; endsWithAnswer: boolean };
+
 /**
- * A step row is assistant output that ends in tool activity or reasoning
- * rather than an answer. Text that precedes a tool call is narration and
- * folds with it; text that ends a row is an answer and stays visible. A
- * live row with no output yet is the turn working on its next step.
+ * A step row is assistant output that ends in tool activity, reasoning, or
+ * web search rather than an answer. Text that precedes a tool call is
+ * narration and folds with it. A row that ends in an answer joins only
+ * when it also did work, and then closes the block. A live row with no
+ * output yet is the turn working on its next step.
  */
-const getStepRowContent = (
+const getMemberRow = (
 	row: TimelineRow,
 	options: GroupWorkingBlocksOptions,
-): RowContent | undefined => {
+): MemberRow | undefined => {
 	let content: RowContent;
 
 	if (row.type === "live") {
@@ -84,7 +98,7 @@ const getStepRowContent = (
 
 	const { visibleBlocks, visibleTools } = content;
 	if (visibleBlocks.length === 0) {
-		return row.type === "live" ? content : undefined;
+		return row.type === "live" ? { content, endsWithAnswer: false } : undefined;
 	}
 
 	if (visibleTools.some((tool) => UNCOLLAPSIBLE_TOOLS.has(tool.name))) {
@@ -100,12 +114,15 @@ const getStepRowContent = (
 		return undefined;
 	}
 
-	const last = visibleBlocks[visibleBlocks.length - 1];
-	if (last.type !== "tool" && last.type !== "thinking") {
-		return undefined;
+	// Sources can trail the answer text they cite.
+	const last = visibleBlocks.findLast((block) => block.type !== "sources");
+	if (last === undefined || isWorkBlock(last)) {
+		return { content, endsWithAnswer: false };
 	}
 
-	return content;
+	return visibleBlocks.some(isWorkBlock)
+		? { content, endsWithAnswer: true }
+		: undefined;
 };
 
 /**
@@ -141,6 +158,8 @@ export const groupWorkingBlocks = (
 	type Draft = {
 		rowIndices: number[];
 		toolIds: Set<string>;
+		sourceGroups: number;
+		endsWithAnswer: boolean;
 		anchorKey?: string;
 		ordinal: number;
 		containsLiveRow: boolean;
@@ -152,8 +171,8 @@ export const groupWorkingBlocks = (
 	let ordinal = 0;
 
 	for (const [index, row] of rows.entries()) {
-		const content = getStepRowContent(row, options);
-		if (!content) {
+		const member = getMemberRow(row, options);
+		if (!member) {
 			current = undefined;
 			if (row.type === "message" && row.entry.message.role !== "assistant") {
 				anchorKey = row.key;
@@ -166,13 +185,15 @@ export const groupWorkingBlocks = (
 			// The stream opens empty before every step. That row extends a
 			// block that is already working but never starts one, so a turn's
 			// first moments keep the plain thinking indicator.
-			if (content.visibleBlocks.length === 0) {
+			if (member.content.visibleBlocks.length === 0) {
 				continue;
 			}
 
 			current = {
 				rowIndices: [],
 				toolIds: new Set(),
+				sourceGroups: 0,
+				endsWithAnswer: false,
 				anchorKey,
 				ordinal,
 				containsLiveRow: false,
@@ -184,17 +205,29 @@ export const groupWorkingBlocks = (
 		current.rowIndices.push(index);
 		current.containsLiveRow ||= row.type === "live";
 
-		for (const tool of content.visibleTools) {
+		for (const tool of member.content.visibleTools) {
 			current.toolIds.add(tool.id);
+		}
+		current.sourceGroups += member.content.visibleBlocks.filter(
+			(block) => block.type === "sources",
+		).length;
+
+		if (member.endsWithAnswer) {
+			current.endsWithAnswer = true;
+			current = undefined;
 		}
 	}
 
-	// A completed block is a run of tool activity; a reasoning-only row on
+	const stepCountOf = (draft: Draft) => draft.toolIds.size + draft.sourceGroups;
+
+	// A completed block is a run of tool or search activity; reasoning on
 	// its own stays visible. The live turn folds from its first reasoning,
-	// so thinking never shows and then vanishes once a tool call arrives.
+	// so thinking never shows and then vanishes once a tool call arrives,
+	// but leaves the fold once a tool-less turn starts its answer.
 	const blockDrafts = drafts.filter(
 		(draft) =>
-			draft.toolIds.size > 0 || (draft.containsLiveRow && options.isTurnActive),
+			stepCountOf(draft) > 0 ||
+			(draft.containsLiveRow && options.isTurnActive && !draft.endsWithAnswer),
 	);
 
 	const lastMessageRowIndex = rows.findLastIndex(
@@ -221,8 +254,11 @@ export const groupWorkingBlocks = (
 		const lastRowIndex = draft.rowIndices[draft.rowIndices.length - 1];
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
 
+		const endsWithDurableAnswer =
+			draft.endsWithAnswer && rows[lastRowIndex].type === "message";
 		const isLive =
 			options.isWorking &&
+			!endsWithDurableAnswer &&
 			(draft.containsLiveRow || lastRowIndex >= lastMessageRowIndex);
 
 		// The span covers hidden tool-result messages up to the next row.
@@ -259,7 +295,8 @@ export const groupWorkingBlocks = (
 			liveKey,
 			rowIndices: draft.rowIndices,
 			memberIds,
-			stepCount: draft.toolIds.size,
+			stepCount: stepCountOf(draft),
+			endsWithAnswer: draft.endsWithAnswer,
 			isLive,
 			isPartial: options.hasMoreMessages && firstRowIndex === 0,
 			startedAt: times.length > 0 ? Math.min(...times) : undefined,

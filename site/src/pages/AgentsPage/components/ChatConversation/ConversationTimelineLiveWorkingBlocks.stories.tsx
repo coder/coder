@@ -131,6 +131,25 @@ export const ReasoningBeforeFirstToolFolds: Story = {
 	},
 };
 
+// Once the final step starts its answer, its reasoning stays in the live
+// block and the text streams after it.
+export const AnswerStreamsAfterBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 5),
+		),
+		...buildStreamRenderState([
+			{
+				type: "reasoning",
+				text: "Summarizing the inspection",
+				created_at: workingFixtureTime(13),
+			},
+			{ type: "text", text: "The workspace looks healthy." },
+		]),
+	},
+	play: expandBlock("Working for 12s"),
+};
+
 export const RequiresActionCompletesBlock: Story = {
 	args: {
 		chatStatus: "requires_action",

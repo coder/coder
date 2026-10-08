@@ -42,6 +42,11 @@ const reasoning = (
 	created_at: createdAt,
 	completed_at: completedAt,
 });
+const source = (url: string, title: string): TypesGen.ChatMessagePart => ({
+	type: "source",
+	url,
+	title,
+});
 const call = (
 	id: string,
 	createdAt?: string,
@@ -164,9 +169,73 @@ describe("groupWorkingBlocks", () => {
 		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
 			steps[0].id,
 			steps[2].id,
+			answer.id,
 		]);
 		// Reasoning start counts toward the wall-clock span.
 		expect(blocks[0].startedAt).toBe(WORKING_FIXTURE_START + 500);
+	});
+
+	it("folds the final answer's reasoning and web search into the block it ends", () => {
+		const prompt = user("Go");
+		const steps = [...step("a", 1, 2), ...step("b", 3, 4)];
+		const answer = message(
+			"assistant",
+			[
+				reasoning("Check the docs", at(5), at(9)),
+				source("https://example.com/a", "A"),
+				source("https://example.com/b", "B"),
+				text("Done."),
+			],
+			at(10),
+		);
+		const { rows, blocks } = group([prompt, ...steps, answer]);
+
+		expect(blocks).toHaveLength(1);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+			steps[0].id,
+			steps[2].id,
+			answer.id,
+		]);
+		expect(blocks[0]).toMatchObject({
+			stepCount: 3,
+			endsWithAnswer: true,
+			endedAt: WORKING_FIXTURE_START + 9000,
+			key: `working:through:message:${answer.id}`,
+		});
+	});
+
+	it("treats an answer whose citations trail its text as the block's answer", () => {
+		const prompt = user("Go");
+		const steps = step("a", 1, 2);
+		const answer = message("assistant", [
+			text("Done."),
+			source("https://example.com", "Example"),
+		]);
+		const { blocks } = group([prompt, ...steps, answer]);
+
+		expect(blocks[0]).toMatchObject({ stepCount: 2, endsWithAnswer: true });
+	});
+
+	it("starts a one-step block from an answer that searched in a turn without tools", () => {
+		const prompt = user("Go");
+		const answer = message("assistant", [
+			reasoning("Look it up"),
+			source("https://example.com", "Example"),
+			text("Found it."),
+		]);
+		const { rows, blocks } = group([prompt, answer]);
+
+		expect(blocks).toHaveLength(1);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([answer.id]);
+		expect(blocks[0]).toMatchObject({ stepCount: 1, endsWithAnswer: true });
+	});
+
+	it("leaves an answer's reasoning unfolded in a turn without steps", () => {
+		const prompt = user("Go");
+		const answer = message("assistant", [reasoning("Easy"), text("Done.")]);
+		const { blocks } = group([prompt, answer]);
+
+		expect(blocks).toEqual([]);
 	});
 
 	it("leaves a standalone reasoning-only row unfolded", () => {
@@ -192,6 +261,44 @@ describe("groupWorkingBlocks", () => {
 			second[0].id,
 		]);
 		expect(blocks[0].stepCount).toBe(2);
+	});
+
+	it("folds a web search row that sits between tool steps", () => {
+		const prompt = user("Go");
+		const first = step("a", 1, 2);
+		const search = message("assistant", [
+			reasoning("Search"),
+			source("https://example.com", "Example"),
+		]);
+		const second = step("b", 5, 6);
+		const { rows, blocks } = group([prompt, ...first, search, ...second]);
+
+		expect(blocks).toHaveLength(1);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+			first[0].id,
+			search.id,
+			second[0].id,
+		]);
+		expect(blocks[0]).toMatchObject({ stepCount: 3, endsWithAnswer: false });
+	});
+
+	it("starts a new block after an answer row closes one", () => {
+		const prompt = user("Go");
+		const first = step("a", 1, 2);
+		const interlude = message("assistant", [
+			reasoning("Halfway"),
+			text("Halfway there."),
+		]);
+		const second = step("b", 4, 5);
+		const { rows, blocks } = group([prompt, ...first, interlude, ...second]);
+
+		expect(blocks).toHaveLength(2);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+			first[0].id,
+			interlude.id,
+		]);
+		expect(blocks[0].endsWithAnswer).toBe(true);
+		expect(rowIds(rows, blocks[1].rowIndices)).toEqual([second[0].id]);
 	});
 
 	it("splits a turn at an interleaved answer row", () => {
@@ -412,6 +519,45 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks).toHaveLength(1);
 			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id]);
 			expect(blocks[0].isLive).toBe(true);
+		});
+
+		it("keeps a live answer row with reasoning in the live block", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const { rows, blocks } = groupLive(
+				[prompt, ...steps],
+				[reasoning("Wrap up", at(3)), text("Here is what I found")],
+			);
+
+			expect(blocks).toHaveLength(1);
+			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id, "live"]);
+			expect(blocks[0]).toMatchObject({ isLive: true, endsWithAnswer: true });
+		});
+
+		it("unfolds a tool-less live turn's reasoning once its answer starts", () => {
+			const { blocks } = groupLive(
+				[user("Go")],
+				[reasoning("Planning", at(1)), text("Here you go")],
+			);
+
+			expect(blocks).toEqual([]);
+		});
+
+		it("completes a block once its answer row persists while the chat still runs", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const answer = message(
+				"assistant",
+				[reasoning("Wrap up", at(3), at(4)), text("Done.")],
+				at(5),
+			);
+			const { blocks } = group([prompt, ...steps, answer], { isWorking: true });
+
+			expect(blocks).toHaveLength(1);
+			expect(blocks[0]).toMatchObject({
+				isLive: false,
+				endedAt: WORKING_FIXTURE_START + 4000,
+			});
 		});
 
 		it("folds an idle live row into the block it follows", () => {
