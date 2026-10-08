@@ -137,6 +137,14 @@ WHERE chats.root_chat_id = ANY(@root_ids::uuid[])
 ORDER BY chats.id
 FOR UPDATE;
 
+-- name: DeleteChatMessagesByChatIDs :exec
+-- Deletes the messages of chats about to be deleted with their project.
+-- Run it before DeleteChatFamiliesByRootIDs: messages are most of the
+-- cascade, and the chats' heartbeat rows, which lease renewal waits on,
+-- stay locked from the chat delete until commit.
+DELETE FROM chat_messages
+WHERE chat_id = ANY(@chat_ids::uuid[]);
+
 -- name: DeleteChatFamiliesByRootIDs :exec
 -- Deletes root chats with all their sub-chats. Chat-scoped tables cascade,
 -- and chat_automations references are set to NULL.

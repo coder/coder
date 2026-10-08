@@ -592,6 +592,14 @@ func (m queryMetricsStore) DeleteChatMCPServersByChatIDExcludingSlugs(ctx contex
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatMessagesByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatMessagesByChatIDs(ctx, chatIds)
+	m.queryLatencies.WithLabelValues("DeleteChatMessagesByChatIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatMessagesByChatIDs").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteChatModelConfigByID(ctx, id)

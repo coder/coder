@@ -28,9 +28,12 @@ import (
 // caller that retries must retry the whole transaction, including any
 // outer one db belongs to.
 //
-// Running chats' heartbeat rows cascade with the chats, and lease renewal,
-// which holds the deployment-wide capacity admission lock, waits on them
-// until the outermost transaction commits. Keep fn to the deletes.
+// DeleteChatFamiliesByRootIDs cascades to the chats' heartbeat rows and
+// holds their row locks until the outermost transaction commits. A replica
+// renewing one of those leases holds the deployment-wide capacity
+// admission lock while it waits, up to HeartbeatLockTimeout, and then
+// renews none of its leases that tick. Keep fn to the deletes, and delete
+// the chats last.
 func InChatProjectDeleteTx(ctx context.Context, db Store, projectID uuid.UUID, fn func(tx Store, rootIDs, chatIDs []uuid.UUID) error) error {
 	return db.InTx(func(tx Store) error {
 		if _, err := tx.GetChatProjectByIDForUpdate(ctx, projectID); err != nil {

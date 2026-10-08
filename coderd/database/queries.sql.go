@@ -8504,6 +8504,20 @@ func (q *sqlQuerier) DeleteChatFamiliesByRootIDs(ctx context.Context, rootIds []
 	return err
 }
 
+const deleteChatMessagesByChatIDs = `-- name: DeleteChatMessagesByChatIDs :exec
+DELETE FROM chat_messages
+WHERE chat_id = ANY($1::uuid[])
+`
+
+// Deletes the messages of chats about to be deleted with their project.
+// Run it before DeleteChatFamiliesByRootIDs: messages are most of the
+// cascade, and the chats' heartbeat rows, which lease renewal waits on,
+// stay locked from the chat delete until commit.
+func (q *sqlQuerier) DeleteChatMessagesByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatMessagesByChatIDs, pq.Array(chatIds))
+	return err
+}
+
 const deleteChatProjectByID = `-- name: DeleteChatProjectByID :exec
 DELETE FROM chat_projects
 WHERE id = $1::uuid
