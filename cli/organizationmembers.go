@@ -98,12 +98,7 @@ func (r *RootCmd) assignOrganizationRoles(orgContext *OrganizationContext) *serp
 	// Text keeps the existing output. The handler fetches the member with user
 	// data so table and JSON match "organization members list".
 	formatter := cliui.NewOutputFormatter(
-		cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
-			member, ok := data.(codersdk.OrganizationMemberWithUserData)
-			if !ok {
-				return "", xerrors.Errorf("expected type %T, got %T", member, data)
-			}
-
+		cliui.TextFormatFunc(func(member codersdk.OrganizationMemberWithUserData) (string, error) {
 			updatedTo := make([]string, 0, len(member.Roles))
 			for _, role := range member.Roles {
 				updatedTo = append(updatedTo, role.String())
@@ -148,13 +143,7 @@ func (r *RootCmd) assignOrganizationRoles(orgContext *OrganizationContext) *serp
 				return xerrors.Errorf("fetch updated member: %w", err)
 			}
 
-			out, err := formatter.Format(ctx, member)
-			if err != nil {
-				return err
-			}
-
-			_, err = fmt.Fprintln(inv.Stdout, out)
-			return err
+			return formatter.Write(ctx, inv.Stdout, member)
 		},
 	}
 	formatter.AttachOptions(&cmd.Options)
