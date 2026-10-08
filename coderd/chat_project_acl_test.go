@@ -409,7 +409,7 @@ func TestChatProjectSharing(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		store, ps := dbtestutil.NewDB(t)
-		client, db := newChatProjectClient(t, func(opts *coderdtest.Options) {
+		client, _ := newChatProjectClient(t, func(opts *coderdtest.Options) {
 			opts.Database = deadlockingChatDeleteStore{Store: store}
 			opts.Pubsub = ps
 		})
@@ -424,10 +424,9 @@ func TestChatProjectSharing(t *testing.T) {
 		_, err = client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		// The message delete ran before the deadlock and must roll back too.
-		//nolint:gocritic // Test inspects message rows directly.
-		messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
-		require.NotEmpty(t, messages)
+		require.NotEmpty(t, messages.Messages)
 	})
 
 	t.Run("DeleteWithoutAIGateway", func(t *testing.T) {
