@@ -4827,13 +4827,26 @@ describe("chatMessagesForInfiniteScroll", () => {
 		expect(query.getNextPageParam(page)).toBe(1001);
 	});
 
-	it("keeps the loaded messages when a fill request fails", async () => {
+	it.each([
+		{
+			name: "a fill request fails",
+			fill: () => Promise.reject(new Error("fill failed")),
+		},
+		{
+			name: "a fill response is not a messages page",
+			fill: async () => JSON.parse('{"oops":true}'),
+		},
+		{
+			name: "an empty fill response claims more",
+			fill: async () => ({ messages: [], queued_messages: [], has_more: true }),
+		},
+	])("keeps the loaded messages when $name", async ({ fill }) => {
 		const getChatMessages = vi
 			.mocked(API.experimental.getChatMessages)
 			.mockResolvedValueOnce(
 				historyPage({ newestId: 300, turnStartId: 10 }, { limit: 50 }),
 			)
-			.mockRejectedValueOnce(new Error("fill failed"));
+			.mockImplementationOnce(fill);
 
 		const page = await loadNewestPage();
 

@@ -1523,8 +1523,8 @@ const fetchMessagesPage = async (
 		if (oldestId <= turnStartId) {
 			break;
 		}
-		const older = await API.experimental
-			.getChatMessages(chatId, {
+		try {
+			const older = await API.experimental.getChatMessages(chatId, {
 				// after_id is exclusive, so this keeps the prompt itself.
 				after_id: turnStartId - 1,
 				before_id: oldestId,
@@ -1532,15 +1532,15 @@ const fetchMessagesPage = async (
 					MAX_MESSAGES_PER_REQUEST,
 					MAX_MESSAGES_PER_PAGE - messages.length,
 				),
-			})
-			.catch(() => undefined);
-		// Keep what loaded: the page ends mid-turn and the next page resumes
-		// from its oldest message, so a failed fill never fails the page.
-		if (older === undefined) {
-			break;
-		}
-		messages.push(...older.messages);
-		if (!older.has_more) {
+			});
+			messages.push(...older.messages);
+			// An empty page cannot move the cursor, whatever has_more says.
+			if (!older.has_more || older.messages.length === 0) {
+				break;
+			}
+		} catch {
+			// Keep what loaded: the page ends mid-turn and the next page resumes
+			// from its oldest message, so a failed fill never fails the page.
 			break;
 		}
 	}
