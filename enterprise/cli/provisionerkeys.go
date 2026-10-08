@@ -43,15 +43,11 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 		orgContext = agpl.NewOrganizationContext()
 		rawTags    []string
 		formatter  = cliui.NewOutputFormatter(
-			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
-				typed, ok := data.(createProvisionerKeyResponse)
-				if !ok {
-					return "", xerrors.Errorf("expected createProvisionerKeyResponse, got %T", data)
-				}
+			cliui.TextFormatFunc(func(resp createProvisionerKeyResponse) (string, error) {
 				return fmt.Sprintf(
 					"Successfully created provisioner key %s! Save this authentication token, it will not be shown again.\n\n%s",
-					pretty.Sprint(cliui.DefaultStyles.Keyword, strings.ToLower(typed.Name)),
-					pretty.Sprint(cliui.DefaultStyles.Keyword, typed.Key),
+					pretty.Sprint(cliui.DefaultStyles.Keyword, strings.ToLower(resp.Name)),
+					pretty.Sprint(cliui.DefaultStyles.Keyword, resp.Key),
 				), nil
 			}),
 			cliui.JSONFormat(),
@@ -103,15 +99,10 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 				}
 			}
 
-			out, err := formatter.Format(inv.Context(), createProvisionerKeyResponse{
+			return formatter.Write(inv.Context(), inv.Stdout, createProvisionerKeyResponse{
 				ProvisionerKey: key,
 				Key:            res.Key,
 			})
-			if err != nil {
-				return err
-			}
-			_, err = fmt.Fprintln(inv.Stdout, out)
-			return err
 		},
 	}
 
