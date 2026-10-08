@@ -237,6 +237,7 @@ const createComponents = (
 							className="my-4 rounded-md border border-solid border-border bg-surface-primary"
 							scrollBarClassName="w-1.5"
 							horizontalScrollBarClassName="h-1.5"
+							scrollThumbClassName="before:hidden"
 						>
 							<FileViewer
 								file={{
