@@ -66,12 +66,8 @@ func (r *RootCmd) createToken() *serpent.Command {
 		scopes        []string
 		allowList     []codersdk.APIAllowListTarget
 		formatter     = cliui.NewOutputFormatter(
-			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
-				typed, ok := data.(createTokenResponse)
-				if !ok {
-					return "", xerrors.Errorf("expected createTokenResponse, got %T", data)
-				}
-				return typed.Key, nil
+			cliui.TextFormatFunc(func(resp createTokenResponse) (string, error) {
+				return resp.Key, nil
 			}),
 			cliui.JSONFormat(),
 		)
@@ -142,16 +138,10 @@ func (r *RootCmd) createToken() *serpent.Command {
 				apiKey = &codersdk.APIKey{ID: keyID}
 			}
 
-			out, err := formatter.Format(inv.Context(), createTokenResponse{
+			return formatter.Write(inv.Context(), inv.Stdout, createTokenResponse{
 				APIKey: *apiKey,
 				Key:    res.Key,
 			})
-			if err != nil {
-				return err
-			}
-
-			_, err = fmt.Fprintln(inv.Stdout, out)
-			return err
 		},
 	}
 
