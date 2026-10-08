@@ -1500,13 +1500,9 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 					previousBuild = database.WorkspaceBuild{}
 				}
 
-				// We pass the below information to the Auditor so that it
-				// can form a friendly string for the user to view in the UI.
-				buildResourceInfo := audit.AdditionalFields{
-					WorkspaceName: workspace.Name,
-					BuildNumber:   strconv.FormatInt(int64(build.BuildNumber), 10),
-					BuildReason:   database.BuildReason(string(build.Reason)),
-					WorkspaceID:   workspace.ID,
+				buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, s.Database, workspace, build)
+				if err != nil {
+					s.Logger.Error(ctx, "audit log - workspace build fields", slog.Error(err))
 				}
 
 				wriBytes, err := json.Marshal(buildResourceInfo)
@@ -2487,13 +2483,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			previousBuild = database.WorkspaceBuild{}
 		}
 
-		// We pass the below information to the Auditor so that it
-		// can form a friendly string for the user to view in the UI.
-		buildResourceInfo := audit.AdditionalFields{
-			WorkspaceName: workspace.Name,
-			BuildNumber:   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
-			BuildReason:   database.BuildReason(string(workspaceBuild.Reason)),
-			WorkspaceID:   workspace.ID,
+		buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, s.Database, workspace, workspaceBuild)
+		if err != nil {
+			s.Logger.Error(ctx, "audit log - workspace build fields", slog.Error(err))
 		}
 
 		wriBytes, err := json.Marshal(buildResourceInfo)

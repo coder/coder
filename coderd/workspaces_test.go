@@ -7064,3 +7064,62 @@ func TestWorkspaceBuildSecretsFilePathBlocked(t *testing.T) {
 	defer res.Body.Close()
 	require.Equal(t, http.StatusBadRequest, res.StatusCode)
 }
+
+func TestWorkspaceSecretsAudit(t *testing.T) {
+	t.Parallel()
+
+	auditor := audit.NewMock()
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// buildSecrets returns the secrets listed on the audit entry for a build.
+	// The entry is written after the job completes, so wait for it.
+	buildSecrets := func(t *testing.T, buildID uuid.UUID) []audit.WorkspaceBuildSecret {
+		t.Helper()
+		var entry database.AuditLog
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			for _, log := range auditor.AuditLogs() {
+				if log.ResourceType == database.ResourceTypeWorkspaceBuild && log.ResourceID == buildID {
+					entry = log
+					return true
+				}
+			}
+			return false
+		}, testutil.IntervalFast, "audit entry for build %s", buildID)
+		require.NotContains(t, string(entry.AdditionalFields), "secret-value", "values must never be audited")
+		var fields audit.AdditionalFields
+		require.NoError(t, json.Unmarshal(entry.AdditionalFields, &fields))
+		return fields.WorkspaceSecrets
+	}
+
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.Secrets = []codersdk.WorkspaceSecretInput{
+			{Name: "api-key", Value: new("secret-value"), EnvName: "API_KEY"},
+			{Name: "cert", Value: new("secret-value"), FilePath: "/home/coder/.cert"},
+		}
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	require.ElementsMatch(t, []audit.WorkspaceBuildSecret{
+		{Name: "api-key", EnvName: "API_KEY", Source: database.WorkspaceSecretSourceRequest},
+		{Name: "cert", FilePath: "/home/coder/.cert", Source: database.WorkspaceSecretSourceRequest},
+	}, buildSecrets(t, workspace.LatestBuild.ID))
+
+	// The entry lists the build's full set. Removed secrets are absent.
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStop,
+		Secrets: []codersdk.WorkspaceSecretInput{
+			{Name: "cert"},
+			{Name: "token", Value: new("secret-value"), EnvName: "TOKEN"},
+		},
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+	require.ElementsMatch(t, []audit.WorkspaceBuildSecret{
+		{Name: "api-key", EnvName: "API_KEY", Source: database.WorkspaceSecretSourceCarryForward},
+		{Name: "token", EnvName: "TOKEN", Source: database.WorkspaceSecretSourceRequest},
+	}, buildSecrets(t, build.ID))
+}
