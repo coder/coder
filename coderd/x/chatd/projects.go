@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -21,10 +22,10 @@ func (p *Server) DeleteChatProject(ctx context.Context, projectID uuid.UUID) ([]
 	return deleted, err
 }
 
-// ErrChatProjectDeleteConflict reports a project delete that kept losing
-// deadlocks to concurrent chat updates. Nothing was deleted, and the delete
-// can be retried.
-var ErrChatProjectDeleteConflict = xerrors.New("chat project delete conflicted with concurrent chat updates")
+// ErrChatProjectDeleteConflict is returned when all
+// chatProjectDeleteAttempts attempts deadlocked. Nothing was deleted, and
+// the delete can be retried.
+var ErrChatProjectDeleteConflict = xerrors.New("conflicted with concurrent chat updates")
 
 // A project delete can lose a deadlock to lease renewal or to code that
 // locks chats in id order; see database.InChatProjectDeleteTx.
@@ -47,7 +48,7 @@ func DeleteChatProjectWithoutEvents(ctx context.Context, logger slog.Logger, db 
 		}
 		logger.Debug(ctx, "chat project delete deadlocked", slog.F("project_id", projectID), slog.F("attempt", attempt), slog.Error(err))
 	}
-	return nil, xerrors.Errorf("delete chat project failed after %d attempts: %w: %w", chatProjectDeleteAttempts, ErrChatProjectDeleteConflict, err)
+	return nil, xerrors.Errorf("delete chat project failed after %d attempts: %w", chatProjectDeleteAttempts, errors.Join(ErrChatProjectDeleteConflict, err))
 }
 
 func deleteChatProjectOnce(ctx context.Context, db database.Store, projectID uuid.UUID) ([]database.Chat, error) {

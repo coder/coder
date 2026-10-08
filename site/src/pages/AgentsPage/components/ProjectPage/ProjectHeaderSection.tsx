@@ -23,7 +23,7 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { draftStorageKeys } from "../AgentCreateForm";
 import {
-	hasProjectManageActions,
+	hasProjectUpdateOrDeleteAction,
 	ProjectActionsMenuItems,
 } from "../ChatsSidebar/chats/ProjectActionsMenuItems";
 import { ChatProjectDialog } from "../ChatsSidebar/dialogs/ChatProjectDialog";
@@ -109,7 +109,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 			<ProjectPageHeader
 				project={project}
 				actions={
-					hasProjectManageActions(project.permissions) && (
+					hasProjectUpdateOrDeleteAction(project.permissions) && (
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button

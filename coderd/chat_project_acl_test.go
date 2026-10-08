@@ -1,12 +1,14 @@
 package coderd_test
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -402,6 +404,28 @@ func TestChatProjectSharing(t *testing.T) {
 		}
 	})
 
+	t.Run("DeleteConflictReturnsConflict", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		store, ps := dbtestutil.NewDB(t)
+		client, db := newChatProjectClient(t, func(opts *coderdtest.Options) {
+			opts.Database = deadlockingChatDeleteStore{Store: store}
+			opts.Pubsub = ps
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		project := createChatProject(t, client, firstUser.OrganizationID, "Conflicted Project")
+		chat := createChatInProject(t, client, project.OrganizationID, &project.ID)
+
+		err := client.DeleteChatProject(ctx, project.OrganizationID, project.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Try again")
+		//nolint:gocritic // Checks the chat survived regardless of ownership.
+		_, err = db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+	})
+
 	t.Run("DeleteWithoutAIGateway", func(t *testing.T) {
 		t.Parallel()
 
@@ -469,4 +493,19 @@ func chatProjectIDs(projects []codersdk.ChatProject) []uuid.UUID {
 		ids = append(ids, project.ID)
 	}
 	return ids
+}
+
+// deadlockingChatDeleteStore makes every chat family delete lose a deadlock.
+type deadlockingChatDeleteStore struct {
+	database.Store
+}
+
+func (s deadlockingChatDeleteStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(deadlockingChatDeleteStore{Store: tx})
+	}, opts)
+}
+
+func (deadlockingChatDeleteStore) DeleteChatFamiliesByRootIDs(context.Context, []uuid.UUID) error {
+	return &pq.Error{Code: "40P01", Message: "deadlock detected"}
 }

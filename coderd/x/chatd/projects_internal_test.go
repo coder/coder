@@ -89,6 +89,7 @@ func TestDeleteChatProjectWithoutEventsDeadlockRetry(t *testing.T) {
 
 		_, err := DeleteChatProjectWithoutEvents(t.Context(), testutil.Logger(t), db, projectID)
 		require.ErrorIs(t, err, ErrChatProjectDeleteConflict)
+		// The deadlock stays in the chain for the response Detail.
 		require.True(t, database.IsDeadlockError(err))
 		require.ErrorContains(t, err, fmt.Sprintf("failed after %d attempts", chatProjectDeleteAttempts))
 	})

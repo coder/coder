@@ -5171,6 +5171,34 @@ describe("applyWatchedChatHardDeleted", () => {
 		expect(fetches).toBe(2);
 		unsubscribe();
 	});
+
+	it("drops a first entity fetch that started before the delete", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const first = createDeferred<TypesGen.Chat>();
+		let fetches = 0;
+		const observer = new QueryObserver<TypesGen.Chat>(queryClient, {
+			queryKey: chatEntityKey(chatId),
+			queryFn: () => {
+				fetches++;
+				return fetches === 1
+					? first.promise
+					: Promise.reject(new Error("not found"));
+			},
+			retry: false,
+		});
+		const unsubscribe = observer.subscribe(() => {});
+
+		applyWatchedChatHardDeleted(queryClient, chatId);
+		first.resolve(makeChat(chatId));
+		await vi.waitFor(() =>
+			expect(observer.getCurrentResult().isError).toBe(true),
+		);
+
+		expect(fetches).toBe(2);
+		expect(queryClient.getQueryData(chatEntityKey(chatId))).toBeUndefined();
+		unsubscribe();
+	});
 });
 
 describe("applyWatchedChatArchived", () => {
