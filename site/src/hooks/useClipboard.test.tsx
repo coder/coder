@@ -255,20 +255,23 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		},
 	);
 
-	it("Keeps only one success timer across repeated copies and clears it on unmount", async () => {
-		const { result, unmount } = renderUseClipboard();
-		await act(() => result.current.copyToClipboard("cats"));
-		await act(() => result.current.copyToClipboard("dogs"));
+	it.each(["cats", "dogs"])(
+		"Restarts feedback when copying %s after cats and clears its timer on unmount",
+		async (text) => {
+			const { result, unmount } = renderUseClipboard();
+			await act(() => result.current.copyToClipboard("cats"));
+			act(() => vi.advanceTimersByTime(500));
+			await act(() => result.current.copyToClipboard(text));
 
-		// Flush jsdom's zero-delay select events from the fallback input.
-		act(() => vi.advanceTimersByTime(0));
-		expect(result.current.showCopiedSuccess).toBe(true);
-		expect(getClipboardText()).toBe("dogs");
-		expect(vi.getTimerCount()).toBe(1);
+			act(() => vi.advanceTimersByTime(500));
+			expect(result.current.showCopiedSuccess).toBe(true);
+			expect(getClipboardText()).toBe(text);
+			expect(vi.getTimerCount()).toBe(1);
 
-		unmount();
-		expect(vi.getTimerCount()).toBe(0);
-	});
+			unmount();
+			expect(vi.getTimerCount()).toBe(0);
+		},
+	);
 
 	it("Should notify the user of an error using the provided callback", async () => {
 		const textToCopy = "birds";
