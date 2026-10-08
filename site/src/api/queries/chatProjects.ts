@@ -3,11 +3,13 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
+	chatEntityKey,
+	chatProjectsKey,
 	invalidateChatListQueries,
 	invalidateChatSearches,
 } from "./chats";
 
-export const chatProjectsKey = ["chat-projects"] as const;
+export { chatProjectsKey };
 
 /**
  * Lists the current user's chat projects across all organizations.
@@ -66,20 +68,38 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
 		mutationFn: (project: TypesGen.ChatProject) =>
 			API.experimental.deleteChatProject(project.organization_id, project.id),
+		onSuccess: (_, project) => {
+			// The project's chats are deleted. Resetting, not invalidating,
+			// their entities lets open routes find them gone: invalidation
+			// keeps cached data when the refetch 404s.
+			const chats = queryClient
+				.getQueriesData<TypesGen.Chat>({
+					queryKey: chatEntitiesFamilyKey,
+					predicate: ({ queryKey }) =>
+						queryKey.length === chatEntitiesFamilyKey.length + 1,
+				})
+				.flatMap(([, chat]) => (chat ? [chat] : []));
+			const deleted = new Set(
+				chats.filter((chat) => chat.project_id === project.id).map((c) => c.id),
+			);
+			for (const chat of chats) {
+				if (chat.root_chat_id && deleted.has(chat.root_chat_id)) {
+					deleted.add(chat.id);
+				}
+			}
+			return Promise.all(
+				[...deleted].map((id) =>
+					queryClient.resetQueries({
+						queryKey: chatEntityKey(id),
+						exact: true,
+					}),
+				),
+			);
+		},
 		onSettled: () =>
-			// Deleting a project deletes its chats.
 			Promise.all([
 				queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 				invalidateChatListQueries(queryClient),
 				invalidateChatSearches(queryClient),
-				// Resetting, not invalidating, the chat entities lets open
-				// routes find a deleted chat gone: invalidation keeps cached
-				// data when the refetch 404s. Their nested queries (messages,
-				// ACL, diffs, ...) would only refetch into 404s.
-				queryClient.resetQueries({
-					queryKey: chatEntitiesFamilyKey,
-					predicate: ({ queryKey }) =>
-						queryKey.length === chatEntitiesFamilyKey.length + 1,
-				}),
 			]),
 	});

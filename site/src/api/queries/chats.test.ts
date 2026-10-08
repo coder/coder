@@ -60,6 +60,7 @@ import {
 	chatModelACLKey,
 	chatModelKey,
 	chatProjectListFamilyKey,
+	chatProjectsKey,
 	chatPromptsKey,
 	chatSearch,
 	chatsByWorkspace,
@@ -5112,6 +5113,7 @@ describe("applyChatArchiveStateToCaches search rows", () => {
 describe("applyWatchedChatHardDeleted", () => {
 	it("evicts the chat from every list, archived ones included", () => {
 		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatProjectsKey, []);
 		const chatId = "chat-1";
 		const other = makeChat("chat-2");
 		seedInfiniteChats(queryClient, [makeChat(chatId), other]);
@@ -5137,6 +5139,9 @@ describe("applyWatchedChatHardDeleted", () => {
 				.map((c) => c.id),
 		).toEqual([other.id]);
 		expect(queryClient.getQueryData(chatEntityKey(chatId))).toBeUndefined();
+		expect(queryClient.getQueryState(chatProjectsKey)?.isInvalidated).toBe(
+			true,
+		);
 	});
 });
 

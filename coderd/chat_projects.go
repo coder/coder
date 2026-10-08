@@ -324,12 +324,12 @@ func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Reque
 
 func (api *API) convertChatProject(r *http.Request, project database.ChatProject) codersdk.ChatProject {
 	ctx := r.Context()
-	subject, ok := httpmw.UserAuthorizationOptional(ctx)
+	subject := httpmw.UserAuthorization(ctx)
 	obj := project.RBACObject()
 	// Denials are expected here, so this skips api.Authorize, which logs
 	// each one as a warning.
 	can := func(action policy.Action) bool {
-		return ok && api.HTTPAuth.Authorizer.Authorize(ctx, subject, action, obj) == nil
+		return api.HTTPAuth.Authorizer.Authorize(ctx, subject, action, obj) == nil
 	}
 	return db2sdk.ChatProject(project, codersdk.ChatProjectPermissions{
 		Update: can(policy.ActionUpdate),

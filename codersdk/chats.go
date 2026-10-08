@@ -277,8 +277,8 @@ const (
 	// but the agents in its chats read and write the project's memories.
 	ChatProjectRoleUse ChatProjectRole = "use"
 	// ChatProjectRoleAdmin can also edit the project and its memories
-	// directly and change who it is shared with. Only the owner can delete
-	// the project.
+	// directly and change who it is shared with. It cannot delete the
+	// project; the owner and administrators can.
 	ChatProjectRoleAdmin ChatProjectRole = "admin"
 	// ChatProjectRoleDeleted removes an ACL entry in an update.
 	ChatProjectRoleDeleted ChatProjectRole = ""

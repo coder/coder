@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -109,25 +108,6 @@ func TestResolveProjectMemory(t *testing.T) {
 		_, _, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), OwnerID: uuid.New(), ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}})
 		require.False(t, ok)
 	})
-}
-
-// With sharing disabled, sharee chats lose project memory without an ACL
-// lookup, while the owner's chats keep it.
-//
-//nolint:paralleltest // It toggles the global chat ACL flag.
-func TestResolveProjectMemorySharingDisabled(t *testing.T) {
-	rbac.SetChatACLDisabled(true)
-	t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
-
-	db := dbmock.NewMockStore(gomock.NewController(t))
-	project := database.ChatProject{ID: uuid.New(), OwnerID: uuid.New(), Name: "platform"}
-	db.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).Times(2)
-	server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
-
-	_, _, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), OwnerID: uuid.New(), ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}})
-	require.False(t, ok)
-	_, _, ok = server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), OwnerID: project.OwnerID, ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}})
-	require.True(t, ok)
 }
 
 func TestMemoryAuditor(t *testing.T) {

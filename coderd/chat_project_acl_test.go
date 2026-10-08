@@ -180,7 +180,7 @@ func TestChatProjectSharing(t *testing.T) {
 		})
 		requireSDKError(t, err, http.StatusBadRequest)
 
-		// Only the owner deletes a project.
+		// No ACL role grants deleting a project.
 		err = admin.DeleteChatProject(ctx, project.OrganizationID, project.ID)
 		requireSDKError(t, err, http.StatusForbidden)
 	})

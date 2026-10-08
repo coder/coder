@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MockChat } from "#/testHelpers/chatEntities";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
@@ -10,6 +11,7 @@ import {
 } from "./chatProjects";
 import {
 	chatEntitiesFamilyKey,
+	chatEntityKey,
 	chatListFamilyKey,
 	chatMessagesKey,
 	chatSearchFamilyKey,
@@ -58,19 +60,33 @@ describe("chat project mutations", () => {
 		}
 	});
 
-	it("refreshes chat lists and searches and resets entities after a delete", async () => {
+	it("refreshes chat lists and searches after a delete", async () => {
 		const queryClient = seed();
 		const messagesKey = chatMessagesKey("chat-1");
-		const entityKey = [...chatEntitiesFamilyKey, "chat-1"];
 		queryClient.setQueryData(messagesKey, {});
 		await settle(deleteChatProject(queryClient));
 		const [listKey, searchKey] = chatKeys;
 		for (const key of [...projectKeys, listKey, searchKey]) {
 			expect(isInvalidated(queryClient, key)).toBe(true);
 		}
-		// Resetting drops the cached chat, so a 404 refetch cannot leave it
-		// rendered.
-		expect(queryClient.getQueryData(entityKey)).toBeUndefined();
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
+	});
+
+	it("resets only the deleted project's chats after a delete succeeds", async () => {
+		const queryClient = createTestQueryClient();
+		const root = { ...MockChat, id: "root", project_id: MockChatProject.id };
+		const child = { ...MockChat, id: "child", root_chat_id: root.id };
+		const other = { ...MockChat, id: "other", project_id: "other-project" };
+		for (const chat of [root, child, other]) {
+			queryClient.setQueryData(chatEntityKey(chat.id), chat);
+		}
+		await deleteChatProject(queryClient).onSuccess?.(
+			undefined,
+			MockChatProject,
+			undefined,
+		);
+		expect(queryClient.getQueryData(chatEntityKey(root.id))).toBeUndefined();
+		expect(queryClient.getQueryData(chatEntityKey(child.id))).toBeUndefined();
+		expect(queryClient.getQueryData(chatEntityKey(other.id))).toEqual(other);
 	});
 });

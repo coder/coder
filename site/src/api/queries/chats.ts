@@ -43,6 +43,8 @@ const chatsByWorkspaceFamilyKey = [
 
 export const chatEntitiesFamilyKey = ["chats", "entities"] as const;
 
+export const chatProjectsKey = ["chat-projects"] as const;
+
 export const chatEntityKey = (chatId: string) =>
 	[...chatEntitiesFamilyKey, chatId] as const;
 
@@ -582,6 +584,13 @@ export const applyWatchedChatHardDeleted = (
 	void invalidateChatListQueries(queryClient);
 	void invalidateChatsByWorkspace(queryClient);
 	void invalidateChatSearches(queryClient);
+	// The project may be one shared with this user. A project delete sends
+	// one event per chat, so a refetch already in flight is kept rather
+	// than restarted for each event.
+	void queryClient.invalidateQueries(
+		{ queryKey: chatProjectsKey },
+		{ cancelRefetch: false },
+	);
 };
 
 /**
