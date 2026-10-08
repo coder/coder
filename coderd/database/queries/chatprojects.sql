@@ -132,10 +132,9 @@ ORDER BY chats.id
 FOR UPDATE;
 
 -- name: DeleteChatMessagesByChatIDs :exec
--- Deletes the messages of chats about to be deleted with their project.
--- Run it before DeleteChatFamiliesByRootIDs: messages are most of the
--- cascade, and the chats' heartbeat rows, which lease renewal waits on,
--- stay locked from the chat delete until commit.
+-- Run in InChatProjectDeleteTx's fn before DeleteChatFamiliesByRootIDs, so
+-- the messages, usually most of the cascade, are not deleted while the
+-- heartbeat rows are locked.
 DELETE FROM chat_messages
 WHERE chat_id = ANY(@chat_ids::uuid[]);
 

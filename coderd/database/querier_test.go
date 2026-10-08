@@ -2507,12 +2507,14 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	require.Len(t, chats, len(family))
 
 	require.NoError(t, db.DeleteChatMessagesByChatIDs(ctx, family))
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: deletedMessage.ChatID})
-	require.NoError(t, err)
-	require.Empty(t, messages)
-	messages, err = db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: keptMessage.ChatID})
-	require.NoError(t, err)
-	require.Len(t, messages, 1)
+	// Count rows directly: a soft delete would leave them for the cascade.
+	countMessages := func(chatID uuid.UUID) int {
+		var n int
+		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM chat_messages WHERE chat_id = $1", chatID).Scan(&n))
+		return n
+	}
+	require.Zero(t, countMessages(deletedMessage.ChatID))
+	require.Equal(t, 1, countMessages(keptMessage.ChatID))
 
 	require.NoError(t, db.DeleteChatFamiliesByRootIDs(ctx, []uuid.UUID{ownerRoot.ID, shareeRoot.ID, lateRoot.ID}))
 	_, err = db.GetChatHeartbeat(ctx, deletedLease)
