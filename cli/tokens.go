@@ -138,7 +138,7 @@ func (r *RootCmd) createToken() *serpent.Command {
 				apiKey = &codersdk.APIKey{ID: keyID}
 			}
 
-			return formatter.Write(inv.Context(), inv.Stdout, createTokenResponse{
+			return formatter.WriteLine(inv.Context(), inv.Stdout, createTokenResponse{
 				APIKey: *apiKey,
 				Key:    res.Key,
 			})
