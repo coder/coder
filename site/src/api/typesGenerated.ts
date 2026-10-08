@@ -3109,6 +3109,10 @@ export interface ChatMessageUsage {
 	readonly input_tokens?: number;
 	readonly output_tokens?: number;
 	readonly total_tokens?: number;
+	/**
+	 * ReasoningTokens counts reasoning, which output_tokens already
+	 * includes, so do not add the two.
+	 */
 	readonly reasoning_tokens?: number;
 	readonly cache_creation_tokens?: number;
 	readonly cache_read_tokens?: number;

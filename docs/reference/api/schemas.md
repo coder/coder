@@ -3653,15 +3653,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description |
-|-------------------------|---------|----------|--------------|-------------|
-| `cache_creation_tokens` | integer | false    |              |             |
-| `cache_read_tokens`     | integer | false    |              |             |
-| `context_limit`         | integer | false    |              |             |
-| `input_tokens`          | integer | false    |              |             |
-| `output_tokens`         | integer | false    |              |             |
-| `reasoning_tokens`      | integer | false    |              |             |
-| `total_tokens`          | integer | false    |              |             |
+| Name                    | Type    | Required | Restrictions | Description                                                                                     |
+|-------------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------|
+| `cache_creation_tokens` | integer | false    |              |                                                                                                 |
+| `cache_read_tokens`     | integer | false    |              |                                                                                                 |
+| `context_limit`         | integer | false    |              |                                                                                                 |
+| `input_tokens`          | integer | false    |              |                                                                                                 |
+| `output_tokens`         | integer | false    |              |                                                                                                 |
+| `reasoning_tokens`      | integer | false    |              | Reasoning tokens counts reasoning, which output_tokens already includes, so do not add the two. |
+| `total_tokens`          | integer | false    |              |                                                                                                 |
 
 ## codersdk.ChatMessagesResponse
 
