@@ -51,11 +51,12 @@ type streamLocalState struct {
 
 	afterMessageID         int64
 	initialMessageSyncDone bool
-	// hasHistoryVersion reports whether the client opened the stream with a
-	// history version. Only then may history_reset carry from_message_id,
-	// which older clients would read as a full reset, and preview_reset carry
-	// the history version, which an after_id stream does not deliver in full.
-	hasHistoryVersion bool
+	// openedWithHistoryVersion reports whether the client opened the stream
+	// with a non-zero history version. Only then may history_reset carry
+	// from_message_id, which older clients would read as a full reset, and
+	// preview_reset carry the history version, which an after_id stream does
+	// not deliver in full.
+	openedWithHistoryVersion bool
 }
 
 type streamSyncHint struct {
@@ -106,10 +107,10 @@ func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, cu
 		db:     db,
 		logger: logger,
 		state: streamLocalState{
-			historyVersion:    cursor.HistoryVersion,
-			knownMessages:     make(map[int64]int64),
-			afterMessageID:    afterMessageID,
-			hasHistoryVersion: cursor.HistoryVersion > 0,
+			historyVersion:           cursor.HistoryVersion,
+			knownMessages:            make(map[int64]int64),
+			afterMessageID:           afterMessageID,
+			openedWithHistoryVersion: cursor.HistoryVersion > 0,
 		},
 	}
 }
@@ -200,7 +201,7 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 				// Rows below the lowest changed ID have not changed since
 				// l.state.historyVersion, so a partial reset can start there.
 				// changedMessages is ordered by ID.
-				if l.state.hasHistoryVersion {
+				if l.state.openedWithHistoryVersion {
 					snapshot.resetFromID = snapshot.changedMessages[0].ID
 				}
 				snapshot.resetMessages, err = tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
@@ -350,7 +351,7 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 		}
 		// Clients reconnect with this version, so this must stay the last
 		// event of a sync that changes the history.
-		if l.state.hasHistoryVersion {
+		if l.state.openedWithHistoryVersion {
 			event.PreviewReset = &codersdk.ChatStreamPreviewReset{HistoryVersion: chat.HistoryVersion}
 		}
 		events = append(events, event)
