@@ -789,9 +789,10 @@ type partialMessageConversionState struct {
 	// modelStreamedAssistant distinguishes streamed content from tool
 	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
-	// streamedRun accumulates the text of the open text or reasoning run.
-	// While streamedRunOpen is true, assistantParts[streamedRunIndex].Text is
-	// stale; close the run before reading or appending to assistantParts.
+	// streamedRun accumulates the open text or reasoning run, because
+	// appending to the part's Text would copy the run on every delta. While
+	// the run is open, assistantParts[streamedRunIndex].Text is stale; append
+	// only through appendAssistantPart, which closes the run first.
 	streamedRun      strings.Builder
 	streamedRunIndex int
 	streamedRunOpen  bool
