@@ -26,6 +26,10 @@ type ProjectActionsMenuItemsProps = {
 	readonly onDelete: () => void;
 };
 
+/** Reports whether ProjectActionsMenuItems renders any permission-gated item. */
+export const hasProjectManageActions = (permissions: ChatProjectPermissions) =>
+	permissions.update || permissions.delete;
+
 /** Project actions shared by dropdown and context menus. */
 export const ProjectActionsMenuItems: React.FC<
 	ProjectActionsMenuItemsProps
@@ -39,7 +43,7 @@ export const ProjectActionsMenuItems: React.FC<
 						New chat
 					</Link>
 				</Item>
-				{(permissions.update || permissions.delete) && <Separator />}
+				{hasProjectManageActions(permissions) && <Separator />}
 			</>
 		)}
 		{permissions.update && <Item onSelect={onEdit}>Edit project</Item>}

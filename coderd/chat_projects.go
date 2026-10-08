@@ -270,9 +270,9 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	if database.IsDeadlockError(err) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete chat project because it conflicted with running chats. Try again.",
+	if errors.Is(err, chatd.ErrChatProjectDeleteConflict) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Failed to delete chat project because its chats were being updated at the same time. Nothing was deleted. Try again.",
 			Detail:  err.Error(),
 		})
 		return

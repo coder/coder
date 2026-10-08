@@ -88,7 +88,7 @@ describe("chat project mutations", () => {
 		expect(queryClient.getQueryData(chatEntityKey(other.id))).toEqual(other);
 	});
 
-	it("keeps the project's chats when the delete fails", async () => {
+	it("keeps cached chat entities when the delete fails", async () => {
 		const queryClient = createTestQueryClient();
 		const root = { ...MockChat, id: "root", project_id: MockChatProject.id };
 		queryClient.setQueryDefaults(chatEntityKey(root.id), {

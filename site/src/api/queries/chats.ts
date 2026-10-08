@@ -576,15 +576,12 @@ export const applyWatchedChatHardDeleted = (
 	);
 	removeChatFromChatsByWorkspace(queryClient, chatId);
 	// Invalidating would keep the cached chat when the refetch 404s, so
-	// an open route would keep rendering it. An entity without data was
-	// already reset by the project delete, and resetting it again would
-	// refetch it once more.
-	if (queryClient.getQueryData(chatEntityKey(chatId)) !== undefined) {
-		void queryClient.resetQueries({
-			queryKey: chatEntityKey(chatId),
-			exact: true,
-		});
-	}
+	// an open route would keep rendering it. The reset is unconditional
+	// because it also cancels a first fetch that may predate the delete.
+	void queryClient.resetQueries({
+		queryKey: chatEntityKey(chatId),
+		exact: true,
+	});
 	void invalidateChatListQueries(queryClient);
 	void invalidateChatsByWorkspace(queryClient);
 	void invalidateChatSearches(queryClient);

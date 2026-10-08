@@ -22,7 +22,10 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { draftStorageKeys } from "../AgentCreateForm";
-import { ProjectActionsMenuItems } from "../ChatsSidebar/chats/ProjectActionsMenuItems";
+import {
+	hasProjectManageActions,
+	ProjectActionsMenuItems,
+} from "../ChatsSidebar/chats/ProjectActionsMenuItems";
 import { ChatProjectDialog } from "../ChatsSidebar/dialogs/ChatProjectDialog";
 import { normalizeLocationSearch } from "../ChatsSidebar/locationSearch";
 import { ProjectMetadataBadges } from "./ProjectMetadataBadges";
@@ -106,7 +109,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 			<ProjectPageHeader
 				project={project}
 				actions={
-					(project.permissions.update || project.permissions.delete) && (
+					hasProjectManageActions(project.permissions) && (
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button
