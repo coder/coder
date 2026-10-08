@@ -20986,7 +20986,12 @@
 					"$ref": "#/definitions/codersdk.ChatError"
 				},
 				"history_reset": {
-					"$ref": "#/definitions/codersdk.ChatStreamHistoryReset"
+					"description": "HistoryReset is set on history_reset events of streams opened with a\nnon-zero history_version.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatStreamHistoryReset"
+						}
+					]
 				},
 				"message": {
 					"$ref": "#/definitions/codersdk.ChatMessage"
@@ -20995,7 +21000,12 @@
 					"$ref": "#/definitions/codersdk.ChatStreamMessagePart"
 				},
 				"preview_reset": {
-					"$ref": "#/definitions/codersdk.ChatStreamPreviewReset"
+					"description": "PreviewReset is set on preview_reset events of streams opened with a\nnon-zero history_version.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatStreamPreviewReset"
+						}
+					]
 				},
 				"queued_messages": {
 					"type": "array",
@@ -21043,7 +21053,7 @@
 			"type": "object",
 			"properties": {
 				"from_message_id": {
-					"description": "FromMessageID is the lowest message ID the reset replaces. The client\nkeeps its messages with lower IDs and replaces the rest with the\nmessage events that follow. A history_reset without\nChatStreamHistoryReset replaces the whole history.",
+					"description": "FromMessageID is the lowest message ID the reset replaces. The client\nkeeps its messages with lower IDs and replaces the rest with the\nmessage events that follow. A history_reset without from_message_id\nreplaces the whole history.",
 					"type": "integer"
 				}
 			}
@@ -21072,7 +21082,7 @@
 			"type": "object",
 			"properties": {
 				"history_version": {
-					"description": "HistoryVersion is the chat's history_version for the message events\nsent before this preview_reset. Every sync that changes the history\nends with a preview_reset, so a client reconnects with the\nHistoryVersion of the last one it received.",
+					"description": "HistoryVersion is the chat's history_version for the message events\nsent before this preview_reset. Every sync that changes the history\nends with a preview_reset, so a client reconnects with the\nhistory_version of the last one it received.",
 					"type": "integer"
 				}
 			}

@@ -2200,27 +2200,30 @@ type ChatStreamEvent struct {
 	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
-	HistoryReset   *ChatStreamHistoryReset   `json:"history_reset,omitempty"`
-	PreviewReset   *ChatStreamPreviewReset   `json:"preview_reset,omitempty"`
+	// HistoryReset is set on history_reset events of streams opened with a
+	// non-zero history_version.
+	HistoryReset *ChatStreamHistoryReset `json:"history_reset,omitempty"`
+	// PreviewReset is set on preview_reset events of streams opened with a
+	// non-zero history_version.
+	PreviewReset *ChatStreamPreviewReset `json:"preview_reset,omitempty"`
 }
 
-// ChatStreamHistoryReset is set on the history_reset events of streams
-// opened with history_version.
+// ChatStreamHistoryReset describes which messages a history_reset replaces.
 type ChatStreamHistoryReset struct {
 	// FromMessageID is the lowest message ID the reset replaces. The client
 	// keeps its messages with lower IDs and replaces the rest with the
-	// message events that follow. A history_reset without
-	// ChatStreamHistoryReset replaces the whole history.
+	// message events that follow. A history_reset without from_message_id
+	// replaces the whole history.
 	FromMessageID int64 `json:"from_message_id"`
 }
 
-// ChatStreamPreviewReset is set on the preview_reset events of streams
-// opened with history_version.
+// ChatStreamPreviewReset reports the history version a stream has
+// synchronized.
 type ChatStreamPreviewReset struct {
 	// HistoryVersion is the chat's history_version for the message events
 	// sent before this preview_reset. Every sync that changes the history
 	// ends with a preview_reset, so a client reconnects with the
-	// HistoryVersion of the last one it received.
+	// history_version of the last one it received.
 	HistoryVersion int64 `json:"history_version"`
 }
 
