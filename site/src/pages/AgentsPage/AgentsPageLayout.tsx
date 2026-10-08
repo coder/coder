@@ -32,8 +32,6 @@ import {
 	invalidateChatListQueries,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
-	markChatRead,
-	markChatUnread,
 	mergeWatchedChatIntoCaches,
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
@@ -229,22 +227,6 @@ const AgentsPageLayout: React.FC = () => {
 		});
 	};
 
-	const markChatReadBase = markChatRead(queryClient);
-	const markChatReadMutation = useMutation({
-		...markChatReadBase,
-		onError: (error, chatId, context) => {
-			markChatReadBase.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to mark agent as read."));
-		},
-	});
-	const markChatUnreadBase = markChatUnread(queryClient);
-	const markChatUnreadMutation = useMutation({
-		...markChatUnreadBase,
-		onError: (error, chatId, context) => {
-			markChatUnreadBase.onError(error, chatId, context);
-			toast.error(getErrorMessage(error, "Failed to mark agent as unread."));
-		},
-	});
 	const proposeTitleMutation = useMutation(proposeChatTitle(queryClient));
 	const renameTitleMutation = useMutation({
 		...updateChatTitle(queryClient),
@@ -277,12 +259,6 @@ const AgentsPageLayout: React.FC = () => {
 			completed.slice(completedArchives.length),
 		);
 	}, [agentId, completedArchives, location.search, navigate, queryClient]);
-	const requestMarkChatRead = (chatId: string) => {
-		markChatReadMutation.mutate(chatId);
-	};
-	const requestMarkChatUnread = (chatId: string) => {
-		markChatUnreadMutation.mutate(chatId);
-	};
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
 		const result = await proposeTitleMutation.mutateAsync(chatId);
 		return result.title;
@@ -537,8 +513,6 @@ const AgentsPageLayout: React.FC = () => {
 					isLoadingModelConfigs={organizationModels.isLoading}
 					onArchiveSuccess={clearChatErrorReason}
 					navigateAfterArchive={navigateAfterArchive}
-					onMarkChatRead={requestMarkChatRead}
-					onMarkChatUnread={requestMarkChatUnread}
 					onRenameTitle={requestRenameTitle}
 					onProposeTitle={requestProposeTitle}
 					chatPendingRename={chatPendingRename}

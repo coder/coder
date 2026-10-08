@@ -114,6 +114,7 @@ type ChatActionsMenuItemsProps = {
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
+	readonly isUpdatingReadState?: boolean;
 	readonly isArchiveBlocked?: boolean;
 	readonly subagentCount?: number;
 	readonly isSubagentsExpanded?: boolean;
@@ -302,6 +303,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	canManage,
 	hasWorkspace,
 	isArchiving = false,
+	isUpdatingReadState = false,
 	isArchiveBlocked = false,
 	subagentCount = 0,
 	isSubagentsExpanded = false,
@@ -356,7 +358,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	) : null;
 
 	const readToggle = showReadToggle ? (
-		<Item onSelect={chat.has_unread ? onMarkRead : onMarkUnread}>
+		<Item
+			disabled={isUpdatingReadState}
+			onSelect={chat.has_unread ? onMarkRead : onMarkUnread}
+		>
 			{chat.has_unread ? (
 				<>
 					<MailOpenIcon className="size-3.5" />

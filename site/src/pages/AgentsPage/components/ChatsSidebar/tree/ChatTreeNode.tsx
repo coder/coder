@@ -13,6 +13,9 @@ import { getErrorMessage } from "#/api/errors";
 import {
 	archiveChat,
 	chatArchiveMutationKey,
+	chatReadStateMutationKey,
+	markChatRead,
+	markChatUnread,
 	pinChat,
 	unarchiveChat,
 	unpinChat,
@@ -64,8 +67,6 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		toggleExpanded,
 		onArchiveSuccess,
 		navigateAfterArchive,
-		onMarkChatRead,
-		onMarkChatUnread,
 		onOpenRenameDialog,
 	} = useChatTree();
 	const chatID = chat.id;
@@ -152,7 +153,27 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 			toast.error(getErrorMessage(error, "Failed to unpin agent."));
 		},
 	});
-
+	const readStateMutationKey = chatReadStateMutationKey(chat.id);
+	const markReadOptions = markChatRead(queryClient);
+	const markReadMutation = useMutation({
+		...markReadOptions,
+		mutationKey: readStateMutationKey,
+		onError: (error, chatId, context) => {
+			markReadOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as read."));
+		},
+	});
+	const markUnreadOptions = markChatUnread(queryClient);
+	const markUnreadMutation = useMutation({
+		...markUnreadOptions,
+		mutationKey: readStateMutationKey,
+		onError: (error, chatId, context) => {
+			markUnreadOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as unread."));
+		},
+	});
+	const isUpdatingReadState =
+		useIsMutating({ mutationKey: readStateMutationKey }) > 0;
 	const archiveOptions = archiveChat(queryClient);
 	const archiveMutation = useMutation({
 		...archiveOptions,
@@ -187,6 +208,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		canManage,
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving: isArchivingThisChat,
+		isUpdatingReadState,
 		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
@@ -195,8 +217,16 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		onUnpinAgent: () => unpinMutation.mutate(chat.id),
 		// Opening a chat marks it read, so the read toggle would be undone
 		// immediately for the chat the user is already viewing.
-		onMarkRead: isActiveChat ? undefined : () => onMarkChatRead(chat.id),
-		onMarkUnread: isActiveChat ? undefined : () => onMarkChatUnread(chat.id),
+		onMarkRead: isActiveChat
+			? undefined
+			: () => {
+					if (!isUpdatingReadState) markReadMutation.mutate(chat.id);
+				},
+		onMarkUnread: isActiveChat
+			? undefined
+			: () => {
+					if (!isUpdatingReadState) markUnreadMutation.mutate(chat.id);
+				},
 		onArchiveAgent: () => archiveMutation.mutate(chat.id),
 		onUnarchiveAgent: () => unarchiveMutation.mutate(chat.id),
 		onArchived: navigateAfterArchive,

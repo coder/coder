@@ -1,6 +1,10 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useQuery } from "react-query";
+import {
+	type InfiniteData,
+	InfiniteQueryObserver,
+	useQuery,
+} from "react-query";
 import { useOutletContext, useParams } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
@@ -8,9 +12,14 @@ import { API } from "#/api/api";
 import {
 	chat as chatById,
 	chatEntityKey,
+	chatListFamilyKey,
 	infiniteChats,
 } from "#/api/queries/chats";
-import type { ChatWatchEvent, WorkspaceBuild } from "#/api/typesGenerated";
+import type {
+	Chat,
+	ChatWatchEvent,
+	WorkspaceBuild,
+} from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
@@ -114,6 +123,107 @@ describe("AgentsPageLayout New chat", () => {
 		expect(localStorage.getItem(emptyInputStorageKey)).toBe(
 			"draft the user typed earlier",
 		);
+	});
+});
+
+describe("AgentsPageLayout manual read state", () => {
+	it("keeps a pending toggle scoped to its chat after the row remounts", async () => {
+		const user = userEvent.setup();
+		let chats: Chat[] = [
+			{ ...MockChat, id: "read-alpha", title: "Alpha agent", has_unread: true },
+			{ ...MockChat, id: "read-beta", title: "Beta agent", has_unread: true },
+		];
+		vi.spyOn(API.experimental, "getChats").mockImplementation(
+			async () => chats,
+		);
+		const pendingUpdate = createDeferred<undefined>();
+		const pendingBeta = createDeferred<undefined>();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockImplementation(async (id, request) => {
+				if (id === "read-alpha" && request.read) {
+					await pendingUpdate.promise;
+				} else if (id === "read-beta") {
+					await pendingBeta.promise;
+				}
+				chats = chats.map((chat) =>
+					chat.id === id ? { ...chat, has_unread: !request.read } : chat,
+				);
+			});
+		const { router, queryClient } = renderLayout();
+		queryClient.setQueryDefaults(chatListFamilyKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+			staleTime: Number.POSITIVE_INFINITY,
+		});
+		const unreadList = new InfiniteQueryObserver(queryClient, {
+			...infiniteChats({
+				chatStatus: "unread",
+				sources: ["created_by_me"],
+			}),
+			enabled: false,
+		});
+		const unsubscribe = unreadList.subscribe(() => {});
+		const openActions = async (title: string) => {
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open actions for ${title}`,
+				}),
+			);
+		};
+
+		try {
+			await screen.findByRole("button", {
+				name: "Open actions for Alpha agent",
+			});
+			await act(() => router.navigate("/agents?unread=true"));
+			await openActions("Alpha agent");
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Mark as read" }),
+			);
+			await waitFor(() => {
+				expect(update).toHaveBeenCalledWith("read-alpha", { read: true });
+				expect(
+					unreadList
+						.getCurrentResult()
+						.data?.pages.flat()
+						.map((chat) => chat.id),
+				).toEqual(["read-beta"]);
+			});
+			await act(() => router.navigate("/agents"));
+			await openActions("Alpha agent");
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Mark as unread" }),
+			);
+			expect(update).toHaveBeenCalledTimes(1);
+			await user.keyboard("{Escape}");
+			await openActions("Beta agent");
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Mark as read" }),
+			);
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("read-beta", { read: true }),
+			);
+			pendingUpdate.resolve(undefined);
+			await waitFor(() => expect(queryClient.isMutating()).toBe(1));
+			expect(
+				queryClient
+					.getQueryData<InfiniteData<Chat[]>>(
+						infiniteChats({ sources: ["created_by_me"] }).queryKey,
+					)
+					?.pages.flat()
+					.find((chat) => chat.id === "read-beta")?.has_unread,
+			).toBe(false);
+			await openActions("Alpha agent");
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Mark as unread" }),
+			);
+			await waitFor(() => expect(update).toHaveBeenCalledTimes(3));
+		} finally {
+			pendingUpdate.resolve(undefined);
+			pendingBeta.resolve(undefined);
+			unsubscribe();
+			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+		}
 	});
 });
 
