@@ -30,8 +30,6 @@ func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, proj
 	chatdCtx := dbauthz.AsChatd(ctx)
 	var deleted []database.Chat
 	err := database.InChatProjectDeleteTx(chatdCtx, db, projectID, func(tx database.Store, rootIDs, chatIDs []uuid.UUID) error {
-		// InChatProjectDeleteTx reruns this on deadlock.
-		deleted = nil
 		if len(rootIDs) > 0 {
 			var err error
 			deleted, err = tx.GetChatsByIDs(chatdCtx, chatIDs)
