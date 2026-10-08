@@ -4118,6 +4118,61 @@ describe("useChatStore", () => {
 		);
 	});
 
+	it("keeps a chat opened without a history version on after_id", async () => {
+		immediateAnimationFrame();
+		vi.spyOn(Math, "random").mockReturnValue(0.5);
+
+		const chatID = "chat-without-history-version";
+		const mockSocket1 = createMockSocket();
+		mockWatchChatReturnOnce(mockSocket1);
+
+		const wrapper = createWrapper(createTestQueryClient());
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+
+		const initialProps: { pageVersion: number | undefined } = {
+			pageVersion: undefined,
+		};
+		const { rerender } = renderHook(
+			(props: { pageVersion: number | undefined }) => {
+				useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatRecordUpdatedAt: 0,
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+						history_version: props.pageVersion,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+			},
+			{ wrapper, initialProps },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1, undefined);
+		});
+
+		rerender({ pageVersion: 9 });
+
+		const mockSocket2 = createMockSocket();
+		mockWatchChatReturnOnce(mockSocket2);
+		act(() => {
+			mockSocket1.emitError();
+		});
+
+		await waitFor(
+			() => {
+				expect(watchChat).toHaveBeenNthCalledWith(2, chatID, 1, undefined);
+			},
+			{ timeout: 3_000 },
+		);
+	});
+
 	it("does not carry one chat's history version into another chat", async () => {
 		mockWatchChatWithFreshSockets();
 		const wrapper = createWrapper(createTestQueryClient());

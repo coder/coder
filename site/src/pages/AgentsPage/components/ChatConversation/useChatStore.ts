@@ -175,22 +175,24 @@ export const useChatStore = (
 	});
 
 	// The history version the stream reconnects with. It is taken from the
-	// newest page when the chat opens and then advances only on preview_reset
-	// events, because a refetched page does not remove every deleted message
-	// from the store.
+	// chat's first loaded page and then advances only on preview_reset events,
+	// because a refetched page does not remove every deleted message from the
+	// store. A first page without a version keeps the chat on after_id.
 	const historyVersionRef = useRef<
-		{ chatID: string; version: number } | undefined
+		{ chatID: string; version: number | undefined } | undefined
 	>(undefined);
+	const pageLoaded = chatMessagesData !== undefined;
 	const pageHistoryVersion = chatMessagesData?.history_version;
 	useEffect(() => {
-		if (historyVersionRef.current?.chatID === chatID) {
+		if (
+			!chatID ||
+			!pageLoaded ||
+			historyVersionRef.current?.chatID === chatID
+		) {
 			return;
 		}
-		historyVersionRef.current =
-			chatID && pageHistoryVersion !== undefined
-				? { chatID, version: pageHistoryVersion }
-				: undefined;
-	}, [chatID, pageHistoryVersion]);
+		historyVersionRef.current = { chatID, version: pageHistoryVersion };
+	}, [chatID, pageLoaded, pageHistoryVersion]);
 	const historyVersionFor = (id: string): number | undefined =>
 		historyVersionRef.current?.chatID === id
 			? historyVersionRef.current.version
