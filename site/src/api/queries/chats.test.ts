@@ -5579,6 +5579,37 @@ describe("message upsert fan-out and history replacement", () => {
 
 		expect(cachedMessageIDs(queryClient)).toEqual([[2, 1]]);
 	});
+
+	it("does not apply a write again after the fetch it was made during fails", async () => {
+		const queryClient = createTestQueryClient();
+		seedMessagePages(queryClient, {
+			pages: [messagesPage([1])],
+			pageParams: [undefined],
+		});
+
+		const failed = createDeferred<InfMessages>();
+		const failedFetch = queryClient.prefetchQuery({
+			queryKey: chatMessagesKey("chat-1"),
+			queryFn: () => failed.promise,
+		});
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(2)]);
+		failed.reject(new Error("network failure"));
+		await failedFetch;
+
+		// An edit then deleted message 2, and the next fetch reads that.
+		const response = createDeferred<InfMessages>();
+		const refetch = queryClient.prefetchQuery({
+			queryKey: chatMessagesKey("chat-1"),
+			queryFn: () => response.promise,
+		});
+		response.resolve({
+			pages: [messagesPage([3, 1])],
+			pageParams: [undefined],
+		});
+		await refetch;
+
+		expect(cachedMessageIDs(queryClient)).toEqual([[3, 1]]);
+	});
 });
 
 describe("chatEntitiesFamilyKey shape", () => {
