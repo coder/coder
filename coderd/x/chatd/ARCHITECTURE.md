@@ -35,6 +35,8 @@ We say that the following data constitutes a chat's **execution state**:
 - the `snapshot_version`, `history_version`, `queue_version`, `generation_attempt`, `retry_state_version` fields on the `chats` table, defined later in the document;
 - the `requires_action_deadline_at` field on the `chats` table (pending-action deadline, defined later in the document);
 
+TODO (chat_versions): `retry_state`, `snapshot_version`, `history_version`, `queue_version`, `generation_attempt`, and `retry_state_version` moved from `chats` to the `chat_versions` table (one row per chat, `ON DELETE CASCADE`); `chats_expanded` still exposes them. Describe this here.
+
 There is other data that is held in the database and is associated with a chat, but it's not part of the execution state:
 
 - title;
@@ -109,6 +111,8 @@ Remember!
 We will not define the SQL queries that correspond to each transition - it'd take too much space and it's not central to the document's purpose. Instead, we focus on what each transition does to the database state, and how it affects the execution and ownership states.
 
 Each transaction that applies one or more transitions advances the `snapshot_version` field on the `chats` table by 1 immediately after locking the chat row and before mutating any tables. This lets us version the chat's execution state. The chat worker and the stream loop rely on it to ensure they do not process outdated or out of order notifications.
+
+TODO (chat_versions): `LockChatAndBumpSnapshotVersion` now locks the `chats` row `FOR UPDATE` and increments `chat_versions.snapshot_version`. Because the bump no longer rewrites `chats`, the first later `chats` UPDATE in the transaction skips the outgoing foreign key checks. The lock order is always `chats`, then `chat_versions`. Describe this here.
 
 Chat-message changes update `history_version` on the `chats` table and the `revision` fields on the `chat_messages` table automatically via Postgres triggers described in [Message revisions and history version](#message-revisions-and-history-version). `history_version` stores the latest `snapshot_version` in which chat message history changed. The chat runner and the stream loop rely on it to ensure they are fully aware of the chat's history changes. See [Event processing](#event-processing) for how the runner uses `history_version` differently from `snapshot_version`.
 
@@ -322,6 +326,8 @@ Each row in `chat_messages` has a `revision` column. It stores the `chats.snapsh
 
 Message revision triggers depend on the transition invariant that `snapshot_version` is allocated immediately after the chat row is locked and before any message mutation happens. Runtime code must not assign `chat_messages.revision` directly, and every `chat_messages` insert or update must go through a state machine transition: the triggers advance `history_version` on any write, so an out-of-band write (even of a hidden or soft-deleted row) moves `history_version` without a matching `snapshot_version` bump and breaks the fence of an in-flight generation task.
 
+TODO (chat_versions): the message revision and history triggers read and write `chat_versions` instead of `chats`. Describe this here and update the trigger SQL below.
+
 A `BEFORE INSERT` trigger assigns the current chat `snapshot_version` to the inserted message row and records the same value as the chat's latest history version:
 
 ```sql
@@ -383,6 +389,8 @@ EXECUTE FUNCTION set_chat_message_revision();
 
 `chats.queue_version` stores the latest `snapshot_version` in which the queue changed. It starts at `0`, remains unchanged for non-queue transitions, and is set to the current `snapshot_version` whenever a queued message is inserted, updated, reordered, or deleted. A newly created chat with no queued messages has `queue_version = 0`.
 
+TODO (chat_versions): the queue trigger writes `chat_versions` and only when `queue_version` differs from `snapshot_version`, so N queue changes in one snapshot rewrite the row once. Describe this here and update the trigger SQL below.
+
 An `AFTER INSERT`, `AFTER UPDATE`, and `AFTER DELETE` trigger records that the queue changed:
 
 ```sql
@@ -428,6 +436,8 @@ EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 ## Retry state version
 
 `chats.retry_state_version` stores the latest `snapshot_version` in which `retry_state` changed. It starts at `0`, remains unchanged for transitions that do not affect retry state, and is set to the current `snapshot_version` whenever `retry_state` changes. A newly created chat starts with `retry_state = null` and `retry_state_version = 0`.
+
+TODO (chat_versions): `trigger_sync_chat_retry_state` now fires on `chat_versions`. Describe this here and update the trigger SQL below.
 
 Retry state is scoped to the current generation attempt. Whenever `generation_attempt` changes, `retry_state` is cleared automatically. If that clear changes the value of `retry_state`, `retry_state_version` is set to the current `snapshot_version`.
 

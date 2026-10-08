@@ -1,9 +1,11 @@
 package chatstate_test
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -505,6 +507,143 @@ func TestQueueDeleteUpdatesQueueVersion(t *testing.T) {
 		"DELETE from queue bumps queue_version")
 }
 
+// TestQueueVersionWrittenOncePerSnapshot verifies the queue trigger
+// guard: changing N queued rows under one snapshot rewrites the
+// chat_versions row once, not N times.
+func TestQueueVersionWrittenOncePerSnapshot(t *testing.T) {
+	t.Parallel()
+	tf := newTriggerFixture(t)
+	f := tf.f
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+
+	for _, text := range []string{"one", "two", "three"} {
+		_, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:    created.Chat.ID,
+			Content:   userMessageContent(t, text),
+			CreatedBy: f.User.ID,
+		})
+		require.NoError(t, err)
+	}
+
+	tx, err := tf.sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	var snapshot int64
+	require.NoError(t, tx.QueryRowContext(ctx, `
+		UPDATE chat_versions SET snapshot_version = snapshot_version + 1
+		WHERE chat_id = $1 RETURNING snapshot_version
+	`, created.Chat.ID).Scan(&snapshot))
+	updates := func() int64 {
+		var n int64
+		require.NoError(t, tx.QueryRowContext(ctx, `
+			SELECT n_tup_upd FROM pg_stat_xact_user_tables WHERE relname = 'chat_versions'
+		`).Scan(&n))
+		return n
+	}
+	before := updates()
+	res, err := tx.ExecContext(ctx, `DELETE FROM chat_queued_messages WHERE chat_id = $1`, created.Chat.ID)
+	require.NoError(t, err)
+	deleted, err := res.RowsAffected()
+	require.NoError(t, err)
+	require.Equal(t, int64(3), deleted)
+	require.Equal(t, int64(1), updates()-before, "three queue changes rewrite chat_versions once")
+
+	var queueVersion int64
+	require.NoError(t, tx.QueryRowContext(ctx, `
+		SELECT queue_version FROM chat_versions WHERE chat_id = $1
+	`, created.Chat.ID).Scan(&queueVersion))
+	require.Equal(t, snapshot, queueVersion, "queue changes set queue_version")
+}
+
+// TestChatDeleteCascadesToVersions verifies that deleting a chat with
+// queued messages removes its chat_versions row, even though the queue
+// trigger fires during the cascade.
+func TestChatDeleteCascadesToVersions(t *testing.T) {
+	t.Parallel()
+	tf := newTriggerFixture(t)
+	f := tf.f
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+
+	_, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+		ChatID:    created.Chat.ID,
+		Content:   userMessageContent(t, "queued"),
+		CreatedBy: f.User.ID,
+	})
+	require.NoError(t, err)
+
+	_, err = tf.sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, created.Chat.ID)
+	require.NoError(t, err)
+
+	var remaining int
+	require.NoError(t, tf.sqlDB.QueryRowContext(ctx, `
+		SELECT count(*) FROM chat_versions WHERE chat_id = $1
+	`, created.Chat.ID).Scan(&remaining))
+	require.Zero(t, remaining)
+}
+
+// TestLockWaitersReturnLatestVersions verifies that statements which wait
+// on the chat row lock return the chat_versions values the lock holder
+// committed, not the older ones from their statement snapshot.
+func TestLockWaitersReturnLatestVersions(t *testing.T) {
+	t.Parallel()
+
+	for name, waiter := range map[string]func(context.Context, database.Store, uuid.UUID) (database.Chat, error){
+		"GetChatByIDForUpdate": func(ctx context.Context, db database.Store, id uuid.UUID) (database.Chat, error) {
+			return db.GetChatByIDForUpdate(ctx, id)
+		},
+		"UpdateChatTitleByID": func(ctx context.Context, db database.Store, id uuid.UUID) (database.Chat, error) {
+			return db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+				ID:          id,
+				Title:       "renamed",
+				TitleSource: database.ChatTitleSourceUser,
+			})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			tf := newTriggerFixture(t)
+			f := tf.f
+			ctx := testutil.Context(t, testutil.WaitLong)
+			created := createTestChat(t, f)
+
+			holder, err := tf.sqlDB.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			defer func() { _ = holder.Rollback() }()
+			var bumped int64
+			require.NoError(t, holder.QueryRowContext(ctx, `
+				UPDATE chat_versions SET snapshot_version = snapshot_version + 1
+				WHERE chat_id = (SELECT id FROM chats WHERE id = $1 FOR UPDATE)
+				RETURNING snapshot_version
+			`, created.Chat.ID).Scan(&bumped))
+
+			type result struct {
+				chat database.Chat
+				err  error
+			}
+			done := make(chan result, 1)
+			go func() {
+				chat, err := waiter(ctx, f.DB, created.Chat.ID)
+				done <- result{chat: chat, err: err}
+			}()
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				var waiting int
+				err := tf.sqlDB.QueryRowContext(ctx, `
+					SELECT count(*) FROM pg_stat_activity
+					WHERE datname = current_database() AND wait_event_type = 'Lock'
+				`).Scan(&waiting)
+				return err == nil && waiting > 0
+			}, testutil.IntervalFast, "waiter should block on the chat row lock")
+			require.NoError(t, holder.Commit())
+
+			res := testutil.RequireReceive(ctx, t, done)
+			require.NoError(t, res.err)
+			require.Equal(t, bumped, res.chat.SnapshotVersion)
+		})
+	}
+}
+
 // TestNonQueueUpdateDoesNotUpdateQueueVersion verifies that mutations
 // on other chat-related tables do NOT bump queue_version. The
 // canonical case is inserting a chat message: it must update
@@ -659,7 +798,7 @@ func TestRetryStateVersionCannotBeSetByRuntimeCode(t *testing.T) {
 	created := createTestChat(t, f)
 
 	_, err := tf.sqlDB.ExecContext(ctx, `
-		UPDATE chats SET retry_state_version = retry_state_version + 1 WHERE id = $1
+		UPDATE chat_versions SET retry_state_version = retry_state_version + 1 WHERE chat_id = $1
 	`, created.Chat.ID)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "retry_state_version must be assigned by trigger")

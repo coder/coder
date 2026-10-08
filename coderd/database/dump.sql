@@ -892,9 +892,10 @@ BEGIN
         changed_chat_id = NEW.chat_id;
     END IF;
 
-    UPDATE chats
+    UPDATE chat_versions
     SET queue_version = snapshot_version
-    WHERE id = changed_chat_id;
+    WHERE chat_id = changed_chat_id
+      AND queue_version IS DISTINCT FROM snapshot_version;
 
     IF TG_OP = 'DELETE' THEN
         RETURN OLD;
@@ -1557,7 +1558,7 @@ BEGIN
     END IF;
 
     SELECT snapshot_version INTO chat_snapshot_version
-    FROM chats WHERE id = NEW.chat_id;
+    FROM chat_versions WHERE chat_id = NEW.chat_id;
 
     IF chat_snapshot_version IS NULL THEN
         RAISE EXCEPTION 'chat % does not exist', NEW.chat_id;
@@ -1594,16 +1595,16 @@ CREATE FUNCTION update_chat_history_after_message_insert() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    UPDATE chats c
-    SET history_version = c.snapshot_version,
+    UPDATE chat_versions v
+    SET history_version = v.snapshot_version,
         generation_attempt = 0
     FROM (
         SELECT DISTINCT chat_id FROM chat_message_history_new_rows
     ) AS affected
-    WHERE c.id = affected.chat_id
+    WHERE v.chat_id = affected.chat_id
       AND (
-          c.history_version IS DISTINCT FROM c.snapshot_version
-          OR c.generation_attempt <> 0
+          v.history_version IS DISTINCT FROM v.snapshot_version
+          OR v.generation_attempt <> 0
       );
     RETURN NULL;
 END;
@@ -1613,8 +1614,8 @@ CREATE FUNCTION update_chat_history_after_message_update() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    UPDATE chats c
-    SET history_version = c.snapshot_version,
+    UPDATE chat_versions v
+    SET history_version = v.snapshot_version,
         generation_attempt = 0
     FROM (
         SELECT DISTINCT n.chat_id
@@ -1622,10 +1623,10 @@ BEGIN
         JOIN chat_message_history_old_rows o ON o.id = n.id
         WHERE (to_jsonb(o) - 'search_tsv' - 'search_tsv_config') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv' - 'search_tsv_config')
     ) AS affected
-    WHERE c.id = affected.chat_id
+    WHERE v.chat_id = affected.chat_id
       AND (
-          c.history_version IS DISTINCT FROM c.snapshot_version
-          OR c.generation_attempt <> 0
+          v.history_version IS DISTINCT FROM v.snapshot_version
+          OR v.generation_attempt <> 0
       );
     RETURN NULL;
 END;
@@ -2382,6 +2383,24 @@ CREATE TABLE chat_user_model_overrides (
     CONSTRAINT chat_user_model_overrides_model_requires_config_check CHECK (((mode = 'model'::text) = (model_config_id IS NOT NULL)))
 );
 
+CREATE TABLE chat_versions (
+    chat_id uuid NOT NULL,
+    snapshot_version bigint DEFAULT 1 NOT NULL,
+    history_version bigint DEFAULT 0 NOT NULL,
+    queue_version bigint DEFAULT 0 NOT NULL,
+    generation_attempt bigint DEFAULT 0 NOT NULL,
+    retry_state jsonb,
+    retry_state_version bigint DEFAULT 0 NOT NULL
+);
+
+COMMENT ON TABLE chat_versions IS 'Component of chatd. Version and retry fields split off chats so version bumps do not rewrite the chats row and re-run its foreign key checks.';
+
+COMMENT ON COLUMN chat_versions.snapshot_version IS 'Monotonic version for the full chat snapshot. Starts at 1 so stream loops and workers can use 0 to mean they have not loaded the chat yet.';
+
+COMMENT ON COLUMN chat_versions.history_version IS 'Snapshot version of the latest durable history change. Starts at 0 until chat_messages triggers set it to the current snapshot_version.';
+
+COMMENT ON COLUMN chat_versions.queue_version IS 'Snapshot version of the latest queued-message change. Starts at 0 until chat_queued_messages triggers set it to the current snapshot_version.';
+
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     owner_id uuid NOT NULL,
@@ -2412,12 +2431,6 @@ CREATE TABLE chats (
     last_turn_summary text,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    snapshot_version bigint DEFAULT 1 NOT NULL,
-    history_version bigint DEFAULT 0 NOT NULL,
-    queue_version bigint DEFAULT 0 NOT NULL,
-    generation_attempt bigint DEFAULT 0 NOT NULL,
-    retry_state jsonb,
-    retry_state_version bigint DEFAULT 0 NOT NULL,
     runner_id uuid,
     requires_action_deadline_at timestamp with time zone,
     context_aggregate_hash bytea,
@@ -2439,12 +2452,6 @@ CREATE TABLE chats (
     CONSTRAINT chats_pin_order_archived_check CHECK (((pin_order = 0) OR (archived = false))),
     CONSTRAINT chats_pin_order_parent_check CHECK (((pin_order = 0) OR (parent_chat_id IS NULL)))
 );
-
-COMMENT ON COLUMN chats.snapshot_version IS 'Monotonic version for the full chat snapshot. Starts at 1 so stream loops and workers can use 0 to mean they have not loaded the chat yet.';
-
-COMMENT ON COLUMN chats.history_version IS 'Snapshot version of the latest durable history change. Starts at 0 until chat_messages triggers set it to the current snapshot_version.';
-
-COMMENT ON COLUMN chats.queue_version IS 'Snapshot version of the latest queued-message change. Starts at 0 until chat_queued_messages triggers set it to the current snapshot_version.';
 
 COMMENT ON COLUMN chats.context_aggregate_hash IS 'Aggregate hash of the agent context snapshot this chat is pinned to. NULL until first hydrated; compared against the agent''s latest snapshot hash to detect drift.';
 
@@ -2551,12 +2558,12 @@ CREATE VIEW chats_expanded AS
     c.last_turn_summary,
     c.summary,
     c.summary_generated_at,
-    c.snapshot_version,
-    c.history_version,
-    c.queue_version,
-    c.generation_attempt,
-    c.retry_state,
-    c.retry_state_version,
+    v.snapshot_version,
+    v.history_version,
+    v.queue_version,
+    v.generation_attempt,
+    v.retry_state,
+    v.retry_state_version,
     c.runner_id,
     c.requires_action_deadline_at,
     COALESCE(root.user_acl, c.user_acl) AS user_acl,
@@ -2572,7 +2579,8 @@ CREATE VIEW chats_expanded AS
     c.title_updated_at,
     c.automation_id,
     c.manage_automations_enabled
-   FROM ((chats c
+   FROM (((chats c
+     JOIN chat_versions v ON ((v.chat_id = c.id)))
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
 
@@ -4592,6 +4600,9 @@ ALTER TABLE ONLY chat_user_model_overrides
 ALTER TABLE ONLY chat_user_model_overrides
     ADD CONSTRAINT chat_user_model_overrides_user_organization_context_key UNIQUE (user_id, organization_id, context);
 
+ALTER TABLE ONLY chat_versions
+    ADD CONSTRAINT chat_versions_pkey PRIMARY KEY (chat_id);
+
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
 
@@ -5362,7 +5373,7 @@ CREATE TRIGGER trigger_set_chat_message_revision_on_insert BEFORE INSERT ON chat
 
 CREATE TRIGGER trigger_set_chat_message_revision_on_update BEFORE UPDATE ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
 
-CREATE TRIGGER trigger_sync_chat_retry_state BEFORE UPDATE OF retry_state, retry_state_version, generation_attempt ON chats FOR EACH ROW EXECUTE FUNCTION sync_chat_retry_state();
+CREATE TRIGGER trigger_sync_chat_retry_state BEFORE UPDATE OF retry_state, retry_state_version, generation_attempt ON chat_versions FOR EACH ROW EXECUTE FUNCTION sync_chat_retry_state();
 
 CREATE TRIGGER trigger_update_chat_history_after_message_insert AFTER INSERT ON chat_messages REFERENCING NEW TABLE AS chat_message_history_new_rows FOR EACH STATEMENT EXECUTE FUNCTION update_chat_history_after_message_insert();
 
@@ -5518,6 +5529,9 @@ ALTER TABLE ONLY chat_user_model_overrides
 
 ALTER TABLE ONLY chat_user_model_overrides
     ADD CONSTRAINT chat_user_model_overrides_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_versions
+    ADD CONSTRAINT chat_versions_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;

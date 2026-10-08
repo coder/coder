@@ -5,76 +5,11 @@ WITH updated_chats AS (
     WHERE id = @id::uuid OR root_chat_id = @id::uuid
     RETURNING *
 ),
-chats_expanded AS (
-    SELECT
-        updated_chats.id,
-        updated_chats.owner_id,
-        updated_chats.workspace_id,
-        updated_chats.title,
-        updated_chats.status,
-        updated_chats.worker_id,
-        updated_chats.started_at,
-        updated_chats.heartbeat_at,
-        updated_chats.created_at,
-        updated_chats.updated_at,
-        updated_chats.parent_chat_id,
-        updated_chats.root_chat_id,
-        updated_chats.last_model_config_id,
-        updated_chats.last_reasoning_effort,
-        updated_chats.archived,
-        updated_chats.last_error,
-        updated_chats.mode,
-        updated_chats.mcp_server_ids,
-        updated_chats.labels,
-        updated_chats.build_id,
-        updated_chats.agent_id,
-        updated_chats.pin_order,
-        updated_chats.last_read_message_id,
-        updated_chats.dynamic_tools,
-        updated_chats.organization_id,
-        updated_chats.project_id,
-        updated_chats.plan_mode,
-        updated_chats.client_type,
-        updated_chats.last_turn_summary,
-        updated_chats.summary,
-        updated_chats.summary_generated_at,
-        updated_chats.snapshot_version,
-        updated_chats.history_version,
-        updated_chats.queue_version,
-        updated_chats.generation_attempt,
-        updated_chats.retry_state,
-        updated_chats.retry_state_version,
-        updated_chats.runner_id,
-        updated_chats.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chats.user_acl) AS user_acl,
-        COALESCE(root.group_acl, updated_chats.group_acl) AS group_acl,
-        owner.username AS owner_username,
-        owner.name AS owner_name,
-        updated_chats.context_aggregate_hash,
-        updated_chats.context_dirty_since,
-        updated_chats.context_dirty_resources,
-        updated_chats.context_error,
-        updated_chats.compaction_requested_at,
-        updated_chats.title_source,
-        updated_chats.title_updated_at,
-        updated_chats.automation_id,
-        updated_chats.manage_automations_enabled
-    FROM
-        updated_chats
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
-    JOIN visible_users owner ON owner.id = updated_chats.owner_id
-)
-SELECT *
-FROM chats_expanded
-ORDER BY (chats_expanded.id = @id::uuid) DESC, chats_expanded.created_at ASC, chats_expanded.id ASC;
-
--- name: UnarchiveChatByID :many
-WITH updated_chats AS (
-    UPDATE chats SET
-        archived = false,
-        updated_at = NOW()
-    WHERE id = @id::uuid OR root_chat_id = @id::uuid
-    RETURNING *
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM updated_chats)
+    FOR SHARE
 ),
 chats_expanded AS (
     SELECT
@@ -109,12 +44,12 @@ chats_expanded AS (
         updated_chats.last_turn_summary,
         updated_chats.summary,
         updated_chats.summary_generated_at,
-        updated_chats.snapshot_version,
-        updated_chats.history_version,
-        updated_chats.queue_version,
-        updated_chats.generation_attempt,
-        updated_chats.retry_state,
-        updated_chats.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         updated_chats.runner_id,
         updated_chats.requires_action_deadline_at,
         COALESCE(root.user_acl, updated_chats.user_acl) AS user_acl,
@@ -132,6 +67,85 @@ chats_expanded AS (
         updated_chats.manage_automations_enabled
     FROM
         updated_chats
+    JOIN versions ON versions.chat_id = updated_chats.id
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chats.owner_id
+)
+SELECT *
+FROM chats_expanded
+ORDER BY (chats_expanded.id = @id::uuid) DESC, chats_expanded.created_at ASC, chats_expanded.id ASC;
+
+-- name: UnarchiveChatByID :many
+WITH updated_chats AS (
+    UPDATE chats SET
+        archived = false,
+        updated_at = NOW()
+    WHERE id = @id::uuid OR root_chat_id = @id::uuid
+    RETURNING *
+),
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM updated_chats)
+    FOR SHARE
+),
+chats_expanded AS (
+    SELECT
+        updated_chats.id,
+        updated_chats.owner_id,
+        updated_chats.workspace_id,
+        updated_chats.title,
+        updated_chats.status,
+        updated_chats.worker_id,
+        updated_chats.started_at,
+        updated_chats.heartbeat_at,
+        updated_chats.created_at,
+        updated_chats.updated_at,
+        updated_chats.parent_chat_id,
+        updated_chats.root_chat_id,
+        updated_chats.last_model_config_id,
+        updated_chats.last_reasoning_effort,
+        updated_chats.archived,
+        updated_chats.last_error,
+        updated_chats.mode,
+        updated_chats.mcp_server_ids,
+        updated_chats.labels,
+        updated_chats.build_id,
+        updated_chats.agent_id,
+        updated_chats.pin_order,
+        updated_chats.last_read_message_id,
+        updated_chats.dynamic_tools,
+        updated_chats.organization_id,
+        updated_chats.project_id,
+        updated_chats.plan_mode,
+        updated_chats.client_type,
+        updated_chats.last_turn_summary,
+        updated_chats.summary,
+        updated_chats.summary_generated_at,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
+        updated_chats.runner_id,
+        updated_chats.requires_action_deadline_at,
+        COALESCE(root.user_acl, updated_chats.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chats.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name,
+        updated_chats.context_aggregate_hash,
+        updated_chats.context_dirty_since,
+        updated_chats.context_dirty_resources,
+        updated_chats.context_error,
+        updated_chats.compaction_requested_at,
+        updated_chats.title_source,
+        updated_chats.title_updated_at,
+        updated_chats.automation_id,
+        updated_chats.manage_automations_enabled
+    FROM
+        updated_chats
+    JOIN versions ON versions.chat_id = updated_chats.id
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chats.owner_id
 )
@@ -911,6 +925,11 @@ INSERT INTO chats (
 )
 RETURNING *
 ),
+versions AS (
+    INSERT INTO chat_versions (chat_id)
+    SELECT id FROM inserted_chat
+    RETURNING *
+),
 chats_expanded AS (
     SELECT
         inserted_chat.id,
@@ -944,12 +963,12 @@ chats_expanded AS (
         inserted_chat.last_turn_summary,
         inserted_chat.summary,
         inserted_chat.summary_generated_at,
-        inserted_chat.snapshot_version,
-        inserted_chat.history_version,
-        inserted_chat.queue_version,
-        inserted_chat.generation_attempt,
-        inserted_chat.retry_state,
-        inserted_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         inserted_chat.runner_id,
         inserted_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, inserted_chat.user_acl) AS user_acl,
@@ -967,6 +986,7 @@ chats_expanded AS (
         inserted_chat.manage_automations_enabled
     FROM
         inserted_chat
+    JOIN versions ON versions.chat_id = inserted_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(inserted_chat.root_chat_id, inserted_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = inserted_chat.owner_id
 )
@@ -1097,6 +1117,12 @@ WHERE
     AND title_source <= @title_source::chat_title_source
 RETURNING *
 ),
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM updated_chat)
+    FOR SHARE
+),
 chats_expanded AS (
     SELECT
         updated_chat.id,
@@ -1130,12 +1156,12 @@ chats_expanded AS (
         updated_chat.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
@@ -1153,6 +1179,7 @@ chats_expanded AS (
         updated_chat.manage_automations_enabled
     FROM
         updated_chat
+    JOIN versions ON versions.chat_id = updated_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
@@ -1170,6 +1197,12 @@ WHERE
     id = @id::uuid
 RETURNING *
 ),
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM updated_chat)
+    FOR SHARE
+),
 chats_expanded AS (
     SELECT
         updated_chat.id,
@@ -1203,12 +1236,12 @@ chats_expanded AS (
         updated_chat.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
@@ -1226,6 +1259,7 @@ chats_expanded AS (
         updated_chat.manage_automations_enabled
     FROM
         updated_chat
+    JOIN versions ON versions.chat_id = updated_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
@@ -1243,6 +1277,12 @@ WHERE
     id = @id::uuid
 RETURNING *
 ),
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM updated_chat)
+    FOR SHARE
+),
 chats_expanded AS (
     SELECT
         updated_chat.id,
@@ -1276,12 +1316,12 @@ chats_expanded AS (
         updated_chat.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
@@ -1299,6 +1339,7 @@ chats_expanded AS (
         updated_chat.manage_automations_enabled
     FROM
         updated_chat
+    JOIN versions ON versions.chat_id = updated_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
@@ -1316,78 +1357,11 @@ WHERE
     id = @id::uuid
 RETURNING *
 ),
-chats_expanded AS (
-    SELECT
-        updated_chat.id,
-        updated_chat.owner_id,
-        updated_chat.workspace_id,
-        updated_chat.title,
-        updated_chat.status,
-        updated_chat.worker_id,
-        updated_chat.started_at,
-        updated_chat.heartbeat_at,
-        updated_chat.created_at,
-        updated_chat.updated_at,
-        updated_chat.parent_chat_id,
-        updated_chat.root_chat_id,
-        updated_chat.last_model_config_id,
-        updated_chat.last_reasoning_effort,
-        updated_chat.archived,
-        updated_chat.last_error,
-        updated_chat.mode,
-        updated_chat.mcp_server_ids,
-        updated_chat.labels,
-        updated_chat.build_id,
-        updated_chat.agent_id,
-        updated_chat.pin_order,
-        updated_chat.last_read_message_id,
-        updated_chat.dynamic_tools,
-        updated_chat.organization_id,
-        updated_chat.project_id,
-        updated_chat.plan_mode,
-        updated_chat.client_type,
-        updated_chat.last_turn_summary,
-        updated_chat.summary,
-        updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
-        updated_chat.runner_id,
-        updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
-        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
-        owner.username AS owner_username,
-        owner.name AS owner_name,
-        updated_chat.context_aggregate_hash,
-        updated_chat.context_dirty_since,
-        updated_chat.context_dirty_resources,
-        updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.title_source,
-        updated_chat.title_updated_at,
-        updated_chat.automation_id,
-        updated_chat.manage_automations_enabled
-    FROM
-        updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
-    JOIN visible_users owner ON owner.id = updated_chat.owner_id
-)
-SELECT *
-FROM chats_expanded;
-
--- name: UpdateChatLabelsByID :one
-WITH updated_chat AS (
-UPDATE
-    chats
-SET
-    labels = @labels::jsonb,
-    updated_at = NOW()
-WHERE
-    id = @id::uuid
-RETURNING *
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM updated_chat)
+    FOR SHARE
 ),
 chats_expanded AS (
     SELECT
@@ -1422,12 +1396,12 @@ chats_expanded AS (
         updated_chat.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
@@ -1445,6 +1419,87 @@ chats_expanded AS (
         updated_chat.manage_automations_enabled
     FROM
         updated_chat
+    JOIN versions ON versions.chat_id = updated_chat.id
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
+
+-- name: UpdateChatLabelsByID :one
+WITH updated_chat AS (
+UPDATE
+    chats
+SET
+    labels = @labels::jsonb,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING *
+),
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM updated_chat)
+    FOR SHARE
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.project_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
+        updated_chat.runner_id,
+        updated_chat.requires_action_deadline_at,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name,
+        updated_chat.context_aggregate_hash,
+        updated_chat.context_dirty_since,
+        updated_chat.context_dirty_resources,
+        updated_chat.context_error,
+        updated_chat.compaction_requested_at,
+        updated_chat.title_source,
+        updated_chat.title_updated_at,
+        updated_chat.automation_id,
+        updated_chat.manage_automations_enabled
+    FROM
+        updated_chat
+    JOIN versions ON versions.chat_id = updated_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
@@ -1482,6 +1537,12 @@ result_chat AS (
     FROM current_chat
     WHERE NOT (SELECT changed FROM binding_changed)
 ),
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM result_chat)
+    FOR SHARE
+),
 chats_expanded AS (
     SELECT
         result_chat.id,
@@ -1515,12 +1576,12 @@ chats_expanded AS (
         result_chat.last_turn_summary,
         result_chat.summary,
         result_chat.summary_generated_at,
-        result_chat.snapshot_version,
-        result_chat.history_version,
-        result_chat.queue_version,
-        result_chat.generation_attempt,
-        result_chat.retry_state,
-        result_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         result_chat.runner_id,
         result_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, result_chat.user_acl) AS user_acl,
@@ -1538,6 +1599,7 @@ chats_expanded AS (
         result_chat.manage_automations_enabled
     FROM
         result_chat
+    JOIN versions ON versions.chat_id = result_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(result_chat.root_chat_id, result_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = result_chat.owner_id
 )
@@ -1553,6 +1615,12 @@ UPDATE chats SET
 WHERE
     id = @id::uuid
 RETURNING *
+),
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM updated_chat)
+    FOR SHARE
 ),
 chats_expanded AS (
     SELECT
@@ -1587,12 +1655,12 @@ chats_expanded AS (
         updated_chat.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
@@ -1610,6 +1678,7 @@ chats_expanded AS (
         updated_chat.manage_automations_enabled
     FROM
         updated_chat
+    JOIN versions ON versions.chat_id = updated_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
@@ -1624,25 +1693,52 @@ FROM chats_expanded;
 -- history_version so worker lifecycle transitions that do not change the
 -- active message history cannot reject final turn summary writes.
 -- Two summary workers using the same freshness marker are last-write-wins.
+-- Locking chats before chat_versions matches ChatMachine.Update and makes
+-- the fence read the latest committed history_version.
+WITH locked_chat AS (
+    SELECT id
+    FROM chats
+    WHERE id = @id::uuid
+    FOR NO KEY UPDATE
+),
+current_versions AS (
+    SELECT history_version
+    FROM chat_versions
+    WHERE chat_id = (SELECT id FROM locked_chat)
+    FOR SHARE
+)
 UPDATE chats
 SET
     last_turn_summary = NULLIF(REGEXP_REPLACE(
         sqlc.narg('last_turn_summary')::text, '^[[:space:]]+|[[:space:]]+$', '', 'g'
     ), '')
 WHERE
-    id = @id::uuid
-    AND history_version = @expected_history_version::bigint;
+    id = (SELECT id FROM locked_chat)
+    AND (SELECT history_version FROM current_versions) = @expected_history_version::bigint;
 
 -- name: UpdateChatSummary :execrows
 -- The history_version fence lets background summary writes ignore worker-only
--- updates while losing to newer message history.
+-- updates while losing to newer message history. Lock order matches
+-- UpdateChatLastTurnSummary.
+WITH locked_chat AS (
+    SELECT id
+    FROM chats
+    WHERE id = @id::uuid
+    FOR NO KEY UPDATE
+),
+current_versions AS (
+    SELECT history_version
+    FROM chat_versions
+    WHERE chat_id = (SELECT id FROM locked_chat)
+    FOR SHARE
+)
 UPDATE chats
 SET
     summary = sqlc.narg('summary')::text,
     summary_generated_at = NOW()
 WHERE
-    id = @id::uuid
-    AND history_version = @expected_history_version::bigint;
+    id = (SELECT id FROM locked_chat)
+    AND (SELECT history_version FROM current_versions) = @expected_history_version::bigint;
 
 -- name: UpdateChatAutomationIDByID :execrows
 -- Marks a chat as created by an automation. The mark is set once, when the
@@ -1665,6 +1761,12 @@ WHERE
     id = @id::uuid
 RETURNING *
 ),
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM updated_chat)
+    FOR SHARE
+),
 chats_expanded AS (
     SELECT
         updated_chat.id,
@@ -1698,12 +1800,12 @@ chats_expanded AS (
         updated_chat.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
@@ -1721,6 +1823,7 @@ chats_expanded AS (
         updated_chat.manage_automations_enabled
     FROM
         updated_chat
+    JOIN versions ON versions.chat_id = updated_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
@@ -1971,6 +2074,12 @@ WHERE
     id = @id::uuid
 RETURNING *
 ),
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM updated_chat)
+    FOR SHARE
+),
 chats_expanded AS (
     SELECT
         updated_chat.id,
@@ -2004,12 +2113,12 @@ chats_expanded AS (
         updated_chat.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
@@ -2027,6 +2136,7 @@ chats_expanded AS (
         updated_chat.manage_automations_enabled
     FROM
         updated_chat
+    JOIN versions ON versions.chat_id = updated_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
@@ -2282,6 +2392,12 @@ WITH locked_chat AS (
     WHERE id = @id::uuid
     FOR UPDATE
 ),
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM locked_chat)
+    FOR SHARE
+),
 chats_expanded AS (
     SELECT
         locked_chat.id,
@@ -2315,12 +2431,12 @@ chats_expanded AS (
         locked_chat.last_turn_summary,
         locked_chat.summary,
         locked_chat.summary_generated_at,
-        locked_chat.snapshot_version,
-        locked_chat.history_version,
-        locked_chat.queue_version,
-        locked_chat.generation_attempt,
-        locked_chat.retry_state,
-        locked_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         locked_chat.runner_id,
         locked_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, locked_chat.user_acl) AS user_acl,
@@ -2338,6 +2454,7 @@ chats_expanded AS (
         locked_chat.manage_automations_enabled
     FROM
         locked_chat
+    JOIN versions ON versions.chat_id = locked_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = locked_chat.owner_id
 )
@@ -2349,6 +2466,12 @@ WITH shared_chat AS (
     SELECT *
     FROM chats
     WHERE id = @id::uuid
+    FOR SHARE
+),
+versions AS (
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id IN (SELECT id FROM shared_chat)
     FOR SHARE
 ),
 chats_expanded AS (
@@ -2384,12 +2507,12 @@ chats_expanded AS (
         shared_chat.last_turn_summary,
         shared_chat.summary,
         shared_chat.summary_generated_at,
-        shared_chat.snapshot_version,
-        shared_chat.history_version,
-        shared_chat.queue_version,
-        shared_chat.generation_attempt,
-        shared_chat.retry_state,
-        shared_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         shared_chat.runner_id,
         shared_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, shared_chat.user_acl) AS user_acl,
@@ -2407,6 +2530,7 @@ chats_expanded AS (
         shared_chat.manage_automations_enabled
     FROM
         shared_chat
+    JOIN versions ON versions.chat_id = shared_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(shared_chat.root_chat_id, shared_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = shared_chat.owner_id
 )
@@ -2788,15 +2912,18 @@ WHERE
 -- Locks the chat row with FOR UPDATE and atomically increments its
 -- snapshot_version, returning the post-bump chat. This is the single
 -- entry point ChatMachine.Update uses to acquire the row lock and
--- allocate a new snapshot version in one round trip.
+-- allocate a new snapshot version in one round trip. Only chat_versions
+-- is written, so a later chats UPDATE in the transaction skips its FK checks.
 WITH bumped_chat AS (
-    UPDATE chats
+    SELECT *
+    FROM chats
+    WHERE id = @id::uuid
+    FOR UPDATE
+),
+versions AS (
+    UPDATE chat_versions
     SET snapshot_version = snapshot_version + 1
-    WHERE id = (
-        SELECT id FROM chats
-        WHERE id = @id::uuid
-        FOR UPDATE
-    )
+    WHERE chat_id = (SELECT id FROM bumped_chat)
     RETURNING *
 ),
 chats_expanded AS (
@@ -2832,12 +2959,12 @@ chats_expanded AS (
         bumped_chat.last_turn_summary,
         bumped_chat.summary,
         bumped_chat.summary_generated_at,
-        bumped_chat.snapshot_version,
-        bumped_chat.history_version,
-        bumped_chat.queue_version,
-        bumped_chat.generation_attempt,
-        bumped_chat.retry_state,
-        bumped_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         bumped_chat.runner_id,
         bumped_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, bumped_chat.user_acl) AS user_acl,
@@ -2854,6 +2981,7 @@ chats_expanded AS (
         bumped_chat.automation_id,
         bumped_chat.manage_automations_enabled
     FROM bumped_chat
+    JOIN versions ON versions.chat_id = bumped_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = bumped_chat.owner_id
 )
@@ -2884,16 +3012,32 @@ WITH updated_chat AS (
         last_error = sqlc.narg('last_error')::jsonb,
         requires_action_deadline_at = sqlc.narg('requires_action_deadline_at')::timestamptz,
         compaction_requested_at = sqlc.narg('compaction_requested_at')::timestamptz,
-        history_version = CASE WHEN @grant_history_epoch::boolean THEN snapshot_version ELSE history_version END,
-        generation_attempt = CASE WHEN @grant_history_epoch::boolean THEN 0 ELSE generation_attempt END,
-        retry_state = CASE
-            WHEN @grant_history_epoch::boolean OR @status::chat_status <> 'running'::chat_status THEN NULL
-            ELSE retry_state
-        END,
         pin_order = CASE WHEN @archived::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
     WHERE id = @id::uuid
     RETURNING *
+),
+updated_versions AS (
+    UPDATE chat_versions
+    SET
+        history_version = CASE WHEN @grant_history_epoch::boolean THEN snapshot_version ELSE history_version END,
+        generation_attempt = CASE WHEN @grant_history_epoch::boolean THEN 0 ELSE generation_attempt END,
+        retry_state = NULL
+    WHERE chat_id = (SELECT id FROM updated_chat)
+        AND (
+            (retry_state IS NOT NULL AND (@grant_history_epoch::boolean OR @status::chat_status <> 'running'::chat_status))
+            OR (@grant_history_epoch::boolean AND (history_version <> snapshot_version OR generation_attempt <> 0))
+        )
+    RETURNING *
+),
+versions AS (
+    SELECT *
+    FROM updated_versions
+    UNION ALL
+    SELECT *
+    FROM chat_versions
+    WHERE chat_id = (SELECT id FROM updated_chat)
+        AND NOT EXISTS (SELECT 1 FROM updated_versions)
 ),
 chats_expanded AS (
     SELECT
@@ -2928,12 +3072,12 @@ chats_expanded AS (
         updated_chat.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
@@ -2950,6 +3094,7 @@ chats_expanded AS (
         updated_chat.automation_id,
         updated_chat.manage_automations_enabled
     FROM updated_chat
+    JOIN versions ON versions.chat_id = updated_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
@@ -2961,10 +3106,14 @@ FROM chats_expanded;
 -- assigned by trigger from the current snapshot_version.
 WITH updated_chat AS (
     UPDATE chats
-    SET
-        retry_state = @retry_state::jsonb,
-        updated_at = NOW()
+    SET updated_at = NOW()
     WHERE id = @id::uuid
+    RETURNING *
+),
+versions AS (
+    UPDATE chat_versions
+    SET retry_state = @retry_state::jsonb
+    WHERE chat_id = (SELECT id FROM updated_chat)
     RETURNING *
 ),
 chats_expanded AS (
@@ -3000,12 +3149,12 @@ chats_expanded AS (
         updated_chat.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
         updated_chat.runner_id,
         updated_chat.requires_action_deadline_at,
         COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
@@ -3022,6 +3171,7 @@ chats_expanded AS (
         updated_chat.automation_id,
         updated_chat.manage_automations_enabled
     FROM updated_chat
+    JOIN versions ON versions.chat_id = updated_chat.id
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
@@ -3030,9 +3180,15 @@ FROM chats_expanded;
 
 -- name: IncrementChatGenerationAttempt :one
 -- Increments generation_attempt and returns the resulting value.
-UPDATE chats
-SET generation_attempt = generation_attempt + 1, updated_at = NOW()
-WHERE id = @id::uuid
+WITH updated_chat AS (
+    UPDATE chats
+    SET updated_at = NOW()
+    WHERE id = @id::uuid
+    RETURNING id
+)
+UPDATE chat_versions
+SET generation_attempt = generation_attempt + 1
+WHERE chat_id = (SELECT id FROM updated_chat)
 RETURNING generation_attempt;
 
 -- name: GetDatabaseNow :one
@@ -3165,17 +3321,18 @@ DELETE FROM chat_heartbeats WHERE chat_id = @chat_id::uuid;
 
 -- name: GetChatStreamSyncRows :many
 SELECT
-    id,
-    snapshot_version,
-    history_version,
-    queue_version,
-    retry_state_version,
-    generation_attempt,
-    status,
-    worker_id
-FROM chats
-WHERE id = ANY(@ids::uuid[])
-ORDER BY id ASC;
+    c.id,
+    v.snapshot_version,
+    v.history_version,
+    v.queue_version,
+    v.retry_state_version,
+    v.generation_attempt,
+    c.status,
+    c.worker_id
+FROM chats c
+JOIN chat_versions v ON v.chat_id = c.id
+WHERE c.id = ANY(@ids::uuid[])
+ORDER BY c.id ASC;
 
 -- name: AutoArchiveInactiveChats :many
 -- Archives inactive root chats (pinned and already-archived chats skipped),
