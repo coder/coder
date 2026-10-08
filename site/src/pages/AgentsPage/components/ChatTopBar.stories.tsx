@@ -4,10 +4,12 @@ import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockGroup,
 	MockOrganizationMember,
@@ -72,7 +74,7 @@ const defaultProps = {
 const meta: Meta<typeof ChatTopBar> = {
 	title: "pages/AgentsPage/ChatTopBar",
 	component: ChatTopBar,
-	decorators: [withAuthProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
 	beforeEach: () => {
 		requestArchiveAgent.mockClear();
 		requestArchiveAndDeleteWorkspace.mockClear();
@@ -150,6 +152,39 @@ export const WithParentChat: Story = {
 				data: mockParentChat,
 			},
 		],
+	},
+};
+
+export const WithProject: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			project_id: MockChatProject.id,
+		},
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+	},
+};
+
+export const WithProjectLoading: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			project_id: MockChatProject.id,
+		},
+	},
+	parameters: { experiments: ["chat-projects"] },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
 	},
 };
 
@@ -585,7 +620,6 @@ export const PreservesArchivedFilterOnMobileBack: Story = {
 };
 
 export const ShareChatButton: Story = {
-	decorators: [withDashboardProvider],
 	args: {
 		chat: {
 			...MockChat,

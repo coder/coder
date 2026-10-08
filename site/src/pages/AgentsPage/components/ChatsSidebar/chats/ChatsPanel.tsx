@@ -216,6 +216,10 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
 	const { chatsByProjectId, unfiledChats: unfiledOwnedChats } =
 		groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
+	// Pinned chats leave their project folder, so their rows name the project.
+	const projectById = new Map(projects.map((project) => [project.id, project]));
+	const getPinnedChatProject = (chat: Chat) =>
+		chat.project_id ? projectById.get(chat.project_id) : undefined;
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -438,6 +442,16 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		sharedWithYouChats.length === 0 &&
 		chatSections.length === 0;
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
+	// An empty folder with pinned chats has every chat pinned only when the
+	// chat list is complete and unfiltered; otherwise unpinned chats may sit
+	// on a later page or be hidden by a filter.
+	const projectIdsWithPinnedChats = new Set(
+		hasNextPage || hasAppliedResultFilters || isViewingArchived
+			? []
+			: pinnedChats.flatMap((chat) =>
+					chat.project_id ? [chat.project_id] : [],
+				),
+	);
 	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
 		? "No agents match these filters"
@@ -593,6 +607,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 								projects={projects}
 								organizations={organizations}
 								chatsByProjectId={chatsByProjectId}
+								projectIdsWithPinnedChats={projectIdsWithPinnedChats}
 								expandedProjectIds={Object.fromEntries(
 									projects.map((project) => [
 										project.id,
@@ -673,7 +688,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 														(disablePinnedReordering ? (
 															<div className="flex flex-col gap-0.5">
 																{sortedPinnedChats.map((chat) => (
-																	<ChatTreeNode key={chat.id} chat={chat} />
+																	<ChatTreeNode
+																		key={chat.id}
+																		chat={chat}
+																		project={getPinnedChatProject(chat)}
+																	/>
 																))}
 															</div>
 														) : (
@@ -701,6 +720,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																			<SortableChatTreeNode
 																				key={chat.id}
 																				chat={chat}
+																				project={getPinnedChatProject(chat)}
 																			/>
 																		))}
 																	</div>

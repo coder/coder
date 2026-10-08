@@ -38,6 +38,7 @@ type ProjectFoldersProps = {
 	readonly projects: readonly ChatProject[];
 	readonly organizations: readonly Organization[];
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
+	readonly projectIdsWithPinnedChats: ReadonlySet<string>;
 	readonly expandedProjectIds: Readonly<Record<string, boolean>>;
 	readonly onToggle: (projectId: string) => void;
 	readonly onOpenProjectDialog: OpenProjectDialog;
@@ -52,6 +53,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	projects,
 	organizations,
 	chatsByProjectId,
+	projectIdsWithPinnedChats,
 	expandedProjectIds,
 	onToggle,
 	onOpenProjectDialog,
@@ -117,7 +119,11 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 									onToggle={() => onToggle(project.id)}
 									onEdit={() => onOpenProjectDialog({ mode: "edit", project })}
 									onDelete={() => onDelete(project)}
-									emptyMessage={emptyMessage}
+									emptyMessage={
+										projectIdsWithPinnedChats.has(project.id)
+											? "All agents are pinned"
+											: emptyMessage
+									}
 								/>
 							))}
 						</div>

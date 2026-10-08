@@ -2708,6 +2708,47 @@ export const ProjectFolderExpanded: Story = {
 	},
 };
 
+/** A folder whose only chat is pinned; the pinned row shows the project icon. */
+export const ProjectFolderAllChatsPinned: Story = {
+	args: {
+		chats: [
+			buildChat({ id: "loose-chat", title: "Loose chat" }),
+			buildChat({
+				id: "pinned-project-chat",
+				title: "Pinned project chat",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+				pin_order: 1,
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+/**
+ * The same folder while more chats can still load: an unpinned chat may be on
+ * a later page, so the folder does not claim that all agents are pinned.
+ */
+export const ProjectFolderPinnedChatsPartiallyLoaded: Story = {
+	...ProjectFolderAllChatsPinned,
+	args: { ...ProjectFolderAllChatsPinned.args, hasNextPage: true },
+};
+
 export const ProjectsSectionCollapsed: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
