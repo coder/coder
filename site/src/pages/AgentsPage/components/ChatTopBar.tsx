@@ -40,7 +40,6 @@ import {
 	ChatActionsMenu,
 	canManageChat,
 	chatFamilyAllowsArchive,
-	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
@@ -198,14 +197,9 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 				activeChatChildren,
 			)
 		: false;
-	// Suppressed when there is no chat to act on (loading and not-found views)
-	// and when the chat has no menu actions (archived child chats and chats
-	// shared by another user).
+	// Suppressed when there is no chat to act on (loading and not-found views).
 	const showActionsMenu =
-		!isEmbedded &&
-		chat !== undefined &&
-		Boolean(chatTitle) &&
-		chatHasMenuActions(chat, { canManage });
+		!isEmbedded && chat !== undefined && Boolean(chatTitle);
 	const diffStatus = chat?.diff_status;
 
 	const prUrl = diffStatus?.url;
@@ -337,7 +331,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 					target="_blank"
 					rel="noreferrer"
 					className={cn(
-						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
 						panel.showSidebarPanel && "lg:hidden",
 					)}
 				>

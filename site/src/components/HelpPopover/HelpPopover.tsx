@@ -57,7 +57,8 @@ export const HelpPopoverIconTrigger: React.FC<HelpPopoverIconTriggerProps> = ({
 					"flex items-center justify-center px-0 py-1",
 					"border-0 border-none bg-transparent cursor-pointer text-inherit",
 					size === "small" ? "[&_svg]:size-3" : "[&_svg]:size-4",
-					hoverEffect && "opacity-50 hover:opacity-75",
+					hoverEffect &&
+						"text-content-secondary hover:text-content-primary transition-colors",
 					className,
 				)}
 			>

@@ -111,7 +111,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 
 	return (
 		<Collapsible>
-			<div className="overflow-hidden rounded-lg border border-solid border-border-default/40 bg-surface-secondary/10">
+			<div className="overflow-hidden rounded-lg border border-solid border-border/40 bg-surface-secondary/10">
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
@@ -153,7 +153,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 					</button>
 				</CollapsibleTrigger>
 
-				<CollapsibleContent className="space-y-3 border-0 border-t border-solid border-border-default/30 bg-surface-primary/10 px-3 pb-3 pt-3">
+				<CollapsibleContent className="space-y-3 border-0 border-t border-solid border-border/30 bg-surface-primary/10 px-3 pb-3 pt-3">
 					{/* ── Metadata bar ────────────────────────────── */}
 					<div className="flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-content-secondary">
 						{model ? <MetadataItem label="Model" value={model} /> : null}
@@ -230,7 +230,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 							{request.tools.map((tool) => (
 								<div
 									key={tool.name}
-									className="rounded-md border border-solid border-border-default/40 bg-surface-secondary/10 p-2.5"
+									className="rounded-md border border-solid border-border/40 bg-surface-secondary/10 p-2.5"
 								>
 									<ToolBadge label={tool.name} />
 									{tool.description ? (

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import {
 	AgentSettingsGeneralPageView,
@@ -149,6 +150,50 @@ export const TogglesSendShortcut: Story = {
 			});
 			expect(toggle).toBeChecked();
 		});
+	},
+};
+
+export const CollapseAssistantStepsEnabled: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: { ...preferencesData, collapse_assistant_steps: true },
+			},
+		],
+	},
+};
+
+export const CollapseAssistantStepsLoadError: Story = {
+	// Drop the seeded preferences so the component fetches and hits the error.
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getUserPreferenceSettings").mockRejectedValue(
+			new Error("boom"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByText(
+			"Failed to load your collapse assistant steps preference.",
+		);
+	},
+};
+
+export const CollapseAssistantStepsSaveError: Story = {
+	beforeEach: () => {
+		spyOn(API, "updateUserPreferenceSettings").mockRejectedValue(
+			new Error("boom"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await userEvent.click(
+			await canvas.findByRole("switch", { name: "Collapse assistant steps" }),
+		);
+		await canvas.findByText(
+			"Failed to save your collapse assistant steps preference.",
+		);
 	},
 };
 

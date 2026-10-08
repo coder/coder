@@ -41,6 +41,7 @@ export type AgentContextUsage = {
 	readonly outputTokens?: number;
 	readonly cacheReadTokens?: number;
 	readonly cacheCreationTokens?: number;
+	// Part of outputTokens, so usedTokens does not add it.
 	readonly reasoningTokens?: number;
 	// Percentage (0-100) at which the context will be compacted.
 	readonly compressionThreshold?: number;
@@ -586,7 +587,7 @@ export const ContextUsageIndicator: React.FC<{
 				</div>
 			)}
 			{(isDirty || hasContextError) && (
-				<div className="mt-2 flex flex-col gap-1.5 border-0 border-t border-solid border-border-default pt-2">
+				<div className="mt-2 flex flex-col gap-1.5 border-0 border-t border-solid border-border pt-2">
 					{hasContextError ? (
 						<span className="flex items-center gap-1.5 font-medium text-content-destructive">
 							<TriangleAlertIcon className="size-3 shrink-0" />
