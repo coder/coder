@@ -13,12 +13,12 @@ import { WorkspaceSharingForm } from "#/modules/workspaces/WorkspaceSharingForm/
 
 type ShareButtonProps = {
 	workspace: Workspace;
-	canUpdatePermissions: boolean;
+	canShareWorkspace: boolean;
 };
 
 export const ShareButton: React.FC<ShareButtonProps> = ({
 	workspace,
-	canUpdatePermissions,
+	canShareWorkspace,
 }) => {
 	const sharing = useWorkspaceSharing(workspace);
 
@@ -37,7 +37,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
 				<WorkspaceSharingForm
 					organizationId={workspace.organization_id}
 					workspaceACL={sharing.workspaceACL}
-					canUpdatePermissions={canUpdatePermissions}
+					canShareWorkspace={canShareWorkspace}
 					error={sharing.error ?? sharing.mutationError}
 					updatingUserId={sharing.updatingUserId}
 					onUpdateUser={sharing.updateUser}

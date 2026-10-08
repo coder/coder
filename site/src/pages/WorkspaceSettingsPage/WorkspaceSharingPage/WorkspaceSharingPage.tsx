@@ -16,7 +16,7 @@ const WorkspaceSharingPage: React.FC = () => {
 		...checkAuthorization<WorkspacePermissions>({ checks }),
 	});
 	const permissions = permissionsQuery.data;
-	const canUpdatePermissions = Boolean(permissions?.shareWorkspace);
+	const canShareWorkspace = Boolean(permissions?.shareWorkspace);
 
 	const error =
 		sharing.error ?? permissionsQuery.error ?? sharing.mutationError;
@@ -28,7 +28,7 @@ const WorkspaceSharingPage: React.FC = () => {
 			<WorkspaceSharingPageView
 				workspace={workspace}
 				workspaceACL={sharing.workspaceACL}
-				canUpdatePermissions={canUpdatePermissions}
+				canShareWorkspace={canShareWorkspace}
 				error={error}
 				onAddUser={sharing.addUser}
 				isAddingUser={sharing.isAddingUser}
