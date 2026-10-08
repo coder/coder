@@ -11,7 +11,7 @@
  */
 
 import { renderHook } from "@testing-library/react";
-import { act, StrictMode } from "react";
+import { act } from "react";
 import { toast } from "sonner";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
@@ -121,7 +121,6 @@ function renderUseClipboard(inputs?: UseClipboardInput) {
 		(props) => useClipboard(props),
 		{
 			initialProps: inputs,
-			wrapper: StrictMode,
 		},
 	);
 }
