@@ -75,8 +75,8 @@ export const Expanded: Story = {
 	},
 };
 
-// The answer's reasoning and web search fold into the block it ends, so only
-// its text shows after the summary.
+// The answer's reasoning, narration, and web search fold into the block it
+// ends, so only its final text shows after the summary.
 export const AnswerWorkFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),

@@ -126,7 +126,7 @@ describe("ConversationTimeline working blocks", () => {
 		);
 
 		expect(writeText).toHaveBeenCalledWith(
-			"The workspace runs the latest Coder release.",
+			"Looking up the release notes.The workspace runs the latest Coder release.",
 		);
 	});
 

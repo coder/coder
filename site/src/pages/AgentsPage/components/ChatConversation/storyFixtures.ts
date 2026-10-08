@@ -189,8 +189,8 @@ export const MockWorkingMessages: TypesGen.ChatMessage[] = [
 ];
 
 /**
- * MockWorkingMessages whose final answer also reasoned and searched the web
- * from 13s to 16s before writing its text.
+ * MockWorkingMessages whose final answer also reasoned, narrated, and searched
+ * the web from 13s to 16s before writing its text.
  */
 export const MockWebSearchAnswerMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 5),
@@ -206,6 +206,7 @@ export const MockWebSearchAnswerMessages: TypesGen.ChatMessage[] = [
 				created_at: workingFixtureTime(13),
 				completed_at: workingFixtureTime(14),
 			},
+			{ type: "text", text: "Looking up the release notes." },
 			{
 				type: "tool-call",
 				tool_call_id: "search",
@@ -223,12 +224,6 @@ export const MockWebSearchAnswerMessages: TypesGen.ChatMessage[] = [
 				created_at: workingFixtureTime(15),
 			},
 			{
-				type: "reasoning",
-				text: "Comparing the two sources",
-				created_at: workingFixtureTime(15),
-				completed_at: workingFixtureTime(16),
-			},
-			{
 				type: "source",
 				url: "https://changelog.example.com",
 				title: "Coder changelog",
@@ -237,6 +232,12 @@ export const MockWebSearchAnswerMessages: TypesGen.ChatMessage[] = [
 				type: "source",
 				url: "https://releases.example.com",
 				title: "Coder releases",
+			},
+			{
+				type: "reasoning",
+				text: "Comparing the two sources",
+				created_at: workingFixtureTime(15),
+				completed_at: workingFixtureTime(16),
 			},
 			{
 				type: "text",

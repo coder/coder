@@ -53,7 +53,7 @@ import type {
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
-import { groupWorkingBlocks, isWorkBlock } from "./workingBlockGrouping";
+import { groupWorkingBlocks, splitRowBlocks } from "./workingBlockGrouping";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -241,6 +241,7 @@ const ChatMessageItem = memo<{
 		};
 		const isWorkSection = section === "work";
 		const rowBlocks = parsed?.blocks ?? liveBlocks;
+		const rowTools = parsed?.tools ?? liveTools;
 		const outputLiveStatus = isWorkSection ? undefined : liveStatus;
 
 		return (
@@ -282,15 +283,11 @@ const ChatMessageItem = memo<{
 									blocks={
 										section === undefined
 											? rowBlocks
-											: rowBlocks.filter(
-													(block) => isWorkBlock(block) === isWorkSection,
-												)
+											: splitRowBlocks(rowBlocks, rowTools)[section]
 									}
 									// The answer section takes no tools, or it would repeat the
 									// folded ones as block-less tools.
-									tools={
-										section === "answer" ? [] : (parsed?.tools ?? liveTools)
-									}
+									tools={section === "answer" ? [] : rowTools}
 									isStreaming={outputLiveStatus?.phase === "streaming"}
 									liveStatus={outputLiveStatus}
 									subagentStatusOverrides={subagentStatusOverrides}
