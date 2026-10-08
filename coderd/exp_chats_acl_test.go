@@ -616,6 +616,9 @@ func TestChatSharingDisabled(t *testing.T) {
 		GroupACL: database.ChatACL{},
 	})
 	require.NoError(t, err)
+	ownerView, err := client.GetChatProject(ctx, project.OrganizationID, project.ID)
+	require.NoError(t, err)
+	require.False(t, ownerView.Permissions.Share)
 	_, err = viewerClientExp.GetChatProject(ctx, project.OrganizationID, project.ID)
 	requireSDKError(t, err, http.StatusNotFound)
 	_, err = client.ChatProjectACL(ctx, project.OrganizationID, project.ID)
