@@ -370,6 +370,7 @@ Actions: `create`, `write`, `delete`
 <thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
 <tbody>
 <tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>deleted</code></td><td>Yes</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
 <tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>icon</code></td><td>Yes</td></tr>

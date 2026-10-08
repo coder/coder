@@ -16,6 +16,8 @@ COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with,
 CREATE INDEX idx_chat_projects_user_acl ON chat_projects USING gin (user_acl);
 CREATE INDEX idx_chat_projects_group_acl ON chat_projects USING gin (group_acl);
 
+ALTER TABLE chat_projects ADD COLUMN deleted boolean NOT NULL DEFAULT false;
+
 ALTER TABLE chats
     DROP CONSTRAINT chats_project_id_fkey,
     ADD CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;

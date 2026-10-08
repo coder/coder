@@ -2389,26 +2389,73 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	}
 	require.ElementsMatch(t, family, ids)
 
-	deletedMessage := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: ownerChild.ID, CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true}, ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true}})
-	keptMessage := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: unrelated.ID, CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true}, ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true}})
-	require.NoError(t, db.DeleteChatMessagesByChatIDs(ctx, family))
-	countMessages := func(chatID uuid.UUID) int {
-		var n int
-		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM chat_messages WHERE chat_id = $1", chatID).Scan(&n))
-		return n
+	deletedLease := database.GetChatHeartbeatParams{ChatID: ownerChild.ID, RunnerID: uuid.New()}
+	keptLease := database.GetChatHeartbeatParams{ChatID: unrelated.ID, RunnerID: uuid.New()}
+	for _, lease := range []database.GetChatHeartbeatParams{deletedLease, keptLease} {
+		require.NoError(t, db.UpsertChatHeartbeat(ctx, database.UpsertChatHeartbeatParams(lease)))
 	}
-	require.Zero(t, countMessages(deletedMessage.ChatID))
-	require.Equal(t, 1, countMessages(keptMessage.ChatID))
+	require.NoError(t, db.DeleteChatHeartbeatsByChatIDs(ctx, family))
+	_, err = db.GetChatHeartbeat(ctx, deletedLease)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetChatHeartbeat(ctx, keptLease)
+	require.NoError(t, err)
 
-	require.NoError(t, db.DeleteChatFamiliesByRootIDs(ctx, []uuid.UUID{ownerRoot.ID}))
-	for _, id := range []uuid.UUID{ownerRoot.ID, ownerChild.ID} {
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'running' WHERE id = ANY($1)", pq.Array([]uuid.UUID{ownerRoot.ID, ownerChild.ID, unrelated.ID}))
+	require.NoError(t, err)
+	require.NoError(t, db.MarkChatProjectDeleted(ctx, project.ID))
+
+	_, err = db.GetChatProjectByID(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	count, err := db.CountChatProjectsByOwnerID(ctx, owner.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, count)
+	projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, owner.ID)
+	require.NoError(t, err)
+	require.Len(t, projects, 1)
+	require.Equal(t, otherProject.ID, projects[0].ID)
+
+	for _, id := range family {
+		inDeleted, err := db.IsChatInDeletedProject(ctx, id)
+		require.NoError(t, err)
+		require.True(t, inDeleted)
+	}
+	inDeleted, err := db.IsChatInDeletedProject(ctx, unrelated.ID)
+	require.NoError(t, err)
+	require.False(t, inDeleted)
+
+	rows, err := db.GetChats(ctx, database.GetChatsParams{})
+	require.NoError(t, err)
+	listed := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		listed = append(listed, row.Chat.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{unrelated.ID, otherProjectChat.ID}, listed)
+
+	candidates, err := db.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{LimitCount: 10, StaleSeconds: 30})
+	require.NoError(t, err)
+	candidateIDs := make([]uuid.UUID, 0, len(candidates))
+	for _, candidate := range candidates {
+		candidateIDs = append(candidateIDs, candidate.ID)
+	}
+	require.Equal(t, []uuid.UUID{unrelated.ID}, candidateIDs)
+
+	purged, err := db.DeleteChatFamiliesOfDeletedProjects(ctx, 1)
+	require.NoError(t, err)
+	require.NotZero(t, purged)
+	removed, err := db.DeleteEmptyDeletedChatProjects(ctx, 10)
+	require.NoError(t, err)
+	require.Zero(t, removed)
+	purged, err = db.DeleteChatFamiliesOfDeletedProjects(ctx, 10)
+	require.NoError(t, err)
+	require.NotZero(t, purged)
+	removed, err = db.DeleteEmptyDeletedChatProjects(ctx, 10)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, removed)
+
+	for _, id := range family {
 		_, err := db.GetChatByID(ctx, id)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	}
-
-	require.NoError(t, db.DeleteChatProjectByID(ctx, project.ID))
-	_, err = db.GetChatByID(ctx, shareeRoot.ID)
-	require.ErrorIs(t, err, sql.ErrNoRows)
 	for _, id := range []uuid.UUID{unrelated.ID, unrelatedChild.ID, otherProjectChat.ID} {
 		_, err := db.GetChatByID(ctx, id)
 		require.NoError(t, err)

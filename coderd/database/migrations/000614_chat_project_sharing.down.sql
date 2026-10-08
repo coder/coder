@@ -1,5 +1,8 @@
 -- The chat_project:share enum value cannot be dropped.
 
+DELETE FROM chat_projects WHERE deleted;
+ALTER TABLE chat_projects DROP COLUMN deleted;
+
 ALTER TABLE chats
     DROP CONSTRAINT chats_project_id_fkey,
     ADD CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE SET NULL;

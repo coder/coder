@@ -2307,12 +2307,19 @@ func (q *querier) DeleteChatDebugDataByChatID(ctx context.Context, arg database.
 	return q.db.DeleteChatDebugDataByChatID(ctx, arg)
 }
 
-// Project chats can belong to sharees, so delete is checked on all chats.
-func (q *querier) DeleteChatFamiliesByRootIDs(ctx context.Context, rootIDs []uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
+func (q *querier) DeleteChatFamiliesOfDeletedProjects(ctx context.Context, limitCount int32) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteChatFamiliesOfDeletedProjects(ctx, limitCount)
+}
+
+// Project chats can belong to sharees, so update is checked on all chats.
+func (q *querier) DeleteChatHeartbeatsByChatIDs(ctx context.Context, chatIDs []uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return err
 	}
-	return q.db.DeleteChatFamiliesByRootIDs(ctx, rootIDs)
+	return q.db.DeleteChatHeartbeatsByChatIDs(ctx, chatIDs)
 }
 
 func (q *querier) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg database.DeleteChatMCPServersByChatIDExcludingSlugsParams) error {
@@ -2324,13 +2331,6 @@ func (q *querier) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context
 		return err
 	}
 	return q.db.DeleteChatMCPServersByChatIDExcludingSlugs(ctx, arg)
-}
-
-func (q *querier) DeleteChatMessagesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
-		return err
-	}
-	return q.db.DeleteChatMessagesByChatIDs(ctx, chatIDs)
 }
 
 func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
@@ -2354,10 +2354,6 @@ func (q *querier) DeleteChatOrganizationModelOverride(ctx context.Context, arg d
 		return err
 	}
 	return q.db.DeleteChatOrganizationModelOverride(ctx, arg)
-}
-
-func (q *querier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
-	return deleteQ(q.log, q.auth, q.db.GetChatProjectByID, q.db.DeleteChatProjectByID)(ctx, id)
 }
 
 func (q *querier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
@@ -2421,6 +2417,13 @@ func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCusto
 	}
 
 	return q.db.DeleteCustomRole(ctx, arg)
+}
+
+func (q *querier) DeleteEmptyDeletedChatProjects(ctx context.Context, limitCount int32) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteEmptyDeletedChatProjects(ctx, limitCount)
 }
 
 func (q *querier) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
@@ -7178,6 +7181,13 @@ func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatH
 	return q.db.IsChatHeartbeatStale(ctx, arg)
 }
 
+func (q *querier) IsChatInDeletedProject(ctx context.Context, chatID uuid.UUID) (bool, error) {
+	if _, err := q.GetChatByID(ctx, chatID); err != nil {
+		return false, err
+	}
+	return q.db.IsChatInDeletedProject(ctx, chatID)
+}
+
 // IsChatProjectAccessibleByUserID answers for another user, so it requires
 // reading every project.
 func (q *querier) IsChatProjectAccessibleByUserID(ctx context.Context, arg database.IsChatProjectAccessibleByUserIDParams) (bool, error) {
@@ -7428,6 +7438,10 @@ func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg datab
 	}
 
 	return q.db.MarkAllInboxNotificationsAsRead(ctx, arg)
+}
+
+func (q *querier) MarkChatProjectDeleted(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetChatProjectByID, q.db.MarkChatProjectDeleted)(ctx, id)
 }
 
 func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {

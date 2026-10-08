@@ -8481,7 +8481,7 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 const countChatProjectsByOwnerID = `-- name: CountChatProjectsByOwnerID :one
 SELECT COUNT(*)::bigint
 FROM chat_projects
-WHERE owner_id = $1::uuid
+WHERE owner_id = $1::uuid AND NOT deleted
 `
 
 func (q *sqlQuerier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
@@ -8491,41 +8491,51 @@ func (q *sqlQuerier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uui
 	return column_1, err
 }
 
-const deleteChatFamiliesByRootIDs = `-- name: DeleteChatFamiliesByRootIDs :exec
+const deleteChatFamiliesOfDeletedProjects = `-- name: DeleteChatFamiliesOfDeletedProjects :execrows
+WITH roots AS (
+    SELECT chats.id
+    FROM chats
+    JOIN chat_projects ON chat_projects.id = chats.project_id
+    WHERE chat_projects.deleted AND chats.parent_chat_id IS NULL
+    LIMIT $1
+)
 DELETE FROM chats
-WHERE id = ANY($1::uuid[])
-    OR root_chat_id = ANY($1::uuid[])
+WHERE id IN (SELECT id FROM roots)
+    OR root_chat_id IN (SELECT id FROM roots)
 `
 
-func (q *sqlQuerier) DeleteChatFamiliesByRootIDs(ctx context.Context, rootIds []uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatFamiliesByRootIDs, pq.Array(rootIds))
-	return err
+func (q *sqlQuerier) DeleteChatFamiliesOfDeletedProjects(ctx context.Context, limitCount int32) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteChatFamiliesOfDeletedProjects, limitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
-const deleteChatMessagesByChatIDs = `-- name: DeleteChatMessagesByChatIDs :exec
-DELETE FROM chat_messages
-WHERE chat_id = ANY($1::uuid[])
-`
-
-func (q *sqlQuerier) DeleteChatMessagesByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatMessagesByChatIDs, pq.Array(chatIds))
-	return err
-}
-
-const deleteChatProjectByID = `-- name: DeleteChatProjectByID :exec
+const deleteEmptyDeletedChatProjects = `-- name: DeleteEmptyDeletedChatProjects :execrows
+WITH empty AS (
+    SELECT chat_projects.id
+    FROM chat_projects
+    WHERE chat_projects.deleted
+        AND NOT EXISTS (SELECT 1 FROM chats WHERE chats.project_id = chat_projects.id)
+    LIMIT $1
+)
 DELETE FROM chat_projects
-WHERE id = $1::uuid
+WHERE id IN (SELECT id FROM empty)
 `
 
-func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatProjectByID, id)
-	return err
+func (q *sqlQuerier) DeleteEmptyDeletedChatProjects(ctx context.Context, limitCount int32) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteEmptyDeletedChatProjects, limitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 FROM chat_projects
-WHERE id = $1::uuid
+WHERE id = $1::uuid AND NOT deleted
 `
 
 func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error) {
@@ -8542,14 +8552,15 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.Deleted,
 	)
 	return i, err
 }
 
 const getChatProjectByIDForUpdate = `-- name: GetChatProjectByIDForUpdate :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 FROM chat_projects
-WHERE id = $1::uuid
+WHERE id = $1::uuid AND NOT deleted
 FOR UPDATE
 `
 
@@ -8567,6 +8578,7 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.Deleted,
 	)
 	return i, err
 }
@@ -8656,9 +8668,9 @@ func (q *sqlQuerier) GetChatProjectChatFamilies(ctx context.Context, projectID u
 }
 
 const getChatProjectsByOwnerID = `-- name: GetChatProjectsByOwnerID :many
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 FROM chat_projects
-WHERE owner_id = $1::uuid
+WHERE owner_id = $1::uuid AND NOT deleted
 ORDER BY lower(name), id
 `
 
@@ -8682,6 +8694,7 @@ func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.
 			&i.UpdatedAt,
 			&i.UserACL,
 			&i.GroupACL,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}
@@ -8697,9 +8710,9 @@ func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.
 }
 
 const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
-SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl
+SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.deleted
 FROM chat_projects
-WHERE chat_projects.owner_id = $1::uuid
+WHERE NOT chat_projects.deleted AND (chat_projects.owner_id = $1::uuid
     OR (
         (
             chat_projects.user_acl ? ($1::uuid)::text
@@ -8719,7 +8732,7 @@ WHERE chat_projects.owner_id = $1::uuid
             WHERE organization_members.user_id = $1::uuid
                 AND organization_members.organization_id = chat_projects.organization_id
         )
-    )
+    ))
 ORDER BY lower(chat_projects.name), chat_projects.id
 `
 
@@ -8745,6 +8758,7 @@ func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context,
 			&i.UpdatedAt,
 			&i.UserACL,
 			&i.GroupACL,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}
@@ -8769,7 +8783,7 @@ VALUES (
     $5::text,
     $6::text
 )
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 `
 
 type InsertChatProjectParams struct {
@@ -8802,8 +8816,26 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.Deleted,
 	)
 	return i, err
+}
+
+const isChatInDeletedProject = `-- name: IsChatInDeletedProject :one
+SELECT EXISTS (
+    SELECT 1
+    FROM chats c
+    JOIN chats root ON root.id = COALESCE(c.root_chat_id, c.parent_chat_id, c.id)
+    JOIN chat_projects ON chat_projects.id = root.project_id
+    WHERE c.id = $1::uuid AND chat_projects.deleted
+)::boolean
+`
+
+func (q *sqlQuerier) IsChatInDeletedProject(ctx context.Context, chatID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isChatInDeletedProject, chatID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const isChatProjectAccessibleByUserID = `-- name: IsChatProjectAccessibleByUserID :one
@@ -8811,6 +8843,7 @@ SELECT EXISTS (
     SELECT 1
     FROM chat_projects
     WHERE chat_projects.id = $1::uuid
+        AND NOT chat_projects.deleted
         AND (
             chat_projects.owner_id = $2::uuid
             OR (
@@ -8847,12 +8880,23 @@ func (q *sqlQuerier) IsChatProjectAccessibleByUserID(ctx context.Context, arg Is
 	return column_1, err
 }
 
+const markChatProjectDeleted = `-- name: MarkChatProjectDeleted :exec
+UPDATE chat_projects
+SET deleted = true, updated_at = now()
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) MarkChatProjectDeleted(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, markChatProjectDeleted, id)
+	return err
+}
+
 const updateChatProjectACLByID = `-- name: UpdateChatProjectACLByID :exec
 UPDATE chat_projects
 SET
     user_acl = $1,
     group_acl = $2
-WHERE id = $3::uuid
+WHERE id = $3::uuid AND NOT deleted
 `
 
 type UpdateChatProjectACLByIDParams struct {
@@ -8873,8 +8917,8 @@ SET
     description = $2::text,
     icon = $3::text,
     updated_at = now()
-WHERE id = $4::uuid
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl
+WHERE id = $4::uuid AND NOT deleted
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 `
 
 type UpdateChatProjectByIDParams struct {
@@ -8903,6 +8947,7 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		&i.UpdatedAt,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.Deleted,
 	)
 	return i, err
 }
@@ -9612,6 +9657,15 @@ WHERE chat_id = $1::uuid
 // has no snapshot.
 func (q *sqlQuerier) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteChatContextResourcesByChatID, chatID)
+	return err
+}
+
+const deleteChatHeartbeatsByChatIDs = `-- name: DeleteChatHeartbeatsByChatIDs :exec
+DELETE FROM chat_heartbeats WHERE chat_id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) DeleteChatHeartbeatsByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatHeartbeatsByChatIDs, pq.Array(chatIds))
 	return err
 }
 
@@ -11658,6 +11712,13 @@ candidates AS (
         WHERE (chats.parent_chat_id IS NULL) = candidate_partitions.is_root
           AND chats.status = candidate_partitions.status
           AND chats.archived = false
+          AND NOT EXISTS (
+              SELECT 1
+              FROM chats root
+              JOIN chat_projects ON chat_projects.id = root.project_id
+              WHERE root.id = COALESCE(chats.root_chat_id, chats.parent_chat_id, chats.id)
+                AND chat_projects.deleted
+          )
           AND (
               chats.worker_id IS NULL
               OR chats.runner_id IS NULL
@@ -11763,6 +11824,13 @@ WHERE
         WHEN $6 :: boolean IS NULL THEN true
         ELSE chats_expanded.archived = $6 :: boolean
     END
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chats root
+        JOIN chat_projects ON chat_projects.id = root.project_id
+        WHERE root.id = COALESCE(chats_expanded.root_chat_id, chats_expanded.parent_chat_id, chats_expanded.id)
+            AND chat_projects.deleted
+    )
     AND CASE
         WHEN $7::uuid IS NOT NULL THEN chats_expanded.project_id = $7::uuid
         ELSE true

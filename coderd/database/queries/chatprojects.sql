@@ -13,18 +13,18 @@ RETURNING *;
 -- name: GetChatProjectByID :one
 SELECT *
 FROM chat_projects
-WHERE id = @id::uuid;
+WHERE id = @id::uuid AND NOT deleted;
 
 -- name: GetChatProjectByIDForUpdate :one
 SELECT *
 FROM chat_projects
-WHERE id = @id::uuid
+WHERE id = @id::uuid AND NOT deleted
 FOR UPDATE;
 
 -- name: GetChatProjectsByOwnerID :many
 SELECT *
 FROM chat_projects
-WHERE owner_id = @owner_id::uuid
+WHERE owner_id = @owner_id::uuid AND NOT deleted
 ORDER BY lower(name), id;
 
 -- name: GetChatProjectsOwnedOrSharedWithUserID :many
@@ -32,7 +32,7 @@ ORDER BY lower(name), id;
 -- authorize each row.
 SELECT chat_projects.*
 FROM chat_projects
-WHERE chat_projects.owner_id = @user_id::uuid
+WHERE NOT chat_projects.deleted AND (chat_projects.owner_id = @user_id::uuid
     OR (
         (
             chat_projects.user_acl ? (@user_id::uuid)::text
@@ -52,7 +52,7 @@ WHERE chat_projects.owner_id = @user_id::uuid
             WHERE organization_members.user_id = @user_id::uuid
                 AND organization_members.organization_id = chat_projects.organization_id
         )
-    )
+    ))
 ORDER BY lower(chat_projects.name), chat_projects.id;
 
 -- name: IsChatProjectAccessibleByUserID :one
@@ -60,6 +60,7 @@ SELECT EXISTS (
     SELECT 1
     FROM chat_projects
     WHERE chat_projects.id = @project_id::uuid
+        AND NOT chat_projects.deleted
         AND (
             chat_projects.owner_id = @user_id::uuid
             OR (
@@ -88,7 +89,7 @@ UPDATE chat_projects
 SET
     user_acl = @user_acl,
     group_acl = @group_acl
-WHERE id = @id::uuid;
+WHERE id = @id::uuid AND NOT deleted;
 
 -- name: UpdateChatProjectByID :one
 UPDATE chat_projects
@@ -97,17 +98,18 @@ SET
     description = @description::text,
     icon = @icon::text,
     updated_at = now()
-WHERE id = @id::uuid
+WHERE id = @id::uuid AND NOT deleted
 RETURNING *;
 
--- name: DeleteChatProjectByID :exec
-DELETE FROM chat_projects
+-- name: MarkChatProjectDeleted :exec
+UPDATE chat_projects
+SET deleted = true, updated_at = now()
 WHERE id = @id::uuid;
 
 -- name: CountChatProjectsByOwnerID :one
 SELECT COUNT(*)::bigint
 FROM chat_projects
-WHERE owner_id = @owner_id::uuid;
+WHERE owner_id = @owner_id::uuid AND NOT deleted;
 
 -- name: GetChatProjectChatFamilies :many
 SELECT *
@@ -116,11 +118,34 @@ WHERE project_id = @project_id::uuid
     OR root_chat_id IN (SELECT id FROM chats WHERE chats.project_id = @project_id::uuid)
 ORDER BY id;
 
--- name: DeleteChatMessagesByChatIDs :exec
-DELETE FROM chat_messages
-WHERE chat_id = ANY(@chat_ids::uuid[]);
+-- name: IsChatInDeletedProject :one
+SELECT EXISTS (
+    SELECT 1
+    FROM chats c
+    JOIN chats root ON root.id = COALESCE(c.root_chat_id, c.parent_chat_id, c.id)
+    JOIN chat_projects ON chat_projects.id = root.project_id
+    WHERE c.id = @chat_id::uuid AND chat_projects.deleted
+)::boolean;
 
--- name: DeleteChatFamiliesByRootIDs :exec
+-- name: DeleteChatFamiliesOfDeletedProjects :execrows
+WITH roots AS (
+    SELECT chats.id
+    FROM chats
+    JOIN chat_projects ON chat_projects.id = chats.project_id
+    WHERE chat_projects.deleted AND chats.parent_chat_id IS NULL
+    LIMIT @limit_count
+)
 DELETE FROM chats
-WHERE id = ANY(@root_ids::uuid[])
-    OR root_chat_id = ANY(@root_ids::uuid[]);
+WHERE id IN (SELECT id FROM roots)
+    OR root_chat_id IN (SELECT id FROM roots);
+
+-- name: DeleteEmptyDeletedChatProjects :execrows
+WITH empty AS (
+    SELECT chat_projects.id
+    FROM chat_projects
+    WHERE chat_projects.deleted
+        AND NOT EXISTS (SELECT 1 FROM chats WHERE chats.project_id = chat_projects.id)
+    LIMIT @limit_count
+)
+DELETE FROM chat_projects
+WHERE id IN (SELECT id FROM empty);
