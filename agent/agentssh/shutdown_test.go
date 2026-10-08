@@ -79,7 +79,8 @@ func TestSSHShutdownReason(t *testing.T) {
 				stdout := expecter.NewAttachedToSSHSession(t, session)
 				command := "echo ready; cat"
 				if tc.stdinEOF {
-					command = "echo ready; sleep 120"
+					// Keep the command in one process so shutdown cannot race a fork.
+					command = "echo ready; exec sleep 120"
 				}
 				require.NoError(t, session.Start(command))
 				stdout.ExpectMatch(ctx, "ready")
@@ -245,7 +246,7 @@ func TestSSHShutdownAfterSessionChannelClosed(t *testing.T) {
 	session, err := client.NewSession()
 	require.NoError(t, err)
 	stdout := expecter.NewAttachedToSSHSession(t, session)
-	require.NoError(t, session.Start("echo ready; sleep 120"))
+	require.NoError(t, session.Start("echo ready; exec sleep 120"))
 	stdout.ExpectMatch(ctx, "ready")
 	require.NoError(t, session.Close())
 	require.Error(t, session.Wait())
