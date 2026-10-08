@@ -42,6 +42,19 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 				})
 				return
 			}
+			// Chats of a deleted project linger until dbpurge removes them.
+			inDeletedProject, err := db.IsChatInDeletedProject(ctx, chat.ID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error fetching chat.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			if inDeletedProject {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
 
 			ctx = context.WithValue(ctx, chatParamContextKey{}, chat)
 			next.ServeHTTP(rw, r.WithContext(ctx))

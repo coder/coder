@@ -48,6 +48,9 @@ const (
 	// log batches because chat_files rows carry bytea blobs.
 	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
+	// Deleted projects' chats are purged by family, so each root may carry
+	// many sub-chats.
+	deletedProjectChatFamiliesBatchSize = 100
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000
@@ -460,17 +463,26 @@ func (i *instance) Close() error {
 
 // purgeChatsInTx MUST BE CALLED WITH A TRANSACTION
 func (*instance) purgeChatsInTx(ctx context.Context, tx database.Store, start time.Time, chatRetentionDays int32) (purgedChats, purgedChatFiles int64, err error) {
+	purgedChats, err = tx.DeleteChatFamiliesOfDeletedProjects(ctx, deletedProjectChatFamiliesBatchSize)
+	if err != nil {
+		return 0, 0, xerrors.Errorf("failed to delete chats of deleted projects: %w", err)
+	}
+	if _, err := tx.DeleteEmptyDeletedChatProjects(ctx, deletedProjectChatFamiliesBatchSize); err != nil {
+		return 0, 0, xerrors.Errorf("failed to delete deleted chat projects: %w", err)
+	}
+
 	// Delete old archived chats first, then orphaned files
 	// (cascade clears chat_file_links but not chat_files).
 	if chatRetentionDays > 0 {
 		deleteChatsBefore := start.Add(-time.Duration(chatRetentionDays) * 24 * time.Hour)
-		purgedChats, err = tx.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+		purgedOldChats, err := tx.DeleteOldChats(ctx, database.DeleteOldChatsParams{
 			BeforeTime: deleteChatsBefore,
 			LimitCount: chatsBatchSize,
 		})
 		if err != nil {
 			return 0, 0, xerrors.Errorf("failed to delete old chats: %w", err)
 		}
+		purgedChats += purgedOldChats
 
 		purgedChatFiles, err = tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
 			BeforeTime: deleteChatsBefore,

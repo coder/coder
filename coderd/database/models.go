@@ -5688,6 +5688,7 @@ type ChatProject struct {
 	UserACL ChatACL `db:"user_acl" json:"user_acl"`
 	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
 	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
+	Deleted  bool    `db:"deleted" json:"deleted"`
 }
 
 // Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.

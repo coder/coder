@@ -2301,6 +2301,7 @@ CREATE TABLE chat_projects (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
     CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
     CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),

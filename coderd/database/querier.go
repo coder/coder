@@ -172,12 +172,11 @@ type sqlcQuerier interface {
 	// window (for example, after an unarchive races with a pending
 	// archive-cleanup retry).
 	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
-	DeleteChatFamiliesByRootIDs(ctx context.Context, rootIds []uuid.UUID) error
+	DeleteChatFamiliesOfDeletedProjects(ctx context.Context, limitCount int32) (int64, error)
+	DeleteChatHeartbeatsByChatIDs(ctx context.Context, chatIds []uuid.UUID) error
 	DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg DeleteChatMCPServersByChatIDExcludingSlugsParams) error
-	DeleteChatMessagesByChatIDs(ctx context.Context, chatIds []uuid.UUID) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
-	DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (ChatProjectMemory, error)
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
@@ -187,6 +186,7 @@ type sqlcQuerier interface {
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
+	DeleteEmptyDeletedChatProjects(ctx context.Context, limitCount int32) (int64, error)
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
 	DeleteExternalAuthLink(ctx context.Context, arg DeleteExternalAuthLinkParams) error
 	DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAIBudget, error)
@@ -1339,6 +1339,7 @@ type sqlcQuerier interface {
 	// time. chatstate calls this in a single query so the staleness check
 	// is atomic and does not depend on the caller's local clock.
 	IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbeatStaleParams) (bool, error)
+	IsChatInDeletedProject(ctx context.Context, chatID uuid.UUID) (bool, error)
 	IsChatProjectAccessibleByUserID(ctx context.Context, arg IsChatProjectAccessibleByUserIDParams) (bool, error)
 	// LinkChatFilesAfterLock requires the chat row lock. When the batch would
 	// exceed the cap, the oldest files on the chat are deleted to make room; the
@@ -1434,6 +1435,7 @@ type sqlcQuerier interface {
 	// no rows by later calls.
 	LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
+	MarkChatProjectDeleted(ctx context.Context, id uuid.UUID) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
 	// pinned hash is intentionally left untouched; the refresh endpoint
