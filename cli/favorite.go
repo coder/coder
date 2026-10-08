@@ -5,6 +5,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/serpent"
 )
 
@@ -23,7 +25,8 @@ func (r *RootCmd) favorite() *serpent.Command {
 				return err
 			}
 
-			ws, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
+			// Only the workspace ID and name are used.
+			ws, err := client.ResolveWorkspace(inv.Context(), inv.Args[0], codersdk.WorkspaceOptions{IncludeRelated: &wsrelated.Config{}})
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
@@ -53,7 +56,8 @@ func (r *RootCmd) unfavorite() *serpent.Command {
 				return err
 			}
 
-			ws, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
+			// Only the workspace ID and name are used.
+			ws, err := client.ResolveWorkspace(inv.Context(), inv.Args[0], codersdk.WorkspaceOptions{IncludeRelated: &wsrelated.Config{}})
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
