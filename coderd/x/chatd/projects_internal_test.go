@@ -10,7 +10,8 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// Deleting a project stops the runner of a chat in it that is mid-turn.
+// The worker cancels a mid-turn generation once the delete has removed
+// the chat's heartbeat row.
 func TestDeleteChatProjectStopsRunningChat(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)

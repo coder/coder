@@ -5143,6 +5143,34 @@ describe("applyWatchedChatHardDeleted", () => {
 			true,
 		);
 	});
+
+	it("refetches the project list once for a burst of events", async () => {
+		const queryClient = createTestQueryClient();
+		let fetches = 0;
+		const refetch = createDeferred<TypesGen.ChatProject[]>();
+		const observer = new QueryObserver(queryClient, {
+			queryKey: chatProjectsKey,
+			queryFn: () => {
+				fetches++;
+				return fetches === 1 ? [] : refetch.promise;
+			},
+		});
+		const unsubscribe = observer.subscribe(() => {});
+		await vi.waitFor(() =>
+			expect(observer.getCurrentResult().isSuccess).toBe(true),
+		);
+
+		for (const chatId of ["chat-1", "chat-2", "chat-3"]) {
+			applyWatchedChatHardDeleted(queryClient, chatId);
+		}
+		refetch.resolve([]);
+		await vi.waitFor(() =>
+			expect(observer.getCurrentResult().isFetching).toBe(false),
+		);
+
+		expect(fetches).toBe(2);
+		unsubscribe();
+	});
 });
 
 describe("applyWatchedChatArchived", () => {

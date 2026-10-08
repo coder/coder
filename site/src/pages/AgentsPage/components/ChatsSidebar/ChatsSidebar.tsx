@@ -140,12 +140,15 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	});
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
+	const deleteProjectOptions = deleteChatProject(queryClient);
 	const deleteProjectMutation = useMutation({
-		...deleteChatProject(queryClient),
+		...deleteProjectOptions,
 		// Leaves the deleted project's page before the project list refetches,
 		// so the page never shows "Project not found". A pending mutation picks
 		// up each render's options, so this reads the current location.
-		onSuccess: (_, project) => {
+		onSuccess: (...args) => {
+			void deleteProjectOptions.onSuccess?.(...args);
+			const [, project] = args;
 			if (viewedProjectId === project.id) {
 				navigate(
 					{ pathname: "/agents", search: location.search },

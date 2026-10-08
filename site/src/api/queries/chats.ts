@@ -584,9 +584,10 @@ export const applyWatchedChatHardDeleted = (
 	void invalidateChatListQueries(queryClient);
 	void invalidateChatsByWorkspace(queryClient);
 	void invalidateChatSearches(queryClient);
-	// The project may be one shared with this user. A project delete sends
-	// one event per chat, so a refetch already in flight is kept rather
-	// than restarted for each event.
+	// `hard_deleted` comes from a project delete, so the chat's project may
+	// be gone, including one shared with this user that their project list
+	// still shows. A project delete sends one event per chat, so a refetch
+	// already in flight is kept rather than restarted for each event.
 	void queryClient.invalidateQueries(
 		{ queryKey: chatProjectsKey },
 		{ cancelRefetch: false },

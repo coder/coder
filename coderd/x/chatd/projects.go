@@ -19,12 +19,30 @@ func (p *Server) DeleteChatProject(ctx context.Context, projectID uuid.UUID) ([]
 	return deleted, err
 }
 
+// chatProjectDeleteAttempts bounds retries of a project delete that lost
+// a deadlock, for example to lease renewal locking heartbeat rows in
+// another order.
+const chatProjectDeleteAttempts = 3
+
 // DeleteChatProjectWithoutEvents deletes a project together with its root
 // chats, every user's, and their sub-chats, and returns the chats it
 // deleted. Running chats are deleted too: their leases cascade with them,
-// so their workers stop on the next heartbeat after commit. Callers must
-// have authorized deleting the project.
+// so their workers stop on the next heartbeat after commit. A delete that
+// loses a deadlock is retried, so db must not be a transaction. Callers
+// must have authorized deleting the project.
 func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, projectID uuid.UUID) ([]database.Chat, error) {
+	var err error
+	for range chatProjectDeleteAttempts {
+		var deleted []database.Chat
+		deleted, err = deleteChatProjectOnce(ctx, db, projectID)
+		if !database.IsDeadlockError(err) {
+			return deleted, err
+		}
+	}
+	return nil, err
+}
+
+func deleteChatProjectOnce(ctx context.Context, db database.Store, projectID uuid.UUID) ([]database.Chat, error) {
 	//nolint:gocritic // Sharees own some of the chats; the caller authorized deleting the project.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	var deleted []database.Chat
@@ -34,6 +52,9 @@ func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, proj
 			deleted, err = tx.GetChatsByIDs(chatdCtx, chatIDs)
 			if err != nil {
 				return xerrors.Errorf("get project chats: %w", err)
+			}
+			if err := tx.DeleteChatMessagesByChatIDs(chatdCtx, chatIDs); err != nil {
+				return xerrors.Errorf("delete project chat messages: %w", err)
 			}
 			if err := tx.DeleteChatFamiliesByRootIDs(chatdCtx, rootIDs); err != nil {
 				return xerrors.Errorf("delete project chats: %w", err)

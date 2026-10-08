@@ -1001,7 +1001,7 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 func ChatProjectRoleActions(role codersdk.ChatProjectRole) []policy.Action {
 	switch role {
 	case codersdk.ChatProjectRoleAdmin:
-		// Deletion stays with the owner, matching workspace sharing.
+		// No ACL role grants deletion, matching workspace sharing.
 		return []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}
 	case codersdk.ChatProjectRoleUse:
 		return []policy.Action{policy.ActionRead}

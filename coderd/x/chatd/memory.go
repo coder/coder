@@ -39,6 +39,7 @@ func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (
 		return nil, "", false
 	}
 	if !usable {
+		p.logger.Debug(ctx, "chat owner cannot use chat project, memory disabled", slog.F("chat_id", chat.ID), slog.F("project_id", chat.ProjectID.UUID), slog.F("owner_id", chat.OwnerID))
 		return nil, "", false
 	}
 	return chattool.NewProjectMemoryStore(p.db, chat.ProjectID.UUID, chat.OrganizationID, chat.OwnerID, p.memoryAuditor(chat)), project.Name, true

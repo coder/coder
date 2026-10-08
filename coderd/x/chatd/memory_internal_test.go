@@ -21,13 +21,14 @@ import (
 func TestResolveProjectMemory(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Project", func(t *testing.T) {
+	t.Run("ProjectOwner", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		projectID := uuid.New()
-		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{Name: "platform"}, nil)
+		ownerID := uuid.New()
+		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{ID: projectID, OwnerID: ownerID, Name: "platform"}, nil)
 		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
-		store, projectName, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
+		store, projectName, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), OwnerID: ownerID, ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
 		require.True(t, ok)
 		require.NotNil(t, store)
 		require.Equal(t, "platform", projectName)

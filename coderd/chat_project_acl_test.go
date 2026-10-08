@@ -438,8 +438,9 @@ func TestChatProjectSharing(t *testing.T) {
 		member, _ := newChatProjectMember(t, client, firstUser.OrganizationID)
 		memberProject := createChatProject(t, member, firstUser.OrganizationID, "Member Project")
 
-		_, err := client.GetChatProject(ctx, memberProject.OrganizationID, memberProject.ID)
+		adminView, err := client.GetChatProject(ctx, memberProject.OrganizationID, memberProject.ID)
 		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatProjectPermissions{Update: true, Delete: true, Share: true}, adminView.Permissions)
 		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: memberProject.OrganizationID,
 			ProjectID:      &memberProject.ID,
