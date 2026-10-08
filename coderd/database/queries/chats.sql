@@ -2692,14 +2692,6 @@ ORDER BY
     chats.id ASC
 LIMIT @limit_count::int;
 
--- name: GetChatsByIDs :many
--- Same rows as GetChatsByIDsForRunnerSync, but dbauthz authorizes each row
--- for read instead of requiring update on every chat.
-SELECT *
-FROM chats_expanded
-WHERE id = ANY(@ids::uuid[])
-ORDER BY id;
-
 -- name: GetChatsByIDsForRunnerSync :many
 SELECT *
 FROM chats_expanded

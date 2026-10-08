@@ -193,12 +193,10 @@ func TestChatProjectRBACObjects(t *testing.T) {
 		OrganizationID: uuid.New(),
 		OwnerID:        uuid.New(),
 		UserACL: ChatACL{
-			readUser:     {Permissions: []policy.Action{policy.ActionRead}},
-			updateUser:   {Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}},
-			wildcardUser: {Permissions: []policy.Action{policy.WildcardSymbol}},
-			noReadUser:   {Permissions: []policy.Action{policy.ActionShare}},
-			// RBAC denies reading the project without read, so its memories
-			// get nothing either.
+			readUser:       {Permissions: []policy.Action{policy.ActionRead}},
+			updateUser:     {Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}},
+			wildcardUser:   {Permissions: []policy.Action{policy.WildcardSymbol}},
+			noReadUser:     {Permissions: []policy.Action{policy.ActionShare}},
 			updateOnlyUser: {Permissions: []policy.Action{policy.ActionUpdate}},
 		},
 		GroupACL: ChatACL{
@@ -215,7 +213,6 @@ func TestChatProjectRBACObjects(t *testing.T) {
 		require.Equal(t, project.UserACL.RBACACL(), obj.ACLUserList)
 		require.Equal(t, project.GroupACL.RBACACL(), obj.ACLGroupList)
 
-		// Read sharees only read memories directly; updaters also write them.
 		memory := ChatProjectMemoryRBACObject(project)
 		require.Equal(t, map[string][]policy.Action{
 			readUser:     {policy.ActionRead},

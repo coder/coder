@@ -172,13 +172,8 @@ type sqlcQuerier interface {
 	// window (for example, after an unarchive races with a pending
 	// archive-cleanup retry).
 	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
-	// Deletes root chats with all their sub-chats. Chat-scoped tables cascade,
-	// and chat_automations references are set to NULL.
 	DeleteChatFamiliesByRootIDs(ctx context.Context, rootIds []uuid.UUID) error
 	DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg DeleteChatMCPServersByChatIDExcludingSlugsParams) error
-	// Run in InChatProjectDeleteTx's fn before DeleteChatFamiliesByRootIDs, so
-	// the messages, usually most of the cascade, are not deleted while the
-	// heartbeat rows are locked.
 	DeleteChatMessagesByChatIDs(ctx context.Context, chatIds []uuid.UUID) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
@@ -570,19 +565,14 @@ type sqlcQuerier interface {
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
 	GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error)
-	// Locks the row so ACL updates read, modify, and write it in one
-	// transaction. Project deletion also takes it before locking chats, which
-	// blocks new root chats from joining the project.
 	GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error)
+	GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]Chat, error)
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
 	GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatProject, error)
-	// Lists projects the user owns or holds any ACL entry on, directly, through
-	// a group, or through the Everyone group, whose ID is the organization ID.
-	// As in the RBAC policy, ACL entries count only for members of the
-	// project's organization. Entries match regardless of the actions they
-	// grant, so callers must authorize each row.
+	// Entries match regardless of the actions they grant, so callers must
+	// authorize each row.
 	GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error)
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
@@ -639,9 +629,6 @@ type sqlcQuerier interface {
 	GetChatWorkspaceTTL(ctx context.Context) (string, error)
 	GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error)
 	GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error)
-	// Same rows as GetChatsByIDsForRunnerSync, but dbauthz authorizes each row
-	// for read instead of requiring update on every chat.
-	GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	// Retrieves chats updated after the given timestamp for telemetry
@@ -1353,10 +1340,6 @@ type sqlcQuerier interface {
 	// time. chatstate calls this in a single query so the staleness check
 	// is atomic and does not depend on the caller's local clock.
 	IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbeatStaleParams) (bool, error)
-	// Reports whether the user owns the project or holds an ACL entry granting
-	// read or '*' on it, directly, through a group, or through the Everyone
-	// group. Entries count only for organization members. It checks a user
-	// other than the caller, for code that runs under a system subject.
 	IsChatProjectAccessibleByUserID(ctx context.Context, arg IsChatProjectAccessibleByUserIDParams) (bool, error)
 	// LinkChatFilesAfterLock requires the chat row lock. When the batch would
 	// exceed the cap, the oldest files on the chat are deleted to make room; the
@@ -1446,17 +1429,11 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
-	// Locks a project's root chats. Run it through InChatProjectDeleteTx,
-	// which runs each lock as its own statement, in order.
-	LockChatProjectRootChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error)
 	// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
 	// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
 	// is held the key cannot be deleted, and a committed deletion is observed as
 	// no rows by later calls.
 	LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
-	// Locks the sub-chats of root chats the caller already locked. Run it
-	// through InChatProjectDeleteTx.
-	LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]uuid.UUID, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The

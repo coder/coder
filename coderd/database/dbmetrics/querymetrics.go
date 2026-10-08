@@ -1928,6 +1928,14 @@ func (m queryMetricsStore) GetChatProjectByIDForUpdate(ctx context.Context, id u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectChatFamilies(ctx, projectID)
+	m.queryLatencies.WithLabelValues("GetChatProjectChatFamilies").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectChatFamilies").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectMemoriesByProjectID(ctx, projectID)
@@ -2109,14 +2117,6 @@ func (m queryMetricsStore) GetChatsByChatFileID(ctx context.Context, fileID uuid
 	r0, r1 := m.s.GetChatsByChatFileID(ctx, fileID)
 	m.queryLatencies.WithLabelValues("GetChatsByChatFileID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByChatFileID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatsByIDs(ctx, ids)
-	m.queryLatencies.WithLabelValues("GetChatsByIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByIDs").Inc()
 	return r0, r1
 }
 
@@ -5232,27 +5232,11 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
-func (m queryMetricsStore) LockChatProjectRootChatsForDelete(ctx context.Context, arg uuid.UUID) ([]uuid.UUID, error) {
-	start := time.Now()
-	r0, r1 := m.s.LockChatProjectRootChatsForDelete(ctx, arg)
-	m.queryLatencies.WithLabelValues("LockChatProjectRootChatsForDelete").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatProjectRootChatsForDelete").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockProvisionerKeyByIDForShare(ctx, id)
 	m.queryLatencies.WithLabelValues("LockProvisionerKeyByIDForShare").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockProvisionerKeyByIDForShare").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIds []uuid.UUID) ([]uuid.UUID, error) {
-	start := time.Now()
-	r0, r1 := m.s.LockSubChatsByRootIDsForDelete(ctx, rootIds)
-	m.queryLatencies.WithLabelValues("LockSubChatsByRootIDsForDelete").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockSubChatsByRootIDsForDelete").Inc()
 	return r0, r1
 }
 

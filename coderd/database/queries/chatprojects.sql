@@ -16,9 +16,6 @@ FROM chat_projects
 WHERE id = @id::uuid;
 
 -- name: GetChatProjectByIDForUpdate :one
--- Locks the row so ACL updates read, modify, and write it in one
--- transaction. Project deletion also takes it before locking chats, which
--- blocks new root chats from joining the project.
 SELECT *
 FROM chat_projects
 WHERE id = @id::uuid
@@ -31,11 +28,8 @@ WHERE owner_id = @owner_id::uuid
 ORDER BY lower(name), id;
 
 -- name: GetChatProjectsOwnedOrSharedWithUserID :many
--- Lists projects the user owns or holds any ACL entry on, directly, through
--- a group, or through the Everyone group, whose ID is the organization ID.
--- As in the RBAC policy, ACL entries count only for members of the
--- project's organization. Entries match regardless of the actions they
--- grant, so callers must authorize each row.
+-- Entries match regardless of the actions they grant, so callers must
+-- authorize each row.
 SELECT chat_projects.*
 FROM chat_projects
 WHERE chat_projects.owner_id = @user_id::uuid
@@ -62,10 +56,6 @@ WHERE chat_projects.owner_id = @user_id::uuid
 ORDER BY lower(chat_projects.name), chat_projects.id;
 
 -- name: IsChatProjectAccessibleByUserID :one
--- Reports whether the user owns the project or holds an ACL entry granting
--- read or '*' on it, directly, through a group, or through the Everyone
--- group. Entries count only for organization members. It checks a user
--- other than the caller, for code that runs under a system subject.
 SELECT EXISTS (
     SELECT 1
     FROM chat_projects
@@ -119,34 +109,18 @@ SELECT COUNT(*)::bigint
 FROM chat_projects
 WHERE owner_id = @owner_id::uuid;
 
--- name: LockChatProjectRootChatsForDelete :many
--- Locks a project's root chats. Run it through InChatProjectDeleteTx,
--- which runs each lock as its own statement, in order.
-SELECT chats.id
-FROM chats
-WHERE chats.project_id = @project_id::uuid
-    AND chats.parent_chat_id IS NULL
-FOR UPDATE;
-
--- name: LockSubChatsByRootIDsForDelete :many
--- Locks the sub-chats of root chats the caller already locked. Run it
--- through InChatProjectDeleteTx.
-SELECT chats.id
-FROM chats
-WHERE chats.root_chat_id = ANY(@root_ids::uuid[])
-ORDER BY chats.id
-FOR UPDATE;
+-- name: GetChatProjectChatFamilies :many
+SELECT *
+FROM chats_expanded
+WHERE project_id = @project_id::uuid
+    OR root_chat_id IN (SELECT id FROM chats WHERE chats.project_id = @project_id::uuid)
+ORDER BY id;
 
 -- name: DeleteChatMessagesByChatIDs :exec
--- Run in InChatProjectDeleteTx's fn before DeleteChatFamiliesByRootIDs, so
--- the messages, usually most of the cascade, are not deleted while the
--- heartbeat rows are locked.
 DELETE FROM chat_messages
 WHERE chat_id = ANY(@chat_ids::uuid[]);
 
 -- name: DeleteChatFamiliesByRootIDs :exec
--- Deletes root chats with all their sub-chats. Chat-scoped tables cascade,
--- and chat_automations references are set to NULL.
 DELETE FROM chats
 WHERE id = ANY(@root_ids::uuid[])
     OR root_chat_id = ANY(@root_ids::uuid[]);

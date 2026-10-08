@@ -2307,8 +2307,7 @@ func (q *querier) DeleteChatDebugDataByChatID(ctx context.Context, arg database.
 	return q.db.DeleteChatDebugDataByChatID(ctx, arg)
 }
 
-// DeleteChatFamiliesByRootIDs checks delete on all chats instead of
-// authorizing each one, because a project's chats can belong to its sharees.
+// Project chats can belong to sharees, so delete is checked on all chats.
 func (q *querier) DeleteChatFamiliesByRootIDs(ctx context.Context, rootIDs []uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
 		return err
@@ -2327,7 +2326,6 @@ func (q *querier) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context
 	return q.db.DeleteChatMCPServersByChatIDExcludingSlugs(ctx, arg)
 }
 
-// DeleteChatMessagesByChatIDs is authorized as DeleteChatFamiliesByRootIDs is.
 func (q *querier) DeleteChatMessagesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
 		return err
@@ -3788,6 +3786,10 @@ func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID)
 	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForUpdate)(ctx, id)
 }
 
+func (q *querier) GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectChatFamilies)(ctx, projectID)
+}
+
 func (q *querier) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
 	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionRead, projectID); err != nil {
 		return nil, err
@@ -3980,10 +3982,6 @@ func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]
 
 func (q *querier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByChatFileID)(ctx, fileID)
-}
-
-func (q *querier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByIDs)(ctx, ids)
 }
 
 func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
@@ -7180,10 +7178,8 @@ func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatH
 	return q.db.IsChatHeartbeatStale(ctx, arg)
 }
 
-// IsChatProjectAccessibleByUserID requires reading every project, because
-// it answers for a user other than the caller. With chat sharing disabled,
-// ACLs are ignored, as in ChatProject.RBACObject, so only the project owner
-// passes.
+// IsChatProjectAccessibleByUserID answers for another user, so it requires
+// reading every project.
 func (q *querier) IsChatProjectAccessibleByUserID(ctx context.Context, arg database.IsChatProjectAccessibleByUserIDParams) (bool, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatProject); err != nil {
 		return false, err
@@ -7411,13 +7407,6 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 	return q.db.LockChatByID(ctx, id)
 }
 
-func (q *querier) LockChatProjectRootChatsForDelete(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
-		return nil, err
-	}
-	return q.db.LockChatProjectRootChatsForDelete(ctx, projectID)
-}
-
 func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	// The lock query returns only the key ID, so fetch the key to authorize
 	// the read against its RBAC object.
@@ -7429,13 +7418,6 @@ func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UU
 		return uuid.Nil, err
 	}
 	return q.db.LockProvisionerKeyByIDForShare(ctx, id)
-}
-
-func (q *querier) LockSubChatsByRootIDsForDelete(ctx context.Context, rootIDs []uuid.UUID) ([]uuid.UUID, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
-		return nil, err
-	}
-	return q.db.LockSubChatsByRootIDsForDelete(ctx, rootIDs)
 }
 
 func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {

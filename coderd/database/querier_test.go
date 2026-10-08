@@ -8,12 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -2269,11 +2267,8 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	share(groupShared, database.ChatACL{}, database.ChatACL{group.ID.String(): read})
 	everyoneShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 	share(everyoneShared, database.ChatACL{}, database.ChatACL{org.ID.String(): read})
-	// User grants only apply to members of the project's organization.
 	outsiderShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 	share(outsiderShared, database.ChatACL{outsider.ID.String(): read}, database.ChatACL{})
-	// The query matches ACL keys without checking actions, so this row is
-	// returned raw and removed by dbauthz.
 	noReadEntry := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionShare}}
 	noRead := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 	share(noRead, database.ChatACL{direct.ID.String(): noReadEntry}, database.ChatACL{})
@@ -2301,11 +2296,9 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name string
-		user database.User
-		raw  []uuid.UUID
-		// authorized holds the projects the user has a read grant on: what
-		// dbauthz returns, and where IsChatProjectAccessibleByUserID is true.
+		name       string
+		user       database.User
+		raw        []uuid.UUID
 		authorized []uuid.UUID
 	}{
 		{"Direct", direct, []uuid.UUID{userShared.ID, everyoneShared.ID, noRead.ID, everyoneNoRead.ID, everyoneWildcard.ID}, []uuid.UUID{userShared.ID, everyoneShared.ID, everyoneWildcard.ID}},
@@ -2352,18 +2345,6 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-	// InChatProjectDeleteTx must pick READ COMMITTED itself; the late
-	// insert cases below fail under REPEATABLE READ. Skip the pin on a
-	// shared CODER_PG_CONNECTION_URL database, where it would leak into
-	// other tests.
-	if os.Getenv("CODER_PG_CONNECTION_URL") == "" {
-		_, err := sqlDB.ExecContext(ctx, `DO $$ BEGIN EXECUTE format('ALTER DATABASE %I SET default_transaction_isolation = ''repeatable read''', current_database()); END $$`)
-		require.NoError(t, err)
-		// The setting applies only to new sessions, so drop the idle
-		// connections opened before it.
-		sqlDB.SetMaxIdleConns(0)
-	}
-
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{})
 	sharee := dbgen.User(t, db, database.User{})
@@ -2398,117 +2379,19 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	unrelated := newChat(owner.ID, uuid.NullUUID{}, nil)
 	unrelatedChild := newChat(owner.ID, uuid.NullUUID{}, &unrelated)
 	otherProjectChat := newChat(owner.ID, uuid.NullUUID{UUID: otherProject.ID, Valid: true}, nil)
+	family := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID}
 
-	// A sub-chat that carries the project ID still locks as a sub-chat.
-	projectChild := newChat(sharee.ID, inProject, &shareeRoot)
-
-	family := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID, projectChild.ID}
-	err := database.InChatProjectDeleteTx(ctx, db, project.ID, func(_ database.Store, rootIDs, chatIDs []uuid.UUID) error {
-		require.ElementsMatch(t, []uuid.UUID{ownerRoot.ID, shareeRoot.ID}, rootIDs)
-		require.ElementsMatch(t, family, chatIDs)
-		return nil
-	})
+	chats, err := db.GetChatProjectChatFamilies(ctx, project.ID)
 	require.NoError(t, err)
-
-	lockedForDelete := func() ([]uuid.UUID, error) {
-		var ids []uuid.UUID
-		err := database.InChatProjectDeleteTx(ctx, db, project.ID, func(_ database.Store, _, chatIDs []uuid.UUID) error {
-			ids = chatIDs
-			return nil
-		})
-		return ids, err
+	ids := make([]uuid.UUID, 0, len(chats))
+	for _, chat := range chats {
+		ids = append(ids, chat.ID)
 	}
-
-	// lock_not_available is what NOWAIT returns for a row another
-	// transaction holds.
-	const lockNotAvailable = pq.ErrorCode("55P03")
-	// While a delete holds its locks, workers cannot take the chats
-	// and inserts cannot reference the project. NOWAIT probes stand in for
-	// both, failing instead of blocking.
-	requireLocked := func(query string, id uuid.UUID) {
-		t.Helper()
-		_, err := sqlDB.ExecContext(ctx, query, id)
-		var pqErr *pq.Error
-		require.ErrorAs(t, err, &pqErr, query)
-		require.Equal(t, lockNotAvailable, pqErr.Code, query)
-	}
-	err = database.InChatProjectDeleteTx(ctx, db, project.ID, func(database.Store, []uuid.UUID, []uuid.UUID) error {
-		for _, id := range family {
-			requireLocked("SELECT 1 FROM chats WHERE id = $1 FOR UPDATE NOWAIT", id)
-		}
-		requireLocked("SELECT 1 FROM chat_projects WHERE id = $1 FOR KEY SHARE NOWAIT", project.ID)
-		return nil
-	})
-	require.NoError(t, err)
-
-	// requireLateInsertLocked holds a chat insert open until a delete is
-	// waiting on it, then commits it and requires the delete to lock it.
-	requireLateInsertLocked := func(seed database.Chat) database.Chat {
-		t.Helper()
-		inserted := make(chan database.Chat, 1)
-		release := make(chan struct{})
-		releaseOnce := sync.OnceFunc(func() { close(release) })
-		t.Cleanup(releaseOnce)
-		insertDone := make(chan error, 1)
-		go func() {
-			insertDone <- db.InTx(func(tx database.Store) error {
-				inserted <- dbgen.Chat(t, tx, seed)
-				<-release
-				return nil
-			}, nil)
-		}()
-		late := testutil.RequireReceive(ctx, t, inserted)
-		lockedIDs := make(chan []uuid.UUID, 1)
-		lockErr := make(chan error, 1)
-		go func() {
-			ids, err := lockedForDelete()
-			lockErr <- err
-			lockedIDs <- ids
-		}()
-		require.True(t, testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-			var waiting int
-			err := sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'").Scan(&waiting)
-			return err == nil && waiting > 0
-		}, testutil.IntervalFast, "delete never waited on the inserting transaction"))
-		releaseOnce()
-		require.NoError(t, testutil.RequireReceive(ctx, t, insertDone))
-		require.NoError(t, testutil.RequireReceive(ctx, t, lockErr))
-		require.Contains(t, testutil.RequireReceive(ctx, t, lockedIDs), late.ID)
-		return late
-	}
-	// A root chat inserted while the delete waits on the project lock.
-	lateRoot := requireLateInsertLocked(database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           sharee.ID,
-		LastModelConfigID: modelCfg.ID,
-		ProjectID:         inProject,
-	})
-	// A sub-chat inserted while the delete waits on its root's lock.
-	lateChild := requireLateInsertLocked(database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           sharee.ID,
-		LastModelConfigID: modelCfg.ID,
-		ParentChatID:      uuid.NullUUID{UUID: shareeRoot.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: shareeRoot.ID, Valid: true},
-	})
-	family = append(family, lateRoot.ID, lateChild.ID)
-
-	deletedLease := database.GetChatHeartbeatParams{ChatID: ownerRoot.ID, RunnerID: uuid.New()}
-	keptLease := database.GetChatHeartbeatParams{ChatID: unrelated.ID, RunnerID: uuid.New()}
-	for _, lease := range []database.GetChatHeartbeatParams{deletedLease, keptLease} {
-		require.NoError(t, db.UpsertChatHeartbeat(ctx, database.UpsertChatHeartbeatParams(lease)))
-	}
+	require.ElementsMatch(t, family, ids)
 
 	deletedMessage := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: ownerChild.ID, CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true}, ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true}})
 	keptMessage := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: unrelated.ID, CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true}, ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true}})
-
-	chats, err := db.GetChatsByIDs(ctx, family)
-	require.NoError(t, err)
-	require.Len(t, chats, len(family))
-
 	require.NoError(t, db.DeleteChatMessagesByChatIDs(ctx, family))
-	// Count rows directly: GetChatMessagesByChatID hides soft-deleted rows,
-	// which would still be left for the cascade.
 	countMessages := func(chatID uuid.UUID) int {
 		var n int
 		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM chat_messages WHERE chat_id = $1", chatID).Scan(&n))
@@ -2517,15 +2400,15 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	require.Zero(t, countMessages(deletedMessage.ChatID))
 	require.Equal(t, 1, countMessages(keptMessage.ChatID))
 
-	require.NoError(t, db.DeleteChatFamiliesByRootIDs(ctx, []uuid.UUID{ownerRoot.ID, shareeRoot.ID, lateRoot.ID}))
-	_, err = db.GetChatHeartbeat(ctx, deletedLease)
-	require.ErrorIs(t, err, sql.ErrNoRows)
-	_, err = db.GetChatHeartbeat(ctx, keptLease)
-	require.NoError(t, err)
-	for _, id := range family {
+	require.NoError(t, db.DeleteChatFamiliesByRootIDs(ctx, []uuid.UUID{ownerRoot.ID}))
+	for _, id := range []uuid.UUID{ownerRoot.ID, ownerChild.ID} {
 		_, err := db.GetChatByID(ctx, id)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	}
+
+	require.NoError(t, db.DeleteChatProjectByID(ctx, project.ID))
+	_, err = db.GetChatByID(ctx, shareeRoot.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
 	for _, id := range []uuid.UUID{unrelated.ID, unrelatedChild.ID, otherProjectChat.ID} {
 		_, err := db.GetChatByID(ctx, id)
 		require.NoError(t, err)
