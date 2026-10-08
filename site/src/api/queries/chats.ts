@@ -1482,6 +1482,7 @@ export const chatACL = (chatId: string) => ({
 });
 
 const MESSAGES_PAGE_SIZE = 50;
+const MAX_MESSAGES_PER_REQUEST = 200;
 // Past the cap, a history page ends mid-turn and the next page continues it.
 const MAX_MESSAGES_PER_PAGE = 1000;
 
@@ -1516,27 +1517,31 @@ const fetchMessagesPage = async (
 	}
 
 	const messages = [...page.messages];
-	try {
-		while (messages.length > 0 && messages.length < MAX_MESSAGES_PER_PAGE) {
-			const oldestId = messages[messages.length - 1].id;
-			if (oldestId <= turnStartId) {
-				break;
-			}
-			const older = await API.experimental.getChatMessages(chatId, {
+	while (messages.length < MAX_MESSAGES_PER_PAGE) {
+		const oldestId = messages[messages.length - 1].id;
+		if (oldestId <= turnStartId) {
+			break;
+		}
+		const older = await API.experimental
+			.getChatMessages(chatId, {
 				// after_id is exclusive, so this keeps the prompt itself.
 				after_id: turnStartId - 1,
 				before_id: oldestId,
-				// 200 is the endpoint's maximum limit.
-				limit: Math.min(200, MAX_MESSAGES_PER_PAGE - messages.length),
-			});
-			messages.push(...older.messages);
-			if (!older.has_more || older.messages.length === 0) {
-				break;
-			}
-		}
-	} catch {
+				limit: Math.min(
+					MAX_MESSAGES_PER_REQUEST,
+					MAX_MESSAGES_PER_PAGE - messages.length,
+				),
+			})
+			.catch(() => undefined);
 		// Keep what loaded: the page ends mid-turn and the next page resumes
 		// from its oldest message, so a failed fill never fails the page.
+		if (older === undefined) {
+			break;
+		}
+		messages.push(...older.messages);
+		if (!older.has_more || older.messages.length === 0) {
+			break;
+		}
 	}
 
 	return { ...page, messages };

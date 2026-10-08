@@ -4748,8 +4748,8 @@ describe("semantic cache operations: removal and patching", () => {
 describe("chatMessagesForInfiniteScroll", () => {
 	type History = { newestId: number; turnStartId: number | undefined };
 
-	// Serves IDs 1..newestId newest-first with the endpoint's
-	// before_id/after_id/limit semantics.
+	// Serves IDs 1..newestId newest-first, with before_id and after_id as
+	// exclusive bounds.
 	const historyPage = (
 		{ newestId, turnStartId }: History,
 		opts: Parameters<typeof API.experimental.getChatMessages>[1],
