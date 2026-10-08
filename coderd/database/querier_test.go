@@ -2486,6 +2486,17 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	})
 	family = append(family, lateRoot.ID, lateChild.ID)
 
+	deletedLease := database.GetChatHeartbeatParams{ChatID: ownerRoot.ID, RunnerID: uuid.New()}
+	keptLease := database.GetChatHeartbeatParams{ChatID: unrelated.ID, RunnerID: uuid.New()}
+	for _, lease := range []database.GetChatHeartbeatParams{deletedLease, keptLease} {
+		require.NoError(t, db.UpsertChatHeartbeat(ctx, database.UpsertChatHeartbeatParams(lease)))
+	}
+	require.NoError(t, db.DeleteChatHeartbeatsByChatIDs(ctx, family))
+	_, err = db.GetChatHeartbeat(ctx, deletedLease)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetChatHeartbeat(ctx, keptLease)
+	require.NoError(t, err)
+
 	chats, err := db.GetChatsByIDs(ctx, family)
 	require.NoError(t, err)
 	require.Len(t, chats, len(family))

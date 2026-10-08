@@ -143,3 +143,10 @@ FOR UPDATE;
 DELETE FROM chats
 WHERE id = ANY(@root_ids::uuid[])
     OR root_chat_id = ANY(@root_ids::uuid[]);
+
+-- name: DeleteChatHeartbeatsByChatIDs :exec
+-- Ends the leases of chats about to be deleted with their project. Run it
+-- in its own short transaction: lease renewal waits on heartbeat rows that
+-- a long delete would otherwise hold until it commits.
+DELETE FROM chat_heartbeats
+WHERE chat_id = ANY(@chat_ids::uuid[]);
