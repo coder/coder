@@ -592,7 +592,7 @@ func TestConn_ReusedSourcePortAfterServerClose(t *testing.T) {
 	ln, err := agent.Listen("tcp", fmt.Sprintf(":%d", port))
 	require.NoError(t, err)
 	defer ln.Close()
-	go func() {
+	testutil.Go(t, func() {
 		for {
 			c, err := ln.Accept()
 			if err != nil {
@@ -602,7 +602,7 @@ func TestConn_ReusedSourcePortAfterServerClose(t *testing.T) {
 			_, _ = c.Write([]byte("x"))
 			_ = c.Close()
 		}
-	}()
+	})
 
 	local := tcpip.FullAddress{Addr: tcpip.AddrFrom16(clientIP.As16()), Port: 40000}
 	remote := tcpip.FullAddress{Addr: tcpip.AddrFrom16(agentIP.As16()), Port: port}
@@ -647,7 +647,7 @@ func newTUNStack(t *testing.T, chTUN *tuntest.ChannelTUN, addr netip.Addr) *stac
 	}, stack.AddressProperties{}))
 	s.SetRouteTable([]tcpip.Route{{Destination: header.IPv6EmptySubnet, NIC: 1}})
 
-	go func() {
+	testutil.Go(t, func() {
 		for {
 			pkt := linkEP.ReadContext(ctx)
 			if pkt == nil {
@@ -661,8 +661,8 @@ func newTUNStack(t *testing.T, chTUN *tuntest.ChannelTUN, addr netip.Addr) *stac
 				return
 			}
 		}
-	}()
-	go func() {
+	})
+	testutil.Go(t, func() {
 		for {
 			select {
 			case b := <-chTUN.Inbound:
@@ -673,7 +673,7 @@ func newTUNStack(t *testing.T, chTUN *tuntest.ChannelTUN, addr netip.Addr) *stac
 				return
 			}
 		}
-	}()
+	})
 	return s
 }
 
