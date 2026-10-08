@@ -8,7 +8,9 @@ import {
 	archiveChat,
 	chatArchiveMutationKey,
 	chatCost,
+	pinChat,
 	unarchiveChat,
+	unpinChat,
 } from "#/api/queries/chats";
 import type { Chat, User } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -33,11 +35,7 @@ import { getChatDisplayConfig } from "../ChatsSidebar/tree/statusConfig";
 /** The chat actions a project chat row offers from its menu. */
 export type ProjectChatRowActions = Pick<
 	AgentsPageOutletContext,
-	| "clearChatErrorReason"
-	| "navigateAfterArchive"
-	| "requestPinAgent"
-	| "requestUnpinAgent"
-	| "onOpenRenameDialog"
+	"clearChatErrorReason" | "navigateAfterArchive" | "onOpenRenameDialog"
 >;
 
 type ProjectChatRowProps = {
@@ -87,6 +85,22 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 	const workspaceId = chat.workspace_id;
 	const queryClient = useQueryClient();
 	const mutationKey = chatArchiveMutationKey(chat.id);
+	const pinOptions = pinChat(queryClient);
+	const pinMutation = useMutation({
+		...pinOptions,
+		onError: (error, chatId, context) => {
+			pinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to pin agent."));
+		},
+	});
+	const unpinOptions = unpinChat(queryClient);
+	const unpinMutation = useMutation({
+		...unpinOptions,
+		onError: (error, chatId, context) => {
+			unpinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+		},
+	});
 	const archiveOptions = archiveChat(queryClient);
 	const archiveMutation = useMutation({
 		...archiveOptions,
@@ -153,8 +167,8 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 						isArchiveBlocked={
 							!chatFamilyAllowsArchive(chat.status, chat.children)
 						}
-						onPinAgent={() => actions.requestPinAgent(chat.id)}
-						onUnpinAgent={() => actions.requestUnpinAgent(chat.id)}
+						onPinAgent={() => pinMutation.mutate(chat.id)}
+						onUnpinAgent={() => unpinMutation.mutate(chat.id)}
 						onArchiveAgent={() => archiveMutation.mutate(chat.id)}
 						onUnarchiveAgent={() => unarchiveMutation.mutate(chat.id)}
 						onArchived={actions.navigateAfterArchive}

@@ -212,8 +212,6 @@ const AgentEmbedPage: React.FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 		navigateAfterArchive: () => {},
-		requestPinAgent: () => {},
-		requestUnpinAgent: () => {},
 		activeChatChildren: undefined,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,

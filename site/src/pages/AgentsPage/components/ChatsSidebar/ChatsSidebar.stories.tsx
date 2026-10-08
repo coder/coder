@@ -99,8 +99,6 @@ const meta: Meta<typeof ChatsSidebar> = {
 		chatErrorReasons: {},
 		modelConfigs: defaultModelConfigs,
 		navigateAfterArchive: fn(),
-		onPinAgent: fn(),
-		onUnpinAgent: fn(),
 		onMarkChatRead: fn(),
 		onMarkChatUnread: fn(),
 		onRenameTitle: fn(() => Promise.resolve()),
@@ -2253,21 +2251,11 @@ export const PinUnpinContextMenu: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Agent to pin")).toBeInTheDocument();
-		});
-		const trigger = canvas.getByLabelText("Open actions for Agent to pin");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Pin agent")).toBeInTheDocument();
-		});
-		// Click Pin agent and verify callback.
-		const body = within(document.body);
-		await userEvent.click(body.getByText("Pin agent"));
-		expect(args.onPinAgent).toHaveBeenCalledWith("pin-test");
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Agent to pin"),
+		);
 	},
 };
 
@@ -2288,19 +2276,11 @@ export const UnpinContextMenu: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Agent to unpin")).toBeInTheDocument();
-		});
-		const trigger = canvas.getByLabelText("Open actions for Agent to unpin");
-		await userEvent.click(trigger);
-		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Unpin agent")).toBeInTheDocument();
-		});
-		await userEvent.click(body.getByText("Unpin agent"));
-		expect(args.onUnpinAgent).toHaveBeenCalledWith("unpin-test");
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Agent to unpin"),
+		);
 	},
 };
 

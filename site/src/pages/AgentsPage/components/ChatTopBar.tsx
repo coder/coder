@@ -24,7 +24,9 @@ import {
 	archiveChat,
 	chatArchiveMutationKey,
 	chat as chatById,
+	pinChat,
 	unarchiveChat,
+	unpinChat,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -134,14 +136,29 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		onToggleSidebarCollapsed,
 		clearChatErrorReason,
 		navigateAfterArchive,
-		requestPinAgent,
-		requestUnpinAgent,
 		onOpenRenameDialog,
 		activeChatChildren,
 	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
 	const queryClient = useQueryClient();
 	const mutationKey = chatArchiveMutationKey(chat?.id ?? "");
+	const pinOptions = pinChat(queryClient);
+	const pinMutation = useMutation({
+		...pinOptions,
+		onError: (error, chatId, context) => {
+			pinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to pin agent."));
+		},
+	});
+	const unpinOptions = unpinChat(queryClient);
+	const unpinMutation = useMutation({
+		...unpinOptions,
+		onError: (error, chatId, context) => {
+			unpinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+		},
+	});
+
 	const archiveOptions = archiveChat(queryClient);
 	const archiveMutation = useMutation({
 		...archiveOptions,
@@ -180,7 +197,6 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 				activeChatChildren,
 			)
 		: false;
-	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
 	// Suppressed when there is no chat to act on (loading and not-found views).
 	const showActionsMenu =
 		!isEmbedded && chat !== undefined && Boolean(chatTitle);
@@ -275,20 +291,8 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						hasWorkspace={hasWorkspace}
 						isArchiving={isArchivingThisChat}
 						isArchiveBlocked={isArchiveBlocked}
-						onPinAgent={
-							showPinAction && !isArchived
-								? () => {
-										requestPinAgent?.(chat.id);
-									}
-								: undefined
-						}
-						onUnpinAgent={
-							showPinAction && !isArchived
-								? () => {
-										requestUnpinAgent?.(chat.id);
-									}
-								: undefined
-						}
+						onPinAgent={() => pinMutation.mutate(chat.id)}
+						onUnpinAgent={() => unpinMutation.mutate(chat.id)}
 						onArchiveAgent={() => {
 							if (isArchived) {
 								return;

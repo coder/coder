@@ -58,8 +58,6 @@ const buildOutletContext = (): AgentsPageOutletContext => ({
 	setChatErrorReason: vi.fn(),
 	clearChatErrorReason: vi.fn(),
 	navigateAfterArchive: vi.fn(),
-	requestPinAgent: vi.fn(),
-	requestUnpinAgent: vi.fn(),
 	activeChatChildren: undefined,
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: vi.fn(),
@@ -306,6 +304,59 @@ describe("ProjectChatsList", () => {
 			expect(API.experimental.updateChat).toHaveBeenCalledWith(chat.id, {
 				archived: true,
 			});
+		},
+	);
+
+	it.each([
+		{ action: "Pin agent", pinOrder: 0, expectedOrder: 1 },
+		{ action: "Unpin agent", pinOrder: 1, expectedOrder: 0 },
+	])(
+		"$action from a project row uses its own mutation",
+		async ({ action, pinOrder, expectedOrder }) => {
+			const user = userEvent.setup();
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+				{ ...MockChat, pin_order: pinOrder },
+			]);
+			vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+			renderList();
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open chat actions for ${MockChat.title}`,
+				}),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: action }));
+			await waitFor(() =>
+				expect(API.experimental.updateChat).toHaveBeenCalledWith(MockChat.id, {
+					pin_order: expectedOrder,
+				}),
+			);
+		},
+	);
+
+	it.each([
+		{ action: "Pin agent", pinOrder: 0 },
+		{ action: "Unpin agent", pinOrder: 1 },
+	])(
+		"$action from a project row reports failures",
+		async ({ action, pinOrder }) => {
+			const user = userEvent.setup();
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+				{ ...MockChat, pin_order: pinOrder },
+			]);
+			vi.spyOn(API.experimental, "updateChat").mockRejectedValue(
+				new Error("Pin update rejected"),
+			);
+			const errorToast = vi.spyOn(toast, "error");
+			renderList();
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open chat actions for ${MockChat.title}`,
+				}),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: action }));
+			await waitFor(() =>
+				expect(errorToast).toHaveBeenCalledWith("Pin update rejected"),
+			);
 		},
 	);
 

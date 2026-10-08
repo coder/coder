@@ -41,11 +41,8 @@ type ChatsSidebarProps = {
 	isLoadingModelConfigs?: boolean;
 	onArchiveSuccess?: (chatId: string) => void;
 	navigateAfterArchive: (chatId: string) => void;
-	onPinAgent: (chatId: string) => void;
-	onUnpinAgent: (chatId: string) => void;
 	onMarkChatRead: (chatId: string) => void;
 	onMarkChatUnread: (chatId: string) => void;
-	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	onProposeTitle?: (chatId: string) => Promise<string>;
 	/**
@@ -88,11 +85,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		isLoadingModelConfigs = false,
 		onArchiveSuccess,
 		navigateAfterArchive,
-		onPinAgent,
-		onUnpinAgent,
 		onMarkChatRead,
 		onMarkChatUnread,
-		onReorderPinnedAgent,
 		onRenameTitle,
 		onProposeTitle,
 		chatPendingRename: chatPendingRenameProp,
@@ -283,11 +277,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isLoadingModelConfigs={isLoadingModelConfigs}
 				onArchiveSuccess={onArchiveSuccess}
 				navigateAfterArchive={navigateAfterArchive}
-				onPinAgent={onPinAgent}
-				onUnpinAgent={onUnpinAgent}
 				onMarkChatRead={onMarkChatRead}
 				onMarkChatUnread={onMarkChatUnread}
-				onReorderPinnedAgent={onReorderPinnedAgent}
 				onBeforeNewAgent={onBeforeNewAgent}
 				onOpenSearchDialog={() => onSearchDialogOpenChange(true)}
 				onOpenRenameDialog={onRenameTitle ? setChatPendingRename : undefined}

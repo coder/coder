@@ -73,6 +73,70 @@ afterEach(() => {
 	navigateAfterArchive.mockClear();
 });
 
+describe("ChatTopBar pin state", () => {
+	it.each([
+		{ action: "Pin agent", pinOrder: 0, expectedOrder: 1 },
+		{ action: "Unpin agent", pinOrder: 1, expectedOrder: 0 },
+	])(
+		"$action updates the chat without layout callbacks",
+		async ({ action, pinOrder, expectedOrder }) => {
+			const user = userEvent.setup();
+			mockArchiveAndDeleteApi(chat.created_at);
+			const { queryClient } = renderTopBar({ ...chat, pin_order: pinOrder });
+			queryClient.setQueryDefaults(chatEntityKey(chat.id), {
+				gcTime: Number.POSITIVE_INFINITY,
+			});
+			queryClient.setQueryData(chatEntityKey(chat.id), {
+				...chat,
+				pin_order: pinOrder,
+			});
+			await user.click(
+				await screen.findByRole("button", { name: "Open agent actions" }),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: action }));
+			await waitFor(() => {
+				expect(API.experimental.updateChat).toHaveBeenCalledWith(chat.id, {
+					pin_order: expectedOrder,
+				});
+				expect(queryClient.isMutating()).toBe(0);
+			});
+			expect(
+				queryClient.getQueryData<Chat>(chatEntityKey(chat.id))?.pin_order,
+			).toBe(expectedOrder);
+		},
+	);
+
+	it.each([
+		{ action: "Pin agent", pinOrder: 0 },
+		{ action: "Unpin agent", pinOrder: 1 },
+	])("$action reports failure and rolls back", async ({ action, pinOrder }) => {
+		const user = userEvent.setup();
+		mockArchiveAndDeleteApi(chat.created_at);
+		vi.mocked(API.experimental.updateChat).mockRejectedValue(
+			new Error("Pin update rejected"),
+		);
+		const errorToast = vi.spyOn(toast, "error");
+		const { queryClient } = renderTopBar({ ...chat, pin_order: pinOrder });
+		queryClient.setQueryDefaults(chatEntityKey(chat.id), {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatEntityKey(chat.id), {
+			...chat,
+			pin_order: pinOrder,
+		});
+		await user.click(
+			await screen.findByRole("button", { name: "Open agent actions" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: action }));
+		await waitFor(() =>
+			expect(errorToast).toHaveBeenCalledWith("Pin update rejected"),
+		);
+		expect(
+			queryClient.getQueryData<Chat>(chatEntityKey(chat.id))?.pin_order,
+		).toBe(pinOrder);
+	});
+});
+
 describe("ChatTopBar archive state", () => {
 	it.each([
 		{ action: "Archive agent", archived: false },

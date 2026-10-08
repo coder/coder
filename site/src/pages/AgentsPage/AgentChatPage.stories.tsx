@@ -72,8 +72,6 @@ const AgentChatPageLayout: React.FC = () => {
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
 							navigateAfterArchive: () => {},
-							requestPinAgent: () => {},
-							requestUnpinAgent: () => {},
 							onOpenRenameDialog: () => {},
 							activeChatChildren: undefined,
 							isSidebarCollapsed: false,

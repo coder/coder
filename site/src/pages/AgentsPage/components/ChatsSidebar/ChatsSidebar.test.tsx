@@ -12,6 +12,7 @@ import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
@@ -137,8 +138,6 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	chatErrorReasons: {},
 	modelConfigs: [],
 	navigateAfterArchive: vi.fn(),
-	onPinAgent: vi.fn(),
-	onUnpinAgent: vi.fn(),
 	onMarkChatRead: vi.fn(),
 	onMarkChatUnread: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
@@ -788,6 +787,46 @@ describe("ChatsSidebar sections", () => {
 	});
 });
 
+describe("ChatsSidebar pin actions", () => {
+	afterEach(() => vi.restoreAllMocks());
+
+	it.each([
+		{ action: "Pin agent", pinOrder: 0, expectedOrder: 1 },
+		{ action: "Unpin agent", pinOrder: 1, expectedOrder: 0 },
+	])(
+		"$action updates the chat",
+		async ({ action, pinOrder, expectedOrder }) => {
+			const user = userEvent.setup();
+			const update = vi
+				.spyOn(API.experimental, "updateChat")
+				.mockResolvedValue(undefined);
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({
+								id: "pin-chat",
+								title: "Pin chat",
+								pin_order: pinOrder,
+							}),
+						]}
+					/>
+				</Wrapper>,
+			);
+			await user.click(
+				screen.getByRole("button", { name: "Open actions for Pin chat" }),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: action }));
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("pin-chat", {
+					pin_order: expectedOrder,
+				}),
+			);
+		},
+	);
+});
+
 describe("ChatsSidebar pinned reordering", () => {
 	const SORTABLE_INSTRUCTIONS = /pick up a draggable item/i;
 	const ROW_HEIGHT = 40;
@@ -814,51 +853,62 @@ describe("ChatsSidebar pinned reordering", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("reorders only the viewer's own pinned chats", async () => {
-		const user = userEvent.setup();
-		const onReorderPinnedAgent = vi.fn();
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					onReorderPinnedAgent={onReorderPinnedAgent}
-					chats={[
-						buildChat({
-							id: "shared-chat-pinned-by-owner",
-							title: "Shared chat pinned by its owner",
-							owner_id: "sharing-user-id",
-							shared: true,
-							pin_order: 1,
-						}),
-						buildChat({
-							id: "own-first",
-							title: "Own first pinned chat",
-							pin_order: 1,
-						}),
-						buildChat({
-							id: "own-second",
-							title: "Own second pinned chat",
-							pin_order: 2,
-						}),
-					]}
-				/>
-			</Wrapper>,
-		);
+	it.each([false, true])(
+		"reorders only the viewer's own pinned chats (failure: %s)",
+		async (fails) => {
+			const user = userEvent.setup();
+			const update = vi.spyOn(API.experimental, "updateChat");
+			const errorToast = vi.spyOn(toast, "error");
+			if (fails) {
+				update.mockRejectedValue(new Error("Reorder rejected"));
+			} else {
+				update.mockResolvedValue(undefined);
+			}
+			render(
+				<Wrapper>
+					<ChatsSidebar
+						{...defaultProps}
+						chats={[
+							buildChat({
+								id: "shared-chat-pinned-by-owner",
+								title: "Shared chat pinned by its owner",
+								owner_id: "sharing-user-id",
+								shared: true,
+								pin_order: 1,
+							}),
+							buildChat({
+								id: "own-first",
+								title: "Own first pinned chat",
+								pin_order: 1,
+							}),
+							buildChat({
+								id: "own-second",
+								title: "Own second pinned chat",
+								pin_order: 2,
+							}),
+						]}
+					/>
+				</Wrapper>,
+			);
 
-		const sortableRows = layoutSortableRows();
-		expect(sortableRows.map((row) => row.textContent)).toEqual([
-			expect.stringContaining("Own first pinned chat"),
-			expect.stringContaining("Own second pinned chat"),
-		]);
+			const sortableRows = layoutSortableRows();
 
-		sortableRows[0].focus();
-		await user.keyboard("[Space]");
-		await user.keyboard("[ArrowDown]");
-		await user.keyboard("[Space]");
+			sortableRows[0].focus();
+			await user.keyboard("[Space]");
+			await user.keyboard("[ArrowDown]");
+			await user.keyboard("[Space]");
 
-		expect(onReorderPinnedAgent).toHaveBeenCalledTimes(1);
-		expect(onReorderPinnedAgent).toHaveBeenCalledWith("own-first", 2);
-	});
+			await waitFor(() =>
+				expect(update).toHaveBeenCalledWith("own-first", { pin_order: 2 }),
+			);
+			expect(update).toHaveBeenCalledTimes(1);
+			if (fails) {
+				await waitFor(() =>
+					expect(errorToast).toHaveBeenCalledWith("Reorder rejected"),
+				);
+			}
+		},
+	);
 });
 
 type MenuUser = ReturnType<typeof userEvent.setup>;

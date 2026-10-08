@@ -13,7 +13,9 @@ import { getErrorMessage } from "#/api/errors";
 import {
 	archiveChat,
 	chatArchiveMutationKey,
+	pinChat,
 	unarchiveChat,
+	unpinChat,
 } from "#/api/queries/chats";
 
 import type { Chat } from "#/api/typesGenerated";
@@ -62,8 +64,6 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		toggleExpanded,
 		onArchiveSuccess,
 		navigateAfterArchive,
-		onPinAgent,
-		onUnpinAgent,
 		onMarkChatRead,
 		onMarkChatUnread,
 		onOpenRenameDialog,
@@ -136,6 +136,23 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	const workspaceId = chat.workspace_id;
 	const queryClient = useQueryClient();
 	const mutationKey = chatArchiveMutationKey(chat.id);
+	const pinOptions = pinChat(queryClient);
+	const pinMutation = useMutation({
+		...pinOptions,
+		onError: (error, chatId, context) => {
+			pinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to pin agent."));
+		},
+	});
+	const unpinOptions = unpinChat(queryClient);
+	const unpinMutation = useMutation({
+		...unpinOptions,
+		onError: (error, chatId, context) => {
+			unpinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+		},
+	});
+
 	const archiveOptions = archiveChat(queryClient);
 	const archiveMutation = useMutation({
 		...archiveOptions,
@@ -174,8 +191,8 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
 		onToggleSubagents: () => toggleExpanded(chatID),
-		onPinAgent: () => onPinAgent(chat.id),
-		onUnpinAgent: () => onUnpinAgent(chat.id),
+		onPinAgent: () => pinMutation.mutate(chat.id),
+		onUnpinAgent: () => unpinMutation.mutate(chat.id),
 		// Opening a chat marks it read, so the read toggle would be undone
 		// immediately for the chat the user is already viewing.
 		onMarkRead: isActiveChat ? undefined : () => onMarkChatRead(chat.id),
