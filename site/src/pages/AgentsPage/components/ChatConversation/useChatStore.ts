@@ -584,6 +584,8 @@ export const useChatStore = (
 						}
 						historyResetPending = true;
 						historyResetFromID = streamEvent.history_reset?.from_message_id;
+						// A newer reset supersedes any in-flight replacement
+						// run, so restart buffering instead of committing.
 						historyReplacementBuf.length = 0;
 						needsStreamReset = false;
 						continue;
