@@ -111,3 +111,9 @@ type DRPCAgentClient211 interface {
 type DRPCAgentClient212 interface {
 	DRPCAgentClient211
 }
+
+// DRPCAgentClient213 adds the workspace shutdown reason lookup.
+type DRPCAgentClient213 interface {
+	DRPCAgentClient212
+	GetWorkspaceShutdown(context.Context, *emptypb.Empty) (*WorkspaceShutdown, error)
+}

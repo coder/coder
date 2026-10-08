@@ -24,6 +24,51 @@ import (
 	"github.com/coder/websocket"
 )
 
+func TestCheckBuildIsLatestDuringShutdown(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name           string
+		transition     database.WorkspaceTransition
+		startStatus    database.ProvisionerJobStatus
+		shutdownStatus database.ProvisionerJobStatus
+		wantError      bool
+	}{
+		{name: "Stopping", transition: database.WorkspaceTransitionStop, startStatus: database.ProvisionerJobStatusSucceeded, shutdownStatus: database.ProvisionerJobStatusRunning},
+		{name: "StopPending", transition: database.WorkspaceTransitionStop, startStatus: database.ProvisionerJobStatusSucceeded, shutdownStatus: database.ProvisionerJobStatusPending},
+		{name: "Deleting", transition: database.WorkspaceTransitionDelete, startStatus: database.ProvisionerJobStatusSucceeded, shutdownStatus: database.ProvisionerJobStatusRunning},
+		{name: "DeletePending", transition: database.WorkspaceTransitionDelete, startStatus: database.ProvisionerJobStatusSucceeded, shutdownStatus: database.ProvisionerJobStatusPending},
+		{name: "Stopped", transition: database.WorkspaceTransitionStop, shutdownStatus: database.ProvisionerJobStatusSucceeded, wantError: true},
+		{name: "Deleted", transition: database.WorkspaceTransitionDelete, shutdownStatus: database.ProvisionerJobStatusSucceeded, wantError: true},
+		{name: "Canceling", transition: database.WorkspaceTransitionStop, shutdownStatus: database.ProvisionerJobStatusCanceling, wantError: true},
+		{name: "Canceled", transition: database.WorkspaceTransitionStop, shutdownStatus: database.ProvisionerJobStatusCanceled, wantError: true},
+		{name: "Failed", transition: database.WorkspaceTransitionStop, shutdownStatus: database.ProvisionerJobStatusFailed, wantError: true},
+		{name: "FailedStart", transition: database.WorkspaceTransitionStop, startStatus: database.ProvisionerJobStatusFailed, shutdownStatus: database.ProvisionerJobStatusRunning, wantError: true},
+		{name: "CanceledStart", transition: database.WorkspaceTransitionDelete, startStatus: database.ProvisionerJobStatusCanceled, shutdownStatus: database.ProvisionerJobStatusRunning, wantError: true},
+		{name: "IncompleteStart", transition: database.WorkspaceTransitionStop, startStatus: database.ProvisionerJobStatusRunning, shutdownStatus: database.ProvisionerJobStatusPending, wantError: true},
+		{name: "Restarted", transition: database.WorkspaceTransitionStart, wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			build := database.WorkspaceBuild{ID: uuid.New(), WorkspaceID: uuid.New(), BuildNumber: 1, Transition: database.WorkspaceTransitionStart, JobID: uuid.New()}
+			latest := database.WorkspaceBuild{ID: uuid.New(), WorkspaceID: build.WorkspaceID, BuildNumber: 2, Transition: tc.transition, JobID: uuid.New()}
+			db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), build.WorkspaceID).Return(latest, nil)
+			if tc.transition != database.WorkspaceTransitionStart {
+				db.EXPECT().GetProvisionerJobByID(gomock.Any(), latest.JobID).Return(database.ProvisionerJob{JobStatus: tc.shutdownStatus}, nil)
+				if tc.shutdownStatus == database.ProvisionerJobStatusPending || tc.shutdownStatus == database.ProvisionerJobStatusRunning {
+					db.EXPECT().GetProvisionerJobByID(gomock.Any(), build.JobID).Return(database.ProvisionerJob{JobStatus: tc.startStatus}, nil)
+				}
+			}
+			err := checkBuildIsLatest(testutil.Context(t, testutil.WaitLong), db, build)
+			if tc.wantError {
+				require.ErrorContains(t, err, "build is outdated")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestAgentConnectionMonitor_ContextCancel(t *testing.T) {
 	t.Parallel()
 	now := dbtime.Now()

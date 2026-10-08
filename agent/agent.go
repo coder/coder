@@ -128,10 +128,10 @@ type Options struct {
 }
 
 type Client interface {
-	// ConnectRPC212WithRole connects to the Agent API v2.12. The workspace
+	// ConnectRPC213WithRole connects to the Agent API v2.13. The workspace
 	// agent should use role "agent" to enable connection monitoring.
-	ConnectRPC212WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient212, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC213WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient213, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -288,6 +288,7 @@ type agent struct {
 	closeWaitGroup    sync.WaitGroup
 	coordDisconnected chan struct{}
 	closing           bool
+	agentAPI          proto.DRPCAgentClient213
 	// note that once the network is set to non-nil, it is never modified, as with the statsReporter. So, routines
 	// that run after createOrUpdateNetwork and check the networkOK checkpoint do not need to hold the lock to use them.
 	network       *tailnet.Conn
@@ -307,6 +308,7 @@ type agent struct {
 	announcementBanners                atomic.Pointer[[]codersdk.BannerConfig] // announcementBanners is atomic because it is periodically updated.
 	announcementBannersRefreshInterval time.Duration
 	sshServer                          *agentssh.Server
+	shutdownCause                      atomic.Pointer[agentssh.ShutdownCause]
 	sshMaxTimeout                      time.Duration
 	envInfo                            usershell.EnvInfoer
 	blockFileTransfer                  bool
@@ -412,6 +414,7 @@ func (a *agent) init() {
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
 		ConnectionReporter:         a.connectionReporter,
+		ShutdownCause:              a.sshShutdownCause,
 		ExperimentalContainers:     a.devcontainers,
 	})
 	if err != nil {
@@ -1008,7 +1011,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC212WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC213WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1017,6 +1020,15 @@ func (a *agent) run() (retErr error) {
 		if cErr != nil {
 			a.logger.Debug(a.hardCtx, "error closing drpc connection", slog.Error(cErr))
 		}
+	}()
+
+	a.closeMutex.Lock()
+	a.agentAPI = aAPI
+	a.closeMutex.Unlock()
+	defer func() {
+		a.closeMutex.Lock()
+		a.agentAPI = nil
+		a.closeMutex.Unlock()
 	}()
 
 	// The socket server accepts requests from processes running inside the workspace and forwards
@@ -2214,6 +2226,7 @@ func (a *agent) Close() error {
 	a.closeMutex.Lock()
 	network := a.network
 	coordDisconnected := a.coordDisconnected
+	agentAPI := a.agentAPI
 	a.closing = true
 	a.closeMutex.Unlock()
 	if a.isClosed() {
@@ -2222,6 +2235,7 @@ func (a *agent) Close() error {
 
 	a.logger.Info(a.hardCtx, "shutting down agent")
 	a.setLifecycle(codersdk.WorkspaceAgentLifecycleShuttingDown)
+	a.lookupWorkspaceShutdown(agentAPI)
 
 	// Attempt to gracefully shut down all active SSH connections and
 	// stop accepting new ones. If all processes have not exited after 5

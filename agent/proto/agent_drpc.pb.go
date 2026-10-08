@@ -58,6 +58,7 @@ type DRPCAgentClient interface {
 	ReportBoundaryLogs(ctx context.Context, in *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
 	UpdateAppStatus(ctx context.Context, in *UpdateAppStatusRequest) (*UpdateAppStatusResponse, error)
 	PushContextState(ctx context.Context, in *PushContextStateRequest) (*PushContextStateResponse, error)
+	GetWorkspaceShutdown(ctx context.Context, in *emptypb.Empty) (*WorkspaceShutdown, error)
 }
 
 type drpcAgentClient struct {
@@ -241,6 +242,15 @@ func (c *drpcAgentClient) PushContextState(ctx context.Context, in *PushContextS
 	return out, nil
 }
 
+func (c *drpcAgentClient) GetWorkspaceShutdown(ctx context.Context, in *emptypb.Empty) (*WorkspaceShutdown, error) {
+	out := new(WorkspaceShutdown)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/GetWorkspaceShutdown", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAgentServer interface {
 	GetManifest(context.Context, *GetManifestRequest) (*Manifest, error)
 	GetServiceBanner(context.Context, *GetServiceBannerRequest) (*ServiceBanner, error)
@@ -261,6 +271,7 @@ type DRPCAgentServer interface {
 	ReportBoundaryLogs(context.Context, *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
 	UpdateAppStatus(context.Context, *UpdateAppStatusRequest) (*UpdateAppStatusResponse, error)
 	PushContextState(context.Context, *PushContextStateRequest) (*PushContextStateResponse, error)
+	GetWorkspaceShutdown(context.Context, *emptypb.Empty) (*WorkspaceShutdown, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -341,9 +352,13 @@ func (s *DRPCAgentUnimplementedServer) PushContextState(context.Context, *PushCo
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentUnimplementedServer) GetWorkspaceShutdown(context.Context, *emptypb.Empty) (*WorkspaceShutdown, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 19 }
+func (DRPCAgentDescription) NumMethods() int { return 20 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -518,6 +533,15 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*PushContextStateRequest),
 					)
 			}, DRPCAgentServer.PushContextState, true
+	case 19:
+		return "/coder.agent.v2.Agent/GetWorkspaceShutdown", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					GetWorkspaceShutdown(
+						ctx,
+						in1.(*emptypb.Empty),
+					)
+			}, DRPCAgentServer.GetWorkspaceShutdown, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -825,6 +849,22 @@ type drpcAgent_PushContextStateStream struct {
 }
 
 func (x *drpcAgent_PushContextStateStream) SendAndClose(m *PushContextStateResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_GetWorkspaceShutdownStream interface {
+	drpc.Stream
+	SendAndClose(*WorkspaceShutdown) error
+}
+
+type drpcAgent_GetWorkspaceShutdownStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_GetWorkspaceShutdownStream) SendAndClose(m *WorkspaceShutdown) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}

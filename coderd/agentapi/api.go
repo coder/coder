@@ -59,6 +59,7 @@ type API struct {
 	*SubAgentAPI
 	*BoundaryLogsAPI
 	*ContextAPI
+	*WorkspaceShutdownAPI
 	tailnetService *tailnet.DRPCService
 
 	cachedWorkspaceFields *CachedWorkspaceFields
@@ -143,6 +144,9 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	api := &API{
 		opts: opts,
 		mu:   sync.Mutex{},
+	}
+	api.WorkspaceShutdownAPI = &WorkspaceShutdownAPI{
+		WorkspaceID: opts.WorkspaceID, Database: opts.Database,
 	}
 
 	api.ManifestAPI = &ManifestAPI{
