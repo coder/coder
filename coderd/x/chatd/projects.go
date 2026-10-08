@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
@@ -14,32 +16,33 @@ import (
 // DeleteChatProject deletes a project and publishes hard_deleted watch
 // events for the chats it deleted. See DeleteChatProjectWithoutEvents.
 func (p *Server) DeleteChatProject(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
-	deleted, err := DeleteChatProjectWithoutEvents(ctx, p.db, projectID)
+	deleted, err := DeleteChatProjectWithoutEvents(ctx, p.logger, p.db, projectID)
 	p.publishChatPubsubEvents(deleted, codersdk.ChatWatchEventKindHardDeleted)
 	return deleted, err
 }
 
-// chatProjectDeleteAttempts bounds retries of a project delete that lost
-// a deadlock, for example to lease renewal locking heartbeat rows in
-// another order.
+// A project delete can lose a deadlock to lease renewal, which locks
+// heartbeat rows in another order.
 const chatProjectDeleteAttempts = 3
 
 // DeleteChatProjectWithoutEvents deletes a project together with its root
 // chats, every user's, and their sub-chats, and returns the chats it
 // deleted. Running chats are deleted too: their leases cascade with them,
 // so their workers stop on the next heartbeat after commit. A delete that
-// loses a deadlock is retried, so db must not be a transaction. Callers
-// must have authorized deleting the project.
-func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, projectID uuid.UUID) ([]database.Chat, error) {
+// loses a deadlock runs again, up to chatProjectDeleteAttempts times, so db
+// must not be a transaction. Callers must have authorized deleting the
+// project.
+func DeleteChatProjectWithoutEvents(ctx context.Context, logger slog.Logger, db database.Store, projectID uuid.UUID) ([]database.Chat, error) {
 	var err error
-	for range chatProjectDeleteAttempts {
+	for attempt := 1; attempt <= chatProjectDeleteAttempts; attempt++ {
 		var deleted []database.Chat
 		deleted, err = deleteChatProjectOnce(ctx, db, projectID)
 		if !database.IsDeadlockError(err) {
 			return deleted, err
 		}
+		logger.Debug(ctx, "chat project delete deadlocked", slog.F("project_id", projectID), slog.F("attempt", attempt), slog.Error(err))
 	}
-	return nil, err
+	return nil, xerrors.Errorf("delete chat project failed after %d attempts: %w", chatProjectDeleteAttempts, err)
 }
 
 func deleteChatProjectOnce(ctx context.Context, db database.Store, projectID uuid.UUID) ([]database.Chat, error) {

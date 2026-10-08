@@ -66,35 +66,13 @@ export const updateChatProject = (queryClient: QueryClient) =>
 
 export const deleteChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
-		mutationFn: (project: TypesGen.ChatProject) =>
-			API.experimental.deleteChatProject(project.organization_id, project.id),
-		onSuccess: (_, project) => {
-			// The project's chats are deleted. Resetting, not invalidating,
-			// their entities lets open routes find them gone: invalidation
-			// keeps cached data when the refetch 404s.
-			const chats = queryClient
-				.getQueriesData<TypesGen.Chat>({
-					queryKey: chatEntitiesFamilyKey,
-					predicate: ({ queryKey }) =>
-						queryKey.length === chatEntitiesFamilyKey.length + 1,
-				})
-				.flatMap(([, chat]) => (chat ? [chat] : []));
-			const deleted = new Set(
-				chats.filter((chat) => chat.project_id === project.id).map((c) => c.id),
+		// The reset runs here rather than in onSuccess, which callers replace.
+		mutationFn: async (project: TypesGen.ChatProject) => {
+			await API.experimental.deleteChatProject(
+				project.organization_id,
+				project.id,
 			);
-			for (const chat of chats) {
-				if (chat.root_chat_id && deleted.has(chat.root_chat_id)) {
-					deleted.add(chat.id);
-				}
-			}
-			return Promise.all(
-				[...deleted].map((id) =>
-					queryClient.resetQueries({
-						queryKey: chatEntityKey(id),
-						exact: true,
-					}),
-				),
-			);
+			resetDeletedProjectChats(queryClient, project.id);
 		},
 		onSettled: () =>
 			Promise.all([
@@ -103,3 +81,30 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 				invalidateChatSearches(queryClient),
 			]),
 	});
+
+// The project's chats are deleted. Resetting, not invalidating, their
+// entities lets open routes find them gone: invalidation keeps cached data
+// when the refetch 404s.
+const resetDeletedProjectChats = (
+	queryClient: QueryClient,
+	projectId: string,
+) => {
+	const chats = queryClient
+		.getQueriesData<TypesGen.Chat>({
+			queryKey: chatEntitiesFamilyKey,
+			predicate: ({ queryKey }) =>
+				queryKey.length === chatEntitiesFamilyKey.length + 1,
+		})
+		.flatMap(([, chat]) => (chat ? [chat] : []));
+	const deleted = new Set(
+		chats.filter((chat) => chat.project_id === projectId).map((c) => c.id),
+	);
+	for (const chat of chats) {
+		if (chat.root_chat_id && deleted.has(chat.root_chat_id)) {
+			deleted.add(chat.id);
+		}
+	}
+	for (const id of deleted) {
+		void queryClient.resetQueries({ queryKey: chatEntityKey(id), exact: true });
+	}
+};

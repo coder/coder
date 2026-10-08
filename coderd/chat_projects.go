@@ -264,7 +264,7 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 		// Without the AI Gateway no worker runs chats, so the deletion runs
 		// directly. No watch events are published; other users' sidebars
 		// drop the chats on their next refetch.
-		deleted, err = chatd.DeleteChatProjectWithoutEvents(ctx, api.Database, project.ID)
+		deleted, err = chatd.DeleteChatProjectWithoutEvents(ctx, api.Logger, api.Database, project.ID)
 	}
 	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)

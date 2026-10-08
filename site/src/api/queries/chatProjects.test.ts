@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -72,7 +73,7 @@ describe("chat project mutations", () => {
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
 	});
 
-	it("resets only the deleted project's chats after a delete succeeds", async () => {
+	it("resets only the deleted project's chats once the delete succeeds", async () => {
 		const queryClient = createTestQueryClient();
 		const root = { ...MockChat, id: "root", project_id: MockChatProject.id };
 		const child = { ...MockChat, id: "child", root_chat_id: root.id };
@@ -80,11 +81,8 @@ describe("chat project mutations", () => {
 		for (const chat of [root, child, other]) {
 			queryClient.setQueryData(chatEntityKey(chat.id), chat);
 		}
-		await deleteChatProject(queryClient).onSuccess?.(
-			undefined,
-			MockChatProject,
-			undefined,
-		);
+		vi.spyOn(API.experimental, "deleteChatProject").mockResolvedValue();
+		await deleteChatProject(queryClient).mutationFn?.(MockChatProject);
 		expect(queryClient.getQueryData(chatEntityKey(root.id))).toBeUndefined();
 		expect(queryClient.getQueryData(chatEntityKey(child.id))).toBeUndefined();
 		expect(queryClient.getQueryData(chatEntityKey(other.id))).toEqual(other);

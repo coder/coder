@@ -477,6 +477,10 @@ describe("ChatsSidebar projects", () => {
 
 		const queryClient = createTestQueryClient();
 		const projectChat = buildChat({ project_id: MockChatProject.id });
+		// Nothing observes the entity, so keep it from being collected.
+		queryClient.setQueryDefaults(chatEntityKey(projectChat.id), {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
 		queryClient.setQueryData(chatEntityKey(projectChat.id), projectChat);
 
 		render(
