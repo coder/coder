@@ -9558,21 +9558,6 @@ func (q *sqlQuerier) DeleteChatContextResourcesByChatID(ctx context.Context, cha
 	return err
 }
 
-const deleteChatHeartbeatsByChatIDs = `-- name: DeleteChatHeartbeatsByChatIDs :exec
-DELETE FROM chat_heartbeats
-WHERE chat_id = ANY($1::uuid[])
-`
-
-// Ends the leases of chats about to be deleted with their project. Run it
-// outside the delete transaction, after that transaction has locked the
-// chats: the locks keep workers from acquiring them again, and lease
-// renewal would otherwise wait on heartbeat rows the delete holds until it
-// commits.
-func (q *sqlQuerier) DeleteChatHeartbeatsByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatHeartbeatsByChatIDs, pq.Array(chatIds))
-	return err
-}
-
 const deleteChatQueuedMessage = `-- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = $1 AND chat_id = $2
 `

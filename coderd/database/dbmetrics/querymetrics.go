@@ -584,14 +584,6 @@ func (m queryMetricsStore) DeleteChatFamiliesByRootIDs(ctx context.Context, root
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatHeartbeatsByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteChatHeartbeatsByChatIDs(ctx, chatIds)
-	m.queryLatencies.WithLabelValues("DeleteChatHeartbeatsByChatIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatHeartbeatsByChatIDs").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg database.DeleteChatMCPServersByChatIDExcludingSlugsParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatMCPServersByChatIDExcludingSlugs(ctx, arg)

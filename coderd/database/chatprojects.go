@@ -27,6 +27,10 @@ import (
 // IsDeadlockError, the transaction rolls back with fn's writes, and a
 // caller that retries must retry the whole transaction, including any
 // outer one db belongs to.
+//
+// Running chats' heartbeat rows cascade with the chats, and lease renewal,
+// which holds the deployment-wide capacity admission lock, waits on them
+// until the outermost transaction commits. Keep fn to the deletes.
 func InChatProjectDeleteTx(ctx context.Context, db Store, projectID uuid.UUID, fn func(tx Store, rootIDs, chatIDs []uuid.UUID) error) error {
 	return db.InTx(func(tx Store) error {
 		if _, err := tx.GetChatProjectByIDForUpdate(ctx, projectID); err != nil {

@@ -2498,21 +2498,16 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	for _, lease := range []database.GetChatHeartbeatParams{deletedLease, keptLease} {
 		require.NoError(t, db.UpsertChatHeartbeat(ctx, database.UpsertChatHeartbeatParams(lease)))
 	}
-	// The chat locks must not block the out-of-transaction heartbeat delete.
-	err = database.InChatProjectDeleteTx(ctx, db, project.ID, func(_ database.Store, _, chatIDs []uuid.UUID) error {
-		return db.DeleteChatHeartbeatsByChatIDs(ctx, chatIDs)
-	})
-	require.NoError(t, err)
-	_, err = db.GetChatHeartbeat(ctx, deletedLease)
-	require.ErrorIs(t, err, sql.ErrNoRows)
-	_, err = db.GetChatHeartbeat(ctx, keptLease)
-	require.NoError(t, err)
 
 	chats, err := db.GetChatsByIDs(ctx, family)
 	require.NoError(t, err)
 	require.Len(t, chats, len(family))
 
 	require.NoError(t, db.DeleteChatFamiliesByRootIDs(ctx, []uuid.UUID{ownerRoot.ID, shareeRoot.ID, lateRoot.ID}))
+	_, err = db.GetChatHeartbeat(ctx, deletedLease)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetChatHeartbeat(ctx, keptLease)
+	require.NoError(t, err)
 	for _, id := range family {
 		_, err := db.GetChatByID(ctx, id)
 		require.ErrorIs(t, err, sql.ErrNoRows)
