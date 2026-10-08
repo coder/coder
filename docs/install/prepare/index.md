@@ -13,7 +13,7 @@ Start the slowest items first.
 | Access hostname and DNS records     | DNS and TLS owner               | You need the Coder hostname, and a wildcard record if you want to serve workspace apps on subdomains                                            |
 | TLS certificates                    | DNS and TLS owner               | A wildcard certificate covers the hostname and the workspace app subdomains                                                                     |
 | PostgreSQL database                 | Database administrator          | Include a backup and restore plan, not only a connection string                                                                                 |
-| Identity provider application       | Identity provider administrator | Register the OIDC or SAML application and agree on the group claims you intend to map                                                           |
+| Identity provider application       | Identity provider administrator | Register the OIDC application and agree on the group claims you intend to map                                                                   |
 | Coder license                       | Licensing contact               | Required for Premium features; refer to [Licensing](./licensing.md)                                                                             |
 | Container images and Coder binaries | Coder platform owner            | Only for restricted networks; refer to [Air-gapped deployments](./airgap.md) and [Mirror Coder Registry with Artifactory](./registry-mirror.md) |
 
