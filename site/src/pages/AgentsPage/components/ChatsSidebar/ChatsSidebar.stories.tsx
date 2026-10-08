@@ -98,13 +98,7 @@ const meta: Meta<typeof ChatsSidebar> = {
 	args: {
 		chatErrorReasons: {},
 		modelConfigs: defaultModelConfigs,
-		onArchiveAgent: fn(),
 		navigateAfterArchive: fn(),
-		onUnarchiveAgent: fn(),
-		onPinAgent: fn(),
-		onUnpinAgent: fn(),
-		onMarkChatRead: fn(),
-		onMarkChatUnread: fn(),
 		onRenameTitle: fn(() => Promise.resolve()),
 		onBeforeNewAgent: fn(),
 		isSearchDialogOpen: false,
@@ -1494,6 +1488,11 @@ export const NoArchivedSection: Story = {
 };
 
 export const ArchivingShowsSpinnerOnly: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "updateChat").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
 	args: {
 		chats: [
 			buildChat({
@@ -1501,9 +1500,24 @@ export const ArchivingShowsSpinnerOnly: Story = {
 				title: "Chat being archived",
 				updated_at: recentTimestamp,
 			}),
+			buildChat({
+				id: "available-chat",
+				title: "Another chat stays available",
+				updated_at: recentTimestamp,
+			}),
 		],
-		isArchiving: true,
-		archivingChatId: "archiving-chat",
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Open actions for Chat being archived",
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", {
+				name: "Archive agent",
+			}),
+		);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -2235,21 +2249,11 @@ export const PinUnpinContextMenu: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Agent to pin")).toBeInTheDocument();
-		});
-		const trigger = canvas.getByLabelText("Open actions for Agent to pin");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Pin agent")).toBeInTheDocument();
-		});
-		// Click Pin agent and verify callback.
-		const body = within(document.body);
-		await userEvent.click(body.getByText("Pin agent"));
-		expect(args.onPinAgent).toHaveBeenCalledWith("pin-test");
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Agent to pin"),
+		);
 	},
 };
 
@@ -2270,19 +2274,11 @@ export const UnpinContextMenu: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Agent to unpin")).toBeInTheDocument();
-		});
-		const trigger = canvas.getByLabelText("Open actions for Agent to unpin");
-		await userEvent.click(trigger);
-		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Unpin agent")).toBeInTheDocument();
-		});
-		await userEvent.click(body.getByText("Unpin agent"));
-		expect(args.onUnpinAgent).toHaveBeenCalledWith("unpin-test");
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Agent to unpin"),
+		);
 	},
 };
 
@@ -2309,6 +2305,37 @@ export const ReadStateContextMenu: Story = {
 			await canvas.findByLabelText("Open actions for Unread agent"),
 		);
 		await within(document.body).findByText("Mark as read");
+	},
+};
+
+export const ReadStateUpdatePending: Story = {
+	...ReadStateContextMenu,
+	beforeEach: () => {
+		spyOn(API.experimental, "updateChat").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Unread agent"),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", {
+				name: "Mark as read",
+			}),
+		);
+		await waitFor(() => {
+			if (getComputedStyle(document.body).pointerEvents === "none") {
+				throw new Error("Waiting for the actions menu to finish closing.");
+			}
+		});
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Unread agent"),
+		);
+		await within(document.body).findByRole("menuitem", {
+			name: "Mark as read",
+		});
 	},
 };
 

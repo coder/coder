@@ -20,6 +20,7 @@ import { getErrorMessage } from "#/api/errors";
 import {
 	archiveAndDeleteChat,
 	archiveAndDeleteChatKey,
+	chatArchiveMutationKey,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -113,6 +114,7 @@ type ChatActionsMenuItemsProps = {
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
+	readonly isUpdatingReadState?: boolean;
 	readonly isArchiveBlocked?: boolean;
 	readonly subagentCount?: number;
 	readonly isSubagentsExpanded?: boolean;
@@ -165,12 +167,12 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const [confirmation, setConfirmation] = useState<TypesGen.Workspace>();
-	const filters = { mutationKey: archiveAndDeleteChatKey(chat.id) };
-	const isDeleting = useIsMutating(filters) > 0;
+	const isArchiving =
+		useIsMutating({ mutationKey: chatArchiveMutationKey(chat.id) }) > 0;
 	const options = archiveAndDeleteChat(queryClient);
 	const mutation = useMutation({
 		...options,
-		mutationKey: filters.mutationKey,
+		mutationKey: archiveAndDeleteChatKey(chat.id),
 		onSuccess: (result, variables) => {
 			options.onSuccess(result, variables);
 			clearPersistedSidebarTabId(variables.chatId);
@@ -198,6 +200,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 		},
 	});
 
+	const filters = { mutationKey: chatArchiveMutationKey(chat.id) };
 	const requestArchiveAndDelete = async () => {
 		const workspaceId = chat.workspace_id;
 		if (chat.archived || !workspaceId || queryClient.isMutating(filters)) {
@@ -236,7 +239,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	const menuItems = (
 		<ChatActionsMenuItems
 			{...items}
-			isArchiving={items.isArchiving || isDeleting}
+			isArchiving={items.isArchiving || isArchiving}
 			onArchiveAndDeleteWorkspace={requestArchiveAndDelete}
 			Item={variant === "context" ? ContextMenuItem : DropdownMenuItem}
 			Separator={
@@ -300,6 +303,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	canManage,
 	hasWorkspace,
 	isArchiving = false,
+	isUpdatingReadState = false,
 	isArchiveBlocked = false,
 	subagentCount = 0,
 	isSubagentsExpanded = false,
@@ -354,7 +358,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	) : null;
 
 	const readToggle = showReadToggle ? (
-		<Item onSelect={chat.has_unread ? onMarkRead : onMarkUnread}>
+		<Item
+			disabled={isUpdatingReadState}
+			onSelect={chat.has_unread ? onMarkRead : onMarkUnread}
+		>
 			{chat.has_unread ? (
 				<>
 					<MailOpenIcon className="size-3.5" />

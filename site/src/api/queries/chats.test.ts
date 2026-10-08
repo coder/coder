@@ -1,4 +1,4 @@
-import { QueryClient, QueryObserver } from "react-query";
+import { InfiniteQueryObserver, QueryClient, QueryObserver } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { authorizationKey } from "#/api/queries/authCheck";
@@ -800,14 +800,24 @@ describe("markChatRead and markChatUnread cache updates", () => {
 			chatStatus: "unread",
 		});
 
-		await markChatRead(queryClient).onMutate(chatId);
+		const observer = new InfiniteQueryObserver(queryClient, {
+			...infiniteChats({ chatStatus: "unread" }),
+			enabled: false,
+		});
+		const unsubscribe = observer.subscribe(() => {});
+		try {
+			await markChatRead(queryClient).onMutate(chatId);
 
-		expect(
-			readInfiniteChats(queryClient, { chatStatus: "unread" })?.map(
-				(c) => c.id,
-			),
-		).toEqual([]);
-		expect(readInfiniteChats(queryClient)?.[0].has_unread).toBe(false);
+			expect(
+				observer
+					.getCurrentResult()
+					.data?.pages.flat()
+					.map((chat) => chat.id),
+			).toEqual([]);
+			expect(readInfiniteChats(queryClient)?.[0].has_unread).toBe(false);
+		} finally {
+			unsubscribe();
+		}
 	});
 
 	it("patches a nested subagent chat without dropping its root", async () => {
@@ -840,6 +850,144 @@ describe("markChatRead and markChatUnread cache updates", () => {
 		const restored = readInfiniteChats(queryClient, { chatStatus: "unread" });
 		expect(restored?.map((c) => c.id)).toEqual([chatId]);
 		expect(restored?.[0].has_unread).toBe(true);
+	});
+
+	it("rolls back only the rejected chat across current paginated and filtered lists", async () => {
+		const queryClient = createTestQueryClient();
+		const unread = { chatStatus: "unread" as const };
+		const key = chatListKey(toChatListParams(unread));
+		const chatA = makeChat("chat-a", { has_unread: true });
+		const chatB = makeChat("chat-b", { has_unread: true });
+		queryClient.setQueryData<InfiniteData>(key, {
+			pages: [[makeChat("first"), chatA, makeChat("last")], [chatB]],
+			pageParams: [0, 1],
+		});
+		seedInfiniteChats(queryClient, [chatA, chatB]);
+		queryClient.setQueryData(chatEntityKey(chatA.id), chatA);
+
+		const read = markChatRead(queryClient);
+		const context = await read.onMutate(chatA.id);
+		await read.onMutate(chatB.id);
+		queryClient.setQueryData<InfiniteData>(
+			key,
+			(current) =>
+				current && {
+					...current,
+					pages: current.pages.map((page, index) =>
+						index === 0 ? [makeChat("new"), ...page] : page,
+					),
+				},
+		);
+		queryClient.setQueryData(
+			chatEntityKey(chatA.id),
+			makeChat(chatA.id, { has_unread: false, title: "refetched title" }),
+		);
+
+		read.onError(new Error("read rejected"), chatA.id, context);
+
+		const pages = queryClient.getQueryData<InfiniteData>(key)?.pages;
+		expect(pages?.map((page) => page.map((chat) => chat.id))).toEqual([
+			["new", "first", "chat-a", "last"],
+			["chat-b"],
+		]);
+		expect(pages?.[0].find((chat) => chat.id === chatA.id)?.has_unread).toBe(
+			true,
+		);
+		expect(pages?.[1][0].has_unread).toBe(false);
+		expect(
+			readInfiniteChats(queryClient)?.map((chat) => [chat.id, chat.has_unread]),
+		).toEqual([
+			["chat-a", true],
+			["chat-b", false],
+		]);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatA.id)),
+		).toMatchObject({
+			has_unread: true,
+			title: "refetched title",
+		});
+	});
+
+	it("rolls back a child without replacing its updated parent or siblings", async () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child", { has_unread: false });
+		const sibling = makeChat("sibling", { has_unread: false });
+		const parent = makeChat("parent", { children: [child, sibling] });
+		seedInfiniteChats(queryClient, [parent]);
+		const mutation = markChatUnread(queryClient);
+		const context = await mutation.onMutate(child.id);
+		seedInfiniteChats(queryClient, [
+			makeChat("parent", {
+				title: "updated parent",
+				children: [
+					makeChat(child.id, { title: "updated child", has_unread: true }),
+					makeChat(sibling.id, { has_unread: true }),
+				],
+			}),
+		]);
+
+		mutation.onError(new Error("unread rejected"), child.id, context);
+
+		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
+			title: "updated parent",
+			children: [
+				{ id: child.id, title: "updated child", has_unread: false },
+				{ id: sibling.id, has_unread: true },
+			],
+		});
+
+		const missingParentContext = await mutation.onMutate(child.id);
+		seedInfiniteChats(queryClient, [makeChat("different-parent")]);
+		mutation.onError(
+			new Error("unread rejected"),
+			child.id,
+			missingParentContext,
+		);
+		expect(readInfiniteChats(queryClient)?.map((chat) => chat.id)).toEqual([
+			"different-parent",
+		]);
+	});
+
+	it("does not recreate evicted lists or pages or duplicate a refetched root", async () => {
+		const queryClient = createTestQueryClient();
+		const unread = { chatStatus: "unread" as const };
+		const key = chatListKey(toChatListParams(unread));
+		const chat = makeChat("chat-a", { has_unread: true });
+		queryClient.setQueryData<InfiniteData>(key, {
+			pages: [[makeChat("first")], [chat]],
+			pageParams: [0, 1],
+		});
+		const mutation = markChatRead(queryClient);
+		const context = await mutation.onMutate(chat.id);
+		queryClient.setQueryData<InfiniteData>(key, {
+			pages: [[chat]],
+			pageParams: [0],
+		});
+		mutation.onError(new Error("read rejected"), chat.id, context);
+		expect(queryClient.getQueryData<InfiniteData>(key)?.pages).toEqual([
+			[chat],
+		]);
+
+		queryClient.setQueryData<InfiniteData>(key, {
+			pages: [[makeChat("first")]],
+			pageParams: [0],
+		});
+		mutation.onError(new Error("read rejected"), chat.id, context);
+		expect(
+			readInfiniteChats(queryClient, unread)?.map((chat) => chat.id),
+		).toEqual(["first"]);
+
+		seedInfiniteChats(queryClient, [chat], unread);
+		queryClient.setQueryData(chatEntityKey(chat.id), chat);
+		const secondContext = await mutation.onMutate(chat.id);
+		queryClient.removeQueries({ queryKey: key, exact: true });
+		queryClient.removeQueries({
+			queryKey: chatEntityKey(chat.id),
+			exact: true,
+		});
+		mutation.onError(new Error("read rejected"), chat.id, secondContext);
+		expect(queryClient.getQueryData(key)).toBeUndefined();
+		expect(queryClient.getQueryData(chatEntityKey(chat.id))).toBeUndefined();
 	});
 });
 

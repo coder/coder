@@ -6,13 +6,27 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useIsMutating } from "react-query";
+import { useIsMutating, useMutation, useQueryClient } from "react-query";
 import { NavLink, useLocation } from "react-router";
-import { archiveAndDeleteChatKey } from "#/api/queries/chats";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import {
+	archiveChat,
+	chatArchiveMutationKey,
+	chatReadStateMutationKey,
+	markChatRead,
+	markChatUnread,
+	pinChat,
+	unarchiveChat,
+	unpinChat,
+} from "#/api/queries/chats";
+
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { shortRelativeTime } from "#/utils/time";
+import { clearPersistedRightPanelState } from "../../../utils/rightPanelTabStorage";
+import { clearPersistedSidebarTabId } from "../../../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
@@ -50,16 +64,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		chatErrorReasons,
 		activeChatId,
 		currentUserId,
-		isArchiving,
-		archivingChatId,
 		toggleExpanded,
-		onArchiveAgent,
+		onArchiveSuccess,
 		navigateAfterArchive,
-		onUnarchiveAgent,
-		onPinAgent,
-		onUnpinAgent,
-		onMarkChatRead,
-		onMarkChatUnread,
 		onOpenRenameDialog,
 	} = useChatTree();
 	const chatID = chat.id;
@@ -128,10 +135,70 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		label: statusLabel,
 	} = getChatDisplayConfig(chat);
 	const workspaceId = chat.workspace_id;
-	const isDeleting =
-		useIsMutating({ mutationKey: archiveAndDeleteChatKey(chat.id) }) > 0;
-	const isArchivingThisChat =
-		(isArchiving && archivingChatId === chat.id) || isDeleting;
+	const queryClient = useQueryClient();
+	const mutationKey = chatArchiveMutationKey(chat.id);
+	const pinOptions = pinChat(queryClient);
+	const pinMutation = useMutation({
+		...pinOptions,
+		onError: (error, chatId, context) => {
+			pinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to pin agent."));
+		},
+	});
+	const unpinOptions = unpinChat(queryClient);
+	const unpinMutation = useMutation({
+		...unpinOptions,
+		onError: (error, chatId, context) => {
+			unpinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+		},
+	});
+	const readStateMutationKey = chatReadStateMutationKey(chat.id);
+	const markReadOptions = markChatRead(queryClient);
+	const markReadMutation = useMutation({
+		...markReadOptions,
+		mutationKey: readStateMutationKey,
+		onError: (error, chatId, context) => {
+			markReadOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as read."));
+		},
+	});
+	const markUnreadOptions = markChatUnread(queryClient);
+	const markUnreadMutation = useMutation({
+		...markUnreadOptions,
+		mutationKey: readStateMutationKey,
+		onError: (error, chatId, context) => {
+			markUnreadOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as unread."));
+		},
+	});
+	const isUpdatingReadState =
+		useIsMutating({ mutationKey: readStateMutationKey }) > 0;
+	const archiveOptions = archiveChat(queryClient);
+	const archiveMutation = useMutation({
+		...archiveOptions,
+		mutationKey,
+		onSuccess: (data, chatId) => {
+			archiveOptions.onSuccess(data, chatId);
+			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
+			onArchiveSuccess?.(chatId);
+		},
+		onError: (error, chatId, context) => {
+			archiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+	const unarchiveOptions = unarchiveChat(queryClient);
+	const unarchiveMutation = useMutation({
+		...unarchiveOptions,
+		mutationKey,
+		onError: (error, chatId, context) => {
+			unarchiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+		},
+	});
+	const isArchivingThisChat = useIsMutating({ mutationKey }) > 0;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const canManage = canManageChat(chat, currentUserId);
@@ -140,21 +207,28 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		chat,
 		canManage,
 		hasWorkspace: Boolean(workspaceId),
-		// Plain archive keeps the layout's shared pending flag; only this
-		// chat's delete disables this chat's menu.
-		isArchiving: isArchiving || isDeleting,
+		isArchiving: isArchivingThisChat,
+		isUpdatingReadState,
 		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
 		onToggleSubagents: () => toggleExpanded(chatID),
-		onPinAgent: () => onPinAgent(chat.id),
-		onUnpinAgent: () => onUnpinAgent(chat.id),
+		onPinAgent: () => pinMutation.mutate(chat.id),
+		onUnpinAgent: () => unpinMutation.mutate(chat.id),
 		// Opening a chat marks it read, so the read toggle would be undone
 		// immediately for the chat the user is already viewing.
-		onMarkRead: isActiveChat ? undefined : () => onMarkChatRead(chat.id),
-		onMarkUnread: isActiveChat ? undefined : () => onMarkChatUnread(chat.id),
-		onArchiveAgent: () => onArchiveAgent(chat.id),
-		onUnarchiveAgent: () => onUnarchiveAgent(chat.id),
+		onMarkRead: isActiveChat
+			? undefined
+			: () => {
+					if (!isUpdatingReadState) markReadMutation.mutate(chat.id);
+				},
+		onMarkUnread: isActiveChat
+			? undefined
+			: () => {
+					if (!isUpdatingReadState) markUnreadMutation.mutate(chat.id);
+				},
+		onArchiveAgent: () => archiveMutation.mutate(chat.id),
+		onUnarchiveAgent: () => unarchiveMutation.mutate(chat.id),
 		onArchived: navigateAfterArchive,
 		onOpenRenameDialog: onOpenRenameDialog
 			? () => onOpenRenameDialog(chat)

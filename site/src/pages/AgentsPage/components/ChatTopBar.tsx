@@ -10,16 +10,32 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { useQuery } from "react-query";
+import {
+	useIsMutating,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
-import { chat as chatById } from "#/api/queries/chats";
+import {
+	archiveChat,
+	chatArchiveMutationKey,
+	chat as chatById,
+	pinChat,
+	unarchiveChat,
+	unpinChat,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parsePullRequestUrl } from "../utils/pullRequest";
+import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
+import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
@@ -118,27 +134,62 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
-		requestArchiveAgent,
+		clearChatErrorReason,
 		navigateAfterArchive,
-		requestUnarchiveAgent,
-		requestPinAgent,
-		requestUnpinAgent,
 		onOpenRenameDialog,
-		isArchiving = false,
-		archivingChatId,
 		activeChatChildren,
 	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
+
+	const queryClient = useQueryClient();
+	const mutationKey = chatArchiveMutationKey(chat?.id ?? "");
+	const pinOptions = pinChat(queryClient);
+	const pinMutation = useMutation({
+		...pinOptions,
+		onError: (error, chatId, context) => {
+			pinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to pin agent."));
+		},
+	});
+	const unpinOptions = unpinChat(queryClient);
+	const unpinMutation = useMutation({
+		...unpinOptions,
+		onError: (error, chatId, context) => {
+			unpinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+		},
+	});
+
+	const archiveOptions = archiveChat(queryClient);
+	const archiveMutation = useMutation({
+		...archiveOptions,
+		mutationKey,
+		onSuccess: (data, chatId) => {
+			archiveOptions.onSuccess(data, chatId);
+			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
+			clearChatErrorReason?.(chatId);
+		},
+		onError: (error, chatId, context) => {
+			archiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+	const unarchiveOptions = unarchiveChat(queryClient);
+	const unarchiveMutation = useMutation({
+		...unarchiveOptions,
+		mutationKey,
+		onError: (error, chatId, context) => {
+			unarchiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+		},
+	});
 
 	const chatTitle = chat?.title;
 	const isArchived = chat?.archived ?? false;
 	const isSharedChat = chat?.shared;
 	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
 	const hasWorkspace = Boolean(chat?.workspace_id);
-	const isArchivingThisChat = Boolean(
-		isArchiving &&
-			chat &&
-			(archivingChatId === undefined || archivingChatId === chat.id),
-	);
+	const isArchivingThisChat = useIsMutating({ mutationKey }) > 0;
 	// The per-chat stream updates this before the global chat record catches up.
 	const isArchiveBlocked = chat
 		? !chatFamilyAllowsArchive(
@@ -146,7 +197,6 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 				activeChatChildren,
 			)
 		: false;
-	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
 	// Suppressed when there is no chat to act on (loading and not-found views).
 	const showActionsMenu =
 		!isEmbedded && chat !== undefined && Boolean(chatTitle);
@@ -241,31 +291,19 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						hasWorkspace={hasWorkspace}
 						isArchiving={isArchivingThisChat}
 						isArchiveBlocked={isArchiveBlocked}
-						onPinAgent={
-							showPinAction && !isArchived
-								? () => {
-										requestPinAgent?.(chat.id);
-									}
-								: undefined
-						}
-						onUnpinAgent={
-							showPinAction && !isArchived
-								? () => {
-										requestUnpinAgent?.(chat.id);
-									}
-								: undefined
-						}
+						onPinAgent={() => pinMutation.mutate(chat.id)}
+						onUnpinAgent={() => unpinMutation.mutate(chat.id)}
 						onArchiveAgent={() => {
 							if (isArchived) {
 								return;
 							}
-							requestArchiveAgent?.(chat.id);
+							archiveMutation.mutate(chat.id);
 						}}
 						onUnarchiveAgent={() => {
 							if (!isArchived) {
 								return;
 							}
-							requestUnarchiveAgent?.(chat.id);
+							unarchiveMutation.mutate(chat.id);
 						}}
 						onOpenRenameDialog={
 							!isArchived && onOpenRenameDialog
