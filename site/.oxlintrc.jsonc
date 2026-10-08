@@ -151,6 +151,7 @@
 		"no-const-enum": "error",
 		"no-control-regex": "error",
 		"no-debugger": "error",
+		"no-console": ["error", { "allow": ["error", "info", "warn"] }],
 		"no-document-cookie": "error",
 		"eqeqeq": ["error", "always", { "null": "ignore" }],
 		"no-duplicate-case": "error",
@@ -215,7 +216,6 @@
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
-		"no-console": "off", // suspicious/noConsole (small, coder error rule: Biome suppression to migrate)
 		"exhaustive-deps": "off", // correctness/useExhaustiveDependencies (large: reimplementation; Biome suppressions to migrate)
 		"no-restricted-imports": [
 			"error",
