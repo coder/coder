@@ -356,3 +356,94 @@ func TestMigration000596ChainFrom589(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, leftovers)
 }
+
+// The rollback can't tell which minutes a family's apps shared, so it adds up
+// their minutes in each 30-minute bucket and caps the total at 30. App names
+// missing from the migration's copy of the registry count as SSH.
+//
+//nolint:tparallel,paralleltest // Subtests share one database with transaction-local fixtures.
+func TestMigration000596DownOverlap(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	stepTo(t, sqlDB, 596)
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	down596, err := os.ReadFile("000596_template_usage_stats_session_usage.down.sql")
+	require.NoError(t, err)
+
+	// familyMins holds ssh, sftp, reconnecting_pty, vscode, and jetbrains
+	// minutes, in that order.
+	type familyMins [5]int64
+	tests := []struct {
+		name string
+		apps map[string]int64
+		want familyMins
+	}{
+		{
+			name: "same family past the cap",
+			apps: map[string]int64{"cursor": 20, "vscode": 20},
+			want: familyMins{0, 0, 0, 30, 0},
+		},
+		{
+			name: "same family under the cap",
+			apps: map[string]int64{"cursor": 5, "vscode": 5},
+			want: familyMins{0, 0, 0, 10, 0},
+		},
+		{
+			name: "unlisted names count as ssh under the cap",
+			apps: map[string]int64{
+				"ssh": 5, "zed": 6, "some_new_ide": 5, "port_forwarding": 4, "overflow": 3, "unknown": 2,
+			},
+			want: familyMins{25, 0, 0, 0, 0},
+		},
+		{
+			name: "families cap separately",
+			apps: map[string]int64{"goland": 25, "intellij": 10, "reconnecting_pty": 12, "sftp": 2, "kiro": 1},
+			want: familyMins{0, 2, 12, 1, 30},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tx, err := sqlDB.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = tx.Rollback() })
+
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO template_usage_stats (
+					start_time, end_time, template_id, user_id, median_latency_ms,
+					usage_mins, app_usage_mins
+				) VALUES (
+					date_trunc('hour', statement_timestamp()),
+					date_trunc('hour', statement_timestamp()) + interval '30 minutes',
+					'22222222-2222-2222-2222-222222222222'::uuid,
+					'11111111-1111-1111-1111-111111111111'::uuid,
+					NULL, 30, NULL
+				)
+			`)
+			require.NoError(t, err)
+			for appName, mins := range tt.apps {
+				_, err = tx.ExecContext(ctx, `
+					INSERT INTO template_usage_stats_session_apps (
+						start_time, template_id, user_id, app_name, usage_mins
+					)
+					SELECT start_time, template_id, user_id, $1, $2
+					FROM template_usage_stats
+				`, appName, mins)
+				require.NoError(t, err)
+			}
+
+			_, err = tx.ExecContext(ctx, string(down596))
+			require.NoError(t, err)
+
+			var got familyMins
+			err = tx.QueryRowContext(ctx, `
+				SELECT ssh_mins, sftp_mins, reconnecting_pty_mins, vscode_mins, jetbrains_mins
+				FROM template_usage_stats
+			`).Scan(&got[0], &got[1], &got[2], &got[3], &got[4])
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

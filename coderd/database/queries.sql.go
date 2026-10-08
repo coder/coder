@@ -19294,14 +19294,14 @@ WITH
 			BOOL_OR(connection_count > 0)
 	),
 	insights AS (
-		-- A minute counts once per app however many of its sessions were open,
-		-- which COUNT(DISTINCT) does in the grouping. Deduplicating the
+		-- A minute counts once per family, however many of its apps were
+		-- open, which COUNT(DISTINCT) does in the grouping. Deduplicating the
 		-- expanded rows first instead spills to disk once a deployment has a
 		-- few thousand agents.
 		SELECT
 			was.template_id,
 			was.user_id,
-			app_name,
+			COALESCE($3::jsonb ->> app_name, 'unknown') AS family,
 			COUNT(DISTINCT date_trunc('minute', was.created_at)) AS usage_mins
 		FROM
 			workspace_agent_stats AS was
@@ -19317,22 +19317,22 @@ WITH
 			AND was.created_at < $2::timestamptz
 			AND was.session_counts <> '{}'::jsonb
 		GROUP BY
-			was.template_id, was.user_id, app_name
+			was.template_id, was.user_id, COALESCE($3::jsonb ->> app_name, 'unknown')
 	),
-	app_usage AS (
+	family_usage AS (
 		SELECT
 			template_id,
-			jsonb_object_agg(app_name, usage_seconds) AS session_app_usage_seconds
+			jsonb_object_agg(family, usage_seconds) AS session_family_usage_seconds
 		FROM (
 			SELECT
 				template_id,
-				app_name,
+				family,
 				(SUM(usage_mins) * 60)::bigint AS usage_seconds
 			FROM
 				insights
 			GROUP BY
-				template_id, app_name
-		) AS app_seconds
+				template_id, family
+		) AS family_seconds
 		GROUP BY
 			template_id
 	),
@@ -19349,35 +19349,38 @@ WITH
 SELECT
 	active_users.template_id,
 	active_users.active_users,
-	app_usage.session_app_usage_seconds
+	family_usage.session_family_usage_seconds
 FROM
 	active_users
 JOIN
-	-- Every counted template has at least one app; both sides come from
+	-- Every counted template has at least one family; both sides come from
 	-- insights.
-	app_usage
+	family_usage
 ON
-	app_usage.template_id = active_users.template_id
+	family_usage.template_id = active_users.template_id
 `
 
 type GetTemplateInsightsByTemplateParams struct {
-	StartTime time.Time `db:"start_time" json:"start_time"`
-	EndTime   time.Time `db:"end_time" json:"end_time"`
+	StartTime   time.Time       `db:"start_time" json:"start_time"`
+	EndTime     time.Time       `db:"end_time" json:"end_time"`
+	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
 }
 
 type GetTemplateInsightsByTemplateRow struct {
-	TemplateID             uuid.UUID      `db:"template_id" json:"template_id"`
-	ActiveUsers            int64          `db:"active_users" json:"active_users"`
-	SessionAppUsageSeconds StringMapOfInt `db:"session_app_usage_seconds" json:"session_app_usage_seconds"`
+	TemplateID                uuid.UUID      `db:"template_id" json:"template_id"`
+	ActiveUsers               int64          `db:"active_users" json:"active_users"`
+	SessionFamilyUsageSeconds StringMapOfInt `db:"session_family_usage_seconds" json:"session_family_usage_seconds"`
 }
 
 // GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 // in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 //
-// Session usage comes out per app name, as in GetTemplateInsights, so either
-// query reports the same family totals once the names are grouped.
+// Session usage is reported per app family. It reads the raw agent stats
+// because the rollup stores minutes per app, which can't show whether two
+// apps of one family were open in the same minute. @app_families maps each
+// app name to its family; names missing from the map count as unknown.
 func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime, arg.AppFamilies)
 	if err != nil {
 		return nil, err
 	}
@@ -19385,7 +19388,7 @@ func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetT
 	var items []GetTemplateInsightsByTemplateRow
 	for rows.Next() {
 		var i GetTemplateInsightsByTemplateRow
-		if err := rows.Scan(&i.TemplateID, &i.ActiveUsers, &i.SessionAppUsageSeconds); err != nil {
+		if err := rows.Scan(&i.TemplateID, &i.ActiveUsers, &i.SessionFamilyUsageSeconds); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
