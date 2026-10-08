@@ -82,9 +82,8 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 			]),
 	});
 
-// The project's chats are deleted. Resetting, not invalidating, their
-// entities lets open routes find them gone: invalidation keeps cached data
-// when the refetch 404s.
+// Resets rather than invalidates: invalidation keeps cached data when the
+// refetch 404s, so open routes would keep rendering the chats.
 const resetDeletedProjectChats = (
 	queryClient: QueryClient,
 	projectId: string,

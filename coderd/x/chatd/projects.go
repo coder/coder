@@ -21,8 +21,8 @@ func (p *Server) DeleteChatProject(ctx context.Context, projectID uuid.UUID) ([]
 	return deleted, err
 }
 
-// A project delete can lose a deadlock to lease renewal, which locks
-// heartbeat rows in another order.
+// A project delete can lose a deadlock to lease renewal or to code that
+// locks chats in id order; see database.InChatProjectDeleteTx.
 const chatProjectDeleteAttempts = 3
 
 // DeleteChatProjectWithoutEvents deletes a project together with its root

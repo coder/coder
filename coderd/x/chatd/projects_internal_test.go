@@ -1,6 +1,7 @@
 package chatd //nolint:testpackage // Uses unexported chatworker helpers.
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -50,8 +51,7 @@ func TestDeleteChatProjectWithoutEventsDeadlockRetry(t *testing.T) {
 	projectID := uuid.New()
 	rootID, subID := uuid.New(), uuid.New()
 	deadlock := &pq.Error{Code: "40P01", Message: "deadlock detected"}
-	// expectAttempt expects one delete transaction, with messages deleted
-	// before the chats so heartbeat rows lock only for the chat delete.
+	// InChatProjectDeleteTx requires messages to be deleted before the chats.
 	expectAttempt := func(db *dbmock.MockStore, familiesErr error) {
 		db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(func(fn func(database.Store) error, _ *database.TxOptions) error {
 			return fn(db)
@@ -89,5 +89,6 @@ func TestDeleteChatProjectWithoutEventsDeadlockRetry(t *testing.T) {
 
 		_, err := DeleteChatProjectWithoutEvents(t.Context(), testutil.Logger(t), db, projectID)
 		require.True(t, database.IsDeadlockError(err))
+		require.ErrorContains(t, err, fmt.Sprintf("failed after %d attempts", chatProjectDeleteAttempts))
 	})
 }

@@ -5171,6 +5171,15 @@ describe("applyWatchedChatHardDeleted", () => {
 		expect(fetches).toBe(2);
 		unsubscribe();
 	});
+
+	it("does not reset an entity that holds no data", () => {
+		const queryClient = createTestQueryClient();
+		const reset = vi.spyOn(queryClient, "resetQueries");
+
+		applyWatchedChatHardDeleted(queryClient, "chat-1");
+
+		expect(reset).not.toHaveBeenCalled();
+	});
 });
 
 describe("applyWatchedChatArchived", () => {

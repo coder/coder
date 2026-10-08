@@ -87,4 +87,20 @@ describe("chat project mutations", () => {
 		expect(queryClient.getQueryData(chatEntityKey(child.id))).toBeUndefined();
 		expect(queryClient.getQueryData(chatEntityKey(other.id))).toEqual(other);
 	});
+
+	it("keeps the project's chats when the delete fails", async () => {
+		const queryClient = createTestQueryClient();
+		const root = { ...MockChat, id: "root", project_id: MockChatProject.id };
+		queryClient.setQueryDefaults(chatEntityKey(root.id), {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatEntityKey(root.id), root);
+		vi.spyOn(API.experimental, "deleteChatProject").mockRejectedValue(
+			new Error("deadlock"),
+		);
+		await expect(
+			deleteChatProject(queryClient).mutationFn?.(MockChatProject),
+		).rejects.toThrow("deadlock");
+		expect(queryClient.getQueryData(chatEntityKey(root.id))).toEqual(root);
+	});
 });
