@@ -325,7 +325,8 @@ func (server *Server) ContextResources(
 // inventory the user can act on, each stamped with its Status:
 //
 //   - OK instruction files with non-empty (sanitized) content, OK skills with
-//     a name, and OK MCP configs/servers (mcp_server carries its tools).
+//     a name, OK MCP configs/servers (mcp_server carries its tools), and
+//     OK ACP harnesses with their configuration directory.
 //   - Non-OK rows (invalid, unreadable, oversize, excluded) of a tracked kind,
 //     carrying Status and Error so the UI can explain why the resource was
 //     dropped from the prompt instead of silently omitting it. Their
@@ -393,6 +394,14 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 				Status:    codersdk.ChatContextResourceStatusOK,
 				Tools:     mcpToolsFromServerBody(r.Source, r.Body),
 			})
+		case database.WorkspaceAgentContextBodyKindAcpHarness:
+			out = append(out, codersdk.ChatContextResource{
+				Source:     r.Source,
+				SourcePath: r.SourcePath,
+				Kind:       kind,
+				SizeBytes:  r.SizeBytes,
+				Status:     codersdk.ChatContextResourceStatusOK,
+			})
 		}
 	}
 	return out
@@ -412,6 +421,8 @@ func contextResourceKind(kind database.WorkspaceAgentContextBodyKind) (codersdk.
 		return codersdk.ChatContextResourceKindMCPConfig, true
 	case database.WorkspaceAgentContextBodyKindMcpServer:
 		return codersdk.ChatContextResourceKindMCPServer, true
+	case database.WorkspaceAgentContextBodyKindAcpHarness:
+		return codersdk.ChatContextResourceKindACPHarness, true
 	default:
 		return "", false
 	}

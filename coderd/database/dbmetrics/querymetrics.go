@@ -336,6 +336,14 @@ func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg databa
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountAgentsACPSessionsByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountAgentsACPSessionsByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("CountAgentsACPSessionsByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountAgentsACPSessionsByChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAuditLogs(ctx, arg)
@@ -1413,6 +1421,14 @@ func (m queryMetricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Cont
 	r0, r1 := m.s.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 	m.queryLatencies.WithLabelValues("GetActiveWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveWorkspaceBuildsByTemplateID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentsACPSessionByIDAndChatID(ctx context.Context, arg database.GetAgentsACPSessionByIDAndChatIDParams) (database.AgentsAcpSession, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentsACPSessionByIDAndChatID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentsACPSessionByIDAndChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentsACPSessionByIDAndChatID").Inc()
 	return r0, r1
 }
 
@@ -4360,6 +4376,14 @@ func (m queryMetricsStore) InsertAgentContextResourcesIntoChat(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) InsertAgentsACPSession(ctx context.Context, arg database.InsertAgentsACPSessionParams) (database.AgentsAcpSession, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAgentsACPSession(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAgentsACPSession").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAgentsACPSession").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAllUsersGroup(ctx, organizationID)
@@ -5080,6 +5104,14 @@ func (m queryMetricsStore) ListAIGatewayKeys(ctx context.Context) ([]database.Li
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAgentsACPSessionsByChatID(ctx context.Context, arg database.ListAgentsACPSessionsByChatIDParams) ([]database.AgentsAcpSession, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAgentsACPSessionsByChatID(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAgentsACPSessionsByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAgentsACPSessionsByChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListBoundaryLogsBySessionID(ctx, arg)
@@ -5518,6 +5550,14 @@ func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.Up
 	m.queryLatencies.WithLabelValues("UpdateAPIKeyByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAPIKeyByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateAgentsACPSessionUpdatedAt(ctx context.Context, arg database.UpdateAgentsACPSessionUpdatedAtParams) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAgentsACPSessionUpdatedAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAgentsACPSessionUpdatedAt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAgentsACPSessionUpdatedAt").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateChatACLByID(ctx context.Context, arg database.UpdateChatACLByIDParams) error {

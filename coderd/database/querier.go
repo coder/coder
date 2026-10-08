@@ -104,6 +104,7 @@ type sqlcQuerier interface {
 	// consumed, so callers can refuse the delivery.
 	ConsumeChatAutomationWebhookByID(ctx context.Context, arg ConsumeChatAutomationWebhookByIDParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
+	CountAgentsACPSessionsByChatID(ctx context.Context, chatID uuid.UUID) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Counts the automations owner_id owns across all organizations.
 	CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error)
@@ -423,6 +424,7 @@ type sqlcQuerier interface {
 	// TestGetActiveUsersAuthorizationRolesParity enforces this.
 	GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
+	GetAgentsACPSessionByIDAndChatID(ctx context.Context, arg GetAgentsACPSessionByIDAndChatIDParams) (AgentsAcpSession, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
 	GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error)
@@ -1213,6 +1215,7 @@ type sqlcQuerier interface {
 	// transaction) to re-pin a chat to its agent's latest snapshot from the
 	// refresh endpoint and on agent rebinding.
 	InsertAgentContextResourcesIntoChat(ctx context.Context, arg InsertAgentContextResourcesIntoChatParams) error
+	InsertAgentsACPSession(ctx context.Context, arg InsertAgentsACPSessionParams) (AgentsAcpSession, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
 	// every member of the org.
@@ -1388,6 +1391,7 @@ type sqlcQuerier interface {
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
 	ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error)
+	ListAgentsACPSessionsByChatID(ctx context.Context, arg ListAgentsACPSessionsByChatIDParams) ([]AgentsAcpSession, error)
 	// Lists boundary logs for a session, sorted by sequence number ascending.
 	// Supports an inclusive lower bound (seq_after) and an exclusive upper bound
 	// (seq_before) for fetching events between two known interceptions.
@@ -1566,6 +1570,7 @@ type sqlcQuerier interface {
 	UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error)
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
+	UpdateAgentsACPSessionUpdatedAt(ctx context.Context, arg UpdateAgentsACPSessionUpdatedAtParams) (uuid.UUID, error)
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
 	UpdateChatAutomationByID(ctx context.Context, arg UpdateChatAutomationByIDParams) (ChatAutomation, error)
 	// Marks a chat as created by an automation. The mark is set once, when the

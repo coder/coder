@@ -836,7 +836,7 @@ func matchingAttachmentForMedia(
 // See subagentToolNameAliases for the full alias map.
 func isSubagentLifecycleToolName(name string) bool {
 	switch name {
-	case "spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "close_agent":
+	case "acp_spawn_agent", "acp_wait_agent", "acp_message_agent", "acp_interrupt_agent", "acp_list_agents", "spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "close_agent":
 		return true
 	default:
 		return false

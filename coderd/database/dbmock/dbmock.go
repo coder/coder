@@ -467,6 +467,21 @@ func (mr *MockStoreMockRecorder) CountAIBridgeSessions(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAIBridgeSessions", reflect.TypeOf((*MockStore)(nil).CountAIBridgeSessions), ctx, arg)
 }
 
+// CountAgentsACPSessionsByChatID mocks base method.
+func (m *MockStore) CountAgentsACPSessionsByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountAgentsACPSessionsByChatID", ctx, chatID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountAgentsACPSessionsByChatID indicates an expected call of CountAgentsACPSessionsByChatID.
+func (mr *MockStoreMockRecorder) CountAgentsACPSessionsByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAgentsACPSessionsByChatID", reflect.TypeOf((*MockStore)(nil).CountAgentsACPSessionsByChatID), ctx, chatID)
+}
+
 // CountAuditLogs mocks base method.
 func (m *MockStore) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -2499,6 +2514,21 @@ func (m *MockStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, te
 func (mr *MockStoreMockRecorder) GetActiveWorkspaceBuildsByTemplateID(ctx, templateID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetActiveWorkspaceBuildsByTemplateID), ctx, templateID)
+}
+
+// GetAgentsACPSessionByIDAndChatID mocks base method.
+func (m *MockStore) GetAgentsACPSessionByIDAndChatID(ctx context.Context, arg database.GetAgentsACPSessionByIDAndChatIDParams) (database.AgentsAcpSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentsACPSessionByIDAndChatID", ctx, arg)
+	ret0, _ := ret[0].(database.AgentsAcpSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentsACPSessionByIDAndChatID indicates an expected call of GetAgentsACPSessionByIDAndChatID.
+func (mr *MockStoreMockRecorder) GetAgentsACPSessionByIDAndChatID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentsACPSessionByIDAndChatID", reflect.TypeOf((*MockStore)(nil).GetAgentsACPSessionByIDAndChatID), ctx, arg)
 }
 
 // GetAllTailnetCoordinators mocks base method.
@@ -8214,6 +8244,21 @@ func (mr *MockStoreMockRecorder) InsertAgentContextResourcesIntoChat(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAgentContextResourcesIntoChat", reflect.TypeOf((*MockStore)(nil).InsertAgentContextResourcesIntoChat), ctx, arg)
 }
 
+// InsertAgentsACPSession mocks base method.
+func (m *MockStore) InsertAgentsACPSession(ctx context.Context, arg database.InsertAgentsACPSessionParams) (database.AgentsAcpSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAgentsACPSession", ctx, arg)
+	ret0, _ := ret[0].(database.AgentsAcpSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAgentsACPSession indicates an expected call of InsertAgentsACPSession.
+func (mr *MockStoreMockRecorder) InsertAgentsACPSession(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAgentsACPSession", reflect.TypeOf((*MockStore)(nil).InsertAgentsACPSession), ctx, arg)
+}
+
 // InsertAllUsersGroup mocks base method.
 func (m *MockStore) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	m.ctrl.T.Helper()
@@ -9564,6 +9609,21 @@ func (mr *MockStoreMockRecorder) ListAIGatewayKeys(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIGatewayKeys", reflect.TypeOf((*MockStore)(nil).ListAIGatewayKeys), ctx)
 }
 
+// ListAgentsACPSessionsByChatID mocks base method.
+func (m *MockStore) ListAgentsACPSessionsByChatID(ctx context.Context, arg database.ListAgentsACPSessionsByChatIDParams) ([]database.AgentsAcpSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAgentsACPSessionsByChatID", ctx, arg)
+	ret0, _ := ret[0].([]database.AgentsAcpSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAgentsACPSessionsByChatID indicates an expected call of ListAgentsACPSessionsByChatID.
+func (mr *MockStoreMockRecorder) ListAgentsACPSessionsByChatID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAgentsACPSessionsByChatID", reflect.TypeOf((*MockStore)(nil).ListAgentsACPSessionsByChatID), ctx, arg)
+}
+
 // ListAuthorizedAIBridgeClients mocks base method.
 func (m *MockStore) ListAuthorizedAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -10458,6 +10518,21 @@ func (m *MockStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPI
 func (mr *MockStoreMockRecorder) UpdateAPIKeyByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAPIKeyByID", reflect.TypeOf((*MockStore)(nil).UpdateAPIKeyByID), ctx, arg)
+}
+
+// UpdateAgentsACPSessionUpdatedAt mocks base method.
+func (m *MockStore) UpdateAgentsACPSessionUpdatedAt(ctx context.Context, arg database.UpdateAgentsACPSessionUpdatedAtParams) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAgentsACPSessionUpdatedAt", ctx, arg)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAgentsACPSessionUpdatedAt indicates an expected call of UpdateAgentsACPSessionUpdatedAt.
+func (mr *MockStoreMockRecorder) UpdateAgentsACPSessionUpdatedAt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAgentsACPSessionUpdatedAt", reflect.TypeOf((*MockStore)(nil).UpdateAgentsACPSessionUpdatedAt), ctx, arg)
 }
 
 // UpdateChatACLByID mocks base method.

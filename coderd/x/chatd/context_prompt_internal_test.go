@@ -630,6 +630,41 @@ func TestPinnedContextResources(t *testing.T) {
 			},
 		}, out)
 	})
+
+	t.Run("IncludesACPHarnesses", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			{
+				Source:     "claude-code",
+				SourcePath: "/home/coder/.coder/acp",
+				BodyKind:   database.WorkspaceAgentContextBodyKindAcpHarness,
+				Status:     database.WorkspaceAgentContextResourceStatusOk,
+				SizeBytes:  120,
+			},
+			{
+				Source:   "broken",
+				BodyKind: database.WorkspaceAgentContextBodyKindAcpHarness,
+				Status:   database.WorkspaceAgentContextResourceStatusInvalid,
+				Error:    "cannot start harness",
+			},
+		}
+		require.Equal(t, []codersdk.ChatContextResource{
+			{
+				Source:     "claude-code",
+				SourcePath: "/home/coder/.coder/acp",
+				Kind:       codersdk.ChatContextResourceKindACPHarness,
+				SizeBytes:  120,
+				Status:     codersdk.ChatContextResourceStatusOK,
+			},
+			{
+				Source: "broken",
+				Kind:   codersdk.ChatContextResourceKindACPHarness,
+				Status: codersdk.ChatContextResourceStatusInvalid,
+				Error:  "cannot start harness",
+			},
+		}, pinnedContextResources(resources))
+	})
 }
 
 func TestContextResources(t *testing.T) {
