@@ -114,7 +114,7 @@ export const SharedChat: Story = {
 	},
 };
 
-/** Viewers of another user's chat get a lock instead of the shared icon. */
+/** Viewers of another user's chat get a lock instead of the share and shared icons, even when they may share it. */
 export const SharedChatViewer: Story = {
 	args: {
 		chat: {
@@ -124,6 +124,9 @@ export const SharedChatViewer: Story = {
 			owner_name: "Sharing User",
 			shared: true,
 		},
+	},
+	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({ canShareChat: true });
 	},
 };
 

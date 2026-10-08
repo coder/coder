@@ -349,7 +349,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						/>
 					</span>
 				)}
-				{!isEmbedded && canShareChat && chat && (
+				{!isEmbedded && canShareChat && canManage && chat && (
 					<ChatSharingTopBarButton
 						chatId={chat.id}
 						organizationId={chat.organization_id}
