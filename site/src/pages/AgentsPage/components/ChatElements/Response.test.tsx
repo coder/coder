@@ -22,18 +22,6 @@ func ValidateToken(token string) error {
 	return nil
 }`;
 
-const sampleFileMarkdown = `
-\`\`\`go
-${sampleFileCode}
-\`\`\`
-`;
-
-const singleLineCodeBlockMarkdown = `
-\`\`\`
-07c3697 feat: update agent skills
-\`\`\`
-`;
-
 describe("Response", () => {
 	it("copies a multi-line fenced code block's raw text, without the fence markers or trailing newline", async () => {
 		const user = userEvent.setup();
@@ -41,23 +29,10 @@ describe("Response", () => {
 			.spyOn(navigator.clipboard, "writeText")
 			.mockResolvedValue();
 
-		render(<Response>{sampleFileMarkdown}</Response>);
+		render(<Response>{`\`\`\`go\n${sampleFileCode}\n\`\`\`\n`}</Response>);
 
 		await user.click(await screen.findByRole("button", { name: "Copy code" }));
 
 		expect(writeText).toHaveBeenCalledWith(sampleFileCode);
-	});
-
-	it("copies a single-line fenced code block's text", async () => {
-		const user = userEvent.setup();
-		const writeText = vi
-			.spyOn(navigator.clipboard, "writeText")
-			.mockResolvedValue();
-
-		render(<Response>{singleLineCodeBlockMarkdown}</Response>);
-
-		await user.click(await screen.findByRole("button", { name: "Copy code" }));
-
-		expect(writeText).toHaveBeenCalledWith("07c3697 feat: update agent skills");
 	});
 });

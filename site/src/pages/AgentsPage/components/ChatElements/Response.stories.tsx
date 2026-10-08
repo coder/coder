@@ -338,6 +338,7 @@ export const MermaidSyntaxError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await within(canvasElement).findByRole("alert", {}, { timeout: 10_000 });
+		await userEvent.tab();
 	},
 };
 
