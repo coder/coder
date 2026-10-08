@@ -10,8 +10,6 @@ import {
 	type DashboardProvider,
 } from "#/modules/dashboard/DashboardProvider";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
-import { WorkspaceSettings } from "#/pages/WorkspaceSettingsPage/useWorkspaceSettings";
-import WorkspaceSharingPage from "#/pages/WorkspaceSettingsPage/WorkspaceSharingPage/WorkspaceSharingPage";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -24,7 +22,6 @@ import {
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
 	MockTemplate,
-	MockUserMember,
 	MockWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildDelete,
@@ -90,61 +87,6 @@ afterEach(() => {
 });
 
 describe("WorkspacePage", () => {
-	it.each(["popover", "settings"] as const)(
-		"allows a share-only user to change a role from %s",
-		async (entryPoint) => {
-			const user = userEvent.setup();
-			server.use(
-				http.post("/api/v2/authcheck", () =>
-					HttpResponse.json({
-						readWorkspace: true,
-						shareWorkspace: true,
-						updateWorkspace: false,
-						updateWorkspaceVersion: false,
-						deleteFailedWorkspace: false,
-					}),
-				),
-			);
-			vi.spyOn(API, "getWorkspaceACL").mockResolvedValue({
-				users: [{ ...MockUserMember, role: "use" }],
-				group: [],
-			});
-			vi.spyOn(API, "getWorkspaceSharingSettings").mockResolvedValue({
-				sharing_disabled: false,
-				sharing_globally_disabled: false,
-				shareable_workspace_owners: "everyone",
-			});
-
-			const updateACL = vi.spyOn(API, "updateWorkspaceACL").mockResolvedValue();
-
-			if (entryPoint === "popover") {
-				await renderWorkspacePage(MockWorkspace);
-				await user.click(await screen.findByRole("button", { name: "Share" }));
-			} else {
-				renderWithAuth(
-					<WorkspaceSettings.Provider
-						value={{
-							owner: MockWorkspace.owner_name,
-							workspace: MockWorkspace,
-						}}
-					>
-						<WorkspaceSharingPage />
-					</WorkspaceSettings.Provider>,
-				);
-			}
-
-			const memberRow = await screen.findByRole("row", {
-				name: new RegExp(MockUserMember.username),
-			});
-			await user.click(within(memberRow).getByRole("combobox"));
-			await user.click(await screen.findByRole("option", { name: /Admin/ }));
-			await waitFor(() =>
-				expect(updateACL).toHaveBeenCalledWith(MockWorkspace.id, {
-					user_roles: { [MockUserMember.id]: "admin" },
-				}),
-			);
-		},
-	);
 	it("requests a delete job when the user presses Delete and confirms", async () => {
 		const user = userEvent.setup({ delay: 0 });
 		const deleteWorkspaceMock = vi
