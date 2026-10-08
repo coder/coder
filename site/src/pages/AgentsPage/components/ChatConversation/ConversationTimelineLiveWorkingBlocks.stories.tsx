@@ -147,7 +147,15 @@ export const AnswerStreamsAfterBlock: Story = {
 			{ type: "text", text: "The workspace looks healthy." },
 		]),
 	},
-	play: expandBlock("Working for 12s"),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Working for 12s" }),
+		);
+
+		// The answer text streams in through the smoothing buffer.
+		await canvas.findByText("The workspace looks healthy.");
+	},
 };
 
 export const RequiresActionCompletesBlock: Story = {
