@@ -989,6 +989,42 @@ func TestBufferedPartsToPartialMessages_CoalescesStreamedTextDeltas(t *testing.T
 	}, summary, "adjacent deltas of the same type must be persisted as one part")
 }
 
+func TestBufferedPartsToPartialMessages_ToolResultEndsTextRun(t *testing.T) {
+	t.Parallel()
+
+	parts := []messagepartbuffer.Part{
+		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("a")},
+		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-1", "execute", json.RawMessage(`{"cmd":"pwd"}`))},
+		{Seq: 3, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("b")},
+		{Seq: 4, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("c")},
+		{Seq: 5, Role: codersdk.ChatMessageRoleTool, MessagePart: codersdk.ChatMessageToolResult("call-1", "execute", json.RawMessage(`{"ok":true}`), false, false)},
+		{Seq: 6, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("d")},
+		{Seq: 7, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("e")},
+	}
+	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          parts,
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		interruptedAt:  time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC),
+	})
+	require.NoError(t, err)
+
+	var summary [][]string
+	for _, msg := range got {
+		message := []string{string(msg.Role)}
+		for _, part := range parseMessageParts(t, msg.Role, msg.Content) {
+			message = append(message, string(part.Type)+":"+part.Text)
+		}
+		summary = append(summary, message)
+	}
+	require.Equal(t, [][]string{
+		{"assistant", "text:a", "tool-call:", "text:bc"},
+		{"tool", "tool-result:"},
+		{"assistant", "text:de"},
+	}, summary, "a tool result must end the open text run")
+}
+
 func TestBufferedPartsToPartialMessages_SplitsAdjacentReasoningBlocks(t *testing.T) {
 	t.Parallel()
 
