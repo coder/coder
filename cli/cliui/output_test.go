@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -139,7 +140,7 @@ func Test_OutputFormatter(t *testing.T) {
 		require.EqualValues(t, 2, called.Load())
 	})
 
-	t.Run("Write", func(t *testing.T) {
+	t.Run("WriteLine", func(t *testing.T) {
 		t.Parallel()
 
 		f := cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
@@ -147,16 +148,21 @@ func Test_OutputFormatter(t *testing.T) {
 		f.AttachOptions(&cmd.Options)
 
 		var buf bytes.Buffer
-		require.NoError(t, f.Write(context.Background(), &buf, "hello"))
+		require.NoError(t, f.WriteLine(context.Background(), &buf, "hello"))
 		require.Equal(t, "hello\n", buf.String())
 
 		require.NoError(t, cmd.Options.FlagSet().Set("output", "json"))
 		buf.Reset()
-		require.NoError(t, f.Write(context.Background(), &buf, "hello"))
+		require.NoError(t, f.WriteLine(context.Background(), &buf, "hello"))
 		require.Equal(t, "\"hello\"\n", buf.String())
+
+		require.NoError(t, cmd.Options.FlagSet().Set("output", "text"))
+		buf.Reset()
+		require.NoError(t, f.WriteLine(context.Background(), &buf, ""))
+		require.Equal(t, "\n", buf.String())
 	})
 
-	t.Run("WriteFormatError", func(t *testing.T) {
+	t.Run("WriteLineFormatError", func(t *testing.T) {
 		t.Parallel()
 
 		f := cliui.NewOutputFormatter(
@@ -167,7 +173,7 @@ func Test_OutputFormatter(t *testing.T) {
 		f.AttachOptions(&cmd.Options)
 
 		var buf bytes.Buffer
-		require.Error(t, f.Write(context.Background(), &buf, "not an int"))
+		require.Error(t, f.WriteLine(context.Background(), &buf, "not an int"))
 		require.Empty(t, buf.String())
 	})
 }
@@ -197,6 +203,16 @@ func Test_TextFormatFunc(t *testing.T) {
 
 		_, err := f.Format(context.Background(), "coder")
 		require.ErrorContains(t, err, "expected cliui_test.item, got string")
+	})
+
+	t.Run("WrongTypeInterface", func(t *testing.T) {
+		t.Parallel()
+
+		stringer := cliui.TextFormatFunc(func(s fmt.Stringer) (string, error) {
+			return s.String(), nil
+		})
+		_, err := stringer.Format(context.Background(), 42)
+		require.ErrorContains(t, err, "expected fmt.Stringer, got int")
 	})
 
 	t.Run("FuncError", func(t *testing.T) {
