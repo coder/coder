@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -378,9 +379,15 @@ func TestTemplateEdit(t *testing.T) {
 
 		inv, conf := newCLI(t, "templates", "edit", template.Name, "--dormancy-threshold", "48h", "-y")
 		clitest.SetupConfig(t, templateAdmin, conf)
+		var stdout, stderr bytes.Buffer
+		inv.Stdout = &stdout
+		inv.Stderr = &stderr
 
 		err := inv.Run()
 		require.NoError(t, err)
+		// The change summary goes to stderr so scripted stdout is unchanged.
+		require.NotContains(t, stdout.String(), "existing workspaces")
+		require.Contains(t, stderr.String(), "Dormancy threshold: 0s -> 48h0m0s")
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		template, err = templateAdmin.Template(ctx, template.ID)
