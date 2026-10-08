@@ -1030,16 +1030,11 @@ func TestBufferedPartsToPartialMessages_SplitsAdjacentReasoningBlocks(t *testing
 
 	firstStart := time.Date(2026, 3, 4, 5, 6, 1, 0, time.UTC)
 	secondStart := time.Date(2026, 3, 4, 5, 6, 2, 0, time.UTC)
-	reasoning := func(text string, startedAt time.Time) codersdk.ChatMessagePart {
-		part := codersdk.ChatMessageReasoning(text)
-		part.CreatedAt = &startedAt
-		return part
-	}
 	parts := []messagepartbuffer.Part{
-		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: reasoning("first ", firstStart)},
-		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: reasoning("thought", firstStart)},
-		{Seq: 3, Role: codersdk.ChatMessageRoleAssistant, MessagePart: reasoning("second ", secondStart)},
-		{Seq: 4, Role: codersdk.ChatMessageRoleAssistant, MessagePart: reasoning("thought", secondStart)},
+		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: withCreatedAt(codersdk.ChatMessageReasoning("first "), firstStart)},
+		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: withCreatedAt(codersdk.ChatMessageReasoning("thought"), firstStart)},
+		{Seq: 3, Role: codersdk.ChatMessageRoleAssistant, MessagePart: withCreatedAt(codersdk.ChatMessageReasoning("second "), secondStart)},
+		{Seq: 4, Role: codersdk.ChatMessageRoleAssistant, MessagePart: withCreatedAt(codersdk.ChatMessageReasoning("thought"), secondStart)},
 	}
 	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
 		parts:          parts,
@@ -1054,8 +1049,7 @@ func TestBufferedPartsToPartialMessages_SplitsAdjacentReasoningBlocks(t *testing
 
 	var summary []string
 	for _, part := range assistantParts {
-		require.NotNil(t, part.CreatedAt)
-		summary = append(summary, part.Text+"@"+part.CreatedAt.Format(time.TimeOnly))
+		summary = append(summary, part.Text+"@"+requireNotNilTime(t, part.CreatedAt).Format(time.TimeOnly))
 	}
 	require.Equal(t, []string{
 		"first thought@05:06:01",
