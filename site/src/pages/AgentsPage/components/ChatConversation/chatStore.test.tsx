@@ -4082,14 +4082,6 @@ describe("useChatStore", () => {
 		// A page refetch does not advance the history version.
 		rerender({ pageVersion: 9 });
 
-		act(() => {
-			mockSocket1.emitData({
-				type: "preview_reset",
-				chat_id: chatID,
-				preview_reset: { history_version: 7 },
-			});
-		});
-
 		const mockSocket2 = createMockSocket();
 		mockWatchChatReturnOnce(mockSocket2);
 		act(() => {
@@ -4098,7 +4090,29 @@ describe("useChatStore", () => {
 
 		await waitFor(
 			() => {
-				expect(watchChat).toHaveBeenLastCalledWith(chatID, 1, 7);
+				expect(watchChat).toHaveBeenNthCalledWith(2, chatID, 1, 5);
+			},
+			{ timeout: 3_000 },
+		);
+
+		act(() => {
+			mockSocket2.emitOpen();
+			mockSocket2.emitData({
+				type: "preview_reset",
+				chat_id: chatID,
+				preview_reset: { history_version: 7 },
+			});
+		});
+
+		const mockSocket3 = createMockSocket();
+		mockWatchChatReturnOnce(mockSocket3);
+		act(() => {
+			mockSocket2.emitError();
+		});
+
+		await waitFor(
+			() => {
+				expect(watchChat).toHaveBeenNthCalledWith(3, chatID, 1, 7);
 			},
 			{ timeout: 3_000 },
 		);
