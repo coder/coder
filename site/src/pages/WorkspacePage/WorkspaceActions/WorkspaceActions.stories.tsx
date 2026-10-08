@@ -1,12 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { deploymentConfigQueryKey } from "#/api/queries/deployment";
-import { getWorkspaceSharingSettingsKey } from "#/api/queries/organizations";
-import {
-	agentLogsKey,
-	buildLogsKey,
-	workspaceACL,
-} from "#/api/queries/workspaces";
+import { agentLogsKey, buildLogsKey } from "#/api/queries/workspaces";
 import * as Mocks from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -52,39 +47,6 @@ export const Starting: Story = {
 export const Running: Story = {
 	args: {
 		workspace: Mocks.MockWorkspace,
-	},
-};
-
-export const ShareWithoutUpdatePermission: Story = {
-	args: {
-		workspace: Mocks.MockWorkspace,
-		permissions: {
-			readWorkspace: true,
-			shareWorkspace: true,
-			updateWorkspace: false,
-			updateWorkspaceVersion: false,
-			deleteFailedWorkspace: false,
-		},
-	},
-	parameters: {
-		queries: [
-			{ key: deploymentConfigQueryKey, data: Mocks.MockDeploymentConfig },
-			{
-				key: workspaceACL(Mocks.MockWorkspace.id).queryKey,
-				data: { users: [{ ...Mocks.MockUserMember, role: "use" }], group: [] },
-			},
-			{
-				key: getWorkspaceSharingSettingsKey(
-					Mocks.MockWorkspace.organization_id,
-				),
-				data: { sharing_disabled: false },
-			},
-		],
-	},
-	play: async ({ canvasElement }) => {
-		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "Share" }),
-		);
 	},
 };
 

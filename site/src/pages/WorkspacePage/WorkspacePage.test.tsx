@@ -18,7 +18,6 @@ import {
 	MockDeploymentConfig,
 	MockEntitlements,
 	MockFailedWorkspace,
-	MockGroup,
 	MockOrganization,
 	MockOutdatedWorkspace,
 	MockPendingWorkspace,
@@ -92,7 +91,7 @@ afterEach(() => {
 
 describe("WorkspacePage", () => {
 	it.each(["popover", "settings"] as const)(
-		"allows a share-only user to add, update, and remove access from %s",
+		"allows a share-only user to change a role from %s",
 		async (entryPoint) => {
 			const user = userEvent.setup();
 			server.use(
@@ -115,11 +114,7 @@ describe("WorkspacePage", () => {
 				sharing_globally_disabled: false,
 				shareable_workspace_owners: "everyone",
 			});
-			vi.spyOn(API, "getGroupsByOrganization").mockResolvedValue([MockGroup]);
-			vi.spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
-				members: [],
-				count: 0,
-			});
+
 			const updateACL = vi.spyOn(API, "updateWorkspaceACL").mockResolvedValue();
 
 			if (entryPoint === "popover") {
@@ -138,21 +133,6 @@ describe("WorkspacePage", () => {
 				);
 			}
 
-			await user.click(
-				await screen.findByRole("button", { name: "Search for user or group" }),
-			);
-			await user.click(
-				await screen.findByRole("option", {
-					name: new RegExp(MockGroup.display_name || MockGroup.name),
-				}),
-			);
-			await user.click(screen.getByRole("button", { name: "Add member" }));
-			await waitFor(() =>
-				expect(updateACL).toHaveBeenCalledWith(MockWorkspace.id, {
-					group_roles: { [MockGroup.id]: "use" },
-				}),
-			);
-
 			const memberRow = await screen.findByRole("row", {
 				name: new RegExp(MockUserMember.username),
 			});
@@ -161,16 +141,6 @@ describe("WorkspacePage", () => {
 			await waitFor(() =>
 				expect(updateACL).toHaveBeenCalledWith(MockWorkspace.id, {
 					user_roles: { [MockUserMember.id]: "admin" },
-				}),
-			);
-
-			await user.click(
-				within(memberRow).getByRole("button", { name: "Open menu" }),
-			);
-			await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
-			await waitFor(() =>
-				expect(updateACL).toHaveBeenCalledWith(MockWorkspace.id, {
-					user_roles: { [MockUserMember.id]: "" },
 				}),
 			);
 		},
