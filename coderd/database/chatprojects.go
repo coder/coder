@@ -20,32 +20,26 @@ import (
 // When db is already a transaction, InTx reuses it and its isolation level,
 // which must then be READ COMMITTED.
 //
-// Root chats lock in index-scan order, so this can deadlock with
-// SyncAgentChatsContextMCPResources, which locks chats in id order.
-// Postgres aborts one side, and the transaction is retried.
+// Locking every root before any sub-chat conflicts with code that locks
+// chats in id order, such as SyncAgentChatsContextMCPResources, whatever
+// order the roots lock in. Postgres then aborts one side with a deadlock
+// error, which fails the delete; the caller may retry it.
 func InChatProjectDeleteTx(ctx context.Context, db Store, projectID uuid.UUID, fn func(tx Store, rootIDs, chatIDs []uuid.UUID) error) error {
-	var err error
-	for range maxRetries {
-		err = db.InTx(func(tx Store) error {
-			if _, err := tx.GetChatProjectByIDForUpdate(ctx, projectID); err != nil {
-				return xerrors.Errorf("lock project: %w", err)
-			}
-			rootIDs, err := tx.LockChatProjectRootChatsForDelete(ctx, projectID)
-			if err != nil {
-				return xerrors.Errorf("lock project root chats: %w", err)
-			}
-			var subIDs []uuid.UUID
-			if len(rootIDs) > 0 {
-				subIDs, err = tx.LockSubChatsByRootIDsForDelete(ctx, rootIDs)
-				if err != nil {
-					return xerrors.Errorf("lock project sub-chats: %w", err)
-				}
-			}
-			return fn(tx, rootIDs, slices.Concat(rootIDs, subIDs))
-		}, &TxOptions{Isolation: sql.LevelReadCommitted, TxIdentifier: "delete_chat_project"})
-		if !IsDeadlockError(err) {
-			return err
+	return db.InTx(func(tx Store) error {
+		if _, err := tx.GetChatProjectByIDForUpdate(ctx, projectID); err != nil {
+			return xerrors.Errorf("lock project: %w", err)
 		}
-	}
-	return err
+		rootIDs, err := tx.LockChatProjectRootChatsForDelete(ctx, projectID)
+		if err != nil {
+			return xerrors.Errorf("lock project root chats: %w", err)
+		}
+		var subIDs []uuid.UUID
+		if len(rootIDs) > 0 {
+			subIDs, err = tx.LockSubChatsByRootIDsForDelete(ctx, rootIDs)
+			if err != nil {
+				return xerrors.Errorf("lock project sub-chats: %w", err)
+			}
+		}
+		return fn(tx, rootIDs, slices.Concat(rootIDs, subIDs))
+	}, &TxOptions{Isolation: sql.LevelReadCommitted, TxIdentifier: "delete_chat_project"})
 }
