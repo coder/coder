@@ -204,12 +204,8 @@ type AgentChatInputProps = {
 	// Optional context-usage summary shown to the left of the send button.
 	// Fields the provider has not reported render as fallback values.
 	// Omit entirely to hide the indicator.
-	contextUsage?: AgentContextUsage;
-	// Re-pins the chat to the workspace's latest context snapshot,
-	// surfaced by the context indicator when the pinned context has
-	// drifted.
-	onRefreshContext?: () => void;
-	isRefreshingContext?: boolean;
+	contextUsage?: AgentContextUsage | null;
+	onOpenDetails?: (opener: HTMLButtonElement | null) => void;
 	attachments?: readonly File[];
 	onAttach?: (files: File[]) => void;
 	onRemoveAttachment?: (attachment: number | File) => void;
@@ -590,8 +586,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onCancelHistoryEdit,
 	userPromptHistory = [],
 	contextUsage,
-	onRefreshContext,
-	isRefreshingContext,
+	onOpenDetails,
 	attachments = [],
 	onAttach,
 	onRemoveAttachment,
@@ -1970,7 +1965,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								)}
 							</>
 						)}
-						{contextUsage !== undefined && (
+						{contextUsage !== undefined && onOpenDetails && (
 							<div
 								className={cn(
 									"flex",
@@ -1979,8 +1974,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							>
 								<ContextUsageIndicator
 									usage={contextUsage}
-									onRefreshContext={onRefreshContext}
-									isRefreshingContext={isRefreshingContext}
+									onOpenDetails={onOpenDetails}
 								/>
 							</div>
 						)}

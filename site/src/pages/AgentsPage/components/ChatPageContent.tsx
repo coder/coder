@@ -1,22 +1,13 @@
 import { cn } from "cn";
 import { Profiler, useEffect, useRef, useState } from "react";
-import {
-	type UseQueryResult,
-	useMutation,
-	useQuery,
-	useQueryClient,
-} from "react-query";
+import { type UseQueryResult, useQuery } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
 	type ChatAutomationNameMap,
 	chatAutomationNameMap,
 } from "#/api/queries/chatAutomations";
-import {
-	chatPromptsQuery,
-	refreshChatContext,
-	userCompactionThresholds,
-} from "#/api/queries/chats";
+import { chatPromptsQuery } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -35,10 +26,7 @@ import {
 	getChatFileURL,
 	isWorkspaceFileReferencePart,
 } from "../utils/chatAttachments";
-import {
-	getProviderForModelOption,
-	resolveCompactionThreshold,
-} from "../utils/modelOptions";
+import { getProviderForModelOption } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
 	AgentChatInput,
@@ -50,7 +38,6 @@ import {
 import type { ChatAutomationNames } from "./ChatConversation/AutomationLabel";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
-import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
 	isActiveChatStatus,
 	selectChatStatus,
@@ -84,6 +71,7 @@ import {
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
+import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -314,7 +302,8 @@ export type SendChatMessageOptions = {
 type ChatPageInputProps = {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
-	models: readonly TypesGen.ChatModel[] | undefined;
+	contextUsage: AgentContextUsage | null;
+	onOpenDetails: (opener: HTMLButtonElement | null) => void;
 	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
@@ -372,7 +361,8 @@ type ChatPageInputProps = {
 export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	chat,
 	store,
-	models,
+	contextUsage,
+	onOpenDetails,
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -420,7 +410,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const { user: currentUser } = useAuthenticated();
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
-	const chatContext = chat.context;
 	const planModeEnabled = chat.plan_mode === "plan";
 	const selectedWorkspaceId = chat.workspace_id ?? null;
 	const workspaceSkills = workspaceSkillsFromChat(chat);
@@ -430,14 +419,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		workspace,
 		currentUser.id,
 	);
-	const thresholdsQuery = useQuery(userCompactionThresholds());
-	const compressionThreshold = resolveCompactionThreshold(
-		chat.last_model_config_id,
-		thresholdsQuery.data?.thresholds,
-		models,
-	);
-	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
@@ -451,42 +432,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	);
 	const automationNames = toChatAutomationNames(automationNamesQuery);
 
-	const messages = orderedMessageIDs
-		.map((messageID) => {
-			const message = messagesByID.get(messageID);
-			if (!message && process.env.NODE_ENV !== "production") {
-				console.warn(
-					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
-						"not found in messagesByID. This may indicate a store/cache " +
-						"desync bug.",
-				);
-			}
-			return message;
-		})
-		.filter(isChatMessage);
 	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
 	const { data: promptsData } = useQuery(chatPromptsQuery(chatId));
 	const userPromptHistory: readonly string[] =
 		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
-	const rawUsage = getLatestContextUsage(
-		messages,
-		modelOptions.find((option) => option.id === selectedModel)?.contextLimit,
-	);
-	const latestContextUsage = {
-		...rawUsage,
-		compressionThreshold,
-		context: chatContext,
-	};
-	const queryClient = useQueryClient();
-	const refreshContextMutation = useMutation(
-		refreshChatContext(queryClient, chatId),
-	);
-	const handleRefreshContext = () =>
-		refreshContextMutation.mutate(undefined, {
-			onSuccess: () => toast.success("Context refreshed."),
-			onError: () => toast.error("Failed to refresh context."),
-		});
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -856,9 +806,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
 			isInterruptPending={isInterruptPending || chatStatus === "interrupting"}
-			contextUsage={latestContextUsage}
-			onRefreshContext={handleRefreshContext}
-			isRefreshingContext={refreshContextMutation.isPending}
+			contextUsage={contextUsage}
+			onOpenDetails={onOpenDetails}
 			hasModelOptions={hasModelOptions}
 			selectedModel={selectedModel}
 			onModelChange={onModelChange}

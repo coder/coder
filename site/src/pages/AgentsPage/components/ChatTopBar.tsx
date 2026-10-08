@@ -57,6 +57,7 @@ type ChatSharingTopBarButtonProps = {
 };
 
 type ChatTopBarProps = {
+	panelToggleRef?: React.RefObject<HTMLButtonElement | null>;
 	chat?: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
@@ -103,6 +104,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,
+	panelToggleRef,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const { user: currentUser } = useAuthenticated();
@@ -360,6 +362,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 					<Button
 						variant="subtle"
 						size="icon"
+						ref={panelToggleRef}
 						onClick={panel.onToggleSidebar}
 						className="size-7 text-content-secondary hover:text-content-primary"
 						aria-label="Toggle panel"

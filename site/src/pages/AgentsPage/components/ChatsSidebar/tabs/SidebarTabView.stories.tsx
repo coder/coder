@@ -72,6 +72,25 @@ export const MultipleTabs: Story = {
 	},
 };
 
+export const KeyboardNavigation: Story = {
+	args: MultipleTabs.args,
+	render: function KeyboardNavigation(args) {
+		const [activeTabId, setActiveTabId] = useState(args.effectiveTabId);
+		return (
+			<SidebarTabView
+				{...args}
+				effectiveTabId={activeTabId}
+				onActiveTabChange={setActiveTabId}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		await user.click(within(canvasElement).getByRole("tab", { name: /Git/ }));
+		await user.keyboard("{ArrowRight}");
+	},
+};
+
 export const EmptyState: Story = {
 	args: {
 		tabs: [],
