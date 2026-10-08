@@ -88,6 +88,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
           "skill_description": "string",
           "skill_name": "string",
           "source": "string",
+          "source_path": "string",
           "status": "ok",
           "tools": [
             {
@@ -244,13 +245,14 @@ Status Code **200**
 | `»» dirty`                     | boolean                                                                            | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                                                   |
 | `»» dirty_since`               | string(date-time)                                                                  | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                                                          |
 | `»» error`                     | string                                                                             | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                                                    |
-| `»» resources`                 | array                                                                              | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight.                                 |
+| `»» resources`                 | array                                                                              | false    |              | Resources is the chat's pinned workspace-context inventory, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight.                                                                     |
 | `»»» error`                    | string                                                                             | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
 | `»»» kind`                     | [codersdk.ChatContextResourceKind](schemas.md#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                            |
 | `»»» size_bytes`               | integer                                                                            | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
 | `»»» skill_description`        | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `»»» skill_name`               | string                                                                             | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
-| `»»» source`                   | string                                                                             | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
+| `»»» source`                   | string                                                                             | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, the server name for an MCP server, or an ACP harness slug.                                                              |
+| `»»» source_path`              | string                                                                             | false    |              | Source path is the configuration directory for an ACP harness.                                                                                                                                                                                                             |
 | `»»» status`                   | [codersdk.ChatContextResourceStatus](schemas.md#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
 | `»»» tools`                    | array                                                                              | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
 | `»»»» description`             | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                            |
@@ -357,13 +359,13 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                                                                                                                                                                                                                          |
-|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`  | `api`, `ui`                                                                                                                                                                                                                                                       |
-| `kind`         | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
-| `plan_mode`    | `plan`                                                                                                                                                                                                                                                            |
-| `title_source` | `fallback`, `generated`, `user`                                                                                                                                                                                                                                   |
+| Property       | Value(s)                                                                                                                                                                                                                                                                         |
+|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`  | `api`, `ui`                                                                                                                                                                                                                                                                      |
+| `kind`         | `acp_harness`, `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                                          |
+| `plan_mode`    | `plan`                                                                                                                                                                                                                                                                           |
+| `title_source` | `fallback`, `generated`, `user`                                                                                                                                                                                                                                                  |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -483,6 +485,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -628,6 +631,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -1557,6 +1561,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
           "skill_description": "string",
           "skill_name": "string",
           "source": "string",
+          "source_path": "string",
           "status": "ok",
           "tools": [
             {
@@ -1754,6 +1759,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -1899,6 +1905,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -2139,6 +2146,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -2284,6 +2292,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -2566,6 +2575,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -2711,6 +2721,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -3775,6 +3786,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
+            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -3920,6 +3932,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
+        "source_path": "string",
         "status": "ok",
         "tools": [
           {
