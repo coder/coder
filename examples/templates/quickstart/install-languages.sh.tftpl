@@ -11,9 +11,7 @@ apt_update() {
   fi
 }
 
-# has_language reports whether NAME is one of the selected languages. It matches
-# whole comma-separated entries, so a value can never partially match another
-# (guards against a future language whose name contains an existing one).
+# has_language reports whether NAME is one of the selected languages.
 has_language() {
   case ",$LANGUAGES," in
     *",$1,"*) return 0 ;;
