@@ -165,7 +165,7 @@ function useMessageScrollerController({
   // first streamed chunk yank the reader off the anchor. The hold hands back
   // to following in handleResize, once the reply consumes the tail spacer.
   // LOCAL CHANGE: while followSuppressedRef is set, neither arming nor the
-  // hand-back happens. The hand-back also needs the view near the live edge.
+  // hand-back happens.
   const reconcileFollowMode = React.useCallback(
     (scrollable: MessageScrollerScrollable) => {
       const scrollTop = viewportRef.current?.scrollTop ?? 0
@@ -543,9 +543,9 @@ function useMessageScrollerController({
       // from the anchor hold to following the bottom. Requiring the >0 → 0
       // transition keeps a turn taller than the viewport (placed with no
       // spacer) held instead of yanked to the end.
-      // LOCAL CHANGE: and only if the jump to the end is at most the row's top
-      // offset (margin + peek), so a code block or log box that lands at once
-      // keeps the turn held. followSuppressedRef covers toggles.
+      // LOCAL CHANGE: and only if the end is in the handoff band,
+      // max(threshold, margin + peek), so a code block or log box that lands
+      // at once keeps the turn held. followSuppressedRef covers toggles.
       const viewport = viewportRef.current
 
       if (
@@ -683,7 +683,7 @@ function useMessageScrollerController({
 
   // LOCAL CHANGE: after a collapse clamps scrollTop at the bottom, Chromium
   // keeps its scroll anchor and scrolls back down as output grows. A scroll
-  // makes it pick a new one. The fixed threshold allows for rounded scrollTop.
+  // makes it pick a new one. A clamp is exact, so allow only rounding here.
   const resetBrowserScrollAnchor = React.useCallback(() => {
     const viewport = viewportRef.current
 

@@ -2622,6 +2622,12 @@ export const StartWorkspaceAgentLogsStreaming: Story = {
 					event: "message",
 					data: JSON.stringify([
 						...MockWorkspaceAgentLogs,
+						// Overflows the box, so the screenshot shows it scrolled to the end.
+						...Array.from({ length: 10 }, (_, index) => ({
+							...MockWorkspaceAgentLogs[0],
+							id: 900010 + index,
+							output: `Installing extension ${index + 1} of 10`,
+						})),
 						{
 							...MockWorkspaceAgentLogs[0],
 							id: 900001,

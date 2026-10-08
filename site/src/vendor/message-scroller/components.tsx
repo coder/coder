@@ -31,9 +31,9 @@ const MessageScrollerUserLayoutIntentContext = React.createContext<
 
 // LOCAL CHANGE
 /**
- * Returns the callback for a user's expand or collapse in the transcript. It
- * stops the view from following new output, so do not call it for layout
- * changes the user did not make.
+ * Returns the callback for a user's expand or collapse. Pass the toggled
+ * element, because a toggle above the anchored turn releases the anchor. It
+ * stops following new output, so do not use it for other layout changes.
  */
 function useMessageScrollerUserLayoutIntent() {
   return React.useContext(MessageScrollerUserLayoutIntentContext)

@@ -176,20 +176,21 @@ describe("ToolCall in a MessageScroller", () => {
 					: 0;
 			},
 		);
+		// A shrink clamps only what reads return. Until the next write, growth
+		// scrolls the view back down, as Chromium's scroll anchoring does.
 		vi.spyOn(Element.prototype, "scrollTop", "get").mockImplementation(
 			function (this: Element) {
 				const stored = scrollTops.get(this) ?? 0;
 				if (!isViewport(this)) {
 					return stored;
 				}
-				const top = Math.min(stored, maxScrollTop(this));
-				scrollTops.set(this, top);
-				return top;
+				return Math.min(stored, maxScrollTop(this));
 			},
 		);
 		vi.spyOn(Element.prototype, "scrollTop", "set").mockImplementation(
 			function (this: Element, top: number) {
-				scrollTops.set(this, Math.max(0, top));
+				const max = isViewport(this) ? maxScrollTop(this) : top;
+				scrollTops.set(this, Math.max(0, Math.min(top, max)));
 			},
 		);
 		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
@@ -366,8 +367,7 @@ describe("ToolCall in a MessageScroller", () => {
 		await user.click(toggle());
 
 		await update([...turn, prompt, row("next-reply", 100)]);
-		// The reply grows past the tail spacer, close enough to the live edge to
-		// hand off to following.
+		// The reply grows past the tail spacer but stays in the handoff band.
 		await update([...turn, prompt, row("next-reply", 340)]);
 		await visibleRowsAfterLayout();
 		await update([...turn, prompt, row("next-reply", 340), nextRow]);
