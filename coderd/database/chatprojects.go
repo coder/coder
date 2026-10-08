@@ -20,14 +20,17 @@ import (
 // When db is already a transaction, InTx reuses it and its isolation level,
 // which must then be READ COMMITTED.
 //
-// Locking every root before any sub-chat conflicts with code that locks
-// chats in id order, such as SyncAgentChatsContextMCPResources, whatever
-// order the roots lock in, and the heartbeat cascade below conflicts with
-// lease renewal, which locks heartbeat rows in its own order. Postgres
-// then aborts one side with a deadlock error, which fails the delete: the returned error matches
-// IsDeadlockError, the transaction rolls back with fn's writes, and a
-// caller that retries must retry the whole transaction, including any
-// outer one db belongs to.
+// Two lock orders can deadlock with the delete. Locking every root before
+// any sub-chat conflicts with code that locks chats in id order, such as
+// SyncAgentChatsContextMCPResources, whatever order the roots lock in. The
+// heartbeat cascade below conflicts with lease renewal, which locks
+// heartbeat rows in its own order.
+//
+// Postgres then aborts one of the two transactions. If it aborts the
+// delete, the returned error matches IsDeadlockError, the transaction
+// rolls back with fn's writes, and a caller that retries must retry the
+// whole transaction, including any outer one db belongs to. If it aborts
+// lease renewal, that replica renews none of its leases that tick.
 //
 // DeleteChatFamiliesByRootIDs cascades to the chats' heartbeat rows and
 // holds their row locks until the outermost transaction commits. A replica

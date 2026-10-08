@@ -2507,7 +2507,8 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	require.Len(t, chats, len(family))
 
 	require.NoError(t, db.DeleteChatMessagesByChatIDs(ctx, family))
-	// Count rows directly: a soft delete would leave them for the cascade.
+	// Count rows directly: GetChatMessagesByChatID hides soft-deleted rows,
+	// which would still be left for the cascade.
 	countMessages := func(chatID uuid.UUID) int {
 		var n int
 		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM chat_messages WHERE chat_id = $1", chatID).Scan(&n))
