@@ -143,7 +143,7 @@ func (r *RootCmd) assignOrganizationRoles(orgContext *OrganizationContext) *serp
 				return xerrors.Errorf("fetch updated member: %w", err)
 			}
 
-			return formatter.Write(ctx, inv.Stdout, member)
+			return formatter.WriteLine(ctx, inv.Stdout, member)
 		},
 	}
 	formatter.AttachOptions(&cmd.Options)
