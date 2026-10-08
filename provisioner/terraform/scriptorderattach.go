@@ -13,7 +13,9 @@ import (
 // script of every edge in order. Prerequisites gain nothing. scriptsByAddress
 // must hold every address the graphs name.
 func attachScriptOrderDependencies(order ScriptOrder, scriptsByAddress map[string]*proto.Script) error {
-	touched := make(map[*proto.Script]struct{})
+	// Nothing is attached until every edge validates, so an error leaves
+	// every script unchanged.
+	additions := make(map[*proto.Script][]*proto.ScriptDependency)
 	for _, graph := range order.Graphs {
 		for _, dependency := range graph.Dependencies {
 			script, ok := scriptsByAddress[dependency.DependentAddress]
@@ -27,17 +29,17 @@ func attachScriptOrderDependencies(order ScriptOrder, scriptsByAddress map[strin
 			if err != nil {
 				return err
 			}
-			script.Dependencies = append(script.Dependencies, &proto.ScriptDependency{
+			additions[script] = append(additions[script], &proto.ScriptDependency{
 				PrerequisiteResourceAddress: dependency.PrerequisiteAddress,
 				Requirement:                 requirement,
 			})
-			touched[script] = struct{}{}
 		}
 	}
 
 	// The wire order is this package's contract. Sorting here keeps it
 	// independent of the order the graph builder happens to produce.
-	for script := range touched {
+	for script, dependencies := range additions {
+		script.Dependencies = append(script.Dependencies, dependencies...)
 		slices.SortFunc(script.Dependencies, func(a, b *proto.ScriptDependency) int {
 			return cmp.Compare(a.PrerequisiteResourceAddress, b.PrerequisiteResourceAddress)
 		})
