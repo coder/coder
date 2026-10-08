@@ -11,6 +11,8 @@ import {
 	MockChatProject,
 	MockUserMember,
 	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceBuildDelete,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
@@ -56,7 +58,7 @@ const buildOutletContext = (): AgentsPageOutletContext => ({
 	clearChatErrorReason: vi.fn(),
 	requestArchiveAgent: vi.fn(),
 	requestUnarchiveAgent: vi.fn(),
-	requestArchiveAndDeleteWorkspace: vi.fn(),
+	navigateAfterArchive: vi.fn(),
 	requestPinAgent: vi.fn(),
 	requestUnpinAgent: vi.fn(),
 	isArchiving: false,
@@ -259,6 +261,56 @@ describe("ProjectChatsList", () => {
 			expect(writeText).toHaveBeenCalledWith(value);
 		});
 	});
+
+	it.each([false, true])(
+		"archives and deletes a project chat workspace (confirmation: %s)",
+		async (requiresConfirmation) => {
+			const user = userEvent.setup();
+			const chat = { ...MockChat, workspace_id: MockWorkspace.id };
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([chat]);
+			vi.spyOn(API, "getWorkspace").mockResolvedValue({
+				...MockWorkspace,
+				created_at: requiresConfirmation
+					? "2000-01-01T00:00:00.000Z"
+					: chat.created_at,
+			});
+			vi.spyOn(API, "getWorkspaceBuilds").mockResolvedValue([]);
+			vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+			vi.spyOn(API, "deleteWorkspace").mockResolvedValue(
+				MockWorkspaceBuildDelete,
+			);
+			const outletContext = renderList();
+
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open chat actions for ${chat.title}`,
+				}),
+			);
+			await user.click(
+				await screen.findByRole("menuitem", {
+					name: "Archive & delete workspace",
+				}),
+			);
+			if (requiresConfirmation) {
+				const nameField = await screen.findByLabelText(
+					"Name of the workspace to delete",
+				);
+				expect(API.deleteWorkspace).not.toHaveBeenCalled();
+				await user.type(nameField, MockWorkspace.name);
+				await user.click(screen.getByRole("button", { name: "Delete" }));
+			}
+
+			await waitFor(() => {
+				expect(API.deleteWorkspace).toHaveBeenCalledWith(MockWorkspace.id);
+				expect(outletContext.navigateAfterArchive).toHaveBeenCalledWith(
+					chat.id,
+				);
+			});
+			expect(API.experimental.updateChat).toHaveBeenCalledWith(chat.id, {
+				archived: true,
+			});
+		},
+	);
 
 	it("archives a chat through the agents page", async () => {
 		const user = userEvent.setup();

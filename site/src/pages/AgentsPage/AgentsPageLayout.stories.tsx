@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import { Navigate } from "react-router";
 import {
 	expect,
@@ -23,7 +22,6 @@ import { permittedOrganizations } from "#/api/queries/organizations";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
@@ -783,52 +781,6 @@ export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
 		await canvas.findByRole("button", {
 			name: "Expand sidebar",
 		});
-	},
-};
-
-/**
- * Standalone story for the delete-confirmation dialog with
- * agents-specific copy (title, verb, info). The dialog now lives in
- * AgentsPageLayout (the container), so we render it directly here to
- * preserve interaction-test coverage.
- */
-export const DeleteConfirmationDialog: Story = {
-	render: function Render() {
-		const [isOpen, setIsOpen] = useState(true);
-		const [isLoading, setIsLoading] = useState(false);
-		const onConfirm = fn();
-		return (
-			<DeleteDialog
-				key="my-workspace"
-				isOpen={isOpen}
-				onConfirm={() => {
-					onConfirm();
-					setIsLoading(true);
-				}}
-				onCancel={() => setIsOpen(false)}
-				entity="workspace"
-				name="my-workspace"
-				confirmLoading={isLoading}
-				title="Archive agent & delete workspace"
-				verb="Archiving and deleting"
-				info="This will archive the agent and permanently delete the associated workspace and all its resources."
-			/>
-		);
-	},
-	play: async () => {
-		const dialog = await screen.findByRole("dialog");
-
-		// Confirm button is disabled before typing the workspace name.
-		const confirmButton = within(dialog).getByRole("button", {
-			name: /delete/i,
-		});
-
-		// Type the workspace name to satisfy the confirmation guard.
-		const input = within(dialog).getByLabelText(/name of the workspace/i);
-		await userEvent.type(input, "my-workspace");
-
-		// Click confirm so the dialog enters its loading state.
-		await userEvent.click(confirmButton);
 	},
 };
 

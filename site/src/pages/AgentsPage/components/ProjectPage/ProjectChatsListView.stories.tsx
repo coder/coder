@@ -82,7 +82,7 @@ const meta: Meta<typeof ProjectChatsListView> = {
 		actions: {
 			requestArchiveAgent: fn(),
 			requestUnarchiveAgent: fn(),
-			requestArchiveAndDeleteWorkspace: fn(),
+			navigateAfterArchive: fn(),
 			requestPinAgent: fn(),
 			requestUnpinAgent: fn(),
 			onOpenRenameDialog: fn(),
