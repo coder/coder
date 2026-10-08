@@ -3145,7 +3145,8 @@ export interface ChatMessagesResponse {
 	readonly has_more: boolean;
 	/**
 	 * TurnStartID is the ID of the user prompt that starts the turn
-	 * containing the page's oldest message. Omitted for after_id-only polls.
+	 * containing the page's oldest message. Omitted for after_id-only polls
+	 * and when no prompt is at or before that message.
 	 */
 	readonly turn_start_id?: number;
 }

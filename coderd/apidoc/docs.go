@@ -22297,7 +22297,7 @@ const docTemplate = `{
                     }
                 },
                 "turn_start_id": {
-                    "description": "TurnStartID is the ID of the user prompt that starts the turn\ncontaining the page's oldest message. Omitted for after_id-only polls.",
+                    "description": "TurnStartID is the ID of the user prompt that starts the turn\ncontaining the page's oldest message. Omitted for after_id-only polls\nand when no prompt is at or before that message.",
                     "type": "integer"
                 }
             }

@@ -1483,7 +1483,8 @@ export const chatACL = (chatId: string) => ({
 
 const MESSAGES_PAGE_SIZE = 50;
 const MAX_MESSAGES_PER_REQUEST = 200;
-// Past the cap, a history page ends mid-turn and the next page continues it.
+// Past the cap, a history page can end mid-turn; the next page continues
+// that turn.
 const MAX_MESSAGES_PER_PAGE = 1000;
 
 export const chatMessagesKey = (chatId: string) =>
@@ -1539,7 +1540,7 @@ const fetchMessagesPage = async (
 			break;
 		}
 		messages.push(...older.messages);
-		if (!older.has_more || older.messages.length === 0) {
+		if (!older.has_more) {
 			break;
 		}
 	}
