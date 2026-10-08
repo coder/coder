@@ -44,7 +44,7 @@ export const ComputerTool: React.FC<{
 						alt="Screenshot from computer tool"
 					/>
 				) : hasText ? (
-					<div className="mt-1.5 rounded-md border border-solid border-border-default px-3 py-2">
+					<div className="mt-1.5 rounded-md border border-solid border-border px-3 py-2">
 						<pre className="whitespace-pre-wrap text-xs text-content-secondary">
 							{text}
 						</pre>

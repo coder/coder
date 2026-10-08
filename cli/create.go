@@ -222,11 +222,11 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			}
 
 			if len(templateVersion) > 0 {
-				version, err := client.TemplateVersionByName(inv.Context(), template.ID, templateVersion)
+				versionID, err := resolveTemplateVersionID(inv.Context(), client, template.ID, templateVersion)
 				if err != nil {
-					return xerrors.Errorf("get template version by name: %w", err)
+					return err
 				}
-				templateVersionID = version.ID
+				templateVersionID = versionID
 			}
 
 			// If the user specified an organization via a flag or env var, the template **must**

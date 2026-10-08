@@ -212,7 +212,7 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 func (*Copilot) ResolveCredential(r *http.Request) (credential.Credential, error) {
 	key := aibheaders.ExtractBearerToken(r.Header.Get(aibheaders.AuthHeaderAuthorization))
 	if key == "" {
-		return nil, xerrors.New("missing Copilot authorization: Authorization header not found or invalid")
+		return nil, xerrors.Errorf("missing Copilot authorization: Authorization header not found or invalid: %w", ErrNoCredential)
 	}
 	return credential.BYOK{Secret: key, Header: aibheaders.AuthHeaderAuthorization}, nil
 }

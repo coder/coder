@@ -79,7 +79,7 @@ function Calendar({
 					defaultClassNames.dropdowns,
 				),
 				dropdown_root: cn(
-					"border-border-default relative rounded-md border",
+					"border-border relative rounded-md border",
 					defaultClassNames.dropdown_root,
 				),
 				dropdown: cn(
