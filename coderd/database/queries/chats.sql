@@ -3170,6 +3170,15 @@ WHERE chat_heartbeats.chat_id = chat_ids.chat_id
 -- transitions that abandon a lease.
 DELETE FROM chat_heartbeats WHERE chat_id = @chat_id::uuid;
 
+-- name: DeleteChatHeartbeatsByChatIDs :exec
+-- Ends the leases of chats about to be deleted with their project. Run it
+-- outside the delete transaction, after that transaction has locked the
+-- chats: the locks keep workers from acquiring them again, and lease
+-- renewal would otherwise wait on heartbeat rows the delete holds until it
+-- commits.
+DELETE FROM chat_heartbeats
+WHERE chat_id = ANY(@chat_ids::uuid[]);
+
 
 -- name: GetChatStreamSyncRows :many
 SELECT
