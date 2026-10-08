@@ -592,7 +592,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 							</section>
 						</fieldset>
 					</div>
-					<DialogFooter className="border-0 border-t border-solid border-border-default px-6 py-4">
+					<DialogFooter className="border-0 border-t border-solid border-border px-6 py-4">
 						<Button
 							type="button"
 							variant="outline"

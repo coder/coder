@@ -216,6 +216,11 @@ beforeAll(() => {
 	});
 });
 
+// Project pages list the project's chats below the composer.
+beforeEach(() => {
+	vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+});
+
 afterEach(() => {
 	renderedProjects.length = 0;
 	realForm.enabled = false;

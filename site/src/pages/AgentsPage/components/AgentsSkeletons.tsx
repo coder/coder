@@ -39,11 +39,11 @@ export const AgentsPageLayoutSkeleton: React.FC = () => {
 				style={{
 					"--agents-left-sidebar-width": `${leftSidebarWidth}px`,
 				}}
-				className="order-2 sm:order-0 flex-1 min-h-0 border-t border-border-default sm:flex-none sm:border-t-0 sm:h-full sm:w-(--agents-left-sidebar-width) sm:min-w-[240px] sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
+				className="order-2 sm:order-0 flex-1 min-h-0 border-t border-border sm:flex-none sm:border-t-0 sm:h-full sm:w-(--agents-left-sidebar-width) sm:min-w-[240px] sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
 			>
 				<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 					<div className="absolute inset-0 flex flex-col">
-						<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 sm:block">
+						<div className="hidden border-b border-border px-2 pb-3 pt-1.5 sm:block">
 							<div className="mb-2.5 flex items-center justify-between">
 								<Skeleton className="size-6 rounded" />
 								<div className="flex items-center gap-0.5 -mr-1.5">
@@ -120,7 +120,7 @@ export const ChatConversationSkeleton: React.FC = () => (
 export const RightPanelSkeleton: React.FC = () => (
 	<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 		{/* Skeleton tab bar */}
-		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1">
+		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1">
 			<Skeleton className="h-6 w-12 rounded-md" />
 			<div className="flex-1" />
 		</div>
@@ -197,7 +197,7 @@ export const AgentChatPageSkeleton: React.FC = () => {
 					style={{
 						"--panel-width": `${rightPanel.width}px`,
 					}}
-					className="relative flex h-full w-screen min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-(--panel-width) sm:min-w-[360px] sm:max-w-[70vw]"
+					className="relative flex h-full w-screen min-w-0 flex-col border-0 border-l border-solid border-border sm:w-(--panel-width) sm:min-w-[360px] sm:max-w-[70vw]"
 				>
 					<RightPanelSkeleton />
 				</div>

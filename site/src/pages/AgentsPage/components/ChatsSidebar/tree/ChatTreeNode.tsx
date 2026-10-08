@@ -17,7 +17,6 @@ import {
 	ChatActionsMenu,
 	canManageChat,
 	chatFamilyAllowsArchive,
-	chatHasMenuActions,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { ChatDiffStats } from "../../ChatDiffStats";
@@ -136,10 +135,6 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const canManage = canManageChat(chat, currentUserId);
-	const hasMenuActions = chatHasMenuActions(chat, {
-		canManage,
-		hasSubagentsToggle: hasChildren,
-	});
 
 	const sharedMenuItemProps = {
 		chat,
@@ -171,7 +166,6 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 			<ChatActionsMenu
 				{...sharedMenuItemProps}
 				variant="context"
-				disabled={!hasMenuActions}
 				contentClassName="[&_[role=menuitem]]:text-[13px]"
 			>
 				<div
@@ -279,11 +273,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									className={cn(
 										"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
 										// The timestamp swaps out for the actions trigger on
-										// hover or while a menu is open. Without menu actions,
-										// there is no trigger, so keep the timestamp visible.
-										hasMenuActions &&
-											"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
-										hasMenuActions && isActiveChat && "hidden",
+										// hover or while a menu is open.
+										"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
+										isActiveChat && "hidden",
 									)}
 								>
 									{chat.has_unread && !isActiveChat ? (
@@ -314,7 +306,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 								aria-label="Shared chat"
 							/>
 						)}
-						{hasMenuActions && !isArchivingThisChat && (
+						{!isArchivingThisChat && (
 							<ChatActionsMenu
 								{...sharedMenuItemProps}
 								contentClassName="[&_[role=menuitem]]:text-[13px]"
