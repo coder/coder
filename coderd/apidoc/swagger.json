@@ -14731,6 +14731,41 @@
 				]
 			}
 		},
+		"/api/v2/workspacebuilds/{workspacebuild}/secrets": {
+			"get": {
+				"description": "Lists the metadata of the secrets linked to a workspace build,\nincluding secrets whose values a later build cleared. Values\nare never returned. env_replaces and file_replaces name the\nworkspace owner's user secrets that each live secret displaces,\nand are omitted when the caller cannot read those user secrets.",
+				"produces": ["application/json"],
+				"tags": ["Builds"],
+				"summary": "Get workspace build secrets",
+				"operationId": "get-workspace-build-secrets",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace build ID",
+						"name": "workspacebuild",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.WorkspaceSecret"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/workspacebuilds/{workspacebuild}/state": {
 			"get": {
 				"produces": ["application/json"],
@@ -32328,6 +32363,62 @@
 				"WorkspaceRoleUse",
 				"WorkspaceRoleDeleted"
 			]
+		},
+		"codersdk.WorkspaceSecret": {
+			"type": "object",
+			"properties": {
+				"cleared_at": {
+					"description": "ClearedAt is set once a later build superseded the secret and its\nvalue was dropped. Cleared secrets are not delivered and replace\nnothing.",
+					"type": "string",
+					"format": "date-time"
+				},
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"enabled": {
+					"description": "Enabled controls whether the secret is injected into workspaces.\nDisabled secrets remain visible and editable, but are not added\nto the agent manifest, so they are not exposed as environment\nvariables or written to secret files.",
+					"type": "boolean"
+				},
+				"env_name": {
+					"type": "string"
+				},
+				"env_replaces": {
+					"description": "EnvReplaces is the ID of the workspace owner's user secret that this\nsecret displaces on env_name.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"ephemeral": {
+					"description": "Ephemeral secrets are delivered to their build only and not copied to\nthe next one.",
+					"type": "boolean"
+				},
+				"file_path": {
+					"type": "string"
+				},
+				"file_replaces": {
+					"description": "FileReplaces is the ID of the workspace owner's user secret that this\nsecret displaces on file_path.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"name": {
+					"type": "string"
+				},
+				"updated_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"workspace_build_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
 		},
 		"codersdk.WorkspaceSecretInput": {
 			"type": "object",

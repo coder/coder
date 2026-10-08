@@ -12887,6 +12887,38 @@ export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
 
 // From codersdk/workspacesecrets.go
 /**
+ * WorkspaceSecret is the metadata of a secret linked to a workspace build.
+ * Workspace secrets have no description, cannot be disabled, and are never
+ * updated, so Description is empty, Enabled is true, and UpdatedAt equals
+ * CreatedAt. The secret value is never included in API responses.
+ */
+export interface WorkspaceSecret extends UserSecret {
+	readonly workspace_build_id: string;
+	/**
+	 * Ephemeral secrets are delivered to their build only and not copied to
+	 * the next one.
+	 */
+	readonly ephemeral: boolean;
+	/**
+	 * ClearedAt is set once a later build superseded the secret and its
+	 * value was dropped. Cleared secrets are not delivered and replace
+	 * nothing.
+	 */
+	readonly cleared_at?: string;
+	/**
+	 * EnvReplaces is the ID of the workspace owner's user secret that this
+	 * secret displaces on env_name.
+	 */
+	readonly env_replaces?: string;
+	/**
+	 * FileReplaces is the ID of the workspace owner's user secret that this
+	 * secret displaces on file_path.
+	 */
+	readonly file_replaces?: string;
+}
+
+// From codersdk/workspacesecrets.go
+/**
  * WorkspaceSecretInjectionTargetRequiredDetail explains that a workspace
  * secret has no disabled state, so every set request needs a delivery
  * target.

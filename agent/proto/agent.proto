@@ -100,6 +100,7 @@ message Manifest {
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
 	repeated WorkspaceSecret secrets = 19;
+	bytes workspace_build_id = 20;
 }
 
 // WorkspaceSecret is a secret included in the agent manifest

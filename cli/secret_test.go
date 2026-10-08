@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -538,6 +539,176 @@ func TestSecretList(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		assert.Contains(t, output.Stderr(), "No secrets found.")
+	})
+}
+
+func TestSecretListWorkspaceBuild(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+	setupCtx := testutil.Context(t, testutil.WaitMedium)
+	_, err := client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name: "user-token", Value: "u", EnvName: "TOKEN",
+	})
+	require.NoError(t, err)
+	// A user secret and the build secret that replaces it may share a name.
+	_, err = client.CreateUserSecret(setupCtx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name: "API_KEY", Value: "u", EnvName: "API_KEY",
+	})
+	require.NoError(t, err)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.Secrets = []codersdk.WorkspaceSecretInput{
+			{Name: "build-token", Value: new("b"), EnvName: "TOKEN"},
+			{Name: "API_KEY", Value: new("b"), EnvName: "API_KEY"},
+		}
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// A workspace owned by another user, which the logged-in owner can read.
+	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	memberWorkspace := coderdtest.CreateWorkspace(t, member, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.Secrets = []codersdk.WorkspaceSecretInput{
+			{Name: "member-token", Value: new("m"), EnvName: "TOKEN"},
+		}
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, memberWorkspace.LatestBuild.ID)
+
+	cases := []struct {
+		name string
+		args []string
+		env  map[string]string
+	}{
+		{name: "InsideWorkspace", env: map[string]string{"CODER_WORKSPACE_BUILD_ID": workspace.LatestBuild.ID.String()}},
+		{name: "InsideWorkspaceOlderAgent", env: map[string]string{"CODER_WORKSPACE_ID": workspace.ID.String()}},
+		{name: "WorkspaceFlag", args: []string{"--workspace", workspace.Name}},
+		{name: "BuildIDFlag", args: []string{"--build-id", workspace.LatestBuild.ID.String()}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			inv, root := clitest.New(t, append([]string{"secret", "list"}, tc.args...)...)
+			for k, v := range tc.env {
+				inv.Environ.Set(k, v)
+			}
+			output := clitest.Capture(inv)
+			clitest.SetupConfig(t, client, root)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			require.NoError(t, inv.WithContext(ctx).Run())
+
+			out := output.Stdout()
+			assert.Contains(t, out, "SOURCE")
+			assert.Contains(t, out, "REPLACED BY")
+			assert.Contains(t, out, "build-token")
+			assert.Contains(t, out, "env: build/build-token")
+			assert.Contains(t, out, "env: build/API_KEY")
+			assert.NotContains(t, out, "EPHEMERAL", "ephemeral is hidden by default")
+		})
+	}
+
+	// Without a build, the build-only columns are not shown.
+	t.Run("NoBuildColumns", func(t *testing.T) {
+		t.Parallel()
+
+		inv, root := clitest.New(t, "secret", "list")
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.NoError(t, inv.WithContext(ctx).Run())
+		assert.Contains(t, output.Stdout(), "user-token")
+		assert.NotContains(t, output.Stdout(), "SOURCE")
+		assert.NotContains(t, output.Stdout(), "REPLACED BY")
+	})
+
+	t.Run("EphemeralColumn", func(t *testing.T) {
+		t.Parallel()
+
+		inv, root := clitest.New(t, "secret", "list", "--build-id", workspace.LatestBuild.ID.String(), "-c", "name,source,ephemeral")
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.NoError(t, inv.WithContext(ctx).Run())
+		assert.Contains(t, output.Stdout(), "EPHEMERAL")
+		assert.NotContains(t, output.Stdout(), "REPLACED BY", "explicit columns are kept")
+	})
+
+	// Inside a workspace that the logged-in deployment or user cannot see,
+	// only user secrets are listed.
+	for _, envName := range []string{"CODER_WORKSPACE_BUILD_ID", "CODER_WORKSPACE_ID"} {
+		t.Run("UnknownCurrentWorkspace/"+envName, func(t *testing.T) {
+			t.Parallel()
+
+			inv, root := clitest.New(t, "secret", "list")
+			inv.Environ.Set(envName, uuid.NewString())
+			output := clitest.Capture(inv)
+			clitest.SetupConfig(t, client, root)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			require.NoError(t, inv.WithContext(ctx).Run())
+			assert.Contains(t, output.Stderr(), "only that user's secrets are listed")
+			assert.Contains(t, output.Stdout(), "user-token")
+			assert.NotContains(t, output.Stdout(), "build-token")
+		})
+	}
+
+	t.Run("UnknownBuildIDFlag", func(t *testing.T) {
+		t.Parallel()
+
+		inv, root := clitest.New(t, "secret", "list", "--build-id", uuid.NewString())
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	// Another user's build from the workspace environment is skipped
+	// silently, so only the logged-in user's secrets are listed.
+	t.Run("OtherOwnerFromEnv", func(t *testing.T) {
+		t.Parallel()
+
+		inv, root := clitest.New(t, "secret", "list")
+		inv.Environ.Set("CODER_WORKSPACE_BUILD_ID", memberWorkspace.LatestBuild.ID.String())
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.NoError(t, inv.WithContext(ctx).Run())
+		assert.Empty(t, output.Stderr())
+		assert.Contains(t, output.Stdout(), "user-token")
+		assert.NotContains(t, output.Stdout(), "member-token")
+	})
+
+	// An explicitly requested build of another user's workspace fails.
+	t.Run("OtherOwnerBuildIDFlag", func(t *testing.T) {
+		t.Parallel()
+
+		inv, root := clitest.New(t, "secret", "list", "--build-id", memberWorkspace.LatestBuild.ID.String())
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "belongs to")
+	})
+
+	t.Run("NameWithFlag", func(t *testing.T) {
+		t.Parallel()
+
+		inv, root := clitest.New(t, "secret", "list", "user-token", "--build-id", workspace.LatestBuild.ID.String())
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		require.ErrorContains(t, inv.WithContext(ctx).Run(), "cannot be used with a secret name")
 	})
 }
 

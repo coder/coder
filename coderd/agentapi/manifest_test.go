@@ -357,6 +357,7 @@ func TestGetManifest(t *testing.T) {
 			ParentId:                 nil,
 			OwnerUsername:            owner.Username,
 			WorkspaceId:              workspace.ID[:],
+			WorkspaceBuildId:         agentBuild.ID[:],
 			WorkspaceName:            workspace.Name,
 			GitAuthConfigs:           2, // two "enhanced" external auth configs
 			EnvironmentVariables:     expectedEnvVars,
@@ -427,6 +428,7 @@ func TestGetManifest(t *testing.T) {
 			ParentId:                 agent.ID[:],
 			OwnerUsername:            owner.Username,
 			WorkspaceId:              workspace.ID[:],
+			WorkspaceBuildId:         agentBuild.ID[:],
 			WorkspaceName:            workspace.Name,
 			GitAuthConfigs:           2, // two "enhanced" external auth configs
 			EnvironmentVariables:     nil,
@@ -489,8 +491,7 @@ func TestGetManifest(t *testing.T) {
 			{EnvName: "BOTH_ENV", FilePath: "/etc/both", Value: "both-val", Enabled: true},
 			{EnvName: "DISABLED_ENV", FilePath: "", Value: "disabled-val", Enabled: false},
 		}, nil)
-		// Workspace secrets follow user secrets so a workspace secret that
-		// targets the same env var wins when the agent applies them in order.
+		// A workspace secret on the same env var as a user secret wins.
 		mDB.EXPECT().GetWorkspaceResourceByID(gomock.Any(), gomock.Any()).Return(database.WorkspaceResource{JobID: agentBuild.JobID}, nil)
 		mDB.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), agentBuild.JobID).Return(agentBuild, nil)
 		mDB.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), agentBuild.ID).Return([]database.WorkspaceSecret{
@@ -500,23 +501,20 @@ func TestGetManifest(t *testing.T) {
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
 
-		// The disabled secret should be filtered out, leaving 3 user
-		// secrets followed by the workspace secret.
-		require.Len(t, got.Secrets, 4)
-		require.Equal(t, "GITHUB_TOKEN", got.Secrets[0].EnvName)
-		require.Equal(t, "", got.Secrets[0].FilePath)
-		require.Equal(t, []byte("ghp_xxxx"), got.Secrets[0].Value)
+		// The disabled secret is filtered out, and the workspace secret
+		// replaces the user secret on GITHUB_TOKEN, so that user secret is
+		// not sent at all.
+		require.Len(t, got.Secrets, 3)
+		require.Equal(t, "", got.Secrets[0].EnvName)
+		require.Equal(t, "~/.ssh/id_rsa", got.Secrets[0].FilePath)
+		require.Equal(t, []byte("private-key"), got.Secrets[0].Value)
 
-		require.Equal(t, "", got.Secrets[1].EnvName)
-		require.Equal(t, "~/.ssh/id_rsa", got.Secrets[1].FilePath)
-		require.Equal(t, []byte("private-key"), got.Secrets[1].Value)
+		require.Equal(t, "BOTH_ENV", got.Secrets[1].EnvName)
+		require.Equal(t, "/etc/both", got.Secrets[1].FilePath)
+		require.Equal(t, []byte("both-val"), got.Secrets[1].Value)
 
-		require.Equal(t, "BOTH_ENV", got.Secrets[2].EnvName)
-		require.Equal(t, "/etc/both", got.Secrets[2].FilePath)
-		require.Equal(t, []byte("both-val"), got.Secrets[2].Value)
-
-		require.Equal(t, "GITHUB_TOKEN", got.Secrets[3].EnvName)
-		require.Equal(t, []byte("ghp_workspace"), got.Secrets[3].Value)
+		require.Equal(t, "GITHUB_TOKEN", got.Secrets[2].EnvName)
+		require.Equal(t, []byte("ghp_workspace"), got.Secrets[2].Value)
 	})
 
 	t.Run("NoAppHostname", func(t *testing.T) {
@@ -622,6 +620,7 @@ func TestGetManifest(t *testing.T) {
 			AgentName:                agent.Name,
 			OwnerUsername:            owner.Username,
 			WorkspaceId:              workspace.ID[:],
+			WorkspaceBuildId:         agentBuild.ID[:],
 			WorkspaceName:            workspace.Name,
 			GitAuthConfigs:           2, // two "enhanced" external auth configs
 			EnvironmentVariables:     expectedEnvVars,

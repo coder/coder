@@ -20670,6 +20670,44 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------------------|
 | ``, `admin`, `use` |
 
+## codersdk.WorkspaceSecret
+
+```json
+{
+  "cleared_at": "2019-08-24T14:15:22Z",
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "enabled": true,
+  "env_name": "string",
+  "env_replaces": "84a889b2-94af-4f34-9249-aa46f6f7b463",
+  "ephemeral": true,
+  "file_path": "string",
+  "file_replaces": "1fdcc987-93b6-4e8f-afdc-b4eba4090da4",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|----------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `cleared_at`         | string  | false    |              | Cleared at is set once a later build superseded the secret and its value was dropped. Cleared secrets are not delivered and replace nothing.                                                                                         |
+| `created_at`         | string  | false    |              |                                                                                                                                                                                                                                      |
+| `description`        | string  | false    |              |                                                                                                                                                                                                                                      |
+| `enabled`            | boolean | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
+| `env_name`           | string  | false    |              |                                                                                                                                                                                                                                      |
+| `env_replaces`       | string  | false    |              | Env replaces is the ID of the workspace owner's user secret that this secret displaces on env_name.                                                                                                                                  |
+| `ephemeral`          | boolean | false    |              | Ephemeral secrets are delivered to their build only and not copied to the next one.                                                                                                                                                  |
+| `file_path`          | string  | false    |              |                                                                                                                                                                                                                                      |
+| `file_replaces`      | string  | false    |              | File replaces is the ID of the workspace owner's user secret that this secret displaces on file_path.                                                                                                                                |
+| `id`                 | string  | false    |              |                                                                                                                                                                                                                                      |
+| `name`               | string  | false    |              |                                                                                                                                                                                                                                      |
+| `updated_at`         | string  | false    |              |                                                                                                                                                                                                                                      |
+| `workspace_build_id` | string  | false    |              |                                                                                                                                                                                                                                      |
+
 ## codersdk.WorkspaceSecretInput
 
 ```json

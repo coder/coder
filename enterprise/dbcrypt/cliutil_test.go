@@ -464,7 +464,7 @@ func TestUpdateEncryptedWorkspaceSecretValueSkipsCleared(t *testing.T) {
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
-	history, err := f.rawDB.GetWorkspaceSecretsHistory(f.ctx, first.Workspace.ID)
+	history, err := f.rawDB.GetWorkspaceSecretsHistory(f.ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: first.Workspace.ID})
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	require.True(t, history[0].ClearedAt.Valid, "row stays cleared")
@@ -1680,7 +1680,7 @@ func TestDeleteWorkspaceSecrets(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, encSecrets, "encrypted workspace_secrets row should have been cleared")
 	// Rows are kept as history; only the value is dropped.
-	history, err := f.rawDB.GetWorkspaceSecretsHistory(f.ctx, encWS.Workspace.ID)
+	history, err := f.rawDB.GetWorkspaceSecretsHistory(f.ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: encWS.Workspace.ID})
 	require.NoError(t, err)
 	require.Len(t, history, 1, "cleared row must be kept as history")
 	require.True(t, history[0].ClearedAt.Valid, "kept row must be marked cleared")

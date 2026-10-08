@@ -20189,13 +20189,20 @@ func TestClearWorkspaceSecretsBeforeBuild(t *testing.T) {
 	require.Equal(t, 1, live(build2.ID), "the clearing build keeps its own secrets")
 	require.Equal(t, 1, live(build3.ID), "a later build is untouched")
 
-	history, err := db.GetWorkspaceSecretsHistory(ctx, ws.ID)
+	history, err := db.GetWorkspaceSecretsHistory(ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: ws.ID})
 	require.NoError(t, err)
 	require.Len(t, history, 3, "cleared rows are kept as history")
 	for _, row := range history {
 		require.Equal(t, row.WorkspaceBuildID == build1.ID, row.ClearedAt.Valid,
 			"only build 1's row is cleared")
 	}
+
+	// Filtering by build includes that build's cleared rows.
+	build1History, err := db.GetWorkspaceSecretsHistory(ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: ws.ID, WorkspaceBuildID: build1.ID})
+	require.NoError(t, err)
+	require.Len(t, build1History, 1)
+	require.Equal(t, build1.ID, build1History[0].WorkspaceBuildID)
+	require.True(t, build1History[0].ClearedAt.Valid)
 }
 
 func TestClearWorkspaceSecretsByWorkspaceID(t *testing.T) {
@@ -20225,7 +20232,7 @@ func TestClearWorkspaceSecretsByWorkspaceID(t *testing.T) {
 	live, err := db.ListActiveWorkspaceSecrets(ctx, deleted.Build.ID)
 	require.NoError(t, err)
 	require.Empty(t, live, "the workspace's secrets are cleared")
-	history, err := db.GetWorkspaceSecretsHistory(ctx, deleted.Workspace.ID)
+	history, err := db.GetWorkspaceSecretsHistory(ctx, database.GetWorkspaceSecretsHistoryParams{WorkspaceID: deleted.Workspace.ID})
 	require.NoError(t, err)
 	require.Len(t, history, 1, "cleared rows are kept as history")
 	require.True(t, history[0].ClearedAt.Valid)

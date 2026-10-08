@@ -7065,8 +7065,9 @@ func (s *MethodTestSuite) TestWorkspaceSecrets() {
 			WorkspaceOwnerID:        ws.OwnerID,
 			WorkspaceOrganizationID: ws.OrganizationID,
 		})
-		dbm.EXPECT().GetWorkspaceSecretsHistory(gomock.Any(), ws.ID).Return([]database.GetWorkspaceSecretsHistoryRow{row}, nil).AnyTimes()
-		check.Args(ws.ID).
+		arg := database.GetWorkspaceSecretsHistoryParams{WorkspaceID: ws.ID}
+		dbm.EXPECT().GetWorkspaceSecretsHistory(gomock.Any(), arg).Return([]database.GetWorkspaceSecretsHistoryRow{row}, nil).AnyTimes()
+		check.Args(arg).
 			Asserts(row, policy.ActionRead).
 			Returns([]database.GetWorkspaceSecretsHistoryRow{row})
 	}))

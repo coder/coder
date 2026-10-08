@@ -2434,6 +2434,29 @@ func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
 	return result
 }
 
+// WorkspaceBuildSecret converts workspace secret metadata to an SDK
+// WorkspaceSecret. Build secrets have no description, cannot be disabled,
+// and are never updated, so Enabled is true and UpdatedAt is CreatedAt.
+func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersdk.WorkspaceSecret {
+	out := codersdk.WorkspaceSecret{
+		UserSecret: codersdk.UserSecret{
+			ID:        secret.ID,
+			Name:      secret.Name,
+			EnvName:   secret.EnvName,
+			FilePath:  secret.FilePath,
+			Enabled:   true,
+			CreatedAt: secret.CreatedAt,
+			UpdatedAt: secret.CreatedAt,
+		},
+		WorkspaceBuildID: secret.WorkspaceBuildID,
+		Ephemeral:        secret.Ephemeral,
+	}
+	if secret.ClearedAt.Valid {
+		out.ClearedAt = &secret.ClearedAt.Time
+	}
+	return out
+}
+
 // UserSkill converts a database UserSkill to an SDK UserSkill.
 func UserSkill(skill database.UserSkill) codersdk.UserSkill {
 	return codersdk.UserSkill{
