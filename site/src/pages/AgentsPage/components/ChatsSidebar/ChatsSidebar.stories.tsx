@@ -12,8 +12,10 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { chatProjectsKey } from "#/api/queries/chatProjects";
-import { userChatProviderConfigsKey } from "#/api/queries/chats";
+import {
+	chatProjectsKey,
+	userChatProviderConfigsKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";

@@ -9,8 +9,6 @@ import {
 	invalidateChatSearches,
 } from "./chats";
 
-export { chatProjectsKey };
-
 /**
  * Lists the current user's chat projects across all organizations.
  * @public

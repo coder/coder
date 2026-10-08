@@ -350,7 +350,7 @@ func TestChatProjectSharing(t *testing.T) {
 		ownerChat := createChatInProject(t, client, project.OrganizationID, &project.ID)
 		shareeChat := createChatInProject(t, sharee, project.OrganizationID, &project.ID)
 		otherChat := createChatInProject(t, client, project.OrganizationID, nil)
-		//nolint:gocritic // Test seeds a sub-chat and worker leases, and checks deleted rows, directly.
+		//nolint:gocritic // Test seeds worker leases and checks deleted rows directly.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
 		shareeChild := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    project.OrganizationID,

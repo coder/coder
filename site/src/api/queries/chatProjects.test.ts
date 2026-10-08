@@ -5,7 +5,6 @@ import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
 	chatProject,
-	chatProjectsKey,
 	createChatProject,
 	deleteChatProject,
 	updateChatProject,
@@ -15,6 +14,7 @@ import {
 	chatEntityKey,
 	chatListFamilyKey,
 	chatMessagesKey,
+	chatProjectsKey,
 	chatSearchFamilyKey,
 } from "./chats";
 
