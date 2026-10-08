@@ -100,6 +100,56 @@ Support bundles can contain sensitive diagnostic data. Review the generated
 bundle before sharing it. Learn more about
 [support bundles](../../support/support-bundle.md).
 
+## Connection timeouts and reconnects
+
+The Coder Remote extension sets SSH keepalive and Remote - SSH reconnection defaults for Coder workspaces.
+If your connection drops while the workspace is under heavy load, such as memory pressure, you can relax these settings.
+
+### SSH keepalives
+
+The extension writes these keepalive options to the SSH configuration it generates for Coder workspaces:
+
+| Option                | Default | Behavior                                   |
+|-----------------------|---------|--------------------------------------------|
+| `ServerAliveInterval` | `10`    | Sends a keepalive every 10&nbsp;seconds.   |
+| `ServerAliveCountMax` | `3`     | Disconnects after 3 unanswered keepalives. |
+
+With these defaults, the SSH client disconnects after about 30&nbsp;seconds without a response from the workspace.
+To tolerate longer stalls, override the options in the `coder.sshConfig` VS Code setting:
+
+```json
+{
+  "coder.sshConfig": ["ServerAliveCountMax=30"]
+}
+```
+
+This example disconnects after about 5&nbsp;minutes without a response.
+To remove a default option, set it to an empty value, such as `"ServerAliveCountMax="`.
+The new values apply the next time you connect to the workspace.
+
+The extension merges SSH options from these sources, from highest to lowest precedence:
+
+1. The `coder.sshConfig` VS Code setting.
+1. Options passed to `coder config-ssh --ssh-option`.
+1. Deployment-wide options that an administrator sets with [`CODER_SSH_CONFIG_OPTIONS`](../../reference/cli/server/index.md#--ssh-config-options).
+
+### Reconnection settings
+
+When you connect to a workspace, the extension also configures these Remote - SSH settings, in seconds:
+
+| Setting                              | Set on connect                   | Recommended              |
+|--------------------------------------|----------------------------------|--------------------------|
+| `remote.SSH.connectTimeout`          | Raised to at least `1800`        | `1800` (30&nbsp;minutes) |
+| `remote.SSH.reconnectionGraceTime`   | `28800` (8&nbsp;hours), if unset | `86400` (24&nbsp;hours)  |
+| `remote.SSH.serverShutdownTimeout`   | `28800` (8&nbsp;hours), if unset | `86400` (24&nbsp;hours)  |
+| `remote.SSH.maxReconnectionAttempts` | Maximum allowed, if unset        | Maximum allowed          |
+
+To apply the recommended values, run **Coder: Apply Recommended SSH Settings** from the Command Palette.
+This command overwrites any values you set for these settings.
+
+These settings control how long VS Code waits to connect, how long the remote server waits for you to reconnect, and how many times VS Code retries.
+They don't change when the SSH connection itself times out; use `coder.sshConfig` for that.
+
 ## VS Code extensions
 
 There are multiple ways to add extensions to VS Code Desktop:
