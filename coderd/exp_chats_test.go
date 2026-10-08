@@ -13948,10 +13948,10 @@ func createChatModel(t testing.TB, client *codersdk.ExperimentalClient) codersdk
 
 func waitForChatStatus(ctx context.Context, t testing.TB, client *codersdk.ExperimentalClient, chatID uuid.UUID, want codersdk.ChatStatus) {
 	t.Helper()
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		chat, err := client.GetChat(ctx, chatID)
 		return err == nil && chat.Status == want
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast, "chat did not reach status %s", want)
 }
 
 // chatTab models the state a web client tab keeps for one chat: the IDs
