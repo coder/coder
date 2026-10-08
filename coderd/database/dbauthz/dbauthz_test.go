@@ -1406,11 +1406,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatsByIDs(gomock.Any(), []uuid.UUID{chat.ID}).Return([]database.Chat{chat}, nil).AnyTimes()
 		check.Args([]uuid.UUID{chat.ID}).Asserts(chat, policy.ActionRead).Returns([]database.Chat{chat})
 	}))
-	s.Run("DeleteChatHeartbeatsByChatIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		ids := []uuid.UUID{uuid.New()}
-		dbm.EXPECT().DeleteChatHeartbeatsByChatIDs(gomock.Any(), ids).Return(nil).AnyTimes()
-		check.Args(ids).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
-	}))
 	s.Run("DeleteChatFamiliesByRootIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
 		dbm.EXPECT().DeleteChatFamiliesByRootIDs(gomock.Any(), ids).Return(nil).AnyTimes()
