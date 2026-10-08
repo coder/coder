@@ -38,7 +38,6 @@ func TestExperimentDisplayNames(t *testing.T) {
 
 	expected := map[codersdk.Experiment]string{
 		codersdk.ExperimentExample:                   "Example Experiment",
-		codersdk.ExperimentAutoFillParameters:        "Auto-fill Template Parameters",
 		codersdk.ExperimentNotifications:             "SMTP and Webhook Notifications",
 		codersdk.ExperimentWorkspaceUsage:            "Workspace Usage Tracking",
 		codersdk.ExperimentMCPServerHTTP:             "MCP HTTP Server Functionality",

@@ -5636,7 +5636,6 @@ export type Experiment =
 	| "ai-gateway-reverse-proxy"
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
-	| "auto-fill-parameters"
 	| "chat-advisor"
 	| "chat-automations"
 	| "chat-inline-mcp-servers"
@@ -5718,7 +5717,6 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-reverse-proxy",
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
-	"auto-fill-parameters",
 	"chat-advisor",
 	"chat-automations",
 	"chat-inline-mcp-servers",
@@ -11767,12 +11765,6 @@ export interface UserLatencyInsightsResponse {
 // From codersdk/users.go
 export interface UserLoginType {
 	readonly login_type: LoginType;
-}
-
-// From codersdk/users.go
-export interface UserParameter {
-	readonly name: string;
-	readonly value: string;
 }
 
 // From codersdk/users.go
