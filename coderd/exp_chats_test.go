@@ -10295,15 +10295,15 @@ func TestStreamChat(t *testing.T) {
 		tab := newChatTab(page)
 		_, _ = tab.connect(ctx, t, client, chat.ID)
 
-		// While this tab's stream is down, another tab sends a message and then
-		// this tab sends one, storing the response as submitChatTurn.ts does.
-		// The other tab's message has the lower ID, so after_id alone would
-		// skip it.
+		// While this tab is not reading its stream, another tab sends a message
+		// and then this tab sends one, storing the response as submitChatTurn.ts
+		// does. The other tab's message has the lower ID, so after_id alone
+		// would skip it.
 		_ = sendChatMessage(ctx, t, client, chat.ID, "from another tab")
 		tab.hold(sendChatMessage(ctx, t, client, chat.ID, "from this tab")...)
 
 		_, _ = tab.connect(ctx, t, client, chat.ID)
-		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), tab.sortedIDs(), "the tab is missing messages sent while its stream was down")
+		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), tab.sortedIDs(), "the tab is missing messages sent while it was not reading its stream")
 	})
 
 	t.Run("NegativeHistoryVersionReturns400", func(t *testing.T) {
