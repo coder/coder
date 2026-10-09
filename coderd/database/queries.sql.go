@@ -42004,10 +42004,10 @@ WHERE
 		ELSE true
 	END
 
-	-- Filter by owner_usernames
+	-- Filter by owner_usernames (lowercase)
 	AND CASE
 		WHEN array_length($9 :: text[], 1) > 0 THEN
-			workspaces.owner_id = ANY(SELECT id FROM users WHERE lower(users.username) IN (SELECT lower(n) FROM unnest($9 :: text[]) AS n) AND deleted = false)
+			workspaces.owner_id = ANY(SELECT id FROM users WHERE lower(users.username) = ANY($9) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_names (lowercase)

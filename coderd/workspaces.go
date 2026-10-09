@@ -202,7 +202,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 
 	if slices.Contains(filter.OwnerUsernames, codersdk.Me) {
 		// Avoid a user lookup, which scoped tokens may not be allowed to do.
-		requester := httpmw.UserAuthorization(ctx).FriendlyName
+		requester := strings.ToLower(httpmw.UserAuthorization(ctx).FriendlyName)
 		for i, owner := range filter.OwnerUsernames {
 			if owner == codersdk.Me {
 				filter.OwnerUsernames[i] = requester
