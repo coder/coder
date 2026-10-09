@@ -168,47 +168,24 @@ WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
 	AND CASE
-		WHEN @status :: text != '' THEN
-			CASE
-			    -- Some workspace specific status refer to the transition
-			    -- type. By default, the standard provisioner job status
-			    -- search strings are supported.
-			    -- 'running' states
-				WHEN @status = 'starting' THEN
-				    latest_build.job_status = 'running'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition
-				WHEN @status = 'stopping' THEN
-					latest_build.job_status = 'running'::provisioner_job_status AND
-					latest_build.transition = 'stop'::workspace_transition
-				WHEN @status = 'deleting' THEN
-					latest_build.job_status = 'running' AND
-					latest_build.transition = 'delete'::workspace_transition
-
-			    -- 'succeeded' states
-			    WHEN @status = 'deleted' THEN
-			    	latest_build.job_status = 'succeeded'::provisioner_job_status AND
-			    	latest_build.transition = 'delete'::workspace_transition
-				WHEN @status = 'stopped' THEN
-					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'stop'::workspace_transition
-				WHEN @status = 'started' THEN
-					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition
-
-			    -- Special case where the provisioner status and workspace status
-			    -- differ. A workspace is "running" if the job is "succeeded" and
-			    -- the transition is "start". This is because a workspace starts
-			    -- running when a job is complete.
-			    WHEN @status = 'running' THEN
-					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition
-
-				WHEN @status != '' THEN
-				    -- By default just match the job status exactly
-			    	latest_build.job_status = @status::provisioner_job_status
-				ELSE
-					true
-			END
+		WHEN array_length(@statuses :: text[], 1) > 0 THEN
+			-- Mirrors codersdk.ConvertWorkspaceStatus.
+			(CASE latest_build.job_status
+				WHEN 'running'::provisioner_job_status THEN
+					CASE latest_build.transition
+						WHEN 'start'::workspace_transition THEN 'starting'
+						WHEN 'stop'::workspace_transition THEN 'stopping'
+						WHEN 'delete'::workspace_transition THEN 'deleting'
+					END
+				-- A workspace is "running" once its start job has succeeded.
+				WHEN 'succeeded'::provisioner_job_status THEN
+					CASE latest_build.transition
+						WHEN 'start'::workspace_transition THEN 'running'
+						WHEN 'stop'::workspace_transition THEN 'stopped'
+						WHEN 'delete'::workspace_transition THEN 'deleted'
+					END
+				ELSE latest_build.job_status::text
+			END) = ANY(@statuses :: text[])
 		ELSE true
 	END
 	-- Filter by owner_id

@@ -2069,10 +2069,40 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 			Status: string(status),
 		})
 		require.NoErrorf(t, err, "fetch with status: %s", status)
+		require.NotEmptyf(t, workspaces.Workspaces, "fetch with status: %s", status)
 		for _, workspace := range workspaces.Workspaces {
 			assert.Equal(t, status, workspace.LatestBuild.Status, "expect matching status to filter")
 		}
 		cancel()
+	}
+
+	// Multiple statuses match any of them.
+	multiStatuses := []codersdk.WorkspaceStatus{
+		codersdk.WorkspaceStatusRunning,
+		codersdk.WorkspaceStatusStopped,
+		codersdk.WorkspaceStatusFailed,
+	}
+	var expectedIDs []uuid.UUID
+	for _, apiWorkspace := range workspaces.Workspaces {
+		if slices.Contains(multiStatuses, apiWorkspace.LatestBuild.Status) {
+			expectedIDs = append(expectedIDs, apiWorkspace.ID)
+		}
+	}
+	require.Len(t, expectedIDs, 4, "running, stopped, and two failed workspaces")
+
+	multiCtx, multiCancel := context.WithTimeout(ctx, testutil.WaitShort)
+	defer multiCancel()
+	for _, query := range []string{
+		"status:running status:stopped status:failed",
+		"status:running,stopped,failed",
+	} {
+		res, err := client.Workspaces(multiCtx, codersdk.WorkspaceFilter{FilterQuery: query})
+		require.NoErrorf(t, err, "fetch with query: %s", query)
+		gotIDs := make([]uuid.UUID, 0, len(res.Workspaces))
+		for _, workspace := range res.Workspaces {
+			gotIDs = append(gotIDs, workspace.ID)
+		}
+		require.ElementsMatchf(t, expectedIDs, gotIDs, "fetch with query: %s", query)
 	}
 }
 

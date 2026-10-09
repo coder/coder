@@ -107,6 +107,27 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "Status",
+			Query: "status:Running",
+			Expected: database.GetWorkspacesParams{
+				Statuses: []string{"running"},
+			},
+		},
+		{
+			Name:  "MultipleStatuses",
+			Query: "status:running status:stopped",
+			Expected: database.GetWorkspacesParams{
+				Statuses: []string{"running", "stopped"},
+			},
+		},
+		{
+			Name:  "MultipleStatusesCSV",
+			Query: "status:running,stopped",
+			Expected: database.GetWorkspacesParams{
+				Statuses: []string{"running", "stopped"},
+			},
+		},
+		{
 			// Quotes keep elements together
 			Name:  "QuotedSpecial",
 			Query: `name:"workspace:name"`,
@@ -493,6 +514,11 @@ func TestSearchWorkspace(t *testing.T) {
 			ExpectedErrorContains: "provided more than once",
 		},
 		{
+			Name:                  "InvalidStatusInList",
+			Query:                 `status:running,bogus`,
+			ExpectedErrorContains: `"bogus" is not a valid value`,
+		},
+		{
 			Name:                  "ExtraSlashes",
 			Query:                 `foo/bar/baz`,
 			ExpectedErrorContains: "can only contain 1 '/'",
@@ -565,6 +591,10 @@ func TestSearchWorkspace(t *testing.T) {
 				if len(c.Expected.TemplateNames) == 0 && len(values.TemplateNames) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.TemplateNames = values.TemplateNames
+				}
+				if len(c.Expected.Statuses) == len(values.Statuses) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.Statuses = values.Statuses
 				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")
