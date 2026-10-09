@@ -1055,6 +1055,9 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeModels(ctx context.Context, arg ListA
 		}
 		items = append(items, model)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
@@ -1083,6 +1086,9 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeClients(ctx context.Context, arg List
 			return nil, err
 		}
 		items = append(items, client)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return items, nil
 }
