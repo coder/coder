@@ -3,6 +3,7 @@ package pty
 import (
 	"context"
 	"os/exec"
+	"strings"
 )
 
 // StartOption represents a configuration option passed to Start.
@@ -43,6 +44,14 @@ func CommandContext(ctx context.Context, name string, arg ...string) *Cmd {
 
 func Command(name string, arg ...string) *Cmd {
 	return CommandContext(context.Background(), name, arg...)
+}
+
+// String returns a human-readable version of the command.
+func (c *Cmd) String() string {
+	if len(c.Args) == 0 {
+		return c.Path
+	}
+	return strings.Join(c.Args, " ")
 }
 
 func (c *Cmd) AsExec() *exec.Cmd {

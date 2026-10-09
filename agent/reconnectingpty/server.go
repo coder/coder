@@ -241,6 +241,8 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 			return xerrors.Errorf("create command: %w", err)
 		}
 
+		connLogger.Info(ctx, "computed command", slog.F("command", cmd.String()))
+
 		rpty = New(ctx,
 			logger.With(slog.F("message_id", msg.ID)),
 			s.commandCreator.Execer,
