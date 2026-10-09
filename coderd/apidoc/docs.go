@@ -22271,6 +22271,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "reasoning_tokens": {
+                    "description": "ReasoningTokens counts reasoning, which output_tokens already\nincludes, so do not add the two.",
                     "type": "integer"
                 },
                 "total_tokens": {
