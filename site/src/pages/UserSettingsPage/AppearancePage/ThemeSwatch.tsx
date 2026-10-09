@@ -37,7 +37,10 @@ export const ThemeSwatch: React.FC<ThemeSwatchProps> = ({
 						"inline-flex rounded-full size-8 p-0 border-2 border-solid cursor-pointer",
 						"transition-[outline] outline-solid outline-2 outline-offset-2",
 						selected ? "outline-content-link" : "outline-transparent",
-						"border-border",
+						// The ring is the only boundary for swatches whose fill matches
+						// the page (e.g. Dark default on a dark page), so it must keep
+						// 3:1 contrast with the surrounding surface (WCAG 1.4.11).
+						"border-surface-invert-secondary",
 						"has-[input:focus-visible]:outline-content-link has-[input:focus-visible]:outline-offset-2",
 					)}
 					onMouseEnter={onPreview}
