@@ -546,23 +546,23 @@ func TestSearchWorkspace(t *testing.T) {
 				}
 				assert.Contains(t, s.String(), c.ExpectedErrorContains)
 			} else {
-				if len(c.Expected.WorkspaceIds) == len(values.WorkspaceIds) {
+				if len(c.Expected.WorkspaceIds) == 0 && len(values.WorkspaceIds) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.WorkspaceIds = values.WorkspaceIds
 				}
-				if len(c.Expected.HasParam) == len(values.HasParam) {
+				if len(c.Expected.HasParam) == 0 && len(values.HasParam) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.HasParam = values.HasParam
 				}
-				if len(c.Expected.HasAgentStatuses) == len(values.HasAgentStatuses) {
+				if len(c.Expected.HasAgentStatuses) == 0 && len(values.HasAgentStatuses) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.HasAgentStatuses = values.HasAgentStatuses
 				}
-				if len(c.Expected.IncludeAgentMetadata) == len(values.IncludeAgentMetadata) {
+				if len(c.Expected.IncludeAgentMetadata) == 0 && len(values.IncludeAgentMetadata) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.IncludeAgentMetadata = values.IncludeAgentMetadata
 				}
-				if len(c.Expected.TemplateNames) == len(values.TemplateNames) {
+				if len(c.Expected.TemplateNames) == 0 && len(values.TemplateNames) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.TemplateNames = values.TemplateNames
 				}

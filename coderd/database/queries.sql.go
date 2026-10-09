@@ -42038,7 +42038,7 @@ WHERE
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN array_length($10 :: text[], 1) > 0 THEN
-			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = ANY($10 :: text[]) AND deleted = false)
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) IN (SELECT lower(n) FROM unnest($10 :: text[]) AS n) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
