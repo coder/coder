@@ -3,7 +3,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 export type ChatGoalAction = TypesGen.ChatGoalUpdateAction;
 export type CurrentChatGoalStatus = Extract<
 	TypesGen.ChatGoalStatus,
-	"active" | "paused" | "complete"
+	"active" | "paused" | "blocked" | "complete"
 >;
 
 export const CHAT_GOAL_ACTIONS_BY_STATUS: Record<
@@ -12,6 +12,7 @@ export const CHAT_GOAL_ACTIONS_BY_STATUS: Record<
 > = {
 	active: ["pause", "complete", "clear"],
 	paused: ["resume", "clear"],
+	blocked: ["resume", "clear"],
 	complete: ["clear"],
 };
 
