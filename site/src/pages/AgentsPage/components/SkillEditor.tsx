@@ -37,6 +37,9 @@ export type SkillErrorDisplay = {
 type SkillEditorProps = {
 	open: boolean;
 	mode: "create" | "edit";
+	/** Singular noun in sentence case, for example "Personal skill". */
+	noun: string;
+	description: string;
 	initialValues: SkillFormValues;
 	existingNames: readonly string[];
 	submitError?: SkillErrorDisplay;
@@ -60,6 +63,8 @@ const beginsWithFrontmatterDelimiter = (content: string): boolean =>
 export const SkillEditor: React.FC<SkillEditorProps> = ({
 	open,
 	mode,
+	noun,
+	description,
 	initialValues,
 	existingNames,
 	submitError,
@@ -251,7 +256,8 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 	const bodyError = form.touched.body ? form.errors.body : undefined;
 	const isTooLarge = sizeBytes > SKILL_MAX_SIZE_BYTES;
 	const isNearLimit = sizeBytes > SKILL_MAX_SIZE_BYTES * 0.9;
-	const title = isCreate ? "Create personal skill" : "Edit personal skill";
+	const lowerNoun = noun.toLocaleLowerCase("en-US");
+	const title = isCreate ? `Create ${lowerNoun}` : `Edit ${lowerNoun}`;
 	const submitLabel = isCreate ? "Create skill" : "Save skill";
 
 	return (
@@ -263,12 +269,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 				>
 					<DialogHeader className="px-6 pt-6">
 						<DialogTitle>{title}</DialogTitle>
-						<DialogDescription>
-							Personal skills are available to your agents and stored as a
-							single SKILL.md file with frontmatter. For richer skills with
-							supporting files, add them to your repo under `.agents/skills/` or
-							load them from a workspace.
-						</DialogDescription>
+						<DialogDescription>{description}</DialogDescription>
 					</DialogHeader>
 
 					<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">

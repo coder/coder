@@ -392,8 +392,8 @@ const CoderAgentsPage = lazy(
 const AgentSettingsUserAgentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
 );
-const AgentSettingsPersonalSkillsPage = lazy(
-	() => import("./pages/AgentsPage/components/SkillsTable"),
+const AgentSettingsSkillsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsSkillsPage"),
 );
 const AgentSettingsAPIKeysPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
@@ -857,7 +857,7 @@ export const router = createBrowserRouter(
 						/>
 						<Route
 							path="personal-skills"
-							element={<AgentSettingsPersonalSkillsPage />}
+							element={<AgentSettingsSkillsPage />}
 						/>
 						<Route
 							path="admin"

@@ -1,7 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockSkill } from "#/testHelpers/skills";
-import { SkillsTableView, type SkillsTableViewProps } from "./SkillsTableView";
+import { SKILLS_MAX_PER_OWNER } from "../utils/skills";
+import {
+	type SkillsCopy,
+	SkillsTableView,
+	type SkillsTableViewProps,
+} from "./SkillsTableView";
 
 const MockReviewSQLSkill = {
 	...MockSkill,
@@ -46,8 +51,23 @@ const MockDebugHTTPSkill = {
 
 const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
+const personalSkillsCopy: SkillsCopy = {
+	noun: "Personal skill",
+	title: "Personal skills",
+	description:
+		"Reusable instructions your agents can pick when they need specialized guidance.",
+	emptyDescription:
+		"Create a personal skill to save reusable agent guidance for your workflows.",
+	editorDescription:
+		"Personal skills are available to your agents and stored as a single SKILL.md file with frontmatter.",
+	archiveName: "personal-skills.zip",
+};
+
 const baseArgs: SkillsTableViewProps = {
 	skills: MockPersonalSkills,
+	copy: personalSkillsCopy,
+	limit: SKILLS_MAX_PER_OWNER,
+	canEdit: true,
 	error: undefined,
 	isLoading: false,
 	isRetrying: false,
@@ -105,6 +125,19 @@ export const DownloadingSkill: Story = {
 		await expect(
 			within(menu).getByRole("menuitem", { name: "Edit" }),
 		).not.toHaveAttribute("aria-disabled");
+	},
+};
+
+export const ReadOnly: Story = {
+	args: {
+		canEdit: false,
+	},
+};
+
+export const ReadOnlyEmpty: Story = {
+	args: {
+		canEdit: false,
+		skills: [],
 	},
 };
 
