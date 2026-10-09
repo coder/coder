@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -20,25 +22,17 @@ func (server *Server) inlineMCPServersEnabled() bool {
 
 // loadInlineMCPServers returns the inline MCP servers that apply to
 // this turn. Child chats read the root chat's rows and keep only those
-// allowed in subagents. Anything that stops a declared server from reaching
-// the model is a connect outcome, so load failures are returned as failed
-// ConnectSummary rows instead of an error: the chat debug panel shows them
-// beside connection failures. The summary text is fixed so database error
-// detail never reaches viewer-visible data.
-func (server *Server) loadInlineMCPServers(ctx context.Context, chat database.Chat) ([]mcpclient.Server, []mcpclient.ConnectSummary) {
+// allowed in subagents. A row with invalid stored headers is a connect
+// outcome, so it is returned as a failed ConnectSummary row: the chat
+// debug panel shows it beside connection failures.
+func (server *Server) loadInlineMCPServers(ctx context.Context, chat database.Chat) ([]mcpclient.Server, []mcpclient.ConnectSummary, error) {
 	rootChatID := chat.ID
 	if chat.RootChatID.Valid {
 		rootChatID = chat.RootChatID.UUID
 	}
 	rows, err := server.db.GetChatMCPServersByChatID(ctx, rootChatID)
 	if err != nil {
-		server.logger.Warn(ctx, "failed to load inline MCP servers",
-			slog.F("chat_id", chat.ID), slog.Error(err))
-		return nil, []mcpclient.ConnectSummary{{
-			Slug:    "inline-mcp-servers",
-			Outcome: mcpclient.ConnectOutcomeError,
-			Error:   "failed to load inline MCP servers",
-		}}
+		return nil, nil, xerrors.Errorf("get inline MCP servers: %w", err)
 	}
 
 	servers := make([]mcpclient.Server, 0, len(rows))
@@ -70,5 +64,5 @@ func (server *Server) loadInlineMCPServers(ctx context.Context, chat database.Ch
 			ToolDenyList:        row.ToolDenyList,
 		})
 	}
-	return servers, failures
+	return servers, failures, nil
 }

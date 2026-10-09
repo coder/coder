@@ -218,15 +218,6 @@ type Server struct {
 	chatLimits             Limits
 }
 
-func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {
-	cfg, err := p.configCache.AdvisorConfig(ctx)
-	if err != nil {
-		logger.Warn(ctx, "failed to load advisor config", slog.Error(err))
-		return advisorRuntimeConfig{}
-	}
-	return cfg
-}
-
 // stripAdvisorGuidanceBlock removes any system message whose text content
 // matches chatadvisor.ParentGuidanceBlock after whitespace normalization.
 // The block is meant for the parent agent (it advertises the advisor tool)
@@ -373,27 +364,6 @@ func (p *Server) newAdvisorRuntime(
 		return nil, nil //nolint:nilnil // Nil runtime with nil error means advisor is skipped for this turn.
 	}
 	return rt, nil
-}
-
-// resolveWorkspaceMCPTools builds the workspace MCP tool set for a turn from
-// the chat's pinned context snapshot (chat_context_resources). The agent
-// reports its MCP servers in the snapshot it pushes, so a chat with no pinned
-// rows, or one whose workspace advertises no MCP servers, contributes no
-// workspace MCP tools. A read failure is logged and yields no tools rather
-// than aborting the turn.
-func (p *Server) resolveWorkspaceMCPTools(
-	ctx context.Context,
-	logger slog.Logger,
-	chat database.Chat,
-	workspaceCtx *turnWorkspaceContext,
-) []fantasy.AgentTool {
-	tools, err := p.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
-	if err != nil {
-		logger.Warn(ctx, "failed to read pinned workspace MCP tools",
-			slog.F("chat_id", chat.ID), slog.Error(err))
-		return nil
-	}
-	return tools
 }
 
 // pinnedWorkspaceMCPTools builds workspace MCP tools from the chat's pinned
@@ -3808,10 +3778,9 @@ type rootChatToolsOptions struct {
 func (p *Server) loadPlanModeInstructions(
 	ctx context.Context,
 	mode database.NullChatPlanMode,
-	logger slog.Logger,
-) string {
+) (string, error) {
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
-		return ""
+		return "", nil
 	}
 
 	// Plan-mode instructions live in deployment config, but chat workers do
@@ -3820,14 +3789,9 @@ func (p *Server) loadPlanModeInstructions(
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	fetched, err := p.db.GetChatPlanModeInstructions(systemCtx)
 	if err != nil {
-		logger.Warn(ctx,
-			"failed to fetch plan mode instructions",
-			slog.Error(err),
-		)
-		return ""
+		return "", xerrors.Errorf("get plan mode instructions: %w", err)
 	}
-
-	return fetched
+	return fetched, nil
 }
 
 func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
@@ -3851,18 +3815,10 @@ func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
 func (p *Server) fetchPersonalSkillMetadata(
 	ctx context.Context,
 	userID uuid.UUID,
-	logger slog.Logger,
-) []skillspkg.Skill {
+) ([]skillspkg.Skill, error) {
 	rows, err := p.db.ListUserSkillMetadataByUserID(userSkillContext(ctx, userID), userID)
-	// See package coderd/x/skills (doc.go) for why metadata fetch failures
-	// intentionally degrade to an empty personal-skill list instead of
-	// failing the chat turn.
 	if err != nil {
-		logger.Warn(ctx, "failed to load personal skill metadata",
-			slog.F("owner_id", userID),
-			slog.Error(err),
-		)
-		return nil
+		return nil, xerrors.Errorf("list personal skill metadata: %w", err)
 	}
 
 	personalSkills := make([]skillspkg.Skill, 0, len(rows))
@@ -3873,7 +3829,7 @@ func (p *Server) fetchPersonalSkillMetadata(
 			Source:      skillspkg.SourcePersonal,
 		})
 	}
-	return personalSkills
+	return personalSkills, nil
 }
 
 func (p *Server) loadPersonalSkillBody(
@@ -4371,29 +4327,24 @@ func refreshChatWorkspaceSnapshot(
 // resolveUserCompactionThreshold looks up the user's per-model
 // compaction threshold override. Returns the override value and
 // true if one exists and is valid, or 0 and false otherwise.
-func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid.UUID, modelConfigID uuid.UUID) (int32, bool) {
+func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid.UUID, modelConfigID uuid.UUID) (int32, bool, error) {
 	raw, err := p.db.GetUserChatCompactionThreshold(ctx, database.GetUserChatCompactionThresholdParams{
 		UserID: userID,
 		Key:    codersdk.CompactionThresholdKey(modelConfigID),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false
+		return 0, false, nil
 	}
 	if err != nil {
-		p.logger.Warn(ctx, "failed to fetch compaction threshold override",
-			slog.F("user_id", userID),
-			slog.F("model_config_id", modelConfigID),
-			slog.Error(err),
-		)
-		return 0, false
+		return 0, false, xerrors.Errorf("get user compaction threshold: %w", err)
 	}
 	// Range 0..100 must stay in sync with handler validation in
 	// coderd/chats.go.
 	val, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil || val < 0 || val > 100 {
-		return 0, false
+		return 0, false, nil
 	}
-	return int32(val), true
+	return int32(val), true, nil
 }
 
 // resolveDeploymentSystemPrompt builds the deployment-level system
@@ -4441,17 +4392,16 @@ func (p *Server) resolveOrganizationSystemPrompt(ctx context.Context, organizati
 // resolveUserPrompt fetches the user's custom chat prompt from the
 // database and wraps it in <user-instructions> tags. Returns empty
 // string if no prompt is set.
-func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string {
+func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) (string, error) {
 	raw, err := p.configCache.UserPrompt(ctx, userID)
 	if err != nil {
-		// sql.ErrNoRows is the normal "not set" case.
-		return ""
+		return "", xerrors.Errorf("get user chat prompt: %w", err)
 	}
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		return ""
+		return "", nil
 	}
-	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
+	return "<user-instructions>\n" + trimmed + "\n</user-instructions>", nil
 }
 
 // renderPlanPathPrompt fills the plan-path placeholder when it is
