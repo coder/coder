@@ -19,10 +19,6 @@ const alternateModel: TypesGen.ChatModel = {
 	model: "model-two",
 	display_name: "Model Two",
 };
-const mockDisabledCompactionModel: TypesGen.ChatModel = {
-	...MockCompactionChatModel,
-	compression_threshold: 100,
-};
 const mockTinyModelWithCompactionOff: TypesGen.ChatModel = {
 	...MockChatModel,
 	id: "tiny-model",
@@ -225,15 +221,6 @@ export const CompactionTriggerWarningWithoutCompactionOff: Story = {
 		enabledModels: [MockCompactionChatModel, model, alternateModel],
 	},
 	play: CompactionTriggerWarning.play,
-};
-
-export const CompactionOverrideDisabledNotice: Story = {
-	args: {
-		overrides: [
-			{ context: "compaction", model_config_id: MockCompactionChatModel.id },
-		],
-		enabledModels: [mockDisabledCompactionModel, model],
-	},
 };
 
 export const CompactionTriggerWarningManyModels: Story = {

@@ -204,8 +204,8 @@ const EffectiveCompactionThreshold: React.FC<
 									<>
 										{organizationModelName} compacts at{" "}
 										{organizationTrigger.pointTokens.toLocaleString("en-US")}{" "}
-										tokens ({organizationTrigger.model.compression_threshold}%
-										of its {organizationWindowLabel}-token window), beyond this
+										tokens ({organizationTrigger.trigger.thresholdPercent}% of
+										its {organizationWindowLabel}-token window), beyond this
 										model&apos;s{" "}
 										{modelConfig.context_limit.toLocaleString("en-US")}
 										-token window. Chats with this model do not compact
@@ -215,7 +215,7 @@ const EffectiveCompactionThreshold: React.FC<
 								) : (
 									<>
 										{organizationModelName} compacts at{" "}
-										{organizationTrigger.model.compression_threshold}% of its{" "}
+										{organizationTrigger.trigger.thresholdPercent}% of its{" "}
 										{organizationWindowLabel}-token window, about{" "}
 										{organizationTriggerPercentLabel}% of this model&apos;s
 										window.

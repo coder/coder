@@ -27,7 +27,7 @@ const mockChatModel: TypesGen.ChatModel = {
 };
 const mockCompactionTrigger: OrganizationCompactionTrigger = {
 	model: MockCompactionChatModel,
-	trigger: { thresholdPercent: 50, contextLimit: 32_000 },
+	trigger: { thresholdPercent: 80, contextLimit: 20_000 },
 	pointTokens: 16_000,
 };
 const mockCompactionOverrides: TypesGen.ChatModelOverridesResponse = {
@@ -143,7 +143,7 @@ describe("compaction triggers", () => {
 		expect(isCompactionPointBeyondWindow(16_000, 0)).toBe(false);
 	});
 
-	it("resolves an enabled member-visible organization override model", () => {
+	it("resolves an enabled override at 80% of its window, ignoring its own threshold", () => {
 		expect(
 			resolveOrganizationCompactionTrigger(
 				MockCompactionChatModel.id,
@@ -178,7 +178,10 @@ describe("compaction triggers", () => {
 				[{ ...MockCompactionChatModel, compression_threshold: 100 }],
 				providers,
 			),
-		).toBeUndefined();
+		).toEqual({
+			...mockCompactionTrigger,
+			model: { ...MockCompactionChatModel, compression_threshold: 100 },
+		});
 	});
 
 	it("ignores an organization override model whose provider is disabled", () => {
@@ -314,11 +317,7 @@ describe("compaction triggers", () => {
 					{
 						models: [
 							mockChatModel,
-							{
-								...MockCompactionChatModel,
-								context_limit: 128_000,
-								compression_threshold: 90,
-							},
+							{ ...MockCompactionChatModel, context_limit: 128_000 },
 						],
 						userThresholds: [
 							{ model_config_id: mockChatModel.id, threshold_percent: 60 },
@@ -339,7 +338,7 @@ describe("compaction triggers", () => {
 					{
 						models: [
 							mockChatModel,
-							{ ...MockCompactionChatModel, context_limit: 256_000 },
+							{ ...MockCompactionChatModel, context_limit: 160_000 },
 						],
 						userThresholds: [
 							{ model_config_id: mockChatModel.id, threshold_percent: 100 },

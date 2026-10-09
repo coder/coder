@@ -111,22 +111,7 @@ const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
 		"organization",
 	);
 	if (!organizationTrigger) {
-		const selectedModel = enabledModels.find(
-			(model) => model.id === selectedModelID,
-		);
-		if (
-			!selectedModel ||
-			selectedModel.compression_threshold < compactionDisabledThresholdPercent
-		) {
-			return null;
-		}
-		return (
-			<Alert severity="info">
-				<AlertDescription>
-					{`${getModelLabel(selectedModel)} has compaction off (${compactionDisabledThresholdPercent}%), so chats summarize with their own model instead.`}
-				</AlertDescription>
-			</Alert>
-		);
+		return null;
 	}
 
 	const compactionModel = organizationTrigger.model;
@@ -154,7 +139,7 @@ const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
 	return (
 		<Alert severity="warning">
 			<AlertDescription>
-				{`Chats using ${formatModelList(undercutModels.map(getModelLabel))} may compact earlier than their models' thresholds${offModelsNote} because ${getModelLabel(compactionModel)} compacts at ${compactionModel.compression_threshold}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
+				{`Chats using ${formatModelList(undercutModels.map(getModelLabel))} may compact earlier than their models' thresholds${offModelsNote} because ${getModelLabel(compactionModel)} compacts at ${organizationTrigger.trigger.thresholdPercent}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
 			</AlertDescription>
 		</Alert>
 	);

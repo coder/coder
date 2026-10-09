@@ -32,6 +32,10 @@ export type ResolvedCompactionThreshold =
 
 export const compactionDisabledThresholdPercent = 100;
 
+// Mirrors chatd compactionOverrideWindowPercent: the remainder of the override
+// window is left for the summary prompt and summary.
+export const organizationOverrideWindowPercent = 80;
+
 export const modelCompactionTrigger = (
 	model: TypesGen.ChatModel,
 ): CompactionTrigger => ({
@@ -105,7 +109,10 @@ export const resolveOrganizationCompactionTrigger = (
 		return undefined;
 	}
 
-	const trigger = modelCompactionTrigger(model);
+	const trigger = {
+		thresholdPercent: organizationOverrideWindowPercent,
+		contextLimit: model.context_limit,
+	};
 	if (!isCompactionTriggerEnabled(trigger)) {
 		return undefined;
 	}

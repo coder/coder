@@ -29,7 +29,7 @@ export const MockCompactionChatModel: ChatModel = {
 	id: "compaction-model",
 	model: "compact-mini",
 	display_name: "Compact Mini",
-	context_limit: 32_000,
+	context_limit: 20_000,
 	compression_threshold: 50,
 };
 
