@@ -15,8 +15,8 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import {
+	compactionOverrideWindowPercent,
 	type OrganizationCompactionTrigger,
-	organizationOverrideWindowPercent,
 } from "../compactionTriggers";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
@@ -36,10 +36,10 @@ const organizationTriggerFor = (
 ): OrganizationCompactionTrigger => ({
 	model,
 	trigger: {
-		thresholdPercent: organizationOverrideWindowPercent,
+		thresholdPercent: compactionOverrideWindowPercent,
 		contextLimit: model.context_limit,
 	},
-	pointTokens: (model.context_limit * organizationOverrideWindowPercent) / 100,
+	pointTokens: (model.context_limit * compactionOverrideWindowPercent) / 100,
 });
 const mockCompactionTrigger = organizationTriggerFor(MockCompactionChatModel);
 const mockCompactionTriggersByOrganizationID = new Map([

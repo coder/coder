@@ -202,11 +202,11 @@ const EffectiveCompactionThreshold: React.FC<
 							<HelpPopoverText>
 								{isOrganizationPointBeyondWindow ? (
 									<>
-										{organizationModelName} compacts at{" "}
+										The organization override compacts chats at{" "}
 										{organizationTrigger.pointTokens.toLocaleString("en-US")}{" "}
-										tokens ({organizationTrigger.trigger.thresholdPercent}% of
-										its {organizationWindowLabel}-token window), beyond this
-										model&apos;s{" "}
+										tokens ({organizationTrigger.trigger.thresholdPercent}% of{" "}
+										{organizationModelName}&apos;s {organizationWindowLabel}
+										-token window), beyond this model&apos;s{" "}
 										{modelConfig.context_limit.toLocaleString("en-US")}
 										-token window. Chats with this model do not compact
 										automatically. Set a threshold below 100% to turn compaction
@@ -214,11 +214,11 @@ const EffectiveCompactionThreshold: React.FC<
 									</>
 								) : (
 									<>
-										{organizationModelName} compacts at{" "}
-										{organizationTrigger.trigger.thresholdPercent}% of its{" "}
-										{organizationWindowLabel}-token window, about{" "}
-										{organizationTriggerPercentLabel}% of this model&apos;s
-										window.
+										The organization override compacts chats at{" "}
+										{organizationTrigger.trigger.thresholdPercent}% of{" "}
+										{organizationModelName}&apos;s {organizationWindowLabel}
+										-token window, about {organizationTriggerPercentLabel}% of
+										this model&apos;s window.
 									</>
 								)}
 							</HelpPopoverText>

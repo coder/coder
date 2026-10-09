@@ -139,7 +139,7 @@ const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
 	return (
 		<Alert severity="warning">
 			<AlertDescription>
-				{`Chats using ${formatModelList(undercutModels.map(getModelLabel))} may compact earlier than their models' thresholds${offModelsNote} because ${getModelLabel(compactionModel)} compacts at ${organizationTrigger.trigger.thresholdPercent}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
+				{`Chats using ${formatModelList(undercutModels.map(getModelLabel))} may compact earlier than their models' thresholds${offModelsNote} because the organization override compacts chats at ${organizationTrigger.trigger.thresholdPercent}% of ${getModelLabel(compactionModel)}'s ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
 			</AlertDescription>
 		</Alert>
 	);

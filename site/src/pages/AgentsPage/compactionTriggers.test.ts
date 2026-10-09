@@ -8,11 +8,11 @@ import {
 import {
 	bindingCompactionTriggerPoint,
 	bindingCompactionTriggerSource,
+	compactionOverrideWindowPercent,
 	compactionPointAsPercent,
 	compactionThresholdLabel,
 	isCompactionPointBeyondWindow,
 	type OrganizationCompactionTrigger,
-	organizationOverrideWindowPercent,
 	type ResolvedCompactionThreshold,
 	resolveChatCompactionThreshold,
 	resolveCompactionTriggersByOrganization,
@@ -62,7 +62,7 @@ describe("compaction triggers", () => {
 	// Binding cases must match TestBindingCompactionTriggerSource in
 	// coderd/x/chatd/generation_preparer_internal_test.go.
 	const override = (contextLimit: number) => ({
-		thresholdPercent: organizationOverrideWindowPercent,
+		thresholdPercent: compactionOverrideWindowPercent,
 		contextLimit,
 	});
 	it.each([
