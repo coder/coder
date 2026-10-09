@@ -8,7 +8,8 @@ export const asNonEmptyString = (value: unknown): string | undefined => {
 
 /**
  * Append a text or thinking block to a render block list, merging
- * with the previous block when the types match.
+ * with the previous block when the types match. Text never merges
+ * across a provider-executed call.
  */
 export const appendTextBlock = (
 	blocks: RenderBlock[],
@@ -20,7 +21,11 @@ export const appendTextBlock = (
 	}
 	const nextBlocks = [...blocks];
 	const last = nextBlocks[nextBlocks.length - 1];
-	if (last && last.type === type) {
+	if (
+		last &&
+		last.type === type &&
+		!(last.type === "response" && last.beforeProviderTool)
+	) {
 		nextBlocks[nextBlocks.length - 1] = {
 			type,
 			text: `${last.text}${text}`,

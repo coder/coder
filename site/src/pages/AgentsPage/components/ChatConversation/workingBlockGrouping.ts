@@ -1,4 +1,5 @@
-import { getVisibleContent } from "./messageHelpers";
+import { appendTextBlock } from "./blockUtils";
+import { getVisibleContent, isProviderToolResult } from "./messageHelpers";
 import type { TimelineRow } from "./timelineRows";
 import type {
 	MergedTool,
@@ -22,7 +23,7 @@ export type WorkingBlock = {
 	 * at the front when history is prepended into that row.
 	 */
 	memberIds: number[];
-	/** Distinct visible tools plus web search result groups, not rows. */
+	/** Distinct visible tools plus web searches, not rows. */
 	stepCount: number;
 	/** The last row's answer renders after the block; only its work folds in. */
 	endsWithAnswer: boolean;
@@ -62,34 +63,53 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 export type RowSection = "work" | "answer";
 
 /**
- * The answer is the content after a row's last reasoning or tool call; earlier
- * text is narration. Sources fold without splitting the answer, since OpenAI
- * streams citations between its text deltas.
+ * The answer is the content after a row's last reasoning or tool call, web
+ * searches included; text before it is narration. Sources fold without
+ * splitting the answer, since OpenAI streams citations between the deltas of
+ * one text part.
  */
 export const splitRowBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
 ) => {
 	const visible = new Set(getVisibleContent(blocks, tools).visibleBlocks);
-	const lastReasoningOrToolIndex = blocks.findLastIndex(
+	const lastWorkIndex = blocks.findLastIndex(
 		(block) =>
 			visible.has(block) &&
-			(block.type === "thinking" || block.type === "tool"),
+			(block.type === "thinking" ||
+				block.type === "tool" ||
+				(block.type === "response" && block.beforeProviderTool)),
 	);
-	const isAnswer = (block: RenderBlock, index: number) =>
-		index > lastReasoningOrToolIndex &&
-		visible.has(block) &&
-		block.type !== "sources";
+	const work: RenderBlock[] = [];
+	let answer: RenderBlock[] = [];
+	let previous: RenderBlock | undefined;
+	for (const [index, block] of blocks.entries()) {
+		if (
+			index <= lastWorkIndex ||
+			!visible.has(block) ||
+			block.type === "sources"
+		) {
+			work.push(block);
+		} else if (block.type === "response" && previous?.type === "response") {
+			answer = appendTextBlock(answer, "response", block.text);
+		} else {
+			answer = [...answer, block];
+		}
+		if (block.type !== "sources") {
+			previous = block;
+		}
+	}
 
-	return {
-		work: blocks.filter((block, index) => !isAnswer(block, index)),
-		answer: blocks.filter(isAnswer),
-	} satisfies Record<RowSection, RenderBlock[]>;
+	return { work, answer } satisfies Record<RowSection, RenderBlock[]>;
 };
 
 type RowContent = ReturnType<typeof getVisibleContent>;
 
-type MemberRow = { content: RowContent; endsWithAnswer: boolean };
+type MemberRow = {
+	content: RowContent;
+	endsWithAnswer: boolean;
+	searches: number;
+};
 
 /**
  * A row ending in an answer joins only when it also did work, and then closes
@@ -101,6 +121,7 @@ const getMemberRow = (
 	options: GroupWorkingBlocksOptions,
 ): MemberRow | undefined => {
 	let content: RowContent;
+	let searchResults: number;
 
 	if (row.type === "live") {
 		if (!options.isLiveRowCollapsible) {
@@ -108,6 +129,8 @@ const getMemberRow = (
 		}
 
 		content = getVisibleContent(options.liveBlocks, options.liveTools);
+		// Until the step persists, one flag stands in for its searches.
+		searchResults = options.streamState?.providerToolRan ? 1 : 0;
 	} else {
 		const { message, parsed } = row.entry;
 		if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
@@ -115,11 +138,21 @@ const getMemberRow = (
 		}
 
 		content = getVisibleContent(parsed.blocks, parsed.tools);
+		// Results, not calls: a step can end with a provider call unanswered,
+		// and the next step issues that call again.
+		searchResults = (message.content ?? []).filter(isProviderToolResult).length;
 	}
 
 	const { visibleBlocks, visibleTools } = content;
+	// A search counts even without citations, while some providers cite
+	// sources without a search.
+	const searches =
+		searchResults ||
+		visibleBlocks.filter((block) => block.type === "sources").length;
 	if (visibleBlocks.length === 0) {
-		return row.type === "live" ? { content, endsWithAnswer: false } : undefined;
+		return row.type === "live"
+			? { content, endsWithAnswer: false, searches }
+			: undefined;
 	}
 
 	if (visibleTools.some((tool) => UNCOLLAPSIBLE_TOOLS.has(tool.name))) {
@@ -137,10 +170,12 @@ const getMemberRow = (
 
 	const { work, answer } = splitRowBlocks(visibleBlocks, visibleTools);
 	if (answer.length === 0) {
-		return { content, endsWithAnswer: false };
+		return { content, endsWithAnswer: false, searches };
 	}
 
-	return work.length > 0 ? { content, endsWithAnswer: true } : undefined;
+	return work.length > 0
+		? { content, endsWithAnswer: true, searches }
+		: undefined;
 };
 
 /**
@@ -176,7 +211,7 @@ export const groupWorkingBlocks = (
 	type Draft = {
 		rowIndices: number[];
 		toolIds: Set<string>;
-		sourceGroups: number;
+		searches: number;
 		endsWithAnswer: boolean;
 		anchorKey?: string;
 		ordinal: number;
@@ -210,7 +245,7 @@ export const groupWorkingBlocks = (
 			current = {
 				rowIndices: [],
 				toolIds: new Set(),
-				sourceGroups: 0,
+				searches: 0,
 				endsWithAnswer: false,
 				anchorKey,
 				ordinal,
@@ -226,9 +261,7 @@ export const groupWorkingBlocks = (
 		for (const tool of member.content.visibleTools) {
 			current.toolIds.add(tool.id);
 		}
-		current.sourceGroups += member.content.visibleBlocks.filter(
-			(block) => block.type === "sources",
-		).length;
+		current.searches += member.searches;
 
 		if (member.endsWithAnswer) {
 			current.endsWithAnswer = true;
@@ -236,11 +269,11 @@ export const groupWorkingBlocks = (
 		}
 	}
 
-	const stepCountOf = (draft: Draft) => draft.toolIds.size + draft.sourceGroups;
+	const stepCountOf = (draft: Draft) => draft.toolIds.size + draft.searches;
 
 	// Completed reasoning alone stays visible. The live turn folds from its first
 	// reasoning, so thinking never shows and then vanishes once a tool call
-	// arrives, and unfolds only when a tool-less turn starts its answer.
+	// arrives, and unfolds only when a turn without steps starts its answer.
 	const blockDrafts = drafts.filter(
 		(draft) =>
 			stepCountOf(draft) > 0 ||

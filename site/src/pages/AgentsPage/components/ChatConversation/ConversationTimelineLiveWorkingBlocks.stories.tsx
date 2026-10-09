@@ -158,6 +158,47 @@ export const AnswerStreamsAfterBlock: Story = {
 	},
 };
 
+// Narration before a web search stays in the live block, and the answer, cited
+// as it streams, renders after it.
+export const SearchAnswerStreamsAfterBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 1),
+		),
+		...buildStreamRenderState([
+			{ type: "text", text: "I'll look up the latest Coder release." },
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				provider_executed: true,
+				created_at: workingFixtureTime(1),
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				provider_executed: true,
+			},
+			{ type: "text", text: "The latest Coder release" },
+			{
+				type: "source",
+				url: "https://releases.example.com",
+				title: "Coder releases",
+			},
+			{ type: "text", text: " is v2.30." },
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Working for 12s" }),
+		);
+
+		await canvas.findByText("The latest Coder release is v2.30.");
+	},
+};
+
 export const RequiresActionCompletesBlock: Story = {
 	args: {
 		chatStatus: "requires_action",

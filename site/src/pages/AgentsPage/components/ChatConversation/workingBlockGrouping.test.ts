@@ -48,6 +48,23 @@ const source = (url: string, title: string): TypesGen.ChatMessagePart => ({
 	url,
 	title,
 });
+const citation = source("https://go.example.com", "Go");
+const searchCall = (
+	id: string,
+	createdAt?: string,
+): TypesGen.ChatMessagePart => ({
+	type: "tool-call",
+	tool_call_id: id,
+	tool_name: "web_search",
+	provider_executed: true,
+	created_at: createdAt,
+});
+const searchResult = (id: string): TypesGen.ChatMessagePart => ({
+	type: "tool-result",
+	tool_call_id: id,
+	tool_name: "web_search",
+	provider_executed: true,
+});
 const call = (
 	id: string,
 	createdAt?: string,
@@ -229,6 +246,20 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks).toHaveLength(1);
 		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([answer.id]);
 		expect(blocks[0]).toMatchObject({ stepCount: 1, endsWithAnswer: true });
+	});
+
+	it("counts a reissued search once, ignoring its unanswered first call", () => {
+		const prompt = user("Go");
+		const steps = step("a", 1, 2, { leading: [searchCall("unanswered")] });
+		const answer = message("assistant", [
+			searchCall("search"),
+			citation,
+			searchResult("search"),
+			text("Go 1.27 is out."),
+		]);
+		const { blocks } = group([prompt, ...steps, answer]);
+
+		expect(blocks).toMatchObject([{ stepCount: 2, endsWithAnswer: true }]);
 	});
 
 	it("leaves an answer's reasoning unfolded in a turn without steps", () => {
@@ -544,6 +575,141 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks).toEqual([]);
 		});
 
+		// OpenAI streams a search's citations inside the answer text that follows
+		// it, and stores them before that text.
+		it.each([
+			{
+				name: "reasoning before the search",
+				live: [
+					reasoning("Look it up", at(1)),
+					searchCall("a"),
+					searchResult("a"),
+					text("Go 1.27"),
+					citation,
+					text(" is out."),
+				],
+				persisted: [
+					reasoning("Look it up", at(1), at(2)),
+					searchCall("a"),
+					searchResult("a"),
+					citation,
+					text("Go 1.27 is out."),
+				],
+				stepCount: 1,
+			},
+			{
+				name: "the search before its reasoning",
+				live: [
+					searchCall("a", at(1)),
+					searchResult("a"),
+					reasoning("Compare", at(2)),
+					text("Go 1.27"),
+					citation,
+					text(" is out."),
+				],
+				persisted: [
+					searchCall("a", at(1)),
+					searchResult("a"),
+					reasoning("Compare", at(2), at(3)),
+					citation,
+					text("Go 1.27 is out."),
+				],
+				stepCount: 1,
+			},
+			{
+				name: "narration before the search",
+				live: [
+					text("Searching."),
+					searchCall("a", at(1)),
+					searchResult("a"),
+					text("Go 1.27"),
+					citation,
+					text(" is out."),
+				],
+				persisted: [
+					text("Searching."),
+					searchCall("a", at(1)),
+					searchResult("a"),
+					citation,
+					text("Go 1.27 is out."),
+				],
+				stepCount: 1,
+			},
+			{
+				name: "two searches",
+				live: [
+					reasoning("Look it up", at(1)),
+					searchCall("a"),
+					searchResult("a"),
+					searchCall("b"),
+					searchResult("b"),
+					text("Go 1.27"),
+					citation,
+					text(" is out."),
+				],
+				persisted: [
+					reasoning("Look it up", at(1), at(2)),
+					searchCall("a"),
+					searchResult("a"),
+					searchCall("b"),
+					searchResult("b"),
+					citation,
+					text("Go 1.27 is out."),
+				],
+				stepCount: 2,
+			},
+			{
+				name: "a search without citations",
+				live: [
+					reasoning("Look it up", at(1)),
+					searchCall("a"),
+					searchResult("a"),
+					text("Nothing new."),
+				],
+				persisted: [
+					reasoning("Look it up", at(1), at(2)),
+					searchCall("a"),
+					searchResult("a"),
+					text("Nothing new."),
+				],
+				stepCount: 1,
+			},
+		])(
+			"keeps one search block through streaming and persistence with $name",
+			({ live, persisted, stepCount }) => {
+				const prompt = user("Go");
+				const liveKey = `working:live:message:${prompt.id}:0`;
+				const prefixBlocks = live.map(
+					(_, index) => groupLive([prompt], live.slice(0, index + 1)).blocks,
+				);
+				const firstBlockIndex = prefixBlocks.findIndex(
+					(blocks) => blocks.length > 0,
+				);
+
+				expect(firstBlockIndex).not.toBe(-1);
+				for (const blocks of prefixBlocks.slice(firstBlockIndex)) {
+					expect(blocks).toMatchObject([
+						{
+							key: liveKey,
+							isLive: true,
+							startedAt: WORKING_FIXTURE_START + 1000,
+						},
+					]);
+				}
+				expect(
+					group([prompt, message("assistant", persisted)]).blocks,
+				).toMatchObject([
+					{
+						liveKey,
+						stepCount,
+						endsWithAnswer: true,
+						isLive: false,
+						startedAt: WORKING_FIXTURE_START + 1000,
+					},
+				]);
+			},
+		);
+
 		it("completes a block once its answer row persists while the chat still runs", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
@@ -755,28 +921,93 @@ describe("splitRowBlocks", () => {
 		).toEqual([{ type: "response", text: "Done." }]);
 	});
 
-	it("keeps answer text on both sides of a citation", () => {
-		expect(
-			answerOf([
-				reasoning("Plan"),
-				text("Go 1.27 is out. Rust"),
-				source("https://go.example.com", "Go"),
-				text(" 1.98 is out."),
-			]),
-		).toEqual([
-			{ type: "response", text: "Go 1.27 is out. Rust" },
-			{ type: "response", text: " 1.98 is out." },
-		]);
+	// Persisted rows store text at its end, after the citations streamed in it.
+	it.each([
+		{
+			name: "narration before search results",
+			persisted: [
+				text("Searching."),
+				searchCall("a"),
+				citation,
+				searchResult("a"),
+				text("Go 1.27 is out."),
+			],
+			live: [
+				text("Searching."),
+				searchCall("a"),
+				citation,
+				searchResult("a"),
+				text("Go 1.27 is out."),
+			],
+			answer: "Go 1.27 is out.",
+		},
+		{
+			name: "narration before cited text",
+			persisted: [
+				text("Searching."),
+				searchCall("a"),
+				searchResult("a"),
+				citation,
+				text("Go 1.27 is out. Rust 1.98 is out."),
+			],
+			live: [
+				text("Searching."),
+				searchCall("a"),
+				searchResult("a"),
+				text("Go 1.27 is out."),
+				citation,
+				text(" Rust 1.98 is out."),
+			],
+			answer: "Go 1.27 is out. Rust 1.98 is out.",
+		},
+		{
+			name: "cited text before a search",
+			persisted: [
+				citation,
+				text("Go 1.27 is out."),
+				searchCall("a"),
+				searchResult("a"),
+				text("Rust 1.98 is out."),
+			],
+			live: [
+				text("Go 1.27 is out."),
+				citation,
+				searchCall("a"),
+				searchResult("a"),
+				text("Rust 1.98 is out."),
+			],
+			answer: "Rust 1.98 is out.",
+		},
+		{
+			name: "cited text without a search call",
+			persisted: [citation, text("Go 1.27 is out. Rust 1.98 is out.")],
+			live: [text("Go 1.27 is out."), citation, text(" Rust 1.98 is out.")],
+			answer: "Go 1.27 is out. Rust 1.98 is out.",
+		},
+	])(
+		"splits $name the same live and persisted",
+		({ persisted, live, answer }) => {
+			const { streamState, streamTools } = buildStreamRenderState(live);
+			if (!streamState) {
+				throw new Error("The live parts built no stream state.");
+			}
+			const expected = [{ type: "response", text: answer }];
+
+			expect(answerOf(persisted)).toEqual(expected);
+			expect(splitRowBlocks(streamState.blocks, streamTools).answer).toEqual(
+				expected,
+			);
+		},
+	);
+
+	const hiddenCall = (id: string): TypesGen.ChatMessagePart => ({
+		type: "tool-call",
+		tool_call_id: id,
+		tool_name: "execute",
+		args: { command: "" },
 	});
 
 	it("ignores hidden tools when splitting the answer", () => {
-		const hiddenCall = (id: string): TypesGen.ChatMessagePart => ({
-			type: "tool-call",
-			tool_call_id: id,
-			tool_name: "execute",
-			args: { command: "" },
-		});
-
 		expect(
 			answerOf([
 				reasoning("Plan"),
@@ -785,5 +1016,19 @@ describe("splitRowBlocks", () => {
 				hiddenCall("after"),
 			]),
 		).toEqual([{ type: "response", text: "Done." }]);
+	});
+
+	it("keeps answer text on either side of a hidden tool apart", () => {
+		expect(
+			answerOf([
+				reasoning("Plan"),
+				text("Checked the logs."),
+				hiddenCall("between"),
+				text("The fix is in."),
+			]),
+		).toEqual([
+			{ type: "response", text: "Checked the logs." },
+			{ type: "response", text: "The fix is in." },
+		]);
 	});
 });
