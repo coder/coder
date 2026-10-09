@@ -740,7 +740,7 @@ func TestWorkspace(t *testing.T) {
 		t.Run("Suspended", func(t *testing.T) {
 			t.Parallel()
 			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
-			_, err := owner.UpdateUserStatus(ctx, member.ID.String(), codersdk.UserStatusSuspended)
+			_, err := owner.UpdateUserStatus(testutil.Context(t, testutil.WaitLong), member.ID.String(), codersdk.UserStatusSuspended)
 			require.NoError(t, err)
 			msg := fmt.Sprintf("User %q is not active.", member.Username)
 			requireForbidden(createAs(owner, member, template), msg)
