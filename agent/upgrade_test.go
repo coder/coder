@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/proto"
@@ -156,7 +158,8 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 			err = session.Shell()
 			require.NoError(t, err)
 
-			// Generate SSH traffic so the connstats window sees the session.
+			// Generate SSH traffic so the connstats window sees the session and to
+			// get a non-zero value for transferred bytes.
 			_, err = stdin.Write([]byte("echo test\n"))
 			require.NoError(t, err)
 
@@ -172,7 +175,11 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 					Type:            proto.Connection_SSH,
 					ClientSessionID: tc.expect,
 				},
-				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+				proto.DisconnectEvent{
+					Reason:  string(codersdk.DisconnectReasonGraceful),
+					RxBytes: 17,            // send "echo test\nexit 0\n"
+					TxBytes: wantSomeBytes, // echo output + prompts
+				},
 			)
 		})
 	}
@@ -217,26 +224,48 @@ func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
 				})
 			}
 
-			ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "bash")
+			id := uuid.New()
+			ptyConn, err := conn.ReconnectingPTY(ctx, id, 128, 128, "bash")
 			require.NoError(t, err)
 			defer ptyConn.Close()
 
+			writtenCh := make(chan int64)
+			go func() {
+				written, err := io.Copy(io.Discard, ptyConn)
+				assert.NoError(t, err)
+				writtenCh <- written
+			}()
+
 			data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
-				Data: "echo test\r\n",
+				Data: "echo test\rexit\r",
 			})
 			require.NoError(t, err)
 			_, err = ptyConn.Write(data)
 			require.NoError(t, err)
 
-			err = ptyConn.Close()
+			initData, err := json.Marshal(workspacesdk.AgentReconnectingPTYInit{
+				ID:      id,
+				Height:  128,
+				Width:   128,
+				Command: "bash",
+			})
 			require.NoError(t, err)
+
+			// Should get at least the commands, resulting output, and newlines, but
+			// there will be more because of the prompts.
+			txBytes := testutil.TryReceive(ctx, t, writtenCh)
+			require.Greater(t, txBytes, int64(20))
 
 			assertConnectionReport(t, client,
 				proto.ConnectEvent{
 					Type:            proto.Connection_RECONNECTING_PTY,
 					ClientSessionID: tc.expect,
 				},
-				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+				proto.DisconnectEvent{
+					Reason:  string(codersdk.DisconnectReasonGraceful),
+					RxBytes: int64(len(data) + len(initData) + 2),
+					TxBytes: txBytes,
+				},
 			)
 		})
 	}

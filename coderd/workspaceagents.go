@@ -1511,6 +1511,8 @@ func (api *API) logTunnelConnection(agentID uuid.UUID, statusCode int32, userID 
 		DisconnectReason: sql.NullString{},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		ClientSessionID:  sql.NullString{},
+		RxBytes:          sql.NullInt64{},
+		TxBytes:          sql.NullInt64{},
 	})
 	if err != nil {
 		api.Logger.Error(ctx, "upsert tunnel connection log",

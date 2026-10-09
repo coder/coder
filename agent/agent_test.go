@@ -244,7 +244,11 @@ func TestAgent_Stats_SSH(t *testing.T) {
 
 			assertConnectionReport(t, agentClient,
 				proto.ConnectEvent{Type: proto.Connection_SSH},
-				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+				proto.DisconnectEvent{
+					Reason:  string(codersdk.DisconnectReasonGraceful),
+					RxBytes: 17,            // echo + exit
+					TxBytes: wantSomeBytes, // echo output + prompts
+				},
 			)
 		})
 	}
@@ -455,7 +459,11 @@ func TestAgent_Stats_Magic(t *testing.T) {
 
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Type: proto.Connection_VSCODE},
-			proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+			proto.DisconnectEvent{
+				Reason:  string(codersdk.DisconnectReasonGraceful),
+				RxBytes: 7,               // exit command
+				TxBytes: wantIgnoreBytes, // might get a prompt
+			},
 		)
 	})
 
@@ -515,7 +523,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		)
 
 		// Kill the server and connection after checking for the echo.
-		requireEcho(t, tunneledConn)
+		written := requireEcho(t, tunneledConn)
 		_ = echoServerCmd.Process.Kill()
 		_ = tunneledConn.Close()
 
@@ -531,7 +539,11 @@ func TestAgent_Stats_Magic(t *testing.T) {
 
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Type: proto.Connection_JETBRAINS},
-			proto.DisconnectEvent{Reason: "normal close"},
+			proto.DisconnectEvent{
+				Reason:  "normal close",
+				RxBytes: int64(written),
+				TxBytes: int64(written),
+			},
 		)
 	})
 }
@@ -1233,7 +1245,7 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 	conn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
 	require.NoError(t, err)
 	defer conn.Close()
-	requireEcho(t, conn)
+	_ = requireEcho(t, conn)
 }
 
 func TestAgent_TCPRemoteForwarding(t *testing.T) {
@@ -1266,7 +1278,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", randomPort))
 	require.NoError(t, err)
 	defer conn.Close()
-	requireEcho(t, conn)
+	_ = requireEcho(t, conn)
 }
 
 func TestAgent_TCPLocalForwardingBlocked(t *testing.T) {
@@ -1421,7 +1433,7 @@ func TestAgent_ReverseBlockedDoesNotAffectLocal(t *testing.T) {
 	conn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
 	require.NoError(t, err)
 	defer conn.Close()
-	requireEcho(t, conn)
+	_ = requireEcho(t, conn)
 }
 
 func TestAgent_UnixLocalForwarding(t *testing.T) {
@@ -1472,7 +1484,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 	conn, err := net.Dial("unix", remoteSocketPath)
 	require.NoError(t, err)
 	defer conn.Close()
-	requireEcho(t, conn)
+	_ = requireEcho(t, conn)
 }
 
 func TestAgent_SFTP(t *testing.T) {
@@ -1517,7 +1529,10 @@ func TestAgent_SFTP(t *testing.T) {
 		_ = client.Close()
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Type: proto.Connection_SSH},
-			proto.DisconnectEvent{},
+			proto.DisconnectEvent{
+				RxBytes: wantSomeBytes,
+				TxBytes: wantSomeBytes,
+			},
 		)
 	})
 
@@ -1553,7 +1568,10 @@ func TestAgent_SFTP(t *testing.T) {
 		_ = client.Close()
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Type: proto.Connection_SSH},
-			proto.DisconnectEvent{},
+			proto.DisconnectEvent{
+				RxBytes: wantSomeBytes,
+				TxBytes: wantSomeBytes,
+			},
 		)
 	})
 
@@ -1611,7 +1629,11 @@ func TestAgent_SCP(t *testing.T) {
 	scpClient.Close()
 	assertConnectionReport(t, agentClient,
 		proto.ConnectEvent{Type: proto.Connection_SSH},
-		proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+		proto.DisconnectEvent{
+			Reason:  string(codersdk.DisconnectReasonGraceful),
+			RxBytes: wantSomeBytes,
+			TxBytes: wantSomeBytes,
+		},
 	)
 }
 
@@ -1680,8 +1702,9 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		assertConnectionReport(t, agentClient,
 			proto.ConnectEvent{Type: proto.Connection_SSH},
 			proto.DisconnectEvent{
-				Code:   agentssh.BlockedFileTransferErrorCode,
-				Reason: "file transfer blocked",
+				Code:    agentssh.BlockedFileTransferErrorCode,
+				Reason:  "file transfer blocked",
+				TxBytes: wantSomeBytes,
 			},
 		)
 	})
@@ -1723,8 +1746,9 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				assertConnectionReport(t, agentClient,
 					proto.ConnectEvent{Type: proto.Connection_SSH},
 					proto.DisconnectEvent{
-						Code:   agentssh.BlockedFileTransferErrorCode,
-						Reason: "file transfer blocked",
+						Code:    agentssh.BlockedFileTransferErrorCode,
+						Reason:  "file transfer blocked",
+						TxBytes: wantSomeBytes,
 					},
 				)
 			})
@@ -2427,14 +2451,20 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			idConnectionReport := uuid.New()
 			id := uuid.New()
 
-			// Test that the connection is reported. This must be tested in the
-			// first connection because we care about verifying all of these.
+			// Test that the connection is reported when closed. This must be tested
+			// in the first connection because we care about verifying all of these.
 			netConn0, err := conn.ReconnectingPTY(ctx, idConnectionReport, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			_ = netConn0.Close()
 			assertConnectionReport(t, agentClient,
 				proto.ConnectEvent{Type: proto.Connection_RECONNECTING_PTY},
-				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+				proto.DisconnectEvent{
+					Reason:  string(codersdk.DisconnectReasonGraceful),
+					RxBytes: wantSomeBytes, // should get bytes from the init message
+					// Depending on close timing, the prompt may not send in time, so skip
+					// checking the sent bytes.
+					TxBytes: wantIgnoreBytes,
+				},
 			)
 
 			// --norc disables executing .bashrc, which is often used to customize the bash prompt
@@ -4538,19 +4568,28 @@ func echoOnce(t *testing.T, ll net.Listener) {
 	}
 }
 
-// requireEcho sends 4 bytes and requires the read response to match what was sent.
-func requireEcho(t *testing.T, conn net.Conn) {
+// requireEcho sends 4 bytes and requires the read response to match what was
+// sent.  Returns the number of bytes written.
+func requireEcho(t *testing.T, conn net.Conn) int {
 	t.Helper()
-	_, err := conn.Write([]byte("test"))
+	written, err := conn.Write([]byte("test"))
 	require.NoError(t, err)
-	b := make([]byte, 4)
+	b := make([]byte, written)
 	_, err = conn.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, "test", string(b))
+	return written
 }
 
+const (
+	wantSomeBytes   int64 = -1
+	wantIgnoreBytes int64 = -2
+)
+
 // assertConnectionReport expects the provided connect and disconnect events
-// have been reported.
+// have been reported.  If the disconnection bytes are wantSomeBytes, assert the
+// bytes are > 0, if wantIgnoreBytes do not check the bytes, otherwise assert
+// they match exactly.
 func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	connect proto.ConnectEvent, disconnect proto.DisconnectEvent,
 ) {
@@ -4585,6 +4624,18 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client,
 	}
 	assert.Equal(t, connect.ClientSessionID, reports[0].GetConnection().GetClientSessionId(), "connect client session id should be %s", connect.ClientSessionID)
 	assert.Equal(t, connect.ClientSessionID, reports[1].GetConnection().GetClientSessionId(), "disconnect client session id should be %s", connect.ClientSessionID)
+	assert.Equal(t, int64(0), reports[0].GetConnection().GetRxBytes(), "connect rxbytes should be 0")
+	assert.Equal(t, int64(0), reports[0].GetConnection().GetTxBytes(), "connect txbytes should be 0")
+	if disconnect.RxBytes == wantSomeBytes {
+		assert.Greater(t, reports[1].GetConnection().GetRxBytes(), int64(0), "disconnect rx bytes should be greater than zero")
+	} else if disconnect.TxBytes != wantIgnoreBytes {
+		assert.Equal(t, disconnect.RxBytes, reports[1].GetConnection().GetRxBytes(), "disconnect rx bytes should be %d", disconnect.RxBytes)
+	}
+	if disconnect.TxBytes == wantSomeBytes {
+		assert.Greater(t, reports[1].GetConnection().GetTxBytes(), int64(0), "disconnect tx bytes should be greater than zero")
+	} else if disconnect.TxBytes != wantIgnoreBytes {
+		assert.Equal(t, disconnect.TxBytes, reports[1].GetConnection().GetTxBytes(), "disconnect tx bytes should be %d", disconnect.TxBytes)
+	}
 }
 
 func TestAgent_ToolCall(t *testing.T) {

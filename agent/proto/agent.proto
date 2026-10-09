@@ -395,6 +395,8 @@ message Connection {
 	int32 status_code = 6;
 	optional string reason = 7;
 	string client_session_id = 8;
+	int64 rx_bytes = 9;
+	int64 tx_bytes = 10;
 }
 
 message ReportConnectionRequest {

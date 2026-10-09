@@ -5826,6 +5826,10 @@ type ConnectionLog struct {
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
+	// Total bytes received by the agent on this connection. Null for web events and non-disconnect events.
+	RxBytes sql.NullInt64 `db:"rx_bytes" json:"rx_bytes"`
+	// Total bytes sent by the agent on this connection. Null for web events and non-disconnect events.
+	TxBytes sql.NullInt64 `db:"tx_bytes" json:"tx_bytes"`
 }
 
 type CryptoKey struct {

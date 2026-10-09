@@ -149,6 +149,8 @@ func connectionRequest(connect *proto.ConnectEvent, disconnect *proto.Disconnect
 		payload.Connection.Action = proto.Connection_DISCONNECT
 		payload.Connection.StatusCode = int32(disconnect.Code) //nolint:gosec
 		payload.Connection.Reason = &disconnect.Reason
+		payload.Connection.RxBytes = disconnect.RxBytes
+		payload.Connection.TxBytes = disconnect.TxBytes
 	}
 	return payload
 }
