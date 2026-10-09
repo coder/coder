@@ -44,7 +44,6 @@ import {
 	cancelChatEntity,
 	cancelChatListQueries,
 	cancelChatListRefetches,
-	cancelChatMessages,
 	cancelLoadedChatEntityRefetch,
 	chatACL,
 	chatACLKey,
@@ -88,7 +87,6 @@ import {
 	invalidateChatDiffContents,
 	invalidateChatEntity,
 	invalidateChatListQueries,
-	invalidateChatMessages,
 	invalidateChatPrompts,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
@@ -4332,22 +4330,6 @@ describe("semantic cache operations: exact invalidations", () => {
 		).not.toBe(true);
 	});
 
-	it("invalidateChatMessages touches only the messages entry", async () => {
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
-		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
-
-		await invalidateChatMessages(queryClient, "chat-1");
-
-		expect(
-			queryClient.getQueryState(chatMessagesKey("chat-1"))?.isInvalidated,
-		).toBe(true);
-		expect(
-			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
-			"detail entry should NOT be invalidated",
-		).not.toBe(true);
-	});
-
 	it("invalidateChatACL touches only the ACL entry", async () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(chatACLKey("chat-1"), {});
@@ -4627,18 +4609,6 @@ describe("semantic cache operations: cancellation", () => {
 		await resetUnloadedChatEntity(queryClient, "chat-1");
 
 		expect(resetSpy).not.toHaveBeenCalled();
-	});
-
-	it("cancelChatMessages cancels the exact messages entry", async () => {
-		const queryClient = createTestQueryClient();
-		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
-
-		await cancelChatMessages(queryClient, "chat-1");
-
-		expect(cancelSpy).toHaveBeenCalledWith({
-			queryKey: chatMessagesKey("chat-1"),
-			exact: true,
-		});
 	});
 });
 
@@ -5228,30 +5198,6 @@ describe("message upsert fan-out and history replacement", () => {
 			page.messages.map((message) => message.id),
 		);
 
-	it("keeps both a refetch's pages and a write made while it was in flight", async () => {
-		const queryClient = createTestQueryClient();
-		seedMessagePages(queryClient, {
-			pages: [messagesPage([1])],
-			pageParams: [undefined],
-		});
-
-		// The refetch reads message 2, sent from another tab. The stream then
-		// delivers message 3, and the refetch response arrives after it.
-		const response = createDeferred<InfMessages>();
-		const refetch = queryClient.prefetchQuery({
-			queryKey: chatMessagesKey("chat-1"),
-			queryFn: () => response.promise,
-		});
-		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(3)]);
-		response.resolve({
-			pages: [messagesPage([2, 1])],
-			pageParams: [undefined],
-		});
-		await refetch;
-
-		expect(cachedMessageIDs(queryClient)).toEqual([[3, 2, 1]]);
-	});
-
 	it("keeps both an older page and a write made while it was loading", async () => {
 		const queryClient = createTestQueryClient();
 		vi.mocked(API.experimental.getChatMessages).mockReset();
@@ -5287,71 +5233,6 @@ describe("message upsert fan-out and history replacement", () => {
 		await loadOlderChatMessages(queryClient, "chat-1");
 
 		expect(API.experimental.getChatMessages).not.toHaveBeenCalled();
-	});
-
-	it("keeps both an older page and a write made while it was loading (fetchNextPage)", async () => {
-		const queryClient = createTestQueryClient();
-		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
-		const observer = new InfiniteQueryObserver(queryClient, {
-			...chatMessagesForInfiniteScroll("chat-1"),
-			queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
-				pageParam === undefined
-					? Promise.resolve(messagesPage([3, 2], true))
-					: olderPage.promise,
-		});
-		await observer.refetch();
-
-		const nextPage = observer.fetchNextPage();
-		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(4)]);
-		olderPage.resolve(messagesPage([1]));
-		await nextPage;
-
-		expect(cachedMessageIDs(queryClient)).toEqual([[4, 3, 2], [1]]);
-	});
-
-	it("keeps a write made while the first page was loading", async () => {
-		const queryClient = createTestQueryClient();
-		const response = createDeferred<InfMessages>();
-		const load = queryClient.prefetchQuery({
-			queryKey: chatMessagesKey("chat-1"),
-			queryFn: () => response.promise,
-		});
-		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(2)]);
-		response.resolve({ pages: [messagesPage([1])], pageParams: [undefined] });
-		await load;
-
-		expect(cachedMessageIDs(queryClient)).toEqual([[2, 1]]);
-	});
-
-	it("does not apply a write again after the fetch it was made during fails", async () => {
-		const queryClient = createTestQueryClient();
-		seedMessagePages(queryClient, {
-			pages: [messagesPage([1])],
-			pageParams: [undefined],
-		});
-
-		const failed = createDeferred<InfMessages>();
-		const failedFetch = queryClient.prefetchQuery({
-			queryKey: chatMessagesKey("chat-1"),
-			queryFn: () => failed.promise,
-		});
-		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(2)]);
-		failed.reject(new Error("network failure"));
-		await failedFetch;
-
-		// An edit then deleted message 2, and the next fetch reads that.
-		const response = createDeferred<InfMessages>();
-		const refetch = queryClient.prefetchQuery({
-			queryKey: chatMessagesKey("chat-1"),
-			queryFn: () => response.promise,
-		});
-		response.resolve({
-			pages: [messagesPage([3, 1])],
-			pageParams: [undefined],
-		});
-		await refetch;
-
-		expect(cachedMessageIDs(queryClient)).toEqual([[3, 1]]);
 	});
 });
 

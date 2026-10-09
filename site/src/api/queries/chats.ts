@@ -2,7 +2,6 @@ import isEqual from "lodash/isEqual";
 import {
 	type InfiniteData,
 	infiniteQueryOptions,
-	type Query,
 	type QueryClient,
 	type QueryKey,
 	queryOptions,
@@ -1046,15 +1045,6 @@ export const invalidateChatPrompts = (
 		exact: true,
 	});
 
-export const invalidateChatMessages = (
-	queryClient: QueryClient,
-	chatId: string,
-) =>
-	queryClient.invalidateQueries({
-		queryKey: chatMessagesKey(chatId),
-		exact: true,
-	});
-
 export const invalidateChatACL = (queryClient: QueryClient, chatId: string) =>
 	queryClient.invalidateQueries({
 		queryKey: chatACLKey(chatId),
@@ -1127,12 +1117,6 @@ export const resetUnloadedChatEntity = (
 	});
 };
 
-export const cancelChatMessages = (queryClient: QueryClient, chatId: string) =>
-	queryClient.cancelQueries({
-		queryKey: chatMessagesKey(chatId),
-		exact: true,
-	});
-
 export const removeChatEntity = (queryClient: QueryClient, chatId: string) =>
 	queryClient.removeQueries({
 		queryKey: chatEntityKey(chatId),
@@ -1169,80 +1153,19 @@ export const patchChatEntity = (
 	);
 
 type ChatMessagesData = InfiniteData<TypesGen.ChatMessagesResponse>;
-type ChatMessagesUpdater = (
-	data: ChatMessagesData | undefined,
-) => ChatMessagesData | undefined;
 
-const writesDuringFetch = new WeakMap<Query, ChatMessagesUpdater[]>();
-
-// reapplyAfterFetch applies write again when the query's fetch stores its
-// result. A refetch result is the server's response and a fetchNextPage
-// result is the pages cached when it started plus the new page, so either can
-// lack the write.
-const reapplyAfterFetch = (
-	queryClient: QueryClient,
-	query: Query,
-	queryKey: QueryKey,
-	write: ChatMessagesUpdater,
-) => {
-	const writes = writesDuringFetch.get(query);
-	if (writes) {
-		writes.push(write);
-		return;
-	}
-	writesDuringFetch.set(query, [write]);
-	const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-		if (event.query !== query) {
-			return;
-		}
-		const fetched =
-			event.type === "updated" &&
-			event.action.type === "success" &&
-			!event.action.manual;
-		const failed = event.type === "updated" && event.action.type === "error";
-		if (!fetched && !failed && event.type !== "removed") {
-			return;
-		}
-		const pending = writesDuringFetch.get(query) ?? [];
-		writesDuringFetch.delete(query);
-		unsubscribe();
-		if (!fetched) {
-			return;
-		}
-		// This runs inside the dispatch that stored the result, before React
-		// hooks are notified, so components never render the result without
-		// these writes.
-		for (const pendingWrite of pending) {
-			queryClient.setQueryData<ChatMessagesData | undefined>(
-				queryKey,
-				pendingWrite,
-			);
-		}
-	});
-};
-
-/**
- * Writes to a chat's messages cache, and again to the result of a fetch in
- * flight, which can lack the write. Applying a change twice is safe: a result
- * that already has it is unchanged, and any later change is applied after it
- * or follows on the stream. Restore a snapshot with setQueryData instead:
- * applied again, it would discard the fetched pages.
- */
+// Every write to a chat's messages after the first page loads is an update of
+// the current pages. Replacing them, as a refetch does, drops stream writes
+// made while it was in flight.
 export const patchChatMessages = (
 	queryClient: QueryClient,
 	chatId: string,
-	updater: ChatMessagesUpdater,
-) => {
-	const queryKey = chatMessagesKey(chatId);
-	const query = queryClient.getQueryCache().find({ queryKey, exact: true });
-	if (query && query.state.fetchStatus !== "idle") {
-		reapplyAfterFetch(queryClient, query, queryKey, updater);
-	}
-	return queryClient.setQueryData<ChatMessagesData | undefined>(
-		queryKey,
+	updater: (data: ChatMessagesData | undefined) => ChatMessagesData | undefined,
+) =>
+	queryClient.setQueryData<ChatMessagesData | undefined>(
+		chatMessagesKey(chatId),
 		updater,
 	);
-};
 
 const replaceMessagesInPage = (
 	page: TypesGen.ChatMessagesResponse,
