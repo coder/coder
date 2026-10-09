@@ -34,22 +34,12 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 				"cursor-pointer",
 				selected ? "border-border-pending" : "border-border",
 			)}
-			onClick={(e) => {
-				// The checkbox and the details link handle their own clicks.
-				if (e.target instanceof Element && e.target.closest("a, button")) {
-					return;
-				}
-				onSelect?.();
-			}}
+			onClick={() => onSelect?.()}
 		>
 			<div className="flex items-start justify-between mb-3">
 				<Avatar src={iconUrl} size="lg" variant="icon" />
-				<Checkbox
-					checked={selected}
-					onCheckedChange={() => onSelect?.()}
-					aria-labelledby={nameId}
-					className="m-0"
-				/>
+				{/* No change handler: clicks and Space bubble up to the card. */}
+				<Checkbox checked={selected} aria-labelledby={nameId} className="m-0" />
 			</div>
 
 			<div className="flex flex-col gap-2">

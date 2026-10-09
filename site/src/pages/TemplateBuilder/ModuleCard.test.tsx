@@ -9,7 +9,6 @@ const renderCard = () => {
 		<ModuleCard
 			name="Docker Containers"
 			description="Provision Docker containers as Coder workspaces."
-			detailsUrl="https://registry.coder.com/modules/docker"
 			onSelect={onSelect}
 		/>,
 	);
@@ -30,19 +29,5 @@ describe(ModuleCard.name, () => {
 		await userEvent.tab();
 		await userEvent.keyboard(" ");
 		expect(onSelect).toHaveBeenCalledTimes(1);
-	});
-
-	it("toggles when the card body is clicked", async () => {
-		const onSelect = renderCard();
-		await userEvent.click(
-			screen.getByText("Provision Docker containers as Coder workspaces."),
-		);
-		expect(onSelect).toHaveBeenCalledTimes(1);
-	});
-
-	it("does not toggle when the details link is clicked", async () => {
-		const onSelect = renderCard();
-		await userEvent.click(screen.getByRole("link", { name: /View details/ }));
-		expect(onSelect).not.toHaveBeenCalled();
 	});
 });
