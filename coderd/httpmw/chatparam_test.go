@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestChatParam(t *testing.T) {
@@ -138,5 +139,62 @@ func TestChatParam(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("DeletedProject", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		rtr := chi.NewRouter()
+		rtr.Use(
+			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+				DB:              db,
+				RedirectToLogin: false,
+			}),
+			httpmw.ExtractChatParam(db),
+		)
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			_ = httpmw.ChatParam(r)
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		user := dbgen.User(t, db, database.User{})
+		_, token := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+		org := dbgen.Organization(t, db, database.Organization{})
+		project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+		seed := insertChat(t, db, user.ID, org.ID)
+		root := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: seed.LastModelConfigID,
+			ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+		})
+		child := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: seed.LastModelConfigID,
+			ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+		})
+
+		status := func(chatID uuid.UUID) int {
+			r := httptest.NewRequest("GET", "/", nil)
+			r.Header.Set(codersdk.SessionTokenHeader, token)
+			routeCtx := chi.NewRouteContext()
+			routeCtx.URLParams.Add("chat", chatID.String())
+			r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeCtx))
+			rw := httptest.NewRecorder()
+			rtr.ServeHTTP(rw, r)
+			res := rw.Result()
+			defer res.Body.Close()
+			return res.StatusCode
+		}
+		require.Equal(t, http.StatusOK, status(root.ID))
+		require.Equal(t, http.StatusOK, status(child.ID))
+
+		require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+		require.Equal(t, http.StatusNotFound, status(root.ID))
+		require.Equal(t, http.StatusNotFound, status(child.ID))
 	})
 }

@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -2227,6 +2228,399 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	disabledRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedRecipient)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uuid.UUID{recipientChat.ID}, chatIDs(disabledRows))
+}
+
+func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	direct := dbgen.User(t, db, database.User{})
+	groupMember := dbgen.User(t, db, database.User{})
+	orgMember := dbgen.User(t, db, database.User{})
+	wildcard := dbgen.User(t, db, database.User{})
+	outsider := dbgen.User(t, db, database.User{})
+	for _, user := range []database.User{owner, direct, groupMember, orgMember, wildcard} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	}
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: outsider.ID, OrganizationID: otherOrg.ID})
+	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: groupMember.ID, GroupID: group.ID})
+
+	read := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+	share := func(project database.ChatProject, users, groups database.ChatACL) {
+		t.Helper()
+		require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+			ID: project.ID, UserACL: users, GroupACL: groups,
+		}))
+	}
+	private := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	userShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(userShared, database.ChatACL{direct.ID.String(): read}, database.ChatACL{})
+	groupShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(groupShared, database.ChatACL{}, database.ChatACL{group.ID.String(): read})
+	everyoneShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(everyoneShared, database.ChatACL{}, database.ChatACL{org.ID.String(): read})
+	outsiderShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(outsiderShared, database.ChatACL{outsider.ID.String(): read}, database.ChatACL{})
+	noReadEntry := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionShare}}
+	noRead := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(noRead, database.ChatACL{direct.ID.String(): noReadEntry}, database.ChatACL{})
+	groupNoRead := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(groupNoRead, database.ChatACL{}, database.ChatACL{group.ID.String(): noReadEntry})
+	everyoneNoRead := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(everyoneNoRead, database.ChatACL{}, database.ChatACL{org.ID.String(): noReadEntry})
+	wildcardShared := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	wildcardEntry := database.ChatACLEntry{Permissions: []policy.Action{policy.WildcardSymbol}}
+	share(wildcardShared, database.ChatACL{wildcard.ID.String(): wildcardEntry}, database.ChatACL{})
+	groupWildcard := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(groupWildcard, database.ChatACL{}, database.ChatACL{group.ID.String(): wildcardEntry})
+	everyoneWildcard := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	share(everyoneWildcard, database.ChatACL{}, database.ChatACL{org.ID.String(): wildcardEntry})
+	all := []uuid.UUID{private.ID, userShared.ID, groupShared.ID, everyoneShared.ID, outsiderShared.ID, noRead.ID, groupNoRead.ID, everyoneNoRead.ID, wildcardShared.ID, groupWildcard.ID, everyoneWildcard.ID}
+
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	ids := func(projects []database.ChatProject) []uuid.UUID {
+		got := make([]uuid.UUID, 0, len(projects))
+		for _, project := range projects {
+			got = append(got, project.ID)
+		}
+		return got
+	}
+
+	for _, tc := range []struct {
+		name       string
+		user       database.User
+		raw        []uuid.UUID
+		authorized []uuid.UUID
+	}{
+		{"Direct", direct, []uuid.UUID{userShared.ID, everyoneShared.ID, noRead.ID, everyoneNoRead.ID, everyoneWildcard.ID}, []uuid.UUID{userShared.ID, everyoneShared.ID, everyoneWildcard.ID}},
+		{"Group", groupMember, []uuid.UUID{groupShared.ID, everyoneShared.ID, groupNoRead.ID, everyoneNoRead.ID, groupWildcard.ID, everyoneWildcard.ID}, []uuid.UUID{groupShared.ID, everyoneShared.ID, groupWildcard.ID, everyoneWildcard.ID}},
+		{"Everyone", orgMember, []uuid.UUID{everyoneShared.ID, everyoneNoRead.ID, everyoneWildcard.ID}, []uuid.UUID{everyoneShared.ID, everyoneWildcard.ID}},
+		{"Wildcard", wildcard, []uuid.UUID{wildcardShared.ID, everyoneShared.ID, everyoneNoRead.ID, everyoneWildcard.ID}, []uuid.UUID{wildcardShared.ID, everyoneShared.ID, everyoneWildcard.ID}},
+		{"Outsider", outsider, nil, nil},
+	} {
+		projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, tc.user.ID)
+		require.NoError(t, err, tc.name)
+		require.ElementsMatch(t, tc.raw, ids(projects), tc.name)
+
+		subject, _, err := httpmw.UserRBACSubject(ctx, db, tc.user.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err, tc.name)
+		projects, err = authzdb.GetChatProjectsOwnedOrSharedWithUserID(dbauthz.As(ctx, subject), tc.user.ID)
+		require.NoError(t, err, tc.name)
+		require.ElementsMatch(t, tc.authorized, ids(projects), tc.name)
+
+		for _, projectID := range all {
+			accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{
+				ProjectID: projectID,
+				UserID:    tc.user.ID,
+			})
+			require.NoError(t, err, tc.name)
+			require.Equal(t, slices.Contains(tc.authorized, projectID), accessible, "%s: project %s", tc.name, projectID)
+		}
+	}
+
+	projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, owner.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, all, ids(projects))
+	for _, projectID := range all {
+		accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: projectID, UserID: owner.ID})
+		require.NoError(t, err)
+		require.True(t, accessible)
+	}
+}
+
+func TestChatProjectDeleteQueries(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	sharee := dbgen.User(t, db, database.User{})
+	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	newChat := func(ownerID uuid.UUID, projectID uuid.NullUUID, parent *database.Chat) database.Chat {
+		seed := database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelCfg.ID,
+			ProjectID:         projectID,
+		}
+		if parent != nil {
+			seed.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+			seed.RootChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+		}
+		return dbgen.Chat(t, db, seed)
+	}
+	inProject := uuid.NullUUID{UUID: project.ID, Valid: true}
+
+	ownerRoot := newChat(owner.ID, inProject, nil)
+	ownerChild := newChat(owner.ID, uuid.NullUUID{}, &ownerRoot)
+	shareeRoot := newChat(sharee.ID, inProject, nil)
+	unrelated := newChat(owner.ID, uuid.NullUUID{}, nil)
+	unrelatedChild := newChat(owner.ID, uuid.NullUUID{}, &unrelated)
+	otherProjectChat := newChat(owner.ID, uuid.NullUUID{UUID: otherProject.ID, Valid: true}, nil)
+	emptyProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	projectChatIDs := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID}
+
+	chats, err := db.GetChatProjectChatFamilies(ctx, project.ID)
+	require.NoError(t, err)
+	ids := make([]uuid.UUID, 0, len(chats))
+	for _, chat := range chats {
+		ids = append(ids, chat.ID)
+	}
+	require.ElementsMatch(t, projectChatIDs, ids)
+
+	linkFile := func(chatID uuid.UUID) uuid.UUID {
+		file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        owner.ID,
+			OrganizationID: org.ID,
+			Name:           "file.png",
+			Mimetype:       "image/png",
+			Data:           []byte("data"),
+		})
+		require.NoError(t, err)
+		_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{ChatID: chatID, MaxFileLinks: 10, FileIds: []uuid.UUID{file.ID}})
+		require.NoError(t, err)
+		return file.ID
+	}
+	hiddenFile := linkFile(ownerChild.ID)
+	visibleFile := linkFile(unrelated.ID)
+
+	accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: project.ID, UserID: owner.ID})
+	require.NoError(t, err)
+	require.True(t, accessible)
+
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'running', worker_id = $2, runner_id = $2 WHERE id = ANY($1)",
+		pq.Array([]uuid.UUID{ownerRoot.ID, unrelated.ID, otherProjectChat.ID}), uuid.New())
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'requires_action', requires_action_deadline_at = now() + interval '1 hour' WHERE id = $1", ownerChild.ID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'error', pin_order = 1, compaction_requested_at = now(), retry_state = '{}'::jsonb WHERE id = $1", shareeRoot.ID)
+	require.NoError(t, err)
+	for _, id := range []uuid.UUID{ownerRoot.ID, ownerChild.ID} {
+		_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{ChatID: id, Content: json.RawMessage(`[]`)})
+		require.NoError(t, err)
+	}
+	before := make(map[uuid.UUID]database.Chat, len(projectChatIDs))
+	for _, id := range projectChatIDs {
+		chat, err := db.GetChatByID(ctx, id)
+		require.NoError(t, err)
+		before[id] = chat
+	}
+
+	require.NoError(t, db.ArchiveChatsOfDeletedChatProject(ctx, project.ID))
+	require.NoError(t, db.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, project.ID))
+	for _, id := range projectChatIDs {
+		chat, err := db.GetChatByID(ctx, id)
+		require.NoError(t, err)
+		require.False(t, chat.Archived, "a live project's chats are not archived")
+	}
+	for _, id := range []uuid.UUID{ownerRoot.ID, ownerChild.ID} {
+		queued, err := db.CountChatQueuedMessages(ctx, id)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, queued, "a live project's queues are kept")
+	}
+
+	require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+	require.NoError(t, db.LockChatProjectRootChats(ctx, project.ID))
+	require.NoError(t, db.ArchiveChatsOfDeletedChatProject(ctx, project.ID))
+	require.NoError(t, db.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, project.ID))
+	for _, id := range projectChatIDs {
+		chat, err := db.GetChatByID(ctx, id)
+		require.NoError(t, err)
+		queued, err := db.CountChatQueuedMessages(ctx, id)
+		require.NoError(t, err)
+		want := chatstate.StateXW
+		if id == shareeRoot.ID {
+			want = chatstate.StateXE0
+		}
+		require.Equal(t, want, chatstate.ClassifyExecutionState(chat, queued > 0, true))
+		require.Zero(t, chat.PinOrder)
+		require.False(t, chat.WorkerID.Valid)
+		require.False(t, chat.RunnerID.Valid)
+		require.False(t, chat.RequiresActionDeadlineAt.Valid)
+		require.False(t, chat.CompactionRequestedAt.Valid)
+		require.False(t, chat.RetryState.Valid)
+		require.Greater(t, chat.SnapshotVersion, before[id].SnapshotVersion)
+		require.True(t, chat.UpdatedAt.After(before[id].UpdatedAt), "the archive starts the retention clock")
+		require.Equal(t, project.ID, chat.ProjectID.UUID)
+	}
+	for _, id := range []uuid.UUID{unrelated.ID, unrelatedChild.ID, otherProjectChat.ID} {
+		chat, err := db.GetChatByID(ctx, id)
+		require.NoError(t, err)
+		require.False(t, chat.Archived)
+	}
+
+	_, err = db.GetChatProjectByID(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetChatProjectByIDForUpdate(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetChatProjectByIDForShare(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{ID: project.ID, Name: "renamed"})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	accessible, err = db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: project.ID, UserID: owner.ID})
+	require.NoError(t, err)
+	require.False(t, accessible)
+	count, err := db.CountChatProjectsByOwnerID(ctx, owner.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, count)
+	for _, list := range []func(context.Context, uuid.UUID) ([]database.ChatProject, error){db.GetChatProjectsOwnedOrSharedWithUserID, db.GetChatProjectsByOwnerID} {
+		projects, err := list(ctx, owner.ID)
+		require.NoError(t, err)
+		listed := make([]uuid.UUID, 0, len(projects))
+		for _, p := range projects {
+			listed = append(listed, p.ID)
+		}
+		require.ElementsMatch(t, []uuid.UUID{otherProject.ID, emptyProject.ID}, listed)
+	}
+
+	for _, id := range projectChatIDs {
+		inDeleted, err := db.IsChatInDeletedChatProject(ctx, id)
+		require.NoError(t, err)
+		require.True(t, inDeleted)
+	}
+	inDeleted, err := db.IsChatInDeletedChatProject(ctx, unrelated.ID)
+	require.NoError(t, err)
+	require.False(t, inDeleted)
+
+	for _, archived := range []sql.NullBool{{}, {Bool: true, Valid: true}} {
+		rows, err := db.GetChats(ctx, database.GetChatsParams{Archived: archived})
+		require.NoError(t, err)
+		listed := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			listed = append(listed, row.Chat.ID)
+		}
+		require.NotContains(t, listed, ownerRoot.ID)
+		require.NotContains(t, listed, shareeRoot.ID)
+	}
+
+	fileChats, err := db.GetChatsByChatFileID(ctx, hiddenFile)
+	require.NoError(t, err)
+	require.Empty(t, fileChats)
+	fileChats, err = db.GetChatsByChatFileID(ctx, visibleFile)
+	require.NoError(t, err)
+	require.Len(t, fileChats, 1)
+
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET worker_id = NULL, runner_id = NULL WHERE id = ANY($1)",
+		pq.Array([]uuid.UUID{unrelated.ID, otherProjectChat.ID}))
+	require.NoError(t, err)
+	candidates, err := db.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{LimitCount: 10, StaleSeconds: 30})
+	require.NoError(t, err)
+	candidateIDs := make([]uuid.UUID, 0, len(candidates))
+	for _, candidate := range candidates {
+		candidateIDs = append(candidateIDs, candidate.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{unrelated.ID, otherProjectChat.ID}, candidateIDs)
+
+	// Retention may delete a root before its sub-chats.
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", ownerRoot.ID)
+	require.NoError(t, err)
+	inDeleted, err = db.IsChatInDeletedChatProject(ctx, ownerChild.ID)
+	require.NoError(t, err)
+	require.True(t, inDeleted, "an orphaned sub-chat stays in its deleted project")
+
+	removed, err := db.DeleteEmptyDeletedChatProjects(ctx, 10)
+	require.NoError(t, err)
+	require.Zero(t, removed, "a deleted project with chats left is kept")
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = ANY($1)", pq.Array(projectChatIDs))
+	require.NoError(t, err)
+	removed, err = db.DeleteEmptyDeletedChatProjects(ctx, 10)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, removed)
+	_, err = db.GetChatProjectByID(ctx, emptyProject.ID)
+	require.NoError(t, err, "a live project with no chats is not purged")
+}
+
+// TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation verifies that
+// LockChatProjectRootChats waits for a sub-chat insert holding the root, so
+// the archive, a later statement, includes the committed child.
+func TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+	})
+
+	childTx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = childTx.Rollback() }()
+	_, err = childTx.ExecContext(ctx, "SELECT id FROM chats WHERE id = $1 FOR SHARE", root.ID)
+	require.NoError(t, err)
+	childID := uuid.New()
+	_, err = childTx.ExecContext(ctx, `INSERT INTO chats (id, organization_id, owner_id, last_model_config_id, title, parent_chat_id, root_chat_id)
+		VALUES ($1, $2, $3, $4, 'child', $5, $5)`, childID, org.ID, owner.ID, modelCfg.ID, root.ID)
+	require.NoError(t, err)
+
+	deleteErr := make(chan error, 1)
+	go func() {
+		deleteErr <- db.InTx(func(tx database.Store) error {
+			if err := tx.UpdateChatProjectDeletedByID(ctx, project.ID); err != nil {
+				return err
+			}
+			if err := tx.LockChatProjectRootChats(ctx, project.ID); err != nil {
+				return err
+			}
+			return tx.ArchiveChatsOfDeletedChatProject(ctx, project.ID)
+		}, nil)
+	}()
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var waiting int
+		err := sqlDB.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM pg_stat_activity
+WHERE datname = current_database()
+	AND wait_event_type = 'Lock'
+	AND query LIKE '%-- name: LockChatProjectRootChats%'
+`).Scan(&waiting)
+		return err == nil && waiting == 1
+	}, testutil.IntervalFast, "wait for the root lock to block on the child insert")
+	require.NoError(t, childTx.Commit())
+	require.NoError(t, testutil.TryReceive(ctx, t, deleteErr))
+
+	child, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	require.True(t, child.Archived, "a child committed during the root lock wait is archived")
 }
 
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.

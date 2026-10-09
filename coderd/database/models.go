@@ -544,6 +544,7 @@ const (
 	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
 	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
+	ApiKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -839,7 +840,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
-		ApiKeyScopeChatProjectMemoryDelete:
+		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeChatProjectShare:
 		return true
 	}
 	return false
@@ -1104,6 +1106,7 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
 		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeChatProjectShare,
 	}
 }
 
@@ -5681,6 +5684,12 @@ type ChatProject struct {
 	Icon      string    `db:"icon" json:"icon"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// Users the project is shared with, keyed by user ID.
+	UserACL ChatACL `db:"user_acl" json:"user_acl"`
+	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
+	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
+	// Irreversible. Chat retention deletes the project's archived chats; dbpurge then deletes the row.
+	Deleted bool `db:"deleted" json:"deleted"`
 }
 
 // Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.

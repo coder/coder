@@ -124,9 +124,10 @@ func TestChatSharingPermissions(t *testing.T) {
 	}
 	orgID := uuid.New()
 	userID := uuid.NewString()
-	resource := rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(userID)
+	chatResource := rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(userID)
+	projectResource := rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(userID)
 
-	authorizeOrgMember := func(t *testing.T) error {
+	authorizeOrgMember := func(t *testing.T, resource rbac.Object) error {
 		t.Helper()
 
 		memberRole, err := rbac.RoleByName(rbac.RoleMember())
@@ -159,7 +160,8 @@ func TestChatSharingPermissions(t *testing.T) {
 		memberRole, err := rbac.RoleByName(rbac.RoleMember())
 		require.NoError(t, err)
 		assert.False(t, permissionGranted(memberRole.Site, target))
-		require.NoError(t, authorizeOrgMember(t))
+		require.NoError(t, authorizeOrgMember(t, chatResource))
+		require.NoError(t, authorizeOrgMember(t, projectResource))
 	})
 
 	t.Run("Disabled", func(t *testing.T) {
@@ -172,7 +174,9 @@ func TestChatSharingPermissions(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, permissionGranted(memberRole.Site, target))
 
-		err = authorizeOrgMember(t)
+		err = authorizeOrgMember(t, chatResource)
+		require.ErrorAs(t, err, &rbac.UnauthorizedError{})
+		err = authorizeOrgMember(t, projectResource)
 		require.ErrorAs(t, err, &rbac.UnauthorizedError{})
 	})
 }
@@ -1494,7 +1498,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "ChatProjectManage",
-			Actions:  []policy.Action{policy.ActionUpdate, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
 			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgAgentsAccessUser},

@@ -23,4 +23,4 @@ Viewers have read-only access: they cannot send or edit messages, regenerate the
 
 ## Disable chat sharing
 
-Administrators can disable chat sharing for a deployment with `--disable-chat-sharing`, `CODER_DISABLE_CHAT_SHARING`, or `disableChatSharing`. When disabled, only chat owners can access their chats.
+Administrators can disable chat sharing for a deployment with `--disable-chat-sharing`, `CODER_DISABLE_CHAT_SHARING`, or `disableChatSharing`. The flag also turns off chat project sharing. While it is set, existing shares are ignored, new shares are rejected, and only creators and administrators can access chats and chat projects.

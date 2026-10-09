@@ -308,6 +308,53 @@ func TestUpdateChatACLByIDGuards(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // It toggles the global chat ACL flag.
+func TestIsChatProjectAccessibleByUserIDDisabled(t *testing.T) {
+	rbac.SetChatACLDisabled(true)
+	t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	project := database.ChatProject{ID: uuid.New(), OwnerID: uuid.New()}
+	db.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).Times(2)
+	q := dbauthz.New(db, &coderdtest.FakeAuthorizer{}, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+	ctx := dbauthz.As(context.Background(), rbac.Subject{ID: uuid.NewString(), Scope: rbac.ScopeAll})
+
+	accessible, err := q.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: project.ID, UserID: project.OwnerID})
+	require.NoError(t, err)
+	require.True(t, accessible)
+	accessible, err = q.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: project.ID, UserID: uuid.New()})
+	require.NoError(t, err)
+	require.False(t, accessible)
+
+	missing := uuid.New()
+	db.EXPECT().GetChatProjectByID(gomock.Any(), missing).Return(database.ChatProject{}, sql.ErrNoRows)
+	accessible, err = q.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: missing, UserID: project.OwnerID})
+	require.NoError(t, err)
+	require.False(t, accessible)
+}
+
+//nolint:paralleltest // It toggles the global chat ACL flag.
+func TestUpdateChatProjectACLByIDDisabled(t *testing.T) {
+	rbac.SetChatACLDisabled(true)
+	t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	q := dbauthz.New(db, &coderdtest.FakeAuthorizer{}, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+	ctx := dbauthz.As(context.Background(), rbac.Subject{ID: uuid.NewString(), Scope: rbac.ScopeAll})
+
+	err := q.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       uuid.New(),
+		UserACL:  database.ChatACL{},
+		GroupACL: database.ChatACL{},
+	})
+	require.True(t, dbauthz.IsNotAuthorizedError(err))
+	require.ErrorContains(t, err, "chat sharing is disabled")
+}
+
 func TestUpdateChatModelConfigACLByIDAuthorization(t *testing.T) {
 	t.Parallel()
 
@@ -1343,6 +1390,58 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProjectsByOwnerID(gomock.Any(), ownerID).Return(rows, nil).AnyTimes()
 		check.Args(ownerID).Asserts(project, policy.ActionRead).Returns(rows)
 	}))
+	s.Run("GetChatProjectsOwnedOrSharedWithUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		userID := uuid.New()
+		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: userID})
+		rows := []database.ChatProject{project}
+		dbm.EXPECT().GetChatProjectsOwnedOrSharedWithUserID(gomock.Any(), userID).Return(rows, nil).AnyTimes()
+		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("GetChatProjectChatFamilies", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		projectID := uuid.New()
+		dbm.EXPECT().GetChatProjectChatFamilies(gomock.Any(), projectID).Return([]database.Chat{chat}, nil).AnyTimes()
+		check.Args(projectID).Asserts(rbac.ResourceChat, policy.ActionRead).Returns([]database.Chat{chat})
+	}))
+	s.Run("ArchiveChatsOfDeletedChatProject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().ArchiveChatsOfDeletedChatProject(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
+	}))
+	s.Run("DeleteChatQueuedMessagesOfDeletedChatProject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().DeleteChatQueuedMessagesOfDeletedChatProject(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
+	}))
+	s.Run("LockChatProjectRootChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().LockChatProjectRootChats(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
+	}))
+	s.Run("DeleteEmptyDeletedChatProjects", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteEmptyDeletedChatProjects(gomock.Any(), int32(10)).Return(int64(0), nil).AnyTimes()
+		check.Args(int32(10)).Asserts(rbac.ResourceSystem, policy.ActionDelete).Returns(int64(0))
+	}))
+	s.Run("IsChatInDeletedChatProject", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().IsChatInDeletedChatProject(gomock.Any(), chat.ID).Return(false, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(false)
+	}))
+	s.Run("IsChatProjectAccessibleByUserID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.IsChatProjectAccessibleByUserIDParams{ProjectID: uuid.New(), UserID: uuid.New()}
+		dbm.EXPECT().IsChatProjectAccessibleByUserID(gomock.Any(), arg).Return(true, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatProject, policy.ActionRead).Returns(true)
+	}))
+	s.Run("GetChatProjectByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		dbm.EXPECT().GetChatProjectByIDForUpdate(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		check.Args(project.ID).Asserts(project, policy.ActionRead).Returns(project)
+	}))
+	s.Run("GetChatProjectByIDForShare", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		dbm.EXPECT().GetChatProjectByIDForShare(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		check.Args(project.ID).Asserts(project, policy.ActionRead).Returns(project)
+	}))
 	s.Run("GetChatProjectByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
 		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
@@ -1490,6 +1589,12 @@ func (s *MethodTestSuite) TestChats() {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
 		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
 		dbm.EXPECT().DeleteChatProjectByID(gomock.Any(), project.ID).Return(nil).AnyTimes()
+		check.Args(project.ID).Asserts(project, policy.ActionDelete)
+	}))
+	s.Run("UpdateChatProjectDeletedByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatProjectDeletedByID(gomock.Any(), project.ID).Return(nil).AnyTimes()
 		check.Args(project.ID).Asserts(project, policy.ActionDelete)
 	}))
 	s.Run("GetChatPlanModeInstructions", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -1977,6 +2082,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatLastModelConfigByID(gomock.Any(), arg).Return(chat, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
+	}))
+	s.Run("UpdateChatProjectACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.UpdateChatProjectACLByIDParams{ID: project.ID, UserACL: database.ChatACL{}, GroupACL: database.ChatACL{}}
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatProjectACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionShare).Returns()
 	}))
 	s.Run("UpdateChatProjectByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})

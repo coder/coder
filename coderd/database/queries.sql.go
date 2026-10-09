@@ -8478,10 +8478,54 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 	return i, err
 }
 
+const archiveChatsOfDeletedChatProject = `-- name: ArchiveChatsOfDeletedChatProject :exec
+WITH family AS (
+    SELECT chats.id
+    FROM chats
+    JOIN chat_projects ON chat_projects.id = chats.project_id
+    WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
+    UNION ALL
+    SELECT child.id
+    FROM chats child
+    JOIN chats root ON root.id = child.root_chat_id
+    JOIN chat_projects ON chat_projects.id = root.project_id
+    WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
+)
+UPDATE chats
+SET
+    archived = true,
+    project_id = $1::uuid,
+    pin_order = 0,
+    status = CASE WHEN status = 'error'::chat_status THEN 'error'::chat_status ELSE 'waiting'::chat_status END,
+    worker_id = NULL,
+    runner_id = NULL,
+    requires_action_deadline_at = NULL,
+    compaction_requested_at = NULL,
+    retry_state = NULL,
+    snapshot_version = snapshot_version + 1,
+    updated_at = now()
+WHERE id IN (SELECT id FROM family)
+`
+
+// Execution-state transition outside the chatstate machine: moves every
+// family member of a deleted project to archived waiting, or archived error
+// from error; once step 5 clears the queue these are StateXW and StateXE0.
+// It publishes nothing, so callers publish chat:update per chat. Clearing
+// the runner makes heartbeat renewal stop matching, so workers stop;
+// archived roots refuse new sub-chats. Sub-chats get the project ID so they
+// stay in the deleted project if retention deletes their root first. Run it
+// before clearing the queue, so a send waiting on a chat lock reads the
+// archived state and is refused. Keep the SET list in sync with
+// UpdateChatExecutionState.
+func (q *sqlQuerier) ArchiveChatsOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, archiveChatsOfDeletedChatProject, projectID)
+	return err
+}
+
 const countChatProjectsByOwnerID = `-- name: CountChatProjectsByOwnerID :one
 SELECT COUNT(*)::bigint
 FROM chat_projects
-WHERE owner_id = $1::uuid
+WHERE owner_id = $1::uuid AND NOT deleted
 `
 
 func (q *sqlQuerier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
@@ -8501,10 +8545,53 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 	return err
 }
 
+const deleteChatQueuedMessagesOfDeletedChatProject = `-- name: DeleteChatQueuedMessagesOfDeletedChatProject :exec
+DELETE FROM chat_queued_messages
+WHERE chat_id IN (
+    SELECT chats.id
+    FROM chats
+    JOIN chat_projects ON chat_projects.id = chats.project_id
+    WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
+    UNION ALL
+    SELECT child.id
+    FROM chats child
+    JOIN chats root ON root.id = child.root_chat_id
+    JOIN chat_projects ON chat_projects.id = root.project_id
+    WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
+)
+`
+
+// Lives here rather than with the other queue queries because it is a step
+// of the project delete; see UpdateChatProjectDeletedByID.
+func (q *sqlQuerier) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesOfDeletedChatProject, projectID)
+	return err
+}
+
+const deleteEmptyDeletedChatProjects = `-- name: DeleteEmptyDeletedChatProjects :execrows
+WITH empty AS (
+    SELECT chat_projects.id
+    FROM chat_projects
+    WHERE chat_projects.deleted
+        AND NOT EXISTS (SELECT 1 FROM chats WHERE chats.project_id = chat_projects.id)
+    LIMIT $1
+)
+DELETE FROM chat_projects
+WHERE id IN (SELECT id FROM empty)
+`
+
+func (q *sqlQuerier) DeleteEmptyDeletedChatProjects(ctx context.Context, limitCount int32) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteEmptyDeletedChatProjects, limitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 FROM chat_projects
-WHERE id = $1::uuid
+WHERE id = $1::uuid AND NOT deleted
 `
 
 func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error) {
@@ -8519,14 +8606,162 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 		&i.Icon,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.Deleted,
 	)
 	return i, err
 }
 
-const getChatProjectsByOwnerID = `-- name: GetChatProjectsByOwnerID :many
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at
+const getChatProjectByIDForShare = `-- name: GetChatProjectByIDForShare :one
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 FROM chat_projects
-WHERE owner_id = $1::uuid
+WHERE id = $1::uuid AND NOT deleted
+FOR SHARE
+`
+
+// Root chat creation in a project must hold this until its insert commits,
+// so a concurrent project delete either archives the new chat or makes
+// this return no rows.
+func (q *sqlQuerier) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectByIDForShare, id)
+	var i ChatProject
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const getChatProjectByIDForUpdate = `-- name: GetChatProjectByIDForUpdate :one
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
+FROM chat_projects
+WHERE id = $1::uuid AND NOT deleted
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectByIDForUpdate, id)
+	var i ChatProject
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Description,
+		&i.Icon,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const getChatProjectChatFamilies = `-- name: GetChatProjectChatFamilies :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at, automation_id, manage_automations_enabled
+FROM chats_expanded
+WHERE id IN (
+    SELECT chats.id FROM chats WHERE chats.project_id = $1::uuid
+    UNION ALL
+    SELECT child.id
+    FROM chats child
+    JOIN chats root ON root.id = child.root_chat_id
+    WHERE root.project_id = $1::uuid
+)
+ORDER BY id
+`
+
+func (q *sqlQuerier) GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectChatFamilies, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+			&i.CompactionRequestedAt,
+			&i.TitleSource,
+			&i.TitleUpdatedAt,
+			&i.AutomationID,
+			&i.ManageAutomationsEnabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatProjectsByOwnerID = `-- name: GetChatProjectsByOwnerID :many
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
+FROM chat_projects
+WHERE owner_id = $1::uuid AND NOT deleted
 ORDER BY lower(name), id
 `
 
@@ -8548,6 +8783,73 @@ func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.
 			&i.Icon,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.Deleted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
+SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.deleted
+FROM chat_projects
+WHERE NOT chat_projects.deleted AND (chat_projects.owner_id = $1::uuid
+    OR (
+        (
+            chat_projects.user_acl ? ($1::uuid)::text
+            OR chat_projects.group_acl ?| ARRAY(
+                SELECT group_members.group_id::text
+                FROM group_members
+                WHERE group_members.user_id = $1::uuid
+                UNION ALL
+                SELECT organization_members.organization_id::text
+                FROM organization_members
+                WHERE organization_members.user_id = $1::uuid
+            )
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM organization_members
+            WHERE organization_members.user_id = $1::uuid
+                AND organization_members.organization_id = chat_projects.organization_id
+        )
+    ))
+ORDER BY lower(chat_projects.name), chat_projects.id
+`
+
+// Entries match regardless of the actions they grant, so callers must
+// authorize each row.
+func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectsOwnedOrSharedWithUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProject
+	for rows.Next() {
+		var i ChatProject
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Description,
+			&i.Icon,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}
@@ -8572,7 +8874,7 @@ VALUES (
     $5::text,
     $6::text
 )
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 `
 
 type InsertChatProjectParams struct {
@@ -8603,8 +8905,105 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.Icon,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.Deleted,
 	)
 	return i, err
+}
+
+const isChatInDeletedChatProject = `-- name: IsChatInDeletedChatProject :one
+SELECT EXISTS (
+    SELECT 1
+    FROM chats c
+    JOIN chats root ON root.id = COALESCE(c.root_chat_id, c.parent_chat_id, c.id)
+    JOIN chat_projects ON chat_projects.id = root.project_id
+    WHERE c.id = $1::uuid AND chat_projects.deleted
+)::boolean
+`
+
+func (q *sqlQuerier) IsChatInDeletedChatProject(ctx context.Context, chatID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isChatInDeletedChatProject, chatID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const isChatProjectAccessibleByUserID = `-- name: IsChatProjectAccessibleByUserID :one
+SELECT EXISTS (
+    SELECT 1
+    FROM chat_projects
+    WHERE chat_projects.id = $1::uuid
+        AND NOT chat_projects.deleted
+        AND (
+            chat_projects.owner_id = $2::uuid
+            OR (
+                EXISTS (
+                    SELECT 1
+                    FROM organization_members
+                    WHERE organization_members.user_id = $2::uuid
+                        AND organization_members.organization_id = chat_projects.organization_id
+                )
+                AND (
+                    chat_projects.user_acl -> ($2::uuid)::text -> 'permissions' ?| ARRAY['read', '*']
+                    OR chat_projects.group_acl -> chat_projects.organization_id::text -> 'permissions' ?| ARRAY['read', '*']
+                    OR EXISTS (
+                        SELECT 1
+                        FROM group_members
+                        WHERE group_members.user_id = $2::uuid
+                            AND chat_projects.group_acl -> group_members.group_id::text -> 'permissions' ?| ARRAY['read', '*']
+                    )
+                )
+            )
+        )
+)::boolean
+`
+
+type IsChatProjectAccessibleByUserIDParams struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) IsChatProjectAccessibleByUserID(ctx context.Context, arg IsChatProjectAccessibleByUserIDParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isChatProjectAccessibleByUserID, arg.ProjectID, arg.UserID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const lockChatProjectRootChats = `-- name: LockChatProjectRootChats :exec
+SELECT id
+FROM chats
+WHERE project_id = $1::uuid AND parent_chat_id IS NULL
+ORDER BY id
+FOR UPDATE
+`
+
+// Sub-chat creation holds its root FOR SHARE, so this waits for it. At
+// READ COMMITTED, the default isolation, a later statement then sees every
+// child committed during the wait.
+func (q *sqlQuerier) LockChatProjectRootChats(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, lockChatProjectRootChats, projectID)
+	return err
+}
+
+const updateChatProjectACLByID = `-- name: UpdateChatProjectACLByID :exec
+UPDATE chat_projects
+SET
+    user_acl = $1,
+    group_acl = $2
+WHERE id = $3::uuid AND NOT deleted
+`
+
+type UpdateChatProjectACLByIDParams struct {
+	UserACL  ChatACL   `db:"user_acl" json:"user_acl"`
+	GroupACL ChatACL   `db:"group_acl" json:"group_acl"`
+	ID       uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatProjectACLByID(ctx context.Context, arg UpdateChatProjectACLByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatProjectACLByID, arg.UserACL, arg.GroupACL, arg.ID)
+	return err
 }
 
 const updateChatProjectByID = `-- name: UpdateChatProjectByID :one
@@ -8614,8 +9013,8 @@ SET
     description = $2::text,
     icon = $3::text,
     updated_at = now()
-WHERE id = $4::uuid
-RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at
+WHERE id = $4::uuid AND NOT deleted
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 `
 
 type UpdateChatProjectByIDParams struct {
@@ -8642,8 +9041,34 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		&i.Icon,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.Deleted,
 	)
 	return i, err
+}
+
+const updateChatProjectDeletedByID = `-- name: UpdateChatProjectDeletedByID :exec
+UPDATE chat_projects
+SET deleted = true, updated_at = now()
+WHERE id = $1::uuid AND NOT deleted
+`
+
+// Irreversible. The project delete must run, in one READ COMMITTED
+// transaction, in this order:
+//  1. GetChatProjectByIDForUpdate, which waits for root chat creations
+//     holding GetChatProjectByIDForShare;
+//  2. UpdateChatProjectDeletedByID;
+//  3. LockChatProjectRootChats;
+//  4. ArchiveChatsOfDeletedChatProject;
+//  5. DeleteChatQueuedMessagesOfDeletedChatProject.
+//
+// Calling this alone leaves the project's chats running and acquirable.
+// Steps 3 and 4 can deadlock with a chat purge that deletes the same
+// family in another order; callers retry the transaction.
+func (q *sqlQuerier) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, updateChatProjectDeletedByID, id)
+	return err
 }
 
 const acquireStaleChatDiffStatuses = `-- name: AcquireStaleChatDiffStatuses :many
@@ -11531,6 +11956,11 @@ WHERE
         WHEN $6 :: boolean IS NULL THEN true
         ELSE chats_expanded.archived = $6 :: boolean
     END
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chat_projects
+        WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
+    )
     AND CASE
         WHEN $7::uuid IS NOT NULL THEN chats_expanded.project_id = $7::uuid
         ELSE true
@@ -11883,6 +12313,14 @@ WHERE
         SELECT chat_id
         FROM chat_file_links
         WHERE file_id = $1::uuid
+    )
+    -- Chats of a deleted project stay archived until chat retention removes them.
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chats root
+        JOIN chat_projects ON chat_projects.id = root.project_id
+        WHERE root.id = COALESCE(chats_expanded.root_chat_id, chats_expanded.parent_chat_id, chats_expanded.id)
+            AND chat_projects.deleted
     )
     -- Authorize Filter clause will be injected below in GetAuthorizedChatsByChatFileID.
     -- @authorize_filter

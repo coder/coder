@@ -39,8 +39,8 @@ OPTIONS:
           chats run without their dynamic tools and inline MCP servers.
 
       --disable-chat-sharing bool, $CODER_DISABLE_CHAT_SHARING
-          Disable chat sharing. Chat ACL checking is disabled and only owners
-          can access their chats.
+          Disable chat and chat project sharing. Existing shares are ignored and
+          new shares are rejected; creators and administrators keep access.
 
       --disable-owner-workspace-access bool, $CODER_DISABLE_OWNER_WORKSPACE_ACCESS
           Remove the permission for the 'owner' role to have workspace execution

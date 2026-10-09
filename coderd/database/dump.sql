@@ -299,7 +299,8 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_project_memory:*',
     'chat_project_memory:create',
     'chat_project_memory:read',
-    'chat_project_memory:delete'
+    'chat_project_memory:delete',
+    'chat_project:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -2298,15 +2299,26 @@ CREATE TABLE chat_projects (
     icon text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
     CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
+    CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
     CONSTRAINT chat_projects_name_length CHECK ((length(name) <= 64)),
-    CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0))
+    CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0)),
+    CONSTRAINT chat_projects_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent chats.';
 
 COMMENT ON COLUMN chat_projects.icon IS 'Optional icon URL shown next to the project name.';
+
+COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, keyed by user ID.';
+
+COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
+
+COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. Chat retention deletes the project''s archived chats; dbpurge then deletes the row.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -5082,9 +5094,13 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 
 CREATE UNIQUE INDEX idx_chat_project_memories_project_lower_name ON chat_project_memories USING btree (project_id, lower(name));
 
+CREATE INDEX idx_chat_projects_group_acl ON chat_projects USING gin (group_acl);
+
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
 
 CREATE INDEX idx_chat_projects_owner_id ON chat_projects USING btree (owner_id);
+
+CREATE INDEX idx_chat_projects_user_acl ON chat_projects USING gin (user_acl);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 

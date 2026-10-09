@@ -173,20 +173,50 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 }
 
 func (p ChatProject) RBACObject() rbac.Object {
-	return rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.OwnerID.String())
+	obj := rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.OwnerID.String())
+	if rbac.ChatACLDisabled() {
+		return obj
+	}
+	return obj.
+		WithACLUserList(p.UserACL.RBACACL()).
+		WithGroupACL(p.GroupACL.RBACACL())
 }
 
-// RBACObject scopes a memory to its project so the project owner owns it.
-// Memories carry no owner of their own, so the parent project must be
-// supplied.
+// Agent memory tools run as chatd and bypass this ACL, so chatd must check
+// IsChatProjectAccessibleByUserID for the chat owner before running them.
+func chatProjectMemoryACL(projectACL ChatACL) map[string][]policy.Action {
+	memoryACL := make(map[string][]policy.Action, len(projectACL))
+	for id, entry := range projectACL {
+		if !chatACLGrants(entry, policy.ActionRead) {
+			continue
+		}
+		if chatACLGrants(entry, policy.ActionUpdate) {
+			memoryACL[id] = []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete}
+		} else {
+			memoryACL[id] = []policy.Action{policy.ActionRead}
+		}
+	}
+	return memoryACL
+}
+
+func chatACLGrants(entry ChatACLEntry, action policy.Action) bool {
+	return slices.Contains(entry.Permissions, action) || slices.Contains(entry.Permissions, policy.WildcardSymbol)
+}
+
+// RBACObject takes the parent project because memories store no owner.
 func (m ChatProjectMemory) RBACObject(project ChatProject) rbac.Object {
-	return rbac.ResourceChatProjectMemory.WithID(m.ID).InOrg(project.OrganizationID).WithOwner(project.OwnerID.String())
+	return ChatProjectMemoryRBACObject(project).WithID(m.ID)
 }
 
-// ChatProjectMemoryRBACObject is the object to authorize when creating a
-// memory in the project, before an ID exists.
+// ChatProjectMemoryRBACObject authorizes listing and creating a project's memories.
 func ChatProjectMemoryRBACObject(project ChatProject) rbac.Object {
-	return rbac.ResourceChatProjectMemory.InOrg(project.OrganizationID).WithOwner(project.OwnerID.String())
+	obj := rbac.ResourceChatProjectMemory.InOrg(project.OrganizationID).WithOwner(project.OwnerID.String())
+	if rbac.ChatACLDisabled() {
+		return obj
+	}
+	return obj.
+		WithACLUserList(chatProjectMemoryACL(project.UserACL)).
+		WithGroupACL(chatProjectMemoryACL(project.GroupACL))
 }
 
 func (c Chat) RBACObject() rbac.Object {
