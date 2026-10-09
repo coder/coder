@@ -238,6 +238,12 @@ type CreateTemplateRequest struct {
 	// template. Renaming can be destructive for templates whose Terraform
 	// references the workspace name, so this defaults to false.
 	AllowWorkspaceRenames *bool `json:"allow_workspace_renames,omitempty"`
+
+	// BrowserOnly makes coderd refuse non-browser client connections, such as
+	// SSH, port forwarding and desktop IDEs, to workspaces built from this
+	// template. Defaults to false. Enabling it requires the browser-only
+	// entitlement.
+	BrowserOnly *bool `json:"browser_only,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
