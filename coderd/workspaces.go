@@ -983,9 +983,7 @@ func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateV
 //   - ActionCreate on a workspace in the template's organization for the owner
 //   - ActionUse on the template
 //   - when the owner is not the caller, the same two checks evaluated as the
-//     owner, and rejection of owners that are not active (suspended or
-//     dormant: dormant accounts do not count toward licensed seats and are not
-//     active until they log in)
+//     owner, and rejection of suspended, dormant and non-member owners
 //   - reject deprecated templates
 //
 // It deliberately does not validate required external auth (that mutates the
@@ -1072,20 +1070,51 @@ func (api *API) authorizeWorkspaceOwner(ctx context.Context, ownerID uuid.UUID, 
 			Detail:  err.Error(),
 		})
 	}
-	if status != database.UserStatusActive {
+	org := template.OrganizationName
+	forbidden := func(message, detail string) error {
 		return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("User %q is not active.", subject.FriendlyName),
+			Message: message,
+			Detail:  detail,
+			Validations: []codersdk.ValidationError{{
+				Field:  "owner",
+				Detail: message,
+			}},
 		})
+	}
+	switch status {
+	case database.UserStatusSuspended:
+		return forbidden(
+			fmt.Sprintf("User %q is suspended.", subject.FriendlyName),
+			"Ask your Coder administrator to reactivate them.")
+	case database.UserStatusDormant:
+		return forbidden(
+			fmt.Sprintf("User %q is dormant.", subject.FriendlyName),
+			"They must log in to Coder first to reactivate their account.")
+	}
+	if member, err := subject.HasOrganizationMembership(template.OrganizationID); err != nil {
+		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace owner organization membership.",
+			Detail:  err.Error(),
+		})
+	} else if !member {
+		return forbidden(
+			fmt.Sprintf("User %q is not a member of organization %q.", subject.FriendlyName, org),
+			"Ask your Coder administrator to add them to the organization.")
 	}
 	switch denied, _ := api.deniedWorkspaceCreateAction(dbauthz.As(ctx, subject), ownerID, template); denied {
 	case policy.ActionCreate:
-		return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("User %q is not allowed to create workspaces in this organization.", subject.FriendlyName),
-		})
+		if slices.Contains(subject.SafeRoleNames(), rbac.ScopedRoleOrgWorkspaceCreationBan(template.OrganizationID)) {
+			return forbidden(
+				fmt.Sprintf("User %q is banned from creating workspaces in organization %q.", subject.FriendlyName, org),
+				"Ask your Coder administrator to lift the ban.")
+		}
+		return forbidden(
+			fmt.Sprintf("User %q is not allowed to create workspaces in organization %q.", subject.FriendlyName, org),
+			"Ask your Coder administrator to review their permissions.")
 	case policy.ActionUse:
-		return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("User %q is not allowed to use template %q.", subject.FriendlyName, template.Name),
-		})
+		return forbidden(
+			fmt.Sprintf("User %q does not have access to template %q.", subject.FriendlyName, template.Name),
+			"Ask your Coder administrator to grant them access.")
 	}
 	return nil
 }

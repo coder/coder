@@ -368,7 +368,9 @@ func TestCreateUserWorkspace(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
-		require.Equal(t, fmt.Sprintf("User %q is not allowed to create workspaces in this organization.", forUser.Username), apiErr.Message)
+		firstOrg, err := owner.Organization(ctx, first.OrganizationID)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("User %q is not a member of organization %q.", forUser.Username, firstOrg.Name), apiErr.Message)
 	})
 
 	// Asserting some authz calls when creating a workspace.
