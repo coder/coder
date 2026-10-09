@@ -1,7 +1,8 @@
 import { cn } from "cn";
-import { BadgeCheckIcon, CheckIcon } from "lucide-react";
+import { BadgeCheckIcon } from "lucide-react";
 import { useId } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { Link } from "#/components/Link/Link";
 
 type ModuleCardProps = {
@@ -25,40 +26,20 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 }) => {
 	const nameId = useId();
 	return (
+		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- Clicking the card is a mouse shortcut; keyboard users toggle the checkbox.
 		<div
-			role="checkbox"
-			aria-checked={selected}
-			aria-labelledby={nameId}
-			tabIndex={0}
 			className={cn(
 				"flex flex-col pt-4 px-4 pb-6 rounded",
 				"bg-surface-secondary border border-solid",
 				"cursor-pointer",
-				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
 				selected ? "border-border-pending" : "border-border",
 			)}
 			onClick={() => onSelect?.()}
-			onKeyDown={(e) => {
-				if (e.key === "Enter" || e.key === " ") {
-					e.preventDefault();
-					onSelect?.();
-				}
-			}}
 		>
 			<div className="flex items-start justify-between mb-3">
 				<Avatar src={iconUrl} size="lg" variant="icon" />
-				<div
-					aria-hidden="true"
-					className={cn(
-						"relative flex items-center justify-center size-4 rounded-xs mt-0.5 shrink-0",
-						"border border-solid border-border-secondary",
-						selected ? "bg-content-primary" : "bg-surface-secondary",
-					)}
-				>
-					{selected && (
-						<CheckIcon className="size-3 absolute text-content-invert" />
-					)}
-				</div>
+				{/* No change handler: clicks and Space bubble up to the card. */}
+				<Checkbox checked={selected} aria-labelledby={nameId} className="m-0" />
 			</div>
 
 			<div className="flex flex-col gap-2">
