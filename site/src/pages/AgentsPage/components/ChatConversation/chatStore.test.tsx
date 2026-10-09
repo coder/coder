@@ -4173,6 +4173,45 @@ describe("useChatStore", () => {
 		);
 	});
 
+	it("opens the stream at the history version of a page that loads after the chat opens", async () => {
+		mockWatchChatWithFreshSockets();
+		const chatID = "chat-loading-page";
+		const wrapper = createWrapper(createTestQueryClient());
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+
+		const initialProps: { page: TypesGen.ChatMessagesResponse | undefined } = {
+			page: undefined,
+		};
+		const { rerender } = renderHook(
+			(props: { page: TypesGen.ChatMessagesResponse | undefined }) => {
+				useChatStore({
+					chatID,
+					chatMessages: props.page?.messages,
+					chatRecord: buildChat(chatID),
+					chatRecordUpdatedAt: 0,
+					chatMessagesData: props.page,
+					chatQueuedMessages: props.page?.queued_messages,
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+			},
+			{ wrapper, initialProps },
+		);
+
+		rerender({
+			page: {
+				messages: [existingMessage],
+				queued_messages: [],
+				has_more: false,
+				history_version: 5,
+			},
+		});
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1, 5);
+		});
+	});
+
 	it("does not carry one chat's history version into another chat", async () => {
 		mockWatchChatWithFreshSockets();
 		const wrapper = createWrapper(createTestQueryClient());
