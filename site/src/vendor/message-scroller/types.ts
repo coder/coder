@@ -189,7 +189,8 @@ type MessageScrollerContextValue = {
   stateStore: MessageScrollerStore<MessageScrollerScrollable>
   syncAfterScroll: () => void
   unobserveVisibility: () => void
-  userScrollIntent: () => void
+  // LOCAL CHANGE: returns whether a sync at the end may resume following.
+  userScrollIntent: () => boolean
   // LOCAL CHANGE
   userLayoutIntent: (target: Element) => void
   viewportRef: React.RefObject<HTMLDivElement | null>

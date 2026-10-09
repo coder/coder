@@ -140,6 +140,9 @@ function MessageScroller({ children, ...props }: MessageScrollerProps) {
   )
 }
 
+// LOCAL CHANGE
+const TOWARD_END_KEYS = new Set(["ArrowDown", "End", "PageDown", " "])
+
 // LOCAL CHANGE: an overlay scrollbar takes no width, so a strip this wide at
 // the right edge stands in for its track.
 const OVERLAY_SCROLLBAR_WIDTH = 16
@@ -203,17 +206,23 @@ function MessageScrollerViewport({
     onScroll?.(event)
   }
 
-  // LOCAL CHANGE: a scrollbar drag fires no wheel, touch, or key event.
+  // LOCAL CHANGE: a scrollbar drag fires no wheel, touch, or key event. A
+  // press may start a drag up, so it syncs only once released.
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (isScrollbarPress(event)) {
-      userScrollIntent()
+    if (isScrollbarPress(event) && userScrollIntent()) {
+      event.currentTarget.addEventListener("pointerup", syncAfterScroll, {
+        once: true,
+      })
     }
 
     onPointerDown?.(event)
   }
 
   function handleWheel(event: React.WheelEvent<HTMLDivElement>) {
-    userScrollIntent()
+    // LOCAL CHANGE
+    if (userScrollIntent() && event.deltaY > 0) {
+      syncAfterScroll()
+    }
     onWheel?.(event)
   }
 
@@ -228,7 +237,14 @@ function MessageScrollerViewport({
       event.key === " " && event.target instanceof HTMLButtonElement
 
     if (USER_SCROLL_KEYS.has(event.key) && !activatesButton) {
-      userScrollIntent()
+      // LOCAL CHANGE
+      if (
+        userScrollIntent() &&
+        TOWARD_END_KEYS.has(event.key) &&
+        !(event.key === " " && event.shiftKey)
+      ) {
+        syncAfterScroll()
+      }
     }
 
     onKeyDown?.(event)

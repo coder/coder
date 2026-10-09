@@ -666,7 +666,12 @@ function useMessageScrollerController({
   )
 
   const userScrollIntent = React.useCallback(() => {
-    // LOCAL CHANGE
+    // LOCAL CHANGE: at the end, a gesture toward it fires no scroll event, so
+    // the caller may sync instead. Not from the anchor hold: its tail spacer
+    // reads as the end.
+    const canResumeFollowing =
+      modeRef.current === "following-bottom" ||
+      (followSuppressedRef.current && modeRef.current === "free-scrolling")
     followSuppressedRef.current = false
 
     if (
@@ -679,6 +684,8 @@ function useMessageScrollerController({
       streamingTurnRef.current = null
       modeRef.current = "free-scrolling"
     }
+
+    return canResumeFollowing // LOCAL CHANGE
   }, [])
 
   // LOCAL CHANGE: after a collapse clamps scrollTop at the bottom, Chromium

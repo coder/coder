@@ -341,6 +341,24 @@ describe("ToolCall in a MessageScroller", () => {
 		expect(await visibleRowsAfterLayout()).toContain("next");
 	});
 
+	it("resumes following after a wheel at the bottom after a collapse", async () => {
+		const user = userEvent.setup();
+		const update = renderTranscript([
+			history,
+			<ToolRow key="reply" defaultExpanded />,
+		]);
+		await user.click(toggle());
+		// The browser reports the collapse's clamp as a scroll.
+		fireEvent.scroll(viewport());
+		await visibleRowsAfterLayout();
+
+		// At the bottom, a wheel down moves nothing and fires no scroll.
+		fireEvent.wheel(viewport(), { deltaY: 100 });
+		await update([history, <ToolRow key="reply" defaultExpanded />, nextRow]);
+
+		expect(await visibleRowsAfterLayout()).toContain("next");
+	});
+
 	it("stays put when a collapse clamps the reader to the bottom", async () => {
 		const user = userEvent.setup();
 		const update = renderTranscript([
