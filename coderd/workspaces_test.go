@@ -612,41 +612,95 @@ func TestWorkspace(t *testing.T) {
 
 		goodClient, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
 
-		// When a user with workspace-creation-ban
-		client, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgWorkspaceCreationBan(first.OrganizationID))
-
 		// Ensure a similar user can create a workspace
 		coderdtest.CreateWorkspace(t, goodClient, template.ID)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		// Then: Cannot create a workspace
-		_, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
-			TemplateID:        template.ID,
-			TemplateVersionID: uuid.UUID{},
-			Name:              "random",
-		})
-		require.Error(t, err)
-		var apiError *codersdk.Error
-		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		// When: a user has a workspace and is then given workspace-creation-ban
+		client, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+		wrk := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
 
-		// When: workspace-ban use has a workspace
-		wrk, err := owner.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
-			TemplateID:        template.ID,
-			TemplateVersionID: uuid.UUID{},
-			Name:              "random",
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := owner.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, user.ID.String(), codersdk.UpdateRoles{
+			Roles: []string{codersdk.RoleOrganizationWorkspaceCreationBan},
 		})
 		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
+
+		// Then: Cannot create a workspace, not even by an admin on their behalf
+		for _, c := range []*codersdk.Client{client, owner} {
+			_, err = c.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+				TemplateID: template.ID,
+				Name:       "random",
+			})
+			var apiError *codersdk.Error
+			require.ErrorAs(t, err, &apiError)
+			require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		}
 
 		// Then: They cannot delete said workspace
 		_, err = client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
 			Transition:       codersdk.WorkspaceTransitionDelete,
 			ProvisionerState: []byte{},
 		})
-		require.Error(t, err)
+		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+	})
+
+	t.Run("OwnerChecks", func(t *testing.T) {
+		t.Parallel()
+		owner, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		first := coderdtest.CreateFirstUser(t, owner)
+		version := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version.ID)
+		template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version.ID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		create := func(user codersdk.User, template codersdk.Template, name string) error {
+			_, err := owner.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+				TemplateID: template.ID,
+				Name:       name,
+			})
+			return err
+		}
+		requireForbidden := func(err error, msg string) {
+			t.Helper()
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+			require.Equal(t, msg, apiErr.Message)
+		}
+
+		t.Run("Happy", func(t *testing.T) {
+			t.Parallel()
+			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+			require.NoError(t, create(member, template, "happy"))
+		})
+		t.Run("Suspended", func(t *testing.T) {
+			t.Parallel()
+			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+			_, err := owner.UpdateUserStatus(ctx, member.ID.String(), codersdk.UserStatusSuspended)
+			require.NoError(t, err)
+			requireForbidden(create(member, template, "suspended"), fmt.Sprintf("User %q is suspended.", member.Username))
+		})
+		t.Run("NoTemplateAccess", func(t *testing.T) {
+			t.Parallel()
+			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+			// Clear the ACLs (including the everyone group) so the member has no access.
+			// Use a dedicated template so the ACL change does not affect other cases.
+			privateVersion := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, owner, privateVersion.ID)
+			template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, privateVersion.ID)
+			admin, err := owner.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+			actor := dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin))
+			require.NoError(t, api.Database.UpdateTemplateACLByID(actor, database.UpdateTemplateACLByIDParams{
+				ID:       template.ID,
+				GroupACL: database.TemplateACL{},
+				UserACL:  database.TemplateACL{},
+			}))
+			requireForbidden(create(member, template, "noaccess"), fmt.Sprintf("User %q is not allowed to use template %q.", member.Username, template.Name))
+		})
 	})
 
 	t.Run("TemplateVersionPreset", func(t *testing.T) {

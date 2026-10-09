@@ -604,7 +604,7 @@ func createWorkspace(
 		opts = &createWorkspaceOptions{}
 	}
 
-	template, err := api.preflightWorkspaceCreate(ctx, owner.ID, req)
+	template, err := api.preflightWorkspaceCreate(ctx, initiatorID, owner.ID, req)
 	if err != nil {
 		return codersdk.Workspace{}, err
 	}
@@ -980,6 +980,9 @@ func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateV
 //   - resolve the template (requestTemplate)
 //   - ActionCreate on a workspace in the template's organization for the owner
 //   - ActionUse on the template
+//   - when the owner is not the caller, the same two checks evaluated as the
+//     owner, and rejection of suspended owners (dormant owners are allowed
+//     because they reactivate on login)
 //   - reject deprecated templates
 //
 // It deliberately does not validate required external auth (that mutates the
@@ -987,7 +990,7 @@ func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateV
 // the audit request, so callers retain control over audit-organization
 // assignment and external-auth ordering. Both createWorkspace and tasksCreate
 // call it so these authorization gates cannot diverge.
-func (api *API) preflightWorkspaceCreate(ctx context.Context, ownerID uuid.UUID, req codersdk.CreateWorkspaceRequest) (database.Template, error) {
+func (api *API) preflightWorkspaceCreate(ctx context.Context, initiatorID, ownerID uuid.UUID, req codersdk.CreateWorkspaceRequest) (database.Template, error) {
 	template, err := requestTemplate(ctx, req, api.Database)
 	if err != nil {
 		return database.Template{}, err
@@ -1019,6 +1022,12 @@ func (api *API) preflightWorkspaceCreate(ctx context.Context, ownerID uuid.UUID,
 		})
 	}
 
+	if initiatorID != ownerID {
+		if err := api.authorizeWorkspaceOwner(ctx, ownerID, template); err != nil {
+			return database.Template{}, err
+		}
+	}
+
 	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
 	if templateAccessControl.IsDeprecated() {
 		return database.Template{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
@@ -1029,6 +1038,37 @@ func (api *API) preflightWorkspaceCreate(ctx context.Context, ownerID uuid.UUID,
 	}
 
 	return template, nil
+}
+
+// authorizeWorkspaceOwner verifies that ownerID, evaluated as its own RBAC
+// subject, may create a workspace from template. Without it, a caller with
+// broad permissions could create workspaces for users who are suspended, are
+// banned from creating workspaces, or cannot use the template.
+func (api *API) authorizeWorkspaceOwner(ctx context.Context, ownerID uuid.UUID, template database.Template) error {
+	subject, status, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	if err != nil {
+		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace owner permissions.",
+			Detail:  err.Error(),
+		})
+	}
+	if status == database.UserStatusSuspended {
+		return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("User %q is suspended.", subject.FriendlyName),
+		})
+	}
+	if err := api.Authorizer.Authorize(ctx, subject, policy.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(ownerID.String())); err != nil {
+		return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("User %q is not allowed to create workspaces in this organization.", subject.FriendlyName),
+		})
+	}
+	if err := api.Authorizer.Authorize(ctx, subject, policy.ActionUse, template.RBACObject()); err != nil {
+		return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("User %q is not allowed to use template %q.", subject.FriendlyName, template.Name),
+		})
+	}
+	return nil
 }
 
 func requestTemplate(ctx context.Context, req codersdk.CreateWorkspaceRequest, db database.Store) (database.Template, error) {
