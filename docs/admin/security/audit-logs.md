@@ -685,6 +685,7 @@ Actions: `write`, `delete`
 <tr><td><code>autostart_block_days_of_week</code></td><td>Yes</td></tr>
 <tr><td><code>autostop_requirement_days_of_week</code></td><td>Yes</td></tr>
 <tr><td><code>autostop_requirement_weeks</code></td><td>Yes</td></tr>
+<tr><td><code>browser_only</code></td><td>Yes</td></tr>
 <tr><td><code>cors_behavior</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>created_by</code></td><td>Yes</td></tr>
