@@ -55,7 +55,7 @@ import {
 } from "./pasteHelpers";
 import {
 	createCommandMenuItem,
-	createSkillMenuItem,
+	createSkillMenuItems,
 	type SkillMenuItem,
 	type SkillMetadata,
 	SkillsTriggerMenu,
@@ -679,7 +679,7 @@ const ChatMessageInput = ({
 	// personal triggers qualified (a qualified alias always resolves) and
 	// treat the workspace list as still loading.
 	const workspaceSkillsKnown = !hasWorkspace || workspaceSkills !== undefined;
-	// A personal or workspace skill with the same name takes
+	// A personal, workspace, or plugin skill with the same name takes
 	// precedence over a built-in command: the composer's submit
 	// intercept defers to the skill, so the menu must not advertise a
 	// dead command entry. Until both skill lists resolve, a collision
@@ -720,23 +720,17 @@ const ChatMessageInput = ({
 		availableSlashCommands.map(createCommandMenuItem),
 		skillsSearchQuery,
 	);
-	const workspaceSkillNames = new Set(
-		loadedWorkspaceSkills.map((skill) => skill.name),
+	const skillMenuItems = createSkillMenuItems(
+		personalSkills,
+		loadedWorkspaceSkills,
+		workspaceSkillsKnown,
 	);
 	const personalSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
-		personalSkills.map((skill) =>
-			createSkillMenuItem(
-				"personal",
-				skill,
-				!workspaceSkillsKnown || workspaceSkillNames.has(skill.name),
-			),
-		),
+		skillMenuItems.personal,
 		skillsSearchQuery,
 	);
 	const workspaceSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
-		loadedWorkspaceSkills.map((skill) =>
-			createSkillMenuItem("workspace", skill),
-		),
+		skillMenuItems.workspace,
 		skillsSearchQuery,
 	);
 	// Commands come first so partitioned menu groups match selection order.
