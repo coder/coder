@@ -343,10 +343,11 @@ export const groupWorkingBlocks = (
 		// Completed reasoning alone stays visible. The live turn folds from its
 		// first reasoning, so thinking never shows and then vanishes once a tool
 		// call arrives, and unfolds only when a turn without steps answers.
-		// Labeled narration is work wherever it sits, so its block always stays.
+		// Labeled narration keeps its block so it never reads as the answer.
 		const foldsLiveTurn =
 			draft.containsLiveRow && options.isTurnActive && !draft.endsWithAnswer;
-		if (stepCount === 0 && !foldsLiveTurn && !draft.narrates) {
+		const keepsBlock = stepCount > 0 || foldsLiveTurn || draft.narrates;
+		if (!keepsBlock) {
 			continue;
 		}
 

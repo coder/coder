@@ -19972,7 +19972,7 @@
 					"type": "string"
 				},
 				"narration": {
-					"description": "Narration marks assistant text that the model labeled as commentary\non its work rather than its answer. Only providers that label their\noutput set it, currently the OpenAI Responses API.",
+					"description": "Narration marks assistant text that the model labeled as commentary\non its work rather than its answer. Only providers that label their\noutput set it.",
 					"type": "boolean"
 				},
 				"parsed_commands": {

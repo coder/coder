@@ -121,6 +121,30 @@ export const UncitedSearchAnswerFoldsExpanded: Story = {
 	},
 };
 
+export const LabeledNarrationFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			MockWorkingMessages[0],
+			{
+				...MockChatMessage,
+				id: 2,
+				role: "assistant",
+				created_at: workingFixtureTime(4),
+				content: [
+					{
+						type: "reasoning",
+						text: "Finding the docs page",
+						created_at: workingFixtureTime(1),
+						completed_at: workingFixtureTime(2),
+					},
+					{ type: "text", text: "Checking the docs.", narration: true },
+					{ type: "text", text: "The docs cover workspace sharing." },
+				],
+			},
+		]),
+	},
+};
+
 export const LeadInBeforeSearchFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockLeadInSearchMessages),

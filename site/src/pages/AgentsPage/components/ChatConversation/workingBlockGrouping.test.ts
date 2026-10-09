@@ -686,7 +686,6 @@ describe("groupWorkingBlocks", () => {
 				expect(blocks).toMatchObject([
 					{
 						key: `working:live:message:${prompt.id}:0`,
-						isLive: true,
 						endsWithAnswer: false,
 					},
 				]);

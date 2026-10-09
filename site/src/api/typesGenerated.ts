@@ -3899,7 +3899,7 @@ export interface ChatTextPart {
 	/**
 	 * Narration marks assistant text that the model labeled as commentary
 	 * on its work rather than its answer. Only providers that label their
-	 * output set it, currently the OpenAI Responses API.
+	 * output set it.
 	 */
 	readonly narration?: boolean;
 }
