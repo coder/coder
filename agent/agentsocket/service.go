@@ -317,16 +317,18 @@ func contextSnapshotToProto(s agentcontext.Snapshot) *proto.ContextSnapshot {
 	}
 	for _, r := range s.Resources {
 		out.Resources = append(out.Resources, &proto.ContextResource{
-			Id:          r.ID,
-			Kind:        r.Kind.String(),
-			Source:      r.Source,
-			SourcePath:  r.SourcePath,
-			ContentHash: hex.EncodeToString(r.ContentHash[:]),
-			SizeBytes:   r.SizeBytes,
-			Status:      r.Status.String(),
-			Error:       r.Error,
-			Name:        r.Name,
-			Description: r.Description,
+			Id:            r.ID,
+			Kind:          r.Kind.String(),
+			Source:        r.Source,
+			SourcePath:    r.SourcePath,
+			ContentHash:   hex.EncodeToString(r.ContentHash[:]),
+			SizeBytes:     r.SizeBytes,
+			Status:        r.Status.String(),
+			Error:         r.Error,
+			Name:          r.Name,
+			Description:   r.Description,
+			PluginName:    r.PluginName,
+			PluginVersion: r.PluginVersion,
 		})
 	}
 	return out

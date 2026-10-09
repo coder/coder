@@ -55,6 +55,13 @@ const (
 	CoordinateAPIInvalidResumeToken = "Invalid resume token"
 )
 
+// PushContextState caps, in bytes. A longer resource source or source
+// path, or a longer snapshot or resource error, fails the whole push.
+const (
+	MaxContextSourceBytes = 1024
+	MaxContextErrorBytes  = 4096
+)
+
 // AgentIgnoredListeningPorts contains a list of ports to ignore when looking for
 // running applications inside a workspace. We want to ignore non-HTTP servers,
 // so we pre-populate this list with common ports that are not HTTP servers.

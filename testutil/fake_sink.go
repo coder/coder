@@ -30,13 +30,13 @@ func NewFakeSink(t testing.TB) *FakeSink {
 }
 
 // LogEntry implements slog.Sink. It appends the entry to the
-// internal slice.
+// internal slice. The lock is held across t.Log so the cleanup that
+// marks the test done cannot run between the check and the call.
 func (s *FakeSink) LogEntry(_ context.Context, e slog.SinkEntry) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.entries = append(s.entries, e)
-	shouldLog := !s.tDone
-	s.mu.Unlock()
-	if shouldLog {
+	if !s.tDone {
 		s.t.Log(e.Message, e.Fields)
 	}
 }
