@@ -1603,8 +1603,9 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
 	// The chat stream keeps the cached pages current, and when the chat page
 	// mounts again it resends what changed since the page's history_version.
-	// A refetch would reload every loaded page and race the stream.
-	staleTime: Number.POSITIVE_INFINITY,
+	// A refetch would reload every loaded page and race the stream, so the
+	// query is static: invalidation and refetchQueries skip it too.
+	staleTime: "static" as const,
 	initialPageParam: undefined as number | undefined,
 	queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
 		fetchMessagesPage(chatId, pageParam),

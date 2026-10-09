@@ -5249,6 +5249,30 @@ describe("chatMessagesForInfiniteScroll", () => {
 
 		expect(API.experimental.getChatMessages).toHaveBeenCalledTimes(1);
 	});
+
+	it("does not refetch the messages when the chat's queries are invalidated", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.getChatMessages).mockReset();
+		vi.mocked(API.experimental.getChatMessages).mockResolvedValue({
+			messages: [{ ...MockChatMessage, id: 1 }],
+			queued_messages: [],
+			has_more: false,
+			history_version: 1,
+		});
+		new InfiniteQueryObserver(
+			queryClient,
+			chatMessagesForInfiniteScroll("chat-1"),
+		).subscribe(() => {});
+		await vi.waitFor(() => {
+			expect(queryClient.getQueryState(chatMessagesKey("chat-1"))?.status).toBe(
+				"success",
+			);
+		});
+
+		await queryClient.invalidateQueries({ queryKey: chatEntityKey("chat-1") });
+
+		expect(API.experimental.getChatMessages).toHaveBeenCalledTimes(1);
+	});
 });
 
 describe("chatEntitiesFamilyKey shape", () => {
