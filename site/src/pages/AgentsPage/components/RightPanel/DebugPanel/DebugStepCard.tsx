@@ -118,7 +118,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2 text-left transition-colors hover:bg-surface-secondary/25"
 					>
 						<div className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden">
-							<span className="shrink-0 text-xs font-medium text-content-tertiary">
+							<span className="shrink-0 text-xs font-medium text-content-secondary">
 								Step {step.step_number}
 							</span>
 							{model ? (
@@ -126,11 +126,11 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 									{model}
 								</span>
 							) : null}
-							<span className="shrink-0 whitespace-nowrap text-xs text-content-tertiary">
+							<span className="shrink-0 whitespace-nowrap text-xs text-content-secondary">
 								{durationLabel}
 							</span>
 							{tokenLabel ? (
-								<span className="shrink-0 whitespace-nowrap text-xs text-content-tertiary">
+								<span className="shrink-0 whitespace-nowrap text-xs text-content-secondary">
 									{tokenLabel}
 								</span>
 							) : null}
@@ -179,7 +179,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 							/>
 						) : null}
 						{attemptCount > 0 ? (
-							<span className="text-xs text-content-tertiary">
+							<span className="text-xs text-content-secondary">
 								{attemptCount} {attemptCount === 1 ? "attempt" : "attempts"}
 							</span>
 						) : null}
@@ -340,7 +340,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 
 									{/* Secondary metadata: finish reason + warnings. */}
 									{response.finishReason ? (
-										<span className="block text-2xs text-content-tertiary">
+										<span className="block text-2xs text-content-secondary">
 											Finish: {response.finishReason}
 										</span>
 									) : null}
