@@ -20,6 +20,7 @@ import {
 	SKILLS_MAX_PER_OWNER,
 	type SkillFormValues,
 } from "../utils/skills";
+import type { SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import {
 	type SkillDeleteState,
@@ -104,7 +105,7 @@ type SkillsTableProps = {
 	copy: SkillsCopy;
 	canEdit: boolean;
 	enabledOnly?: boolean;
-	headerLevel?: "page" | "section";
+	headerLevel?: SectionHeaderLevel;
 	toolbar?: React.ReactNode;
 	onManagePermissions?: (skill: SkillMetadata) => void;
 };

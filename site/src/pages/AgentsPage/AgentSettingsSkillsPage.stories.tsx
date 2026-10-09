@@ -1,42 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { spyOn, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
 import { skillsKey } from "#/api/queries/skills";
-import type { Organization, SkillMetadata } from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockOrganization3,
 	MockUserMember,
+	mockApiError,
 } from "#/testHelpers/entities";
-import { MockSkill, MockSkills } from "#/testHelpers/skills";
+import { MockDisabledSkill, MockSkills } from "#/testHelpers/skills";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withToaster,
 } from "#/testHelpers/storybook";
 import AgentSettingsSkillsPage from "./AgentSettingsSkillsPage";
-
-const MockOrganization3: Organization = {
-	...MockOrganization2,
-	id: "my-organization-3-id",
-	name: "my-organization-3",
-	display_name: "My Organization 3",
-};
-
-const disabledSkill: SkillMetadata = {
-	...MockSkill,
-	id: "skill-legacy-review",
-	name: "legacy-review",
-	description: "Older review checklist kept for reference.",
-	enabled: false,
-};
-
-const organizationSkillsQuery = (
-	organization: Organization,
-	data: SkillMetadata[],
-) => ({
-	key: skillsKey({ type: "organization", organizationId: organization.id }),
-	data,
-});
 
 const meta = {
 	title: "pages/AgentsPage/AgentSettingsSkillsPage",
@@ -63,12 +43,27 @@ export const OrganizationSkills: Story = {
 	parameters: {
 		queries: [
 			{ key: skillsKey({ type: "user", user: "me" }), data: MockSkills },
-			organizationSkillsQuery(MockDefaultOrganization, [
-				...MockSkills.slice(0, 2),
-				disabledSkill,
-			]),
-			organizationSkillsQuery(MockOrganization2, [MockSkills[2]]),
-			organizationSkillsQuery(MockOrganization3, [disabledSkill]),
+			{
+				key: skillsKey({
+					type: "organization",
+					organizationId: MockDefaultOrganization.id,
+				}),
+				data: [...MockSkills.slice(0, 2), MockDisabledSkill],
+			},
+			{
+				key: skillsKey({
+					type: "organization",
+					organizationId: MockOrganization2.id,
+				}),
+				data: [MockSkills[2]],
+			},
+			{
+				key: skillsKey({
+					type: "organization",
+					organizationId: MockOrganization3.id,
+				}),
+				data: [MockDisabledSkill],
+			},
 		],
 	},
 };
@@ -77,9 +72,44 @@ export const NoOrganizationSkills: Story = {
 	parameters: {
 		queries: [
 			{ key: skillsKey({ type: "user", user: "me" }), data: MockSkills },
-			organizationSkillsQuery(MockDefaultOrganization, []),
-			organizationSkillsQuery(MockOrganization2, [disabledSkill]),
-			organizationSkillsQuery(MockOrganization3, []),
+			{
+				key: skillsKey({
+					type: "organization",
+					organizationId: MockDefaultOrganization.id,
+				}),
+				data: [],
+			},
+			{
+				key: skillsKey({
+					type: "organization",
+					organizationId: MockOrganization2.id,
+				}),
+				data: [MockDisabledSkill],
+			},
+			{
+				key: skillsKey({
+					type: "organization",
+					organizationId: MockOrganization3.id,
+				}),
+				data: [],
+			},
 		],
+	},
+};
+
+export const OrganizationSkillsError: Story = {
+	parameters: {
+		organizations: [MockDefaultOrganization],
+		queries: [
+			{ key: skillsKey({ type: "user", user: "me" }), data: MockSkills },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getOrganizationSkills").mockRejectedValue(
+			mockApiError({ message: "Failed to load organization skills." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("button", { name: "Retry" });
 	},
 };

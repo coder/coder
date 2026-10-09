@@ -650,13 +650,15 @@ const AgentChatPage: React.FC = () => {
 		isSubmissionPending,
 		hasModelOptions,
 		isEditReasoningEffortDirtyRef,
-		// chatd skips disabled skills, so they never shadow a built-in command.
-		personalSkills: personalSkillsQuery.isSuccess
-			? personalSkillsQuery.data.filter((skill) => skill.enabled)
-			: undefined,
-		organizationSkills: organizationSkillsQuery.isSuccess
-			? organizationSkillsQuery.data.filter((skill) => skill.enabled)
-			: undefined,
+		// chatd skips disabled skills, so they never shadow a built-in
+		// command. A list that failed to load counts as empty rather than
+		// blocking built-in commands until the page remounts.
+		personalSkills:
+			personalSkillsQuery.data?.filter((skill) => skill.enabled) ??
+			(personalSkillsQuery.isError ? [] : undefined),
+		organizationSkills:
+			organizationSkillsQuery.data?.filter((skill) => skill.enabled) ??
+			(organizationSkillsQuery.isError ? [] : undefined),
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,

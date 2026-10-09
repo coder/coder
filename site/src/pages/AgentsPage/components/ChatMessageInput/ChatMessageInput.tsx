@@ -548,10 +548,7 @@ type ChatMessageInputProps = Omit<
 	 * exist even while workspaceSkills is still undefined.
 	 */
 	hasWorkspace: boolean;
-	/**
-	 * Organization whose skills the chat loads. Omitted when the
-	 * composer has no organization, so no organization skills apply.
-	 */
+	/** Organization whose skills the chat loads, if any. */
 	organizationId?: string;
 	/**
 	 * Story and test seam for deterministic personal skill menu data.
@@ -697,7 +694,6 @@ const ChatMessageInput = ({
 	const loadedOrganizationSkills = organizationId
 		? organizationSkillsQuery.data?.filter((skill) => skill.enabled)
 		: [];
-	// Until the chat detail resolves, workspace skills are unknown.
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
 	// Lists stay undefined while unknown: triggers stay qualified and

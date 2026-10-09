@@ -251,13 +251,26 @@ describe("ChatMessageInput", () => {
 
 	describe("slash menu skill sources", () => {
 		const organizationId = "org-1";
-		const skill = (name: string, enabled = true): SkillMetadata => ({
+		const mockReviewerSkill: SkillMetadata = {
 			...MockSkill,
-			id: `skill-${name}`,
-			name,
-			description: `${name} description`,
-			enabled,
-		});
+			id: "skill-reviewer",
+			name: "reviewer",
+		};
+		const mockReleaseNotesSkill: SkillMetadata = {
+			...MockSkill,
+			id: "skill-release-notes",
+			name: "release-notes",
+		};
+		const mockCompactSkill: SkillMetadata = {
+			...MockSkill,
+			id: "skill-compact",
+			name: "compact",
+		};
+		const mockCompactorSkill: SkillMetadata = {
+			...MockSkill,
+			id: "skill-compactor",
+			name: "compactor",
+		};
 
 		const renderWithSkills = ({
 			personal,
@@ -300,8 +313,8 @@ describe("ChatMessageInput", () => {
 
 		it("inserts the bare trigger of an organization skill", async () => {
 			const inputRef = renderWithSkills({
-				personal: [skill("reviewer")],
-				organization: [skill("release-notes")],
+				personal: [mockReviewerSkill],
+				organization: [mockReleaseNotesSkill],
 			});
 			const user = await pasteTrigger("/rel");
 			await user.click(
@@ -312,8 +325,8 @@ describe("ChatMessageInput", () => {
 
 		it("qualifies a name shared by personal and organization skills", async () => {
 			const inputRef = renderWithSkills({
-				personal: [skill("reviewer")],
-				organization: [skill("reviewer")],
+				personal: [mockReviewerSkill],
+				organization: [mockReviewerSkill],
 			});
 			const user = await pasteTrigger("/rev");
 			await user.click(
@@ -324,8 +337,8 @@ describe("ChatMessageInput", () => {
 
 		it("ignores disabled skills when qualifying triggers", async () => {
 			const inputRef = renderWithSkills({
-				personal: [skill("reviewer")],
-				organization: [skill("reviewer", false)],
+				personal: [mockReviewerSkill],
+				organization: [{ ...mockReviewerSkill, enabled: false }],
 			});
 			const user = await pasteTrigger("/rev");
 			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
@@ -335,8 +348,8 @@ describe("ChatMessageInput", () => {
 		it("hides a built-in command an organization skill shadows", async () => {
 			// With /compact hidden, Enter picks the first personal match.
 			const inputRef = renderWithSkills({
-				personal: [skill("compactor")],
-				organization: [skill("compact")],
+				personal: [mockCompactorSkill],
+				organization: [mockCompactSkill],
 			});
 			const user = await pasteTrigger("/comp");
 			await screen.findByRole("option", { name: /compactor/ });

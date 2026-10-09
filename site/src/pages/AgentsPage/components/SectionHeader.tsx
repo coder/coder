@@ -1,9 +1,11 @@
+export type SectionHeaderLevel = "page" | "section";
+
 type SectionHeaderProps = {
 	label: string;
 	description?: string;
 	badge?: React.ReactNode;
 	action?: React.ReactNode;
-	level?: "page" | "section";
+	level?: SectionHeaderLevel;
 };
 
 export const SectionHeader: React.FC<SectionHeaderProps> = ({

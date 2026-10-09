@@ -62,15 +62,16 @@ type SkillsTriggerMenuProps = {
 	onEscapeKeyDown: (event: KeyboardEvent) => void;
 };
 
-const skillSourceListFormat = new Intl.ListFormat("en-US", {
-	type: "disjunction",
-});
-
 const getEmptyMessage = (
 	query: string,
 	organizationSkillsEnabled: boolean,
 	workspaceSkillsEnabled: boolean,
 ) => {
+	if (query) {
+		return organizationSkillsEnabled || workspaceSkillsEnabled
+			? "No skills match that query."
+			: "No personal skills match that query.";
+	}
 	const sources = ["personal"];
 	if (organizationSkillsEnabled) {
 		sources.push("organization");
@@ -78,12 +79,10 @@ const getEmptyMessage = (
 	if (workspaceSkillsEnabled) {
 		sources.push("workspace");
 	}
-	if (query) {
-		return sources.length > 1
-			? "No skills match that query."
-			: "No personal skills match that query.";
-	}
-	return `No ${skillSourceListFormat.format(sources)} skills found.`;
+	const sourceList = new Intl.ListFormat("en-US", {
+		type: "disjunction",
+	}).format(sources);
+	return `No ${sourceList} skills found.`;
 };
 
 const SkillCommandItem = ({

@@ -238,8 +238,6 @@ const mockOrganizationSkills: TypesGen.SkillMetadata[] = [
 	},
 ];
 
-// The shared "reviewer" name qualifies both entries; the disabled skill
-// is hidden.
 export const OpensWithAllSkillSources: Story = {
 	args: {
 		hasWorkspace: true,

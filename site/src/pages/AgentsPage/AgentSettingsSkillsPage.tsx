@@ -1,5 +1,7 @@
 import { useQueries } from "react-query";
 import { organizationSkills } from "#/api/queries/skills";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { SectionHeader } from "./components/SectionHeader";
 import { SkillsTable } from "./components/SkillsTable";
@@ -11,10 +13,14 @@ const AgentSettingsSkillsPage: React.FC = () => {
 			organizationSkills(organization.id),
 		),
 	});
-	// A failed list stays visible so its table can show the error and a retry.
-	const organizationsWithSkills = organizations.filter((_, index) => {
+	const visibleOrganizations = organizations.flatMap((organization, index) => {
 		const query = organizationSkillQueries[index];
-		return Boolean(query.error) || query.data?.some((skill) => skill.enabled);
+		const hasEnabledSkills = Boolean(
+			query.data?.some((skill) => skill.enabled),
+		);
+		return hasEnabledSkills || query.isError
+			? [{ organization, query, hasEnabledSkills }]
+			: [];
 	});
 
 	return (
@@ -34,30 +40,62 @@ const AgentSettingsSkillsPage: React.FC = () => {
 				}}
 				canEdit
 			/>
-			{organizationsWithSkills.length > 0 && (
+			{visibleOrganizations.length > 0 && (
 				<section className="flex flex-col gap-8">
 					<SectionHeader
 						label="From your organizations"
 						description="Skills your organizations share with you. Your agents can use them in chats that belong to that organization."
 					/>
-					{organizationsWithSkills.map((organization) => (
-						<SkillsTable
-							key={organization.id}
-							owner={{ type: "organization", organizationId: organization.id }}
-							copy={{
-								noun: "Organization skill",
-								title: organization.display_name || organization.name,
-								description:
-									"Read-only skills shared with you. Ask an organization admin to change them.",
-								emptyDescription: "",
-								editorDescription: "",
-								archiveName: `${organization.name}-skills.zip`,
-							}}
-							canEdit={false}
-							enabledOnly
-							headerLevel="section"
-						/>
-					))}
+					{visibleOrganizations.map(
+						({ organization, query, hasEnabledSkills }) => {
+							const organizationName =
+								organization.display_name || organization.name;
+							// The table's own observer would refetch a failed list on
+							// mount and clear its error, so a failed list renders here.
+							if (!hasEnabledSkills) {
+								return (
+									<div key={organization.id} className="flex flex-col gap-4">
+										<SectionHeader level="section" label={organizationName} />
+										<ErrorAlert
+											error={query.error}
+											actions={
+												<Button
+													size="sm"
+													variant="outline"
+													onClick={() => {
+														void query.refetch();
+													}}
+												>
+													Retry
+												</Button>
+											}
+										/>
+									</div>
+								);
+							}
+							return (
+								<SkillsTable
+									key={organization.id}
+									owner={{
+										type: "organization",
+										organizationId: organization.id,
+									}}
+									copy={{
+										noun: "Organization skill",
+										title: organizationName,
+										description:
+											"Read-only skills shared with you. Ask an organization admin to change them.",
+										emptyDescription: "",
+										editorDescription: "",
+										archiveName: `${organization.name}-skills.zip`,
+									}}
+									canEdit={false}
+									enabledOnly
+									headerLevel="section"
+								/>
+							);
+						},
+					)}
 				</section>
 			)}
 		</div>

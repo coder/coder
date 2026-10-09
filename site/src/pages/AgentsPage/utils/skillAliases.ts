@@ -18,15 +18,10 @@ export type SkillTrigger = {
 	altTriggerText: string;
 };
 
-const qualifiedSkillTrigger = (source: SkillSource, name: string) =>
-	`/${source}/${name}`;
-
 /**
- * Builds the "/" trigger for every skill so it resolves the way chatd's
- * MergeSkills does: a name found in more than one source is ambiguous
- * bare, so each source's entry is qualified. Triggers also stay qualified
- * while any list is unknown, since a qualified alias always resolves.
- * Workspace triggers are always qualified.
+ * Builds the "/" trigger for every skill. A name in more than one source is
+ * qualified in each, as chatd's MergeSkills requires. Unknown lists and
+ * workspace skills also get the qualified alias, which always resolves.
  */
 export const resolveSkillTriggers = (
 	lists: readonly SkillSourceList<{ name: string; description: string }>[],
@@ -40,7 +35,7 @@ export const resolveSkillTriggers = (
 	}
 	return lists.flatMap(({ source, skills }) =>
 		(skills ?? []).map((skill) => {
-			const qualified = qualifiedSkillTrigger(source, skill.name);
+			const qualified = `/${source}/${skill.name}`;
 			const isQualified =
 				source === "workspace" ||
 				hasUnknownList ||
