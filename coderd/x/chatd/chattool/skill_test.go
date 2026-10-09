@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/assert"
@@ -125,13 +126,34 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 		t.Parallel()
 
 		resolved := skillspkg.MergeSkills(
-			[]skillspkg.Skill{{Name: "review", Description: "Personal", Source: skillspkg.SourcePersonal}},
-			[]skillspkg.Skill{{Name: "review", Description: "Workspace", Source: skillspkg.SourceWorkspace}},
+			[]skillspkg.Skill{{Name: "review", Description: "Personal"}},
+			[]skillspkg.Skill{{Name: "review", Description: "Organization"}},
+			[]skillspkg.Skill{{Name: "review", Description: "Workspace"}},
 		)
 		idx := chattool.FormatResolvedSkillIndex(resolved)
-		assert.Contains(t, idx, "- personal/review: Personal")
-		assert.Contains(t, idx, "- workspace/review: Workspace")
-		assert.Contains(t, idx, "pass that qualified alias to read_skill")
+		assert.Contains(t, idx, "- personal/review: Personal\n- org/review: Organization\n- workspace/review: Workspace\n")
+		assert.Contains(t, idx, "\nWhen a skill is listed with a source prefix, such as personal/name, pass that qualified alias to read_skill.\n")
+	})
+
+	t.Run("TruncatesLongDescriptionsOnRuneBoundary", func(t *testing.T) {
+		t.Parallel()
+
+		// A 3-byte rune makes a byte-based cut at 1,024 split a rune.
+		atLimit := strings.Repeat("界", 1024)
+		idx := chattool.FormatResolvedSkillIndex(skillspkg.MergeSkills(
+			[]skillspkg.Skill{
+				{Name: "at-limit", Description: atLimit},
+				{Name: "over-limit", Description: atLimit + "界tail"},
+				{Name: "short", Description: "Short description"},
+			},
+			nil,
+			nil,
+		))
+		assert.True(t, utf8.ValidString(idx))
+		assert.Contains(t, idx, "- at-limit: "+atLimit+"\n")
+		assert.Contains(t, idx, "- over-limit: "+atLimit+"…\n")
+		assert.Contains(t, idx, "- short: Short description\n")
+		assert.NotContains(t, idx, "tail")
 	})
 }
 

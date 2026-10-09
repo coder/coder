@@ -1,5 +1,5 @@
-// Package skills defines the shared model for personal and workspace skills
-// used by chatd.
+// Package skills defines the shared model for personal, organization, and
+// workspace skills used by chatd.
 //
 // Glossary:
 //
@@ -10,8 +10,11 @@
 //     currently under .agents/skills by default.
 //   - Skill source: The origin of a skill available to chatd, such as personal
 //     storage or workspace filesystem discovery.
+//   - Organization skill: An organization-owned skill stored by Coder and
+//     shared with organization members through a per-skill ACL.
 //   - Skill alias: A chat or tool lookup name for a skill. Bare aliases use the
-//     skill name. Qualified aliases use personal/<name> or workspace/<name>.
+//     skill name. Qualified aliases use personal/<name>, org/<name>, or
+//     workspace/<name>.
 //
 // Decision:
 //
@@ -21,10 +24,9 @@
 // When chatd needs skill content, it resolves personal skills through the
 // read_skill flow instead of syncing files into workspace filesystems.
 //
-// If a personal skill and workspace skill share the same kebab-case name, both
-// are exposed with qualified aliases: personal/<name> for the personal skill
-// and workspace/<name> for the workspace skill. One source must not silently
-// override the other.
+// If skills from more than one source share the same kebab-case name, each is
+// exposed with a qualified alias: personal/<name>, org/<name>, or
+// workspace/<name>. One source must not silently override another.
 //
 // Site admins can read and delete personal skill content. Personal skills are
 // user-authored instructions, not secret material. Audit records can include

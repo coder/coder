@@ -6,6 +6,7 @@ import (
 	"io"
 	"path"
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
@@ -22,6 +23,11 @@ const (
 	AvailableSkillsOpenTag = "<available-skills>"
 	// AvailableSkillsCloseTag is the XML end tag for the skill index block.
 	AvailableSkillsCloseTag = "</available-skills>"
+
+	// maxSkillIndexDescriptionRunes is the Agent Skills specification limit
+	// for a description. Longer stored descriptions are only cut in the index
+	// so it stays bounded; read_skill still returns the full skill.
+	maxSkillIndexDescriptionRunes = 1024
 )
 
 // SkillMeta is the frontmatter from a skill meta file discovered in a
@@ -69,7 +75,7 @@ func FormatResolvedSkillIndex(resolved []skillspkg.ResolvedSkill) string {
 	for _, s := range resolved {
 		entries = append(entries, skillIndexEntry{
 			Alias:       s.Alias,
-			Description: s.Description,
+			Description: truncateSkillIndexDescription(s.Description),
 		})
 		if s.Source == skillspkg.SourceWorkspace {
 			hasWorkspaceSkill = true
@@ -82,6 +88,20 @@ func FormatResolvedSkillIndex(resolved []skillspkg.ResolvedSkill) string {
 		includeQualifiedAliasInstruction: hasQualifiedAlias,
 		includeReadSkillFileInstruction:  hasWorkspaceSkill,
 	})
+}
+
+func truncateSkillIndexDescription(description string) string {
+	if utf8.RuneCountInString(description) <= maxSkillIndexDescriptionRunes {
+		return description
+	}
+	runes := 0
+	for i := range description {
+		if runes == maxSkillIndexDescriptionRunes {
+			return description[:i] + "…"
+		}
+		runes++
+	}
+	return description
 }
 
 type skillIndexEntry struct {
@@ -113,8 +133,8 @@ func renderSkillIndex(entries []skillIndexEntry, opts skillIndexFormatOptions) s
 	}
 	if opts.includeQualifiedAliasInstruction {
 		_, _ = b.WriteString(
-			"When a skill is listed as personal/name or workspace/name, " +
-				"pass that qualified alias to read_skill.\n",
+			"When a skill is listed with a source prefix, such as " +
+				"personal/name, pass that qualified alias to read_skill.\n",
 		)
 	}
 	_, _ = b.WriteString("\n")
