@@ -1,5 +1,6 @@
 import { humanDuration } from "#/utils/time";
 
+// Number of nanoseconds in 1 hour
 const NANO_HOUR = 3600000000000;
 export const NANO_DAY = 24 * NANO_HOUR;
 
