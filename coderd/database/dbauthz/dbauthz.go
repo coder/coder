@@ -7197,11 +7197,11 @@ func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatH
 
 // Callers check a chat they already authorized, so this requires reading
 // every chat instead of fetching it again.
-func (q *querier) IsChatInDeletedProject(ctx context.Context, chatID uuid.UUID) (bool, error) {
+func (q *querier) IsChatInDeletedChatProject(ctx context.Context, chatID uuid.UUID) (bool, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return false, err
 	}
-	return q.db.IsChatInDeletedProject(ctx, chatID)
+	return q.db.IsChatInDeletedChatProject(ctx, chatID)
 }
 
 // IsChatProjectAccessibleByUserID answers for another user, so it requires

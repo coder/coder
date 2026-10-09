@@ -2418,8 +2418,10 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'error', pin_order = 1, compaction_requested_at = now(), retry_state = '{}'::jsonb WHERE id = $1", shareeRoot.ID)
 	require.NoError(t, err)
-	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{ChatID: ownerRoot.ID, Content: json.RawMessage(`[]`)})
-	require.NoError(t, err)
+	for _, id := range []uuid.UUID{ownerRoot.ID, ownerChild.ID} {
+		_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{ChatID: id, Content: json.RawMessage(`[]`)})
+		require.NoError(t, err)
+	}
 	before := make(map[uuid.UUID]database.Chat, len(projectChatIDs))
 	for _, id := range projectChatIDs {
 		chat, err := db.GetChatByID(ctx, id)
@@ -2433,6 +2435,11 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		chat, err := db.GetChatByID(ctx, id)
 		require.NoError(t, err)
 		require.False(t, chat.Archived, "a live project's chats are not archived")
+	}
+	for _, id := range []uuid.UUID{ownerRoot.ID, ownerChild.ID} {
+		queued, err := db.CountChatQueuedMessages(ctx, id)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, queued, "a live project's queues are kept")
 	}
 
 	require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
@@ -2456,6 +2463,8 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		require.False(t, chat.CompactionRequestedAt.Valid)
 		require.False(t, chat.RetryState.Valid)
 		require.Greater(t, chat.SnapshotVersion, before[id].SnapshotVersion)
+		require.True(t, chat.UpdatedAt.After(before[id].UpdatedAt), "the archive starts the retention clock")
+		require.Equal(t, project.ID, chat.ProjectID.UUID)
 	}
 	for _, id := range []uuid.UUID{unrelated.ID, unrelatedChild.ID, otherProjectChat.ID} {
 		chat, err := db.GetChatByID(ctx, id)
@@ -2488,11 +2497,11 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	}
 
 	for _, id := range projectChatIDs {
-		inDeleted, err := db.IsChatInDeletedProject(ctx, id)
+		inDeleted, err := db.IsChatInDeletedChatProject(ctx, id)
 		require.NoError(t, err)
 		require.True(t, inDeleted)
 	}
-	inDeleted, err := db.IsChatInDeletedProject(ctx, unrelated.ID)
+	inDeleted, err := db.IsChatInDeletedChatProject(ctx, unrelated.ID)
 	require.NoError(t, err)
 	require.False(t, inDeleted)
 
@@ -2524,6 +2533,13 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		candidateIDs = append(candidateIDs, candidate.ID)
 	}
 	require.ElementsMatch(t, []uuid.UUID{unrelated.ID, otherProjectChat.ID}, candidateIDs)
+
+	// Retention may delete a root before its sub-chats.
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", ownerRoot.ID)
+	require.NoError(t, err)
+	inDeleted, err = db.IsChatInDeletedChatProject(ctx, ownerChild.ID)
+	require.NoError(t, err)
+	require.True(t, inDeleted, "an orphaned sub-chat stays in its deleted project")
 
 	removed, err := db.DeleteEmptyDeletedChatProjects(ctx, 10)
 	require.NoError(t, err)

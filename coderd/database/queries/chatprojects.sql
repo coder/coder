@@ -106,17 +106,17 @@ DELETE FROM chat_projects
 WHERE id = @id::uuid;
 
 -- name: UpdateChatProjectDeletedByID :exec
--- Irreversible. Only chatd.DeleteChatProjectWithoutEvents may call this,
--- in one READ COMMITTED transaction, in this order:
+-- Irreversible. The project delete must run, in one READ COMMITTED
+-- transaction, in this order:
 --   1. GetChatProjectByIDForUpdate, which waits for root chat creations
 --      holding GetChatProjectByIDForShare;
 --   2. UpdateChatProjectDeletedByID;
 --   3. LockChatProjectRootChats;
 --   4. ArchiveChatsOfDeletedChatProject;
 --   5. DeleteChatQueuedMessagesOfDeletedChatProject.
--- Calling it alone leaves the project's chats running and acquirable.
--- The archived chats are then removed by chat retention like any other
--- archived chat, and dbpurge deletes the project row once none are left.
+-- Calling this alone leaves the project's chats running and acquirable.
+-- Steps 3 and 4 can deadlock with a chat purge that deletes the same
+-- family in another order; callers retry the transaction.
 UPDATE chat_projects
 SET deleted = true, updated_at = now()
 WHERE id = @id::uuid AND NOT deleted;
@@ -159,10 +159,13 @@ ORDER BY id
 FOR UPDATE;
 
 -- name: ArchiveChatsOfDeletedChatProject :exec
--- Execution-state transition outside chatstate: moves every family member
--- of a deleted project from any state to StateXW, or StateXE0 from error,
--- and publishes nothing. Clearing the runner makes heartbeat renewal stop
--- matching, so workers stop; archived roots refuse new sub-chats. Run it
+-- Execution-state transition outside the chatstate machine: moves every
+-- family member of a deleted project to archived waiting, or archived error
+-- from error; once step 5 clears the queue these are StateXW and StateXE0.
+-- It publishes nothing, so callers publish chat:update per chat. Clearing
+-- the runner makes heartbeat renewal stop matching, so workers stop;
+-- archived roots refuse new sub-chats. Sub-chats get the project ID so they
+-- stay in the deleted project if retention deletes their root first. Run it
 -- before clearing the queue, so a send waiting on a chat lock reads the
 -- archived state and is refused. Keep the SET list in sync with
 -- UpdateChatExecutionState.
@@ -181,6 +184,7 @@ WITH family AS (
 UPDATE chats
 SET
     archived = true,
+    project_id = @project_id::uuid,
     pin_order = 0,
     status = CASE WHEN status = 'error'::chat_status THEN 'error'::chat_status ELSE 'waiting'::chat_status END,
     worker_id = NULL,
@@ -209,7 +213,7 @@ WHERE chat_id IN (
     WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
 );
 
--- name: IsChatInDeletedProject :one
+-- name: IsChatInDeletedChatProject :one
 SELECT EXISTS (
     SELECT 1
     FROM chats c
