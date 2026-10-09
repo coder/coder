@@ -391,7 +391,6 @@ type StoryLoadingProps = Pick<
 	| "initialEditorState"
 	| "remountKey"
 	| "onContentChange"
-	| "hasModelOptions"
 > &
 	Pick<
 		React.ComponentProps<typeof LoadingChatComposer>["model"],
@@ -424,15 +423,12 @@ const StoryAgentChatPageLoadingView: React.FC<StoryLoadingProps> = ({
 		composer={
 			<LoadingChatComposer
 				bindings={{
-					onSend: () => {},
 					inputRef: inputProps.inputRef,
 					initialValue: inputProps.initialValue,
 					initialEditorState: inputProps.initialEditorState,
 					remountKey: inputProps.remountKey,
 					onContentChange: inputProps.onContentChange,
 					isDisabled: isInputDisabled,
-					isLoading: false,
-					hasModelOptions: inputProps.hasModelOptions,
 				}}
 				model={{
 					selectedModel: effectiveSelectedModel,
@@ -992,7 +988,6 @@ export const Loading: Story = {
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
 			isModelCatalogLoading={false}
 			planModeEnabled={false}
 			onPlanModeToggle={fn()}
@@ -1015,7 +1010,6 @@ export const LoadingWithModelOptions: Story = {
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
 			isModelCatalogLoading={false}
 			planModeEnabled={false}
 			onPlanModeToggle={fn()}
@@ -1037,7 +1031,6 @@ export const LoadingWithRightPanel: Story = {
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
 			isModelCatalogLoading={false}
 			planModeEnabled={false}
 			onPlanModeToggle={fn()}
@@ -1061,7 +1054,6 @@ export const LoadingSidebarCollapsed: Story = {
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
 			isModelCatalogLoading={false}
 			planModeEnabled={false}
 			onPlanModeToggle={fn()}

@@ -759,7 +759,12 @@ const mockSlackMCPAlwaysOnNeedingAuth = buildMCPServer({
 const mcpDefaults = {
 	...defaultTools,
 	organizationId: "org-1",
-	mcp: { onSelectionChange: fn(), onAuthComplete: fn() },
+	mcp: {
+		servers: [],
+		selectedServerIds: [],
+		onSelectionChange: fn(),
+		onAuthComplete: fn(),
+	},
 };
 
 const dispatchMCPOAuthComplete = (
@@ -820,7 +825,8 @@ export const MCPGroupPopoverOpen: Story = {
 			...defaultTools,
 			...WithMCPServers.args?.tools,
 			mcp: {
-				...WithMCPServers.args?.tools?.mcp,
+				...mcpDefaults.mcp,
+				selectedServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
 				servers: [sentryMCP, linearMCP, githubMCPConnected, notionMCPConnected],
 			},
 		},
@@ -871,7 +877,8 @@ export const PlusMenuAlwaysOnNeedingAuth: Story = {
 			...defaultTools,
 			...WithMCPServers.args?.tools,
 			mcp: {
-				...WithMCPServers.args?.tools?.mcp,
+				...mcpDefaults.mcp,
+				selectedServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
 				servers: [
 					sentryMCP,
 					linearMCP,
@@ -1425,7 +1432,11 @@ export const LinkedWorkspaceRemoveWhenInputDisabled: Story = {
 				agent: MockWorkspaceAgent,
 				chatId: "chat-detail",
 			},
-			workspaceSelection: { selectedId: MockWorkspace.id, onChange: fn() },
+			workspaceSelection: {
+				options: [],
+				selectedId: MockWorkspace.id,
+				onChange: fn(),
+			},
 		},
 	},
 	play: async ({ args, canvasElement }) => {
@@ -1587,7 +1598,11 @@ export const MCPGroupInOverflow: Story = {
 			...defaultTools,
 			...WithMCPServers.args?.tools,
 			linkedWorkspace: { attachedWorkspace: mockOverflowAttachedWorkspace },
-			workspaceSelection: { onChange: fn() },
+			workspaceSelection: {
+				options: [],
+				selectedId: mockOverflowAttachedWorkspace.id,
+				onChange: fn(),
+			},
 		},
 	},
 	parameters: {
@@ -1632,7 +1647,11 @@ export const OverflowBadges: Story = {
 				],
 			},
 			linkedWorkspace: { attachedWorkspace: mockOverflowAttachedWorkspace },
-			workspaceSelection: { onChange: fn() },
+			workspaceSelection: {
+				options: [],
+				selectedId: mockOverflowAttachedWorkspace.id,
+				onChange: fn(),
+			},
 		},
 		editor: { hasWorkspace: true },
 	},

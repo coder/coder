@@ -6,10 +6,14 @@ import {
 } from "@testing-library/react";
 import { act, createElement } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { UploadChatWorkspaceFileResponse } from "#/api/typesGenerated";
+import { createDeferred } from "#/testHelpers/deferred";
 import { mockApiError } from "#/testHelpers/entities";
-import { useWorkspaceFileUploads } from "./useWorkspaceFileUploads";
+import {
+	useWorkspaceFileUploads,
+	type WorkspaceFileUpload,
+} from "./useWorkspaceFileUploads";
 
 vi.mock("#/api/api", () => ({
 	API: {
@@ -49,6 +53,31 @@ describe("useWorkspaceFileUploads", () => {
 		uploadMock.mockReset();
 	});
 
+	it("requires terminal payloads and excludes incompatible payloads", () => {
+		expectTypeOf<
+			Extract<WorkspaceFileUpload, { status: "uploaded" }>["response"]
+		>().toEqualTypeOf<UploadChatWorkspaceFileResponse>();
+		expectTypeOf<
+			Extract<WorkspaceFileUpload, { status: "error" }>["error"]
+		>().toEqualTypeOf<string>();
+		expectTypeOf<{
+			id: string;
+			file: File;
+			status: "uploaded";
+		}>().not.toExtend<WorkspaceFileUpload>();
+		expectTypeOf<{
+			id: string;
+			file: File;
+			status: "error";
+		}>().not.toExtend<WorkspaceFileUpload>();
+		expectTypeOf<{
+			id: string;
+			file: File;
+			status: "uploading";
+			response: UploadChatWorkspaceFileResponse;
+		}>().not.toExtend<WorkspaceFileUpload>();
+	});
+
 	it("transitions an upload from uploading to uploaded", async () => {
 		uploadMock.mockResolvedValueOnce(okResponse);
 		const { result } = renderHook(() =>
@@ -66,6 +95,7 @@ describe("useWorkspaceFileUploads", () => {
 			expect(result.current.uploads[0].status).toBe("uploaded");
 		});
 		expect(result.current.uploads[0].response).toEqual(okResponse);
+		expect(result.current.uploads[0].error).toBeUndefined();
 		expect(uploadMock).toHaveBeenCalledWith(
 			"chat-1",
 			expect.any(File),
@@ -295,9 +325,10 @@ describe("useWorkspaceFileUploads", () => {
 	});
 
 	it("uploadQueued re-uploads every entry on retry", async () => {
+		const retryUpload = createDeferred<UploadChatWorkspaceFileResponse>();
 		uploadMock
 			.mockRejectedValueOnce(new Error("boom"))
-			.mockResolvedValue(okResponse);
+			.mockReturnValueOnce(retryUpload.promise);
 		const { result } = renderHook(() =>
 			useWorkspaceFileUploads(undefined, undefined),
 		);
@@ -314,8 +345,16 @@ describe("useWorkspaceFileUploads", () => {
 		// The retry targets a fresh chat, so the failed entry uploads
 		// again rather than being skipped.
 		let settled: readonly { status: string }[] = [];
+		let retry: ReturnType<typeof result.current.uploadQueued> | undefined;
+		act(() => {
+			retry = result.current.uploadQueued("chat-2");
+		});
+		expect(result.current.uploads[0]).toMatchObject({ status: "uploading" });
+		expect(result.current.uploads[0].error).toBeUndefined();
+		expect(result.current.uploads[0].response).toBeUndefined();
 		await act(async () => {
-			settled = await result.current.uploadQueued("chat-2");
+			retryUpload.resolve(okResponse);
+			settled = (await retry) ?? [];
 		});
 
 		expect(settled).toHaveLength(1);

@@ -32,24 +32,24 @@ const AgentComposerOptionsProvider = ({
 	...data
 }: AgentComposerOptionsProviderProps) => {
 	const { planning, mcp, workspaceSelection, linkedWorkspace } = data;
-	const { selectedServerIds, onSelectionChange } = mcp ?? {};
+	const selectedServerIds = mcp?.selectedServerIds;
 	const { options, selectedId, onChange } = workspaceSelection ?? {};
 	const { workspace, agent, chatId, attachedWorkspace } = linkedWorkspace ?? {};
 
 	const toggleMcp = (serverId: string, checked: boolean) => {
-		if (!onSelectionChange || !selectedServerIds) {
+		if (!mcp) {
 			return;
 		}
 
-		onSelectionChange(
+		mcp.onSelectionChange(
 			checked
-				? [...selectedServerIds, serverId]
-				: selectedServerIds.filter((id) => id !== serverId),
+				? [...mcp.selectedServerIds, serverId]
+				: mcp.selectedServerIds.filter((id) => id !== serverId),
 		);
 	};
 
 	const enabledMcpServers =
-		mcp?.servers?.filter((server) => server.enabled) ?? [];
+		mcp?.servers.filter((server) => server.enabled) ?? [];
 	const activeMcpServers = enabledMcpServers.filter(
 		(server) =>
 			(server.availability === "force_on" ||
@@ -98,12 +98,11 @@ const AgentComposerOptionsProvider = ({
 		<OptionsContext
 			value={{
 				state: {
-					...data,
-					mcp: { ...mcp, servers: enabledMcpServers },
-					workspaceSelection: {
-						...workspaceSelection,
-						isLoading: workspaceSelection?.isLoading ?? false,
-					},
+					organizationId: data.organizationId,
+					planning,
+					automations: data.automations,
+					mcp: mcp ? { ...mcp, servers: enabledMcpServers } : undefined,
+					workspaceSelection,
 				},
 				actions: {
 					toggleMcp,

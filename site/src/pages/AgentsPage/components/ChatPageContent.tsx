@@ -765,7 +765,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 							skippedErrors++;
 							continue;
 						}
-						if (state?.status === "uploaded" && state.fileId) {
+						if (state?.status === "uploaded") {
 							pendingAttachments.push({
 								fileId: state.fileId,
 								mediaType: file.type || "application/octet-stream",
@@ -779,7 +779,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 							skippedWorkspaceErrors++;
 							continue;
 						}
-						if (upload.status === "uploaded" && upload.response) {
+						if (upload.status === "uploaded") {
 							pendingWorkspaceUploads.push({
 								path: upload.response.path,
 								name: upload.response.name,
@@ -876,10 +876,12 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			tools={{
 				organizationId,
 				planning: { enabled: planModeEnabled, onChange: onPlanModeToggle },
-				automations: {
-					enabled: chat.manage_automations_enabled,
-					onChange: onManageAutomationsToggle,
-				},
+				automations: onManageAutomationsToggle
+					? {
+							enabled: chat.manage_automations_enabled ?? false,
+							onChange: onManageAutomationsToggle,
+						}
+					: undefined,
 				workspaceSelection: {
 					options: workspaceOptions,
 					selectedId: selectedWorkspaceId,

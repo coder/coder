@@ -128,38 +128,49 @@ afterEach(() => {
 });
 
 describe("AgentComposerOptions", () => {
-	it("delegates attachment and controlled option toggles", async () => {
-		const user = userEvent.setup();
-		const onAttachClick = vi.fn();
-		const onPlanModeToggle = vi.fn();
-		const onManageAutomationsToggle = vi.fn();
-		renderOptions(
-			<Options
-				{...optionsProps}
-				planning={{ enabled: false, onChange: onPlanModeToggle }}
-				automations={{ onChange: onManageAutomationsToggle }}
-			/>,
-			{
-				...composerContext,
-				state: { ...composerContext.state, canAttachFiles: true },
-				actions: { ...composerContext.actions, openFilePicker: onAttachClick },
-			},
-		);
+	it.each([false, true])(
+		"delegates attachment and controlled option toggles (automations enabled: %s)",
+		async (automationsEnabled) => {
+			const user = userEvent.setup();
+			const onAttachClick = vi.fn();
+			const onPlanModeToggle = vi.fn();
+			const onManageAutomationsToggle = vi.fn();
+			renderOptions(
+				<Options
+					{...optionsProps}
+					planning={{ enabled: false, onChange: onPlanModeToggle }}
+					automations={{
+						enabled: automationsEnabled,
+						onChange: onManageAutomationsToggle,
+					}}
+				/>,
+				{
+					...composerContext,
+					state: { ...composerContext.state, canAttachFiles: true },
+					actions: {
+						...composerContext.actions,
+						openFilePicker: onAttachClick,
+					},
+				},
+			);
 
-		await user.click(screen.getByRole("button", { name: "More options" }));
-		await user.click(screen.getByRole("button", { name: "Attach file" }));
-		expect(onAttachClick).toHaveBeenCalledTimes(1);
-		await user.click(screen.getByRole("button", { name: "More options" }));
-		await user.click(
-			screen.getByRole("menuitemcheckbox", { name: "Plan first" }),
-		);
-		expect(onPlanModeToggle).toHaveBeenCalledWith(true);
-		await user.click(screen.getByRole("button", { name: "More options" }));
-		await user.click(
-			screen.getByRole("menuitemcheckbox", { name: "Manage automations" }),
-		);
-		expect(onManageAutomationsToggle).toHaveBeenCalledWith(true);
-	});
+			await user.click(screen.getByRole("button", { name: "More options" }));
+			await user.click(screen.getByRole("button", { name: "Attach file" }));
+			expect(onAttachClick).toHaveBeenCalledTimes(1);
+			await user.click(screen.getByRole("button", { name: "More options" }));
+			await user.click(
+				screen.getByRole("menuitemcheckbox", { name: "Plan first" }),
+			);
+			expect(onPlanModeToggle).toHaveBeenCalledWith(true);
+			await user.click(screen.getByRole("button", { name: "More options" }));
+			await user.click(
+				screen.getByRole("menuitemcheckbox", { name: "Manage automations" }),
+			);
+			expect(onManageAutomationsToggle).toHaveBeenCalledWith(
+				!automationsEnabled,
+			);
+		},
+	);
 
 	it.each([false, true])(
 		"selects a workspace while disabled (mobile: %s)",
@@ -178,6 +189,7 @@ describe("AgentComposerOptions", () => {
 					organizationId={workspace.organization_id}
 					workspaceSelection={{
 						options: workspaceOptions,
+						selectedId: null,
 						onChange: onWorkspaceChange,
 					}}
 				/>,
@@ -223,7 +235,14 @@ describe("AgentComposerOptions", () => {
 					}}
 				>
 					<AgentComposer.Frame>
-						<Options {...optionsProps} mcp={{ servers: [server] }} />
+						<Options
+							{...optionsProps}
+							mcp={{
+								servers: [server],
+								selectedServerIds: [],
+								onSelectionChange: vi.fn(),
+							}}
+						/>
 					</AgentComposer.Frame>
 				</AgentComposerProvider>,
 			);

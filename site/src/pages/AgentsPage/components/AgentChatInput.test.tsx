@@ -27,7 +27,7 @@ import {
 	type ComposerContextValue,
 	useAgentComposer,
 } from "./AgentComposer";
-import { ChatComposer } from "./AgentComposers";
+import { ChatComposer, LoadingChatComposer } from "./AgentComposers";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
@@ -433,6 +433,37 @@ describe("ChatComposer", () => {
 		expect(screen.getByTestId("chat-composer").parentElement).toHaveClass(
 			"max-w-full",
 		);
+	});
+
+	it("retains the loading composer draft on Enter even with a populated model", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onContentChange = vi.fn();
+
+		renderInput(
+			<LoadingChatComposer
+				bindings={{
+					inputRef,
+					initialValue: "",
+					onContentChange,
+					isDisabled: false,
+				}}
+				model={inputProps.model}
+				tools={inputProps.tools}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("Draft while chat loads");
+		await waitFor(() => {
+			expect(onContentChange).toHaveBeenLastCalledWith(
+				"Draft while chat loads",
+				expect.any(String),
+				false,
+			);
+		});
+		await user.keyboard("{Enter}");
+		expect(inputRef.current?.getValue()).toBe("Draft while chat loads");
 	});
 
 	it("accepts drafts without sending while submission is disabled", async () => {

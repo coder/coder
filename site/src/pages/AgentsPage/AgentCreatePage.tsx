@@ -313,9 +313,10 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 				}
 				throw error;
 			}
-			const failedCount = uploaded.filter(
-				(upload) => upload.status !== "uploaded" || !upload.response,
-			).length;
+			const successfulUploads = uploaded.filter(
+				(upload) => upload.status === "uploaded",
+			);
+			const failedCount = uploaded.length - successfulUploads.length;
 			if (failedCount > 0) {
 				archiveUnusedChat(createdChat.id);
 				toast.error(
@@ -323,10 +324,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 				);
 				throw new Error("workspace file upload failed");
 			}
-			for (const upload of uploaded) {
-				if (!upload.response) {
-					continue;
-				}
+			for (const upload of successfulUploads) {
 				content.push(
 					toWorkspaceFileReferencePart({
 						path: upload.response.path,

@@ -28,10 +28,10 @@ import {
 } from "#/components/Tooltip/Tooltip";
 
 type WorkspacePickerProps = {
-	workspaceOptions?: ReadonlyArray<
+	workspaceOptions: ReadonlyArray<
 		Pick<Workspace, "id" | "name" | "organization_id">
 	>;
-	selectedWorkspaceId?: string | null;
+	selectedWorkspaceId: string | null;
 	chatOrganizationId?: string;
 	onSelect: (id: string | null) => void;
 };
@@ -128,7 +128,7 @@ const WorkspacePickerList: React.FC<WorkspacePickerProps> = ({
 		<CommandList>
 			<CommandEmpty className="text-xs">No workspaces found</CommandEmpty>
 			<CommandGroup>
-				{workspaceOptions?.map((workspace) => {
+				{workspaceOptions.map((workspace) => {
 					const isCrossOrg =
 						!!chatOrganizationId &&
 						workspace.organization_id !== chatOrganizationId;

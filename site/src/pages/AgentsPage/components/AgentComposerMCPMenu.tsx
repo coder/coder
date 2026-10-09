@@ -8,7 +8,7 @@ import { Switch } from "#/components/Switch/Switch";
 
 type MCPMenuProps = {
 	servers: readonly MCPServerConfig[];
-	selectedServerIds?: readonly string[];
+	selectedServerIds: readonly string[];
 	connectingServerId: string | null;
 	isDisabled: boolean;
 	onConnect: (id: string) => void;
@@ -42,8 +42,7 @@ const MCPServerMenuItem = ({
 	onToggle,
 }: Omit<MCPMenuProps, "servers"> & { server: MCPServerConfig }) => {
 	const isForceOn = server.availability === "force_on";
-	const isSelected =
-		isForceOn || (selectedServerIds?.includes(server.id) ?? false);
+	const isSelected = isForceOn || selectedServerIds.includes(server.id);
 
 	const needsAuth = server.auth_type === "oauth2" && !server.auth_connected;
 	const isConnecting = connectingServerId === server.id;

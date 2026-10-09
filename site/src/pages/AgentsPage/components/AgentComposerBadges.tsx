@@ -57,7 +57,7 @@ type BadgeActions = {
 
 /** Workspace badge data paired with the linked workspace's interactive pill. */
 export type WorkspacePillBadge = {
-	badge: ToolBadgeData;
+	badge: Extract<ToolBadgeData, { kind: "workspace" | "attached-workspace" }>;
 	props: Omit<
 		React.ComponentProps<typeof WorkspacePill>,
 		"onRemoveWorkspace" | "inOverflowPopover"

@@ -16,14 +16,18 @@ import {
 } from "../utils/fetchTextAttachment";
 
 export type UploadState = {
-	// "processing" covers any pre-upload client work (e.g. resize),
-	// so paste/drop handlers can commit the attachment synchronously
-	// without the send gate believing it is ready to dispatch.
-	status: "pending" | "processing" | "uploading" | "uploaded" | "error";
-	fileId?: string;
-	error?: string;
 	draftWarning?: string;
-};
+} & (
+	| {
+			// "processing" covers pre-upload client work (e.g. resize),
+			// keeping synchronous paste/drop attachments behind the send gate.
+			status: "pending" | "processing" | "uploading";
+			fileId?: never;
+			error?: never;
+	  }
+	| { status: "uploaded"; fileId: string; error?: never }
+	| { status: "error"; error: string; fileId?: never }
+);
 
 export const isUploadInProgress = (state: UploadState | undefined): boolean =>
 	state?.status === "pending" ||
@@ -209,9 +213,7 @@ export const AttachmentPreview: React.FC<{
 										</div>
 									</TooltipTrigger>
 									<TooltipContent side="top">
-										<p className="max-w-xs text-xs">
-											{uploadState.error ?? "Upload failed"}
-										</p>
+										<p className="max-w-xs text-xs">{uploadState.error}</p>
 									</TooltipContent>
 								</Tooltip>
 							)}

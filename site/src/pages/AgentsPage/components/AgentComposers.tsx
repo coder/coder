@@ -34,6 +34,26 @@ type AgentComposerConfiguration = {
 	fillWidth?: boolean;
 };
 
+type NewAgentComposerProps = Omit<
+	AgentComposerConfiguration,
+	"bindings" | "tools" | "editor"
+> & {
+	bindings: Omit<
+		AgentComposerConfiguration["bindings"],
+		| "isStreaming"
+		| "onInterrupt"
+		| "isInterruptPending"
+		| "isEditingHistoryMessage"
+		| "onCancelHistoryEdit"
+		| "userPromptHistory"
+	>;
+	tools: Omit<AgentComposerConfiguration["tools"], "linkedWorkspace">;
+	editor?: Omit<
+		NonNullable<AgentComposerConfiguration["editor"]>,
+		"hasWorkspace"
+	>;
+};
+
 /** Composer for creating a chat with the selected organization's settings. */
 export const NewAgentComposer = ({
 	bindings,
@@ -42,7 +62,7 @@ export const NewAgentComposer = ({
 	setup,
 	editor,
 	fillWidth,
-}: AgentComposerConfiguration) => {
+}: NewAgentComposerProps) => {
 	const showSetupNotice = needsAgentSetup(setup);
 
 	return (
@@ -72,8 +92,6 @@ export const NewAgentComposer = ({
 							<div className="flex shrink-0 items-center gap-2">
 								<AgentComposer.VoiceInput />
 								<AgentComposer.Submit />
-								<AgentComposer.Stop />
-								<AgentComposer.InterruptStatus />
 							</div>
 						</AgentComposer.Toolbar>
 					</AgentComposer.Frame>
@@ -185,13 +203,34 @@ function HistoryEditComposerActions() {
 	);
 }
 
+type LoadingChatComposerProps = {
+	bindings: Pick<
+		AgentComposerBindings,
+		| "inputRef"
+		| "initialValue"
+		| "initialEditorState"
+		| "remountKey"
+		| "onContentChange"
+		| "isDisabled"
+	>;
+	model: AgentComposerConfiguration["model"];
+	tools: Pick<AgentComposerConfiguration["tools"], "planning">;
+};
+
 /** Composer that records draft changes while the chat loads. */
 export const LoadingChatComposer = ({
 	bindings,
 	model,
 	tools,
-}: Pick<AgentComposerConfiguration, "bindings" | "model" | "tools">) => (
-	<AgentComposerProvider bindings={bindings}>
+}: LoadingChatComposerProps) => (
+	<AgentComposerProvider
+		bindings={{
+			...bindings,
+			onSend: () => {},
+			isLoading: false,
+			hasModelOptions: false,
+		}}
+	>
 		<AgentComposerOptions.Provider {...tools}>
 			<AgentComposerContainer>
 				<AgentComposer.Frame>
@@ -202,13 +241,10 @@ export const LoadingChatComposer = ({
 							<AgentComposerOptions.Menu />
 							<AgentComposerOptions.Model {...model} />
 							<AgentComposerOptions.PlanningBadge />
-							<AgentComposerOptions.Badges />
 						</AgentComposerOptions.Frame>
 						<div className="flex shrink-0 items-center gap-2">
 							<AgentComposer.VoiceInput />
 							<AgentComposer.Submit />
-							<AgentComposer.Stop />
-							<AgentComposer.InterruptStatus />
 						</div>
 					</AgentComposer.Toolbar>
 				</AgentComposer.Frame>

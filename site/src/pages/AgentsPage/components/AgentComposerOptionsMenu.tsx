@@ -48,20 +48,20 @@ export type AgentComposerOptionsData = {
 	};
 
 	automations?: {
-		enabled?: boolean;
-		onChange?: (enabled: boolean) => void;
+		enabled: boolean;
+		onChange: (enabled: boolean) => void;
 	};
 
 	mcp?: {
-		servers?: readonly MCPServerConfig[];
-		selectedServerIds?: readonly string[];
-		onSelectionChange?: (ids: string[]) => void;
+		servers: readonly MCPServerConfig[];
+		selectedServerIds: readonly string[];
+		onSelectionChange: (ids: string[]) => void;
 		onAuthComplete?: (id: string) => void;
 	};
 
 	workspaceSelection?: {
-		options?: ReadonlyArray<Pick<Workspace, "id" | "name" | "organization_id">>;
-		selectedId?: string | null;
+		options: ReadonlyArray<Pick<Workspace, "id" | "name" | "organization_id">>;
+		selectedId: string | null;
 		onChange?: (id: string | null) => void;
 		isLoading?: boolean;
 	};
@@ -78,16 +78,7 @@ export type AgentComposerOptionsData = {
 
 /** Shared options contract for sibling tool controls. */
 type AgentComposerOptionsContextValue = {
-	state: AgentComposerOptionsData & {
-		mcp: NonNullable<AgentComposerOptionsData["mcp"]> & {
-			servers: readonly MCPServerConfig[];
-		};
-		workspaceSelection: NonNullable<
-			AgentComposerOptionsData["workspaceSelection"]
-		> & {
-			isLoading: boolean;
-		};
-	};
+	state: Omit<AgentComposerOptionsData, "linkedWorkspace">;
 	actions: {
 		toggleMcp: (id: string, checked: boolean) => void;
 		removeWorkspace?: () => void;
@@ -123,6 +114,7 @@ export const AgentComposerOptionsMenu = ({
 }) => {
 	const options = useAgentComposerOptions();
 	const composer = useAgentComposer();
+	const { mcp, workspaceSelection } = options.state;
 
 	const [open, setOpen] = useState(false);
 	const [view, setView] = useState<"main" | "workspace">("main");
@@ -137,11 +129,11 @@ export const AgentComposerOptionsMenu = ({
 
 	const { connectingServerId, connect } = useMCPOAuthFlow({
 		organizationId: options.state.organizationId,
-		onAuthComplete: options.state.mcp.onAuthComplete,
+		onAuthComplete: mcp?.onAuthComplete,
 		onFlowSuccess: (serverId) => {
 			if (
-				options.state.mcp.servers.some((server) => server.id === serverId) &&
-				!options.state.mcp.selectedServerIds?.includes(serverId)
+				mcp?.servers.some((server) => server.id === serverId) &&
+				!mcp.selectedServerIds.includes(serverId)
 			) {
 				options.actions.toggleMcp(serverId, true);
 			}
@@ -149,11 +141,10 @@ export const AgentComposerOptionsMenu = ({
 	});
 
 	const canUseWorkspacePicker =
-		options.state.workspaceSelection.onChange !== undefined &&
-		options.state.workspaceSelection.isLoading === false;
+		workspaceSelection?.onChange !== undefined && !workspaceSelection.isLoading;
 
 	const selectWorkspace = (id: string | null) => {
-		options.state.workspaceSelection.onChange?.(id);
+		workspaceSelection?.onChange?.(id);
 		setOpen(false);
 	};
 
@@ -214,10 +205,10 @@ export const AgentComposerOptionsMenu = ({
 					align="start"
 					className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
 				>
-					{view === "workspace" ? (
+					{view === "workspace" && workspaceSelection ? (
 						<AgentComposerWorkspaceView
-							workspaceOptions={options.state.workspaceSelection.options}
-							selectedWorkspaceId={options.state.workspaceSelection.selectedId}
+							workspaceOptions={workspaceSelection.options}
+							selectedWorkspaceId={workspaceSelection.selectedId}
 							chatOrganizationId={options.state.organizationId}
 							onSelect={selectWorkspace}
 							onBack={() => setView("main")}
@@ -235,34 +226,33 @@ export const AgentComposerOptionsMenu = ({
 								automations={options.state.automations}
 								onClose={() => setOpen(false)}
 							/>
-							{options.state.workspaceSelection.options &&
-								options.state.workspaceSelection.onChange && (
-									<AgentComposerWorkspacePicker
-										workspaceOptions={options.state.workspaceSelection.options}
-										selectedWorkspaceId={
-											options.state.workspaceSelection.selectedId
-										}
-										chatOrganizationId={options.state.organizationId}
-										onSelect={selectWorkspace}
-										isMobile={isBelowMdViewport()}
-										open={workspacePickerOpen}
-										onOpenChange={setWorkspacePickerOpen}
-										disabled={!canUseWorkspacePicker}
-										onOpenMobile={() => setView("workspace")}
-									/>
-								)}
-							<AgentComposerMCPMenu
-								servers={options.state.mcp.servers}
-								selectedServerIds={options.state.mcp.selectedServerIds}
-								connectingServerId={connectingServerId}
-								isDisabled={composer.state.isDisabled}
-								onConnect={connect}
-								onToggle={options.actions.toggleMcp}
-								onDisconnect={(server) => {
-									setOpen(false);
-									setDisconnectTarget(server);
-								}}
-							/>
+							{workspaceSelection?.onChange && (
+								<AgentComposerWorkspacePicker
+									workspaceOptions={workspaceSelection.options}
+									selectedWorkspaceId={workspaceSelection.selectedId}
+									chatOrganizationId={options.state.organizationId}
+									onSelect={selectWorkspace}
+									isMobile={isBelowMdViewport()}
+									open={workspacePickerOpen}
+									onOpenChange={setWorkspacePickerOpen}
+									disabled={!canUseWorkspacePicker}
+									onOpenMobile={() => setView("workspace")}
+								/>
+							)}
+							{mcp && (
+								<AgentComposerMCPMenu
+									servers={mcp.servers}
+									selectedServerIds={mcp.selectedServerIds}
+									connectingServerId={connectingServerId}
+									isDisabled={composer.state.isDisabled}
+									onConnect={connect}
+									onToggle={options.actions.toggleMcp}
+									onDisconnect={(server) => {
+										setOpen(false);
+										setDisconnectTarget(server);
+									}}
+								/>
+							)}
 						</>
 					)}
 				</PopoverContent>
@@ -332,14 +322,14 @@ const ComposerMenuActions = ({
 			}}
 			disabled={isDisabled}
 		/>
-		{automations?.onChange && (
+		{automations && (
 			<MenuCheckboxItem
 				icon={ZapIcon}
 				label="Manage automations"
 				description="Let the agent create and manage automations for you."
-				checked={automations.enabled ?? false}
+				checked={automations.enabled}
 				onToggle={() => {
-					automations.onChange?.(!automations.enabled);
+					automations.onChange(!automations.enabled);
 					onClose();
 				}}
 				disabled={isDisabled}

@@ -814,7 +814,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 				skippedErrors++;
 				continue;
 			}
-			if (state?.status === "uploaded" && state.fileId) {
+			if (state?.status === "uploaded") {
 				fileIds.push(state.fileId);
 			}
 		}
@@ -1025,12 +1025,12 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 							enabled: planModeEnabled,
 							onChange: setPlanModeEnabled,
 						},
-						automations: {
-							enabled: manageAutomationsEnabled,
-							onChange: automationsExperimentEnabled
-								? setManageAutomationsEnabled
-								: undefined,
-						},
+						automations: automationsExperimentEnabled
+							? {
+									enabled: manageAutomationsEnabled,
+									onChange: setManageAutomationsEnabled,
+								}
+							: undefined,
 						mcp: {
 							servers: mcpServers,
 							selectedServerIds: effectiveMCPServerIds,

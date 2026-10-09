@@ -780,16 +780,12 @@ const AgentChatPage: React.FC = () => {
 					composer={
 						<LoadingChatComposer
 							bindings={{
-								onSend: () => {},
 								inputRef: editing.chatInputRef,
 								initialValue: editing.editorInitialValue,
 								initialEditorState: editing.initialEditorState,
 								remountKey: editing.remountKey,
 								onContentChange: editing.handleLoadingDraftChange,
-								// Keep sends disabled until the transcript can mount.
 								isDisabled: isInputDisabled || preferencesQuery.isLoading,
-								isLoading: false,
-								hasModelOptions,
 							}}
 							model={{
 								selectedModel: effectiveSelectedModel,
