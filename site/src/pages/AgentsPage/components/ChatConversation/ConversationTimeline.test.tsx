@@ -21,6 +21,7 @@ import {
 	buildStreamRenderState,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
+	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
 	workingFixtureTime,
@@ -108,6 +109,27 @@ const focusCopyCommand = (messageId: number) => {
 };
 
 describe("ConversationTimeline working blocks", () => {
+	it("copies the whole message from the answer below its expanded block", async () => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		renderTimeline({ messages: MockWebSearchAnswerMessages });
+
+		await user.click(
+			screen.getByRole("button", { name: "Worked for 15s (3 steps)" }),
+		);
+		await user.click(
+			within(screen.getByTestId("chat-message-message:6")).getByRole("button", {
+				name: "Copy message",
+			}),
+		);
+
+		expect(writeText).toHaveBeenCalledWith(
+			"Looking up the release notes.The workspace runs the latest Coder release.",
+		);
+	});
+
 	it("keeps an open block mounted as older pages join it", async () => {
 		const user = userEvent.setup();
 		const { rerenderStage } = renderTimeline({
@@ -333,6 +355,37 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 		expect(copyCommand).toHaveFocus();
+	});
+
+	it("keeps the live reasoning mounted in an open block when the answer starts", async () => {
+		const user = userEvent.setup();
+		const messages = MockWorkingMessages.slice(0, 5);
+		const reasoning = {
+			type: "reasoning",
+			text: "Summarizing the inspection",
+			created_at: workingFixtureTime(13),
+		} as const;
+		const { rerenderStage } = renderTimeline({
+			messages,
+			chatStatus: "running",
+			...buildStreamRenderState([reasoning]),
+		});
+
+		await user.click(screen.getByRole("button", { name: "Working for 12s" }));
+		const thinking = await screen.findByRole("button", {
+			name: /Summarizing/,
+		});
+		thinking.focus();
+
+		rerenderStage({
+			messages,
+			chatStatus: "running",
+			...buildStreamRenderState([
+				reasoning,
+				{ type: "text", text: "The workspace looks healthy." },
+			]),
+		});
+		expect(thinking).toHaveFocus();
 	});
 
 	it("keeps the live disclosure mounted while the next step starts", () => {

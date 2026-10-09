@@ -3906,6 +3906,12 @@ export interface ChatSystemPromptResponse {
 export interface ChatTextPart {
 	readonly type: "text";
 	readonly text: string;
+	/**
+	 * Narration marks assistant text that the model labeled as commentary
+	 * on its work rather than its answer. Only providers that label their
+	 * output set it.
+	 */
+	readonly narration?: boolean;
 }
 
 // From codersdk/chats.go

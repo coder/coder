@@ -8464,36 +8464,57 @@ func TestActiveServer_AnthropicDropsUnpairedProviderToolBeforePersist(t *testing
 func TestActiveServer_AnthropicKeepsPairedWebSearchBeforePersist(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, ps := dbtestutil.NewDB(t)
-	requests := newAnthropicRequestRecorder()
-	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
-		requests.record(req)
-		return chattest.AnthropicStreamingResponse(
-			anthropicWebSearchPairChunks("ws-1", `{"query":"coder"}`, "search done", "end_turn")...,
-		)
-	})
-	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
-	model = enableAnthropicWebSearchForTest(t, db, model)
+	for _, tt := range []struct {
+		name      string
+		noResults bool
+	}{
+		{name: "WithResults"},
+		// Clients see a search that found nothing while it streams, so it
+		// must persist like any other.
+		{name: "NoResults", noResults: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
-	})
-	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search for coder")
-	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			chunks := anthropicWebSearchPairChunks("ws-1", `{"query":"coder"}`, "search done", "end_turn")
+			if tt.noResults {
+				for i := range chunks {
+					if chunks[i].ContentBlock.Type == "web_search_tool_result" {
+						chunks[i].ContentBlock.Content = []map[string]any{}
+					}
+				}
+			}
 
-	generationRequests := filterAnthropicStreamingRequests(requests.all())
-	require.Len(t, generationRequests, 1)
-	parts := chatToolParts(ctx, t, db, chat.ID)
-	toolCall := requireToolCallPart(t, parts, "web_search")
-	require.Equal(t, "ws-1", toolCall.ToolCallID)
-	require.True(t, toolCall.ProviderExecuted)
-	toolResult := requireToolResultPart(t, parts, "web_search")
-	require.Equal(t, "ws-1", toolResult.ToolCallID)
-	require.True(t, toolResult.ProviderExecuted)
-	require.NotEmpty(t, toolResult.ProviderMetadata)
-	messages := chatMessages(ctx, t, db, chat.ID)
-	requireTextPart(t, messages[len(messages)-1], "search done")
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			requests := newAnthropicRequestRecorder()
+			anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+				requests.record(req)
+				return chattest.AnthropicStreamingResponse(chunks...)
+			})
+			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+			model = enableAnthropicWebSearchForTest(t, db, model)
+
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+			})
+			chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search for coder")
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+			generationRequests := filterAnthropicStreamingRequests(requests.all())
+			require.Len(t, generationRequests, 1)
+			parts := chatToolParts(ctx, t, db, chat.ID)
+			toolCall := requireToolCallPart(t, parts, "web_search")
+			require.Equal(t, "ws-1", toolCall.ToolCallID)
+			require.True(t, toolCall.ProviderExecuted)
+			toolResult := requireToolResultPart(t, parts, "web_search")
+			require.Equal(t, "ws-1", toolResult.ToolCallID)
+			require.True(t, toolResult.ProviderExecuted)
+			require.NotEmpty(t, toolResult.ProviderMetadata)
+			messages := chatMessages(ctx, t, db, chat.ID)
+			requireTextPart(t, messages[len(messages)-1], "search done")
+		})
+	}
 }
 
 // TestActiveServer_AnthropicWebSearchFollowUpHasNoSyntheticCancellation

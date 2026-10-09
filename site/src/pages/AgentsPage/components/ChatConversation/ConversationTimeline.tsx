@@ -41,6 +41,7 @@ import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
+	getVisibleContent,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { assignTimelineRows } from "./timelineRows";
@@ -53,7 +54,11 @@ import type {
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
-import { groupWorkingBlocks } from "./workingBlockGrouping";
+import {
+	groupWorkingBlocks,
+	type RowSection,
+	splitRowBlocks,
+} from "./workingBlockGrouping";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -104,6 +109,7 @@ const ChatMessageItem = memo<{
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
+	section?: RowSection;
 	automationName?: string;
 	automationNameStatus: ChatAutomationNames["status"];
 	parsed?: ParsedMessageContent;
@@ -148,6 +154,7 @@ const ChatMessageItem = memo<{
 		organizationId,
 		renderKey,
 		message,
+		section,
 		automationName,
 		automationNameStatus,
 		parsed,
@@ -233,17 +240,33 @@ const ChatMessageItem = memo<{
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
+		const isWorkSection = section === "work";
+		const rowBlocks = parsed?.blocks ?? liveBlocks;
+		const rowTools = parsed?.tools ?? liveTools;
+		const blocks =
+			section === undefined
+				? rowBlocks
+				: splitRowBlocks(rowBlocks, rowTools)[section];
+		// An answer whose only work was a search without citations folds
+		// nothing, and an empty row would still add a gap inside the block.
+		if (
+			isWorkSection &&
+			getVisibleContent(blocks, rowTools).visibleBlocks.length === 0
+		) {
+			return null;
+		}
+		const outputLiveStatus = isWorkSection ? undefined : liveStatus;
 
 		return (
 			<div
-				data-testid={`chat-message-${renderKey}`}
+				data-testid={`chat-message-${renderKey}${isWorkSection ? "-work" : ""}`}
 				className={cn(
 					isAfterEditingMessage && "opacity-40 pointer-events-none",
 					"group/msg relative transition-opacity duration-200",
 				)}
 				inert={isAfterEditingMessage ? true : undefined}
 			>
-				{message?.automation_id && (
+				{message?.automation_id && !isWorkSection && (
 					<div className={cn("mb-1 flex", isUser && "justify-end")}>
 						<AutomationLabel
 							automationId={message.automation_id}
@@ -270,10 +293,11 @@ const ChatMessageItem = memo<{
 								<AssistantOutput
 									organizationId={organizationId}
 									keyPrefix={renderKey}
-									blocks={parsed?.blocks ?? liveBlocks}
-									tools={parsed?.tools ?? liveTools}
-									isStreaming={liveStatus?.phase === "streaming"}
-									liveStatus={liveStatus}
+									blocks={blocks}
+									// Folded tools would otherwise render again as block-less tools.
+									tools={section === "answer" ? [] : rowTools}
+									isStreaming={outputLiveStatus?.phase === "streaming"}
+									liveStatus={outputLiveStatus}
 									subagentStatusOverrides={subagentStatusOverrides}
 									subagentTitles={subagentTitles}
 									subagentVariants={subagentVariants}
@@ -620,13 +644,17 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
-		const rowContents = renderRows.map((row, index) => {
+		// The work section keeps the row's key, so a row that becomes an answer
+		// row inside an expanded block does not remount its reasoning.
+		const renderRowContent = (index: number, section?: RowSection) => {
+			const row = renderRows[index];
 			if (row.type === "live") {
 				return (
 					<ChatMessageItem
 						key={row.key}
 						organizationId={organizationId}
 						renderKey={row.key}
+						section={section}
 						automationNameStatus="settled"
 						liveStatus={liveStatus}
 						liveBlocks={liveBlocks}
@@ -645,9 +673,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			const { message, parsed } = row.entry;
 			const isUser = message.role === "user";
 			const neighbors = userNeighborsByKey.get(row.key);
-			// A block's item dims and inerts its rows as a whole.
+			// A block's item dims and inerts its rows as a whole; the answer
+			// section renders outside it, so it dims itself.
 			const isAfterEditingMessage =
-				!groupedRows.has(index) && afterEditingMessageIds.has(message.id);
+				(section === "answer" || !groupedRows.has(index)) &&
+				afterEditingMessageIds.has(message.id);
 
 			return (
 				<ChatMessageItem
@@ -655,6 +685,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					organizationId={organizationId}
 					renderKey={row.key}
 					message={message}
+					section={section}
 					automationName={
 						message.automation_id
 							? automationNames.names.get(message.automation_id)
@@ -678,7 +709,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
 					urlTransform={urlTransform}
 					isAfterEditingMessage={isAfterEditingMessage}
-					hideActions={!isUser && !row.isLastInAssistantChain}
+					hideActions={
+						section === "work" || (!isUser && !row.isLastInAssistantChain)
+					}
 					hasActiveStream={hasActiveStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 					isLastMessage={row.isLastMessage}
@@ -691,11 +724,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					onJumpToUserMessage={isUser ? jumpToUserMessage : undefined}
 				/>
 			);
-		});
+		};
 
 		return (
 			<FileProbeProvider evictedFileIds={evictedFileIds}>
-				{renderRows.map((row, index) => {
+				{renderRows.flatMap((row, index) => {
 					const block = blockByFirstRow.get(index);
 					if (block) {
 						// Keyed on durable member rows and the item key, excluding the live
@@ -715,8 +748,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						const isAfterEditingMessage =
 							row.type === "message" &&
 							afterEditingMessageIds.has(row.entry.message.id);
+						const answerRowIndex = block.endsWithAnswer
+							? block.rowIndices.at(-1)
+							: undefined;
 
-						return (
+						return [
 							<MessageScroller.Item
 								key={itemKey}
 								messageId={itemKey}
@@ -740,21 +776,36 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									}
 								>
 									{expanded &&
-										block.rowIndices.map((rowIndex) => rowContents[rowIndex])}
+										block.rowIndices.map((rowIndex) =>
+											renderRowContent(
+												rowIndex,
+												rowIndex === answerRowIndex ? "work" : undefined,
+											),
+										)}
 								</WorkingBlockDisclosure>
-							</MessageScroller.Item>
-						);
+							</MessageScroller.Item>,
+							...(answerRowIndex === undefined
+								? []
+								: [
+										<MessageScroller.Item
+											key={renderRows[answerRowIndex].key}
+											messageId={renderRows[answerRowIndex].key}
+										>
+											{renderRowContent(answerRowIndex, "answer")}
+										</MessageScroller.Item>,
+									]),
+						];
 					}
 
 					if (groupedRows.has(index)) {
-						return null;
+						return [];
 					}
 
 					const suppressInitialAnchor =
 						row.type === "message" &&
 						initialActiveTurnMaxMessageId !== undefined &&
 						row.entry.message.id <= initialActiveTurnMaxMessageId;
-					return (
+					return [
 						<MessageScroller.Item
 							key={row.key}
 							messageId={row.key}
@@ -762,9 +813,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								row.key === anchorUserRowKey && !suppressInitialAnchor
 							}
 						>
-							{rowContents[index]}
-						</MessageScroller.Item>
-					);
+							{renderRowContent(index)}
+						</MessageScroller.Item>,
+					];
 				})}
 			</FileProbeProvider>
 		);

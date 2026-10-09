@@ -1,4 +1,5 @@
-import { getVisibleContent } from "./messageHelpers";
+import { appendTextBlock } from "./blockUtils";
+import { getVisibleContent, isProviderToolResult } from "./messageHelpers";
 import type { TimelineRow } from "./timelineRows";
 import type {
 	MergedTool,
@@ -22,8 +23,10 @@ export type WorkingBlock = {
 	 * at the front when history is prepended into that row.
 	 */
 	memberIds: number[];
-	/** Distinct visible tools, not rows. */
+	/** Distinct visible tools plus web searches, not rows. */
 	stepCount: number;
+	/** The last row's answer renders after the block; only its work folds in. */
+	endsWithAnswer: boolean;
 	isLive: boolean;
 	/** Unloaded older history may hold earlier rows of this block. */
 	isPartial: boolean;
@@ -53,19 +56,74 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"chat_cleared",
 ]);
 
-type RowContent = ReturnType<typeof getVisibleContent>;
+/**
+ * A row that ends a working block renders its work inside the block and its
+ * answer after it.
+ */
+export type RowSection = "work" | "answer";
 
 /**
- * A step row is assistant output that ends in tool activity or reasoning
- * rather than an answer. Text that precedes a tool call is narration and
- * folds with it; text that ends a row is an answer and stays visible. A
- * live row with no output yet is the turn working on its next step.
+ * The answer is the content after a row's last reasoning, tool call, or
+ * labeled narration, web searches included; text before it is narration.
+ * Sources fold without splitting the answer, since OpenAI streams citations
+ * between the deltas of one text part.
  */
-const getStepRowContent = (
+export const splitRowBlocks = (
+	blocks: readonly RenderBlock[],
+	tools: readonly MergedTool[],
+) => {
+	const visible = new Set(getVisibleContent(blocks, tools).visibleBlocks);
+	const lastWorkIndex = blocks.findLastIndex(
+		(block) =>
+			visible.has(block) &&
+			(block.type === "thinking" ||
+				block.type === "tool" ||
+				(block.type === "response" &&
+					(block.beforeProviderTool || block.narration))),
+	);
+	const work: RenderBlock[] = [];
+	let answer: RenderBlock[] = [];
+	let previous: RenderBlock | undefined;
+	for (const [index, block] of blocks.entries()) {
+		if (
+			index <= lastWorkIndex ||
+			!visible.has(block) ||
+			block.type === "sources"
+		) {
+			work.push(block);
+		} else if (block.type === "response" && previous?.type === "response") {
+			answer = appendTextBlock(answer, "response", block.text);
+		} else {
+			answer = [...answer, block];
+		}
+		if (block.type !== "sources") {
+			previous = block;
+		}
+	}
+
+	return { work, answer } satisfies Record<RowSection, RenderBlock[]>;
+};
+
+type RowContent = ReturnType<typeof getVisibleContent>;
+
+type MemberRow = {
+	content: RowContent;
+	endsWithAnswer: boolean;
+	showsWork: boolean;
+	narrates: boolean;
+};
+
+/**
+ * A row ending in an answer joins only when it also did work, even a search
+ * without citations, and then closes the block. A live row with no output yet
+ * is the turn working on its next step.
+ */
+const getMemberRow = (
 	row: TimelineRow,
 	options: GroupWorkingBlocksOptions,
-): RowContent | undefined => {
+): MemberRow | undefined => {
 	let content: RowContent;
+	let searched: boolean;
 
 	if (row.type === "live") {
 		if (!options.isLiveRowCollapsible) {
@@ -73,6 +131,7 @@ const getStepRowContent = (
 		}
 
 		content = getVisibleContent(options.liveBlocks, options.liveTools);
+		searched = options.streamState?.providerToolRan ?? false;
 	} else {
 		const { message, parsed } = row.entry;
 		if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
@@ -80,11 +139,14 @@ const getStepRowContent = (
 		}
 
 		content = getVisibleContent(parsed.blocks, parsed.tools);
+		searched = (message.content ?? []).some(isProviderToolResult);
 	}
 
 	const { visibleBlocks, visibleTools } = content;
 	if (visibleBlocks.length === 0) {
-		return row.type === "live" ? content : undefined;
+		return row.type === "live"
+			? { content, endsWithAnswer: false, showsWork: false, narrates: false }
+			: undefined;
 	}
 
 	if (visibleTools.some((tool) => UNCOLLAPSIBLE_TOOLS.has(tool.name))) {
@@ -100,12 +162,17 @@ const getStepRowContent = (
 		return undefined;
 	}
 
-	const last = visibleBlocks[visibleBlocks.length - 1];
-	if (last.type !== "tool" && last.type !== "thinking") {
-		return undefined;
+	const { work, answer } = splitRowBlocks(visibleBlocks, visibleTools);
+	const narrates = work.some(
+		(block) => block.type === "response" && block.narration,
+	);
+	if (answer.length === 0) {
+		return { content, endsWithAnswer: false, showsWork: true, narrates };
 	}
 
-	return content;
+	return work.length > 0 || searched
+		? { content, endsWithAnswer: true, showsWork: work.length > 0, narrates }
+		: undefined;
 };
 
 /**
@@ -141,9 +208,12 @@ export const groupWorkingBlocks = (
 	type Draft = {
 		rowIndices: number[];
 		toolIds: Set<string>;
+		sourceBlocks: number;
+		endsWithAnswer: boolean;
 		anchorKey?: string;
 		ordinal: number;
 		containsLiveRow: boolean;
+		narrates: boolean;
 	};
 
 	const drafts: Draft[] = [];
@@ -152,8 +222,8 @@ export const groupWorkingBlocks = (
 	let ordinal = 0;
 
 	for (const [index, row] of rows.entries()) {
-		const content = getStepRowContent(row, options);
-		if (!content) {
+		const member = getMemberRow(row, options);
+		if (!member) {
 			current = undefined;
 			if (row.type === "message" && row.entry.message.role !== "assistant") {
 				anchorKey = row.key;
@@ -163,19 +233,22 @@ export const groupWorkingBlocks = (
 		}
 
 		if (!current) {
-			// The stream opens empty before every step. That row extends a
-			// block that is already working but never starts one, so a turn's
-			// first moments keep the plain thinking indicator.
-			if (content.visibleBlocks.length === 0) {
+			// Rows that render nothing, like the empty stream before each step or
+			// an uncited search, extend a block but never start one: a turn's
+			// first moments keep the thinking indicator, and no block is empty.
+			if (!member.showsWork) {
 				continue;
 			}
 
 			current = {
 				rowIndices: [],
 				toolIds: new Set(),
+				sourceBlocks: 0,
+				endsWithAnswer: false,
 				anchorKey,
 				ordinal,
 				containsLiveRow: false,
+				narrates: false,
 			};
 			ordinal += 1;
 			drafts.push(current);
@@ -183,19 +256,20 @@ export const groupWorkingBlocks = (
 
 		current.rowIndices.push(index);
 		current.containsLiveRow ||= row.type === "live";
+		current.narrates ||= member.narrates;
 
-		for (const tool of content.visibleTools) {
+		for (const tool of member.content.visibleTools) {
 			current.toolIds.add(tool.id);
 		}
-	}
+		current.sourceBlocks += member.content.visibleBlocks.filter(
+			(block) => block.type === "sources",
+		).length;
 
-	// A completed block is a run of tool activity; a reasoning-only row on
-	// its own stays visible. The live turn folds from its first reasoning,
-	// so thinking never shows and then vanishes once a tool call arrives.
-	const blockDrafts = drafts.filter(
-		(draft) =>
-			draft.toolIds.size > 0 || (draft.containsLiveRow && options.isTurnActive),
-	);
+		if (member.endsWithAnswer) {
+			current.endsWithAnswer = true;
+			current = undefined;
+		}
+	}
 
 	const lastMessageRowIndex = rows.findLastIndex(
 		(row) => row.type === "message",
@@ -212,36 +286,69 @@ export const groupWorkingBlocks = (
 		return Number.POSITIVE_INFINITY;
 	};
 
-	// Entries and blocks are both in ascending message ID order and block
-	// spans never overlap, so one cursor walks the entries once.
+	// Entries and drafts are both in ascending message ID order, so one cursor
+	// walks the entries once.
 	let entryIndex = 0;
+	const blocks: WorkingBlock[] = [];
 
-	return blockDrafts.map((draft) => {
+	for (const draft of drafts) {
 		const firstRowIndex = draft.rowIndices[0];
 		const lastRowIndex = draft.rowIndices[draft.rowIndices.length - 1];
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
 
+		// A persisted answer completes its block even while the chat still runs.
 		const isLive =
 			options.isWorking &&
+			!(draft.endsWithAnswer && rows[lastRowIndex].type === "message") &&
 			(draft.containsLiveRow || lastRowIndex >= lastMessageRowIndex);
 
-		// The span covers hidden tool-result messages up to the next row.
+		// The span covers hidden tool-result messages up to the next row and,
+		// before the first row, searches that rendered nothing since the
+		// previous row.
 		const fromId = Math.min(...memberIds);
 		const toId = messageIdAfter(lastRowIndex);
-		while (
-			entryIndex < entries.length &&
-			entries[entryIndex].message.id < fromId
-		) {
-			entryIndex++;
-		}
+		const previousRowId = Math.max(
+			...(firstRowIndex > 0 ? rowMessageIds(rows[firstRowIndex - 1]) : []),
+		);
 
 		const spanTimestamps: string[] = [];
+		// Until the step persists, one flag stands in for its searches.
+		let searches =
+			draft.containsLiveRow && options.streamState?.providerToolRan ? 1 : 0;
 		while (
 			entryIndex < entries.length &&
 			entries[entryIndex].message.id < toId
 		) {
-			spanTimestamps.push(...getPartTimestamps(entries[entryIndex]));
+			const entry = entries[entryIndex];
 			entryIndex++;
+			// Results, not calls: a step can end with a provider call unanswered,
+			// and the next step issues that call again.
+			const results = (entry.message.content ?? []).filter(
+				isProviderToolResult,
+			).length;
+			const { id } = entry.message;
+			if (id < fromId && (results === 0 || id <= previousRowId)) {
+				continue;
+			}
+
+			spanTimestamps.push(...getPartTimestamps(entry));
+			searches += results;
+		}
+
+		// Source blocks count as searches only when no provider result does:
+		// some providers cite without a search, and an interrupt commits a
+		// search's result apart from the answer citing it.
+		const stepCount = draft.toolIds.size + (searches || draft.sourceBlocks);
+
+		// Completed reasoning alone stays visible. The live turn folds from its
+		// first reasoning, so thinking never shows and then vanishes once a tool
+		// call arrives, and unfolds only when a turn without steps answers.
+		// Labeled narration keeps its block so it never reads as the answer.
+		const foldsLiveTurn =
+			draft.containsLiveRow && options.isTurnActive && !draft.endsWithAnswer;
+		const keepsBlock = stepCount > 0 || foldsLiveTurn || draft.narrates;
+		if (!keepsBlock) {
+			continue;
 		}
 
 		const streamStartedAt = options.streamState?.startedAt;
@@ -254,16 +361,19 @@ export const groupWorkingBlocks = (
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
 		const key = isLive ? liveKey : `working:through:${rows[lastRowIndex].key}`;
 
-		return {
+		blocks.push({
 			key,
 			liveKey,
 			rowIndices: draft.rowIndices,
 			memberIds,
-			stepCount: draft.toolIds.size,
+			stepCount,
+			endsWithAnswer: draft.endsWithAnswer,
 			isLive,
 			isPartial: options.hasMoreMessages && firstRowIndex === 0,
 			startedAt: times.length > 0 ? Math.min(...times) : undefined,
 			endedAt: isLive || times.length === 0 ? undefined : Math.max(...times),
-		};
-	});
+		});
+	}
+
+	return blocks;
 };

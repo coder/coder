@@ -49,15 +49,18 @@ const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
 };
 
 const getCompletedWorkingLabel = (block: WorkingBlock): string => {
-	const steps = countLabel(block, block.stepCount, "step");
+	// A block of narration without tool calls has no steps to count.
+	const steps =
+		block.stepCount > 0 ? countLabel(block, block.stepCount, "step") : "";
 	if (block.startedAt === undefined || block.endedAt === undefined) {
-		return `Completed ${steps}`;
+		return steps ? `Completed ${steps}` : "Completed";
 	}
 
 	const duration = humanDurationShort(
 		Math.max(0, block.endedAt - block.startedAt),
 	);
-	return `Worked for ${atLeast(block)}${duration} (${steps})`;
+	const worked = `Worked for ${atLeast(block)}${duration}`;
+	return steps ? `${worked} (${steps})` : worked;
 };
 
 const getScrollParent = (element: HTMLElement): HTMLElement | null => {

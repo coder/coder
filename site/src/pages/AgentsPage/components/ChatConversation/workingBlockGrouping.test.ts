@@ -11,6 +11,7 @@ import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import {
 	type GroupWorkingBlocksOptions,
 	groupWorkingBlocks,
+	splitRowBlocks,
 	type WorkingBlock,
 } from "./workingBlockGrouping";
 
@@ -32,6 +33,11 @@ const text = (value: string): TypesGen.ChatMessagePart => ({
 	type: "text",
 	text: value,
 });
+const narration = (value: string): TypesGen.ChatMessagePart => ({
+	type: "text",
+	text: value,
+	narration: true,
+});
 const reasoning = (
 	value: string,
 	createdAt?: string,
@@ -41,6 +47,32 @@ const reasoning = (
 	text: value,
 	created_at: createdAt,
 	completed_at: completedAt,
+});
+const source = (url: string, title: string): TypesGen.ChatMessagePart => ({
+	type: "source",
+	url,
+	title,
+});
+const citation = source("https://go.example.com", "Go");
+const searchCall = (
+	id: string,
+	createdAt?: string,
+): TypesGen.ChatMessagePart => ({
+	type: "tool-call",
+	tool_call_id: id,
+	tool_name: "web_search",
+	provider_executed: true,
+	created_at: createdAt,
+});
+const searchResult = (
+	id: string,
+	createdAt?: string,
+): TypesGen.ChatMessagePart => ({
+	type: "tool-result",
+	tool_call_id: id,
+	tool_name: "web_search",
+	provider_executed: true,
+	created_at: createdAt,
 });
 const call = (
 	id: string,
@@ -164,9 +196,131 @@ describe("groupWorkingBlocks", () => {
 		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
 			steps[0].id,
 			steps[2].id,
+			answer.id,
 		]);
 		// Reasoning start counts toward the wall-clock span.
 		expect(blocks[0].startedAt).toBe(WORKING_FIXTURE_START + 500);
+	});
+
+	it("folds the final answer's reasoning and web search into the block it ends", () => {
+		const prompt = user("Go");
+		const steps = [...step("a", 1, 2), ...step("b", 3, 4)];
+		const answer = message(
+			"assistant",
+			[
+				reasoning("Check the docs", at(5), at(9)),
+				source("https://example.com/a", "A"),
+				source("https://example.com/b", "B"),
+				text("Done."),
+			],
+			at(10),
+		);
+		const { rows, blocks } = group([prompt, ...steps, answer]);
+
+		expect(blocks).toHaveLength(1);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+			steps[0].id,
+			steps[2].id,
+			answer.id,
+		]);
+		expect(blocks[0]).toMatchObject({
+			stepCount: 3,
+			endsWithAnswer: true,
+			endedAt: WORKING_FIXTURE_START + 9000,
+			key: `working:through:message:${answer.id}`,
+		});
+	});
+
+	it("treats an answer whose citations trail its text as the block's answer", () => {
+		const prompt = user("Go");
+		const steps = step("a", 1, 2);
+		const answer = message("assistant", [
+			text("Done."),
+			source("https://example.com", "Example"),
+		]);
+		const { blocks } = group([prompt, ...steps, answer]);
+
+		expect(blocks[0]).toMatchObject({ stepCount: 2, endsWithAnswer: true });
+	});
+
+	it("starts a one-step block from an answer that searched in a turn without tools", () => {
+		const prompt = user("Go");
+		const answer = message("assistant", [
+			reasoning("Look it up"),
+			source("https://example.com", "Example"),
+			text("Found it."),
+		]);
+		const { rows, blocks } = group([prompt, answer]);
+
+		expect(blocks).toHaveLength(1);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([answer.id]);
+		expect(blocks[0]).toMatchObject({ stepCount: 1, endsWithAnswer: true });
+	});
+
+	it("counts a reissued search once, ignoring its unanswered first call", () => {
+		const prompt = user("Go");
+		const steps = step("a", 1, 2, { leading: [searchCall("unanswered")] });
+		const answer = message("assistant", [
+			searchCall("search"),
+			citation,
+			searchResult("search"),
+			text("Go 1.27 is out."),
+		]);
+		const { blocks } = group([prompt, ...steps, answer]);
+
+		expect(blocks).toMatchObject([{ stepCount: 2, endsWithAnswer: true }]);
+	});
+
+	it.each([
+		{ name: "no answer", answers: [] },
+		{
+			name: "a cited answer",
+			answers: [[text("Go 1.27"), citation, text(" is out."), citation]],
+		},
+	])(
+		"keeps the step of a search an interrupt committed apart from its row with $name",
+		({ answers }) => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			// chatd commits the call and result as separate messages that render
+			// no row.
+			const search = [
+				message("assistant", [searchCall("s", at(3))]),
+				message("tool", [searchResult("s", at(4))]),
+			];
+			const after = answers.map((parts) => message("assistant", parts));
+
+			expect(
+				group([prompt, ...steps, ...search, ...after]).blocks,
+			).toMatchObject([{ stepCount: 2 }]);
+		},
+	);
+
+	it("counts a search that rendered no row before the block's first step", () => {
+		const prompt = user("Go");
+		// The answer's own search stays out of the block that follows it.
+		const answer = message("assistant", [
+			searchCall("first", at(1)),
+			searchResult("first", at(2)),
+			text("Nothing found."),
+		]);
+		const search = message("assistant", [
+			searchCall("second", at(3)),
+			searchResult("second", at(4)),
+		]);
+		const steps = step("a", 5, 6);
+
+		expect(group([prompt, answer, search, ...steps]).blocks).toMatchObject([
+			{ stepCount: 2, startedAt: WORKING_FIXTURE_START + 3000 },
+		]);
+	});
+
+	it("leaves an answer's reasoning unfolded in a turn without steps", () => {
+		const prompt = user("Go");
+		const answer = message("assistant", [reasoning("Easy"), text("Done.")]);
+		const { blocks } = group([prompt, answer]);
+
+		expect(blocks).toEqual([]);
 	});
 
 	it("leaves a standalone reasoning-only row unfolded", () => {
@@ -192,6 +346,44 @@ describe("groupWorkingBlocks", () => {
 			second[0].id,
 		]);
 		expect(blocks[0].stepCount).toBe(2);
+	});
+
+	it("folds a web search row that sits between tool steps", () => {
+		const prompt = user("Go");
+		const first = step("a", 1, 2);
+		const search = message("assistant", [
+			reasoning("Search"),
+			source("https://example.com", "Example"),
+		]);
+		const second = step("b", 5, 6);
+		const { rows, blocks } = group([prompt, ...first, search, ...second]);
+
+		expect(blocks).toHaveLength(1);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+			first[0].id,
+			search.id,
+			second[0].id,
+		]);
+		expect(blocks[0]).toMatchObject({ stepCount: 3, endsWithAnswer: false });
+	});
+
+	it("starts a new block after an answer row closes one", () => {
+		const prompt = user("Go");
+		const first = step("a", 1, 2);
+		const interlude = message("assistant", [
+			reasoning("Halfway"),
+			text("Halfway there."),
+		]);
+		const second = step("b", 4, 5);
+		const { rows, blocks } = group([prompt, ...first, interlude, ...second]);
+
+		expect(blocks).toHaveLength(2);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+			first[0].id,
+			interlude.id,
+		]);
+		expect(blocks[0].endsWithAnswer).toBe(true);
+		expect(rowIds(rows, blocks[1].rowIndices)).toEqual([second[0].id]);
 	});
 
 	it("splits a turn at an interleaved answer row", () => {
@@ -414,6 +606,256 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks[0].isLive).toBe(true);
 		});
 
+		it("keeps a live answer row with reasoning in the live block", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const { rows, blocks } = groupLive(
+				[prompt, ...steps],
+				[reasoning("Wrap up", at(3)), text("Here is what I found")],
+			);
+
+			expect(blocks).toHaveLength(1);
+			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id, "live"]);
+			expect(blocks[0]).toMatchObject({ isLive: true, endsWithAnswer: true });
+		});
+
+		it("folds an answer's search without citations into the block it ends", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const parts = [
+				searchCall("s", at(3)),
+				searchResult("s", at(4)),
+				text("Nothing new."),
+			];
+			const answer = message("assistant", parts);
+			const live = groupLive([prompt, ...steps], parts);
+			const persisted = group([prompt, ...steps, answer]);
+
+			expect(rowIds(live.rows, live.blocks[0].rowIndices)).toEqual([
+				steps[0].id,
+				"live",
+			]);
+			expect(live.blocks).toMatchObject([
+				{ stepCount: 2, endsWithAnswer: true, isLive: true },
+			]);
+			expect(rowIds(persisted.rows, persisted.blocks[0].rowIndices)).toEqual([
+				steps[0].id,
+				answer.id,
+			]);
+			expect(persisted.blocks).toMatchObject([
+				{
+					stepCount: 2,
+					endsWithAnswer: true,
+					endedAt: WORKING_FIXTURE_START + 4000,
+				},
+			]);
+		});
+
+		it("starts no block from a search without citations alone", () => {
+			const prompt = user("Go");
+			const parts = [searchCall("s", at(1)), searchResult("s"), text("Hi.")];
+
+			for (const index of parts.keys()) {
+				expect(groupLive([prompt], parts.slice(0, index + 1)).blocks).toEqual(
+					[],
+				);
+			}
+			expect(group([prompt, message("assistant", parts)]).blocks).toEqual([]);
+		});
+
+		it("unfolds a tool-less live turn's reasoning once its answer starts", () => {
+			const { blocks } = groupLive(
+				[user("Go")],
+				[reasoning("Planning", at(1)), text("Here you go")],
+			);
+
+			expect(blocks).toEqual([]);
+		});
+
+		it("folds labeled narration into the live block from its first delta", () => {
+			const prompt = user("Go");
+			const parts = [
+				reasoning("Planning", at(1)),
+				narration("Now I'll "),
+				narration("update the tests."),
+				call("a", at(2)),
+			];
+
+			for (const index of parts.keys()) {
+				const { rows, blocks } = groupLive([prompt], parts.slice(0, index + 1));
+				expect(blocks).toMatchObject([
+					{
+						key: `working:live:message:${prompt.id}:0`,
+						endsWithAnswer: false,
+					},
+				]);
+				expect(rowIds(rows, blocks[0].rowIndices)).toEqual(["live"]);
+			}
+		});
+
+		it("keeps a tool-less turn's labeled narration folded above its answer", () => {
+			const prompt = user("Go");
+			const parts = [narration("Checking the docs."), text("They cover it.")];
+			const live = groupLive([prompt], parts);
+			const persisted = group([prompt, message("assistant", parts)]);
+
+			for (const { blocks } of [live, persisted]) {
+				expect(blocks).toMatchObject([{ stepCount: 0, endsWithAnswer: true }]);
+			}
+		});
+
+		// OpenAI streams a search's citations inside the answer text that follows
+		// it, and stores them before that text.
+		it.each([
+			{
+				name: "reasoning before the search",
+				live: [
+					reasoning("Look it up", at(1)),
+					searchCall("a"),
+					searchResult("a"),
+					text("Go 1.27"),
+					citation,
+					text(" is out."),
+				],
+				persisted: [
+					reasoning("Look it up", at(1), at(2)),
+					searchCall("a"),
+					searchResult("a"),
+					citation,
+					text("Go 1.27 is out."),
+				],
+				stepCount: 1,
+			},
+			{
+				name: "the search before its reasoning",
+				live: [
+					searchCall("a", at(1)),
+					searchResult("a"),
+					reasoning("Compare", at(2)),
+					text("Go 1.27"),
+					citation,
+					text(" is out."),
+				],
+				persisted: [
+					searchCall("a", at(1)),
+					searchResult("a"),
+					reasoning("Compare", at(2), at(3)),
+					citation,
+					text("Go 1.27 is out."),
+				],
+				stepCount: 1,
+			},
+			{
+				name: "narration before the search",
+				live: [
+					text("Searching."),
+					searchCall("a", at(1)),
+					searchResult("a"),
+					text("Go 1.27"),
+					citation,
+					text(" is out."),
+				],
+				persisted: [
+					text("Searching."),
+					searchCall("a", at(1)),
+					searchResult("a"),
+					citation,
+					text("Go 1.27 is out."),
+				],
+				stepCount: 1,
+			},
+			{
+				name: "two searches",
+				live: [
+					reasoning("Look it up", at(1)),
+					searchCall("a"),
+					searchResult("a"),
+					searchCall("b"),
+					searchResult("b"),
+					text("Go 1.27"),
+					citation,
+					text(" is out."),
+				],
+				persisted: [
+					reasoning("Look it up", at(1), at(2)),
+					searchCall("a"),
+					searchResult("a"),
+					searchCall("b"),
+					searchResult("b"),
+					citation,
+					text("Go 1.27 is out."),
+				],
+				stepCount: 2,
+			},
+			{
+				name: "a search without citations",
+				live: [
+					reasoning("Look it up", at(1)),
+					searchCall("a"),
+					searchResult("a"),
+					text("Nothing new."),
+				],
+				persisted: [
+					reasoning("Look it up", at(1), at(2)),
+					searchCall("a"),
+					searchResult("a"),
+					text("Nothing new."),
+				],
+				stepCount: 1,
+			},
+		])(
+			"keeps one search block through streaming and persistence with $name",
+			({ live, persisted, stepCount }) => {
+				const prompt = user("Go");
+				const liveKey = `working:live:message:${prompt.id}:0`;
+				const prefixBlocks = live.map(
+					(_, index) => groupLive([prompt], live.slice(0, index + 1)).blocks,
+				);
+				const firstBlockIndex = prefixBlocks.findIndex(
+					(blocks) => blocks.length > 0,
+				);
+
+				expect(firstBlockIndex).not.toBe(-1);
+				for (const blocks of prefixBlocks.slice(firstBlockIndex)) {
+					expect(blocks).toMatchObject([
+						{
+							key: liveKey,
+							isLive: true,
+							startedAt: WORKING_FIXTURE_START + 1000,
+						},
+					]);
+				}
+				expect(
+					group([prompt, message("assistant", persisted)]).blocks,
+				).toMatchObject([
+					{
+						liveKey,
+						stepCount,
+						endsWithAnswer: true,
+						isLive: false,
+						startedAt: WORKING_FIXTURE_START + 1000,
+					},
+				]);
+			},
+		);
+
+		it("completes a block once its answer row persists while the chat still runs", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const answer = message(
+				"assistant",
+				[reasoning("Wrap up", at(3), at(4)), text("Done.")],
+				at(5),
+			);
+			const { blocks } = group([prompt, ...steps, answer], { isWorking: true });
+
+			expect(blocks).toHaveLength(1);
+			expect(blocks[0]).toMatchObject({
+				isLive: false,
+				endedAt: WORKING_FIXTURE_START + 4000,
+			});
+		});
+
 		it("folds an idle live row into the block it follows", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
@@ -585,5 +1027,147 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks[0].isLive).toBe(false);
 			expect(blocks[1].isLive).toBe(true);
 		});
+	});
+});
+
+describe("splitRowBlocks", () => {
+	const answerOf = (content: TypesGen.ChatMessagePart[]) => {
+		const [{ parsed }] = parseMessagesWithMergedTools([
+			message("assistant", content),
+		]);
+		return splitRowBlocks(parsed.blocks, parsed.tools).answer;
+	};
+
+	it("folds narration that precedes the answer's last reasoning", () => {
+		expect(
+			answerOf([
+				reasoning("Plan"),
+				text("Looking it up."),
+				source("https://example.com", "Example"),
+				reasoning("Compare"),
+				text("Done."),
+			]),
+		).toEqual([{ type: "response", text: "Done." }]);
+	});
+
+	// Persisted rows store text at its end, after the citations streamed in it.
+	it.each([
+		{
+			name: "narration before search results",
+			persisted: [
+				text("Searching."),
+				searchCall("a"),
+				citation,
+				searchResult("a"),
+				text("Go 1.27 is out."),
+			],
+			live: [
+				text("Searching."),
+				searchCall("a"),
+				citation,
+				searchResult("a"),
+				text("Go 1.27 is out."),
+			],
+			answer: "Go 1.27 is out.",
+		},
+		{
+			name: "narration before cited text",
+			persisted: [
+				text("Searching."),
+				searchCall("a"),
+				searchResult("a"),
+				citation,
+				text("Go 1.27 is out. Rust 1.98 is out."),
+			],
+			live: [
+				text("Searching."),
+				searchCall("a"),
+				searchResult("a"),
+				text("Go 1.27 is out."),
+				citation,
+				text(" Rust 1.98 is out."),
+			],
+			answer: "Go 1.27 is out. Rust 1.98 is out.",
+		},
+		{
+			name: "cited text before a search",
+			persisted: [
+				citation,
+				text("Go 1.27 is out."),
+				searchCall("a"),
+				searchResult("a"),
+				text("Rust 1.98 is out."),
+			],
+			live: [
+				text("Go 1.27 is out."),
+				citation,
+				searchCall("a"),
+				searchResult("a"),
+				text("Rust 1.98 is out."),
+			],
+			answer: "Rust 1.98 is out.",
+		},
+		{
+			name: "cited text without a search call",
+			persisted: [citation, text("Go 1.27 is out. Rust 1.98 is out.")],
+			live: [text("Go 1.27 is out."), citation, text(" Rust 1.98 is out.")],
+			answer: "Go 1.27 is out. Rust 1.98 is out.",
+		},
+		{
+			name: "labeled narration before the answer",
+			persisted: [narration("Checking the docs."), text("They cover it.")],
+			live: [
+				narration("Checking "),
+				narration("the docs."),
+				text("They cover it."),
+			],
+			answer: "They cover it.",
+		},
+	])(
+		"splits $name the same live and persisted",
+		({ persisted, live, answer }) => {
+			const { streamState, streamTools } = buildStreamRenderState(live);
+			if (!streamState) {
+				throw new Error("The live parts built no stream state.");
+			}
+			const expected = [{ type: "response", text: answer }];
+
+			expect(answerOf(persisted)).toEqual(expected);
+			expect(splitRowBlocks(streamState.blocks, streamTools).answer).toEqual(
+				expected,
+			);
+		},
+	);
+
+	const hiddenCall = (id: string): TypesGen.ChatMessagePart => ({
+		type: "tool-call",
+		tool_call_id: id,
+		tool_name: "execute",
+		args: { command: "" },
+	});
+
+	it("ignores hidden tools when splitting the answer", () => {
+		expect(
+			answerOf([
+				reasoning("Plan"),
+				hiddenCall("before"),
+				text("Done."),
+				hiddenCall("after"),
+			]),
+		).toEqual([{ type: "response", text: "Done." }]);
+	});
+
+	it("keeps answer text on either side of a hidden tool apart", () => {
+		expect(
+			answerOf([
+				reasoning("Plan"),
+				text("Checked the logs."),
+				hiddenCall("between"),
+				text("The fix is in."),
+			]),
+		).toEqual([
+			{ type: "response", text: "Checked the logs." },
+			{ type: "response", text: "The fix is in." },
+		]);
 	});
 });

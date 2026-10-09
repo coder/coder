@@ -54,11 +54,12 @@ const isWorkspaceFileReferenceBlock = (
 ): block is WorkspaceFileReferenceBlock =>
 	block.type === "workspace-file-reference";
 
+export const isProviderToolResult = (part: TypesGen.ChatMessagePart): boolean =>
+	part.type === "tool-result" && part.provider_executed === true;
+
 const isProviderToolResultOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],
-): boolean =>
-	parts.length > 0 &&
-	parts.every((part) => part.type === "tool-result" && part.provider_executed);
+): boolean => parts.length > 0 && parts.every(isProviderToolResult);
 
 const isMetadataOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],

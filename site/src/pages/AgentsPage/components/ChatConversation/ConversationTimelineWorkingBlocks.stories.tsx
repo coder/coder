@@ -11,8 +11,11 @@ import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
 	MockCollapsedStepsPreferences,
+	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
 	MockQuestionCallMessage,
+	MockUncitedSearchAnswerMessages,
+	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
 	workingFixtureTime,
@@ -69,6 +72,87 @@ export const Expanded: Story = {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", {
 				name: "Worked for 12s (2 steps)",
+			}),
+		);
+	},
+};
+
+// Only the answer's final text shows after the summary.
+export const AnswerWorkFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
+	},
+};
+
+export const AnswerWorkFoldsExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 15s (3 steps)",
+			}),
+		);
+	},
+};
+
+export const SearchOnlyAnswerFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			MockWebSearchAnswerMessages[0],
+			...MockWebSearchAnswerMessages.slice(5),
+		]),
+	},
+};
+
+export const UncitedSearchAnswerFoldsExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUncitedSearchAnswerMessages,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 14s (3 steps)",
+			}),
+		);
+	},
+};
+
+export const LabeledNarrationFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			MockWorkingMessages[0],
+			{
+				...MockChatMessage,
+				id: 2,
+				role: "assistant",
+				created_at: workingFixtureTime(4),
+				content: [
+					{
+						type: "reasoning",
+						text: "Finding the docs page",
+						created_at: workingFixtureTime(1),
+						completed_at: workingFixtureTime(2),
+					},
+					{ type: "text", text: "Checking the docs.", narration: true },
+					{ type: "text", text: "The docs cover workspace sharing." },
+				],
+			},
+		]),
+	},
+};
+
+export const LeadInBeforeSearchFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockLeadInSearchMessages),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 2s (1 step)",
 			}),
 		);
 	},
@@ -209,5 +293,12 @@ export const EditingPrecedingMessage: Story = {
 			canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
 		);
 		await userEvent.click(canvas.getByRole("button", { name: "Edit prompt" }));
+	},
+};
+
+export const EditingBeforeAnswerWorkFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
+		editingMessageId: 1,
 	},
 };
