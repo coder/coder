@@ -97,7 +97,8 @@ type PRChipProps = { readonly prStatuses: readonly ChatDiffStatus[] };
 
 /**
  * One PR links straight to it. Several open the same menu as the top bar,
- * with a neutral count: one state color would misrepresent the rest.
+ * and the chip counts them per state, so a mostly merged set does not read
+ * as open work and the chip stays short however many PRs there are.
  */
 const PRChip: React.FC<PRChipProps> = ({ prStatuses }) => {
 	const [sole] = prStatuses;
@@ -114,24 +115,32 @@ const PRChip: React.FC<PRChipProps> = ({ prStatuses }) => {
 				className={chipClassName}
 				onPointerDown={(e) => e.stopPropagation()}
 			>
-				<span
-					className={cn("size-1.5 rounded-full bg-current", state?.className)}
-				/>
+				{state && (
+					<state.icon className={cn("size-3 shrink-0", state.className)} />
+				)}
 				{visible}
 			</a>
 		);
 	}
 	if (prStatuses.length < 2) return null;
+	const counts = countByState(prStatuses);
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					aria-label={`${prStatuses.length} pull requests`}
-					className={chipClassName}
+					aria-label={`${counts.map((c) => `${c.count} ${c.name}`).join(", ")} pull requests`}
+					className={cn(chipClassName, "gap-1.5")}
 					onPointerDown={(e) => e.stopPropagation()}
 				>
-					{prStatuses.length} PRs
+					{counts.map(({ name, config, count }) => (
+						<span key={name} className="inline-flex items-center gap-0.5">
+							<config.icon
+								className={cn("size-3 shrink-0", config.className)}
+							/>
+							{count}
+						</span>
+					))}
 				</button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start" className={prMenuContentClassName}>
@@ -140,3 +149,21 @@ const PRChip: React.FC<PRChipProps> = ({ prStatuses }) => {
 		</DropdownMenu>
 	);
 };
+
+type PRState = "open" | "draft" | "merged" | "closed";
+
+const prState = (status: ChatDiffStatus): PRState => {
+	if (status.pull_request_state === "merged") return "merged";
+	if (status.pull_request_state === "closed") return "closed";
+	return status.pull_request_draft ? "draft" : "open";
+};
+
+// Work still in flight first.
+const STATE_ORDER: readonly PRState[] = ["open", "draft", "merged", "closed"];
+
+const countByState = (prStatuses: readonly ChatDiffStatus[]) =>
+	STATE_ORDER.flatMap((name) => {
+		const matching = prStatuses.filter((status) => prState(status) === name);
+		const config = matching[0] && getPRIconConfig(matching[0]);
+		return config ? [{ name, config, count: matching.length }] : [];
+	});
