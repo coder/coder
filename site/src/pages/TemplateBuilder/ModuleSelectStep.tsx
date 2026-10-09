@@ -1,4 +1,6 @@
+import { cn } from "cn";
 import { SearchIcon } from "lucide-react";
+import { ToggleGroup } from "radix-ui";
 import { useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
@@ -10,8 +12,6 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { SearchField } from "#/components/SearchField/SearchField";
-import { Tabs, TabsList, TabsTrigger } from "#/components/Tabs/Tabs";
-import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
 import { useFuzzySearch } from "#/pages/TemplateBuilder/hooks/useFuzzySearch";
 import {
 	TemplateBuilderSubtitle,
@@ -108,7 +108,7 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 		...new Set(sortedModules.map((module) => module.category)),
 	].sort((a, b) => a.localeCompare(b));
 
-	const [selectedFilterTab, setSelectedFilterTab] = useState("All");
+	const [selectedCategory, setSelectedCategory] = useState("All");
 
 	const searchedModules = useFuzzySearch({
 		allItems: sortedModules,
@@ -123,24 +123,19 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 			(searchedCategoryCounts.get(module.category) ?? 0) + 1,
 		);
 	}
-	const filterTabs = [
+	const categoryFilters = [
 		{ value: "All", count: searchedModules.length },
 		...categories.map((value) => ({
 			value,
 			count: searchedCategoryCounts.get(value) ?? 0,
 		})),
 	];
-	const { containerRef, visibleTabs: visibleFilterTabs } = useKebabMenu({
-		tabs: filterTabs,
-		enabled: true,
-		isActive: true,
-	});
 
 	const visibleModules =
-		selectedFilterTab === "All"
+		selectedCategory === "All"
 			? searchedModules
 			: searchedModules.filter(
-					(module) => module.category === selectedFilterTab,
+					(module) => module.category === selectedCategory,
 				);
 
 	const selectedSet = useMemo(
@@ -219,19 +214,34 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 				className="my-4"
 			/>
 
-			<Tabs
-				value={selectedFilterTab}
-				onValueChange={setSelectedFilterTab}
-				className="my-4"
+			{/* A single-select toggle group (radio semantics) rather than tabs:
+			    the categories filter the same grid as the search field, so there
+			    is no per-category tab panel for aria-controls to reference. */}
+			<ToggleGroup.Root
+				type="single"
+				value={selectedCategory}
+				// Radix emits "" when the active item is pressed again; keep a
+				// category selected so "All" is the only way to clear the filter.
+				onValueChange={(value) => value && setSelectedCategory(value)}
+				aria-label="Filter modules by category"
+				className="my-4 flex flex-wrap items-center gap-6 border-solid border-0 border-b border-border"
 			>
-				<TabsList ref={containerRef}>
-					{visibleFilterTabs.map((tab) => (
-						<TabsTrigger key={tab.value} value={tab.value}>
-							{tab.value} ({tab.count})
-						</TabsTrigger>
-					))}
-				</TabsList>
-			</Tabs>
+				{categoryFilters.map((filter) => (
+					<ToggleGroup.Item
+						key={filter.value}
+						value={filter.value}
+						className={cn(
+							"-mb-px inline-flex items-center gap-2 px-1 py-2.5 bg-transparent",
+							"border-0 border-y border-solid border-transparent",
+							"text-sm font-normal text-content-secondary cursor-pointer",
+							"transition-colors duration-150 ease-linear hover:text-content-primary",
+							"data-[state=on]:text-content-primary data-[state=on]:border-b-content-primary",
+						)}
+					>
+						{filter.value} ({filter.count})
+					</ToggleGroup.Item>
+				))}
+			</ToggleGroup.Root>
 
 			{/* Show three rows of cards (sized to the common 214px card height plus
 			    the row gaps) and let any extra rows scroll, so the Continue button

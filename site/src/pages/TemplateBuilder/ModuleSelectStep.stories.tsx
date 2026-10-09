@@ -83,29 +83,38 @@ export const Loading: Story = {
 	},
 };
 
-// Verifies that the category filter tab counts reflect the active search.
+export const FilteredByCategory: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("radio", { name: /IDE \(2\)/ }),
+		);
+	},
+};
+
+// Verifies that the category filter counts reflect the active search.
 // Searching "code" matches only code-server (IDE) and Claude Code (AI), so
-// those tab counts drop while non-matching categories fall to zero but stay
+// those counts drop while non-matching categories fall to zero but stay
 // visible.
 export const FilterCountsUpdateOnSearch: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
 		// Counts before searching reflect every module.
-		await canvas.findByRole("tab", { name: /All \(5\)/ });
-		await canvas.findByRole("tab", { name: /IDE \(2\)/ });
-		await canvas.findByRole("tab", { name: /AI \(1\)/ });
+		await canvas.findByRole("radio", { name: /All \(5\)/ });
+		await canvas.findByRole("radio", { name: /IDE \(2\)/ });
+		await canvas.findByRole("radio", { name: /AI \(1\)/ });
 
 		const search = canvas.getByPlaceholderText("Search modules...");
 		await userEvent.type(search, "code");
 
 		// Counts after searching reflect only matching modules per category.
-		await canvas.findByRole("tab", { name: /All \(2\)/ });
-		await canvas.findByRole("tab", { name: /IDE \(1\)/ });
-		await canvas.findByRole("tab", { name: /AI \(1\)/ });
+		await canvas.findByRole("radio", { name: /All \(2\)/ });
+		await canvas.findByRole("radio", { name: /IDE \(1\)/ });
+		await canvas.findByRole("radio", { name: /AI \(1\)/ });
 		// Non-matching categories stay visible with a zero count.
-		await canvas.findByRole("tab", { name: /Source Control \(0\)/ });
-		await canvas.findByRole("tab", { name: /Security \(0\)/ });
+		await canvas.findByRole("radio", { name: /Source Control \(0\)/ });
+		await canvas.findByRole("radio", { name: /Security \(0\)/ });
 
 		// Only matching modules render in the grid.
 		await expect(canvas.getByText("code-server")).toBeInTheDocument();
