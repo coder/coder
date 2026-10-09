@@ -970,9 +970,10 @@ type ChatMessagesResponse struct {
 	// and when no prompt is at or before that message.
 	TurnStartID *int64 `json:"turn_start_id,omitempty"`
 	// HistoryVersion is the chat's history_version, read before the messages
-	// in this page, so the page can include changes newer than it. Pass it as
-	// the stream's history_version parameter. It is set only on pages
-	// requested without before_id or after_id.
+	// in this page. The page can hold changes made after that version; a
+	// stream opened with it resends them. Pass it as the stream's
+	// history_version parameter. It is set only on pages requested without
+	// before_id or after_id.
 	HistoryVersion int64 `json:"history_version,omitempty"`
 }
 
