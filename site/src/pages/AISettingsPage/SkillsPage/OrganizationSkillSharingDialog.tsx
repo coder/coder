@@ -13,11 +13,12 @@ type OrganizationSkillSharingDialogProps = {
 	organizationId: string;
 	skillName: string;
 	onClose: () => void;
+	onCloseAutoFocus?: (event: Event) => void;
 };
 
 export const OrganizationSkillSharingDialog: React.FC<
 	OrganizationSkillSharingDialogProps
-> = ({ organizationId, skillName, onClose }) => {
+> = ({ organizationId, skillName, onClose, onCloseAutoFocus }) => {
 	const queryClient = useQueryClient();
 	const aclOptions = organizationSkillACL(organizationId, skillName);
 	const aclQuery = useQuery({ ...aclOptions, refetchOnMount: "always" });
@@ -33,7 +34,11 @@ export const OrganizationSkillSharingDialog: React.FC<
 		<ResourceSharingDialog
 			title="Skill permissions"
 			description={
-				<>Manage which organization members and groups can use {skillName}.</>
+				<>
+					Manage which organization members and groups can use {skillName}. Site
+					owners, organization admins, and organization auditors can use it
+					whenever it is enabled.
+				</>
 			}
 			loadingLabel="Loading skill permissions"
 			emptyTitle="No members or groups have permission yet"
@@ -59,6 +64,7 @@ export const OrganizationSkillSharingDialog: React.FC<
 			)}
 			getPrincipal={selectedPrincipal}
 			onClose={close}
+			onCloseAutoFocus={onCloseAutoFocus}
 			onSave={(req) =>
 				updateMutation.mutate(
 					{ organizationId, name: skillName, req },

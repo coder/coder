@@ -63,7 +63,7 @@ describe("SkillsTable enabled toggle", () => {
 
 		await user.click(
 			await screen.findByRole("switch", {
-				name: "Organization skill review-sql enabled",
+				name: "Organization skill review-sql",
 			}),
 		);
 
@@ -80,6 +80,36 @@ describe("SkillsTable row menu dialogs", () => {
 		await user.click(await screen.findByRole("menuitem", { name: /Delete/ }));
 		await screen.findByRole("dialog");
 		await user.keyboard("{Escape}");
+
+		await waitFor(() => expect(menuButton).toHaveFocus());
+	});
+
+	it("moves focus to the Add skill button after a confirmed delete", async () => {
+		const { user } = renderTable(true);
+		vi.spyOn(API.experimental, "deleteOrganizationSkill").mockResolvedValue();
+
+		await user.click(await screen.findByRole("button", { name: "Open menu" }));
+		await user.click(await screen.findByRole("menuitem", { name: /Delete/ }));
+		await user.click(
+			await screen.findByRole("button", { name: "Delete skill" }),
+		);
+
+		await waitFor(() =>
+			expect(document.activeElement).toHaveAccessibleName("Add skill"),
+		);
+	});
+
+	it("closes the View dialog with its Close button", async () => {
+		const { user } = renderTable(false);
+		vi.spyOn(API.experimental, "getOrganizationSkillByName").mockResolvedValue({
+			...mockReviewSkill,
+			content: "---\nname: review-sql\n---\nBody.",
+		});
+
+		const menuButton = await screen.findByRole("button", { name: "Open menu" });
+		await user.click(menuButton);
+		await user.click(await screen.findByRole("menuitem", { name: "View" }));
+		await user.click(await screen.findByRole("button", { name: "Close" }));
 
 		await waitFor(() => expect(menuButton).toHaveFocus());
 	});

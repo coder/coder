@@ -23,6 +23,7 @@ const SkillsPage: React.FC = () => {
 	const [sharingSkill, setSharingSkill] = useState<{
 		organizationId: string;
 		name: string;
+		onCloseAutoFocus: (event: Event) => void;
 	}>();
 	const organizationPermissionsQuery = useQuery({
 		...organizationsPermissions(
@@ -94,10 +95,11 @@ const SkillsPage: React.FC = () => {
 							canEdit={canEdit}
 							onManagePermissions={
 								organizationPermissions?.shareOrganizationSkill
-									? (skill) =>
+									? (skill, onCloseAutoFocus) =>
 											setSharingSkill({
 												organizationId: organization.id,
 												name: skill.name,
+												onCloseAutoFocus,
 											})
 									: undefined
 							}
@@ -124,6 +126,7 @@ const SkillsPage: React.FC = () => {
 							organizationId={sharingSkill.organizationId}
 							skillName={sharingSkill.name}
 							onClose={() => setSharingSkill(undefined)}
+							onCloseAutoFocus={sharingSkill.onCloseAutoFocus}
 						/>
 					)}
 				</RequirePermission>

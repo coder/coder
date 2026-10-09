@@ -219,6 +219,7 @@ To change who can use a skill:
 
 Each entry grants the **Use** role.
 Only current members of the organization can use a shared skill.
+Site owners, organization admins, and organization auditors can use every organization skill, whatever its permissions.
 Without a Premium license, you can't create [groups](../../admin/users/groups-roles.md#groups), so the only group is **Everyone**.
 In that case, share a skill either with everyone or with individual members.
 
@@ -229,6 +230,7 @@ It is experimental and might change.
 
 To check which organization skills you can use, open the **Agents** page and go to **Settings** > **Skills**.
 The **From your organizations** section lists, for each of your organizations, the skills that are turned on and shared with you.
+For site owners, organization admins, and organization auditors, it lists every organization skill that is turned on.
 Select **View** on a skill to read its `SKILL.md`.
 An organization that shares no skills with you doesn't appear in this section.
 
@@ -247,7 +249,7 @@ For example, when an administrator turns off an organization skill or removes so
 
 The `/` menu in the chat composer lists skills in 3 groups: **Personal skills**, **Organization skills**, and **Workspace skills**.
 The **Organization skills** group shows the skills of the chat's organization that are turned on and shared with you.
-For site owners, organization admins, and organization auditors, the group and the **From your organizations** section on the **Skills** settings page list every organization skill that is turned on.
+For site owners, organization admins, and organization auditors, the group lists every organization skill that is turned on.
 
 ### Turn a skill on or off
 

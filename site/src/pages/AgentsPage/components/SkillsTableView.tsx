@@ -117,7 +117,10 @@ export type SkillsTableViewProps = {
 	onView: (name: string) => void;
 	onDelete: (skill: SkillMetadata) => void;
 	onDownload: (skill: SkillMetadata) => void;
-	onManagePermissions?: (skill: SkillMetadata) => void;
+	onManagePermissions?: (
+		skill: SkillMetadata,
+		onCloseAutoFocus: (event: Event) => void,
+	) => void;
 	onExportAll: () => void;
 	onToggleEnabled: (skill: SkillMetadata, enabled: boolean) => void;
 	downloadingSkillName?: string;
@@ -299,6 +302,7 @@ const ViewSkillDialog: React.FC<ViewSkillDialogProps> = ({
 			fileName={state.name}
 			onClose={state.onClose}
 			onCloseAutoFocus={onCloseAutoFocus}
+			showCloseButton
 		/>
 	);
 };
@@ -365,9 +369,7 @@ const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
 		<Switch
 			checked={checked}
 			aria-label={
-				readOnlyReason
-					? `${noun} ${skill.name} enabled`
-					: `Enable ${skill.name}`
+				readOnlyReason ? `${noun} ${skill.name}` : `Enable ${skill.name}`
 			}
 			aria-disabled={isBlocked || undefined}
 			onCheckedChange={(enabled) => {
@@ -387,6 +389,23 @@ const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
 		</Tooltip>
 	);
 };
+
+type AddSkillButtonProps = {
+	ref?: React.Ref<HTMLButtonElement>;
+	disabled: boolean;
+	onClick: () => void;
+};
+
+const AddSkillButton: React.FC<AddSkillButtonProps> = ({
+	ref,
+	disabled,
+	onClick,
+}) => (
+	<Button ref={ref} variant="outline" onClick={onClick} disabled={disabled}>
+		<PlusIcon />
+		Add skill
+	</Button>
+);
 
 export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	skills,
@@ -415,18 +434,21 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	deleteState,
 }) => {
 	const rowMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+	const addSkillButtonRef = useRef<HTMLButtonElement | null>(null);
 	const rememberRowMenuTrigger = (
 		event: React.SyntheticEvent<HTMLButtonElement>,
 	) => {
 		rowMenuTriggerRef.current = event.currentTarget;
 	};
 	// Row menu dialogs open from a menu item that unmounts with the menu, so
-	// Radix would otherwise return focus to the document body on close.
+	// Radix would otherwise return focus to the document body on close. A
+	// deleted skill takes its row menu button with it.
 	const restoreRowMenuFocus = (event: Event) => {
 		const trigger = rowMenuTriggerRef.current;
-		if (trigger?.isConnected) {
+		const target = trigger?.isConnected ? trigger : addSkillButtonRef.current;
+		if (target) {
 			event.preventDefault();
-			trigger.focus();
+			target.focus();
 		}
 	};
 	const pluralNoun = `${copy.noun.toLocaleLowerCase("en-US")}s`;
@@ -434,16 +456,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	const readOnlyReason = canEdit
 		? undefined
 		: `You do not have permission to change ${pluralNoun}.`;
-	const addSkillAction = canEdit && (
-		<Button
-			variant="outline"
-			onClick={onCreate}
-			disabled={isLoading || isAtLimit}
-		>
-			<PlusIcon />
-			Add skill
-		</Button>
-	);
+	const addSkillDisabled = isLoading || isAtLimit;
 	const headerActions = (
 		<div className="flex items-center gap-2">
 			<Button
@@ -454,7 +467,13 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				{isExportingAll && <Spinner className="size-4" loading />}
 				Export all
 			</Button>
-			{addSkillAction}
+			{canEdit && (
+				<AddSkillButton
+					ref={addSkillButtonRef}
+					disabled={addSkillDisabled}
+					onClick={onCreate}
+				/>
+			)}
 		</div>
 	);
 
@@ -533,7 +552,14 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						<TableEmpty
 							message={`No ${pluralNoun} yet`}
 							description={canEdit ? copy.emptyDescription : undefined}
-							cta={addSkillAction}
+							cta={
+								canEdit && (
+									<AddSkillButton
+										disabled={addSkillDisabled}
+										onClick={onCreate}
+									/>
+								)
+							}
 						/>
 					) : (
 						skills.map((skill) => (
@@ -594,7 +620,9 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 											</DropdownMenuItem>
 											{onManagePermissions && (
 												<DropdownMenuItem
-													onClick={() => onManagePermissions(skill)}
+													onClick={() =>
+														onManagePermissions(skill, restoreRowMenuFocus)
+													}
 												>
 													Manage permissions
 												</DropdownMenuItem>

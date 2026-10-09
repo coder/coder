@@ -151,9 +151,9 @@ func TestOrganizationSkillAccess(t *testing.T) {
 		})
 		requireSDKErrorStatus(t, err, http.StatusForbidden)
 		_, err = member.UpdateOrganizationSkill(ctx, orgID, everyone.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
-		requireSDKErrorStatus(t, err, http.StatusNotFound)
+		requireSDKErrorStatus(t, err, http.StatusForbidden)
 		err = member.DeleteOrganizationSkill(ctx, orgID, everyone.Name)
-		requireSDKErrorStatus(t, err, http.StatusNotFound)
+		requireSDKErrorStatus(t, err, http.StatusForbidden)
 	})
 
 	t.Run("CreateSeedsEveryoneGrant", func(t *testing.T) {
@@ -180,6 +180,10 @@ func TestOrganizationSkillAccess(t *testing.T) {
 		requireOrganizationSkillNotListed(ctx, t, member, orgID, userShared.Name)
 		_, err = member.OrganizationSkillByName(ctx, orgID, userShared.Name)
 		requireSDKErrorStatus(t, err, http.StatusNotFound)
+		_, err = member.UpdateOrganizationSkill(ctx, orgID, userShared.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
+		requireSDKErrorStatus(t, err, http.StatusNotFound)
+		err = member.DeleteOrganizationSkill(ctx, orgID, userShared.Name)
+		requireSDKErrorStatus(t, err, http.StatusNotFound)
 	})
 
 	t.Run("OrgAuditorReads", func(t *testing.T) {
@@ -190,7 +194,9 @@ func TestOrganizationSkillAccess(t *testing.T) {
 		_, err := auditor.OrganizationSkillByName(ctx, orgID, userShared.Name)
 		require.NoError(t, err)
 		_, err = auditor.UpdateOrganizationSkill(ctx, orgID, userShared.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
-		requireSDKErrorStatus(t, err, http.StatusNotFound)
+		requireSDKErrorStatus(t, err, http.StatusForbidden)
+		err = auditor.DeleteOrganizationSkill(ctx, orgID, userShared.Name)
+		requireSDKErrorStatus(t, err, http.StatusForbidden)
 	})
 
 	t.Run("OtherOrganizationMember", func(t *testing.T) {
@@ -252,7 +258,7 @@ func TestOrganizationSkillAccess(t *testing.T) {
 		})
 		requireSDKErrorStatus(t, err, http.StatusForbidden)
 		_, err = scoped.UpdateOrganizationSkill(ctx, orgID, everyone.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
-		requireSDKErrorStatus(t, err, http.StatusNotFound)
+		requireSDKErrorStatus(t, err, http.StatusForbidden)
 	})
 }
 

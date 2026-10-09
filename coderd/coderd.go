@@ -1390,10 +1390,12 @@ func New(options *Options) *API {
 			r.Route("/{skillName}", func(r chi.Router) {
 				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
 					policy.ActionRead, policy.ActionUpdate, policy.ActionDelete)).Get("/", api.getOrganizationSkill)
+				// Readers reach the handlers, where the database wrapper denies
+				// the mutation with 403 rather than concealing the skill.
 				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
-					policy.ActionUpdate)).Patch("/", api.patchOrganizationSkill)
+					policy.ActionRead, policy.ActionUpdate)).Patch("/", api.patchOrganizationSkill)
 				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
-					policy.ActionDelete)).Delete("/", api.deleteOrganizationSkill)
+					policy.ActionRead, policy.ActionDelete)).Delete("/", api.deleteOrganizationSkill)
 				r.Route("/acl", func(r chi.Router) {
 					r.Use(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize, policy.ActionShare))
 					r.Get("/", api.getOrganizationSkillACL)

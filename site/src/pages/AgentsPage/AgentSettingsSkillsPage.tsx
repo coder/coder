@@ -44,7 +44,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 				<section className="flex flex-col gap-8">
 					<SectionHeader
 						label="From your organizations"
-						description="Skills your organizations share with you. Your agents can use them in chats that belong to that organization."
+						description="Organization skills your agents can use in chats that belong to that organization. Members get the skills shared with them. Site owners, organization admins, and organization auditors get every enabled skill."
 					/>
 					{visibleOrganizations.map(
 						({ organization, query, hasEnabledSkills }) => {
@@ -84,7 +84,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 										noun: "Organization skill",
 										title: organizationName,
 										description:
-											"Read-only skills shared with you. Ask an organization admin to change them.",
+											"Read-only skills available to you. Ask an organization admin to change them.",
 										emptyDescription: "",
 										editorDescription: "",
 										archiveName: `${organization.name}-skills.zip`,

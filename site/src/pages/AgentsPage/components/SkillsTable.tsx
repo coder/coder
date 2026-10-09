@@ -27,6 +27,7 @@ import {
 	type SkillEditorState,
 	type SkillsCopy,
 	SkillsTableView,
+	type SkillsTableViewProps,
 	type SkillViewState,
 } from "./SkillsTableView";
 
@@ -107,7 +108,7 @@ type SkillsTableProps = {
 	enabledOnly?: boolean;
 	headerLevel?: SectionHeaderLevel;
 	toolbar?: React.ReactNode;
-	onManagePermissions?: (skill: SkillMetadata) => void;
+	onManagePermissions?: SkillsTableViewProps["onManagePermissions"];
 };
 
 export const SkillsTable: React.FC<SkillsTableProps> = ({
