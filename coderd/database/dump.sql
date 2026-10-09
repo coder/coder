@@ -2070,7 +2070,7 @@ COMMENT ON COLUMN chat_context_resources.error IS 'Per-resource error or warning
 
 COMMENT ON COLUMN chat_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
 
-COMMENT ON COLUMN chat_context_resources.discovered IS 'True when chatd pinned the row from a directory a tool touched during the chat rather than copying it from the agent snapshot. Discovered rows are ignored by snapshot drift checks and are replaced by the snapshot copy once the agent starts publishing the same source.';
+COMMENT ON COLUMN chat_context_resources.discovered IS 'True when chatd pinned the row from a directory a tool touched during the chat rather than copying it from the agent snapshot. Discovered rows are ignored by snapshot drift checks; once the agent starts publishing the same source, the row becomes a snapshot row and keeps its pinned content.';
 
 CREATE TABLE chat_debug_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
