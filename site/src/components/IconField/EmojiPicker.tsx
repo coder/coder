@@ -3,6 +3,7 @@ import EmojiMart from "@emoji-mart/react";
 import { useEffect, useRef } from "react";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
 import icons from "#/theme/icons.json";
+import { enableEmojiGridNavigation } from "./emojiGridNavigation";
 
 const custom = [
 	{
@@ -39,7 +40,9 @@ const EmojiPicker: React.FC<EmojiPickerProps> = (props) => {
 	 * Open PR: https://github.com/missive/emoji-mart/pull/806
 	 *
 	 * Also raise the dark theme's 45% opacity secondary text ("Pick an emoji"
-	 * placeholder) to 65% so it meets the WCAG AA 4.5:1 contrast ratio.
+	 * placeholder) to 65% so it meets the WCAG AA 4.5:1 contrast ratio, and add
+	 * the focus ring the library lacks to buttons, skin tone options, and the
+	 * emoji highlighted from the search input.
 	 *
 	 * Query within this instance, since IconField also mounts a hidden picker.
 	 */
@@ -50,8 +53,10 @@ const EmojiPicker: React.FC<EmojiPickerProps> = (props) => {
 		}
 		const css = document.createElement("style");
 		css.textContent =
-			".emoji-mart-emoji img { width: 100% } #root { --color-c: rgba(var(--em-rgb-color), .65) }";
+			".emoji-mart-emoji img { width: 100% } #root { --color-c: rgba(var(--em-rgb-color), .65) }" +
+			' button:focus-visible, .menu input[type="radio"]:focus-visible + .option, .category button[data-keyboard][aria-selected] { outline: 2px solid rgb(var(--em-rgb-accent)); outline-offset: -2px }';
 		picker.appendChild(css);
+		return enableEmojiGridNavigation(picker);
 	}, []);
 
 	return (
