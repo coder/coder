@@ -519,14 +519,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getUserParameters = async (templateID: string) => {
-		const response = await this.axios.get<TypesGen.UserParameter[]>(
-			`/api/v2/users/me/autofill-parameters?template_id=${templateID}`,
-		);
-
-		return response.data;
-	};
-
 	getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
 		const response = await this.axios.get<TypesGen.AuthMethods>(
 			"/api/v2/users/authmethods",

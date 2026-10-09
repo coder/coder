@@ -3720,14 +3720,6 @@ func (m queryMetricsStore) GetUserThinkingDisplayMode(ctx context.Context, userI
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserWorkspaceBuildParameters(ctx context.Context, arg database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserWorkspaceBuildParameters(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetUserWorkspaceBuildParameters").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserWorkspaceBuildParameters").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUsers(ctx, arg)

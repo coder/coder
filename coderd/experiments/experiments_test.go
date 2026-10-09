@@ -22,7 +22,7 @@ import (
 
 const (
 	scoped   = codersdk.ExperimentExample
-	unscoped = codersdk.ExperimentAutoFillParameters
+	unscoped = codersdk.ExperimentWorkspaceUsage
 	sentinel = "sentinel-7f3a@example.test"
 )
 
