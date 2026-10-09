@@ -4118,6 +4118,66 @@ describe("useChatStore", () => {
 		);
 	});
 
+	it("reopens a remounted chat at the last preview_reset version", async () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const chatID = "chat-remount-history-version";
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+			},
+		});
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [
+				{
+					messages: [buildMessage(chatID, 1, "user", "hello")],
+					queued_messages: [],
+					has_more: false,
+					history_version: 5,
+				},
+			],
+			pageParams: [undefined],
+		});
+		const wrapper = createWrapper(queryClient);
+		const renderChat = () =>
+			renderHook(
+				() => {
+					const page = queryClient.getQueryData<{
+						pages: TypesGen.ChatMessagesResponse[];
+					}>(chatMessagesKey(chatID))?.pages[0];
+					useChatStore({
+						chatID,
+						chatMessages: page?.messages,
+						chatRecord: buildChat(chatID),
+						chatRecordUpdatedAt: 0,
+						chatMessagesData: page,
+						chatQueuedMessages: page?.queued_messages,
+						setChatErrorReason: vi.fn(),
+						clearChatErrorReason: vi.fn(),
+					});
+				},
+				{ wrapper },
+			);
+
+		const first = renderChat();
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenLastCalledWith(chatID, 1, 5);
+		});
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitData({
+				type: "preview_reset",
+				chat_id: chatID,
+				preview_reset: { history_version: 7 },
+			});
+		});
+		first.unmount();
+
+		renderChat();
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenLastCalledWith(chatID, 1, 7);
+		});
+	});
+
 	it("keeps a chat opened without a history version on after_id", async () => {
 		immediateAnimationFrame();
 		vi.spyOn(Math, "random").mockReturnValue(0.5);

@@ -74,6 +74,30 @@ const readQueuedMessagesFromCache = (
 	>(chatMessagesKey(chatID))?.pages[0]?.queued_messages;
 };
 
+// Lets a remounted chat open the stream at the version it last synchronized.
+const writeHistoryVersionToCache = (
+	queryClient: QueryClient,
+	chatID: string,
+	historyVersion: number,
+): void => {
+	patchChatMessages(queryClient, chatID, (currentData) => {
+		if (!currentData?.pages?.length) {
+			return currentData;
+		}
+		const firstPage = currentData.pages[0];
+		if (firstPage.history_version === historyVersion) {
+			return currentData;
+		}
+		return {
+			...currentData,
+			pages: [
+				{ ...firstPage, history_version: historyVersion },
+				...currentData.pages.slice(1),
+			],
+		};
+	});
+};
+
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	attempt: Math.max(1, retry.attempt),
 	error: retry.error.trim() || "Retrying request shortly.",
@@ -522,6 +546,7 @@ export const useChatStore = (
 			// entire batch produces one Map copy + one sort
 			// instead of N copies and N sorts.
 			const pendingMessages: TypesGen.ChatMessage[] = [];
+			let syncedHistoryVersion: number | undefined;
 			let needsStreamReset = false;
 
 			// Atomically swap in the buffered replacement history. Called
@@ -606,6 +631,7 @@ export const useChatStore = (
 						const version = streamEvent.preview_reset?.history_version;
 						if (version !== undefined) {
 							historyVersionRef.current = { chatID, version };
+							syncedHistoryVersion = version;
 						}
 						continue;
 					}
@@ -741,6 +767,11 @@ export const useChatStore = (
 				if (pendingMessages.length > 0) {
 					store.upsertDurableMessages(pendingMessages);
 					upsertCacheMessages(pendingMessages);
+				}
+				// After the messages, so the cache never claims a version whose
+				// messages it does not hold.
+				if (syncedHistoryVersion !== undefined) {
+					writeHistoryVersionToCache(queryClient, chatID, syncedHistoryVersion);
 				}
 
 				// Clear stream state atomically with the durable
