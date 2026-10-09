@@ -274,9 +274,9 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 }
 
 // chatAPIIdleConnTimeout is how long a chatd connection keeps an idle
-// connection to the workspace agent's HTTP API server. On dogfood, 99.96% of
-// gaps between workspace tool calls in a chat turn are shorter.
-const chatAPIIdleConnTimeout = 5 * time.Minute
+// connection to the workspace agent's HTTP API server: as long as the
+// workspace agent does.
+const chatAPIIdleConnTimeout = workspacesdk.AgentHTTPAPIServerIdleTimeout
 
 // chatAgentConn is AgentConn for chatd, which holds a connection for a whole
 // chat turn: the connection keeps an idle API connection between requests,
