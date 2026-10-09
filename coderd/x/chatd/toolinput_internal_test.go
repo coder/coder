@@ -169,7 +169,6 @@ func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
-		Workspace:       server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)

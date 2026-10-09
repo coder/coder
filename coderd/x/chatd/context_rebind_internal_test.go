@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -223,7 +224,8 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		cur := database.Chat{ID: chatID}
 		wc := turnWorkspaceContext{
 			server:           server,
-			currentChat:      cur,
+			chatStateMu:      &sync.Mutex{},
+			currentChat:      &cur,
 			loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 		}
 		t.Cleanup(wc.close)
@@ -354,7 +356,8 @@ func newRebindTurnContext(t *testing.T, db database.Store, chat database.Chat) *
 	cur := chat
 	wc := &turnWorkspaceContext{
 		server:           server,
-		currentChat:      cur,
+		chatStateMu:      &sync.Mutex{},
+		currentChat:      &cur,
 		loadChatSnapshot: db.GetChatByID,
 	}
 	t.Cleanup(wc.close)
