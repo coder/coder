@@ -14002,12 +14002,21 @@ func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.
 func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent, done func(codersdk.ChatStreamEvent) bool) []codersdk.ChatStreamEvent {
 	t.Helper()
 	var applied []codersdk.ChatStreamEvent
+	progress := func() string {
+		types := make([]codersdk.ChatStreamEventType, 0, len(applied))
+		for _, event := range applied {
+			types = append(types, event.Type)
+		}
+		return fmt.Sprintf("applied %v, history version %d", types, tab.version)
+	}
 	for {
 		select {
 		case <-ctx.Done():
-			require.FailNow(t, "timed out applying stream events")
+			require.FailNow(t, "timed out applying stream events", progress())
 		case event, ok := <-events:
-			require.True(t, ok, "stream closed early")
+			if !ok {
+				require.FailNow(t, "stream closed early", progress())
+			}
 			applied = append(applied, event)
 			switch event.Type {
 			case codersdk.ChatStreamEventTypeHistoryReset:
