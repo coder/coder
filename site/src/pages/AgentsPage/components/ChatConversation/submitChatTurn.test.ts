@@ -293,10 +293,7 @@ describe("submitChatTurn", () => {
 			response.resolve({ message: replacement, deleted_message_ids: [5, 6] });
 			await submitted;
 
-			expect(params.applyEditResponse).toHaveBeenCalledWith(
-				[replacement],
-				5,
-			);
+			expect(params.applyEditResponse).toHaveBeenCalledWith([replacement], 5);
 		});
 
 		it("shows every stored message again and reports the error when the edit fails", async () => {
