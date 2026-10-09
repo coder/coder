@@ -137,6 +137,10 @@ type Server struct {
 	ToolAllowList []string
 	ToolDenyList  []string
 	ModelIntent   bool
+	// InProcess, when set, is an MCP server in this process. mcpclient
+	// connects to it over an in-memory transport and ignores URL,
+	// Transport, and Headers.
+	InProcess *mcp.Server
 }
 
 // Transport selects the MCP HTTP transport used to reach a Server.
@@ -508,7 +512,7 @@ func connectOne(
 		maxResultBytes = maxInlineToolResultBytes
 		maxEventSize = maxInlineHTTPResponseBytes
 	}
-	tr, err := createTransport(srv, headers, opts.httpClient, maxEventSize)
+	tr, err := createTransport(ctx, srv, headers, opts.httpClient, maxEventSize)
 	if err != nil {
 		return nil, nil, xerrors.Errorf(
 			"create transport: %w", err,
@@ -670,11 +674,22 @@ func validateInlineToolDefinitions(tools []fantasy.AgentTool) error {
 }
 
 func createTransport(
+	ctx context.Context,
 	srv Server,
 	headers map[string]string,
 	baseHTTPClient *http.Client,
 	maxEventSize int,
 ) (mcp.Transport, error) {
+	if srv.InProcess != nil {
+		// The server session ends when the client session closes the
+		// pipe. jsonrpc2 keeps ctx values for tool handlers but not its
+		// cancellation.
+		serverTransport, clientTransport := mcp.NewInMemoryTransports()
+		if _, err := srv.InProcess.Connect(ctx, serverTransport, nil); err != nil {
+			return nil, xerrors.Errorf("connect in-process server: %w", err)
+		}
+		return clientTransport, nil
+	}
 	signingSecret := ""
 	if srv.ForwardCoderHeaders {
 		signingSecret = srv.SigningSecret

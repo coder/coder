@@ -41,6 +41,20 @@ func newChatInlineMCPServer(t *testing.T, name string, toolDescription string) *
 	t.Helper()
 
 	recorder := &chatInlineMCPServer{}
+	handler := testMCPHTTPHandler(newChatInlineEchoServer(name, toolDescription))
+	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		recorder.mu.Lock()
+		recorder.requests = append(recorder.requests, r.Header.Clone())
+		recorder.mu.Unlock()
+		handler.ServeHTTP(rw, r)
+	}))
+	t.Cleanup(ts.Close)
+	recorder.url = ts.URL
+	return recorder
+}
+
+// newChatInlineEchoServer returns an MCP server with one echo tool.
+func newChatInlineEchoServer(name string, toolDescription string) *mcp.Server {
 	srv := newTestMCPServer(name)
 	srv.AddTool(&mcp.Tool{
 		Name:        "echo",
@@ -60,17 +74,7 @@ func newChatInlineMCPServer(t *testing.T, name string, toolDescription string) *
 			Content: []mcp.Content{&mcp.TextContent{Text: "echo: " + input}},
 		}, nil
 	})
-
-	handler := testMCPHTTPHandler(srv)
-	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		recorder.mu.Lock()
-		recorder.requests = append(recorder.requests, r.Header.Clone())
-		recorder.mu.Unlock()
-		handler.ServeHTTP(rw, r)
-	}))
-	t.Cleanup(ts.Close)
-	recorder.url = ts.URL
-	return recorder
+	return srv
 }
 
 func (s *chatInlineMCPServer) snapshot() []http.Header {
@@ -242,6 +246,65 @@ func TestChatInlineMCPServers(t *testing.T) {
 				requests := bot.snapshot()
 				require.Empty(t, requests, "chatd must not connect when inline MCP servers are disabled")
 			})
+		}
+	})
+
+	t.Run("InternalServer", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		caller := newChatInlineMCPServer(t, "caller", "Echoes the input")
+		model := newChatInlineMCPModel(t, "bot__echo")
+		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
+		bot := newChatInlineEchoServer("bot", "Echoes the input")
+		var (
+			mu         sync.Mutex
+			gotChatIDs []uuid.UUID
+		)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			withoutMCPToolSearch(cfg)
+			cfg.DisableCallerSuppliedTools = true
+			cfg.Experiments = slices.DeleteFunc(slices.Clone(cfg.Experiments), func(experiment codersdk.Experiment) bool {
+				return experiment == codersdk.ExperimentChatInlineMCPServers
+			})
+			cfg.InternalMCPServers = []chatd.InternalMCPServer{{
+				Slug: "bot",
+				ServerForChat: func(_ context.Context, chat database.Chat) (*mcp.Server, error) {
+					mu.Lock()
+					defer mu.Unlock()
+					gotChatIDs = append(gotChatIDs, chat.ID)
+					return bot, nil
+				},
+			}}
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
+		})
+
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID:     org.ID,
+			OwnerID:            user.ID,
+			Title:              "internal-mcp",
+			ModelConfigID:      modelConfig.ID,
+			InlineMCPServers:   []codersdk.InlineMCPServerRequest{{Slug: "caller", URL: caller.url}},
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("Echo something.")},
+		})
+		require.NoError(t, err)
+		waitForChatProcessed(ctx, t, db, chat.ID, server)
+
+		chatResult, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, chatResult.Status, chatLastErrorMessage(chatResult.LastError))
+
+		tools, _ := model.first()
+		require.Contains(t, tools, "bot__echo")
+		require.NotContains(t, tools, "caller__echo")
+		require.True(t, model.sawResult.Load(), "tool result must reach the second model call")
+		require.Empty(t, caller.snapshot(), "caller-supplied servers must stay disabled")
+		mu.Lock()
+		defer mu.Unlock()
+		require.NotEmpty(t, gotChatIDs)
+		for _, id := range gotChatIDs {
+			require.Equal(t, chat.ID, id)
 		}
 	})
 
