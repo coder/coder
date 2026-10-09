@@ -61,13 +61,15 @@ export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 	);
 	const currentTime = dayjs(now ?? new Date());
 
+	// Formik keeps setFieldValue stable across renders, unlike `form` itself.
+	const { setFieldValue } = form;
 	useEffect(() => {
 		if (lifetimeDays !== "custom") {
-			void form.setFieldValue("lifetime", lifetimeDays);
+			void setFieldValue("lifetime", lifetimeDays);
 		} else {
-			void form.setFieldValue("lifetime", expDays);
+			void setFieldValue("lifetime", expDays);
 		}
-	}, [lifetimeDays, expDays]);
+	}, [lifetimeDays, expDays, setFieldValue]);
 
 	const getFieldHelpers = getFormHelpers<CreateTokenData>(form, formError);
 
