@@ -12,6 +12,7 @@ import (
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
@@ -28,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -1968,6 +1970,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 				Source:      skillspkg.SourcePersonal,
 			}},
 			nil,
+			nil,
 		),
 		"",
 		"",
@@ -1989,6 +1992,7 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 			Description: "Personal deployment process",
 			Source:      skillspkg.SourcePersonal,
 		}},
+		nil,
 		[]chattool.SkillMeta{{
 			Name:        "deploy",
 			Description: "Workspace deployment process",
@@ -2243,6 +2247,75 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 		requireFieldValue(t, entries[0], "user_id", userID)
 		requireFieldValue(t, entries[0], "name", "broken-skill")
 	})
+}
+
+func TestLoadOrganizationSkillBody(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
+	server := &Server{
+		db:     authzDB,
+		logger: slogtest.Make(t, nil),
+		modelConfigContext: func(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
+			return callerModelConfigContext(ctx, authzDB, ownerID)
+		},
+	}
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	member := dbgen.User(t, db, database.User{})
+	outsider := dbgen.User(t, db, database.User{})
+	for _, user := range []database.User{member, outsider} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	}
+	team := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: member.ID, GroupID: team.ID})
+	read := []policy.Action{policy.ActionRead}
+	dbgen.OrganizationSkill(t, db, database.Skill{
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		Name:           "team-review",
+		Content:        "---\nname: team-review\ndescription: Team review\n---\n\nTeam instructions.\n",
+		GroupACL:       database.ChatACL{team.ID.String(): {Permissions: read}},
+		UserACL:        database.ChatACL{},
+	})
+	dbgen.OrganizationSkill(t, db, database.Skill{
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		Name:           "disabled-review",
+		GroupACL:       database.ChatACL{org.ID.String(): {Permissions: read}},
+		UserACL:        database.ChatACL{},
+	})
+	_, err := db.UpdateOrganizationSkillByOrganizationIDAndName(ctx, database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
+		Enabled:        sql.NullBool{Bool: false, Valid: true},
+		OrganizationID: org.ID,
+		Name:           "disabled-review",
+	})
+	require.NoError(t, err)
+
+	subject := func(userID uuid.UUID) rbac.Subject {
+		t.Helper()
+		got, err := server.chatOwnerSubject(dbauthz.AsChatd(ctx), userID)
+		require.NoError(t, err)
+		return got
+	}
+
+	got, err := server.loadOrganizationSkillBody(ctx, subject(member.ID), org.ID, "team-review")
+	require.NoError(t, err)
+	require.Equal(t, skillspkg.SourceOrganization, got.Source)
+	require.Equal(t, "Team instructions.", got.Body)
+
+	for _, tc := range []struct {
+		name   string
+		reader uuid.UUID
+		skill  string
+	}{
+		{name: "NotShared", reader: outsider.ID, skill: "team-review"},
+		{name: "Disabled", reader: member.ID, skill: "disabled-review"},
+		{name: "Missing", reader: member.ID, skill: "missing-review"},
+	} {
+		_, err := server.loadOrganizationSkillBody(ctx, subject(tc.reader), org.ID, tc.skill)
+		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound, tc.name)
+	}
 }
 
 func systemPromptText(t *testing.T, prompt []fantasy.Message) string {
