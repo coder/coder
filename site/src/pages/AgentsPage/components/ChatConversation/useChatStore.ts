@@ -175,15 +175,9 @@ export const useChatStore = (
 	const pendingStatusResyncVersionRef = useRef<number | null>(null);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef(chatID);
-	// Snapshot of the chatMessages elements from the last sync effect
-	// run. Used to detect whether chatMessages actually changed (e.g.
-	// after a refetch producing new objects) vs. just getting a new
-	// array reference because an unrelated field like queued_messages
-	// was updated in the query cache. Element-level reference
-	// comparison works because the flattening step preserves message
-	// object references when only non-message fields change in the
-	// page, while a genuine refetch returns new objects from the
-	// server.
+	// The chatMessages elements from the last sync effect run. The page keeps
+	// its message objects when only another field like queued_messages changes,
+	// so comparing elements tells new content from a new array.
 	const lastSyncedMessagesRef = useRef<readonly TypesGen.ChatMessage[]>([]);
 
 	// Compute the last REST-fetched message ID so the stream can
@@ -295,17 +289,8 @@ export const useChatStore = (
 				lastSyncedMessagesRef.current = [];
 				store.replaceMessages([]);
 			}
-			// Merge REST-fetched messages into the store, preserving
-			// any messages the WebSocket delivered that haven't
-			// appeared in a REST page yet.
-			//
-			// If the fetched set is missing message IDs the store
-			// already has (e.g. after an edit truncation), a full
-			// replace is needed. We must only do this when the
-			// fetched messages actually changed (new elements from
-			// a refetch), not when an unrelated field like
-			// queued_messages caused the query data reference to
-			// update.
+			// The stream writes the store and the cache together, so the page
+			// only adds messages to the store and never removes any.
 			if (chatMessages) {
 				const prev = lastSyncedMessagesRef.current;
 				const contentChanged =
@@ -315,25 +300,7 @@ export const useChatStore = (
 				if (contentChanged) {
 					setLastHydratedMessages(chatMessages);
 				}
-
-				const storeSnap = store.getSnapshot();
-				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
-				// Only classify a store-held ID as stale if it was
-				// present in the PREVIOUS sync's fetched data. IDs
-				// added to the store after the last sync (for example
-				// by the WS handler) are new, not stale, and must not
-				// trigger the destructive replaceMessages path.
-				const prevIDs = new Set(prev.map((m) => m.id));
-				const hasStaleEntries =
-					contentChanged &&
-					storeSnap.orderedMessageIDs.some(
-						(id) => !fetchedIDs.has(id) && prevIDs.has(id),
-					);
-				if (hasStaleEntries) {
-					store.replaceMessages(chatMessages);
-				} else {
-					store.upsertDurableMessages(chatMessages);
-				}
+				store.upsertDurableMessages(chatMessages);
 			}
 		});
 	}, [chatID, chatMessages, store]);
