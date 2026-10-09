@@ -60,22 +60,20 @@ const unsetSelectValue = "__unset__";
 
 /**
  * Disabled controls in this form (read-only users, or while saving) render
- * their text, placeholder, and icons in content-disabled at full opacity
- * with a faded border, instead of the primitives' mix of opacity-50 and
- * content-secondary, so every disabled field looks the same.
+ * their text, placeholder, and icons in content-disabled at full opacity,
+ * instead of the primitives' mix of opacity-50 and content-secondary, so
+ * every disabled field looks the same.
  */
 export const disabledControlClassName =
-	"disabled:opacity-100 disabled:text-content-disabled disabled:placeholder:text-content-disabled disabled:border-border/50 disabled:[&_svg]:text-content-disabled";
+	"disabled:opacity-100 disabled:text-content-disabled disabled:placeholder:text-content-disabled disabled:[&_svg]:text-content-disabled";
 
 /**
  * Class names for an InputGroup with a unit suffix such as "tokens". By
  * default a disabled InputGroup and its addon each apply opacity-50. These
- * keep them opaque, fade the border like disabledControlClassName, and color
- * the suffix content-disabled. Pair with disabledControlClassName on the
- * input.
+ * keep them opaque and color the suffix content-disabled. Pair with
+ * disabledControlClassName on the input.
  */
-export const unitInputGroupClassName =
-	"has-[input:disabled]:opacity-100 has-[input:disabled]:border-border/50";
+export const unitInputGroupClassName = "has-[input:disabled]:opacity-100";
 /** See unitInputGroupClassName. */
 export const unitInputAddonClassName =
 	"group-has-[input:disabled]/input-group:opacity-100";
