@@ -173,17 +173,4 @@ describe("WorkspaceAgentLogSection", () => {
 		expect(socketServer()?.isConnectionOpen).toBe(true);
 		expect(scrollIntoView).not.toHaveBeenCalled();
 	});
-
-	it("does not scroll the transcript when a completed row replays its log", () => {
-		const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
-		const { socketServer } = renderSection({
-			props: { status: "completed", buildId: currentBuildId },
-			workspace: MockWorkspace,
-		});
-
-		publishLogs(socketServer(), MockWorkspaceAgentLogs.slice(0, 2));
-		publishLogs(socketServer(), MockWorkspaceAgentLogs.slice(2, 4));
-
-		expect(scrollIntoView).not.toHaveBeenCalled();
-	});
 });

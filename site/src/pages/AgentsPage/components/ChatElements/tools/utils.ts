@@ -12,7 +12,7 @@ export type ToolStatus = "completed" | "error" | "running";
  * It sets scrollTop directly: scrollIntoView also scrolls the chat transcript.
  */
 export const followLogEnd = (
-	viewport: HTMLElement | null,
+	viewport: Pick<Element, "scrollTop" | "clientHeight" | "scrollHeight"> | null,
 	previousScrollHeight: number,
 ): number => {
 	if (!viewport) {

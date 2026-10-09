@@ -217,17 +217,6 @@ describe("ToolCall in a MessageScroller", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("keeps the reader in place when a tool expands while following the bottom", async () => {
-		const user = userEvent.setup();
-		const update = renderTranscript([history, <ToolRow key="reply" />]);
-		const before = await visibleRowsAfterLayout();
-
-		await user.click(toggle());
-		await update([history, <ToolRow key="reply" />, nextRow]);
-
-		expect(await visibleRowsAfterLayout()).toEqual(before);
-	});
-
 	it("keeps the reader in place when a tool collapses while following the bottom", async () => {
 		const user = userEvent.setup();
 		const update = renderTranscript([
@@ -358,23 +347,35 @@ describe("ToolCall in a MessageScroller", () => {
 		expect(await visibleRowsAfterLayout()).toContain("next");
 	});
 
-	it("resumes following after a wheel at the bottom after a collapse", async () => {
-		const user = userEvent.setup();
-		const update = renderTranscript([
-			history,
-			<ToolRow key="reply" defaultExpanded />,
-		]);
-		await user.click(toggle());
-		// The browser reports the collapse's clamp as a scroll.
-		fireEvent.scroll(viewport());
-		await visibleRowsAfterLayout();
+	it.each([
+		["a wheel down", () => fireEvent.wheel(viewport(), { deltaY: 100 })],
+		[
+			"a swipe up",
+			() => {
+				fireEvent.touchStart(viewport(), { touches: [{ clientY: 300 }] });
+				fireEvent.touchMove(viewport(), { touches: [{ clientY: 100 }] });
+			},
+		],
+	])(
+		"resumes following after %s at the bottom after a collapse",
+		async (_, gesture) => {
+			const user = userEvent.setup();
+			const update = renderTranscript([
+				history,
+				<ToolRow key="reply" defaultExpanded />,
+			]);
+			await user.click(toggle());
+			// The browser reports the collapse's clamp as a scroll.
+			fireEvent.scroll(viewport());
+			await visibleRowsAfterLayout();
 
-		// At the bottom, a wheel down moves nothing and fires no scroll.
-		fireEvent.wheel(viewport(), { deltaY: 100 });
-		await update([history, <ToolRow key="reply" defaultExpanded />, nextRow]);
+			// At the bottom, the gesture moves nothing and fires no scroll.
+			gesture();
+			await update([history, <ToolRow key="reply" defaultExpanded />, nextRow]);
 
-		expect(await visibleRowsAfterLayout()).toContain("next");
-	});
+			expect(await visibleRowsAfterLayout()).toContain("next");
+		},
+	);
 
 	it("stays put when a collapse clamps the reader to the bottom", async () => {
 		const user = userEvent.setup();

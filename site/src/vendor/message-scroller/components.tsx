@@ -172,6 +172,7 @@ function MessageScrollerViewport({
   onPointerDown, // LOCAL CHANGE
   onScroll,
   onTouchMove,
+  onTouchStart, // LOCAL CHANGE
   onWheel,
   preserveScrollOnPrepend = true,
   ref,
@@ -192,6 +193,7 @@ function MessageScrollerViewport({
     userScrollIntent,
     viewportRef,
   } = useMessageScrollerContext()
+  const touchStartYRef = React.useRef(-Infinity) // LOCAL CHANGE
 
   preserveScrollOnPrependRef.current = preserveScrollOnPrepend
 
@@ -244,8 +246,19 @@ function MessageScrollerViewport({
     onWheel?.(event)
   }
 
+  function handleTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    // LOCAL CHANGE
+    touchStartYRef.current = event.touches[0]?.clientY ?? -Infinity
+    onTouchStart?.(event)
+  }
+
   function handleTouchMove(event: React.TouchEvent<HTMLDivElement>) {
-    userScrollIntent()
+    // LOCAL CHANGE: a finger moving up pans toward the end, so at the end it
+    // fires no scroll event, as a wheel down does.
+    const touchY = event.touches[0]?.clientY
+    if (userScrollIntent() && touchY < touchStartYRef.current) {
+      syncAfterScroll()
+    }
     onTouchMove?.(event)
   }
 
@@ -308,6 +321,7 @@ function MessageScrollerViewport({
         onPointerDown={handlePointerDown} // LOCAL CHANGE
         onScroll={handleScroll}
         onTouchMove={handleTouchMove}
+        onTouchStart={handleTouchStart} // LOCAL CHANGE
         onWheel={handleWheel}
         {...props}
       >
