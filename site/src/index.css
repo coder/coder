@@ -717,8 +717,7 @@
 		@apply border-none p-0 m-0 w-full;
 	}
 
-	/* Global scrollbar color baseline: surface-invert-secondary thumb (the
-	ScrollArea thumb color, which meets WCAG 1.4.11 3:1 contrast) on a
+	/* Global scrollbar color baseline: surface-invert-secondary thumb on
 	transparent track. scrollbar-color is inherited, so this cascades
 	to all scroll containers. We intentionally do NOT set
 	scrollbar-width globally because any non-auto value opts out of
