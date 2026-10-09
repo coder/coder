@@ -765,7 +765,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 							skippedErrors++;
 							continue;
 						}
-						if (state?.status === "uploaded" && state.fileId) {
+						if (state?.status === "uploaded") {
 							pendingAttachments.push({
 								fileId: state.fileId,
 								mediaType: file.type || "application/octet-stream",

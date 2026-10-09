@@ -229,7 +229,8 @@ describe("useChatDraftAttachments", () => {
 		await vi.waitFor(() => {
 			const state = result.current.uploadStates.get(file);
 			expect(state).toMatchObject({ status: "error" });
-			expect(state?.error).toContain("network down");
+			const error = state?.status === "error" ? state.error : undefined;
+			expect(error).toContain("network down");
 		});
 		expect(result.current.attachments).toHaveLength(1);
 
@@ -615,8 +616,9 @@ describe("useChatDraftAttachments", () => {
 			await vi.waitFor(() => {
 				const state = result.current.uploadStates.get(original);
 				expect(state?.status).toBe("error");
-				expect(state?.error).toMatch(/Anthropic/);
-				expect(state?.error).toMatch(/MiB/);
+				const error = state?.status === "error" ? state.error : undefined;
+				expect(error).toMatch(/Anthropic/);
+				expect(error).toMatch(/MiB/);
 			});
 
 			expect(uploadSpy).not.toHaveBeenCalled();
@@ -746,9 +748,10 @@ describe("useChatDraftAttachments", () => {
 			await vi.waitFor(() => {
 				const state = result.current.uploadStates.get(gif);
 				expect(state?.status).toBe("error");
-				expect(state?.error).toMatch(/Anthropic/);
-				expect(state?.error).not.toMatch(/OpenAI/);
-				expect(state?.error).toMatch(/under 5\.0 MiB/);
+				const error = state?.status === "error" ? state.error : undefined;
+				expect(error).toMatch(/Anthropic/);
+				expect(error).not.toMatch(/OpenAI/);
+				expect(error).toMatch(/under 5\.0 MiB/);
 			});
 			unmount();
 		});
