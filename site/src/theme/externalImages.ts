@@ -168,6 +168,7 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/gemini-monochrome.svg", "monochrome"],
 	["/icon/github-copilot.svg", "whiteWithColor"],
 	["/icon/github.svg", "monochrome"],
+	["/icon/herdr.svg", "monochrome"],
 	["/icon/image.svg", "monochrome"],
 	["/icon/jupyter.svg", "blackWithColor"],
 	["/icon/kasmvnc.svg", "whiteWithColor"],
