@@ -1792,6 +1792,18 @@ func (q *querier) authorizeChatProjectMemories(ctx context.Context, action polic
 	return project, nil
 }
 
+// authorizeChatProjectInstructions authorizes an action on a project's
+// instructions. Instructions are part of the project's configuration, so
+// reading them requires reading the project and changing them requires
+// updating the project.
+func (q *querier) authorizeChatProjectInstructions(ctx context.Context, action policy.Action, projectID uuid.UUID) error {
+	project, err := q.db.GetChatProjectByID(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, project.RBACObject())
+}
+
 func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.Action, memory database.ChatProjectMemory) error {
 	project, err := q.db.GetChatProjectByID(ctx, memory.ProjectID)
 	if err != nil {
@@ -2343,6 +2355,13 @@ func (q *querier) DeleteChatOrganizationModelOverride(ctx context.Context, arg d
 
 func (q *querier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetChatProjectByID, q.db.DeleteChatProjectByID)(ctx, id)
+}
+
+func (q *querier) DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error {
+	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionUpdate, projectID); err != nil {
+		return err
+	}
+	return q.db.DeleteChatProjectInstructionsByProjectID(ctx, projectID)
 }
 
 func (q *querier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
@@ -3765,6 +3784,13 @@ func (q *querier) GetChatPlanModeInstructions(ctx context.Context) (string, erro
 
 func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	return fetch(q.log, q.auth, q.db.GetChatProjectByID)(ctx, id)
+}
+
+func (q *querier) GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (database.GetChatProjectInstructionsByProjectIDRow, error) {
+	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionRead, projectID); err != nil {
+		return database.GetChatProjectInstructionsByProjectIDRow{}, err
+	}
+	return q.db.GetChatProjectInstructionsByProjectID(ctx, projectID)
 }
 
 func (q *querier) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
@@ -9469,6 +9495,13 @@ func (q *querier) UpsertChatPlanModeInstructions(ctx context.Context, value stri
 		return err
 	}
 	return q.db.UpsertChatPlanModeInstructions(ctx, value)
+}
+
+func (q *querier) UpsertChatProjectInstructions(ctx context.Context, arg database.UpsertChatProjectInstructionsParams) (database.ChatProjectInstruction, error) {
+	if err := q.authorizeChatProjectInstructions(ctx, policy.ActionUpdate, arg.ProjectID); err != nil {
+		return database.ChatProjectInstruction{}, err
+	}
+	return q.db.UpsertChatProjectInstructions(ctx, arg)
 }
 
 func (q *querier) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {

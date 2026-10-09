@@ -3748,13 +3748,16 @@ func mergeTurnSkills(
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
 // order: subagent instruction, chat instruction, skill index, memory index,
-// user prompt, then mode overlay prompts.
+// project instructions, user prompt, then mode overlay prompts. Project
+// instructions precede the user prompt so personal instructions keep the
+// last word.
 func buildSystemPrompt(
 	prompt []fantasy.Message,
 	subagentInstruction string,
 	instruction string,
 	resolvedSkills []skillspkg.ResolvedSkill,
 	memoryIndex string,
+	projectInstructions string,
 	userPrompt string,
 	behaviorContext systemPromptBehaviorContext,
 ) []fantasy.Message {
@@ -3769,6 +3772,9 @@ func buildSystemPrompt(
 	}
 	if memoryIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, memoryIndex)
+	}
+	if projectInstructions != "" {
+		prompt = chatprompt.InsertSystem(prompt, projectInstructions)
 	}
 	if userPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, userPrompt)

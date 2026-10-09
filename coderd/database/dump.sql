@@ -2273,6 +2273,18 @@ CREATE TABLE chat_organization_system_prompts (
 
 COMMENT ON TABLE chat_organization_system_prompts IS 'Organization-scoped system prompts added after the deployment system prompt when Coder Agents chats are created.';
 
+CREATE TABLE chat_project_instructions (
+    project_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    instructions text NOT NULL,
+    updated_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_project_instructions_not_blank CHECK ((length(btrim(instructions)) > 0))
+);
+
+COMMENT ON TABLE chat_project_instructions IS 'Per-project instructions injected into the system prompt of every chat in the project, for every user. A project without a row has no instructions.';
+
 CREATE TABLE chat_project_memories (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     project_id uuid NOT NULL,
@@ -4571,6 +4583,9 @@ ALTER TABLE ONLY chat_organization_model_overrides
 ALTER TABLE ONLY chat_organization_system_prompts
     ADD CONSTRAINT chat_organization_system_prompts_pkey PRIMARY KEY (organization_id);
 
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_pkey PRIMARY KEY (project_id);
+
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_pkey PRIMARY KEY (id);
 
@@ -5493,6 +5508,15 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_organization_system_prompts
     ADD CONSTRAINT chat_organization_system_prompts_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_instructions
+    ADD CONSTRAINT chat_project_instructions_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;
