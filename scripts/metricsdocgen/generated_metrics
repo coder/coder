@@ -436,12 +436,15 @@ coderd_dbpurge_records_purged_total{record_type=""} 0
 # HELP coderd_experiments Indicates whether each experiment is enabled (1) or not (0)
 # TYPE coderd_experiments gauge
 coderd_experiments{experiment=""} 0
-# HELP coderd_insights_applications_usage_seconds The application usage per template. Built-in apps report one series per app family, with an empty slug.
+# HELP coderd_insights_applications_usage_seconds The workspace app usage per template.
 # TYPE coderd_insights_applications_usage_seconds gauge
 coderd_insights_applications_usage_seconds{template_name="",application_name="",slug="",organization_name=""} 0
 # HELP coderd_insights_parameters The parameter usage per template.
 # TYPE coderd_insights_parameters gauge
 coderd_insights_parameters{template_name="",parameter_name="",parameter_type="",parameter_value="",organization_name=""} 0
+# HELP coderd_insights_session_families_usage_seconds The built-in app usage per template and app family, such as vscode or ssh.
+# TYPE coderd_insights_session_families_usage_seconds gauge
+coderd_insights_session_families_usage_seconds{template_name="",family="",organization_name=""} 0
 # HELP coderd_insights_templates_active_users The number of active users of the template.
 # TYPE coderd_insights_templates_active_users gauge
 coderd_insights_templates_active_users{template_name="",organization_name=""} 0

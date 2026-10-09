@@ -3,6 +3,7 @@ package codersdk
 import (
 	"cmp"
 	"encoding/json"
+	"maps"
 	"strings"
 	"unicode"
 
@@ -31,9 +32,10 @@ const (
 	AppFamilyWorkspaceApp AppFamilyName = "workspace_app"
 )
 
-// appFamilyDisplayNames names each family.
+// appFamilyDisplayNames names each family. The VS Code family covers every
+// fork, so its name sets it apart from the VS Code app.
 var appFamilyDisplayNames = map[AppFamilyName]string{
-	AppFamilyVSCode:          "Visual Studio Code",
+	AppFamilyVSCode:          "VS Code Family",
 	AppFamilyJetBrains:       "JetBrains",
 	AppFamilySSH:             "SSH",
 	AppFamilyReconnectingPTY: "Web Terminal",
@@ -46,6 +48,11 @@ var appFamilyDisplayNames = map[AppFamilyName]string{
 // DisplayName returns the family's human-readable name.
 func (f AppFamilyName) DisplayName() string {
 	return appFamilyDisplayNames[f]
+}
+
+// Returns a copy of every family's display name.
+func AppFamilyDisplayNames() map[AppFamilyName]string {
+	return maps.Clone(appFamilyDisplayNames)
 }
 
 // AppNameOverflow sums the app names past the per-report cap.

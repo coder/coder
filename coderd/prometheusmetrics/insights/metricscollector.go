@@ -20,9 +20,10 @@ import (
 )
 
 var (
-	templatesActiveUsersDesc     = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name", "organization_name"}, nil)
-	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template. Built-in apps report one series per app family, with an empty slug.", []string{"template_name", "application_name", "slug", "organization_name"}, nil)
-	parametersDesc               = prometheus.NewDesc("coderd_insights_parameters", "The parameter usage per template.", []string{"template_name", "parameter_name", "parameter_type", "parameter_value", "organization_name"}, nil)
+	templatesActiveUsersDesc        = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name", "organization_name"}, nil)
+	applicationsUsageSecondsDesc    = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The workspace app usage per template.", []string{"template_name", "application_name", "slug", "organization_name"}, nil)
+	sessionFamiliesUsageSecondsDesc = prometheus.NewDesc("coderd_insights_session_families_usage_seconds", "The built-in app usage per template and app family, such as vscode or ssh.", []string{"template_name", "family", "organization_name"}, nil)
+	parametersDesc                  = prometheus.NewDesc("coderd_insights_parameters", "The parameter usage per template.", []string{"template_name", "parameter_name", "parameter_type", "parameter_value", "organization_name"}, nil)
 )
 
 type MetricsCollector struct {
@@ -216,6 +217,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- templatesActiveUsersDesc
 	descCh <- applicationsUsageSecondsDesc
+	descCh <- sessionFamiliesUsageSecondsDesc
 	descCh <- parametersDesc
 }
 
@@ -235,13 +237,12 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 
 	// Built-in apps, one series per app family.
 	for _, templateRow := range data.templates {
-		orgName := data.organizationNames[templateRow.TemplateID]
 		for _, family := range familySeries {
-			metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+			metricsCh <- prometheus.MustNewConstMetric(sessionFamiliesUsageSecondsDesc, prometheus.GaugeValue,
 				float64(templateRow.SessionFamilyUsageSeconds[string(family)]),
 				data.templateNames[templateRow.TemplateID],
-				family.DisplayName(),
-				"", orgName)
+				string(family),
+				data.organizationNames[templateRow.TemplateID])
 		}
 	}
 
@@ -287,13 +288,17 @@ func onlyTemplateNames(templates []database.Template) map[uuid.UUID]string {
 	return m
 }
 
-// familySeries lists the built-in app series this metric has always reported.
-var familySeries = []codersdk.AppFamilyName{
-	codersdk.AppFamilyVSCode,
-	codersdk.AppFamilyJetBrains,
-	codersdk.AppFamilyReconnectingPTY,
-	codersdk.AppFamilySSH,
-}
+// familySeries lists every family in the app registry, plus unknown.
+var familySeries = func() []codersdk.AppFamilyName {
+	families := []codersdk.AppFamilyName{codersdk.AppFamilyUnknown}
+	for _, family := range codersdk.SessionCountAppFamilies() {
+		if !slices.Contains(families, family) {
+			families = append(families, family)
+		}
+	}
+	slices.Sort(families)
+	return families
+}()
 
 func convertParameterInsights(rows []database.GetTemplateParameterInsightsRow) []parameterRow {
 	type uniqueKey struct {

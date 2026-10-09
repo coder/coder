@@ -264,6 +264,17 @@ func TestSumByFamilyCoversEveryRegisteredFamily(t *testing.T) {
 	require.Equal(t, want, codersdk.SumByFamily(appCounts))
 }
 
+// The dashboard shows each family by its display name, so every family needs
+// one.
+func TestRegisteredFamiliesHaveDisplayNames(t *testing.T) {
+	t.Parallel()
+
+	require.NotEmpty(t, codersdk.AppFamilyUnknown.DisplayName())
+	for appName, family := range codersdk.SessionCountAppFamilies() {
+		require.NotEmpty(t, family.DisplayName(), "family of %q", appName)
+	}
+}
+
 func TestDecodeAppMap(t *testing.T) {
 	t.Parallel()
 
