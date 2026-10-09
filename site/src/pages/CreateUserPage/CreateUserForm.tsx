@@ -352,6 +352,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 								required
 								onChange={onChangeTrimmed(form)}
 								autoComplete="username"
+								placeholder="jane-doe"
 								autoFocus
 							/>
 
@@ -362,6 +363,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 								})}
 								label="Name"
 								autoComplete="name"
+								placeholder={form.values.username || "Jane Doe"}
 							/>
 
 							{!isServiceAccount && (
@@ -371,6 +373,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 									required
 									autoComplete="email"
 									type="email"
+									placeholder="jane@example.com"
 								/>
 							)}
 
@@ -381,6 +384,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 									required
 									autoComplete="new-password"
 									type="password"
+									placeholder="Enter a password"
 									// The login type select's visible value is also "Password".
 									data-testid="password-input"
 								/>
