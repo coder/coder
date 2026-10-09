@@ -114,7 +114,7 @@ export const isActiveChatStatus = (
  * placeholder in place of the edited message and hides every later message,
  * which stay in the store so that a failed edit shows them again.
  */
-export type PendingEdit = {
+type PendingEdit = {
 	messageID: number;
 	placeholder?: TypesGen.ChatMessage;
 };
