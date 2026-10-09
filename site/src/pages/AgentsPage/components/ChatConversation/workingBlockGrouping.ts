@@ -279,8 +279,7 @@ export const groupWorkingBlocks = (
 	};
 
 	// Entries and drafts are both in ascending message ID order, so one cursor
-	// walks the entries once; hidden entries between adjacent blocks stay with
-	// the earlier one.
+	// walks the entries once.
 	let entryIndex = 0;
 	const blocks: WorkingBlock[] = [];
 
