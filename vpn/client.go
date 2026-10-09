@@ -55,6 +55,7 @@ func (c *vpnConn) CurrentWorkspaceState() (tailnet.WorkspaceUpdate, error) {
 func (c *vpnConn) Close() error {
 	c.cancelFn()
 	<-c.controller.Closed()
+	c.updatesCtrl.Close()
 	return c.Conn.Close()
 }
 
@@ -192,6 +193,9 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 		coordCtrl,
 		tailnet.WithDNS(conn, me.Username, dnsNameOptions),
 		tailnet.WithHandler(options.UpdateHandler),
+		tailnet.WithPeerLiveness(func(agentID uuid.UUID) time.Time {
+			return conn.GetPeerDiagnostics(agentID).LastWireguardHandshake
+		}),
 	)
 	controller.WorkspaceUpdatesCtrl = updatesCtrl
 	controller.Run(ctx)
