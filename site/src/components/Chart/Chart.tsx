@@ -4,8 +4,17 @@
  */
 
 import { cn } from "cn";
-import { createContext, useContext, useId, useMemo } from "react";
+import {
+	createContext,
+	useContext,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import * as RechartsPrimitive from "recharts";
+import { formatDate } from "#/utils/time";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
@@ -22,6 +31,7 @@ export type ChartConfig = {
 
 type ChartContextProps = {
 	config: ChartConfig;
+	setAnnouncement: (announcement: string) => void;
 };
 
 const ChartContext = createContext<ChartContextProps | null>(null);
@@ -53,9 +63,10 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 }) => {
 	const uniqueId = useId();
 	const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`;
+	const [announcement, setAnnouncement] = useState("");
 
 	return (
-		<ChartContext.Provider value={{ config }}>
+		<ChartContext.Provider value={{ config, setAnnouncement }}>
 			<div
 				data-chart={chartId}
 				className={cn(
@@ -82,6 +93,19 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 				<RechartsPrimitive.ResponsiveContainer>
 					{children}
 				</RechartsPrimitive.ResponsiveContainer>
+				{/*
+					The tooltip is hidden while inactive, so it can't be a live region.
+					This element stays mounted and mirrors the active tooltip's text so
+					screen readers announce each point as users move through the chart.
+				*/}
+				<div
+					role="status"
+					className="sr-only"
+					aria-live="polite"
+					aria-atomic="true"
+				>
+					{announcement}
+				</div>
 			</div>
 		</ChartContext.Provider>
 	);
@@ -120,6 +144,27 @@ ${colorConfig
 	);
 };
 
+/**
+ * Builds the `desc` for a daily chart: a summary of the date range and a hint
+ * about the keyboard navigation provided by recharts' `accessibilityLayer`.
+ */
+export function getDailyChartDescription(
+	summary: string,
+	dates: readonly string[],
+): string {
+	const hint = "Use the left and right arrow keys to read each day.";
+	if (dates.length === 0) {
+		return `${summary}. ${hint}`;
+	}
+	const format = (date: string) =>
+		formatDate(new Date(date), {
+			hour: undefined,
+			minute: undefined,
+			second: undefined,
+		});
+	return `${summary} from ${format(dates[0])} to ${format(dates[dates.length - 1])}. ${hint}`;
+}
+
 export const ChartTooltip = RechartsPrimitive.Tooltip;
 
 type ChartTooltipContentProps = React.ComponentProps<
@@ -132,7 +177,6 @@ type ChartTooltipContentProps = React.ComponentProps<
 	indicator?: "line" | "dot" | "dashed";
 	nameKey?: string;
 	labelKey?: string;
-	ref?: React.Ref<HTMLDivElement>;
 };
 
 export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
@@ -149,9 +193,22 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 	label,
 	labelFormatter,
 	labelClassName,
-	ref,
 }) => {
-	const { config } = useChart();
+	const { config, setAnnouncement } = useChart();
+	const contentRef = useRef<HTMLDivElement>(null);
+	const isActive = Boolean(active && payload?.length);
+
+	// Mirror the rendered tooltip text into the container's live region. React
+	// skips the update when the text is unchanged, so moving within one data
+	// point doesn't repeat the announcement.
+	useEffect(() => {
+		setAnnouncement(
+			isActive && contentRef.current ? getSpokenText(contentRef.current) : "",
+		);
+	});
+
+	// Clear the announcement when the tooltip is removed from the chart.
+	useEffect(() => () => setAnnouncement(""), [setAnnouncement]);
 
 	const tooltipLabel = useMemo(() => {
 		if (hideLabel || !payload?.length) {
@@ -189,7 +246,7 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 		labelKey,
 	]);
 
-	if (!active || !payload?.length) {
+	if (!isActive || !payload) {
 		return null;
 	}
 
@@ -197,7 +254,7 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 
 	return (
 		<div
-			ref={ref}
+			ref={contentRef}
 			className={cn(
 				"grid min-w-32 items-start gap-1 rounded-lg border border-solid border-border bg-surface-primary px-3 py-2 text-xs shadow-xl",
 				className,
@@ -271,6 +328,20 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 		</div>
 	);
 };
+
+// Joins an element's text nodes with spaces. `textContent` would run adjacent
+// blocks together ("0 usersJuly 26").
+function getSpokenText(element: HTMLElement): string {
+	const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+	const parts: string[] = [];
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		const text = node.textContent?.trim();
+		if (text) {
+			parts.push(text);
+		}
+	}
+	return parts.join(" ");
+}
 
 // Helper to extract item config from a payload.
 function getPayloadConfigFromPayload(

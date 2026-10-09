@@ -4,6 +4,7 @@ import {
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
+	getDailyChartDescription,
 } from "#/components/Chart/Chart";
 import { formatDate } from "#/utils/time";
 
@@ -23,6 +24,13 @@ export const ActiveUserChart: React.FC<ActiveUserChartProps> = ({ data }) => {
 		<ChartContainer config={chartConfig} className="aspect-auto h-full">
 			<AreaChart
 				accessibilityLayer
+				role="group"
+				aria-roledescription="chart"
+				title="Active users"
+				desc={getDailyChartDescription(
+					"Daily active users",
+					data.map((d) => d.date),
+				)}
 				data={data}
 				margin={{
 					top: 10,
