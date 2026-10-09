@@ -796,6 +796,28 @@ function useMessageScrollerController({
     capturePrependAnchor()
   }, [capturePrependAnchor, commitScrollState, scheduleVisibilitySync])
 
+  // LOCAL CHANGE: output can land below the view while a scrollbar press at
+  // the end is held, and a release that moved nothing fires no scroll event.
+  // Unless the press moved the view up, catch up as following would have.
+  const syncAfterScrollbarPress = React.useCallback(
+    (pressScrollTop: number) => {
+      syncAfterScroll()
+
+      const viewport = viewportRef.current
+
+      if (
+        autoScrollRef.current &&
+        !followSuppressedRef.current &&
+        modeRef.current === "free-scrolling" &&
+        viewport !== null &&
+        viewport.scrollTop >= pressScrollTop - SCROLL_POSITION_EPSILON
+      ) {
+        scrollToEnd({ behavior: "auto" })
+      }
+    },
+    [scrollToEnd, syncAfterScroll]
+  )
+
   const context = React.useMemo<MessageScrollerContextValue>(
     () => ({
       handleContentChange,
@@ -812,6 +834,7 @@ function useMessageScrollerController({
       setViewportElement,
       stateStore,
       syncAfterScroll,
+      syncAfterScrollbarPress, // LOCAL CHANGE
       unobserveVisibility,
       // LOCAL CHANGE
       userLayoutIntent,
@@ -833,6 +856,7 @@ function useMessageScrollerController({
       setViewportElement,
       stateStore,
       syncAfterScroll,
+      syncAfterScrollbarPress, // LOCAL CHANGE
       unobserveVisibility,
       // LOCAL CHANGE
       userLayoutIntent,

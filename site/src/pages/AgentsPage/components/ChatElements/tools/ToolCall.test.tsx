@@ -341,6 +341,23 @@ describe("ToolCall in a MessageScroller", () => {
 		expect(await visibleRowsAfterLayout()).toContain("next");
 	});
 
+	it("resumes following when output lands during a scrollbar press at the bottom", async () => {
+		const user = userEvent.setup();
+		const update = renderTranscript([history, <ToolRow key="reply" />]);
+
+		// At the bottom, a press and release that move nothing fire no scroll.
+		await user.pointer({
+			keys: "[MouseLeft>]",
+			target: viewport(),
+			coords: { offsetX: VIEWPORT_WIDTH - SCROLLBAR_WIDTH / 2 },
+		});
+		await update([history, <ToolRow key="reply" />, nextRow]);
+		await visibleRowsAfterLayout();
+		await user.pointer({ keys: "[/MouseLeft]", target: viewport() });
+
+		expect(await visibleRowsAfterLayout()).toContain("next");
+	});
+
 	it("resumes following after a wheel at the bottom after a collapse", async () => {
 		const user = userEvent.setup();
 		const update = renderTranscript([

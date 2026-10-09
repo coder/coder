@@ -188,6 +188,8 @@ type MessageScrollerContextValue = {
   setViewportElement: (element: HTMLDivElement | null) => void
   stateStore: MessageScrollerStore<MessageScrollerScrollable>
   syncAfterScroll: () => void
+  // LOCAL CHANGE
+  syncAfterScrollbarPress: (pressScrollTop: number) => void
   unobserveVisibility: () => void
   // LOCAL CHANGE: returns whether a sync at the end may resume following.
   userScrollIntent: () => boolean

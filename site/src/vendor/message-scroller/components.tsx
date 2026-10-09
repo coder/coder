@@ -184,7 +184,9 @@ function MessageScrollerViewport({
     preserveScrollOnPrependRef,
     resetBrowserScrollAnchor, // LOCAL CHANGE
     setViewportElement,
+    stateStore, // LOCAL CHANGE
     syncAfterScroll,
+    syncAfterScrollbarPress, // LOCAL CHANGE
     // LOCAL CHANGE
     userLayoutIntent,
     userScrollIntent,
@@ -207,12 +209,28 @@ function MessageScrollerViewport({
   }
 
   // LOCAL CHANGE: a scrollbar drag fires no wheel, touch, or key event. A
-  // press may start a drag up, so it syncs only once released.
+  // press at the end may start a drag up, so it syncs only once released.
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (isScrollbarPress(event) && userScrollIntent()) {
-      event.currentTarget.addEventListener("pointerup", syncAfterScroll, {
-        once: true,
-      })
+    if (
+      isScrollbarPress(event) &&
+      userScrollIntent() &&
+      !stateStore.getSnapshot().end
+    ) {
+      const viewport = event.currentTarget
+      const pressScrollTop = viewport.scrollTop
+      // A touch that turns into a pan ends with pointercancel, not pointerup,
+      // and a release outside the window may never arrive. Drop the release
+      // then, so a later click cannot trigger it.
+      const press = new AbortController()
+      const drop = () => press.abort()
+
+      viewport.addEventListener(
+        "pointerup",
+        () => syncAfterScrollbarPress(pressScrollTop),
+        { once: true, signal: press.signal }
+      )
+      viewport.addEventListener("pointercancel", drop, { signal: press.signal })
+      viewport.addEventListener("pointerdown", drop, { signal: press.signal })
     }
 
     onPointerDown?.(event)
