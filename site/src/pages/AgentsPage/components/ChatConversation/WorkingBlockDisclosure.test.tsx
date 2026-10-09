@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FIXTURE_NOW, MockWorkingBlock } from "./storyFixtures";
 import {
 	didPrependIntoBlock,
+	formatLiveElapsed,
 	WorkingBlockDisclosure,
 } from "./WorkingBlockDisclosure";
 
@@ -67,6 +68,21 @@ describe("WorkingBlockDisclosure", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+});
+
+describe("formatLiveElapsed", () => {
+	it.each([
+		[0, "0s"],
+		[12_000, "12s"],
+		[60_000, "1m 00s"],
+		[66_000, "1m 06s"],
+		[1_106_000, "18m 26s"],
+		[3_600_000, "1h 00m"],
+		[3_900_000, "1h 05m"],
+		[-5_000, "0s"],
+	])("formats %dms as %s", (ms, expected) => {
+		expect(formatLiveElapsed(ms)).toBe(expected);
 	});
 });
 
