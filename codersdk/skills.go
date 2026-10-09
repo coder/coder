@@ -122,3 +122,40 @@ func (c *ExperimentalClient) DeleteUserSkill(ctx context.Context, user string, n
 	}
 	return nil
 }
+
+func organizationSkillsPath(organizationID uuid.UUID) string {
+	return fmt.Sprintf("/api/experimental/organizations/%s/skills", organizationID)
+}
+
+func organizationSkillPath(organizationID uuid.UUID, name string) string {
+	return fmt.Sprintf("%s/%s", organizationSkillsPath(organizationID), url.PathEscape(name))
+}
+
+// OrganizationSkills lists the organization skill metadata the caller can
+// read.
+func (c *ExperimentalClient) OrganizationSkills(ctx context.Context, organizationID uuid.UUID) ([]SkillMetadata, error) {
+	res, err := c.Request(ctx, http.MethodGet, organizationSkillsPath(organizationID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var skills []SkillMetadata
+	return skills, ReadBodyAsJSON(res, &skills)
+}
+
+// OrganizationSkillByName returns an organization skill by name.
+func (c *ExperimentalClient) OrganizationSkillByName(ctx context.Context, organizationID uuid.UUID, name string) (Skill, error) {
+	res, err := c.Request(ctx, http.MethodGet, organizationSkillPath(organizationID, name), nil)
+	if err != nil {
+		return Skill{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Skill{}, ReadBodyAsError(res)
+	}
+	var skill Skill
+	return skill, ReadBodyAsJSON(res, &skill)
+}
