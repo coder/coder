@@ -10,7 +10,6 @@ import {
 	parseSkillMarkdown,
 	parseSkillTrigger,
 	SKILL_MAX_SIZE_BYTES,
-	skillTriggerText,
 	tryParseSkillMarkdown,
 } from "./skills";
 
@@ -106,10 +105,6 @@ describe("filterSkillsByQuery", () => {
 });
 
 describe("skill slash triggers", () => {
-	it("formats skill trigger text", () => {
-		expect(skillTriggerText(skill("reviewer", "", 0))).toBe("/reviewer");
-	});
-
 	it("parses trigger text at line start or after whitespace", () => {
 		expect(parseSkillTrigger("/rev")).toEqual({
 			slashOffset: 0,

@@ -29,9 +29,6 @@ type RankedSkill<T extends SkillSearchMetadata> = {
 	index: number;
 };
 
-export const skillTriggerText = (skill: { name: string }): string =>
-	`/${skill.name}`;
-
 type SkillTriggerMatch = {
 	slashOffset: number;
 	query: string;

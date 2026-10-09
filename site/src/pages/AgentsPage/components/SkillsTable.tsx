@@ -148,8 +148,8 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	const createMutationOptions = createSkill(queryClient, owner);
 	const createMutation = useMutation({
 		...createMutationOptions,
-		onSuccess: async (_skill, variables) => {
-			await createMutationOptions.onSuccess?.(_skill);
+		onSuccess: async (created, variables) => {
+			await createMutationOptions.onSuccess(created);
 			setDialogState((current) =>
 				current?.type === "create" &&
 				current.submittedContent === variables.content
@@ -163,8 +163,8 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	const updateMutationOptions = updateSkill(queryClient, owner);
 	const updateMutation = useMutation({
 		...updateMutationOptions,
-		onSuccess: async (skill, variables) => {
-			await updateMutationOptions.onSuccess?.(skill, variables);
+		onSuccess: async (updated, variables) => {
+			await updateMutationOptions.onSuccess(updated, variables);
 			setDialogState((current) =>
 				current?.type === "edit" &&
 				current.name === variables.name &&
@@ -209,7 +209,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	const deleteMutation = useMutation({
 		...deleteMutationOptions,
 		onSuccess: async (data, variables) => {
-			await deleteMutationOptions.onSuccess?.(data, variables);
+			await deleteMutationOptions.onSuccess(data, variables);
 			setDialogState((current) =>
 				current?.type === "delete" &&
 				current.skill.name === variables &&
@@ -234,7 +234,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	});
 
 	const fetchSkillContent = (name: string): Promise<string> =>
-		queryClient.fetchQuery(skill(owner, name)).then((skill) => skill.content);
+		queryClient.fetchQuery(skill(owner, name)).then((detail) => detail.content);
 
 	const downloadMutation = useMutation({
 		mutationFn: (name: string) => downloadSkillFile(name, fetchSkillContent),

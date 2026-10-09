@@ -1,5 +1,3 @@
--- Inserts an organization skill fixture so migration coverage includes
--- organization-owned rows.
 INSERT INTO skills (
 	id,
 	organization_id,

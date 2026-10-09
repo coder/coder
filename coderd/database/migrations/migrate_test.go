@@ -1892,10 +1892,6 @@ func testMigration000614RenameUserSkillsToSkills(t *testing.T, sqlDB *sql.DB, ne
 		require.NoError(t, err)
 		require.False(t, exists)
 	}
-	schemaNames := func(table string) []string {
-		t.Helper()
-		return skillsSchemaNames(ctx, t, sqlDB, table)
-	}
 	oldNames := []string{
 		"trigger_upsert_user_skills:insert_user_skill_fail_if_user_deleted",
 		"trigger_user_skills_per_user_limit:enforce_user_skills_per_user_limit",
@@ -1907,7 +1903,7 @@ func testMigration000614RenameUserSkillsToSkills(t *testing.T, sqlDB *sql.DB, ne
 		"user_skills_user_id_fkey",
 		"user_skills_user_id_name_idx",
 	}
-	require.Equal(t, oldNames, schemaNames("user_skills"))
+	require.Equal(t, oldNames, skillsSchemaNames(ctx, t, sqlDB, "user_skills"))
 
 	userID := insertUser()
 	skillID := insertSkill(userSkillsTable, userID)
@@ -1926,7 +1922,7 @@ func testMigration000614RenameUserSkillsToSkills(t *testing.T, sqlDB *sql.DB, ne
 		"skills_user_id_name_idx",
 		"trigger_skills_per_user_limit:enforce_skills_per_user_limit",
 		"trigger_upsert_skills:insert_user_skill_fail_if_user_deleted",
-	}, schemaNames("skills"))
+	}, skillsSchemaNames(ctx, t, sqlDB, "skills"))
 	var gotUserID uuid.UUID
 	var name, description, content string
 	err = sqlDB.QueryRowContext(ctx, "SELECT user_id, name, description, content FROM skills WHERE id = $1", skillID).
@@ -1942,7 +1938,7 @@ func testMigration000614RenameUserSkillsToSkills(t *testing.T, sqlDB *sql.DB, ne
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
-	require.Equal(t, oldNames, schemaNames("user_skills"))
+	require.Equal(t, oldNames, skillsSchemaNames(ctx, t, sqlDB, "user_skills"))
 	softDeleteRemovesSkills(userSkillsTable)
 
 	upSQL, err := os.ReadFile("000614_rename_user_skills_to_skills.up.sql")

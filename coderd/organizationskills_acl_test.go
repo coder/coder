@@ -253,8 +253,8 @@ func TestOrganizationSkillACL(t *testing.T) {
 		require.Contains(t, userIDs, member.ID)
 		require.NotContains(t, userIDs, foreignUser.ID)
 		groupIDs := make([]uuid.UUID, 0, len(available.Groups))
-		for _, group := range available.Groups {
-			groupIDs = append(groupIDs, group.ID)
+		for _, availableGroup := range available.Groups {
+			groupIDs = append(groupIDs, availableGroup.ID)
 		}
 		require.Contains(t, groupIDs, orgID)
 		require.Contains(t, groupIDs, group.ID)
