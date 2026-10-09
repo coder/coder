@@ -405,6 +405,7 @@ const (
 	UsageAppNameJetbrains       UsageAppName = "jetbrains"
 	UsageAppNameReconnectingPty UsageAppName = "reconnecting-pty"
 	UsageAppNameSSH             UsageAppName = "ssh"
+	UsageAppNamePortForwarding  UsageAppName = "port_forwarding"
 )
 
 // PostWorkspaceUsage marks the workspace as having been used recently and records an app stat.
@@ -650,6 +651,13 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
 func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, params WorkspaceOptions) (Workspace, error) {
+	// These identifiers must remain individual path segments during URL resolution.
+	if err := validateWorkspacePathSegment(owner); err != nil {
+		return Workspace{}, xerrors.Errorf("invalid workspace owner: %w", err)
+	}
+	if err := validateWorkspacePathSegment(name); err != nil {
+		return Workspace{}, xerrors.Errorf("invalid workspace name: %w", err)
+	}
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil, func(r *http.Request) {
 		q := r.URL.Query()
 		q.Set("include_deleted", fmt.Sprintf("%t", params.IncludeDeleted))
@@ -666,6 +674,15 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 
 	var workspace Workspace
 	return workspace, ReadBodyAsJSON(res, &workspace)
+}
+
+// validateWorkspacePathSegment prevents workspace and user identifiers from
+// changing the endpoint during URL resolution, without restricting legacy names.
+func validateWorkspacePathSegment(identifier string) error {
+	if identifier == "" || identifier == "." || identifier == ".." || strings.ContainsAny(identifier, `/\%?#`) {
+		return xerrors.New("must be a non-empty path segment without slashes, escapes, query, fragment, or dot segments")
+	}
+	return nil
 }
 
 // SplitWorkspaceIdentifier splits an identifier into owner and

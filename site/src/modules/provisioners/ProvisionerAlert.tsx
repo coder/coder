@@ -35,7 +35,7 @@ const severityBorderColors: Record<AlertColor, string> = {
 const getAlertClassName = (variant: AlertVariant, severity: AlertColor) => {
 	if (variant === AlertVariant.Inline) {
 		return cn(
-			"rounded-none border-0 border-b border-l-2 border-solid border-b-border-default",
+			"rounded-none border-0 border-b border-l-2 border-solid border-b-border",
 			severityBorderColors[severity],
 		);
 	}

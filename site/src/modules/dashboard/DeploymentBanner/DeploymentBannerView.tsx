@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import {
 	AppWindowIcon,
@@ -36,6 +37,10 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { getDisplayWorkspaceStatus } from "#/utils/workspace";
+
+/** Unstyled native button so text-only tooltip triggers are keyboard focusable. */
+const tooltipTriggerClassName =
+	"m-0 border-0 bg-transparent p-0 font-mono text-xs text-inherit cursor-default rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link";
 
 type DeploymentBannerViewProps = {
 	health?: HealthcheckReport;
@@ -121,12 +126,17 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 								</RouterLink>
 							</Link>
 						) : (
-							<div
-								className="flex h-full items-center justify-center pl-3"
+							<button
+								type="button"
+								aria-label="Deployment status"
+								className={cn(
+									tooltipTriggerClassName,
+									"ml-3 flex items-center justify-center",
+								)}
 								data-testid="deployment-health-trigger"
 							>
 								<RocketIcon className="size-icon-sm" />
-							</div>
+							</button>
 						)}
 					</TooltipTrigger>
 					<TooltipContent
@@ -185,7 +195,15 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 				<TooltipProvider delayDuration={100}>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<div className="mr-4 text-content-primary">Transmission</div>
+							<button
+								type="button"
+								className={cn(
+									tooltipTriggerClassName,
+									"mr-4 text-content-primary",
+								)}
+							>
+								Transmission
+							</button>
 						</TooltipTrigger>
 						<TooltipContent>
 							{`Activity in the last ~${aggregatedMinutes} minutes`}
@@ -196,10 +214,16 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 					<TooltipProvider delayDuration={100}>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
+								<button
+									type="button"
+									className={cn(
+										tooltipTriggerClassName,
+										"flex items-center gap-1",
+									)}
+								>
 									<CloudDownloadIcon className="size-icon-xs" />
 									{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
-								</div>
+								</button>
 							</TooltipTrigger>
 							<TooltipContent>Data sent to workspaces</TooltipContent>
 						</Tooltip>
@@ -208,10 +232,16 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 					<TooltipProvider delayDuration={100}>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
+								<button
+									type="button"
+									className={cn(
+										tooltipTriggerClassName,
+										"flex items-center gap-1",
+									)}
+								>
 									<CloudUploadIcon className="size-icon-xs" />
 									{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
-								</div>
+								</button>
 							</TooltipTrigger>
 							<TooltipContent>Data sent from workspaces</TooltipContent>
 						</Tooltip>
@@ -220,12 +250,18 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 					<TooltipProvider delayDuration={100}>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
+								<button
+									type="button"
+									className={cn(
+										tooltipTriggerClassName,
+										"flex items-center gap-1",
+									)}
+								>
 									<GaugeIcon className="size-icon-xs" />
 									{displayLatency > 0
 										? `${displayLatency?.toFixed(2)} ms`
 										: "-"}
-								</div>
+								</button>
 							</TooltipTrigger>
 							<TooltipContent>
 								{displayLatency < 0
@@ -243,10 +279,16 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 				<TooltipProvider delayDuration={100}>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<div className="flex items-center gap-1">
+							<button
+								type="button"
+								className={cn(
+									tooltipTriggerClassName,
+									"flex items-center gap-1",
+								)}
+							>
 								<GitCompareArrowsIcon className="size-icon-xs" />
 								{lastAggregated}
-							</div>
+							</button>
 						</TooltipTrigger>
 						<TooltipContent
 							className="max-w-xs"
@@ -308,6 +350,7 @@ const SESSION_FAMILIES = {
 	},
 	unknown: { name: "Other", icon: <BlocksIcon className="size-icon-xs" /> },
 	sftp: null,
+	port_forwarding: null,
 } satisfies Record<
 	AppFamilyName,
 	{ name: string; icon: React.ReactNode } | null

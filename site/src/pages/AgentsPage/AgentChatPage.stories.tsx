@@ -52,7 +52,10 @@ import {
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
-import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import {
+	buildLongConversation,
+	MockWorkingMessages,
+} from "./components/ChatConversation/storyFixtures";
 import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
 // ---------------------------------------------------------------------------
@@ -68,17 +71,8 @@ const AgentChatPageLayout: React.FC = () => {
 							chatErrorReasons: {},
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
-							requestArchiveAgent: () => {},
-							requestArchiveAndDeleteWorkspace: (
-								_chatId: string,
-								_workspaceId: string,
-							) => {},
-							requestUnarchiveAgent: () => {},
-							requestPinAgent: () => {},
-							requestUnpinAgent: () => {},
+							navigateAfterArchive: () => {},
 							onOpenRenameDialog: () => {},
-							isArchiving: false,
-							archivingChatId: undefined,
 							activeChatChildren: undefined,
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
@@ -188,6 +182,8 @@ const baseChatFields = {
 	last_model_config_id: MODEL_CONFIG_ID,
 	mcp_server_ids: [],
 	labels: {},
+	title_source: "generated",
+	title_updated_at: "2026-02-18T00:00:00.000Z",
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,
@@ -1574,6 +1570,34 @@ export const Loading: Story = {
 	},
 };
 
+// The preference request never settles, so the capture shows the skeleton
+// still gating messages that have already loaded.
+export const ColdLoadWaitsForCollapsePreference: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Cold load",
+					status: "waiting",
+				},
+				{
+					messages: MockWorkingMessages,
+					queued_messages: [],
+					has_more: false,
+				},
+			),
+			preferenceSettingsKey,
+		),
+	},
+	beforeEach: () => {
+		spyOn(API, "getUserPreferenceSettings").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+};
+
 const capacityPollingChat: TypesGen.Chat = {
 	id: CHAT_ID,
 	...baseChatFields,
@@ -2019,9 +2043,11 @@ export const WithReasoningInline: Story = {
 		const canvas = within(canvasElement);
 
 		// Reasoning renders inside a collapsible disclosure.
-		const trigger = canvas.getByRole("button", { name: "Thinking" });
+		const trigger = canvas.getByRole("button", {
+			name: "Thinking: Reasoning body",
+		});
 		await userEvent.click(trigger);
-		await canvas.findByText("Reasoning body");
+		await canvas.findByText("Reasoning body", { selector: "p" });
 	},
 };
 
@@ -3545,6 +3571,30 @@ export const DetailQueryError: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockRejectedValue(mockServerError);
+	},
+};
+
+// The preference request never settles, so the capture shows the chat error
+// taking precedence over the preference gate.
+export const DetailQueryErrorWhilePreferenceLoads: Story = {
+	parameters: {
+		queries: withoutQuery(
+			withoutQuery(
+				buildQueries(mockErrorChat, {
+					messages: [],
+					queued_messages: [],
+					has_more: false,
+				}),
+				chatEntityKey(CHAT_ID),
+			),
+			preferenceSettingsKey,
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockRejectedValue(mockServerError);
+		spyOn(API, "getUserPreferenceSettings").mockImplementation(
+			() => new Promise(() => {}),
+		);
 	},
 };
 

@@ -6,6 +6,7 @@ import type {
 	ChatProviderConfig,
 	UserChatPersonalModelOverridesResponse,
 } from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { MOCK_TIMESTAMP } from "./chatEntities";
 import { MockDefaultOrganization } from "./entities";
 
@@ -29,6 +30,63 @@ export const MockDefaultChatModel: ChatModel = {
 	organization_id: MockDefaultOrganization.id,
 	is_default: true,
 };
+
+export const MockPersonalDefaultChatModel: ChatModel = {
+	...MockChatModel,
+	id: "model-gpt-4.1-mini",
+	model: "gpt-4.1-mini",
+	display_name: "GPT 4.1 Mini",
+	context_limit: 1_000_000,
+	is_default: true,
+};
+
+export const MockPersonalClaudeChatModel: ChatModel = {
+	...MockPersonalDefaultChatModel,
+	id: "model-claude-sonnet-4",
+	ai_provider_id: "provider-anthropic",
+	model: "claude-sonnet-4",
+	display_name: "Claude Sonnet 4",
+	context_limit: 200_000,
+	is_default: false,
+};
+
+export const MockPersonalReasoningChatModel: ChatModel = {
+	...MockPersonalDefaultChatModel,
+	id: "model-gpt-5",
+	model: "gpt-5",
+	display_name: "GPT-5",
+	is_default: false,
+	model_config: {
+		reasoning_effort: { default: "medium", max: "high" },
+	},
+	reasoning_efforts: ["none", "minimal", "low", "medium", "high"],
+};
+
+export const MockPersonalModelOptions: ModelSelectorOption[] = [
+	{
+		id: MockPersonalDefaultChatModel.id,
+		provider: "openai",
+		model: MockPersonalDefaultChatModel.model,
+		displayName: MockPersonalDefaultChatModel.display_name,
+		contextLimit: MockPersonalDefaultChatModel.context_limit,
+	},
+	{
+		id: MockPersonalClaudeChatModel.id,
+		provider: "anthropic",
+		model: MockPersonalClaudeChatModel.model,
+		displayName: MockPersonalClaudeChatModel.display_name,
+		contextLimit: MockPersonalClaudeChatModel.context_limit,
+	},
+	{
+		id: MockPersonalReasoningChatModel.id,
+		provider: "openai",
+		model: MockPersonalReasoningChatModel.model,
+		displayName: MockPersonalReasoningChatModel.display_name,
+		contextLimit: MockPersonalReasoningChatModel.context_limit,
+		reasoningEffortDefault: "medium",
+		reasoningEfforts: ["none", "minimal", "low", "medium", "high"],
+	},
+];
 
 export const MockChatProviderConfig: ChatProviderConfig = {
 	id: "provider-1",

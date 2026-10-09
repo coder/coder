@@ -2,6 +2,7 @@ import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
 import { ChatSendShortcutSettings } from "./components/ChatSendShortcutSettings";
+import { CollapseAssistantStepsSettings } from "./components/CollapseAssistantStepsSettings";
 import {
 	CodeDiffDisplaySettings,
 	ShellToolDisplaySettings,
@@ -10,7 +11,6 @@ import {
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingSettings";
-import { ChatBoardSettings } from "./exp/chatBoard/ChatBoardSettings";
 
 export type AgentSettingsGeneralPageViewProps = {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
@@ -63,13 +63,13 @@ export const AgentSettingsGeneralPageView: React.FC<
 			<ThinkingDisplaySettings />
 			<ShellToolDisplaySettings />
 			<CodeDiffDisplaySettings />
+			<CollapseAssistantStepsSettings />
 			<UserChatDebugLoggingSettings
 				userSettings={userDebugLoggingData}
 				onSaveUserSetting={onSaveUserDebugLogging}
 				isSavingUserSetting={isSavingUserDebugLogging}
 				isSaveUserSettingError={isSaveUserDebugLoggingError}
 			/>
-			<ChatBoardSettings />
 		</div>
 	);
 };

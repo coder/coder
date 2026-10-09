@@ -1307,7 +1307,7 @@ Disable automatic session expiry bumping due to activity. This forces all sessio
 | Environment | <code>$CODER_DISABLE_PASSWORD_AUTH</code>        |
 | YAML        | <code>networking.http.disablePasswordAuth</code> |
 
-Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.
+Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. This applies to all users, including owners. Ensure an owner can sign in through your identity provider before enabling this. To recover access, unset this option, restart the server, and use `coder server create-admin-user` if needed.
 
 ### -c, --config
 
@@ -1866,6 +1866,17 @@ Maximum size in bytes of the deployment system prompt, the plan mode instruction
 
 Maximum number of virtual desktop recordings that each Coder server stores at the same time. Each upload holds the recording and its thumbnail in memory, up to 110 MB. Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds. Must be at least 1.
 
+### --chat-max-automations-per-owner
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>int</code>                                   |
+| Environment | <code>$CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER</code> |
+| YAML        | <code>chat.maxAutomationsPerOwner</code>           |
+| Default     | <code>50</code>                                    |
+
+Maximum number of chat automations one user can own across all organizations. Creating one more fails with HTTP 409. Must be at least 1.
+
 ### --chat-stream-silence-timeout
 
 |             |                                                 |
@@ -1963,7 +1974,39 @@ Stop recording the content of intercepted conversations. No user prompt, tool ca
 | YAML        | <code>ai_gateway.send_actor_headers</code>        |
 | Default     | <code>false</code>                                |
 
-Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
+Add configured headers identifying the authenticated user to intercepted upstream requests. Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. When enabled, removes client-supplied headers at configured actor-header destinations before adding authenticated values. Client headers starting with X-AI-Bridge-Actor are always removed.
+
+### --ai-gateway-actor-header-id
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_AI_GATEWAY_ACTOR_HEADER_ID</code> |
+| YAML        | <code>ai_gateway.actor_header_id</code>        |
+| Default     | <code>X-AI-Bridge-Actor-ID</code>              |
+
+Header name for the authenticated user's ID. Empty disables this header. Requires AI Gateway actor headers to be enabled.
+
+### --ai-gateway-actor-header-username
+
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>string</code>                                  |
+| Environment | <code>$CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME</code> |
+| YAML        | <code>ai_gateway.actor_header_username</code>        |
+| Default     | <code>X-AI-Bridge-Actor-Metadata-Username</code>     |
+
+Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.
+
+### --ai-gateway-actor-header-email
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL</code> |
+| YAML        | <code>ai_gateway.actor_header_email</code>        |
+
+Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Applies to every configured provider; email is personal information.
 
 ### --ai-gateway-dump-dir
 

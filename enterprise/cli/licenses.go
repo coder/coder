@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -38,9 +39,29 @@ func (r *RootCmd) licenses() *serpent.Command {
 
 func (r *RootCmd) licenseAdd() *serpent.Command {
 	var (
-		filename string
-		license  string
-		debug    bool
+		filename  string
+		license   string
+		debug     bool
+		formatter = cliui.NewOutputFormatter(
+			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+				typed, ok := data.(codersdk.License)
+				if !ok {
+					return "", xerrors.Errorf("expected License, got %T", data)
+				}
+				return fmt.Sprintf("License with ID %d added", typed.ID), nil
+			}),
+			cliui.ChangeFormatterData(cliui.JSONFormat(), func(data any) (any, error) {
+				typed, ok := data.(codersdk.License)
+				if !ok {
+					return nil, xerrors.Errorf("expected License, got %T", data)
+				}
+				// Match the enrichment done by `licenses list --output=json`.
+				if humanExp, err := typed.ExpiresAt(); err == nil {
+					typed.Claims[codersdk.LicenseExpiryClaim+"_human"] = humanExp.Format(time.RFC3339)
+				}
+				return typed, nil
+			}),
+		)
 	)
 	cmd := &serpent.Command{
 		Use:   "add [-f file | -l license]",
@@ -104,8 +125,13 @@ func (r *RootCmd) licenseAdd() *serpent.Command {
 				enc.SetIndent("", "  ")
 				return enc.Encode(licResp)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "License with ID %d added\n", licResp.ID)
-			return nil
+
+			out, err := formatter.Format(inv.Context(), licResp)
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(inv.Stdout, out)
+			return err
 		},
 	}
 	cmd.Options = serpent.OptionSet{
@@ -127,6 +153,7 @@ func (r *RootCmd) licenseAdd() *serpent.Command {
 			Value:       serpent.BoolOf(&debug),
 		},
 	}
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 
@@ -179,7 +206,21 @@ func (r *RootCmd) licensesList() *serpent.Command {
 	return cmd
 }
 
+type licenseDeleteResponse struct {
+	ID int32 `json:"id"`
+}
+
 func (r *RootCmd) licenseDelete() *serpent.Command {
+	formatter := cliui.NewOutputFormatter(
+		cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+			typed, ok := data.(licenseDeleteResponse)
+			if !ok {
+				return "", xerrors.Errorf("expected licenseDeleteResponse, got %T", data)
+			}
+			return fmt.Sprintf("License with ID %d deleted", typed.ID), nil
+		}),
+		cliui.JSONFormat(),
+	)
 	cmd := &serpent.Command{
 		Use:     "delete <id>",
 		Short:   "Delete license by ID",
@@ -201,9 +242,15 @@ func (r *RootCmd) licenseDelete() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "License with ID %d deleted\n", id)
-			return nil
+
+			out, err := formatter.Format(inv.Context(), licenseDeleteResponse{ID: int32(id)})
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(inv.Stdout, out)
+			return err
 		},
 	}
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }

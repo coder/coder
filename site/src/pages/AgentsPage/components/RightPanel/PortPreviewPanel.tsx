@@ -23,7 +23,7 @@ export const PortPreviewPanel: React.FC<{
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default bg-surface-secondary px-2 py-1 text-xs text-content-secondary">
+			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border bg-surface-secondary px-2 py-1 text-xs text-content-secondary">
 				<NetworkIcon className="size-3.5 shrink-0" />
 				<span className="min-w-0 truncate text-content-primary">
 					{tab.label}

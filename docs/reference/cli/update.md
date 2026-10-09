@@ -22,6 +22,30 @@ Use --always-prompt to change the parameter values of the workspace.
 
 ## Options
 
+### -y, --yes
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Bypass confirmation prompts.
+
+### --template-version
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Start with a named version of the workspace template. Defaults to the active version.
+
+### --stop-template-version
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Stop with a named version of the workspace template. Only applies when the workspace is started. Defaults to the workspace's current version.
+
 ### --build-option
 
 |             |                                  |

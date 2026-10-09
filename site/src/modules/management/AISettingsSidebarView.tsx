@@ -19,8 +19,10 @@ import { modelOrganizationSearchParam } from "#/pages/AISettingsPage/ModelsPage/
 type AISettingsSidebarViewProps = {
 	/** Site-wide permissions. */
 	permissions: Permissions;
+	canViewAISpend?: boolean;
 	canAccessOrganizationModels?: boolean;
 	canShareOrganizationMCPServers?: boolean;
+	canViewOrganizationInstructions: boolean;
 };
 
 const SubNavItem: React.FC<{ href: To; children?: React.ReactNode }> = ({
@@ -83,11 +85,17 @@ const ModelsSidebarNavItem: React.FC<{ href: To }> = ({ href }) => {
 
 const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 	permissions,
+	canViewAISpend = false,
 	canAccessOrganizationModels = false,
 	canShareOrganizationMCPServers = false,
+	canViewOrganizationInstructions,
 }) => {
 	const [searchParams] = useSearchParams();
 	const organizationName = searchParams.get(modelOrganizationSearchParam);
+	const spendPath = organizationScopedPath(
+		"/ai/settings/spend",
+		organizationName,
+	);
 	const modelsPath = organizationScopedPath(
 		"/ai/settings/models",
 		organizationName,
@@ -104,6 +112,10 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 		"/ai/settings/mcp-servers/add",
 		organizationName,
 	);
+	const instructionsPath = organizationScopedPath(
+		"/ai/settings/instructions",
+		organizationName,
+	);
 
 	return (
 		<BaseSidebar>
@@ -112,6 +124,9 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 					<SidebarNavItem href="/ai/settings/governance">
 						AI Governance
 					</SidebarNavItem>
+				)}
+				{canViewAISpend && (
+					<SidebarNavItem href={spendPath}>Spend</SidebarNavItem>
 				)}
 				{permissions.viewAIGatewayKeys && (
 					<SidebarNavItem href="/ai/settings/gateway-keys">
@@ -136,9 +151,7 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 						{permissions.updateAnyTemplate && (
 							<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
 						)}
-						<SubNavItem href="/ai/settings/instructions">
-							Instructions
-						</SubNavItem>
+						<SubNavItem href={instructionsPath}>Instructions</SubNavItem>
 						<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
 					</SubNavGroup>
 				)}
@@ -168,6 +181,12 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 						<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
 					</SubNavGroup>
 				)}
+				{!permissions.editDeploymentConfig &&
+					canViewOrganizationInstructions && (
+						<SubNavGroup>
+							<SubNavItem href={instructionsPath}>Instructions</SubNavItem>
+						</SubNavGroup>
+					)}
 			</div>
 		</BaseSidebar>
 	);

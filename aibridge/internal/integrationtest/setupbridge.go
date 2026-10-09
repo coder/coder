@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
 	"go.opentelemetry.io/otel"
@@ -39,11 +40,17 @@ const (
 	providerBedrock = "bedrock"
 
 	// defaults
-	apiKey         = "api-key"
-	defaultActorID = "ae235cc1-9f8f-417d-a636-a7b170bac62e"
+	apiKey          = "api-key"
+	defaultActorID  = "ae235cc1-9f8f-417d-a636-a7b170bac62e"
+	defaultAPIKeyID = "integration-test-api-key-id"
 )
 
-var defaultTracer = otel.Tracer("integrationtest")
+var (
+	defaultTracer = otel.Tracer("integrationtest")
+	// defaultActorUUID is defaultActorID parsed for the request actor; records
+	// and labels compare against the string form.
+	defaultActorUUID = uuid.MustParse(defaultActorID)
+)
 
 type bridgeConfig struct {
 	providerBuilders []func(t *testing.T, upstreamURL string) aibridge.Provider
@@ -52,11 +59,13 @@ type bridgeConfig struct {
 	mcpProxy         mcp.ServerProxier
 	// noMCPProxy leaves the proxier nil instead of falling back to
 	// NoopMCPManager, which is non-nil and reports zero tools.
-	noMCPProxy bool
-	userID     string
-	metadata   recorder.Metadata
-	logger     slog.Logger
-	apiKeyID   string
+	noMCPProxy    bool
+	actorID       uuid.UUID
+	actorUsername string
+	logger        slog.Logger
+	// apiKeyID is stamped on the request actor. Recorders require it, so
+	// [newBridgeTestServer] defaults it to defaultAPIKeyID.
+	apiKeyID string
 	// structuredLogging makes the bridge emit AI Gateway interception
 	// records in the format described by [recorder.InterceptionLogMarker].
 	structuredLogging bool
@@ -130,9 +139,9 @@ func withMCP(p mcp.ServerProxier) bridgeOption {
 	return func(c *bridgeConfig) { c.mcpProxy = p }
 }
 
-// withActor sets the actor ID and metadata for the BaseContext.
-func withActor(id string, md recorder.Metadata) bridgeOption {
-	return func(c *bridgeConfig) { c.userID = id; c.metadata = md }
+// withActor sets the actor ID and username for the BaseContext.
+func withActor(id uuid.UUID, username string) bridgeOption {
+	return func(c *bridgeConfig) { c.actorID = id; c.actorUsername = username }
 }
 
 // newBridgeTestServer creates a fully configured test server running
@@ -141,7 +150,8 @@ func withActor(id string, md recorder.Metadata) bridgeOption {
 //   - NoopMCPManager (unless withMCP)
 //   - slogtest debug logger
 //   - defaultTracer (unless withTracer)
-//   - defaultActorID (unless withActor)
+//   - defaultActorID with no username (unless withActor)
+//   - defaultAPIKeyID (unless apiKeyID is set)
 func newBridgeTestServer(
 	ctx context.Context,
 	t *testing.T,
@@ -151,10 +161,13 @@ func newBridgeTestServer(
 	t.Helper()
 
 	cfg := &bridgeConfig{
-		userID: defaultActorID,
+		actorID: defaultActorUUID,
 	}
 	for _, o := range opts {
 		o(cfg)
+	}
+	if cfg.apiKeyID == "" {
+		cfg.apiKeyID = defaultAPIKeyID
 	}
 	if cfg.tracer == nil {
 		cfg.tracer = defaultTracer
@@ -179,7 +192,7 @@ func newBridgeTestServer(
 	}
 
 	mockRec := &testutil.MockRecorder{}
-	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, cfg.apiKeyID, cfg.structuredLogging, mockRec, cfg.recorderMiddleware...)
+	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, cfg.structuredLogging, mockRec, cfg.recorderMiddleware...)
 
 	bridge, err := aibridge.NewRequestBridge(
 		ctx, providers, rec, cfg.mcpProxy,
@@ -187,10 +200,14 @@ func newBridgeTestServer(
 	)
 	require.NoError(t, err)
 
-	actorID, md := cfg.userID, cfg.metadata
+	actor := aibcontext.Actor{
+		ID:       cfg.actorID,
+		APIKeyID: cfg.apiKeyID,
+		Username: cfg.actorUsername,
+	}
 	srv := httptest.NewUnstartedServer(bridge)
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
-		return aibcontext.AsActor(ctx, actorID, md)
+		return aibcontext.AsActor(ctx, actor)
 	}
 	srv.Start()
 	t.Cleanup(srv.Close)
@@ -235,7 +252,7 @@ func setupInjectedToolTest(
 	allOpts := []bridgeOption{
 		withMCP(mockMCP),
 		withTracer(tracer),
-		withActor(defaultActorID, nil),
+		withActor(defaultActorUUID, ""),
 	}
 	allOpts = append(allOpts, opts...)
 	bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, allOpts...)

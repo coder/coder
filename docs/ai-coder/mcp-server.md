@@ -1,5 +1,5 @@
 ---
-title: MCP Server
+title: MCP server
 ---
 
 Coder includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/)
@@ -178,15 +178,16 @@ The MCP server supports two authentication methods:
 
 ### OAuth2 (Recommended for Interactive Clients)
 
-MCP clients that support [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)
-(Protected Resource Metadata) can authenticate automatically using OAuth2. The
-server advertises its OAuth2 capabilities via the `WWW-Authenticate` header and
-`/.well-known/oauth-protected-resource` endpoint.
-
+MCP clients that support [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) (Protected Resource Metadata) can authenticate automatically using OAuth2.
 This enables a seamless connect-and-authenticate experience where users sign in through their browser without manually managing tokens.
+
+The MCP endpoint's `WWW-Authenticate` header points to `/.well-known/oauth-protected-resource/api/experimental/mcp/http` through its `resource_metadata` parameter.
+This metadata identifies the full MCP endpoint URL as the `resource`, for example, `https://coder.example.com/api/experimental/mcp/http`.
 
 > [!NOTE]
 > OAuth2 requires `CODER_OAUTH2_PROVIDER_ENABLE=true` on your Coder deployment.
+>
+> [Dynamic Client Registration (DCR)](../admin/integrations/oauth2-provider/index.md#dynamic-client-registration) is off by default and must be enabled before clients can self-register.
 
 ### Session Token (For Programmatic Access)
 
@@ -201,7 +202,7 @@ The MCP server exposes tools across several areas:
 - **Workspace management**: list, inspect, create, and build workspaces
 - **Template operations**: list, inspect, create, and manage templates and versions
 - **File operations**: read, write, and edit files in a workspace
-- **Workspace interaction**: run commands, forward ports, list apps, and read logs
+- **Workspace interaction**: run commands, manage background processes, forward ports, list apps, and read logs
 - **Coder Agents chats**: create chats, send messages, read transcripts and status, interrupt, archive, and list available models
 - **User and system**: authenticated user details, organization memberships, tar uploads, and task reporting
 
@@ -209,6 +210,19 @@ The full, authoritative set of tools, including their names, descriptions, and
 arguments, is defined in Coder's
 [`toolsdk` package](../../codersdk/toolsdk/toolsdk.go). Refer to it for the
 current list, since the available tools can change between releases.
+
+The workspace file and command tools (`coder_workspace_read_file`,
+`coder_workspace_write_file`, `coder_workspace_edit_files`,
+`coder_workspace_execute`, and the `coder_workspace_process_*` tools) share
+their arguments and result formats with the matching
+[Coder Agents](./agents/index.md) tools, with these differences:
+
+- Each tool takes a `workspace` argument that selects the workspace to act on.
+- Invalid arguments and workspace agent errors are returned as MCP tool errors.
+- A single call waits at most 5 minutes. Run longer commands with
+  `run_in_background` and check on them with `coder_workspace_process_output`.
+- Commands started through MCP are separate from Coder Agents chat processes,
+  but anyone with SSH access to the workspace can list and signal them.
 
 ## Available Prompts
 
@@ -239,5 +253,6 @@ them for you to invoke, for example as slash commands:
 ### OAuth2 authentication not working
 
 - Ensure your Coder deployment has `CODER_OAUTH2_PROVIDER_ENABLE=true` set
+- If your client registers itself automatically, ensure [Dynamic Client Registration](../admin/integrations/oauth2-provider/index.md#dynamic-client-registration) is enabled
 - Verify your MCP client supports RFC 9728 Protected Resource Metadata
 - Check that your browser can reach the Coder authorization endpoint

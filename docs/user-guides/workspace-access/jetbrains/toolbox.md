@@ -1,5 +1,5 @@
 ---
-title: JetBrains Toolbox (Beta)
+title: JetBrains Toolbox
 ---
 
 JetBrains Toolbox helps you manage JetBrains products and includes remote development capabilities for connecting to Coder workspaces.

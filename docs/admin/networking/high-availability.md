@@ -1,5 +1,5 @@
 ---
-title: High Availability
+title: High availability
 ---
 
 High Availability (HA) mode solves for horizontal scalability and automatic
@@ -56,6 +56,11 @@ Setting it is required when you use [custom relays](./index.md#custom-relays),
 because `CODER_DERP_SERVER_RELAY_URL` is ignored and no fallback address is
 available. If a node has neither value set, Coder logs an error and falls back
 to PostgreSQL for pubsub.
+
+Nodes connect to each other's pubsub on TCP port 6222, which isn't configurable.
+Allow port 6222 between the `CODER_CLUSTER_HOST` addresses of your `coderd` nodes in any firewall or Kubernetes NetworkPolicy that sits between them.
+If you use the embedded relay, also allow the port in `CODER_DERP_SERVER_RELAY_URL`.
+If port 6222 is blocked, Coder doesn't fall back to PostgreSQL, so events published on one node, such as workspace updates, don't reach clients connected to another node.
 
 Here's an example 3-node network configuration setup:
 

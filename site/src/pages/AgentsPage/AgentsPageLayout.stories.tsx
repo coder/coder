@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import { Navigate } from "react-router";
 import {
 	expect,
@@ -20,19 +19,21 @@ import {
 	chatPromptsKey,
 } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockFailedWorkspaceBuild,
 	MockNoPermissions,
 	MockOrganization2,
 	MockPermissions,
 	MockUserOwner,
+	MockUserPreferenceSettings,
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
@@ -168,6 +169,7 @@ const agentsRouting = {
 				},
 			],
 		},
+		{ path: "projects/:projectId", element: <AgentCreatePage /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
@@ -213,7 +215,7 @@ const ChatPaneMinimumRouteElement = () => (
 		<div className="mt-auto px-4 pb-3">
 			<div
 				data-testid="chat-composer"
-				className="flex items-center justify-between rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-2"
+				className="flex items-center justify-between rounded-2xl border border-border/80 bg-surface-secondary/45 p-2"
 			>
 				<span className="truncate text-xs text-content-secondary">
 					Chat message
@@ -782,52 +784,6 @@ export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
 	},
 };
 
-/**
- * Standalone story for the delete-confirmation dialog with
- * agents-specific copy (title, verb, info). The dialog now lives in
- * AgentsPageLayout (the container), so we render it directly here to
- * preserve interaction-test coverage.
- */
-export const DeleteConfirmationDialog: Story = {
-	render: function Render() {
-		const [isOpen, setIsOpen] = useState(true);
-		const [isLoading, setIsLoading] = useState(false);
-		const onConfirm = fn();
-		return (
-			<DeleteDialog
-				key="my-workspace"
-				isOpen={isOpen}
-				onConfirm={() => {
-					onConfirm();
-					setIsLoading(true);
-				}}
-				onCancel={() => setIsOpen(false)}
-				entity="workspace"
-				name="my-workspace"
-				confirmLoading={isLoading}
-				title="Archive agent & delete workspace"
-				verb="Archiving and deleting"
-				info="This will archive the agent and permanently delete the associated workspace and all its resources."
-			/>
-		);
-	},
-	play: async () => {
-		const dialog = await screen.findByRole("dialog");
-
-		// Confirm button is disabled before typing the workspace name.
-		const confirmButton = within(dialog).getByRole("button", {
-			name: /delete/i,
-		});
-
-		// Type the workspace name to satisfy the confirmation guard.
-		const input = within(dialog).getByLabelText(/name of the workspace/i);
-		await userEvent.type(input, "my-workspace");
-
-		// Click confirm so the dialog enters its loading state.
-		await userEvent.click(confirmButton);
-	},
-};
-
 export const WithAgentSelected: Story = {
 	beforeEach: () => {
 		mockChats([
@@ -894,6 +850,7 @@ const watchedChatQueries = (chat: Chat) => [
 		},
 	},
 	{ key: chatPromptsKey(chat.id), data: { prompts: [] } },
+	{ key: preferenceSettingsKey, data: MockUserPreferenceSettings },
 	{
 		key: getAuthorizationKey({
 			checks: {
@@ -1096,6 +1053,65 @@ const debugWorkspaceBuildRouter = (buildId: string) =>
 		},
 		routing: [agentsRouting, aiSettingsRouting],
 	});
+
+const projectPageParameters = {
+	experiments: ["chat-projects"],
+	reactRouter: reactRouterParameters({
+		location: { path: `/agents/projects/${MockChatProject.id}` },
+		routing: [agentsRouting, aiSettingsRouting],
+	}),
+};
+
+// Each play waits for its state so the Chromatic snapshot captures it.
+export const ProjectLoading: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("status", { name: "Loading project" });
+	},
+};
+
+export const ProjectLoadError: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to list chat projects." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Failed to load project");
+	},
+};
+
+export const ProjectLoaded: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			MockChatProject,
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Project actions" });
+	},
+};
+
+export const ProjectNotFound: Story = {
+	parameters: projectPageParameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Project not found");
+	},
+};
 
 export const PromptLink: Story = {
 	parameters: {

@@ -106,6 +106,29 @@ Update a workspace through the command line:
 coder update <workspace-name>
 ```
 
+If the workspace is running, `coder update` asks for confirmation before it
+stops and updates the workspace. To skip the prompt in scripts and other
+non-interactive use, add `-y`:
+
+```sh
+coder update -y <workspace-name>
+```
+
+By default, `coder update` stops the workspace with its current template version and starts it on the active version.
+To start on a specific named version instead, use `--template-version`.
+To stop with a different version than the workspace's current one, use `--stop-template-version`:
+
+```sh
+coder update <workspace-name> --template-version <version-name>
+coder update <workspace-name> --stop-template-version <version-name> --template-version <version-name>
+```
+
+`--stop-template-version` only applies when `coder update` stops a started workspace.
+To stop a workspace with a specific version on its own, use `coder stop --template-version`.
+
+`coder start` and `coder stop` also accept `--template-version`.
+Template permissions still apply, so if a template requires the active version, only template admins can start a workspace on another version.
+
 ### Automatic updates
 
 It can be tedious to manually update a workspace everytime an update is pushed

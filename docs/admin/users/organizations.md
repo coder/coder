@@ -1,5 +1,5 @@
 ---
-title: Organizations (Premium)
+title: Organizations
 ---
 
 > [!NOTE]

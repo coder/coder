@@ -46,11 +46,10 @@ networking:
     # (default: <unset>, type: bool)
     disableSessionExpiryRefresh: false
     # Disable password authentication. This is recommended for security purposes in
-    # production deployments that rely on an identity provider. Any user with the
-    # owner role will be able to sign in with their password regardless of this
-    # setting to avoid potential lock out. If you are locked out of your account, you
-    # can use the `coder server create-admin` command to create a new admin user
-    # directly in the database.
+    # production deployments that rely on an identity provider. This applies to all
+    # users, including owners. Ensure an owner can sign in through your identity
+    # provider before enabling this. To recover access, unset this option, restart the
+    # server, and use `coder server create-admin-user` if needed.
     # (default: <unset>, type: bool)
     disablePasswordAuth: false
     # The interval in which coderd should be checking the status of workspace proxies.
@@ -893,6 +892,10 @@ chat:
   # frees up within 90 seconds. Must be at least 1.
   # (default: 25, type: int)
   maxConcurrentRecordingUploads: 25
+  # Maximum number of chat automations one user can own across all organizations.
+  # Creating one more fails with HTTP 409. Must be at least 1.
+  # (default: 50, type: int)
+  maxAutomationsPerOwner: 50
   # Deprecated: AI Gateway routing is now the only routing path. Setting this value
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
@@ -1018,13 +1021,26 @@ ai_gateway:
   # to a SIEM instead.
   # (default: false, type: bool)
   disable_content_recording: false
-  # Once enabled, extra headers will be added to upstream requests to identify the
-  # user (actor) making requests to AI Gateway. This is only needed if you are using
-  # a proxy between AI Gateway and an upstream AI provider. This will send
-  # X-Ai-Bridge-Actor-Id (the ID of the user making the request) and
-  # X-Ai-Bridge-Actor-Metadata-Username (their username).
+  # Add configured headers identifying the authenticated user to intercepted
+  # upstream requests. Use this when a proxy between AI Gateway and an upstream AI
+  # provider needs user identity. When enabled, removes client-supplied headers at
+  # configured actor-header destinations before adding authenticated values. Client
+  # headers starting with X-AI-Bridge-Actor are always removed.
   # (default: false, type: bool)
   send_actor_headers: false
+  # Header name for the authenticated user's ID. Empty disables this header.
+  # Requires AI Gateway actor headers to be enabled.
+  # (default: X-AI-Bridge-Actor-ID, type: string)
+  actor_header_id: X-AI-Bridge-Actor-ID
+  # Header name for the authenticated user's username. Empty disables this header.
+  # Requires AI Gateway actor headers to be enabled.
+  # (default: X-AI-Bridge-Actor-Metadata-Username, type: string)
+  actor_header_username: X-AI-Bridge-Actor-Metadata-Username
+  # Header name for the authenticated user's email address. Empty disables this
+  # header. Requires AI Gateway actor headers to be enabled. Applies to every
+  # configured provider; email is personal information.
+  # (default: <unset>, type: string)
+  actor_header_email: ""
   # Base directory for dumping AI Gateway request/response pairs to disk for
   # debugging. When set, each provider writes under a subdirectory named after the
   # provider. Sensitive headers are redacted. Leave empty to disable.

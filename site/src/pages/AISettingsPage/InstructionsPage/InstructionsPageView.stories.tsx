@@ -2,14 +2,21 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
+	MockDefaultOrganization,
+	MockOrganization2,
+	mockApiError,
+} from "#/testHelpers/entities";
+import {
 	InstructionsPageView,
 	type InstructionsPageViewProps,
 } from "./InstructionsPageView";
+import { OrganizationInstructionsSettings } from "./OrganizationInstructionsSettings";
 
 const mockDefaultSystemPrompt = "You are Coder, an AI coding assistant.";
 const saveOrder: string[] = [];
 
 const baseArgs: InstructionsPageViewProps = {
+	canEditDeploymentConfig: true,
 	systemPromptData: {
 		system_prompt: "Always explain tradeoffs before proposing a change.",
 		include_default_system_prompt: true,
@@ -19,6 +26,7 @@ const baseArgs: InstructionsPageViewProps = {
 		plan_mode_instructions:
 			"Use a numbered checklist for implementation plans.",
 	},
+	deploymentInstructionsError: null,
 	onSaveSystemPrompt: fn(async () => undefined),
 	onSavePlanModeInstructions: fn(async () => undefined),
 	onResetSystemPromptSave: fn(),
@@ -26,6 +34,13 @@ const baseArgs: InstructionsPageViewProps = {
 	isSaving: false,
 	isSaveSystemPromptError: false,
 	isSavePlanModeInstructionsError: false,
+	organization: undefined,
+	organizations: [],
+	onSelectOrganization: fn(),
+	requestedOrganizationDenied: false,
+	isOrganizationAccessLoading: false,
+	organizationAccessError: null,
+	organizationInstructions: null,
 };
 
 const meta = {
@@ -431,6 +446,7 @@ const RefetchPromptWrapper: React.FC = () => {
 				Simulate system prompt refetch
 			</button>
 			<InstructionsPageView
+				{...baseArgs}
 				systemPromptData={{
 					system_prompt: systemPromptValue,
 					include_default_system_prompt: false,
@@ -484,4 +500,97 @@ export const PartialSaveFailureCancelResyncsToServer: Story = {
 			expect(canvas.queryByDisplayValue("Old")).toBeNull();
 		});
 	},
+};
+
+const organizationInstructionsArgs = {
+	organization: MockDefaultOrganization,
+	organizations: [MockDefaultOrganization, MockOrganization2],
+	organizationInstructions: (
+		<OrganizationInstructionsSettings
+			systemPrompt="Use the platform team's templates and run make lint before opening a pull request."
+			isLoading={false}
+			loadError={null}
+			refetchError={null}
+			canEdit
+			onSave={fn()}
+			isSaving={false}
+			saveError={null}
+			onResetSave={fn()}
+		/>
+	),
+} satisfies Partial<InstructionsPageViewProps>;
+
+// These stories have no play function, so Pixel can capture them.
+const pixelCapture = { pixel: { exclude: false } };
+
+export const WithOrganizationInstructions: Story = {
+	args: organizationInstructionsArgs,
+	parameters: pixelCapture,
+};
+
+export const SingleOrganization: Story = {
+	args: {
+		...organizationInstructionsArgs,
+		organizations: [MockDefaultOrganization],
+	},
+	parameters: pixelCapture,
+};
+
+export const OrganizationInstructionsOnly: Story = {
+	args: { ...organizationInstructionsArgs, canEditDeploymentConfig: false },
+	parameters: pixelCapture,
+};
+
+export const InstructionsLoading: Story = {
+	args: {
+		systemPromptData: undefined,
+		planModeInstructionsData: undefined,
+		isOrganizationAccessLoading: true,
+	},
+	parameters: pixelCapture,
+};
+
+export const DeploymentInstructionsLoadError: Story = {
+	args: {
+		...organizationInstructionsArgs,
+		systemPromptData: undefined,
+		deploymentInstructionsError: mockApiError({
+			message: "Failed to load the deployment system prompt.",
+		}),
+	},
+	parameters: pixelCapture,
+};
+
+export const DeploymentInstructionsRefetchError: Story = {
+	args: {
+		...organizationInstructionsArgs,
+		deploymentInstructionsError: mockApiError({
+			message: "Failed to refresh the deployment system prompt.",
+		}),
+	},
+	parameters: pixelCapture,
+};
+
+export const RequestedOrganizationDenied: Story = {
+	args: { ...organizationInstructionsArgs, requestedOrganizationDenied: true },
+	parameters: pixelCapture,
+};
+
+export const OrganizationAccessError: Story = {
+	args: {
+		organizationAccessError: mockApiError({
+			message: "Failed to check organization permissions.",
+		}),
+	},
+	parameters: pixelCapture,
+};
+
+export const OrganizationAccessRefetchError: Story = {
+	args: {
+		...organizationInstructionsArgs,
+		organizationAccessError: mockApiError({
+			message: "Failed to refresh organization permissions.",
+		}),
+	},
+	parameters: pixelCapture,
 };
