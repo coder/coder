@@ -3598,6 +3598,24 @@ export interface ChatProject {
 
 // From codersdk/chats.go
 /**
+ * ChatProjectInstructions are instructions added to the system prompt of
+ * every chat in a project, for every user who chats there. A project without
+ * instructions has an empty Instructions string and nil UpdatedBy and
+ * UpdatedAt.
+ */
+export interface ChatProjectInstructions {
+	readonly project_id: string;
+	readonly instructions: string;
+	/**
+	 * UpdatedBy is the user who last changed the instructions. It is nil
+	 * when the instructions are unset or the user was deleted.
+	 */
+	readonly updated_by: MinimalUser | null;
+	readonly updated_at: string | null;
+}
+
+// From codersdk/chats.go
+/**
  * ChatProjectMemory is a durable memory shared by chats in a project.
  */
 export interface ChatProjectMemory {
@@ -10843,6 +10861,15 @@ export interface UpdateChatPersonalModelOverridesAdminSettingsRequest {
  */
 export interface UpdateChatPlanModeInstructionsRequest {
 	readonly plan_mode_instructions: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatProjectInstructionsRequest sets a project's instructions. Use
+ * DeleteChatProjectInstructions to clear them.
+ */
+export interface UpdateChatProjectInstructionsRequest {
+	readonly instructions: string;
 }
 
 // From codersdk/chats.go
