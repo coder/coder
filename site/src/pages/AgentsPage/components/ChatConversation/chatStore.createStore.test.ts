@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	createChatStore,
+	selectChatStatus,
 	selectIsAwaitingFirstStreamChunk,
 	selectQueuedMessages,
 	selectRetryState,
@@ -1053,8 +1054,41 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		store.applyMessagePart({ type: "text", text: "partial" });
 		store.setPendingEdit({
 			messageID: 1,
-			placeholder: makeMessage(1, "user", "edited question"),
+			optimisticMessage: makeMessage(1, "user", "edited question"),
 		});
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+
+	it("returns true while an edit of a later prompt is pending", () => {
+		const store = createChatStore();
+		store.upsertDurableMessages([
+			makeMessage(1, "user", "question"),
+			makeMessage(2, "assistant", "answer"),
+			makeMessage(3, "user", "follow-up"),
+			makeMessage(4, "assistant", "follow-up answer"),
+		]);
+		store.setPendingEdit({
+			messageID: 3,
+			optimisticMessage: makeMessage(3, "user", "edited follow-up"),
+		});
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+
+	it("returns true while an edit is pending although the stream reports the replaced turn's error", () => {
+		const store = createChatStore();
+		store.upsertDurableMessages([
+			makeMessage(1, "user", "question"),
+			makeMessage(2, "assistant", "answer"),
+		]);
+		store.setPendingEdit({
+			messageID: 1,
+			optimisticMessage: makeMessage(1, "user", "edited question"),
+		});
+		// A reconnect's first sync reports the status the chat had before the
+		// edit.
+		store.applyServerChatStatus("error");
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
@@ -1079,31 +1113,31 @@ describe("pending edit", () => {
 		return store;
 	};
 
-	it("shows the placeholder in place of the edited message and hides later messages", () => {
+	it("shows the optimistic message in place of the edited message and hides later messages", () => {
 		const store = storeWith(1, 2, 3, 4);
 		store.setPendingEdit({
 			messageID: 3,
-			placeholder: makeMessage(3, "user", "edited"),
+			optimisticMessage: makeMessage(3, "user", "edited"),
 		});
 
 		expect(shown(store)).toEqual(["1:m1", "2:m2", "3:edited"]);
 	});
 
-	it("shows only the placeholder when the first message is edited", () => {
+	it("shows only the optimistic message when the first message is edited", () => {
 		const store = storeWith(1, 2);
 		store.setPendingEdit({
 			messageID: 1,
-			placeholder: makeMessage(1, "user", "edited"),
+			optimisticMessage: makeMessage(1, "user", "edited"),
 		});
 
 		expect(shown(store)).toEqual(["1:edited"]);
 	});
 
-	it("keeps messages that arrive while pending and shows them once the edit is dropped", () => {
+	it("keeps messages that arrive while pending and shows them when the edit fails", () => {
 		const store = storeWith(1, 2, 3, 4);
 		store.setPendingEdit({
 			messageID: 3,
-			placeholder: makeMessage(3, "user", "edited"),
+			optimisticMessage: makeMessage(3, "user", "edited"),
 		});
 		store.upsertDurableMessage(makeMessage(5, "user", "m5"));
 		expect(shown(store)).toEqual(["1:m1", "2:m2", "3:edited"]);
@@ -1113,11 +1147,11 @@ describe("pending edit", () => {
 		expect(shown(store)).toEqual(["1:m1", "2:m2", "3:m3", "4:m4", "5:m5"]);
 	});
 
-	it("ends the edit when the history no longer holds the edited message", () => {
+	it("commits the edit when the history no longer holds the edited message", () => {
 		const store = storeWith(1, 2, 3, 4);
 		store.setPendingEdit({
 			messageID: 3,
-			placeholder: makeMessage(3, "user", "edited"),
+			optimisticMessage: makeMessage(3, "user", "edited"),
 		});
 
 		// The stream's history_reset for the committed edit.
@@ -1130,10 +1164,11 @@ describe("pending edit", () => {
 		expect(shown(store)).toEqual(["1:m1", "2:m2", "5:edited"]);
 	});
 
-	// The queue, live output, error and retry of the turn being replaced.
-	const replacedTurn = (store: ReturnType<typeof createChatStore>) => {
+	// The status, queue, live output, error and retry the transcript shows.
+	const shownTurn = (store: ReturnType<typeof createChatStore>) => {
 		const state = store.getSnapshot();
 		return {
+			status: selectChatStatus(state),
 			queue: selectQueuedMessages(state).map((message) => message.id),
 			streaming: selectStreamState(state) !== null,
 			error: selectStreamError(state)?.message,
@@ -1142,6 +1177,7 @@ describe("pending edit", () => {
 	};
 	const storeWithTurn = () => {
 		const store = storeWith(1, 2, 3, 4);
+		store.applyServerChatStatus("error");
 		store.applyAuthoritativeQueuedMessages([makeQueuedMessage(10, "q10")]);
 		store.applyMessagePart({ type: "text", text: "partial" });
 		store.setStreamError({ kind: "generic", message: "failed" });
@@ -1149,24 +1185,29 @@ describe("pending edit", () => {
 		return store;
 	};
 
-	it("hides the replaced turn while pending and shows it as the stream left it when the edit is dropped", () => {
+	const editTurn = {
+		status: "running",
+		queue: [],
+		streaming: false,
+		error: undefined,
+		retrying: false,
+	};
+
+	it("shows the edit's turn while pending and the replaced turn as the stream left it when the edit fails", () => {
 		const store = storeWithTurn();
 		store.setPendingEdit({ messageID: 3 });
 
-		expect(replacedTurn(store)).toEqual({
-			queue: [],
-			streaming: false,
-			error: undefined,
-			retrying: false,
-		});
+		expect(shownTurn(store)).toEqual(editTurn);
 
+		store.applyServerChatStatus("waiting");
 		store.applyAuthoritativeQueuedMessages([
 			makeQueuedMessage(10, "q10"),
 			makeQueuedMessage(11, "q11"),
 		]);
 		store.setPendingEdit(null);
 
-		expect(replacedTurn(store)).toEqual({
+		expect(shownTurn(store)).toEqual({
+			status: "waiting",
 			queue: [10, 11],
 			streaming: true,
 			error: "failed",
@@ -1174,7 +1215,7 @@ describe("pending edit", () => {
 		});
 	});
 
-	it("discards the replaced turn when the history no longer holds the edited message", () => {
+	it("replaces the stored turn with the edit's when the edit commits", () => {
 		const store = storeWithTurn();
 		store.setPendingEdit({ messageID: 3 });
 
@@ -1184,12 +1225,8 @@ describe("pending edit", () => {
 			makeMessage(5, "user", "edited"),
 		]);
 
-		expect(replacedTurn(store)).toEqual({
-			queue: [],
-			streaming: false,
-			error: undefined,
-			retrying: false,
-		});
+		expect(store.getSnapshot().pendingEdit).toBeNull();
+		expect(shownTurn(store)).toEqual(editTurn);
 	});
 });
 

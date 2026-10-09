@@ -35,6 +35,7 @@ import {
 	chatQueuedMessagesEqualByID,
 	createChatStore,
 	isActiveChatStatus,
+	selectChatStatus,
 	selectRetryState,
 	selectStreamError,
 	selectStreamState,
@@ -146,7 +147,7 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 	selectStreamError(state) === null &&
 	(selectStreamState(state) !== null ||
 		selectRetryState(state) !== null ||
-		isActiveChatStatus(state.chatStatus));
+		isActiveChatStatus(selectChatStatus(state)));
 
 type UseChatStoreOptions = {
 	chatID: string;

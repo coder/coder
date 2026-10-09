@@ -345,14 +345,7 @@ export async function submitChatTurn(
 					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
 				})
 			: undefined;
-		const previousChatStatus = store.getSnapshot().chatStatus;
-		store.batch(() => {
-			store.setChatStatus("running");
-			store.setPendingEdit({
-				messageID: editedMessageID,
-				placeholder: optimisticMessage,
-			});
-		});
+		store.setPendingEdit({ messageID: editedMessageID, optimisticMessage });
 		let response: TypesGen.EditChatMessageResponse;
 		try {
 			response = await editMessage({
@@ -360,10 +353,7 @@ export async function submitChatTurn(
 				req: request,
 			});
 		} catch (error) {
-			store.batch(() => {
-				store.setPendingEdit(null);
-				store.setChatStatus(previousChatStatus);
-			});
+			store.setPendingEdit(null);
 			onRequestError(error);
 			// Hook dispatch failures can park an idle chat in error before
 			// returning the request error.

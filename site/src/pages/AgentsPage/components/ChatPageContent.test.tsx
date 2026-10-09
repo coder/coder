@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -244,6 +244,40 @@ const renderChatPageTimelineWithAutomationInput = () => {
 };
 
 describe("ChatPageTimeline", () => {
+	it("leaves out the persisted error of the turn a pending edit replaces", async () => {
+		const store = createChatStore();
+		store.replaceMessages(
+			[1, 2, 3, 4].map((id) => ({
+				...MockChatMessage,
+				id,
+				role: id % 2 ? ("user" as const) : ("assistant" as const),
+			})),
+		);
+		store.setPendingEdit({ messageID: 3 });
+		renderWithAuth(
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<ChatPageTimeline
+					organizationId="test-org-id"
+					store={store}
+					persistedError={{ kind: "generic", message: "old failure" }}
+					hasMoreMessages={false}
+					isFetchingMoreMessages={false}
+					isHydratingMessages={false}
+					hasFetchMoreError={false}
+					onFetchMoreMessages={() => {}}
+				/>
+			</MessageScroller.Provider>,
+		);
+		await screen.findAllByText("Hello");
+		expect(screen.queryByText("old failure")).not.toBeInTheDocument();
+
+		act(() => {
+			store.setPendingEdit(null);
+		});
+
+		expect(await screen.findByText("old failure")).toBeInTheDocument();
+	});
+
 	it("requests the automations list for the chat's organization when history has automation input", async () => {
 		mockChatAutomationsResponse();
 		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");

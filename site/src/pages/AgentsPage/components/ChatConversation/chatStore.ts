@@ -109,18 +109,23 @@ export const isActiveChatStatus = (
 	status === "requires_action" ||
 	status === "interrupting";
 
-/**
- * An edit whose result has not reached the store yet. The transcript shows
- * the placeholder in place of the edited message and hides the turn it
- * replaces: the later messages, the queue, and the live output, error and
- * retry. They stay in the store, so a failed edit shows them as the stream
- * left them. Replacing the messages without the edited one lands the edit
- * and discards that turn, as the server did.
- */
+/** An edit the server has not answered and the stream has not delivered. */
 type PendingEdit = {
 	messageID: number;
-	placeholder?: TypesGen.ChatMessage;
+	optimisticMessage?: TypesGen.ChatMessage;
 };
+
+// The turn an edit starts. While the edit is pending the selectors show it
+// instead of the stored turn, which stays as the stream leaves it so that a
+// failed edit shows it again. The queue array is shared because a selector
+// must return the same value on every call for useSyncExternalStore.
+const editTurnStart = {
+	chatStatus: "running",
+	queuedMessages: [],
+	streamState: null,
+	streamError: null,
+	retryState: null,
+} as const satisfies Partial<ChatStoreState>;
 
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
@@ -304,14 +309,9 @@ export const createChatStore = (): ChatStore => {
 			) {
 				return next;
 			}
-			return {
-				...next,
-				pendingEdit: null,
-				queuedMessages: [],
-				streamState: null,
-				streamError: null,
-				retryState: null,
-			};
+			// The history no longer holds the edited message, so the edit
+			// committed and its turn replaces the stored one.
+			return { ...next, ...editTurnStart, pendingEdit: null };
 		});
 	};
 
@@ -777,30 +777,30 @@ export const createChatStore = (): ChatStore => {
 export const selectMessagesByID = (state: ChatStoreState) => state.messagesByID;
 export const selectOrderedMessageIDs = (state: ChatStoreState) =>
 	state.orderedMessageIDs;
-// The stream, queue, error and retry selectors leave out the turn a pending
-// edit replaces.
 export const selectStreamState = (state: ChatStoreState) =>
-	state.pendingEdit ? null : state.streamState;
+	state.pendingEdit ? editTurnStart.streamState : state.streamState;
 export const selectHasStreamState = (state: ChatStoreState) =>
 	selectStreamState(state) !== null;
-export const selectChatStatus = (state: ChatStoreState) => state.chatStatus;
+export const selectChatStatus = (state: ChatStoreState) =>
+	state.pendingEdit ? editTurnStart.chatStatus : state.chatStatus;
 export const selectStreamError = (state: ChatStoreState) =>
-	state.pendingEdit ? null : state.streamError;
-const noQueuedMessages: readonly TypesGen.ChatQueuedMessage[] = [];
-export const selectQueuedMessages = (state: ChatStoreState) =>
-	state.pendingEdit ? noQueuedMessages : state.queuedMessages;
+	state.pendingEdit ? editTurnStart.streamError : state.streamError;
+export const selectQueuedMessages = (
+	state: ChatStoreState,
+): readonly TypesGen.ChatQueuedMessage[] =>
+	state.pendingEdit ? editTurnStart.queuedMessages : state.queuedMessages;
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 	state.subagentStatusOverrides;
 export const selectRetryState = (state: ChatStoreState) =>
-	state.pendingEdit ? null : state.retryState;
+	state.pendingEdit ? editTurnStart.retryState : state.retryState;
 export const selectReconnectState = (state: ChatStoreState) =>
 	state.reconnectState;
 export const selectPendingEdit = (state: ChatStoreState) => state.pendingEdit;
 
 /**
  * Returns the messages the transcript shows, oldest first. While an edit is
- * pending, its placeholder replaces the edited message and later messages
- * are left out.
+ * pending, its optimistic message replaces the edited message and later
+ * messages are left out.
  */
 export const visibleMessages = (
 	orderedMessageIDs: readonly number[],
@@ -821,8 +821,8 @@ export const visibleMessages = (
 			);
 		}
 	}
-	if (pendingEdit?.placeholder) {
-		messages.push(pendingEdit.placeholder);
+	if (pendingEdit?.optimisticMessage) {
+		messages.push(pendingEdit.optimisticMessage);
 	}
 	return messages;
 };
@@ -831,8 +831,8 @@ const selectLatestVisibleMessage = (
 	state: ChatStoreState,
 ): TypesGen.ChatMessage | undefined => {
 	const { orderedMessageIDs, messagesByID, pendingEdit } = state;
-	if (pendingEdit?.placeholder) {
-		return pendingEdit.placeholder;
+	if (pendingEdit?.optimisticMessage) {
+		return pendingEdit.optimisticMessage;
 	}
 	const latestMessageID = orderedMessageIDs.findLast(
 		(id) => !pendingEdit || id < pendingEdit.messageID,
@@ -848,17 +848,15 @@ export const selectIsAwaitingFirstStreamChunk = (
 	const latestMessage = selectLatestVisibleMessage(state);
 	const latestMessageNeedsAssistantResponse =
 		latestMessage?.role !== "assistant";
-	// Show the Thinking indicator when the store has no stream
-	// data yet, the chat is running, and the conversation is
-	// waiting for an assistant response (any non-assistant latest
-	// message).
+	// Show the Thinking indicator while the chat runs, no stream output is
+	// shown, and the latest shown message is not an assistant's.
 	if (
 		selectStreamState(state) !== null ||
 		!latestMessageNeedsAssistantResponse
 	) {
 		return false;
 	}
-	return state.chatStatus === "running";
+	return selectChatStatus(state) === "running";
 };
 
 export const useChatSelector = <T>(

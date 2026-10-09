@@ -22,6 +22,7 @@ import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingSt
 import { NIL_UUID } from "../../utils/modelOptions";
 import {
 	createChatStore,
+	selectChatStatus,
 	selectQueuedMessages,
 	selectStreamState,
 	visibleMessages,
@@ -311,7 +312,7 @@ describe("submitChatTurn", () => {
 			expect(params.invalidateChat).toHaveBeenCalledWith("chat-1");
 		});
 
-		it("keeps the queue and the stream the stream delivered meanwhile when the edit fails", async () => {
+		it("keeps the queue and live output delivered during the edit when the edit fails", async () => {
 			const { store, response, submitted } = startEdit();
 			// The turn the edit would replace streams and queues meanwhile.
 			store.applyMessagePart({ type: "text", text: "partial" });
@@ -324,6 +325,18 @@ describe("submitChatTurn", () => {
 			const state = store.getSnapshot();
 			expect(selectQueuedMessages(state)).toEqual([queued]);
 			expect(selectStreamState(state)).not.toBeNull();
+		});
+
+		it("shows the status delivered during the edit when the edit fails", async () => {
+			const { store, response, submitted } = startEdit();
+			expect(selectChatStatus(store.getSnapshot())).toBe("running");
+			// The turn the edit would replace finishes meanwhile.
+			store.applyServerChatStatus("waiting");
+
+			response.reject(new Error("edit rejected"));
+			await expect(submitted).rejects.toThrow("edit rejected");
+
+			expect(selectChatStatus(store.getSnapshot())).toBe("waiting");
 		});
 	});
 
