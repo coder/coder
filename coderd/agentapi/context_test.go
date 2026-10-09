@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
@@ -377,6 +380,7 @@ func TestPushContextState(t *testing.T) {
 		t.Parallel()
 
 		api, dbm := makeAPI(t)
+		api.Experiments = codersdk.Experiments{codersdk.ExperimentAgentPlugins}
 		expectInTx(dbm)
 
 		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
@@ -385,16 +389,19 @@ func TestPushContextState(t *testing.T) {
 			Return(database.WorkspaceAgentContextSnapshot{}, nil)
 
 		gotKinds := map[database.WorkspaceAgentContextBodyKind][]byte{}
+		gotSources := map[string]database.UpsertWorkspaceAgentContextResourceParams{}
 		dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), gomock.Any()).
-			Times(4).
+			Times(6).
 			DoAndReturn(func(_ context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
 				gotKinds[arg.BodyKind] = arg.Body
+				gotSources[arg.Source] = arg
 				return database.WorkspaceAgentContextResource{}, nil
 			})
 
 		dbm.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), gomock.Any()).Return(nil)
 
 		mcpServer := mcpServerResource("/srv/mcp/echo", "echo", "echo server")
+		pluginServer := withServerPlugin(mcpServerResource("acme/echo", "echo", "plugin echo"), "acme")
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
 			Version: 1,
 			Initial: true,
@@ -403,15 +410,26 @@ func TestPushContextState(t *testing.T) {
 				skillResource("/a/.agents/skills/example/SKILL.md", "example", "an example"),
 				mcpConfigResource("/a/.mcp.json"),
 				mcpServer,
+				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+				pluginServer,
 			},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.GetAccepted())
 
+		require.Contains(t, gotSources, "acme/echo")
+		require.Equal(t, database.WorkspaceAgentContextBodyKindMcpServer, gotSources["acme/echo"].BodyKind)
+		var pluginServerBody map[string]any
+		require.NoError(t, json.Unmarshal(gotSources["acme/echo"].Body, &pluginServerBody))
+		require.Equal(t, "acme", pluginServerBody["plugin_name"])
+		require.Equal(t, "echo", pluginServerBody["server_name"])
+
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindInstructionFile)
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindSkill)
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindMcpConfig)
 		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindMcpServer)
+		require.Contains(t, gotKinds, database.WorkspaceAgentContextBodyKindPlugin)
+		require.JSONEq(t, `{"name":"acme","version":"1.0.0"}`, string(gotKinds[database.WorkspaceAgentContextBodyKindPlugin]))
 
 		// Confirm each body deserializes as JSON; the actual proto
 		// roundtrip is exercised by the resolver tests on the agent
@@ -420,6 +438,241 @@ func TestPushContextState(t *testing.T) {
 			var raw map[string]any
 			err := json.Unmarshal(body, &raw)
 			require.NoErrorf(t, err, "kind %q body not valid JSON: %s", kind, string(body))
+		}
+	})
+
+	t.Run("DropsPluginDataWithoutExperiment", func(t *testing.T) {
+		t.Parallel()
+
+		api, dbm := makeAPI(t)
+		expectInTx(dbm)
+
+		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
+		dbm.EXPECT().UpsertWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+			Return(database.WorkspaceAgentContextSnapshot{}, nil)
+
+		var gotSources []string
+		dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), gomock.Any()).
+			Times(2).
+			DoAndReturn(func(_ context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
+				gotSources = append(gotSources, arg.Source)
+				return database.WorkspaceAgentContextResource{}, nil
+			})
+		dbm.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), database.DeleteStaleWorkspaceAgentContextResourcesParams{
+			WorkspaceAgentID: agentID,
+			ActiveSources:    []string{"/a/.agents/skills/example/SKILL.md", "/srv/mcp/echo"},
+		}).Return(nil)
+
+		pluginSkill := withSkillPlugin(skillResource("/a/.agents/plugins/acme/skills/deploy/SKILL.md", "deploy", "deploys"), "acme")
+		pluginServer := withServerPlugin(mcpServerResource("acme/echo", "echo", "plugin echo"), "acme")
+		namelessPlugin := pluginResource("/a/.agents/plugins/broken", "", "")
+		namelessPlugin.Status = agentproto.ContextResource_INVALID
+		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+			Version: 1,
+			Initial: true,
+			Resources: []*agentproto.ContextResource{
+				skillResource("/a/.agents/skills/example/SKILL.md", "example", "an example"),
+				mcpServerResource("/srv/mcp/echo", "echo", "echo server"),
+				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+				pluginSkill,
+				pluginServer,
+				namelessPlugin,
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, resp.GetAccepted())
+		require.Equal(t, []string{"/a/.agents/skills/example/SKILL.md", "/srv/mcp/echo"}, gotSources)
+	})
+
+	t.Run("DroppedPluginDataKeepsRequestIndexes", func(t *testing.T) {
+		t.Parallel()
+
+		// No store expectations: validation fails before the transaction.
+		api, _ := makeAPI(t)
+		_, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+			Version: 1,
+			Initial: true,
+			Resources: []*agentproto.ContextResource{
+				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+				skillResource("", "x", "x"),
+			},
+		})
+		require.ErrorContains(t, err, "resource at index 1 has empty source")
+	})
+
+	t.Run("RejectsInvalidPluginFields", func(t *testing.T) {
+		t.Parallel()
+
+		const acmeRoot = "/a/.agents/plugins/acme"
+		const winRoot = `C:\Users\u\.agents\plugins\winacme`
+		broken := pluginResource("/b/.agents/plugins/broken", "broken", "1.0.0")
+		broken.Status = agentproto.ContextResource_INVALID
+		shadowed := pluginResource("/b/.agents/plugins/acme", "acme", "2.0.0")
+		shadowed.Status = agentproto.ContextResource_EXCLUDED
+		// hugeLen exceeds every per-field string cap but stays under
+		// the 256 KiB per-resource body cap, so the plugin checks reject
+		// it rather than the body cap. maxErrLen is far below hugeLen,
+		// so an error that quotes huge fails the length check.
+		const (
+			hugeLen   = 200 * 1024
+			maxErrLen = 4096
+		)
+		huge := strings.Repeat("a", hugeLen)
+		for name, tc := range map[string]struct {
+			// resources precede the base plugins in the push.
+			resources []*agentproto.ContextResource
+			err       string
+		}{
+			"PluginInvalidName":                      {resources: []*agentproto.ContextResource{pluginResource("/z/.agents/plugins/bad", "acme..x", "1.0.0")}, err: "plugin name"},
+			"PluginNameTooLong":                      {resources: []*agentproto.ContextResource{pluginResource("/z/.agents/plugins/long", huge, "1.0.0")}, err: fmt.Sprintf("plugin name is %d bytes", hugeLen)},
+			"SkillInvalidName":                       {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource(acmeRoot+"/skills/deploy/SKILL.md", "deploy", "deploys"), "Bad--Name")}, err: "plugin name"},
+			"MCPInvalidName":                         {resources: []*agentproto.ContextResource{withServerPlugin(mcpServerResource("acme/echo", "echo", "plugin echo"), "-acme")}, err: "plugin name"},
+			"OKPluginNoName":                         {resources: []*agentproto.ContextResource{pluginResource("/z/.agents/plugins/noname", "", "1.0.0")}, err: "plugin name is required on an OK plugin resource"},
+			"DuplicateOKPluginName":                  {resources: []*agentproto.ContextResource{pluginResource("/b/.agents/plugins/acme", "acme", "2.0.0")}, err: `OK plugin name "acme" is used by both "/b/.agents/plugins/acme" and "/a/.agents/plugins/acme"`},
+			"SkillOfDuplicateOKPluginName":           {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource(acmeRoot+"/skills/x/SKILL.md", "x", "x"), "acme"), pluginResource("/b/.agents/plugins/acme", "acme", "2.0.0")}, err: `OK plugin name "acme" is used by both`},
+			"MCPSourceFormat":                        {resources: []*agentproto.ContextResource{withServerPlugin(mcpServerResource("echo", "echo", "plugin echo"), "acme")}, err: `plugin MCP server source must be "acme/<server_name>"`},
+			"MCPSourceFormatLongServerName":          {resources: []*agentproto.ContextResource{withServerPlugin(mcpServerResource("acme/echo", huge, "plugin echo"), "acme")}, err: `plugin MCP server source must be "acme/<server_name>"`},
+			"MCPEmptyServerName":                     {resources: []*agentproto.ContextResource{withServerPlugin(mcpServerResource("acme/", "", "plugin echo"), "acme")}, err: "server_name is required"},
+			"MCPOfNonOKPluginSharingSource":          {resources: []*agentproto.ContextResource{shadowed, withServerPlugin(mcpServerResource("acme/echo", "echo", "plugin echo"), "acme"), withServerPlugin(mcpServerResource("acme/echo", "echo", "shadowed echo"), "acme")}, err: `duplicate source "acme/echo"`},
+			"SkillWithoutPlugin":                     {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource("/c/.agents/plugins/ghost/skills/x/SKILL.md", "x", "x"), "ghost")}, err: `plugin_name "ghost" names no OK plugin resource`},
+			"SkillBeforeOKPluginWithOversizedSource": {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource("/c/.agents/plugins/big/skills/x/SKILL.md", "x", "x"), "big"), pluginResource("/c/"+huge, "big", "1.0.0")}, err: fmt.Sprintf("resource at index 1 has %d byte source", hugeLen+len("/c/"))},
+			"SkillBeforeOKPluginWithEmptySource":     {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource("/c/.agents/plugins/big/skills/x/SKILL.md", "x", "x"), "big"), pluginResource("", "big", "1.0.0")}, err: "resource at index 1 has empty source"},
+			"MCPWithoutPlugin":                       {resources: []*agentproto.ContextResource{withServerPlugin(mcpServerResource("ghost/echo", "echo", "echo"), "ghost")}, err: `plugin_name "ghost" names no OK plugin resource`},
+			"SkillOfNonOKPlugin":                     {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource("/b/.agents/plugins/broken/skills/x/SKILL.md", "x", "x"), "broken")}, err: `plugin_name "broken" names no OK plugin resource`},
+			"SkillOutsidePlugin":                     {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource("/home/u/.agents/skills/x/SKILL.md", "x", "x"), "acme")}, err: `plugin skill source must be under "/a/.agents/plugins/acme/skills/"`},
+			"SkillUnderOtherPluginRoot":              {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource("/b/.agents/plugins/acme/skills/x/SKILL.md", "x", "x"), "acme")}, err: `plugin skill source must be under "/a/.agents/plugins/acme/skills/"`},
+			"SkillUnderRootNotSkills":                {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource(acmeRoot+"/other/x/SKILL.md", "x", "x"), "acme")}, err: `plugin skill source must be under "/a/.agents/plugins/acme/skills/"`},
+			"SkillUnderBackslashRootNotSkills":       {resources: []*agentproto.ContextResource{withSkillPlugin(skillResource(winRoot+`\docs\x`, "x", "x"), "winacme")}, err: "plugin skill source must be under"},
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				// No store expectations: validation fails before the
+				// transaction.
+				api, _ := makeAPI(t)
+				api.Experiments = codersdk.Experiments{codersdk.ExperimentAgentPlugins}
+				_, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+					Version: 1,
+					Initial: true,
+					Resources: append(slices.Clone(tc.resources),
+						pluginResource(acmeRoot, "acme", "1.0.0"),
+						pluginResource(winRoot, "winacme", "1.0.0"),
+						broken,
+					),
+				})
+				require.ErrorContains(t, err, tc.err)
+				require.Less(t, len(err.Error()), maxErrLen, "error must not quote uncapped input")
+			})
+		}
+	})
+
+	t.Run("AcceptsValidPluginData", func(t *testing.T) {
+		t.Parallel()
+
+		const winRoot = `C:\Users\u\.agents\plugins\acme`
+		nameless := pluginResource("/a/.agents/plugins/broken", "", "")
+		nameless.Status = agentproto.ContextResource_INVALID
+		nameless.Error = "name is required"
+		shadowed := pluginResource("/b/.agents/plugins/acme", "acme", "2.0.0")
+		shadowed.Status = agentproto.ContextResource_EXCLUDED
+		shadowed.Error = "shadowed by /a/.agents/plugins/acme"
+		for name, resources := range map[string][]*agentproto.ContextResource{
+			"NonOKPluginWithoutName": {nameless},
+			"PluginSkillWithBackslashSource": {
+				pluginResource(winRoot, "acme", "1.0.0"),
+				withSkillPlugin(skillResource(winRoot+`\skills\deploy`, "deploy", "deploys"), "acme"),
+			},
+			"PluginResourcesBeforeTheirPlugin": {
+				withSkillPlugin(skillResource("/a/.agents/plugins/acme/skills/deploy/SKILL.md", "deploy", "deploys"), "acme"),
+				withServerPlugin(mcpServerResource("acme/echo", "echo", "plugin echo"), "acme"),
+				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+			},
+			"NonOKPluginSharingOKPluginName": {
+				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+				shadowed,
+			},
+			// coderd cannot tell the shadowed plugin's acme/other from a
+			// server of the OK plugin.
+			"MCPOfNonOKPluginWithUniqueSource": {
+				pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+				shadowed,
+				withServerPlugin(mcpServerResource("acme/echo", "echo", "plugin echo"), "acme"),
+				withServerPlugin(mcpServerResource("acme/other", "other", "shadowed other"), "acme"),
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				api, dbm := makeAPI(t)
+				api.Experiments = codersdk.Experiments{codersdk.ExperimentAgentPlugins}
+				expectInTx(dbm)
+
+				dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+					Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
+				dbm.EXPECT().UpsertWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+					Return(database.WorkspaceAgentContextSnapshot{}, nil)
+				var gotSources []string
+				dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), gomock.Any()).
+					Times(len(resources)).
+					DoAndReturn(func(_ context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
+						gotSources = append(gotSources, arg.Source)
+						return database.WorkspaceAgentContextResource{}, nil
+					})
+				dbm.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), gomock.Any()).Return(nil)
+
+				resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+					Version:   1,
+					Initial:   true,
+					Resources: resources,
+				})
+				require.NoError(t, err)
+				require.True(t, resp.GetAccepted())
+				wantSources := make([]string, 0, len(resources))
+				for _, r := range resources {
+					wantSources = append(wantSources, r.Source)
+				}
+				require.Equal(t, wantSources, gotSources)
+			})
+		}
+	})
+
+	t.Run("SourceErrorsPrecedeDuplicateOKPluginName", func(t *testing.T) {
+		t.Parallel()
+
+		for name, tc := range map[string]struct {
+			resources []*agentproto.ContextResource
+			err       string
+		}{
+			"DuplicateSource": {
+				resources: []*agentproto.ContextResource{
+					pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+					pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+				},
+				err: "duplicate source",
+			},
+			"EmptySource": {
+				resources: []*agentproto.ContextResource{
+					pluginResource("/a/.agents/plugins/acme", "acme", "1.0.0"),
+					pluginResource("", "acme", "2.0.0"),
+				},
+				err: "resource at index 1 has empty source",
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				// No store expectations: validation fails before the
+				// transaction.
+				api, _ := makeAPI(t)
+				api.Experiments = codersdk.Experiments{codersdk.ExperimentAgentPlugins}
+				_, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+					Version:   1,
+					Initial:   true,
+					Resources: tc.resources,
+				})
+				require.ErrorContains(t, err, tc.err)
+			})
 		}
 	})
 
@@ -683,6 +936,30 @@ func mcpServerResource(source, serverName, description string) *agentproto.Conte
 			},
 		},
 	}
+}
+
+func pluginResource(source, name, version string) *agentproto.ContextResource {
+	return &agentproto.ContextResource{
+		Source:      source,
+		ContentHash: []byte{0x40, 0x50, 0x60},
+		Status:      agentproto.ContextResource_OK,
+		Body: &agentproto.ContextResource_Plugin{
+			Plugin: &agentproto.PluginBody{
+				Name:    name,
+				Version: version,
+			},
+		},
+	}
+}
+
+func withSkillPlugin(r *agentproto.ContextResource, name string) *agentproto.ContextResource {
+	r.GetSkill().PluginName = name
+	return r
+}
+
+func withServerPlugin(r *agentproto.ContextResource, name string) *agentproto.ContextResource {
+	r.GetMcpServer().PluginName = name
+	return r
 }
 
 // fakeDirtyMarker is a test double for agentapi.ContextDirtyMarker. It records

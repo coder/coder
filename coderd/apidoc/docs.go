@@ -25626,12 +25626,14 @@ const docTemplate = `{
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
-                "chat-automations"
+                "chat-automations",
+                "agent-plugins"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
+                "ExperimentAgentPlugins": "Loads Agent Plugins (agent-plugins.org) found in workspaces: their skills appear in agent chats and their MCP servers run through the workspace agent.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatAutomations": "Enables webhook and scheduled automations that deliver prompts to agent chats.",
@@ -25668,7 +25670,8 @@ const docTemplate = `{
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "Enables webhook and scheduled automations that deliver prompts to agent chats."
+                "Enables webhook and scheduled automations that deliver prompts to agent chats.",
+                "Loads Agent Plugins (agent-plugins.org) found in workspaces: their skills appear in agent chats and their MCP servers run through the workspace agent."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -25689,7 +25692,8 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
-                "ExperimentChatAutomations"
+                "ExperimentChatAutomations",
+                "ExperimentAgentPlugins"
             ]
         },
         "codersdk.ExperimentRule": {

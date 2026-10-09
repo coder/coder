@@ -135,6 +135,9 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	// PluginsSupported mirrors proto Manifest.plugins_supported, which
+	// defines what the agent must withhold when it is false.
+	PluginsSupported bool `json:"plugins_supported"`
 }
 
 // WorkspaceSecret is a user secret for injection into a workspace.
