@@ -108,7 +108,6 @@ type RowContent = ReturnType<typeof getVisibleContent>;
 type MemberRow = {
 	content: RowContent;
 	endsWithAnswer: boolean;
-	searches: number;
 	showsWork: boolean;
 };
 
@@ -122,7 +121,7 @@ const getMemberRow = (
 	options: GroupWorkingBlocksOptions,
 ): MemberRow | undefined => {
 	let content: RowContent;
-	let searchResults: number;
+	let searched: boolean;
 
 	if (row.type === "live") {
 		if (!options.isLiveRowCollapsible) {
@@ -130,8 +129,7 @@ const getMemberRow = (
 		}
 
 		content = getVisibleContent(options.liveBlocks, options.liveTools);
-		// Until the step persists, one flag stands in for its searches.
-		searchResults = options.streamState?.providerToolRan ? 1 : 0;
+		searched = options.streamState?.providerToolRan ?? false;
 	} else {
 		const { message, parsed } = row.entry;
 		if (message.role !== "assistant" || parsed.hookNotices.length > 0) {
@@ -139,20 +137,13 @@ const getMemberRow = (
 		}
 
 		content = getVisibleContent(parsed.blocks, parsed.tools);
-		// Results, not calls: a step can end with a provider call unanswered,
-		// and the next step issues that call again.
-		searchResults = (message.content ?? []).filter(isProviderToolResult).length;
+		searched = (message.content ?? []).some(isProviderToolResult);
 	}
 
 	const { visibleBlocks, visibleTools } = content;
-	// A search counts even without citations, while some providers cite
-	// sources without a search.
-	const searches =
-		searchResults ||
-		visibleBlocks.filter((block) => block.type === "sources").length;
 	if (visibleBlocks.length === 0) {
 		return row.type === "live"
-			? { content, endsWithAnswer: false, searches, showsWork: false }
+			? { content, endsWithAnswer: false, showsWork: false }
 			: undefined;
 	}
 
@@ -171,16 +162,11 @@ const getMemberRow = (
 
 	const { work, answer } = splitRowBlocks(visibleBlocks, visibleTools);
 	if (answer.length === 0) {
-		return { content, endsWithAnswer: false, searches, showsWork: true };
+		return { content, endsWithAnswer: false, showsWork: true };
 	}
 
-	return work.length > 0 || searches > 0
-		? {
-				content,
-				endsWithAnswer: true,
-				searches,
-				showsWork: work.length > 0,
-			}
+	return work.length > 0 || searched
+		? { content, endsWithAnswer: true, showsWork: work.length > 0 }
 		: undefined;
 };
 
@@ -217,7 +203,7 @@ export const groupWorkingBlocks = (
 	type Draft = {
 		rowIndices: number[];
 		toolIds: Set<string>;
-		searches: number;
+		citations: number;
 		endsWithAnswer: boolean;
 		anchorKey?: string;
 		ordinal: number;
@@ -251,7 +237,7 @@ export const groupWorkingBlocks = (
 			current = {
 				rowIndices: [],
 				toolIds: new Set(),
-				searches: 0,
+				citations: 0,
 				endsWithAnswer: false,
 				anchorKey,
 				ordinal,
@@ -267,24 +253,15 @@ export const groupWorkingBlocks = (
 		for (const tool of member.content.visibleTools) {
 			current.toolIds.add(tool.id);
 		}
-		current.searches += member.searches;
+		current.citations += member.content.visibleBlocks.filter(
+			(block) => block.type === "sources",
+		).length;
 
 		if (member.endsWithAnswer) {
 			current.endsWithAnswer = true;
 			current = undefined;
 		}
 	}
-
-	const stepCountOf = (draft: Draft) => draft.toolIds.size + draft.searches;
-
-	// Completed reasoning alone stays visible. The live turn folds from its first
-	// reasoning, so thinking never shows and then vanishes once a tool call
-	// arrives, and unfolds only when a turn without steps starts its answer.
-	const blockDrafts = drafts.filter(
-		(draft) =>
-			stepCountOf(draft) > 0 ||
-			(draft.containsLiveRow && options.isTurnActive && !draft.endsWithAnswer),
-	);
 
 	const lastMessageRowIndex = rows.findLastIndex(
 		(row) => row.type === "message",
@@ -301,11 +278,12 @@ export const groupWorkingBlocks = (
 		return Number.POSITIVE_INFINITY;
 	};
 
-	// Entries and blocks are both in ascending message ID order and block
+	// Entries and drafts are both in ascending message ID order and draft
 	// spans never overlap, so one cursor walks the entries once.
 	let entryIndex = 0;
+	const blocks: WorkingBlock[] = [];
 
-	return blockDrafts.map((draft) => {
+	for (const draft of drafts) {
 		const firstRowIndex = draft.rowIndices[0];
 		const lastRowIndex = draft.rowIndices[draft.rowIndices.length - 1];
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
@@ -327,12 +305,37 @@ export const groupWorkingBlocks = (
 		}
 
 		const spanTimestamps: string[] = [];
+		// Until the step persists, one flag stands in for its searches.
+		let searches =
+			draft.containsLiveRow && options.streamState?.providerToolRan ? 1 : 0;
 		while (
 			entryIndex < entries.length &&
 			entries[entryIndex].message.id < toId
 		) {
-			spanTimestamps.push(...getPartTimestamps(entries[entryIndex]));
+			const entry = entries[entryIndex];
+			spanTimestamps.push(...getPartTimestamps(entry));
+			// Results, not calls: a step can end with a provider call unanswered,
+			// and the next step issues that call again.
+			searches += (entry.message.content ?? []).filter(
+				isProviderToolResult,
+			).length;
 			entryIndex++;
+		}
+
+		// Citations count as searches only when no provider result does: some
+		// providers cite without a search, and an interrupt commits a search's
+		// result apart from the answer citing it.
+		const stepCount = draft.toolIds.size + (searches || draft.citations);
+
+		// Completed reasoning alone stays visible. The live turn folds from its
+		// first reasoning, so thinking never shows and then vanishes once a tool
+		// call arrives, and unfolds only when a turn without steps starts its
+		// answer.
+		if (
+			stepCount === 0 &&
+			!(draft.containsLiveRow && options.isTurnActive && !draft.endsWithAnswer)
+		) {
+			continue;
 		}
 
 		const streamStartedAt = options.streamState?.startedAt;
@@ -345,17 +348,19 @@ export const groupWorkingBlocks = (
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
 		const key = isLive ? liveKey : `working:through:${rows[lastRowIndex].key}`;
 
-		return {
+		blocks.push({
 			key,
 			liveKey,
 			rowIndices: draft.rowIndices,
 			memberIds,
-			stepCount: stepCountOf(draft),
+			stepCount,
 			endsWithAnswer: draft.endsWithAnswer,
 			isLive,
 			isPartial: options.hasMoreMessages && firstRowIndex === 0,
 			startedAt: times.length > 0 ? Math.min(...times) : undefined,
 			endedAt: isLive || times.length === 0 ? undefined : Math.max(...times),
-		};
-	});
+		});
+	}
+
+	return blocks;
 };
