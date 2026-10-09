@@ -41941,18 +41941,18 @@ WHERE
 		WHEN array_length($5 :: text[], 1) > 0 THEN
 			-- Mirrors codersdk.ConvertWorkspaceStatus.
 			(CASE latest_build.job_status
-				WHEN 'running'::provisioner_job_status THEN
+				WHEN 'running' THEN
 					CASE latest_build.transition
-						WHEN 'start'::workspace_transition THEN 'starting'
-						WHEN 'stop'::workspace_transition THEN 'stopping'
-						WHEN 'delete'::workspace_transition THEN 'deleting'
+						WHEN 'start' THEN 'starting'
+						WHEN 'stop' THEN 'stopping'
+						WHEN 'delete' THEN 'deleting'
 					END
 				-- A workspace is "running" once its start job has succeeded.
-				WHEN 'succeeded'::provisioner_job_status THEN
+				WHEN 'succeeded' THEN
 					CASE latest_build.transition
-						WHEN 'start'::workspace_transition THEN 'running'
-						WHEN 'stop'::workspace_transition THEN 'stopped'
-						WHEN 'delete'::workspace_transition THEN 'deleted'
+						WHEN 'start' THEN 'running'
+						WHEN 'stop' THEN 'stopped'
+						WHEN 'delete' THEN 'deleted'
 					END
 				ELSE latest_build.job_status::text
 			END) = ANY($5 :: text[])
