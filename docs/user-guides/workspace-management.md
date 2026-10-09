@@ -67,7 +67,8 @@ The following filters are supported:
   or through a group they belong to. Accepts a `username`, user ID, or `me`,
   e.g., `user:me`
 - `name` - Name of the workspace.
-- `template` - Name of the template.
+- `template` - Name of the template. Accepts multiple values, e.g.,
+  `template:docker template:kubernetes` or `template:docker,kubernetes`.
 - `status` - Indicates the status of the workspace, e.g, `status:failed` For a
   list of supported statuses, see
   [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).

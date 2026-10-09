@@ -2201,12 +2201,16 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version3 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version3.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
+		template3 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version3.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		_ = coderdtest.CreateWorkspace(t, client, template2.ID)
+		workspace3 := coderdtest.CreateWorkspace(t, client, template3.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -2214,7 +2218,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		// empty
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		require.NoError(t, err)
-		require.Len(t, res.Workspaces, 2)
+		require.Len(t, res.Workspaces, 3)
 
 		// single template
 		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
@@ -2223,6 +2227,20 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+
+		// multiple templates, repeated key
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("template:%s template:%s", template.Name, template3.Name),
+		})
+		require.NoError(t, err)
+		expectIDs(t, []codersdk.Workspace{workspace, workspace3}, res.Workspaces)
+
+		// multiple templates, comma separated
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("template:%s,%s", template.Name, template3.Name),
+		})
+		require.NoError(t, err)
+		expectIDs(t, []codersdk.Workspace{workspace, workspace3}, res.Workspaces)
 	})
 	t.Run("Status", func(t *testing.T) {
 		t.Parallel()
