@@ -288,7 +288,7 @@ describe("submitChatTurn", () => {
 			expect(shown(store)).toEqual(["5:new text"]);
 		});
 
-		it("ends the pending edit when the server answers, whether or not the response applies", async () => {
+		it("ends the pending edit when the edit succeeds but its response is not applied", async () => {
 			const { store, response, submitted } = startEdit();
 
 			response.resolve({ message: replacement, deleted_message_ids: [5, 6] });
