@@ -8,10 +8,13 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/netip"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -55,18 +58,22 @@ func TestAgentConn_DialBoundedByRequestContext(t *testing.T) {
 		_ = tailnetConn.Close()
 	})
 
-	conn := workspacesdk.NewAgentConn(tailnetConn, workspacesdk.AgentConnOptions{
-		AgentID: uuid.New(),
-	})
+	// The pooled transport detaches dials from requests too.
+	for _, idleTimeout := range []time.Duration{0, time.Minute} {
+		conn := workspacesdk.NewAgentConn(tailnetConn, workspacesdk.AgentConnOptions{
+			AgentID:            uuid.New(),
+			APIIdleConnTimeout: idleTimeout,
+		})
 
-	// No agent exists, so the transport dial blocks in
-	// AwaitReachable until the request context expires. The timeout
-	// only needs to be long enough for the dial goroutine to start;
-	// its expiry is the behavior under test.
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.IntervalSlow)
-	defer cancel()
-	_, err = conn.ListeningPorts(ctx)
-	require.Error(t, err)
+		// No agent exists, so the transport dial blocks in
+		// AwaitReachable until the request context expires. The timeout
+		// only needs to be long enough for the dial goroutine to start;
+		// its expiry is the behavior under test.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.IntervalSlow)
+		_, err = conn.ListeningPorts(ctx)
+		cancel()
+		require.Error(t, err)
+	}
 
 	// Close the conn like test teardown would. The conn's own
 	// goroutines exit on close; the dial goroutine must have already
@@ -374,4 +381,239 @@ func stitchTailnet(t *testing.T, conns map[uuid.UUID]*tailnet.Conn) {
 			conn.SetNodeCallback(nil)
 		}
 	})
+}
+
+// newAPIPeers returns a client tailnet conn and an agent tailnet conn that
+// serves handler on the agent API port through wrap, if not nil.
+func newAPIPeers(t *testing.T, handler http.Handler, wrap func(net.Listener) net.Listener) (client *tailnet.Conn, agentID uuid.UUID) {
+	t.Helper()
+
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	clientID := uuid.New()
+	agentID = uuid.New()
+	clientConn, _ := newTailnetConn(t, derpMap, clientID, "client")
+	agentConn, agentIP := newTailnetConn(t, derpMap, agentID, "agent")
+	stitchTailnet(t, map[uuid.UUID]*tailnet.Conn{clientID: clientConn, agentID: agentConn})
+
+	ln, err := agentConn.Listen("tcp", fmt.Sprintf(":%d", workspacesdk.AgentHTTPAPIServerPort))
+	require.NoError(t, err)
+	if wrap != nil {
+		ln = wrap(ln)
+	}
+	server := &http.Server{Handler: handler, ReadHeaderTimeout: testutil.WaitShort}
+	t.Cleanup(func() {
+		assert.NoError(t, server.Close())
+	})
+	go func() {
+		err := server.Serve(ln)
+		if err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) {
+			assert.NoError(t, err)
+		}
+	}()
+	require.True(t, clientConn.AwaitReachable(testutil.Context(t, testutil.WaitMedium), agentIP))
+	return clientConn, agentID
+}
+
+// reuseTrace returns ctx with a trace that records whether any connection
+// the request got was reused.
+func reuseTrace(ctx context.Context) (context.Context, *atomic.Bool) {
+	var reused atomic.Bool
+	return httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+		GotConn: func(info httptrace.GotConnInfo) {
+			if info.Reused {
+				reused.Store(true)
+			}
+		},
+	}), &reused
+}
+
+var agentConnRequests = []struct {
+	name       string
+	call       func(context.Context, workspacesdk.AgentConn) error
+	resendable bool
+}{
+	{
+		name: "GET",
+		call: func(ctx context.Context, conn workspacesdk.AgentConn) error {
+			_, err := conn.ListeningPorts(ctx)
+			return err
+		},
+		resendable: true,
+	},
+	{
+		name: "ToolCall",
+		call: func(ctx context.Context, conn workspacesdk.AgentConn) error {
+			return conn.WriteFile(workspacesdk.WithToolCallID(ctx, uuid.New()), "/tmp/f", strings.NewReader("x"))
+		},
+		resendable: true,
+	},
+	{
+		name: "ToolCallOneShotBody",
+		call: func(ctx context.Context, conn workspacesdk.AgentConn) error {
+			return conn.WriteFile(workspacesdk.WithToolCallID(ctx, uuid.New()), "/tmp/f", struct{ io.Reader }{strings.NewReader("x")})
+		},
+	},
+	{
+		name: "CancelToolCall",
+		call: func(ctx context.Context, conn workspacesdk.AgentConn) error {
+			_, err := conn.CancelToolCall(ctx, uuid.New())
+			return err
+		},
+		resendable: true,
+	},
+	{
+		name: "LS",
+		call: func(ctx context.Context, conn workspacesdk.AgentConn) error {
+			_, err := conn.LS(ctx, "", workspacesdk.LSRequest{})
+			return err
+		},
+		resendable: true,
+	},
+	{
+		name: "NoToolCall",
+		call: func(ctx context.Context, conn workspacesdk.AgentConn) error {
+			return conn.WriteFile(ctx, "/tmp/f", strings.NewReader("x"))
+		},
+	},
+}
+
+func jsonHandler(handled *atomic.Int32) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		if handled != nil {
+			handled.Add(1)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	})
+}
+
+// TestAgentConn_APIIdleConnTimeout checks that only resendable requests reuse
+// the idle API connection, and that Close closes it.
+func TestAgentConn_APIIdleConnTimeout(t *testing.T) {
+	t.Parallel()
+
+	var keySent atomic.Bool
+	handler := jsonHandler(nil)
+	clientConn, agentID := newAPIPeers(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v0/list-directory" && len(r.Header.Values("Idempotency-Key")) > 0 {
+			keySent.Store(true)
+		}
+		handler.ServeHTTP(w, r)
+	}), nil)
+
+	for _, tc := range agentConnRequests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{
+				AgentID:            agentID,
+				CloseFunc:          func() error { return workspacesdk.ErrSkipClose },
+				APIIdleConnTimeout: time.Minute,
+			})
+			_, err := conn.ListeningPorts(ctx) // Leaves an idle connection.
+			require.NoError(t, err)
+			traceCtx, reused := reuseTrace(ctx)
+			require.NoError(t, tc.call(traceCtx, conn))
+			require.Equal(t, tc.resendable, reused.Load(), "reused the idle connection")
+
+			require.NoError(t, conn.Close())
+			traceCtx, reused = reuseTrace(ctx)
+			_, err = conn.ListeningPorts(traceCtx)
+			require.NoError(t, err)
+			require.False(t, reused.Load(), "Close closes the idle connection")
+		})
+	}
+
+	t.Run("Unset", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{AgentID: agentID})
+		for range 2 {
+			traceCtx, reused := reuseTrace(ctx)
+			_, err := conn.ListeningPorts(traceCtx)
+			require.NoError(t, err)
+			require.False(t, reused.Load())
+		}
+	})
+
+	t.Cleanup(func() {
+		require.False(t, keySent.Load(), "LS marks itself resendable without sending a key")
+	})
+}
+
+const testCaseHeader = "X-Test-Case"
+
+// dropIdleListener closes a connection when a request arrives on it after a
+// response was written, as an agent does that restarted or closed the
+// connection while it was idle.
+type dropIdleListener struct{ net.Listener }
+
+func (l dropIdleListener) Accept() (net.Conn, error) {
+	c, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return &dropIdleConn{Conn: c}, nil
+}
+
+type dropIdleConn struct {
+	net.Conn
+	responded atomic.Bool
+}
+
+func (c *dropIdleConn) Write(p []byte) (int, error) {
+	c.responded.Store(true)
+	return c.Conn.Write(p)
+}
+
+func (c *dropIdleConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	if n > 0 && c.responded.Load() {
+		_ = c.Close()
+		return 0, io.EOF
+	}
+	return n, err
+}
+
+// TestAgentConn_DroppedIdleAPIConn checks that no request fails when the
+// agent drops the idle API connection: resendable requests are resent on a
+// new connection, and other requests never use the idle one.
+func TestAgentConn_DroppedIdleAPIConn(t *testing.T) {
+	t.Parallel()
+
+	// handled counts requests per test case, by the header each case sets.
+	var handled sync.Map
+	handler := jsonHandler(nil)
+	clientConn, agentID := newAPIPeers(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count, _ := handled.LoadOrStore(r.Header.Get(testCaseHeader), new(atomic.Int32))
+		count.(*atomic.Int32).Add(1)
+		handler.ServeHTTP(w, r)
+	}), func(ln net.Listener) net.Listener {
+		return dropIdleListener{ln}
+	})
+
+	for _, tc := range agentConnRequests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{
+				AgentID:            agentID,
+				CloseFunc:          func() error { return workspacesdk.ErrSkipClose },
+				APIIdleConnTimeout: time.Minute,
+			})
+			t.Cleanup(func() { _ = conn.Close() })
+			conn.SetExtraHeaders(http.Header{testCaseHeader: {tc.name}})
+			_, err := conn.ListeningPorts(ctx) // Leaves an idle connection.
+			require.NoError(t, err)
+			require.NoError(t, tc.call(ctx, conn))
+			require.NoError(t, tc.call(ctx, conn))
+			count, ok := handled.Load(tc.name)
+			require.True(t, ok)
+			require.EqualValues(t, 3, count.(*atomic.Int32).Load())
+		})
+	}
 }
