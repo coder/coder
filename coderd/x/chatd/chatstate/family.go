@@ -9,6 +9,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
 
 // SetFamilyArchivedInput configures [SetFamilyArchived]. The struct
@@ -85,6 +87,18 @@ func SetFamilyArchived(
 		if root.ParentChatID.Valid {
 			return ErrChatNotRoot
 		}
+		// A family archived by its project delete must stay archived; the
+		// root lock serializes this check with that delete.
+		if !input.Archived && root.ProjectID.Valid {
+			//nolint:gocritic // The caller may no longer read the project.
+			inDeletedProject, err := tx.IsChatInDeletedProject(dbauthz.AsChatd(ctx), root.ID)
+			if err != nil {
+				return xerrors.Errorf("check root chat project: %w", err)
+			}
+			if inDeletedProject {
+				return ErrChatNotFound
+			}
+		}
 		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)
 		if err != nil {
 			return xerrors.Errorf("get chat family: %w", err)
@@ -150,4 +164,38 @@ func SetFamilyArchived(
 		return familyChats, err
 	}
 	return familyChats, nil
+}
+
+// ArchiveDeletedChatProject moves every family member of a project that
+// tx has already marked deleted from any execution state to [StateXW], or
+// [StateXE0] from error, and clears their queues. It must run in the
+// project delete transaction; see UpdateChatProjectDeletedByID. It
+// publishes a chat:update per chat to publisher, so runners named by the
+// old snapshot stop without waiting for heartbeat renewal; pass a
+// [PublishBuffer] and flush it after commit. It returns the chats as they
+// were before the archive.
+func ArchiveDeletedChatProject(ctx context.Context, tx database.Store, publisher Publisher, projectID uuid.UUID) ([]database.Chat, error) {
+	if err := tx.LockChatProjectRootChats(ctx, projectID); err != nil {
+		return nil, xerrors.Errorf("lock project root chats: %w", err)
+	}
+	before, err := tx.GetChatProjectChatFamilies(ctx, projectID)
+	if err != nil {
+		return nil, xerrors.Errorf("get project chats: %w", err)
+	}
+	if err := tx.ArchiveChatsOfDeletedChatProject(ctx, projectID); err != nil {
+		return nil, xerrors.Errorf("archive project chats: %w", err)
+	}
+	if err := tx.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, projectID); err != nil {
+		return nil, xerrors.Errorf("clear project chat queues: %w", err)
+	}
+	after, err := tx.GetChatProjectChatFamilies(ctx, projectID)
+	if err != nil {
+		return nil, xerrors.Errorf("reload project chats: %w", err)
+	}
+	for _, chat := range after {
+		if err := publisher.Publish(coderdpubsub.ChatStateUpdateChannel(chat.ID), buildChatUpdateMessage(chat)); err != nil {
+			return nil, xerrors.Errorf("publish chat update: %w", err)
+		}
+	}
+	return before, nil
 }

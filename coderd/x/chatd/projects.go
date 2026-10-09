@@ -6,25 +6,45 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
 // DeleteChatProject deletes a project and publishes events for its chats.
 func (p *Server) DeleteChatProject(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
-	deleted, err := DeleteChatProjectWithoutEvents(ctx, p.db, projectID)
+	buffer := chatstate.NewPublishBuffer(p.pubsub)
+	defer buffer.Discard()
+	deleted, err := deleteChatProject(ctx, p.db, buffer, projectID)
+	if err != nil {
+		return nil, err
+	}
+	// The chat:update messages stop the archived chats' runners right away.
+	if err := buffer.Flush(); err != nil {
+		p.logger.Warn(ctx, "failed to publish chat updates for deleted chat project", slog.F("project_id", projectID), slog.Error(err))
+	}
 	p.publishChatPubsubEvents(deleted, codersdk.ChatWatchEventKindHardDeleted)
-	return deleted, err
+	return deleted, nil
 }
 
 // DeleteChatProjectWithoutEvents tombstones a project and archives every
-// user's chats in it with their sub-chats, then returns those chats. It
-// clears their leases, so running generations in the project, other users'
-// included, stop at their next heartbeat renewal. dbpurge deletes the rows
-// later. Callers must have authorized deleting the project.
+// user's chats in it with their sub-chats, then returns those chats as they
+// were before the archive. It clears their worker and runner, so running
+// generations in the project, other users' included, stop at their next
+// heartbeat renewal. Chat retention deletes the rows later. ctx's actor must
+// be allowed to delete the project: the tombstone update runs as that actor
+// and fails otherwise, and the chat reads and writes run as chatd.
 func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, projectID uuid.UUID) ([]database.Chat, error) {
-	//nolint:gocritic // Sharees own some of the chats; the caller authorized deleting the project.
+	buffer := chatstate.NewPublishBuffer(nil)
+	defer buffer.Discard()
+	return deleteChatProject(ctx, db, buffer, projectID)
+}
+
+func deleteChatProject(ctx context.Context, db database.Store, buffer *chatstate.PublishBuffer, projectID uuid.UUID) ([]database.Chat, error) {
+	//nolint:gocritic // Sharees own some of the chats; the tombstone update authorizes the delete.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	var deleted []database.Chat
 	err := db.InTx(func(tx database.Store) error {
@@ -37,22 +57,9 @@ func DeleteChatProjectWithoutEvents(ctx context.Context, db database.Store, proj
 		if err := tx.UpdateChatProjectDeletedByID(ctx, projectID); err != nil {
 			return xerrors.Errorf("mark project deleted: %w", err)
 		}
-		if err := tx.LockChatProjectRootChats(chatdCtx, projectID); err != nil {
-			return xerrors.Errorf("lock project chats: %w", err)
-		}
-		chats, err := tx.GetChatProjectChatFamilies(chatdCtx, projectID)
+		chats, err := chatstate.ArchiveDeletedChatProject(chatdCtx, tx, buffer, projectID)
 		if err != nil {
-			return xerrors.Errorf("get project chats: %w", err)
-		}
-		chatIDs := make([]uuid.UUID, 0, len(chats))
-		for _, chat := range chats {
-			chatIDs = append(chatIDs, chat.ID)
-		}
-		if err := tx.DeleteChatQueuedMessagesByChatIDs(chatdCtx, chatIDs); err != nil {
-			return xerrors.Errorf("clear project chat queues: %w", err)
-		}
-		if err := tx.ArchiveChatsOfDeletedChatProject(chatdCtx, chatIDs); err != nil {
-			return xerrors.Errorf("archive project chats: %w", err)
+			return err
 		}
 		deleted = chats
 		return nil

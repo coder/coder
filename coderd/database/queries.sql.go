@@ -8531,16 +8531,6 @@ func (q *sqlQuerier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uui
 	return column_1, err
 }
 
-const deleteChatProjectByID = `-- name: DeleteChatProjectByID :exec
-DELETE FROM chat_projects
-WHERE id = $1::uuid
-`
-
-func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatProjectByID, id)
-	return err
-}
-
 const deleteChatQueuedMessagesOfDeletedChatProject = `-- name: DeleteChatQueuedMessagesOfDeletedChatProject :exec
 DELETE FROM chat_queued_messages
 WHERE chat_id IN (
@@ -8740,48 +8730,6 @@ func (q *sqlQuerier) GetChatProjectChatFamilies(ctx context.Context, projectID u
 			&i.TitleUpdatedAt,
 			&i.AutomationID,
 			&i.ManageAutomationsEnabled,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getChatProjectsByOwnerID = `-- name: GetChatProjectsByOwnerID :many
-SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
-FROM chat_projects
-WHERE owner_id = $1::uuid AND NOT deleted
-ORDER BY lower(name), id
-`
-
-func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatProject, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectsByOwnerID, ownerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatProject
-	for rows.Next() {
-		var i ChatProject
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.OwnerID,
-			&i.Name,
-			&i.Description,
-			&i.Icon,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.UserACL,
-			&i.GroupACL,
-			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}

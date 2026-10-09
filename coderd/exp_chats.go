@@ -1617,7 +1617,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) || errors.Is(err, chatstate.ErrChatProjectNotFound) {
+		if errors.Is(err, chatstate.ErrChatProjectNotFound) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
 			return
 		}

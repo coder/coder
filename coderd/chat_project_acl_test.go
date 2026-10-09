@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -356,6 +357,9 @@ func TestChatProjectSharing(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, db.UpsertChatHeartbeat(sysCtx, database.UpsertChatHeartbeatParams{ChatID: shareeChat.ID, RunnerID: runnerID}))
 
+		_, err = db.InsertChatQueuedMessage(sysCtx, database.InsertChatQueuedMessageParams{ChatID: shareeChild.ID, Content: json.RawMessage(`[]`)})
+		require.NoError(t, err)
+
 		events, closer, err := sharee.WatchChats(ctx)
 		require.NoError(t, err)
 		defer closer.Close()
@@ -368,14 +372,23 @@ func TestChatProjectSharing(t *testing.T) {
 			hidden, err := db.GetChatByID(sysCtx, id)
 			require.NoError(t, err, "chat rows stay until dbpurge removes them")
 			require.True(t, hidden.Archived)
-			require.False(t, hidden.RunnerID.Valid, "clearing the lease stops the runner at its next renewal")
+			require.False(t, hidden.RunnerID.Valid, "clearing runner_id stops the runner")
 		}
 		byWorkspace, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
 		require.NoError(t, err)
 		require.Empty(t, byWorkspace)
 		_, err = client.GetChat(ctx, otherChat.ID)
 		require.NoError(t, err)
+		queued, err := db.CountChatQueuedMessages(sysCtx, shareeChild.ID)
+		require.NoError(t, err)
+		require.Zero(t, queued, "archived chats keep no queue")
 		err = client.DeleteChatProject(ctx, project.OrganizationID, project.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: project.OrganizationID,
+			ProjectID:      &project.ID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "after delete"}},
+		})
 		requireSDKError(t, err, http.StatusNotFound)
 
 		for _, id := range []uuid.UUID{ownerChat.ID, shareeChat.ID} {
