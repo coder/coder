@@ -45,7 +45,10 @@ replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.
 
 // We use a fork to fix an integer overflow issue that causes occasional crashes in workspace agents.
 // See https://github.com/coder/coder/issues/20885
-replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20260313164934-7a658db7b714
+// The pin also cherry-picks google/gvisor#15019, an unmerged PR that forwards a
+// SYN reopening a TIME_WAIT connection to the tcp.Forwarder instead of dropping
+// it for 60s.
+replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20261007131627-ebe33a4c2cb5
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
