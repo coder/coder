@@ -99,11 +99,13 @@ export const Default: Story = {
 		const disabledRow = canvas.getByRole("button", { name: /GPT-4o mini/i });
 		await expect(within(disabledRow).getByText("Disabled")).toBeInTheDocument();
 
-		// The Add model menu lists each provider by exact accessible name; a
-		// regressed icon would turn a name into "Anthropic Anthropic".
+		// The Add model menu names each provider by its label and raw type; the
+		// anchored match fails if a regressed icon adds "Anthropic" again.
 		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
 		const menu = await within(document.body).findByRole("menu");
-		await within(menu).findByRole("menuitem", { name: "Anthropic" });
+		await within(menu).findByRole("menuitem", {
+			name: /^Anthropic\s*anthropic$/,
+		});
 		await userEvent.keyboard("{Escape}");
 	},
 };
@@ -114,7 +116,7 @@ export const CreateOnlyUserCanAdd: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
 		const menu = await within(document.body).findByRole("menu");
 		await expect(
-			within(menu).getByRole("menuitem", { name: "OpenAI" }),
+			within(menu).getByRole("menuitem", { name: /^OpenAI\s*openai$/ }),
 		).toBeInTheDocument();
 	},
 };
