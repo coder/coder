@@ -697,13 +697,20 @@ const ChatMessageInput = ({
 		: [];
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
+	const loadedPlainWorkspaceSkills = loadedWorkspaceSkills?.filter(
+		(skill) => !skill.pluginName,
+	);
+	const loadedPluginSkills = loadedWorkspaceSkills?.filter(
+		(skill) => skill.pluginName,
+	);
 	// A list stays undefined until its source loads, even after an error,
 	// which keeps triggers qualified and built-in commands hidden. A chat
 	// without an organization or workspace has a known empty list.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
 		{ source: "org", skills: loadedOrganizationSkills },
-		{ source: "workspace", skills: loadedWorkspaceSkills },
+		{ source: "workspace", skills: loadedPlainWorkspaceSkills },
+		{ source: "plugin", skills: loadedPluginSkills },
 	];
 	const availableSlashCommands = (slashCommands ?? []).filter(
 		(command) =>
@@ -730,14 +737,14 @@ const ChatMessageInput = ({
 		skillsSearchQuery,
 	);
 	const skillTriggers = resolveSkillTriggers(skillLists);
-	const filterSkillTriggers = (source: SkillSource) =>
+	const filterSkillTriggers = (...sources: SkillSource[]) =>
 		filterSkillsByQuery(
-			skillTriggers.filter((trigger) => trigger.source === source),
+			skillTriggers.filter((trigger) => sources.includes(trigger.source)),
 			skillsSearchQuery,
 		);
 	const personalSkillItems = filterSkillTriggers("personal");
 	const organizationSkillItems = filterSkillTriggers("org");
-	const workspaceSkillItems = filterSkillTriggers("workspace");
+	const workspaceSkillItems = filterSkillTriggers("workspace", "plugin");
 	const isPersonalSkillsLoading =
 		personalSkillsQueryEnabled &&
 		skillsQuery.isFetching &&

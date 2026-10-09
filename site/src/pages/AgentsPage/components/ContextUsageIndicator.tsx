@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import {
+	BlocksIcon,
 	FileIcon,
 	FolderIcon,
 	PlugIcon,
@@ -53,31 +54,67 @@ export type AgentContextUsage = {
 	readonly context?: ChatContext;
 };
 
+// Groups by parent directory or Agent Plugin so basename-only rows (a
+// repo-root AGENTS.md and a nested one) stay distinguishable. A directory
+// label with an empty name renders without a header.
+type ContextGroupLabel = {
+	readonly kind: "directory" | "plugin";
+	readonly name: string;
+};
+
 // Normalized popover entries, sourced from the chat's pinned context
 // resources.
-type ContextFileItem = { readonly path: string; readonly dir: string };
+type ContextFileItem = {
+	readonly path: string;
+	readonly label: ContextGroupLabel;
+};
 type ContextSkillItem = {
 	readonly source: string;
 	readonly name: string;
 	readonly description?: string;
-	readonly dir: string;
+	readonly label: ContextGroupLabel;
 };
-// MCP configs are file-backed (shown by full path), while MCP servers are
-// keyed by name and carry their tools.
+type ContextPluginItem = {
+	readonly name: string;
+	readonly source: string;
+};
+// MCP servers are keyed by source, not by display name.
 type ContextMcpConfigItem = { readonly source: string };
 type ContextMcpServerItem = {
 	readonly name: string;
 	readonly source: string;
+	readonly pluginName?: string;
 	readonly tools: readonly ChatContextTool[];
 };
-// A pinned resource the agent could not use, surfaced with its error so the
-// failure is visible instead of silent.
+// A pinned resource that failed to load, or an OK resource whose error field
+// carries a non-fatal warning.
 type ContextIssueItem = {
 	readonly name: string;
 	readonly kind: ChatContextResourceKind;
 	readonly status: ChatContextResourceStatus;
+	readonly statusLabel: string;
 	readonly error: string;
 	readonly source: string;
+};
+
+type ContextGroup<T> = {
+	readonly key: string;
+	readonly label: ContextGroupLabel;
+	readonly items: readonly T[];
+};
+
+type ContextPanelModel = {
+	readonly fileGroups: readonly ContextGroup<ContextFileItem>[];
+	readonly skillGroups: readonly ContextGroup<ContextSkillItem>[];
+	readonly plugins: readonly ContextPluginItem[];
+	readonly mcpConfigs: readonly ContextMcpConfigItem[];
+	readonly mcpServers: readonly ContextMcpServerItem[];
+	readonly issues: readonly ContextIssueItem[];
+	readonly hasResourceIssues: boolean;
+	readonly hasResourceFailures: boolean;
+	readonly fileBytes: number;
+	readonly skillBytes: number;
+	readonly mcpBytes: number;
 };
 
 // Human-readable label per resource kind, used in the issues list.
@@ -134,45 +171,173 @@ const SectionSize: React.FC<{ bytes: number }> = ({ bytes }) =>
 		</span>
 	) : null;
 
-const getIndicatorToneClassName = (percentUsed: number | null): string => {
-	if (percentUsed === null) {
-		return "text-content-secondary";
-	}
-	if (percentUsed >= 95) {
-		return "text-content-destructive";
-	}
-	if (percentUsed >= 85) {
-		return "text-content-warning";
-	}
-	return "text-content-secondary";
+type IndicatorTone = "default" | "warning" | "destructive";
+
+const INDICATOR_TONE_CLASS_NAMES: Record<IndicatorTone, string> = {
+	default: "text-content-secondary",
+	warning: "text-content-warning",
+	destructive: "text-content-destructive",
 };
 
-// A set of context resources that share a parent directory. Lists are grouped
-// by directory so resources pulled from different roots (for example a
-// repo-root AGENTS.md and a nested one) stay distinguishable instead of
-// collapsing to identical basenames.
-type DirectoryGroup<T> = {
-	readonly dir: string;
-	readonly items: readonly T[];
+const CONTEXT_USAGE_WARNING_PERCENT = 85;
+const CONTEXT_USAGE_DESTRUCTIVE_PERCENT = 95;
+
+// Any resource issue marks the indicator, including warnings on OK rows:
+// some warnings are the only report that a resource was skipped.
+export const getIndicatorState = ({
+	percentUsed,
+	isDirty,
+	hasContextError,
+	hasResourceIssues,
+}: {
+	percentUsed: number | null;
+	isDirty: boolean;
+	hasContextError: boolean;
+	hasResourceIssues: boolean;
+}): { tone: IndicatorTone; needsAttention: boolean } => {
+	const needsAttention = isDirty || hasContextError || hasResourceIssues;
+	if (hasContextError) {
+		return { tone: "destructive", needsAttention };
+	}
+	if (needsAttention) {
+		return { tone: "warning", needsAttention };
+	}
+	if (
+		percentUsed !== null &&
+		percentUsed >= CONTEXT_USAGE_DESTRUCTIVE_PERCENT
+	) {
+		return { tone: "destructive", needsAttention };
+	}
+	if (percentUsed !== null && percentUsed >= CONTEXT_USAGE_WARNING_PERCENT) {
+		return { tone: "warning", needsAttention };
+	}
+	return { tone: "default", needsAttention };
 };
 
-// Group items by their precomputed dir, preserving first-seen order so the
-// popover layout stays stable across renders.
-const groupByDirectory = <T extends { readonly dir: string }>(
+// Merges items with equal labels even when they are not adjacent. Groups keep
+// first-seen order so the popover layout stays stable across renders.
+const groupByLabel = <T extends { readonly label: ContextGroupLabel }>(
 	items: readonly T[],
-): readonly DirectoryGroup<T>[] => {
-	const order: string[] = [];
-	const byDir = new Map<string, T[]>();
+): readonly ContextGroup<T>[] => {
+	const groups: { key: string; label: ContextGroupLabel; items: T[] }[] = [];
+	const byKey = new Map<string, T[]>();
 	for (const item of items) {
-		const existing = byDir.get(item.dir);
+		const key = `${item.label.kind}:${item.label.name}`;
+		const existing = byKey.get(key);
 		if (existing) {
 			existing.push(item);
 		} else {
-			byDir.set(item.dir, [item]);
-			order.push(item.dir);
+			const bucket = [item];
+			byKey.set(key, bucket);
+			groups.push({ key, label: item.label, items: bucket });
 		}
 	}
-	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
+	return groups;
+};
+
+const directoryGroupLabel = (source: string): ContextGroupLabel => ({
+	kind: "directory",
+	name: getPathDirname(source),
+});
+
+const resourceGroupLabel = (
+	resource: ChatContextResource,
+): ContextGroupLabel =>
+	resource.plugin_name
+		? { kind: "plugin", name: resource.plugin_name }
+		: directoryGroupLabel(resource.source);
+
+// Plugin MCP servers are sourced as "<plugin>/<server>".
+const mcpServerDisplayName = (resource: ChatContextResource): string =>
+	resource.plugin_name
+		? resource.source.slice(resource.plugin_name.length + 1)
+		: resource.source;
+
+const issueDisplayName = (resource: ChatContextResource): string => {
+	const base =
+		resource.kind === "mcp_server"
+			? mcpServerDisplayName(resource)
+			: resource.skill_name ||
+				getPathBasename(resource.source) ||
+				resource.source;
+	if (resource.kind === "plugin") {
+		// Rejected manifests carry no plugin name.
+		return resource.plugin_name || base;
+	}
+	return resource.plugin_name ? `${resource.plugin_name}/${base}` : base;
+};
+
+// An OK row with a non-empty error appears in its section and in issues.
+export const buildContextPanelModel = (
+	resources: readonly ChatContextResource[],
+): ContextPanelModel => {
+	const okResources = resources.filter((resource) => resource.status === "ok");
+	const files: ContextFileItem[] = okResources
+		.filter((resource) => resource.kind === "instruction_file")
+		.map((resource) => ({
+			path: resource.source,
+			label: directoryGroupLabel(resource.source),
+		}))
+		.filter((file) => file.path.trim().length > 0);
+	const skills: ContextSkillItem[] = okResources
+		.filter((resource) => resource.kind === "skill")
+		.map((resource) => ({
+			source: resource.source,
+			name: resource.skill_name || getPathBasename(resource.source),
+			description: resource.skill_description,
+			label: resourceGroupLabel(resource),
+		}))
+		.filter((skill) => skill.name.trim().length > 0);
+	const plugins: ContextPluginItem[] = okResources
+		.filter((resource) => resource.kind === "plugin")
+		.map((resource) => ({
+			name: resource.plugin_name ?? "",
+			source: resource.source,
+		}))
+		.filter((plugin) => plugin.name.trim().length > 0);
+	// MCP configs are shown by their full path so multiple .mcp.json files
+	// (e.g. ~/.mcp.json and ~/project/.mcp.json) stay disambiguated.
+	const mcpConfigs: ContextMcpConfigItem[] = okResources
+		.filter((resource) => resource.kind === "mcp_config")
+		.map((resource) => ({ source: resource.source }))
+		.filter((config) => config.source.trim().length > 0);
+	const mcpServers: ContextMcpServerItem[] = okResources
+		.filter((resource) => resource.kind === "mcp_server")
+		.map((resource) => ({
+			name: mcpServerDisplayName(resource),
+			source: resource.source,
+			pluginName: resource.plugin_name || undefined,
+			tools: resource.tools ?? [],
+		}))
+		.filter((server) => server.name.trim().length > 0);
+	const issues: ContextIssueItem[] = resources
+		.filter(
+			(resource) =>
+				resource.status !== "ok" || (resource.error ?? "").trim() !== "",
+		)
+		.map((resource) => ({
+			name: issueDisplayName(resource),
+			kind: resource.kind,
+			status: resource.status,
+			statusLabel: resource.status === "ok" ? "warning" : resource.status,
+			error: resource.error ?? "",
+			source: resource.source,
+		}))
+		.filter((issue) => issue.name.trim().length > 0);
+
+	return {
+		fileGroups: groupByLabel(files),
+		skillGroups: groupByLabel(skills),
+		plugins,
+		mcpConfigs,
+		mcpServers,
+		issues,
+		hasResourceIssues: issues.length > 0,
+		hasResourceFailures: issues.some((issue) => issue.status !== "ok"),
+		fileBytes: sumResourceBytes(resources, ["instruction_file"]),
+		skillBytes: sumResourceBytes(resources, ["skill"]),
+		mcpBytes: sumResourceBytes(resources, ["mcp_config", "mcp_server"]),
+	};
 };
 
 const RING_SIZE = 22;
@@ -214,17 +379,24 @@ const ExclamationGlyph: React.FC = () => (
 // the user time to move into the popover content.
 const HOVER_CLOSE_DELAY_MS = 150;
 
-// Dimmed directory header shown above a group of context resources when a
-// section spans more than one directory.
-const ContextDirLabel: React.FC<{ dir: string }> = ({ dir }) => (
-	<span
-		className="flex items-center gap-1 text-[11px] text-content-secondary"
-		title={dir}
-	>
-		<FolderIcon className="size-3 shrink-0" />
-		<span className="truncate">{dir}</span>
-	</span>
-);
+const ContextGroupHeader: React.FC<{ label: ContextGroupLabel }> = ({
+	label,
+}) => {
+	const text = label.kind === "plugin" ? `plugin: ${label.name}` : label.name;
+	return (
+		<span
+			className="flex items-center gap-1 text-[11px] text-content-secondary"
+			title={text}
+		>
+			{label.kind === "plugin" ? (
+				<BlocksIcon className="size-3 shrink-0" />
+			) : (
+				<FolderIcon className="size-3 shrink-0" />
+			)}
+			<span className="truncate">{text}</span>
+		</span>
+	);
+};
 
 export const ContextUsageIndicator: React.FC<{
 	usage: AgentContextUsage;
@@ -292,105 +464,42 @@ export const ContextUsageIndicator: React.FC<{
 	const isDirty = context?.dirty ?? false;
 	const contextError = context?.error ?? "";
 	const hasContextError = contextError !== "";
-	const pinnedResources = context?.resources;
-
-	// Drive the listed context from the chat's pinned resources.
-	const fileItems: readonly ContextFileItem[] = (pinnedResources ?? [])
-		.filter(
-			(resource) =>
-				resource.kind === "instruction_file" && resource.status === "ok",
-		)
-		.map((resource) => ({
-			path: resource.source,
-			dir: getPathDirname(resource.source),
-		}))
-		// Drop entries with no usable path so an empty marker never renders as a
-		// nameless "Context files" row.
-		.filter((file) => file.path.trim().length > 0);
-	const skillItems: readonly ContextSkillItem[] = (pinnedResources ?? [])
-		.filter((resource) => resource.kind === "skill" && resource.status === "ok")
-		.map((resource) => ({
-			source: resource.source,
-			name: resource.skill_name || getPathBasename(resource.source),
-			description: resource.skill_description,
-			dir: getPathDirname(resource.source),
-		}))
-		// Drop entries with no usable name so an empty skill marker never renders
-		// as a blank row.
-		.filter((skill) => skill.name.trim().length > 0);
-	// MCP configs are shown by their full path so multiple .mcp.json files
-	// (e.g. ~/.mcp.json and ~/project/.mcp.json) stay disambiguated; servers
-	// are keyed by name and carry their tools.
-	const mcpConfigItems: readonly ContextMcpConfigItem[] = (
-		pinnedResources ?? []
-	)
-		.filter(
-			(resource) => resource.kind === "mcp_config" && resource.status === "ok",
-		)
-		.map((resource) => ({ source: resource.source }))
-		.filter((config) => config.source.trim().length > 0);
-	const mcpServerItems: readonly ContextMcpServerItem[] = (
-		pinnedResources ?? []
-	)
-		.filter(
-			(resource) => resource.kind === "mcp_server" && resource.status === "ok",
-		)
-		.map((resource) => ({
-			name: resource.source,
-			source: resource.source,
-			tools: resource.tools ?? [],
-		}))
-		// Drop entries with no usable name so an empty MCP marker never renders as
-		// a blank row.
-		.filter((server) => server.name.trim().length > 0);
-	const hasMcp = mcpConfigItems.length > 0 || mcpServerItems.length > 0;
-	// Pinned resources the agent could not use (invalid skill, unreadable or
-	// oversize file) are surfaced as issues with their error so the failure is
-	// visible rather than a silent omission.
-	const issueItems: readonly ContextIssueItem[] = (pinnedResources ?? [])
-		.filter((resource) => resource.status !== "ok")
-		.map((resource) => ({
-			name:
-				resource.skill_name ||
-				getPathBasename(resource.source) ||
-				resource.source,
-			kind: resource.kind,
-			status: resource.status,
-			error: resource.error ?? "",
-			source: resource.source,
-		}))
-		.filter((issue) => issue.name.trim().length > 0);
+	const {
+		fileGroups,
+		skillGroups,
+		plugins,
+		mcpConfigs,
+		mcpServers,
+		issues,
+		hasResourceIssues,
+		hasResourceFailures,
+		fileBytes,
+		skillBytes,
+		mcpBytes,
+	} = buildContextPanelModel(context?.resources ?? []);
+	const hasMcp = mcpConfigs.length > 0 || mcpServers.length > 0;
 	const hasContextList =
-		fileItems.length > 0 ||
-		skillItems.length > 0 ||
+		fileGroups.length > 0 ||
+		skillGroups.length > 0 ||
+		plugins.length > 0 ||
 		hasMcp ||
-		issueItems.length > 0;
+		issues.length > 0;
 
-	const hasResourceIssues = issueItems.length > 0;
-	const needsAttention = isDirty || hasContextError || hasResourceIssues;
-	const toneClassName = hasContextError
-		? "text-content-destructive"
-		: isDirty || hasResourceIssues
-			? "text-content-warning"
-			: getIndicatorToneClassName(percentUsed);
-	const fileBytes = sumResourceBytes(pinnedResources ?? [], [
-		"instruction_file",
-	]);
-	const skillBytes = sumResourceBytes(pinnedResources ?? [], ["skill"]);
-	const mcpBytes = sumResourceBytes(pinnedResources ?? [], [
-		"mcp_config",
-		"mcp_server",
-	]);
-
-	// Group files and skills by directory so every context root is labeled,
-	// keeping resources pulled from different directories distinguishable.
-	const fileGroups = groupByDirectory(fileItems);
-	const skillGroups = groupByDirectory(skillItems);
+	const { tone, needsAttention } = getIndicatorState({
+		percentUsed,
+		isDirty,
+		hasContextError,
+		hasResourceIssues,
+	});
+	const toneClassName = INDICATOR_TONE_CLASS_NAMES[tone];
 
 	const statusNotes = [
 		hasContextError ? "Context error." : "",
 		isDirty ? "Context changed." : "",
-		hasResourceIssues ? "Some context resources failed to load." : "",
+		hasResourceFailures ? "Some context resources failed to load." : "",
+		hasResourceIssues && !hasResourceFailures
+			? "Some context resources have warnings."
+			: "",
 	].filter((note) => note !== "");
 	const statusNote = statusNotes.length > 0 ? ` ${statusNotes.join(" ")}` : "";
 	let ariaLabel = "Context usage";
@@ -423,19 +532,21 @@ export const ContextUsageIndicator: React.FC<{
 			)}
 			{hasContextList && (
 				<div className="mt-2 flex flex-col gap-2 text-content-secondary">
-					{fileItems.length > 0 && (
+					{fileGroups.length > 0 && (
 						<div className="flex flex-col gap-1">
 							<span className="font-medium text-content-primary">
 								<span>Context files</span>
 								<SectionSize bytes={fileBytes} />
 							</span>
 							{fileGroups.map((group) => (
-								<div key={group.dir} className="flex flex-col gap-1">
-									{group.dir !== "" && <ContextDirLabel dir={group.dir} />}
+								<div key={group.key} className="flex flex-col gap-1">
+									{group.label.name !== "" && (
+										<ContextGroupHeader label={group.label} />
+									)}
 									<div
 										className={cn(
 											"flex flex-col",
-											group.dir !== "" ? "ml-3.5 gap-0.5" : "gap-1",
+											group.label.name !== "" ? "ml-3.5 gap-0.5" : "gap-1",
 										)}
 									>
 										{group.items.map((file) => (
@@ -454,7 +565,24 @@ export const ContextUsageIndicator: React.FC<{
 							))}
 						</div>
 					)}
-					{skillItems.length > 0 && (
+					{plugins.length > 0 && (
+						<div className="flex flex-col gap-1">
+							<span className="font-medium text-content-primary">
+								<span>Plugins</span>
+							</span>
+							{plugins.map((plugin) => (
+								<div
+									key={plugin.source}
+									className="flex items-center gap-1.5"
+									title={plugin.source}
+								>
+									<BlocksIcon className="size-3 shrink-0" />
+									<span className="truncate">{plugin.name}</span>
+								</div>
+							))}
+						</div>
+					)}
+					{skillGroups.length > 0 && (
 						<div className="flex flex-col gap-1">
 							<span className="font-medium text-content-primary">
 								<span>Skills</span>
@@ -462,12 +590,14 @@ export const ContextUsageIndicator: React.FC<{
 							</span>
 							<TooltipProvider delayDuration={300}>
 								{skillGroups.map((group) => (
-									<div key={group.dir} className="flex flex-col gap-1">
-										{group.dir !== "" && <ContextDirLabel dir={group.dir} />}
+									<div key={group.key} className="flex flex-col gap-1">
+										{group.label.name !== "" && (
+											<ContextGroupHeader label={group.label} />
+										)}
 										<div
 											className={cn(
 												"flex flex-col",
-												group.dir !== "" ? "ml-3.5 gap-0.5" : "gap-1",
+												group.label.name !== "" ? "ml-3.5 gap-0.5" : "gap-1",
 											)}
 										>
 											{group.items.map((skill) => {
@@ -508,7 +638,7 @@ export const ContextUsageIndicator: React.FC<{
 								<SectionSize bytes={mcpBytes} />
 							</span>
 							<TooltipProvider delayDuration={300}>
-								{mcpConfigItems.map((config) => (
+								{mcpConfigs.map((config) => (
 									<div
 										key={config.source}
 										className="flex items-center gap-1.5"
@@ -518,14 +648,21 @@ export const ContextUsageIndicator: React.FC<{
 										<span className="truncate">{config.source}</span>
 									</div>
 								))}
-								{mcpServerItems.map((mcp) => (
+								{mcpServers.map((mcp) => (
 									<div key={mcp.source} className="flex flex-col gap-0.5">
 										<div
 											className="flex items-center gap-1.5"
 											title={mcp.source}
 										>
 											<PlugIcon className="size-3 shrink-0" />
-											<span className="truncate">{mcp.name}</span>
+											<span className="min-w-0 truncate">{mcp.name}</span>
+											{mcp.pluginName && (
+												// shrink-[999] makes the label give up its width before the
+												// server name, so the name stays readable.
+												<span className="min-w-0 shrink-[999] truncate text-[11px] text-content-secondary">
+													{`plugin: ${mcp.pluginName}`}
+												</span>
+											)}
 										</div>
 										{mcp.tools.length > 0 && (
 											<div className="ml-4 flex flex-col gap-0.5">
@@ -561,22 +698,22 @@ export const ContextUsageIndicator: React.FC<{
 							</TooltipProvider>
 						</div>
 					)}
-					{issueItems.length > 0 && (
+					{issues.length > 0 && (
 						<div className="flex flex-col gap-1">
 							<span className="flex items-center gap-1.5 font-medium text-content-warning">
 								<TriangleAlertIcon className="size-3 shrink-0" />
 								Issues
 							</span>
-							{issueItems.map((issue) => (
+							{issues.map((issue) => (
 								<div
-									key={issue.source}
+									key={`${issue.kind}:${issue.source}`}
 									className="flex flex-col"
 									title={issue.source}
 								>
 									<span className="truncate">
 										{issue.name}{" "}
 										<span className="text-content-secondary">
-											({RESOURCE_KIND_LABELS[issue.kind]}: {issue.status})
+											({RESOURCE_KIND_LABELS[issue.kind]}: {issue.statusLabel})
 										</span>
 									</span>
 									{issue.error && (
