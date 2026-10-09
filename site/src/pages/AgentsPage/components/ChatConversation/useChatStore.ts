@@ -229,13 +229,8 @@ export const useChatStore = (
 	// its snapshot, defeating pagination.
 	const initialDataLoaded = chatMessages !== undefined;
 
-	// Write WebSocket-delivered durable messages into the React
-	// Query infinite cache so that navigating away and back
-	// serves up-to-date data instead of the stale REST snapshot.
-	// Without this, the cache only contains messages from the
-	// last REST fetch, and structural sharing can suppress the
-	// refetch-driven store update when no new durable messages
-	// have been committed to the DB yet.
+	// Writes durable messages into the messages cache, which a chat opened
+	// again starts from because the cache is not refetched.
 	const upsertCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			if (messages.length === 0) {
