@@ -489,11 +489,13 @@ func (a *agent) init() {
 			return mcpCatalogToContext(a.mcpManager.Catalog())
 		},
 		MCPReconnect: a.mcpManager.Reconnect,
+		ACPResources: a.acpManager.ContextResources,
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
 	// Re-resolve and re-push KindMCPServer resources whenever the MCP
 	// engine's catalog changes (startup connect, .mcp.json edits).
 	a.mcpManager.SetOnReload(a.contextManager.Trigger)
+	a.acpManager.SetOnChange(a.contextManager.Trigger)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
