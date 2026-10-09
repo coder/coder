@@ -222,6 +222,25 @@ export const NoEligibleWorkspaces: Story = {
 	},
 };
 
+export const SelectedIneligibleWorkspaces: Story = {
+	args: {
+		...NoEligibleWorkspaces.args,
+		checkedWorkspaces: NoEligibleWorkspaces.args?.workspaces,
+	},
+	render: function Render(args) {
+		const [checkedWorkspaces, setCheckedWorkspaces] = useState(
+			args.checkedWorkspaces,
+		);
+		return (
+			<WorkspacesPageView
+				{...args}
+				checkedWorkspaces={checkedWorkspaces}
+				onCheckChange={setCheckedWorkspaces}
+			/>
+		);
+	},
+};
+
 export const FilteredPaginationSummary: Story = {
 	args: {
 		workspaces: allWorkspaces,

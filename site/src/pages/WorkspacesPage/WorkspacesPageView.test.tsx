@@ -52,24 +52,40 @@ const pendingWorkspace = { ...MockPendingWorkspace, name: "pending" };
 const runningWorkspace = { ...MockWorkspace, name: "running" };
 const deletingWorkspace = { ...MockDeletingWorkspace, name: "deleting" };
 
-function renderSelection(workspaces: readonly Workspace[]) {
+function renderSelection(
+	initialWorkspaces: readonly Workspace[],
+	refreshedWorkspaces?: readonly Workspace[],
+) {
 	const onCheckChange = vi.fn();
 	const View = () => {
+		const [workspaces, setWorkspaces] = useState(initialWorkspaces);
 		const [checkedWorkspaces, setCheckedWorkspaces] = useState<
 			readonly Workspace[]
 		>([]);
 
 		return (
-			<WorkspacesPageView
-				{...defaultProps}
-				workspaces={workspaces}
-				count={workspaces.length}
-				checkedWorkspaces={checkedWorkspaces}
-				onCheckChange={(selected) => {
-					onCheckChange(selected);
-					setCheckedWorkspaces(selected);
-				}}
-			/>
+			<>
+				{refreshedWorkspaces && (
+					<button
+						type="button"
+						onClick={() => setWorkspaces(refreshedWorkspaces)}
+					>
+						Refresh workspaces
+					</button>
+				)}
+				<WorkspacesPageView
+					{...defaultProps}
+					workspaces={workspaces}
+					count={workspaces.length}
+					checkedWorkspaces={workspaces.filter((workspace) =>
+						checkedWorkspaces.some((selected) => selected.id === workspace.id),
+					)}
+					onCheckChange={(selected) => {
+						onCheckChange(selected);
+						setCheckedWorkspaces(selected);
+					}}
+				/>
+			</>
 		);
 	};
 
@@ -117,6 +133,38 @@ describe("WorkspacesPageView", () => {
 
 			await user.click(selectAll);
 			expect(onCheckChange).toHaveBeenLastCalledWith([]);
+		},
+	);
+
+	it.each([pendingWorkspace, deletingWorkspace])(
+		"clears a selected workspace after it becomes $name on refresh",
+		async (disabledWorkspace) => {
+			const user = userEvent.setup();
+			const onCheckChange = renderSelection(
+				[runningWorkspace],
+				[
+					{
+						...disabledWorkspace,
+						id: runningWorkspace.id,
+						name: runningWorkspace.name,
+					},
+				],
+			);
+			const selectAll = await screen.findByRole("checkbox", {
+				name: "Select all workspaces",
+			});
+
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenLastCalledWith([runningWorkspace]);
+			await user.click(
+				screen.getByRole("button", { name: "Refresh workspaces" }),
+			);
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenLastCalledWith([]);
+			expect(onCheckChange).toHaveBeenCalledTimes(2);
+
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenCalledTimes(2);
 		},
 	);
 

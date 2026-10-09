@@ -132,9 +132,12 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 								)}
 							>
 								<Checkbox
-									disabled={checkableWorkspaces.length === 0}
+									disabled={
+										checkableWorkspaces.length === 0 &&
+										checkedWorkspaces.length === 0
+									}
 									checked={
-										checkableWorkspaces.length > 0 &&
+										checkedWorkspaces.length > 0 &&
 										checkableWorkspaces.every((workspace) =>
 											checkedWorkspaces.some((w) => w.id === workspace.id),
 										)
