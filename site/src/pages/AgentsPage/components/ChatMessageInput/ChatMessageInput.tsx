@@ -36,8 +36,16 @@ import { useQuery } from "react-query";
 import { userSkills } from "#/api/queries/skills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MODIFIER_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
+import {
+	resolveSkillTriggers,
+	type SkillSource,
+	type SkillSourceList,
+} from "../../utils/skillAliases";
 import { filterSkillsByQuery, isSkillTriggerToken } from "../../utils/skills";
-import type { ChatSlashCommand } from "../../utils/slashCommands";
+import {
+	type ChatSlashCommand,
+	resolveChatSlashCommandAvailability,
+} from "../../utils/slashCommands";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
@@ -52,7 +60,6 @@ import {
 } from "./pasteHelpers";
 import {
 	createCommandMenuItem,
-	createSkillMenuItem,
 	type SkillMenuItem,
 	type SkillMetadata,
 	SkillsTriggerMenu,
@@ -670,43 +677,32 @@ const ChatMessageInput = ({
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
-	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
-	const loadedWorkspaceSkills = workspaceSkills ?? [];
-	// Until the chat detail resolves, workspace skills are unknown: keep
-	// personal triggers qualified (a qualified alias always resolves) and
-	// treat the workspace list as still loading.
-	const workspaceSkillsKnown = !hasWorkspace || workspaceSkills !== undefined;
-	// A personal or workspace skill with the same name takes
-	// precedence over a built-in command: the composer's submit
-	// intercept defers to the skill, so the menu must not advertise a
-	// dead command entry. Until both skill lists resolve, a collision
-	// cannot be ruled out, so no built-in commands are offered
-	// (matching the submit intercept, which also stands down while
-	// skills are unknown).
-	const skillsResolved =
-		(hasPersonalSkillsOverride || skillsQuery.isSuccess) &&
-		workspaceSkillsKnown;
-	const availableSlashCommands = skillsResolved
-		? (slashCommands ?? []).filter(
-				(command) =>
-					!personalSkills.some((skill) => skill.name === command.name) &&
-					!loadedWorkspaceSkills.some((skill) => skill.name === command.name),
-			)
-		: [];
+	const personalSkills = personalSkillsOverride ?? skillsQuery.data;
+	// Until the chat detail resolves, workspace skills are unknown.
+	const loadedWorkspaceSkills =
+		workspaceSkills ?? (hasWorkspace ? undefined : []);
+	// Lists stay undefined while unknown: triggers stay qualified and
+	// built-in commands stay hidden until every list resolves, matching
+	// the submit intercept.
+	const skillLists: SkillSourceList<SkillMetadata>[] = [
+		{ source: "personal", skills: personalSkills },
+		{ source: "workspace", skills: loadedWorkspaceSkills },
+	];
+	const availableSlashCommands = (slashCommands ?? []).filter(
+		(command) =>
+			resolveChatSlashCommandAvailability(command, skillLists) === "available",
+	);
 	const hasSlashCommands = availableSlashCommands.length > 0;
 	// A stale empty cache with a refetch in flight must not dismiss the menu.
-	const isResolvedEmptyPersonalSkills = hasPersonalSkillsOverride
-		? personalSkills.length === 0
-		: skillsQuery.isSuccess &&
-			!skillsQuery.isFetching &&
-			personalSkills.length === 0;
-	// Unknown workspace skills must not close the menu: the trigger plugin
-	// records a closed trigger as dismissed, so skills arriving later could
-	// never reopen it.
-	const isResolvedEmptyWorkspaceSkills =
-		workspaceSkillsKnown && loadedWorkspaceSkills.length === 0;
-	// Without built-in commands, "/" is plain text when both skills
-	// lists resolve empty. When only the filtered result is empty,
+	const isResolvedEmptyPersonalSkills =
+		personalSkills?.length === 0 &&
+		(hasPersonalSkillsOverride || !skillsQuery.isFetching);
+	// Unknown skills must not close the menu: the trigger plugin records a
+	// closed trigger as dismissed, so skills arriving later could never
+	// reopen it.
+	const isResolvedEmptyWorkspaceSkills = loadedWorkspaceSkills?.length === 0;
+	// Without built-in commands, "/" is plain text when every skills
+	// list resolves empty. When only the filtered result is empty,
 	// keep the menu open for the no-match message.
 	const skillsMenuOpen =
 		hasSkillsTrigger &&
@@ -717,25 +713,19 @@ const ChatMessageInput = ({
 		availableSlashCommands.map(createCommandMenuItem),
 		skillsSearchQuery,
 	);
-	const workspaceSkillNames = new Set(
-		loadedWorkspaceSkills.map((skill) => skill.name),
-	);
-	const personalSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
-		personalSkills.map((skill) =>
-			createSkillMenuItem(
-				"personal",
-				skill,
-				!workspaceSkillsKnown || workspaceSkillNames.has(skill.name),
-			),
-		),
-		skillsSearchQuery,
-	);
-	const workspaceSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
-		loadedWorkspaceSkills.map((skill) =>
-			createSkillMenuItem("workspace", skill),
-		),
-		skillsSearchQuery,
-	);
+	const skillTriggers = resolveSkillTriggers(skillLists);
+	const filterSkillTriggers = (source: SkillSource) =>
+		filterSkillsByQuery(
+			skillTriggers.filter((trigger) => trigger.source === source),
+			skillsSearchQuery,
+		);
+	const personalSkillItems = filterSkillTriggers("personal");
+	const workspaceSkillItems = filterSkillTriggers("workspace");
+	const isPersonalSkillsLoading =
+		personalSkillsQueryEnabled &&
+		skillsQuery.isFetching &&
+		skillsQuery.data === undefined;
+	const isWorkspaceSkillsLoading = loadedWorkspaceSkills === undefined;
 	// Commands come first so partitioned menu groups match selection order.
 	const allFilteredSkills: readonly SkillMenuItem[] = [
 		...commandMenuItems,
@@ -1015,12 +1005,7 @@ const ChatMessageInput = ({
 				<SkillsTriggerPlugin
 					open={skillsMenuOpen}
 					skills={allFilteredSkills}
-					skillsLoading={
-						(personalSkillsQueryEnabled &&
-							skillsQuery.isFetching &&
-							skillsQuery.data === undefined) ||
-						!workspaceSkillsKnown
-					}
+					skillsLoading={isPersonalSkillsLoading || isWorkspaceSkillsLoading}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onTriggerChange={handleSkillsTriggerChange}
@@ -1039,17 +1024,13 @@ const ChatMessageInput = ({
 					personalSkills={personalSkillItems}
 					workspaceSkills={workspaceSkillItems}
 					workspaceSkillsEnabled={hasWorkspace}
-					isPersonalLoading={
-						personalSkillsQueryEnabled &&
-						skillsQuery.isFetching &&
-						skillsQuery.data === undefined
-					}
+					isPersonalLoading={isPersonalSkillsLoading}
 					isPersonalError={
 						personalSkillsQueryEnabled &&
 						skillsQuery.isError &&
 						skillsQuery.data === undefined
 					}
-					isWorkspaceLoading={!workspaceSkillsKnown}
+					isWorkspaceLoading={isWorkspaceSkillsLoading}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onSelect={replaceActiveSkillsTrigger}

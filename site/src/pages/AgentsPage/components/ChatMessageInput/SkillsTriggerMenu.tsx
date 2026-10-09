@@ -12,21 +12,15 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
-
-type SkillSource = "personal" | "workspace";
+import type { SkillTrigger } from "../../utils/skillAliases";
 
 export type SkillMetadata = {
 	name: string;
 	description: string;
 };
 
-export type SkillMenuItem = SkillMetadata & {
-	source: SkillSource | "command";
-	triggerText: string;
-	// The qualified alias stays searchable even when the displayed
-	// trigger is bare, so a typed qualified query keeps matching after
-	// collision state changes mid-trigger.
-	altTriggerText: string;
+export type SkillMenuItem = Omit<SkillTrigger, "source"> & {
+	source: SkillTrigger["source"] | "command";
 };
 
 // Built-in commands (e.g. /compact) share the menu item shape so the
@@ -40,20 +34,6 @@ export const createCommandMenuItem = (
 	source: "command",
 	triggerText: `/${command.name}`,
 	altTriggerText: `/${command.name}`,
-});
-
-export const createSkillMenuItem = (
-	source: SkillSource,
-	skill: SkillMetadata,
-	// Bare personal names are ambiguous to read_skill when a workspace
-	// skill shares the name, so colliding triggers must stay qualified.
-	qualifyTrigger = source === "workspace",
-): SkillMenuItem => ({
-	name: skill.name,
-	description: skill.description,
-	source,
-	triggerText: qualifyTrigger ? `/${source}/${skill.name}` : `/${skill.name}`,
-	altTriggerText: `/${source}/${skill.name}`,
 });
 
 type SkillsTriggerMenuProps = {

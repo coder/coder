@@ -292,11 +292,10 @@ export async function submitChatTurn(
 
 	const builtInCommand = findBuiltInChatCommand(content, editedMessageID);
 	const builtInCommandResolution = builtInCommand
-		? resolveChatSlashCommandAvailability(
-				builtInCommand,
-				personalSkills,
-				workspaceSkills,
-			)
+		? resolveChatSlashCommandAvailability(builtInCommand, [
+				{ source: "personal", skills: personalSkills },
+				{ source: "workspace", skills: workspaceSkills },
+			])
 		: undefined;
 	if (builtInCommandResolution === "pending" && builtInCommand) {
 		const triggerText = chatSlashCommandTriggerText(builtInCommand);
