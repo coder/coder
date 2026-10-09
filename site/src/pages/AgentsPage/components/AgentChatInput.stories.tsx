@@ -315,7 +315,6 @@ export const NoModelOptions: Story = {
 	args: {
 		bindings: {
 			...defaultBindings,
-			isDisabled: false,
 			hasModelOptions: false,
 			initialValue: "Model required",
 		},
@@ -348,7 +347,6 @@ export const LoadingDisablesSend: Story = {
 	args: {
 		bindings: {
 			...defaultBindings,
-			isDisabled: false,
 			isLoading: true,
 			initialValue: "Another message",
 		},
@@ -454,22 +452,13 @@ export const WithUploadingAttachment: Story = {
 };
 
 export const UploadingDisablesSend: Story = {
-	args: (() => {
-		const file = createMockFile("uploading.png", "image/png");
-		return {
-			bindings: {
-				...defaultBindings,
-				attachments: [file],
-				uploadStates: new Map<File, UploadState>([
-					[file, { status: "uploading" }],
-				]),
-				previewUrls: new Map<File, string>([[file, TINY_PNG]]),
-				onAttach: fn(),
-				onRemoveAttachment: fn(),
-				initialValue: "Message with uploading image",
-			},
-		};
-	})(),
+	args: {
+		bindings: {
+			...defaultBindings,
+			...WithUploadingAttachment.args?.bindings,
+			initialValue: "Message with uploading image",
+		},
+	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		// Send should be disabled while an upload is still in progress,
@@ -764,6 +753,15 @@ const mcpDefaults = {
 		selectedServerIds: [],
 		onSelectionChange: fn(),
 		onAuthComplete: fn(),
+	},
+};
+
+const connectedGitHubTools = {
+	...mcpDefaults,
+	mcp: {
+		...mcpDefaults.mcp,
+		servers: [githubMCPConnected],
+		selectedServerIds: [githubMCPConnected.id],
 	},
 };
 
@@ -1098,14 +1096,7 @@ export const WithMCPNoneActive: Story = {
 /** Plus menu open showing attach, MCP servers, and workspace placeholder. */
 export const PlusMenuOpen: Story = {
 	args: {
-		tools: {
-			...mcpDefaults,
-			mcp: {
-				...mcpDefaults.mcp,
-				servers: [sentryMCP, linearMCP, githubMCPConnected],
-				selectedServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
-			},
-		},
+		...WithMCPServers.args,
 		bindings: {
 			...defaultBindings,
 			onAttach: fn(),
@@ -1137,14 +1128,7 @@ export const MCPDisconnectControls: Story = {
 
 export const MCPDisconnectCancel: Story = {
 	args: {
-		tools: {
-			...mcpDefaults,
-			mcp: {
-				...mcpDefaults.mcp,
-				servers: [githubMCPConnected],
-				selectedServerIds: [githubMCPConnected.id],
-			},
-		},
+		tools: connectedGitHubTools,
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
@@ -1169,14 +1153,7 @@ export const MCPDisconnectCancel: Story = {
 
 export const MCPDisconnectConfirm: Story = {
 	args: {
-		tools: {
-			...mcpDefaults,
-			mcp: {
-				...mcpDefaults.mcp,
-				servers: [githubMCPConnected],
-				selectedServerIds: [githubMCPConnected.id],
-			},
-		},
+		tools: connectedGitHubTools,
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
@@ -1204,14 +1181,7 @@ export const MCPDisconnectConfirm: Story = {
 
 export const MCPDisconnectRevocationWarning: Story = {
 	args: {
-		tools: {
-			...mcpDefaults,
-			mcp: {
-				...mcpDefaults.mcp,
-				servers: [githubMCPConnected],
-				selectedServerIds: [githubMCPConnected.id],
-			},
-		},
+		tools: connectedGitHubTools,
 	},
 	decorators: [withToaster],
 	beforeEach: () => {
@@ -1238,14 +1208,7 @@ export const MCPDisconnectRevocationWarning: Story = {
 
 export const MCPDisconnectError: Story = {
 	args: {
-		tools: {
-			...mcpDefaults,
-			mcp: {
-				...mcpDefaults.mcp,
-				servers: [githubMCPConnected],
-				selectedServerIds: [githubMCPConnected.id],
-			},
-		},
+		tools: connectedGitHubTools,
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockRejectedValue(
@@ -1269,9 +1232,6 @@ export const MCPDisconnectError: Story = {
 };
 
 export const PlanFirstMenuItem: Story = {
-	args: {
-		tools: { ...defaultTools, planning: { enabled: false, onChange: fn() } },
-	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
@@ -1356,7 +1316,6 @@ export const ManageAutomationsCheckedState: Story = {
 	args: {
 		tools: {
 			...defaultTools,
-			planning: { enabled: false, onChange: fn() },
 			automations: { enabled: true, onChange: fn() },
 		},
 	},
@@ -1744,12 +1703,7 @@ export const ContextNearLimit: Story = {
 export const LongWorkspaceNameMobile: Story = {
 	args: {
 		tools: {
-			...mcpDefaults,
-			mcp: {
-				...mcpDefaults.mcp,
-				servers: [githubMCPConnected],
-				selectedServerIds: [githubMCPConnected.id],
-			},
+			...connectedGitHubTools,
 			linkedWorkspace: {
 				attachedWorkspace: {
 					id: MockWorkspace.id,
@@ -1951,12 +1905,7 @@ export const ModelExpandsWhileBadgesOverflow: Story = {
 export const OverflowPopoverSuppressesStatusTooltip: Story = {
 	args: {
 		tools: {
-			...mcpDefaults,
-			mcp: {
-				...mcpDefaults.mcp,
-				servers: [githubMCPConnected],
-				selectedServerIds: [githubMCPConnected.id],
-			},
+			...connectedGitHubTools,
 			linkedWorkspace: {
 				attachedWorkspace: {
 					id: MockWorkspace.id,

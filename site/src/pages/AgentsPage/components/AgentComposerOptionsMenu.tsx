@@ -24,15 +24,15 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { Separator } from "#/components/Separator/Separator";
 import { isBelowMdViewport } from "#/utils/mobile";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useAgentComposer } from "./AgentComposer";
 import type {
 	AttachedWorkspaceInfo,
 	ToolBadgeData,
-	WorkspacePillBadge,
 } from "./AgentComposerBadges";
-import { AgentComposerMCPMenu } from "./AgentComposerMCPMenu";
+import { MCPServerMenuItem } from "./AgentComposerMCPMenu";
 import {
 	AgentComposerWorkspacePicker,
 	AgentComposerWorkspaceView,
@@ -86,7 +86,6 @@ type AgentComposerOptionsContextValue = {
 	};
 	meta: {
 		badges: readonly ToolBadgeData[];
-		workspacePill?: WorkspacePillBadge;
 	};
 };
 
@@ -215,17 +214,7 @@ export const AgentComposerOptionsMenu = ({
 						/>
 					) : (
 						<>
-							<ComposerMenuActions
-								isDisabled={composer.state.isDisabled}
-								onAttachClick={
-									composer.state.canAttachFiles
-										? composer.actions.openFilePicker
-										: undefined
-								}
-								planning={options.state.planning}
-								automations={options.state.automations}
-								onClose={() => setOpen(false)}
-							/>
+							<ComposerMenuActions onClose={() => setOpen(false)} />
 							{workspaceSelection?.onChange && (
 								<AgentComposerWorkspacePicker
 									workspaceOptions={workspaceSelection.options}
@@ -239,19 +228,25 @@ export const AgentComposerOptionsMenu = ({
 									onOpenMobile={() => setView("workspace")}
 								/>
 							)}
-							{mcp && (
-								<AgentComposerMCPMenu
-									servers={mcp.servers}
-									selectedServerIds={mcp.selectedServerIds}
-									connectingServerId={connectingServerId}
-									isDisabled={composer.state.isDisabled}
-									onConnect={connect}
-									onToggle={options.actions.toggleMcp}
-									onDisconnect={(server) => {
-										setOpen(false);
-										setDisconnectTarget(server);
-									}}
-								/>
+							{mcp && mcp.servers.length > 0 && (
+								<>
+									<Separator className="my-1" />
+									{mcp.servers.map((server) => (
+										<MCPServerMenuItem
+											key={server.id}
+											server={server}
+											selectedServerIds={mcp.selectedServerIds}
+											connectingServerId={connectingServerId}
+											isDisabled={composer.state.isDisabled}
+											onConnect={connect}
+											onToggle={options.actions.toggleMcp}
+											onDisconnect={(server) => {
+												setOpen(false);
+												setDisconnectTarget(server);
+											}}
+										/>
+									))}
+								</>
 							)}
 						</>
 					)}
@@ -282,61 +277,51 @@ export const AgentComposerOptionsMenu = ({
 	);
 };
 
-type MenuActionsProps = Pick<
-	AgentComposerOptionsData,
-	"planning" | "automations"
-> & {
-	isDisabled: boolean;
-	onAttachClick?: () => void;
-	onClose: () => void;
-};
+const ComposerMenuActions = ({ onClose }: { onClose: () => void }) => {
+	const { state, actions } = useAgentComposer();
+	const { planning, automations } = useAgentComposerOptions().state;
 
-const ComposerMenuActions = ({
-	isDisabled,
-	onAttachClick,
-	planning,
-	automations,
-	onClose,
-}: MenuActionsProps) => (
-	<>
-		{onAttachClick && (
-			<button
-				type="button"
-				onClick={() => {
-					onClose();
-					onAttachClick();
-				}}
-				className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-			>
-				<PaperclipIcon className="size-3.5 shrink-0" />
-				Attach file
-			</button>
-		)}
-		<MenuCheckboxItem
-			icon={PencilIcon}
-			label="Plan first"
-			checked={planning.enabled}
-			onToggle={() => {
-				planning.onChange(!planning.enabled);
-				onClose();
-			}}
-			disabled={isDisabled}
-		/>
-		{automations && (
+	return (
+		<>
+			{state.canAttachFiles && (
+				<button
+					type="button"
+					onClick={() => {
+						onClose();
+						actions.openFilePicker();
+					}}
+					className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+				>
+					<PaperclipIcon className="size-3.5 shrink-0" />
+					Attach file
+				</button>
+			)}
 			<MenuCheckboxItem
-				icon={ZapIcon}
-				label="Manage automations"
-				description="Let the agent create and manage automations for you."
-				checked={automations.enabled}
+				icon={PencilIcon}
+				label="Plan first"
+				checked={planning.enabled}
 				onToggle={() => {
-					automations.onChange(!automations.enabled);
+					planning.onChange(!planning.enabled);
 					onClose();
 				}}
-				disabled={isDisabled}
+				disabled={state.isDisabled}
 			/>
-		)}
-	</>
-);
+			{automations && (
+				<MenuCheckboxItem
+					icon={ZapIcon}
+					label="Manage automations"
+					description="Let the agent create and manage automations for you."
+					checked={automations.enabled}
+					onToggle={() => {
+						automations.onChange(!automations.enabled);
+						onClose();
+					}}
+					disabled={state.isDisabled}
+				/>
+			)}
+		</>
+	);
+};
 
 const MenuCheckboxItem = ({
 	icon: Icon,

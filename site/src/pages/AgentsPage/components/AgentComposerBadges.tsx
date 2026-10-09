@@ -41,7 +41,14 @@ export type ToolBadgeData =
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: MCPServerConfig }
 	| { kind: "mcp-group"; servers: readonly MCPServerConfig[] }
-	| { kind: "planning" };
+	| { kind: "planning" }
+	| {
+			kind: "linked-workspace";
+			props: Omit<
+				React.ComponentProps<typeof WorkspacePill>,
+				"onRemoveWorkspace" | "inOverflowPopover"
+			>;
+	  };
 
 // flex-basis sets an 8ch floor, grow uses free row space, and max-w-max
 // caps at the natural label width. Below the floor, +N overflow takes over.
@@ -55,22 +62,13 @@ type BadgeActions = {
 	isDisabled: boolean;
 };
 
-/** Workspace badge data paired with the linked workspace's interactive pill. */
-export type WorkspacePillBadge = {
-	badge: Extract<ToolBadgeData, { kind: "workspace" | "attached-workspace" }>;
-	props: Omit<
-		React.ComponentProps<typeof WorkspacePill>,
-		"onRemoveWorkspace" | "inOverflowPopover"
-	>;
-};
-
 // Non-MCP badges can share a kind, so their keys are position-qualified.
 const badgeKey = (badge: ToolBadgeData, index: number) => {
 	if (badge.kind === "mcp") {
 		return badge.server.id;
 	}
 
-	if (badge.kind === "mcp-group") {
+	if (badge.kind === "mcp-group" || badge.kind === "linked-workspace") {
 		return badge.kind;
 	}
 
@@ -93,11 +91,9 @@ const BadgePopoverContent = ({ className, ...props }: PopoverContentProps) => (
 /** Measures the ordered badge row and renders trailing badges in its overflow menu. */
 export const AgentComposerBadges = ({
 	badges,
-	workspacePill,
 	...actions
 }: BadgeActions & {
 	badges: readonly ToolBadgeData[];
-	workspacePill?: WorkspacePillBadge;
 }) => {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [open, setOpen] = useState(false);
@@ -114,13 +110,8 @@ export const AgentComposerBadges = ({
 		>
 			{badges.map((badge, index) => (
 				<ComposerBadge
-					key={
-						badge === workspacePill?.badge
-							? "workspace-pill"
-							: badgeKey(badge, index)
-					}
+					key={badgeKey(badge, index)}
 					badge={badge}
-					workspacePill={workspacePill}
 					{...actions}
 					hidden={overflowCount > 0 && index >= visibleCount}
 				/>
@@ -159,13 +150,8 @@ export const AgentComposerBadges = ({
 				>
 					{badges.slice(visibleCount).map((badge, index) => (
 						<ComposerBadge
-							key={
-								badge === workspacePill?.badge
-									? "workspace-pill-overflow"
-									: badgeKey(badge, visibleCount + index)
-							}
+							key={badgeKey(badge, visibleCount + index)}
 							badge={badge}
-							workspacePill={workspacePill}
 							{...actions}
 							inOverflowPopover
 						/>
@@ -178,17 +164,15 @@ export const AgentComposerBadges = ({
 
 const ComposerBadge = ({
 	badge,
-	workspacePill,
 	hidden,
 	inOverflowPopover = false,
 	...actions
 }: BadgeActions & {
 	badge: ToolBadgeData;
-	workspacePill?: WorkspacePillBadge;
 	hidden?: boolean;
 	inOverflowPopover?: boolean;
 }) => {
-	if (workspacePill && badge === workspacePill.badge) {
+	if (badge.kind === "linked-workspace") {
 		return (
 			<span
 				className={cn(
@@ -198,7 +182,7 @@ const ComposerBadge = ({
 				)}
 			>
 				<WorkspacePill
-					{...workspacePill.props}
+					{...badge.props}
 					onRemoveWorkspace={actions.onRemoveWorkspace}
 					inOverflowPopover={inOverflowPopover}
 				/>
@@ -242,21 +226,28 @@ const BadgeDismissButton = ({
 export const AgentComposerPlanningBadge = ({
 	onRemove,
 	isDisabled,
+	className = "hidden sm:inline-flex",
 }: {
-	onRemove: () => void;
+	onRemove?: () => void;
 	isDisabled: boolean;
+	className?: string;
 }) => (
 	<span
 		data-testid="planning-badge"
-		className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex"
+		className={cn(
+			"shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
+			className,
+		)}
 	>
 		<PencilIcon className="size-3" />
 		Planning
-		<BadgeDismissButton
-			onClick={onRemove}
-			ariaLabel="Disable plan mode"
-			isDisabled={isDisabled}
-		/>
+		{onRemove && (
+			<BadgeDismissButton
+				onClick={onRemove}
+				ariaLabel="Disable plan mode"
+				isDisabled={isDisabled}
+			/>
+		)}
 	</span>
 );
 
@@ -314,7 +305,7 @@ const ToolBadge = ({
 	className,
 	disableTooltip,
 }: BadgeActions & {
-	badge: ToolBadgeData;
+	badge: Exclude<ToolBadgeData, { kind: "linked-workspace" }>;
 	className?: string;
 	// Overflow popovers auto-focus badges; suppress the tooltip there.
 	disableTooltip?: boolean;
@@ -326,17 +317,11 @@ const ToolBadge = ({
 
 	if (badge.kind === "planning") {
 		return (
-			<span data-testid="planning-badge" className={badgeCls}>
-				<PencilIcon className="size-3" />
-				Planning
-				{onRemovePlanning && (
-					<BadgeDismissButton
-						onClick={onRemovePlanning}
-						ariaLabel="Disable plan mode"
-						isDisabled={isDisabled}
-					/>
-				)}
-			</span>
+			<AgentComposerPlanningBadge
+				onRemove={onRemovePlanning}
+				isDisabled={isDisabled}
+				className={badgeCls}
+			/>
 		);
 	}
 

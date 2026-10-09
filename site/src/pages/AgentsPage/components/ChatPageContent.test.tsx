@@ -41,34 +41,37 @@ const renderChatPageInput = (
 			onSend={vi.fn()}
 			onDeleteQueuedMessage={vi.fn()}
 			onPromoteQueuedMessage={vi.fn()}
-			onInterrupt={vi.fn()}
-			isInputDisabled={false}
-			isSendPending={false}
-			isInterruptPending={false}
-			hasModelOptions
-			selectedModel="model-config-1"
-			onModelChange={vi.fn()}
-			modelOptions={[
-				{
-					id: "model-config-1",
-					provider: "openai",
-					model: "gpt-4o",
-					displayName: "GPT-4o",
-				},
-			]}
-			modelSelectorPlaceholder="Select model"
-			canConfigureAgentSetup={false}
-			isEditing={false}
-			onCancelHistoryEdit={vi.fn()}
-			isReadOnly={false}
-			onReasoningEffortChange={vi.fn()}
-			unsupportedProviderNames={[]}
+			bindings={{
+				onInterrupt: vi.fn(),
+				isDisabled: false,
+				isLoading: false,
+				isInterruptPending: false,
+				hasModelOptions: true,
+				isEditingHistoryMessage: false,
+				onCancelHistoryEdit: vi.fn(),
+				isReadOnly: false,
+				inputRef: { current: null },
+				initialValue: "",
+				remountKey: 0,
+				onContentChange: vi.fn(),
+			}}
+			model={{
+				selectedModel: "model-config-1",
+				onModelChange: vi.fn(),
+				modelOptions: [
+					{
+						id: "model-config-1",
+						provider: "openai",
+						model: "gpt-4o",
+						displayName: "GPT-4o",
+					},
+				],
+				modelSelectorPlaceholder: "Select model",
+				onReasoningEffortChange: vi.fn(),
+				isModelCatalogLoading: false,
+			}}
+			setup={{ canConfigureAgentSetup: false, unsupportedProviderNames: [] }}
 			onPlanModeToggle={vi.fn()}
-			isModelCatalogLoading={false}
-			inputRef={{ current: null }}
-			initialValue=""
-			remountKey={0}
-			onContentChange={vi.fn()}
 			editingFileBlocks={[]}
 			mcpServers={[]}
 			selectedMCPServerIds={[]}
@@ -144,7 +147,16 @@ describe("ChatPageInput", () => {
 		const store = createChatStore();
 		store.setChatStatus("requires_action");
 
-		renderChatPageInput(store, { onInterrupt });
+		renderChatPageInput(store, {
+			bindings: {
+				onInterrupt,
+				isDisabled: false,
+				isLoading: false,
+				hasModelOptions: true,
+				initialValue: "",
+				onContentChange: vi.fn(),
+			},
+		});
 
 		await user.click(await screen.findByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
@@ -172,8 +184,14 @@ describe("ChatPageInput", () => {
 				workspace_id: "ws-1",
 			},
 			onSend,
-			isEditing: true,
-			initialValue: "edited",
+			bindings: {
+				isEditingHistoryMessage: true,
+				initialValue: "edited",
+				isDisabled: false,
+				isLoading: false,
+				hasModelOptions: true,
+				onContentChange: vi.fn(),
+			},
 			editingFileBlocks: [
 				workspaceFileReference("current.csv", "ws-1"),
 				workspaceFileReference("other.csv", "ws-2"),

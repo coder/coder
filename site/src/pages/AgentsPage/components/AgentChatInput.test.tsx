@@ -159,16 +159,7 @@ describe("ChatComposer", () => {
 			);
 		};
 		renderInput(
-			<AgentComposerProvider
-				bindings={{
-					onSend,
-					isDisabled: false,
-					isLoading: false,
-					hasModelOptions: true,
-					initialValue: "",
-					onContentChange: vi.fn(),
-				}}
-			>
+			<AgentComposerProvider bindings={{ ...inputProps.bindings, onSend }}>
 				<AgentComposer.Frame>
 					<AgentComposer.Editor hasWorkspace={false} />
 				</AgentComposer.Frame>
@@ -1316,7 +1307,32 @@ describe("ChatComposer", () => {
 		expect(onAttach).not.toHaveBeenCalled();
 	});
 
-	it("refuses workspace files while the composer is disabled", () => {
+	it.each([
+		{
+			name: "workspace files while the composer is disabled",
+			isDisabled: true,
+			isLoading: false,
+			paste: false,
+			message:
+				"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+		},
+		{
+			name: "workspace files while a send is pending",
+			isDisabled: false,
+			isLoading: true,
+			paste: false,
+			message:
+				"Wait for the current message to finish sending, then add the file again.",
+		},
+		{
+			name: "pasted workspace files while a send is pending",
+			isDisabled: false,
+			isLoading: true,
+			paste: true,
+			message:
+				"Wait for the current message to finish sending, then add the file again.",
+		},
+	])("refuses $name", ({ isDisabled, isLoading, paste, message }) => {
 		const onAttach = vi.fn();
 		const onWorkspaceAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");
@@ -1333,97 +1349,27 @@ describe("ChatComposer", () => {
 						onAttach: onWorkspaceAttach,
 						onRemove: vi.fn(),
 					},
-					isDisabled: true,
+					isDisabled,
+					isLoading,
 				}}
 			/>,
 		);
 
-		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
-			dataTransfer: {
-				files: [createMockFile("dataset.zip", "application/zip")],
-			},
-		});
-
-		expect(onWorkspaceAttach).not.toHaveBeenCalled();
-		expect(onAttach).not.toHaveBeenCalled();
-		expect(toastError).toHaveBeenCalledWith(
-			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
-		);
-	});
-
-	it("refuses workspace files while a send is pending", () => {
-		const onAttach = vi.fn();
-		const onWorkspaceAttach = vi.fn();
-		const toastError = vi.spyOn(toast, "error");
-
-		renderInput(
-			<ChatComposer
-				{...inputProps}
-				bindings={{
-					...inputProps.bindings,
-					onAttach,
-					attachments: [],
-					workspaceUploads: {
-						uploads: [],
-						onAttach: onWorkspaceAttach,
-						onRemove: vi.fn(),
-					},
-					isLoading: true,
-				}}
-			/>,
-		);
-
+		const textbox = screen.getByRole("textbox", { name: "Chat message" });
+		const files = [createMockFile("dataset.zip", "application/zip")];
 		// The post-send reset would discard the chip after the bytes
-		// already landed, so the drop is refused with a wait message
-		// rather than the "attach a workspace" one.
-		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
-			dataTransfer: {
-				files: [createMockFile("dataset.zip", "application/zip")],
-			},
-		});
+		// already landed, so pending sends must refuse both drops and pastes.
+		if (paste) {
+			fireEvent.paste(textbox, {
+				clipboardData: { files, types: ["Files"], getData: () => "" },
+			});
+		} else {
+			fireEvent.drop(textbox, { dataTransfer: { files } });
+		}
 
 		expect(onWorkspaceAttach).not.toHaveBeenCalled();
 		expect(onAttach).not.toHaveBeenCalled();
-		expect(toastError).toHaveBeenCalledWith(
-			"Wait for the current message to finish sending, then add the file again.",
-		);
-	});
-
-	it("refuses pasted workspace files while a send is pending", () => {
-		const onAttach = vi.fn();
-		const onWorkspaceAttach = vi.fn();
-		const toastError = vi.spyOn(toast, "error");
-
-		renderInput(
-			<ChatComposer
-				{...inputProps}
-				bindings={{
-					...inputProps.bindings,
-					onAttach,
-					attachments: [],
-					workspaceUploads: {
-						uploads: [],
-						onAttach: onWorkspaceAttach,
-						onRemove: vi.fn(),
-					},
-					isLoading: true,
-				}}
-			/>,
-		);
-
-		fireEvent.paste(screen.getByRole("textbox", { name: "Chat message" }), {
-			clipboardData: {
-				files: [createMockFile("dataset.zip", "application/zip")],
-				types: ["Files"],
-				getData: () => "",
-			},
-		});
-
-		expect(onWorkspaceAttach).not.toHaveBeenCalled();
-		expect(onAttach).not.toHaveBeenCalled();
-		expect(toastError).toHaveBeenCalledWith(
-			"Wait for the current message to finish sending, then add the file again.",
-		);
+		expect(toastError).toHaveBeenCalledWith(message);
 	});
 
 	it("asks for a workspace when workspace uploads are wired but unavailable", () => {

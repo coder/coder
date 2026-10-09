@@ -20,7 +20,6 @@ import {
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
@@ -40,12 +39,7 @@ import {
 	resolveCompactionThreshold,
 } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
-import {
-	type AttachedWorkspaceInfo,
-	type ChatMessageInputRef,
-	isUploadInProgress,
-	type UploadState,
-} from "./AgentChatInput";
+import { isUploadInProgress, type UploadState } from "./AgentChatInput";
 import { ChatComposer } from "./AgentComposers";
 import type { ChatAutomationNames } from "./ChatConversation/AutomationLabel";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
@@ -318,40 +312,27 @@ type ChatPageInputProps = {
 	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
-	onInterrupt: () => void;
-	isInputDisabled: boolean;
-	isReadOnly: boolean;
-	isSendPending: boolean;
-	isInterruptPending: boolean;
-	hasModelOptions: boolean;
-	selectedModel: string;
-	onModelChange: (modelID: string) => void;
-	modelOptions: readonly ModelSelectorOption[];
-	modelSelectorPlaceholder: string;
+	model: React.ComponentProps<typeof ChatComposer>["model"];
+	setup: React.ComponentProps<typeof ChatComposer>["setup"];
 	modelSelectorHelp?: React.ReactNode;
-	reasoningEffort?: string;
-	onReasoningEffortChange: (value: string) => void;
-	canConfigureAgentSetup: boolean;
-	providerCount?: number;
-	modelCount?: number;
-	unsupportedProviderNames: readonly string[];
-	aiGatewayDisabled?: boolean;
 	onPlanModeToggle: (enabled: boolean) => void;
 	onManageAutomationsToggle?: (enabled: boolean) => void;
-	isModelCatalogLoading: boolean;
-	// Imperative editor handle plus the one-time initial draft,
-	// owned by the conversation component.
-	inputRef: React.RefObject<ChatMessageInputRef | null>;
-	initialValue: string;
-	initialEditorState?: string;
-	remountKey: number;
-	onContentChange: (
-		content: string,
-		serializedEditorState: string,
-		hasFileReferences: boolean,
-	) => void;
-	isEditing: boolean;
-	onCancelHistoryEdit: () => void;
+	bindings: Pick<
+		React.ComponentProps<typeof ChatComposer>["bindings"],
+		| "inputRef"
+		| "initialValue"
+		| "initialEditorState"
+		| "remountKey"
+		| "onContentChange"
+		| "isDisabled"
+		| "isReadOnly"
+		| "isLoading"
+		| "isInterruptPending"
+		| "hasModelOptions"
+		| "isEditingHistoryMessage"
+		| "onCancelHistoryEdit"
+		| "onInterrupt"
+	>;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks: readonly TypesGen.ChatMessagePart[];
@@ -362,11 +343,9 @@ type ChatPageInputProps = {
 	onMCPAuthComplete: (serverId: string) => void;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
-	workspace?: TypesGen.Workspace;
-	workspaceAgent?: TypesGen.WorkspaceAgent;
-	sshCommand?: string;
-	attachedWorkspace?: AttachedWorkspaceInfo;
-	folder?: string;
+	linkedWorkspace?: React.ComponentProps<
+		typeof ChatComposer
+	>["tools"]["linkedWorkspace"];
 };
 
 export const ChatPageInput: React.FC<ChatPageInputProps> = ({
@@ -376,34 +355,12 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
-	onInterrupt,
-	isInputDisabled,
-	isReadOnly,
-	isSendPending,
-	isInterruptPending,
-	hasModelOptions,
-	selectedModel,
-	onModelChange,
-	modelOptions,
-	modelSelectorPlaceholder,
+	model,
+	setup,
+	bindings,
 	modelSelectorHelp,
-	reasoningEffort,
-	onReasoningEffortChange,
-	canConfigureAgentSetup,
-	providerCount,
-	modelCount,
-	unsupportedProviderNames,
-	aiGatewayDisabled,
 	onPlanModeToggle,
 	onManageAutomationsToggle,
-	isModelCatalogLoading,
-	inputRef,
-	initialValue,
-	initialEditorState,
-	remountKey,
-	onContentChange,
-	isEditing,
-	onCancelHistoryEdit,
 	editingFileBlocks,
 	mcpServers,
 	selectedMCPServerIds,
@@ -411,12 +368,18 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	onMCPAuthComplete,
 	onWorkspaceChange,
 	isWorkspaceLoading,
-	workspace,
-	workspaceAgent,
-	sshCommand,
-	attachedWorkspace,
-	folder,
+	linkedWorkspace,
 }) => {
+	const { selectedModel, modelOptions } = model;
+	const {
+		isEditingHistoryMessage: isEditing = false,
+		isLoading: isSendPending,
+	} = bindings;
+	const {
+		workspace,
+		agent: workspaceAgent,
+		attachedWorkspace,
+	} = linkedWorkspace ?? {};
 	const { user: currentUser } = useAuthenticated();
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
@@ -745,6 +708,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const inputElement = (
 		<ChatComposer
 			bindings={{
+				...bindings,
 				onSend: async (message) => {
 					const hasActiveUploads =
 						attachments.some((file) =>
@@ -837,21 +801,10 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						: undefined,
 					onRemove: handleRemoveWorkspaceUpload,
 				},
-				inputRef,
-				initialValue,
-				initialEditorState,
-				remountKey,
-				onContentChange,
-				isEditingHistoryMessage: isEditing,
-				onCancelHistoryEdit,
 				userPromptHistory,
-				isDisabled: isInputDisabled,
-				isReadOnly,
-				isLoading: isSendPending,
 				isStreaming,
-				onInterrupt,
-				isInterruptPending: isInterruptPending || chatStatus === "interrupting",
-				hasModelOptions,
+				isInterruptPending:
+					bindings.isInterruptPending || chatStatus === "interrupting",
 			}}
 			queue={{
 				messages: queuedMessages,
@@ -864,15 +817,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 				onRefreshContext: handleRefreshContext,
 				isRefreshingContext: refreshContextMutation.isPending,
 			}}
-			model={{
-				selectedModel,
-				onModelChange,
-				modelOptions,
-				modelSelectorPlaceholder,
-				reasoningEffort,
-				onReasoningEffortChange,
-				isModelCatalogLoading,
-			}}
+			model={model}
 			tools={{
 				organizationId,
 				planning: { enabled: planModeEnabled, onChange: onPlanModeToggle },
@@ -894,22 +839,9 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 					onSelectionChange: onMCPSelectionChange,
 					onAuthComplete: onMCPAuthComplete,
 				},
-				linkedWorkspace: {
-					workspace,
-					agent: workspaceAgent,
-					chatId,
-					sshCommand,
-					attachedWorkspace,
-					folder,
-				},
+				linkedWorkspace: { ...linkedWorkspace, chatId },
 			}}
-			setup={{
-				canConfigureAgentSetup,
-				providerCount,
-				modelCount,
-				unsupportedProviderNames,
-				aiGatewayDisabled,
-			}}
+			setup={setup}
 			editor={{
 				workspaceSkills,
 				hasWorkspace: Boolean(attachedWorkspace?.id ?? workspace?.id),

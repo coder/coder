@@ -1,4 +1,3 @@
-export type { AttachedWorkspaceInfo } from "./AgentComposerBadges";
 export {
 	ImageThumbnail,
 	isUploadInProgress,

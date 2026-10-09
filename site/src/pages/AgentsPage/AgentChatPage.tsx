@@ -848,29 +848,28 @@ const AgentChatPage: React.FC = () => {
 							onSend={editing.handleSendFromInput}
 							onDeleteQueuedMessage={handleDeleteQueuedMessage}
 							onPromoteQueuedMessage={handlePromoteQueuedMessage}
-							onInterrupt={handleInterrupt}
-							isInputDisabled={isInputDisabled}
-							isReadOnly={!chat.archived && currentUser.id !== chat.owner_id}
-							isSendPending={isSubmissionPending}
-							isInterruptPending={isInterruptPending}
-							hasModelOptions={hasModelOptions}
-							canConfigureAgentSetup={permissions.editDeploymentConfig}
-							providerCount={providerCount}
-							modelCount={modelCount}
-							unsupportedProviderNames={unsupportedProviderNames}
-							aiGatewayDisabled={aiGatewayDisabled}
-							selectedModel={effectiveSelectedModel}
-							onModelChange={setSelectedModel}
-							modelOptions={modelOptions}
-							modelSelectorPlaceholder={modelSelectorPlaceholder}
-							modelSelectorHelp={modelSelectorHelp}
-							reasoningEffort={effectiveReasoningEffort}
-							onReasoningEffortChange={(value) => {
-								setSelectedReasoningEffort(value);
-								if (editing.editingMessageId !== null) {
-									isEditReasoningEffortDirtyRef.current = true;
-								}
+							setup={{
+								canConfigureAgentSetup: permissions.editDeploymentConfig,
+								providerCount,
+								modelCount,
+								unsupportedProviderNames,
+								aiGatewayDisabled,
 							}}
+							model={{
+								selectedModel: effectiveSelectedModel,
+								onModelChange: setSelectedModel,
+								modelOptions,
+								modelSelectorPlaceholder,
+								reasoningEffort: effectiveReasoningEffort,
+								onReasoningEffortChange: (value) => {
+									setSelectedReasoningEffort(value);
+									if (editing.editingMessageId !== null) {
+										isEditReasoningEffortDirtyRef.current = true;
+									}
+								},
+								isModelCatalogLoading: isModelDataPending,
+							}}
+							modelSelectorHelp={modelSelectorHelp}
 							onPlanModeToggle={handlePlanModeToggle}
 							onManageAutomationsToggle={
 								canToggleManageAutomations({
@@ -885,28 +884,37 @@ const AgentChatPage: React.FC = () => {
 											})
 									: undefined
 							}
-							isModelCatalogLoading={isModelDataPending}
 							onWorkspaceChange={
 								canUpdateChatWorkspace ? handleWorkspaceChange : undefined
 							}
 							isWorkspaceLoading={isUpdateChatWorkspacePending}
-							inputRef={editing.chatInputRef}
-							initialValue={editing.editorInitialValue}
-							initialEditorState={editing.initialEditorState}
-							remountKey={editing.remountKey}
-							onContentChange={editing.handleContentChange}
-							isEditing={editing.editingMessageId !== null}
-							onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+							bindings={{
+								inputRef: editing.chatInputRef,
+								initialValue: editing.editorInitialValue,
+								initialEditorState: editing.initialEditorState,
+								remountKey: editing.remountKey,
+								onContentChange: editing.handleContentChange,
+								isEditingHistoryMessage: editing.editingMessageId !== null,
+								onCancelHistoryEdit: editing.handleCancelHistoryEdit,
+								onInterrupt: handleInterrupt,
+								isDisabled: isInputDisabled,
+								isReadOnly: !chat.archived && currentUser.id !== chat.owner_id,
+								isLoading: isSubmissionPending,
+								isInterruptPending,
+								hasModelOptions,
+							}}
 							editingFileBlocks={editing.editingFileBlocks}
 							mcpServers={mcpServers}
 							selectedMCPServerIds={effectiveMCPServerIds}
 							onMCPSelectionChange={handleMCPSelectionChange}
 							onMCPAuthComplete={handleMCPAuthComplete}
-							workspace={workspace}
-							workspaceAgent={workspaceAgent}
-							sshCommand={sshCommand}
-							attachedWorkspace={attachedWorkspace}
-							folder={preferredFolder}
+							linkedWorkspace={{
+								workspace,
+								agent: workspaceAgent,
+								sshCommand,
+								attachedWorkspace,
+								folder: preferredFolder,
+							}}
 						/>
 					}
 					canSubmitChatTurn={!isInputDisabled && !isSubmissionPending}

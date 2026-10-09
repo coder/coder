@@ -19,7 +19,7 @@ import {
 } from "./AgentComposer";
 import { AgentComposerOptions } from "./AgentComposerOptions";
 
-const modelOptions = MockPersonalModelOptions.map((model) => ({ ...model }));
+const modelOptions = MockPersonalModelOptions;
 const workspace = { ...MockWorkspace, name: "my-workspace" };
 
 const modelProps = {
@@ -88,12 +88,11 @@ const composerContext: ComposerContextValue = {
 };
 
 const Options = (
-	props: Omit<
-		React.ComponentProps<typeof AgentComposerOptions.Provider>,
-		"children"
+	props: Partial<
+		Omit<React.ComponentProps<typeof AgentComposerOptions.Provider>, "children">
 	>,
 ) => (
-	<AgentComposerOptions.Provider {...props}>
+	<AgentComposerOptions.Provider {...optionsProps} {...props}>
 		<AgentComposerOptions.Frame>
 			<AgentComposerOptions.Menu />
 			<AgentComposerOptions.Model {...modelProps} />
@@ -137,7 +136,6 @@ describe("AgentComposerOptions", () => {
 			const onManageAutomationsToggle = vi.fn();
 			renderOptions(
 				<Options
-					{...optionsProps}
 					planning={{ enabled: false, onChange: onPlanModeToggle }}
 					automations={{
 						enabled: automationsEnabled,
@@ -185,7 +183,6 @@ describe("AgentComposerOptions", () => {
 			const onWorkspaceChange = vi.fn();
 			renderOptions(
 				<Options
-					{...optionsProps}
 					organizationId={workspace.organization_id}
 					workspaceSelection={{
 						options: workspaceOptions,
@@ -236,7 +233,6 @@ describe("AgentComposerOptions", () => {
 				>
 					<AgentComposer.Frame>
 						<Options
-							{...optionsProps}
 							mcp={{
 								servers: [server],
 								selectedServerIds: [],
@@ -372,7 +368,6 @@ describe("AgentComposerOptions", () => {
 		vi.spyOn(window, "close").mockImplementation(() => {});
 		renderOptions(
 			<Options
-				{...optionsProps}
 				organizationId="org-1"
 				mcp={{
 					servers: [server],

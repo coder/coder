@@ -2,12 +2,11 @@ import { LockIcon, ServerIcon, UnlinkIcon } from "lucide-react";
 import type { MCPServerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { Separator } from "#/components/Separator/Separator";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 
-type MCPMenuProps = {
-	servers: readonly MCPServerConfig[];
+type MCPServerMenuItemProps = {
+	server: MCPServerConfig;
 	selectedServerIds: readonly string[];
 	connectingServerId: string | null;
 	isDisabled: boolean;
@@ -16,23 +15,8 @@ type MCPMenuProps = {
 	onToggle: (id: string, checked: boolean) => void;
 };
 
-/** MCP authentication actions and controlled server selection. */
-export const AgentComposerMCPMenu = ({ servers, ...props }: MCPMenuProps) => {
-	if (servers.length === 0) {
-		return null;
-	}
-
-	return (
-		<>
-			<Separator className="my-1" />
-			{servers.map((server) => (
-				<MCPServerMenuItem key={server.id} server={server} {...props} />
-			))}
-		</>
-	);
-};
-
-const MCPServerMenuItem = ({
+/** MCP authentication actions and controlled selection for one server. */
+export const MCPServerMenuItem = ({
 	server,
 	selectedServerIds,
 	connectingServerId,
@@ -40,7 +24,7 @@ const MCPServerMenuItem = ({
 	onConnect,
 	onDisconnect,
 	onToggle,
-}: Omit<MCPMenuProps, "servers"> & { server: MCPServerConfig }) => {
+}: MCPServerMenuItemProps) => {
 	const isForceOn = server.availability === "force_on";
 	const isSelected = isForceOn || selectedServerIds.includes(server.id);
 

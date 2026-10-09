@@ -11,7 +11,6 @@ import {
 	AgentComposerPlanningBadge,
 	composerPillSizingClasses,
 	type ToolBadgeData,
-	type WorkspacePillBadge,
 } from "./AgentComposerBadges";
 import {
 	type AgentComposerOptionsData,
@@ -58,12 +57,12 @@ const AgentComposerOptionsProvider = ({
 	);
 	const selectedWorkspace = options?.find((item) => item.id === selectedId);
 	const linkedWorkspaceId = workspace?.id ?? attachedWorkspace?.id;
-	let workspacePill: WorkspacePillBadge | undefined;
+
+	// Ordering controls which trailing badges move into the overflow menu.
+	const badges: ToolBadgeData[] = [];
 	if (workspace && agent && chatId) {
-		workspacePill = {
-			badge: attachedWorkspace
-				? { kind: "attached-workspace", ...attachedWorkspace }
-				: { kind: "workspace", name: workspace.name },
+		badges.push({
+			kind: "linked-workspace",
 			props: {
 				workspace,
 				agent,
@@ -71,13 +70,7 @@ const AgentComposerOptionsProvider = ({
 				sshCommand: linkedWorkspace?.sshCommand,
 				folder: linkedWorkspace?.folder,
 			},
-		};
-	}
-
-	// Ordering controls which trailing badges move into the overflow menu.
-	const badges: ToolBadgeData[] = [];
-	if (workspacePill) {
-		badges.push(workspacePill.badge);
+		});
 	} else if (attachedWorkspace) {
 		badges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
@@ -109,7 +102,7 @@ const AgentComposerOptionsProvider = ({
 					removeWorkspace: onChange ? () => onChange(null) : undefined,
 					disablePlanMode: () => planning.onChange(false),
 				},
-				meta: { badges, workspacePill },
+				meta: { badges },
 			}}
 		>
 			{children}
@@ -185,7 +178,6 @@ const AgentComposerOptionsBadges = ({
 	return (
 		<AgentComposerBadges
 			badges={[...leadingBadges, ...meta.badges]}
-			workspacePill={meta.workspacePill}
 			onRemoveWorkspace={actions.removeWorkspace}
 			onRemoveMcp={(id) => actions.toggleMcp(id, false)}
 			onRemovePlanning={actions.disablePlanMode}
