@@ -165,6 +165,12 @@ const (
 	APIKeyScopeOrganizationMemberDelete            APIKeyScope = "organization_member:delete"
 	APIKeyScopeOrganizationMemberRead              APIKeyScope = "organization_member:read"
 	APIKeyScopeOrganizationMemberUpdate            APIKeyScope = "organization_member:update"
+	APIKeyScopeOrganizationSkillAll                APIKeyScope = "organization_skill:*"
+	APIKeyScopeOrganizationSkillCreate             APIKeyScope = "organization_skill:create"
+	APIKeyScopeOrganizationSkillDelete             APIKeyScope = "organization_skill:delete"
+	APIKeyScopeOrganizationSkillRead               APIKeyScope = "organization_skill:read"
+	APIKeyScopeOrganizationSkillShare              APIKeyScope = "organization_skill:share"
+	APIKeyScopeOrganizationSkillUpdate             APIKeyScope = "organization_skill:update"
 	APIKeyScopePrebuiltWorkspaceAll                APIKeyScope = "prebuilt_workspace:*"
 	APIKeyScopePrebuiltWorkspaceDelete             APIKeyScope = "prebuilt_workspace:delete"
 	APIKeyScopePrebuiltWorkspaceUpdate             APIKeyScope = "prebuilt_workspace:update"
@@ -292,6 +298,12 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeOrganizationDelete,
 	APIKeyScopeOrganizationRead,
 	APIKeyScopeOrganizationUpdate,
+	APIKeyScopeOrganizationSkillAll,
+	APIKeyScopeOrganizationSkillCreate,
+	APIKeyScopeOrganizationSkillDelete,
+	APIKeyScopeOrganizationSkillRead,
+	APIKeyScopeOrganizationSkillShare,
+	APIKeyScopeOrganizationSkillUpdate,
 	APIKeyScopeTemplateAll,
 	APIKeyScopeTemplateCreate,
 	APIKeyScopeTemplateDelete,

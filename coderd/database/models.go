@@ -544,6 +544,12 @@ const (
 	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
 	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
+	ApiKeyScopeOrganizationSkill                   APIKeyScope = "organization_skill:*"
+	ApiKeyScopeOrganizationSkillCreate             APIKeyScope = "organization_skill:create"
+	ApiKeyScopeOrganizationSkillRead               APIKeyScope = "organization_skill:read"
+	ApiKeyScopeOrganizationSkillUpdate             APIKeyScope = "organization_skill:update"
+	ApiKeyScopeOrganizationSkillDelete             APIKeyScope = "organization_skill:delete"
+	ApiKeyScopeOrganizationSkillShare              APIKeyScope = "organization_skill:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -839,7 +845,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
-		ApiKeyScopeChatProjectMemoryDelete:
+		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeOrganizationSkill,
+		ApiKeyScopeOrganizationSkillCreate,
+		ApiKeyScopeOrganizationSkillRead,
+		ApiKeyScopeOrganizationSkillUpdate,
+		ApiKeyScopeOrganizationSkillDelete,
+		ApiKeyScopeOrganizationSkillShare:
 		return true
 	}
 	return false
@@ -1104,6 +1116,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
 		ApiKeyScopeChatProjectMemoryDelete,
+		ApiKeyScopeOrganizationSkill,
+		ApiKeyScopeOrganizationSkillCreate,
+		ApiKeyScopeOrganizationSkillRead,
+		ApiKeyScopeOrganizationSkillUpdate,
+		ApiKeyScopeOrganizationSkillDelete,
+		ApiKeyScopeOrganizationSkillShare,
 	}
 }
 
@@ -4008,6 +4026,7 @@ const (
 	ResourceTypeChatAutomation               ResourceType = "chat_automation"
 	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
 	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
+	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -4091,7 +4110,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatProject,
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
-		ResourceTypeChatOrganizationSystemPrompt:
+		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeOrganizationSkill:
 		return true
 	}
 	return false
@@ -4144,6 +4164,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
 		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeOrganizationSkill,
 	}
 }
 
