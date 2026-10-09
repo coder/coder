@@ -341,3 +341,57 @@ func TestServer_X11_EvictionLRU(t *testing.T) {
 	require.NoError(t, err)
 	_ = testutil.TryReceive(ctx, t, done)
 }
+
+func TestServer_X11_Blocked(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("X11 forwarding is only supported on Linux")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+	fs := afero.NewMemMapFs()
+
+	// Use in-process networking for X11 forwarding.
+	inproc := testutil.NewInProcNet()
+
+	// 1. THE CONFIGURATION: Turn our master switch ON
+	cfg := &agentssh.Config{
+		X11Net:             inproc,
+		BlockX11Forwarding: true, // This is the field we added!
+	}
+
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), fs, agentexec.DefaultExecer, cfg)
+	require.NoError(t, err)
+	defer s.Close()
+	err = s.UpdateHostSigner(42)
+	assert.NoError(t, err)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = s.Serve(ln)
+	}()
+
+	// 2. THE ATTACK: An SSH client tries to request X11
+	c := sshClient(t, ln.Addr().String())
+	sess, err := c.NewSession()
+	require.NoError(t, err)
+	defer sess.Close()
+
+	reply, err := sess.SendRequest("x11-req", true, gossh.Marshal(ssh.X11{
+		AuthProtocol: "MIT-MAGIC-COOKIE-1",
+		AuthCookie:   "fake-cookie",
+		ScreenNumber: 0,
+	}))
+
+	// 3. THE VERIFICATION: The connection survives, but the Bouncer rejects the request
+	require.NoError(t, err)
+	assert.False(t, reply, "x11-req should be denied when BlockX11Forwarding is true")
+
+	_ = s.Close()
+	<-done
+}

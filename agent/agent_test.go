@@ -39,6 +39,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
+	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -1422,6 +1423,47 @@ func TestAgent_ReverseBlockedDoesNotAffectLocal(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.Close()
 	requireEcho(t, conn)
+}
+
+func TestAgent_X11ForwardingBlocked(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// 1. Setup agent with our new master switch turned ON
+	//nolint:dogsled
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.BlockX11Forwarding = true
+	})
+
+	sshClient, err := agentConn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	// 2. Open an SSH session
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	defer session.Close()
+
+	// 3. Send the X11 request payload
+	// The SSH protocol expects this exact data format when asking for X11.
+	payload := gossh.Marshal(struct {
+		SingleConnection bool
+		AuthProtocol     string
+		AuthCookie       string
+		ScreenNumber     uint32
+	}{
+		SingleConnection: false,
+		AuthProtocol:     "MIT-MAGIC-COOKIE-1",
+		AuthCookie:       "fake-cookie",
+		ScreenNumber:     0,
+	})
+
+	// 4. Send the request and ask for a reply (wantReply = true)
+	ok, err := session.SendRequest("x11-req", true, payload)
+
+	// 5. Verify the Bouncer kicked us out
+	require.NoError(t, err) // The network connection itself shouldn't crash
+	require.False(t, ok, "x11-req should be denied by the server")
 }
 
 func TestAgent_UnixLocalForwarding(t *testing.T) {
