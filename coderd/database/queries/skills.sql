@@ -6,13 +6,13 @@ RETURNING *;
 -- name: GetUserSkillByUserIDAndName :one
 SELECT *
 FROM skills
-WHERE user_id = @user_id AND name = @name;
+WHERE user_id = @user_id::uuid AND name = @name;
 
 -- name: ListUserSkillMetadataByUserID :many
 SELECT
     id, user_id, name, description, created_at, updated_at
 FROM skills
-WHERE user_id = @user_id
+WHERE user_id = @user_id::uuid
 ORDER BY name ASC;
 
 -- name: UpdateUserSkillByUserIDAndName :one
@@ -21,10 +21,10 @@ SET
     description = @description,
     content     = @content,
     updated_at  = now()
-WHERE user_id = @user_id AND name = @name
+WHERE user_id = @user_id::uuid AND name = @name
 RETURNING *;
 
 -- name: DeleteUserSkillByUserIDAndName :one
 DELETE FROM skills
-WHERE user_id = @user_id AND name = @name
+WHERE user_id = @user_id::uuid AND name = @name
 RETURNING *;

@@ -1102,27 +1102,40 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION enforce_skills_per_user_limit() RETURNS trigger
+CREATE FUNCTION enforce_skills_per_owner_limit() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
     skill_count int;
     skill_limit constant int := 100;
 BEGIN
-    -- Serialize skill-cap checks per user so concurrent inserts cannot all
-    -- observe the same pre-insert count and exceed the hard limit.
-    PERFORM 1
-    FROM users
-    WHERE id = NEW.user_id
-    FOR UPDATE;
-
-    SELECT count(*) INTO skill_count
-    FROM skills
-    WHERE user_id = NEW.user_id;
-    IF skill_count >= skill_limit THEN
-        RAISE EXCEPTION 'user has reached the personal skill limit'
-            USING ERRCODE = 'check_violation',
-                  CONSTRAINT = 'skills_per_user_limit';
+    -- Serialize skill-cap checks per owner so concurrent inserts cannot all
+    -- observe the same pre-insert count and exceed the hard limit. FOR NO KEY
+    -- UPDATE does not block the KEY SHARE locks of unrelated foreign keys.
+    IF NEW.user_id IS NOT NULL THEN
+        PERFORM 1 FROM users WHERE id = NEW.user_id FOR NO KEY UPDATE;
+        SELECT count(*) INTO skill_count FROM skills WHERE user_id = NEW.user_id;
+        IF skill_count >= skill_limit THEN
+            RAISE EXCEPTION 'user has reached the personal skill limit'
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'skills_per_user_limit';
+        END IF;
+    ELSIF NEW.organization_id IS NOT NULL THEN
+        PERFORM 1 FROM organizations WHERE id = NEW.organization_id FOR NO KEY UPDATE;
+        SELECT count(*) INTO skill_count FROM skills WHERE organization_id = NEW.organization_id;
+        IF skill_count >= skill_limit THEN
+            RAISE EXCEPTION 'organization has reached the skill limit'
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'skills_per_organization_limit';
+        END IF;
+    ELSIF NEW.project_id IS NOT NULL THEN
+        PERFORM 1 FROM chat_projects WHERE id = NEW.project_id FOR NO KEY UPDATE;
+        SELECT count(*) INTO skill_count FROM skills WHERE project_id = NEW.project_id;
+        IF skill_count >= skill_limit THEN
+            RAISE EXCEPTION 'project has reached the skill limit'
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'skills_per_project_limit';
+        END IF;
     END IF;
     RETURN NEW;
 END;
@@ -3255,16 +3268,25 @@ CREATE TABLE site_configs (
 
 CREATE TABLE skills (
     id uuid NOT NULL,
-    user_id uuid NOT NULL,
+    user_id uuid,
     name text NOT NULL,
     description text DEFAULT ''::text NOT NULL,
     content text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    organization_id uuid,
+    project_id uuid,
+    enabled boolean DEFAULT true NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT skills_acl_only_on_organization_skills CHECK (((organization_id IS NOT NULL) OR ((group_acl = '{}'::jsonb) AND (user_acl = '{}'::jsonb)))),
     CONSTRAINT skills_content_size CHECK ((octet_length(content) <= 65536)),
     CONSTRAINT skills_description_size CHECK ((octet_length(description) <= 4096)),
+    CONSTRAINT skills_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT skills_name_format CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text)),
-    CONSTRAINT skills_name_size CHECK ((octet_length(name) <= 256))
+    CONSTRAINT skills_name_size CHECK ((octet_length(name) <= 256)),
+    CONSTRAINT skills_single_owner CHECK ((num_nonnulls(user_id, organization_id, project_id) = 1)),
+    CONSTRAINT skills_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 CREATE UNLOGGED TABLE tailnet_coordinators (
@@ -5202,6 +5224,10 @@ COMMENT ON INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx IS 
 
 CREATE UNIQUE INDEX provisioner_keys_organization_id_name_idx ON provisioner_keys USING btree (organization_id, lower((name)::text));
 
+CREATE UNIQUE INDEX skills_organization_id_name_idx ON skills USING btree (organization_id, name) WHERE (organization_id IS NOT NULL);
+
+CREATE UNIQUE INDEX skills_project_id_name_idx ON skills USING btree (project_id, name) WHERE (project_id IS NOT NULL);
+
 CREATE UNIQUE INDEX skills_user_id_name_idx ON skills USING btree (user_id, name);
 
 CREATE INDEX template_usage_stats_start_time_idx ON template_usage_stats USING btree (start_time DESC);
@@ -5362,7 +5388,7 @@ CREATE TRIGGER trigger_set_chat_message_revision_on_insert BEFORE INSERT ON chat
 
 CREATE TRIGGER trigger_set_chat_message_revision_on_update BEFORE UPDATE ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
 
-CREATE TRIGGER trigger_skills_per_user_limit BEFORE INSERT ON skills FOR EACH ROW EXECUTE FUNCTION enforce_skills_per_user_limit();
+CREATE TRIGGER trigger_skills_per_owner_limit BEFORE INSERT ON skills FOR EACH ROW EXECUTE FUNCTION enforce_skills_per_owner_limit();
 
 CREATE TRIGGER trigger_sync_chat_retry_state BEFORE UPDATE OF retry_state, retry_state_version, generation_attempt ON chats FOR EACH ROW EXECUTE FUNCTION sync_chat_retry_state();
 
@@ -5372,7 +5398,7 @@ CREATE TRIGGER trigger_update_chat_history_after_message_update AFTER UPDATE ON 
 
 CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_resources();
 
-CREATE TRIGGER trigger_upsert_skills BEFORE INSERT OR UPDATE ON skills FOR EACH ROW EXECUTE FUNCTION insert_user_skill_fail_if_user_deleted();
+CREATE TRIGGER trigger_upsert_skills BEFORE INSERT OR UPDATE ON skills FOR EACH ROW WHEN ((new.user_id IS NOT NULL)) EXECUTE FUNCTION insert_user_skill_fail_if_user_deleted();
 
 CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links FOR EACH ROW EXECUTE FUNCTION insert_user_links_fail_if_user_deleted();
 
@@ -5689,6 +5715,12 @@ ALTER TABLE ONLY provisioner_jobs
 
 ALTER TABLE ONLY provisioner_keys
     ADD CONSTRAINT provisioner_keys_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY skills
+    ADD CONSTRAINT skills_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY skills
+    ADD CONSTRAINT skills_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY skills
     ADD CONSTRAINT skills_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

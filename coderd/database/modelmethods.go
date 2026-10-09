@@ -949,7 +949,12 @@ func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
 }
 
 func (s Skill) RBACObject() rbac.Object {
-	return rbac.ResourceUserSkill.WithID(s.ID).WithOwner(s.UserID.String())
+	if s.UserID.Valid {
+		return rbac.ResourceUserSkill.WithID(s.ID).WithOwner(s.UserID.UUID.String())
+	}
+	// No role grants the empty resource type, so rows without an RBAC
+	// resource stay unauthorizable for every user, including site owners.
+	return rbac.Object{ID: s.ID.String()}
 }
 
 func (s UserSecret) RBACObject() rbac.Object {

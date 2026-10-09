@@ -6365,13 +6365,18 @@ type SiteConfig struct {
 }
 
 type Skill struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Content     string    `db:"content" json:"content"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	ID             uuid.UUID     `db:"id" json:"id"`
+	UserID         uuid.NullUUID `db:"user_id" json:"user_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Content        string        `db:"content" json:"content"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
+	Enabled        bool          `db:"enabled" json:"enabled"`
+	GroupACL       ChatACL       `db:"group_acl" json:"group_acl"`
+	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
 }
 
 // We keep this separate from replicas in case we need to break the coordinator out into its own service

@@ -678,9 +678,14 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>content</code></td><td>Yes</td></tr>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>enabled</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>Yes</td></tr>
+<tr><td><code>project_id</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
 <tr><td><code>user_id</code></td><td>Yes</td></tr>
 </tbody>
 </table>

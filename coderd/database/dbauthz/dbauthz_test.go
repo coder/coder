@@ -7020,7 +7020,7 @@ func (s *MethodTestSuite) TestUserSecrets() {
 func (s *MethodTestSuite) TestUserSkills() {
 	s.Run("GetUserSkillByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
-		skill := testutil.Fake(s.T(), faker, database.Skill{UserID: user.ID})
+		skill := testutil.Fake(s.T(), faker, database.Skill{UserID: uuid.NullUUID{UUID: user.ID, Valid: true}})
 		arg := database.GetUserSkillByUserIDAndNameParams{UserID: user.ID, Name: skill.Name}
 		dbm.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), arg).Return(skill, nil).AnyTimes()
 		check.Args(arg).
@@ -7029,7 +7029,7 @@ func (s *MethodTestSuite) TestUserSkills() {
 	}))
 	s.Run("ListUserSkillMetadataByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
-		row := testutil.Fake(s.T(), faker, database.ListUserSkillMetadataByUserIDRow{UserID: user.ID})
+		row := testutil.Fake(s.T(), faker, database.ListUserSkillMetadataByUserIDRow{UserID: uuid.NullUUID{UUID: user.ID, Valid: true}})
 		dbm.EXPECT().ListUserSkillMetadataByUserID(gomock.Any(), user.ID).Return([]database.ListUserSkillMetadataByUserIDRow{row}, nil).AnyTimes()
 		check.Args(user.ID).
 			Asserts(rbac.ResourceUserSkill.WithOwner(user.ID.String()), policy.ActionRead).
@@ -7044,7 +7044,7 @@ func (s *MethodTestSuite) TestUserSkills() {
 		}
 		ret := testutil.Fake(s.T(), faker, database.Skill{
 			ID:     arg.ID,
-			UserID: user.ID,
+			UserID: uuid.NullUUID{UUID: user.ID, Valid: true},
 			Name:   arg.Name,
 		})
 		dbm.EXPECT().InsertUserSkill(gomock.Any(), arg).Return(ret, nil).AnyTimes()
@@ -7055,7 +7055,7 @@ func (s *MethodTestSuite) TestUserSkills() {
 	s.Run("UpdateUserSkillByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.UpdateUserSkillByUserIDAndNameParams{UserID: user.ID, Name: "test"}
-		updated := testutil.Fake(s.T(), faker, database.Skill{UserID: user.ID, Name: arg.Name})
+		updated := testutil.Fake(s.T(), faker, database.Skill{UserID: uuid.NullUUID{UUID: user.ID, Valid: true}, Name: arg.Name})
 		dbm.EXPECT().UpdateUserSkillByUserIDAndName(gomock.Any(), arg).Return(updated, nil).AnyTimes()
 		check.Args(arg).
 			Asserts(rbac.ResourceUserSkill.WithOwner(user.ID.String()), policy.ActionUpdate).
@@ -7064,7 +7064,7 @@ func (s *MethodTestSuite) TestUserSkills() {
 	s.Run("DeleteUserSkillByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.DeleteUserSkillByUserIDAndNameParams{UserID: user.ID, Name: "test"}
-		deleted := testutil.Fake(s.T(), faker, database.Skill{UserID: user.ID, Name: arg.Name})
+		deleted := testutil.Fake(s.T(), faker, database.Skill{UserID: uuid.NullUUID{UUID: user.ID, Valid: true}, Name: arg.Name})
 		dbm.EXPECT().DeleteUserSkillByUserIDAndName(gomock.Any(), arg).Return(deleted, nil).AnyTimes()
 		check.Args(arg).
 			Asserts(rbac.ResourceUserSkill.WithOwner(user.ID.String()), policy.ActionDelete).

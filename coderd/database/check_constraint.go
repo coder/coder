@@ -69,10 +69,14 @@ const (
 	CheckOauth2ProviderAppsClientTypeCheck                   CheckConstraint = "oauth2_provider_apps_client_type_check"                    // oauth2_provider_apps
 	CheckMaxProvisionerLogsLength                            CheckConstraint = "max_provisioner_logs_length"                               // provisioner_jobs
 	CheckNatsPortValidTcp                                    CheckConstraint = "nats_port_valid_tcp"                                       // replicas
+	CheckSkillsAclOnlyOnOrganizationSkills                   CheckConstraint = "skills_acl_only_on_organization_skills"                    // skills
 	CheckSkillsContentSize                                   CheckConstraint = "skills_content_size"                                       // skills
 	CheckSkillsDescriptionSize                               CheckConstraint = "skills_description_size"                                   // skills
+	CheckSkillsGroupAclIsObject                              CheckConstraint = "skills_group_acl_is_object"                                // skills
 	CheckSkillsNameFormat                                    CheckConstraint = "skills_name_format"                                        // skills
 	CheckSkillsNameSize                                      CheckConstraint = "skills_name_size"                                          // skills
+	CheckSkillsSingleOwner                                   CheckConstraint = "skills_single_owner"                                       // skills
+	CheckSkillsUserAclIsObject                               CheckConstraint = "skills_user_acl_is_object"                                 // skills
 	CheckTelemetryLockEventTypeConstraint                    CheckConstraint = "telemetry_lock_event_type_constraint"                      // telemetry_locks
 	CheckValidationMonotonicOrder                            CheckConstraint = "validation_monotonic_order"                                // template_version_parameters
 	CheckUsageEventTypeCheck                                 CheckConstraint = "usage_event_type_check"                                    // usage_events

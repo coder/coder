@@ -521,7 +521,7 @@ func TestUserSkillSchemaConstants(t *testing.T) {
 	var triggerDef string
 	require.NoError(t, sqlDB.QueryRowContext(
 		ctx,
-		`SELECT pg_get_functiondef('enforce_skills_per_user_limit'::regproc)`,
+		`SELECT pg_get_functiondef('enforce_skills_per_owner_limit'::regproc)`,
 	).Scan(&triggerDef))
 	assert.Contains(t, triggerDef, fmt.Sprintf("skill_limit constant int := %d;", skills.MaxPersonalSkillsPerUser))
 

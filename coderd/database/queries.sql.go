@@ -29365,8 +29365,8 @@ func (q *sqlQuerier) UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpu
 
 const deleteUserSkillByUserIDAndName = `-- name: DeleteUserSkillByUserIDAndName :one
 DELETE FROM skills
-WHERE user_id = $1 AND name = $2
-RETURNING id, user_id, name, description, content, created_at, updated_at
+WHERE user_id = $1::uuid AND name = $2
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
 `
 
 type DeleteUserSkillByUserIDAndNameParams struct {
@@ -29385,14 +29385,19 @@ func (q *sqlQuerier) DeleteUserSkillByUserIDAndName(ctx context.Context, arg Del
 		&i.Content,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }
 
 const getUserSkillByUserIDAndName = `-- name: GetUserSkillByUserIDAndName :one
-SELECT id, user_id, name, description, content, created_at, updated_at
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
 FROM skills
-WHERE user_id = $1 AND name = $2
+WHERE user_id = $1::uuid AND name = $2
 `
 
 type GetUserSkillByUserIDAndNameParams struct {
@@ -29411,6 +29416,11 @@ func (q *sqlQuerier) GetUserSkillByUserIDAndName(ctx context.Context, arg GetUse
 		&i.Content,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }
@@ -29418,7 +29428,7 @@ func (q *sqlQuerier) GetUserSkillByUserIDAndName(ctx context.Context, arg GetUse
 const insertUserSkill = `-- name: InsertUserSkill :one
 INSERT INTO skills (id, user_id, name, description, content)
 VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text)
-RETURNING id, user_id, name, description, content, created_at, updated_at
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
 `
 
 type InsertUserSkillParams struct {
@@ -29446,6 +29456,11 @@ func (q *sqlQuerier) InsertUserSkill(ctx context.Context, arg InsertUserSkillPar
 		&i.Content,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }
@@ -29454,17 +29469,17 @@ const listUserSkillMetadataByUserID = `-- name: ListUserSkillMetadataByUserID :m
 SELECT
     id, user_id, name, description, created_at, updated_at
 FROM skills
-WHERE user_id = $1
+WHERE user_id = $1::uuid
 ORDER BY name ASC
 `
 
 type ListUserSkillMetadataByUserIDRow struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID     `db:"id" json:"id"`
+	UserID      uuid.NullUUID `db:"user_id" json:"user_id"`
+	Name        string        `db:"name" json:"name"`
+	Description string        `db:"description" json:"description"`
+	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) ListUserSkillMetadataByUserID(ctx context.Context, userID uuid.UUID) ([]ListUserSkillMetadataByUserIDRow, error) {
@@ -29503,8 +29518,8 @@ SET
     description = $1,
     content     = $2,
     updated_at  = now()
-WHERE user_id = $3 AND name = $4
-RETURNING id, user_id, name, description, content, created_at, updated_at
+WHERE user_id = $3::uuid AND name = $4
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
 `
 
 type UpdateUserSkillByUserIDAndNameParams struct {
@@ -29530,6 +29545,11 @@ func (q *sqlQuerier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg Upd
 		&i.Content,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }

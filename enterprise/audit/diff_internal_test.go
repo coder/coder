@@ -423,14 +423,14 @@ func Test_diff(t *testing.T) {
 			left: audit.Empty[database.Skill](),
 			right: database.Skill{
 				ID:          uuid.UUID{1},
-				UserID:      uuid.UUID{2},
+				UserID:      uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
 				Name:        "review-guidance",
 				Description: "How to review private projects",
 				Content:     "review markdown",
 			},
 			exp: audit.Map{
 				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
-				"user_id":     audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"user_id":     audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
 				"name":        audit.OldNew{Old: "", New: "review-guidance"},
 				"description": audit.OldNew{Old: "", New: "How to review private projects"},
 				"content":     audit.OldNew{Old: "", New: "review markdown"},
