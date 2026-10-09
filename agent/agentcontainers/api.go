@@ -968,6 +968,16 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 		}
 
 		if dc, ok := api.knownDevcontainers[workspaceFolder]; ok {
+			// Multiple containers can share a workspace folder label,
+			// e.g. a stale stopped container left beside a recreated
+			// one. Do not let a stopped container replace a running
+			// one. Otherwise the devcontainer is reported as stopped and
+			// no subagent is injected into the running container.
+			if dc.Container != nil && dc.Container.Running && !container.Running {
+				logger.Debug(ctx, "ignoring non-running container, devcontainer already has a running container", slog.F("running_container_id", dc.Container.ID))
+				continue
+			}
+
 			// If no config path is set, this devcontainer was defined
 			// in Terraform without the optional config file. Assume the
 			// first container with the workspace folder label is the
