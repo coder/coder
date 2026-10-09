@@ -2171,7 +2171,10 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		otherUser, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+		otherUser, _ := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, []rbac.RoleIdentifier{rbac.RoleOwner()}, func(r *codersdk.CreateUserRequestWithOrgs) {
+			// Mixed case to verify "me" matching is case-insensitive.
+			r.Username = "Other-User"
+		})
 		thirdUser, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -2226,6 +2229,18 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		})
 		require.NoError(t, err)
 		expectIDs(t, workspaces, res.Workspaces)
+
+		// "me" with a token that cannot read users
+		token, err := otherUser.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+			Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderWorkspacesAccess},
+		})
+		require.NoError(t, err)
+		scopedClient := codersdk.New(client.URL, codersdk.WithSessionToken(token.Key))
+		res, err = scopedClient.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Owner: codersdk.Me,
+		})
+		require.NoError(t, err)
+		expectIDs(t, []codersdk.Workspace{otherWorkspace}, res.Workspaces)
 	})
 	t.Run("IDs", func(t *testing.T) {
 		t.Parallel()

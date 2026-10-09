@@ -610,7 +610,7 @@ func TestSearchWorkspace(t *testing.T) {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.Statuses = values.Statuses
 				}
-				if len(c.Expected.OwnerUsernames) == len(values.OwnerUsernames) {
+				if len(c.Expected.OwnerUsernames) == 0 && len(values.OwnerUsernames) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.OwnerUsernames = values.OwnerUsernames
 				}

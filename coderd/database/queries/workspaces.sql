@@ -237,7 +237,7 @@ WHERE
 	-- Filter by owner_usernames
 	AND CASE
 		WHEN array_length(@owner_usernames :: text[], 1) > 0 THEN
-			workspaces.owner_id = ANY(SELECT id FROM users WHERE lower(users.username) = ANY(@owner_usernames :: text[]) AND deleted = false)
+			workspaces.owner_id = ANY(SELECT id FROM users WHERE lower(users.username) IN (SELECT lower(n) FROM unnest(@owner_usernames :: text[]) AS n) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_names (lowercase)
