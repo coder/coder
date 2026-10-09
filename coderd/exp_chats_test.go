@@ -210,6 +210,7 @@ type failNextChatSystemPromptStore struct {
 	armedGetChatSystemPromptConfigFailures       *atomic.Int64
 	getChatSystemPromptConfigCallsBeforeFailure  *atomic.Int64
 	failNextUpsertChatIncludeDefaultSystemPrompt *atomic.Bool
+	failNextGetChatOrganizationSystemPrompt      *atomic.Bool
 }
 
 func newFailNextChatSystemPromptStore(store database.Store) *failNextChatSystemPromptStore {
@@ -220,6 +221,7 @@ func newFailNextChatSystemPromptStore(store database.Store) *failNextChatSystemP
 		armedGetChatSystemPromptConfigFailures:       &atomic.Int64{},
 		getChatSystemPromptConfigCallsBeforeFailure:  &atomic.Int64{},
 		failNextUpsertChatIncludeDefaultSystemPrompt: &atomic.Bool{},
+		failNextGetChatOrganizationSystemPrompt:      &atomic.Bool{},
 	}
 }
 
@@ -231,8 +233,16 @@ func (s *failNextChatSystemPromptStore) InTx(function func(database.Store) error
 			armedGetChatSystemPromptConfigFailures:       s.armedGetChatSystemPromptConfigFailures,
 			getChatSystemPromptConfigCallsBeforeFailure:  s.getChatSystemPromptConfigCallsBeforeFailure,
 			failNextUpsertChatIncludeDefaultSystemPrompt: s.failNextUpsertChatIncludeDefaultSystemPrompt,
+			failNextGetChatOrganizationSystemPrompt:      s.failNextGetChatOrganizationSystemPrompt,
 		})
 	}, txOpts)
+}
+
+func (s *failNextChatSystemPromptStore) GetChatOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (database.ChatOrganizationSystemPrompt, error) {
+	if s.failNextGetChatOrganizationSystemPrompt.CompareAndSwap(true, false) {
+		return database.ChatOrganizationSystemPrompt{}, stderrors.New("forced organization system prompt read failure")
+	}
+	return s.Store.GetChatOrganizationSystemPrompt(ctx, organizationID)
 }
 
 func (s *failNextChatSystemPromptStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
@@ -14239,104 +14249,59 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		})
 	})
 
-	t.Run("CreateChatFallsBackToDefaultWhenSystemPromptConfigReadFailsWithIncludeDefaultEnabled", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
+	t.Run("CreateChatFailsWhenSystemPromptConfigReadFails", func(t *testing.T) {
+		t.Parallel()
 
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextChatSystemPromptStore(rawDB)
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
+		for _, tc := range []struct {
+			name string
+			fail func(*failNextChatSystemPromptStore)
+		}{
+			{
+				name: "Deployment",
+				fail: func(s *failNextChatSystemPromptStore) { s.failNextGetChatSystemPromptConfig.Store(true) },
+			},
+			{
+				name: "Organization",
+				fail: func(s *failNextChatSystemPromptStore) { s.failNextGetChatOrganizationSystemPrompt.Store(true) },
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
 
-		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt:               "Keep custom instructions",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
-		})
-		require.NoError(t, err)
+				rawDB, pubsub := dbtestutil.NewDB(t)
+				store := newFailNextChatSystemPromptStore(rawDB)
+				rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+					Database:         store,
+					Pubsub:           pubsub,
+					DeploymentValues: coderdtest.DeploymentValues(t),
+				})
+				aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+				client := codersdk.NewExperimentalClient(rawClient)
+				firstUser := coderdtest.CreateFirstUser(t, client.Client)
+				_ = createChatModel(t, client)
 
-		store.failNextGetChatSystemPromptConfig.Store(true)
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: fmt.Sprintf("config-read fallback %s", t.Name()),
-			}},
-		})
-		require.NoError(t, err)
+				err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+					SystemPrompt:               "Keep custom instructions",
+					IncludeDefaultSystemPrompt: ptr.Ref(false),
+				})
+				require.NoError(t, err)
 
-		messages, err := rawDB.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
+				tc.fail(store)
+				_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
+					OrganizationID: firstUser.OrganizationID,
+					Content: []codersdk.ChatInputPart{{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: fmt.Sprintf("config-read failure %s", t.Name()),
+					}},
+				})
+				requireSDKError(t, err, http.StatusInternalServerError)
 
-		var systemTexts []string
-		for _, message := range messages {
-			if message.Role != database.ChatMessageRoleSystem {
-				continue
-			}
-			parts, err := chatprompt.ParseContent(message)
-			require.NoError(t, err)
-			require.Len(t, parts, 1)
-			require.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
-			systemTexts = append(systemTexts, parts[0].Text)
+				chats, err := client.ListChats(ctx, nil)
+				require.NoError(t, err)
+				require.Empty(t, chats)
+			})
 		}
-
-		require.Equal(t, []string{chatd.DefaultSystemPrompt, workspaceAwareness}, systemTexts)
-	})
-
-	t.Run("CreateChatFallbackIgnoresDisabledPreferenceWhenConfigReadFails", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextChatSystemPromptStore(rawDB)
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt:               "Do not use the default prompt",
-			IncludeDefaultSystemPrompt: ptr.Ref(false),
-		})
-		require.NoError(t, err)
-
-		// A config read failure loses all admin preferences, including
-		// include_default=false, so chat creation falls back to the built-in default.
-		store.failNextGetChatSystemPromptConfig.Store(true)
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: fmt.Sprintf("config-read fallback %s", t.Name()),
-			}},
-		})
-		require.NoError(t, err)
-
-		messages, err := rawDB.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-
-		var systemTexts []string
-		for _, message := range messages {
-			if message.Role != database.ChatMessageRoleSystem {
-				continue
-			}
-			parts, err := chatprompt.ParseContent(message)
-			require.NoError(t, err)
-			require.Len(t, parts, 1)
-			require.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
-			systemTexts = append(systemTexts, parts[0].Text)
-		}
-
-		require.Equal(t, []string{chatd.DefaultSystemPrompt, workspaceAwareness}, systemTexts)
 	})
 
 	t.Run("NonAdminFails", func(t *testing.T) {
