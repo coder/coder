@@ -349,27 +349,37 @@ func TestSetFamilyArchivedKeepsDeletedProjectArchived(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedFamilyDeps(t, db)
 	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
-	root := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
-		Status:            database.ChatStatusWaiting,
-	})
-	require.NoError(t, db.InTx(func(tx database.Store) error {
-		if err := tx.UpdateChatProjectDeletedByID(ctx, project.ID); err != nil {
-			return err
-		}
-		_, err := chatstate.ArchiveDeletedChatProject(ctx, tx, newRecordingPubsub(), project.ID)
+	newRoot := func() database.Chat {
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+			ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+			Status:            database.ChatStatusWaiting,
+		})
+	}
+	setArchived := func(rootID uuid.UUID, archived bool) error {
+		_, err := chatstate.SetFamilyArchived(ctx, db, newRecordingPubsub(), chatstate.SetFamilyArchivedInput{RootID: rootID, Archived: archived})
 		return err
-	}, nil))
+	}
 
-	_, err := chatstate.SetFamilyArchived(ctx, db, newRecordingPubsub(), chatstate.SetFamilyArchivedInput{
+	live := newRoot()
+	require.NoError(t, setArchived(live.ID, true))
+	require.NoError(t, setArchived(live.ID, false), "a live project's chats can be unarchived")
+	chat, err := db.GetChatByID(ctx, live.ID)
+	require.NoError(t, err)
+	require.False(t, chat.Archived)
+
+	root := newRoot()
+	_, err = chatstate.DeleteChatProject(ctx, db, newRecordingPubsub(), project.ID)
+	require.NoError(t, err)
+
+	_, err = chatstate.SetFamilyArchived(ctx, db, newRecordingPubsub(), chatstate.SetFamilyArchivedInput{
 		RootID:   root.ID,
 		Archived: false,
 	})
 	require.ErrorIs(t, err, chatstate.ErrChatNotFound)
-	chat, err := db.GetChatByID(ctx, root.ID)
+	chat, err = db.GetChatByID(ctx, root.ID)
 	require.NoError(t, err)
 	require.True(t, chat.Archived)
 }

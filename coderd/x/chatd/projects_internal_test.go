@@ -30,12 +30,9 @@ func TestDeleteChatProjectStopsRunningChat(t *testing.T) {
 	worker := startWorker(t, testOptions(t, f, starter))
 	generation := starter.waitCall(t, taskKindGeneration, chat.ID)
 
-	buffer := chatstate.NewPublishBuffer(f.pubsub)
-	defer buffer.Discard()
-	deleted, err := deleteChatProject(ctx, f.db, buffer, project.ID)
+	deleted, err := newUnstartedServer(t, f.pubsub, f.db).DeleteChatProject(ctx, project.ID)
 	require.NoError(t, err)
 	require.Len(t, deleted, 1)
-	require.NoError(t, buffer.Flush())
 
 	// The chat:update stops the runner without waiting for renewal.
 	select {
@@ -54,11 +51,11 @@ func TestDeleteChatProjectStopsRunningChat(t *testing.T) {
 	require.False(t, acquired)
 }
 
-// TestDeleteChatProjectWaitsForChatCreation verifies that the delete waits
-// for a sub-chat insert holding its root and archives the child, and that a
-// root chat creation blocked on the project lock fails once the delete
-// commits.
-func TestDeleteChatProjectWaitsForChatCreation(t *testing.T) {
+// TestDeleteChatProjectSerializesWithChatCreation verifies that the delete
+// waits for a sub-chat insert holding its root and archives the child, and
+// that a root chat creation blocked on the project lock fails once the
+// delete commits.
+func TestDeleteChatProjectSerializesWithChatCreation(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -86,7 +83,7 @@ func TestDeleteChatProjectWaitsForChatCreation(t *testing.T) {
 	}
 	deleteDone := make(chan deleteResult, 1)
 	go func() {
-		chats, err := DeleteChatProjectWithoutEvents(ctx, f.db, project.ID)
+		chats, err := chatstate.DeleteChatProject(ctx, f.db, f.pubsub, project.ID)
 		deleteDone <- deleteResult{chats: chats, err: err}
 	}()
 	waitForLockWait(ctx, t, f.sqlDB, "LockChatProjectRootChats", 1)
@@ -135,18 +132,19 @@ func TestDeleteChatProjectConcurrentDeletes(t *testing.T) {
 	_, err = holdTx.ExecContext(ctx, "SELECT id FROM chat_projects WHERE id = $1 FOR UPDATE", project.ID)
 	require.NoError(t, err)
 
-	errs := make(chan error, 2)
-	for range 2 {
+	const deletes = 2
+	errs := make(chan error, deletes)
+	for range deletes {
 		go func() {
-			_, err := DeleteChatProjectWithoutEvents(ctx, f.db, project.ID)
+			_, err := chatstate.DeleteChatProject(ctx, f.db, f.pubsub, project.ID)
 			errs <- err
 		}()
 	}
-	waitForLockWait(ctx, t, f.sqlDB, "GetChatProjectByIDForUpdate", 2)
+	waitForLockWait(ctx, t, f.sqlDB, "GetChatProjectByIDForUpdate", deletes)
 	require.NoError(t, holdTx.Rollback())
 
 	var succeeded, notFound int
-	for range 2 {
+	for range deletes {
 		err := testutil.TryReceive(ctx, t, errs)
 		switch {
 		case err == nil:
@@ -158,7 +156,7 @@ func TestDeleteChatProjectConcurrentDeletes(t *testing.T) {
 		}
 	}
 	require.Equal(t, 1, succeeded)
-	require.Equal(t, 1, notFound)
+	require.Equal(t, deletes-1, notFound)
 }
 
 // waitForLockWait waits until n sessions are blocked on a row lock while

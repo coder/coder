@@ -2681,6 +2681,11 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			if writeChatInvalidState(ctx, rw, err) {
 				return
 			}
+			// The chat's project was deleted after the request loaded it.
+			if errors.Is(err, chatstate.ErrChatNotFound) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
 			if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
 				// Archive only succeeds from idle / error execution
 				// states (W, E0, E1) per the chatd RFC; active

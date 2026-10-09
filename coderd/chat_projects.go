@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -22,7 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
-	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -261,7 +262,12 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	if api.chatDaemon != nil {
 		deleted, err = api.chatDaemon.DeleteChatProject(ctx, project.ID)
 	} else {
-		deleted, err = chatd.DeleteChatProjectWithoutEvents(ctx, api.Database, project.ID)
+		deleted, err = chatstate.DeleteChatProject(ctx, api.Database, api.Pubsub, project.ID)
+		if err != nil && deleted != nil {
+			api.Logger.Warn(ctx, "publish chat:update for deleted project chats failed; their runners stop at the next heartbeat renewal",
+				slog.F("project_id", project.ID), slog.Error(err))
+			err = nil
+		}
 	}
 	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)

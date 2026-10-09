@@ -370,7 +370,7 @@ func TestChatProjectSharing(t *testing.T) {
 			_, err := client.GetChat(ctx, id)
 			requireSDKError(t, err, http.StatusNotFound)
 			hidden, err := db.GetChatByID(sysCtx, id)
-			require.NoError(t, err, "chat rows stay until dbpurge removes them")
+			require.NoError(t, err, "chat rows stay until chat retention removes them")
 			require.True(t, hidden.Archived)
 			require.False(t, hidden.RunnerID.Valid, "clearing runner_id stops the runner")
 		}
