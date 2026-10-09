@@ -10,7 +10,7 @@ import { useAgentLogs } from "#/modules/resources/useAgentLogs";
 import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import { getWorkspaceAgent } from "../../ChatConversation/chatHelpers";
 import { LogNotice } from "./LogNotice";
-import type { ToolStatus } from "./utils";
+import { followLogEnd, type ToolStatus } from "./utils";
 
 type WorkspaceAgentLogSectionProps = {
 	status: ToolStatus;
@@ -72,11 +72,12 @@ const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 	const logs = useAgentLogs({ agentId: agent.id });
 
 	const viewportRef = useRef<HTMLDivElement>(null);
+	const scrollHeightRef = useRef(0);
 	useLayoutEffect(() => {
-		const viewport = viewportRef.current;
-		if (viewport) {
-			viewport.scrollTop = viewport.scrollHeight;
-		}
+		scrollHeightRef.current = followLogEnd(
+			viewportRef.current,
+			scrollHeightRef.current,
+		);
 	}, [logs]);
 
 	if (logs.length === 0) {

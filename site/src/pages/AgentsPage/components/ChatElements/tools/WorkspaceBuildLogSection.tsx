@@ -9,7 +9,7 @@ import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import { LogNotice } from "./LogNotice";
-import type { ToolStatus } from "./utils";
+import { followLogEnd, type ToolStatus } from "./utils";
 
 type WorkspaceBuildLogSectionProps = {
 	status: ToolStatus;
@@ -101,11 +101,12 @@ export const WorkspaceBuildLogSection: React.FC<
 
 	// WorkspaceBuildLogs' scrollIntoView would also scroll the chat transcript.
 	const viewportRef = useRef<HTMLDivElement>(null);
+	const scrollHeightRef = useRef(0);
 	useLayoutEffect(() => {
-		const viewport = viewportRef.current;
-		if (viewport) {
-			viewport.scrollTop = viewport.scrollHeight;
-		}
+		scrollHeightRef.current = followLogEnd(
+			viewportRef.current,
+			scrollHeightRef.current,
+		);
 	}, [logs]);
 
 	const fetchFailed = !isRunning && completedLogsQuery.isError;
