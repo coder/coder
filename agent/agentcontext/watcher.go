@@ -285,7 +285,7 @@ func (w *Watcher) run() {
 // recognized resource. The check is conservative: any event on
 // a directory triggers a re-resolve so newly created subtrees
 // are picked up. In a directory watched only as a plugin candidate,
-// only plugin.json and skills matter.
+// only plugin.json, mcp.json, and skills matter.
 func (w *Watcher) eventRelevant(ev fsnotify.Event) bool {
 	name := filepath.Base(ev.Name)
 	var parentRole dirRole
@@ -293,10 +293,10 @@ func (w *Watcher) eventRelevant(ev fsnotify.Event) bool {
 		parentRole = (*roles)[filepath.Dir(ev.Name)]
 	}
 	if parentRole == dirPluginCandidate {
-		return name == pluginManifestFileName || name == pluginSkillsDirName
+		return name == pluginManifestFileName || name == pluginMCPConfigFileName || name == pluginSkillsDirName
 	}
 	switch name {
-	case mcpConfigFileName, skillMetaFileName, pluginManifestFileName:
+	case mcpConfigFileName, skillMetaFileName, pluginManifestFileName, pluginMCPConfigFileName:
 		return true
 	}
 	if recognizedInstructionFile(name) {

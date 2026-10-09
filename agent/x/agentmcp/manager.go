@@ -196,14 +196,31 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 //
 // Sources are deduplicated by path; the first source for a path wins.
 func (m *Manager) ReloadSources(ctx context.Context, sources []ConfigSource) error {
-	ch, started, err := m.startReloadIfNeeded(uniqueSources(sources))
-	if err != nil {
-		return err
+	return m.ReloadFrom(ctx, func() []ConfigSource { return sources })
+}
+
+// ReloadFrom is ReloadSources with sources called on every attempt. A
+// joined in-flight reload may have been started for a different list,
+// so after it settles ReloadFrom reloads again while the snapshot does
+// not match sources(), up to three attempts in total.
+func (m *Manager) ReloadFrom(ctx context.Context, sources func() []ConfigSource) error {
+	const maxAttempts = 3
+	for attempt := 1; ; attempt++ {
+		current := uniqueSources(sources())
+		ch, started, err := m.startReloadIfNeeded(current)
+		if err != nil {
+			return err
+		}
+		if !started {
+			return nil
+		}
+		if err := m.waitReload(ctx, ch, 0); err != nil {
+			return err
+		}
+		if attempt >= maxAttempts || !m.SnapshotChanged(sources()) {
+			return nil
+		}
 	}
-	if !started {
-		return nil
-	}
-	return m.waitReload(ctx, ch, 0)
 }
 
 // SetOnReload registers a callback fired (outside the cache lock) after
@@ -224,8 +241,7 @@ func (m *Manager) SetOnReload(fn func()) {
 //
 // All concurrent callers share one in-flight reload keyed by "reload".
 // If a concurrent caller resolves different sources, its sources are
-// not consulted. The next SnapshotChanged check after this reload
-// completes will detect the mismatch and trigger a fresh reload.
+// not consulted by the in-flight body.
 func (m *Manager) startReloadIfNeeded(sources []ConfigSource) (<-chan reloadResult, bool, error) {
 	m.mu.RLock()
 	closed := m.closed

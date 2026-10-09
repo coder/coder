@@ -497,6 +497,17 @@ func (a *agent) init() {
 	// Re-resolve and re-push KindMCPServer resources whenever the MCP
 	// engine's catalog changes (startup connect, .mcp.json edits).
 	a.mcpManager.SetOnReload(a.contextManager.Trigger)
+	// Reload plugin MCP servers as plugins enter or leave the context
+	// snapshot. Subscribe before the context manager's Run loop starts
+	// so no broadcast is missed.
+	pluginChanges, unsubPluginChanges := a.contextManager.SubscribeChanges()
+	if err := a.trackGoroutine(func() {
+		defer unsubPluginChanges()
+		a.runPluginMCPSync(a.gracefulCtx, pluginChanges)
+	}); err != nil {
+		unsubPluginChanges()
+		a.logger.Warn(a.gracefulCtx, "plugin MCP sync not started", slog.Error(err))
+	}
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -522,6 +533,74 @@ func (a *agent) init() {
 	}()
 
 	go a.runLoop()
+}
+
+// mcpConfigSources lists every MCP config the engine should load: the
+// env-configured .mcp.json files first, then the mcp.json of each valid
+// plugin in the current context snapshot. Plugin data directories live
+// under the agent user's home; when the home directory cannot be
+// determined, plugin servers are left out.
+func (a *agent) mcpConfigSources() []agentmcp.ConfigSource {
+	sources := agentmcp.LegacySources(a.contextConfigAPI.MCPConfigFiles())
+	plugins := a.contextManager.Snapshot().Plugins()
+	if len(plugins) == 0 {
+		return sources
+	}
+	home, err := a.envInfo.HomeDir()
+	if err != nil {
+		a.logger.Warn(a.gracefulCtx, "skipping plugin MCP servers: home directory unavailable", slog.Error(err))
+		return sources
+	}
+	for _, p := range plugins {
+		if !p.HasMCPConfig {
+			continue
+		}
+		dataDir, err := agentmcp.PluginDataDir(home, p.Name, p.Root)
+		if err != nil {
+			a.logger.Warn(a.gracefulCtx, "skipping plugin MCP servers", slog.F("plugin", p.Name), slog.Error(err))
+			continue
+		}
+		sources = append(sources, agentmcp.ConfigSource{
+			Path: filepath.Join(p.Root, "mcp.json"),
+			Plugin: &agentmcp.PluginScope{
+				Name:    p.Name,
+				Root:    p.Root,
+				DataDir: dataDir,
+			},
+		})
+	}
+	return sources
+}
+
+// runPluginMCPSync reloads the MCP engine whenever the snapshot's plugin
+// set changes. The snapshot is checked before the first wait, so a
+// broadcast sent before the loop starts is not lost. A reload changes
+// the MCP catalog, which produces a new snapshot; skipping reloads when
+// the plugin set is unchanged keeps that from looping. A failed reload
+// is retried on the next snapshot.
+func (a *agent) runPluginMCPSync(ctx context.Context, changes <-chan struct{}) {
+	var last []agentcontext.PluginInfo
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		current := a.contextManager.Snapshot().Plugins()
+		if !slices.Equal(current, last) {
+			switch err := a.mcpManager.ReloadFrom(ctx, a.mcpConfigSources); {
+			case err == nil:
+				last = current
+			case errors.Is(err, context.Canceled), errors.Is(err, agentmcp.ErrManagerClosed):
+				return
+			default:
+				a.logger.Warn(ctx, "failed to reload plugin MCP servers", slog.Error(err))
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-changes:
+		}
+	}
 }
 
 // initSocketServer initializes server that allows direct communication with a workspace agent using IPC.
@@ -1430,7 +1509,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// lifecycle transition to avoid delaying Ready.
 				// This runs inside the tracked goroutine so it
 				// is properly awaited on shutdown.
-				if mcpErr := a.mcpManager.Reload(a.gracefulCtx, a.contextConfigAPI.MCPConfigFiles()); mcpErr != nil {
+				if mcpErr := a.mcpManager.ReloadFrom(a.gracefulCtx, a.mcpConfigSources); mcpErr != nil {
 					a.logger.Warn(ctx, "failed to reload workspace MCP servers", slog.Error(mcpErr))
 				}
 			})
