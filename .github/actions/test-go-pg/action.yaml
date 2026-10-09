@@ -249,6 +249,15 @@ runs:
         if-no-files-found: ignore
         retention-days: 7
 
+    - name: Upload heap profiles
+      if: always() && !success()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: heap-profiles-${{ github.job }}-${{ runner.os }}
+        path: ${{ runner.temp }}/heap-*.pprof
+        if-no-files-found: ignore
+        retention-days: 7
+
     - name: Upload PostgreSQL diagnostics (Windows)
       if: always() && runner.os == 'Windows' && !success()
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
