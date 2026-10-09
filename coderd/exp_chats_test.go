@@ -10330,6 +10330,33 @@ func TestStreamChat(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
+	t.Run("HistoryVersionAboveChatReturns400", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "prompt"}},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+		page, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("/api/v2/chats/%s/stream?history_version=%d", chat.ID, page.HistoryVersion+1),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
 

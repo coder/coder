@@ -3575,6 +3575,15 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		// Valid versions come from this chat, whose version never decreases; a
+		// higher one would make the stream skip history the client lacks.
+		if cursor.HistoryVersion > chat.HistoryVersion {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid history_version parameter.",
+				Detail:  "history_version is above the chat's history version.",
+			})
+			return
+		}
 	}
 
 	// Subscribe before accepting the WebSocket so that failures
