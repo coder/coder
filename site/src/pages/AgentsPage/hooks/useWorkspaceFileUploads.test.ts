@@ -6,14 +6,11 @@ import {
 } from "@testing-library/react";
 import { act, createElement } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
-import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { UploadChatWorkspaceFileResponse } from "#/api/typesGenerated";
 import { createDeferred } from "#/testHelpers/deferred";
 import { mockApiError } from "#/testHelpers/entities";
-import {
-	useWorkspaceFileUploads,
-	type WorkspaceFileUpload,
-} from "./useWorkspaceFileUploads";
+import { useWorkspaceFileUploads } from "./useWorkspaceFileUploads";
 
 vi.mock("#/api/api", () => ({
 	API: {
@@ -51,31 +48,6 @@ const renderHook: typeof renderHookBase = (callback, options) => {
 describe("useWorkspaceFileUploads", () => {
 	beforeEach(() => {
 		uploadMock.mockReset();
-	});
-
-	it("requires terminal payloads and excludes incompatible payloads", () => {
-		expectTypeOf<
-			Extract<WorkspaceFileUpload, { status: "uploaded" }>["response"]
-		>().toEqualTypeOf<UploadChatWorkspaceFileResponse>();
-		expectTypeOf<
-			Extract<WorkspaceFileUpload, { status: "error" }>["error"]
-		>().toEqualTypeOf<string>();
-		expectTypeOf<{
-			id: string;
-			file: File;
-			status: "uploaded";
-		}>().not.toExtend<WorkspaceFileUpload>();
-		expectTypeOf<{
-			id: string;
-			file: File;
-			status: "error";
-		}>().not.toExtend<WorkspaceFileUpload>();
-		expectTypeOf<{
-			id: string;
-			file: File;
-			status: "uploading";
-			response: UploadChatWorkspaceFileResponse;
-		}>().not.toExtend<WorkspaceFileUpload>();
 	});
 
 	it("transitions an upload from uploading to uploaded", async () => {

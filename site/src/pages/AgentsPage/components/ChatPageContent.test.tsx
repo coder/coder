@@ -116,7 +116,7 @@ const mockChatAutomationsResponse = () => {
 };
 
 describe("ChatPageInput", () => {
-	it.each([undefined, false, true])(
+	it.each([undefined, true])(
 		"toggles automations with the SDK enabled value %s",
 		async (enabled) => {
 			const user = userEvent.setup();

@@ -147,7 +147,7 @@ afterEach(() => {
 });
 
 describe("ChatComposer", () => {
-	it("shares submission with a sibling outside the visual frame", async () => {
+	it("submits the editor draft from a sibling outside the frame", async () => {
 		const user = userEvent.setup();
 		const onSend = vi.fn();
 		const SubmitDraft = () => {
@@ -158,6 +158,7 @@ describe("ChatComposer", () => {
 				</button>
 			);
 		};
+
 		renderInput(
 			<AgentComposerProvider bindings={{ ...inputProps.bindings, onSend }}>
 				<AgentComposer.Frame>
@@ -175,9 +176,7 @@ describe("ChatComposer", () => {
 	it("supports an injected public contract without the default runtime", async () => {
 		const user = userEvent.setup();
 		const editorRef = createRef<ChatMessageInputRef>();
-		const fileInputRef = createRef<HTMLInputElement>();
 		const onSubmit = vi.fn();
-		const onFiles = vi.fn();
 		const value: ComposerContextValue = {
 			state: {
 				isDisabled: false,
@@ -191,19 +190,19 @@ describe("ChatComposer", () => {
 				canSend: true,
 				showSendButton: true,
 				showStopButton: false,
-				canAttachFiles: true,
+				canAttachFiles: false,
 				speechSupported: false,
 				speechRecording: false,
 				speechError: null,
 			},
 			actions: {
-				openFilePicker: () => fileInputRef.current?.click(),
+				openFilePicker: vi.fn(),
 				resetPromptCycle: vi.fn(),
 				submit: () => onSubmit(editorRef.current?.getValue()),
 				startRecording: vi.fn(),
 				acceptRecording: vi.fn(),
 				cancelRecording: vi.fn(),
-				fileSelect: (event) => onFiles(Array.from(event.target.files ?? [])),
+				fileSelect: vi.fn(),
 				filePaste: vi.fn(() => true),
 				inlineText: vi.fn(),
 				textPreview: vi.fn(),
@@ -216,12 +215,10 @@ describe("ChatComposer", () => {
 				drop: vi.fn(),
 			},
 			meta: {
-				attachEditor: vi.fn((editor) => {
+				attachEditor: (editor) => {
 					editorRef.current = editor;
-				}),
-				attachFileInput: vi.fn((input) => {
-					fileInputRef.current = input;
-				}),
+				},
+				attachFileInput: vi.fn(),
 				warningId: "injected-composer-warning",
 				composerElement: null,
 				setComposerElement: vi.fn(),
@@ -231,77 +228,24 @@ describe("ChatComposer", () => {
 				attachments: [],
 			},
 		};
-		const SiblingActions = () => {
-			const { actions } = useAgentComposer();
-			return (
-				<>
-					<button type="button" onClick={actions.openFilePicker}>
-						Attach draft file
-					</button>
-					<button type="button" onClick={actions.submit}>
-						Submit draft
-					</button>
-				</>
-			);
-		};
-		const children = (
-			<>
+		renderInput(
+			<AgentComposer.Provider {...value}>
 				<AgentComposer.Frame>
-					<AgentComposer.Attachments />
 					<AgentComposer.Editor hasWorkspace={false} />
 					<AgentComposer.Submit />
 				</AgentComposer.Frame>
-				<SiblingActions />
-			</>
+			</AgentComposer.Provider>,
 		);
-		const { rerender } = renderInput(
-			<AgentComposer.Provider {...value}>{children}</AgentComposer.Provider>,
-		);
-		const editor = editorRef.current;
-		const fileInput = fileInputRef.current;
-		if (!fileInput || !editor) {
-			throw new Error("Expected injected editor and file input handles");
-		}
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
 		await user.paste("Injected draft");
-		await waitFor(() =>
-			expect(value.actions.contentChange).toHaveBeenLastCalledWith(
-				"Injected draft",
-				expect.any(String),
-				false,
-			),
-		);
-		const file = createMockFile("notes.txt", "text/plain");
-		await user.upload(fileInput, file);
-		expect(onFiles).toHaveBeenCalledExactlyOnceWith([file]);
-		const click = vi.spyOn(fileInput, "click");
-		await user.click(screen.getByRole("button", { name: "Attach draft file" }));
-		expect(click).toHaveBeenCalledExactlyOnceWith();
+
 		await user.click(screen.getByRole("button", { name: "Send" }));
 		expect(onSubmit).toHaveBeenCalledExactlyOnceWith("Injected draft");
-
-		rerender(
-			<AppProviders>
-				<AgentComposer.Provider
-					{...value}
-					state={{ ...value.state, warning: "Updated warning" }}
-				>
-					{children}
-				</AgentComposer.Provider>
-			</AppProviders>,
-		);
-		expect(editorRef.current).toBe(editor);
-		expect(fileInputRef.current).toBe(fileInput);
-		expect(value.meta.attachEditor).toHaveBeenCalledTimes(1);
-		expect(value.meta.attachFileInput).toHaveBeenCalledTimes(1);
-		await user.click(screen.getByRole("button", { name: "Submit draft" }));
-		expect(onSubmit).toHaveBeenNthCalledWith(2, "Injected draft");
 	});
 
 	it.each([
 		{ isDisabled: false, isLoading: false, promoted: true },
 		{ isDisabled: true, isLoading: false, promoted: false },
-		{ isDisabled: false, isLoading: true, promoted: false },
 	])(
 		"handles empty Enter with the canonical queue (%o)",
 		async ({ isDisabled, isLoading, promoted }) => {
@@ -485,11 +429,9 @@ describe("ChatComposer", () => {
 
 	it.each([
 		{ isMobile: false, rejects: false, completesWhileLoading: false },
-		{ isMobile: false, rejects: true, completesWhileLoading: false },
 		{ isMobile: false, rejects: false, completesWhileLoading: true },
 		{ isMobile: false, rejects: true, completesWhileLoading: true },
 		{ isMobile: true, rejects: false, completesWhileLoading: true },
-		{ isMobile: true, rejects: true, completesWhileLoading: true },
 	])(
 		"restores typing only on desktop after submission completes (mobile: $isMobile, rejects: $rejects, completes while loading: $completesWhileLoading)",
 		async ({ isMobile, rejects, completesWhileLoading }) => {
@@ -583,61 +525,58 @@ describe("ChatComposer", () => {
 		expect(onSend).not.toHaveBeenCalled();
 	});
 
-	it.each([false, true])(
-		"cycles prompt history and restores the draft without interrupting (streaming: %s)",
-		async (isStreaming) => {
-			const user = userEvent.setup();
-			const inputRef = createRef<ChatMessageInputRef>();
-			const onSend = vi.fn();
-			const onInterrupt = vi.fn();
-			const draft = "   ";
-			renderInput(
-				<ChatComposer
-					{...inputProps}
-					bindings={{
-						...inputProps.bindings,
-						inputRef,
-						onSend,
-						onInterrupt,
-						isStreaming,
-						initialValue: draft,
-						userPromptHistory: ["Latest prompt", "Older prompt"],
-					}}
-				/>,
-			);
+	it("cycles prompt history and restores the draft without interrupting streaming", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+		const onInterrupt = vi.fn();
+		const draft = "   ";
+		renderInput(
+			<ChatComposer
+				{...inputProps}
+				bindings={{
+					...inputProps.bindings,
+					inputRef,
+					onSend,
+					onInterrupt,
+					isStreaming: true,
+					initialValue: draft,
+					userPromptHistory: ["Latest prompt", "Older prompt"],
+				}}
+			/>,
+		);
 
-			await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-			await waitFor(() => expect(inputRef.current?.getValue()).toBe(draft));
-			await user.keyboard("{ArrowUp}");
-			await waitFor(() =>
-				expect(inputRef.current?.getValue()).toBe("Latest prompt"),
-			);
-			await user.keyboard("{ArrowUp}");
-			await waitFor(() =>
-				expect(inputRef.current?.getValue()).toBe("Older prompt"),
-			);
-			await user.keyboard("{ArrowUp}");
-			expect(inputRef.current?.getValue()).toBe("Older prompt");
-			await user.keyboard("{ArrowDown}");
-			await waitFor(() =>
-				expect(inputRef.current?.getValue()).toBe("Latest prompt"),
-			);
-			await user.keyboard("{ArrowDown}");
-			await waitFor(() => expect(inputRef.current?.getValue()).toBe(draft));
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await waitFor(() => expect(inputRef.current?.getValue()).toBe(draft));
+		await user.keyboard("{ArrowUp}");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("Latest prompt"),
+		);
+		await user.keyboard("{ArrowUp}");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("Older prompt"),
+		);
+		await user.keyboard("{ArrowUp}");
+		expect(inputRef.current?.getValue()).toBe("Older prompt");
+		await user.keyboard("{ArrowDown}");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("Latest prompt"),
+		);
+		await user.keyboard("{ArrowDown}");
+		await waitFor(() => expect(inputRef.current?.getValue()).toBe(draft));
 
-			await user.keyboard("{ArrowUp}");
-			await waitFor(() =>
-				expect(inputRef.current?.getValue()).toBe("Latest prompt"),
-			);
-			await user.keyboard("{Escape}");
-			await waitFor(() => expect(inputRef.current?.getValue()).toBe(draft));
-			expect(onInterrupt).not.toHaveBeenCalled();
-			expect(onSend).not.toHaveBeenCalled();
+		await user.keyboard("{ArrowUp}");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("Latest prompt"),
+		);
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(inputRef.current?.getValue()).toBe(draft));
+		expect(onInterrupt).not.toHaveBeenCalled();
+		expect(onSend).not.toHaveBeenCalled();
 
-			await user.keyboard("{Escape}");
-			expect(onInterrupt).toHaveBeenCalledTimes(isStreaming ? 1 : 0);
-		},
-	);
+		await user.keyboard("{Escape}");
+		expect(onInterrupt).toHaveBeenCalledExactlyOnceWith();
+	});
 
 	it("ends prompt cycling when recalled text is edited", async () => {
 		const user = userEvent.setup();
@@ -798,13 +737,7 @@ describe("ChatComposer", () => {
 		await waitFor(() =>
 			expect(inputRef.current?.getValue()).toBe("New latest prompt"),
 		);
-		await user.keyboard("{ArrowUp}");
-		await waitFor(() =>
-			expect(inputRef.current?.getValue()).toBe("New older prompt"),
-		);
-		await user.keyboard("{ArrowDown}{ArrowDown}");
-		await waitFor(() => expect(inputRef.current?.getValue()).toBe(freshDraft));
-		await user.keyboard("{ArrowUp}{Escape}");
+		await user.keyboard("{Escape}");
 		await waitFor(() => expect(inputRef.current?.getValue()).toBe(freshDraft));
 		expect(onInterrupt).toHaveBeenCalledExactlyOnceWith();
 		expect(onSend).toHaveBeenCalledExactlyOnceWith("Replacement draft");

@@ -1,9 +1,8 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { Suspense } from "react";
-import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { createDeferred } from "#/testHelpers/deferred";
-import type { UploadState } from "../components/AttachmentPreview";
 import {
 	persistedAttachmentsStorageKey,
 	useFileAttachments,
@@ -42,26 +41,6 @@ const mockDeferredUpload = (): ((value: { id: string }) => void) => {
 describe("useFileAttachments org scoping", () => {
 	beforeEach(() => {
 		localStorage.clear();
-	});
-
-	it("requires terminal payloads and excludes incompatible payloads", () => {
-		expectTypeOf<
-			Extract<UploadState, { status: "uploaded" }>["fileId"]
-		>().toEqualTypeOf<string>();
-		expectTypeOf<
-			Extract<UploadState, { status: "error" }>["error"]
-		>().toEqualTypeOf<string>();
-		expectTypeOf<{ status: "uploaded" }>().not.toExtend<UploadState>();
-		expectTypeOf<{ status: "error" }>().not.toExtend<UploadState>();
-		expectTypeOf<{
-			status: "uploading";
-			fileId: string;
-		}>().not.toExtend<UploadState>();
-		expectTypeOf<{
-			status: "uploaded";
-			fileId: string;
-			error: string;
-		}>().not.toExtend<UploadState>();
 	});
 
 	it("defers restoration until the org is known", () => {

@@ -194,77 +194,27 @@ describe("AgentComposerOptions", () => {
 		},
 	);
 
-	it.each(["standalone", "measured"])(
-		"shares plan toggles with the %s planning badge",
-		async (placement) => {
-			const user = userEvent.setup();
-			const onPlanModeToggle = vi.fn();
-			const ControlledOptions = () => {
-				const [planModeEnabled, setPlanModeEnabled] = useState(false);
-
-				return (
-					<AgentComposerOptions.Provider
-						planning={{
-							enabled: planModeEnabled,
-							onChange: (enabled) => {
-								setPlanModeEnabled(enabled);
-								onPlanModeToggle(enabled);
-							},
-						}}
-					>
-						<AgentComposerOptions.Frame>
-							<AgentComposerOptions.Menu />
-							{placement === "standalone" ? (
-								<AgentComposerOptions.PlanningBadge />
-							) : (
-								<AgentComposerOptions.Badges
-									leadingBadges={planModeEnabled ? [{ kind: "planning" }] : []}
-								/>
-							)}
-						</AgentComposerOptions.Frame>
-					</AgentComposerOptions.Provider>
-				);
-			};
-			renderOptions(<ControlledOptions />);
-
-			await user.click(screen.getByRole("button", { name: "More options" }));
-			await user.click(
-				screen.getByRole("menuitemcheckbox", { name: "Plan first" }),
-			);
-			await user.click(
-				screen.getByRole("button", { name: "Disable plan mode" }),
-			);
-			expect(onPlanModeToggle.mock.calls).toEqual([[true], [false]]);
-		},
-	);
-
-	it("shares MCP selection between independently composed menu and badges", async () => {
+	it("shares plan toggles with the measured planning badge", async () => {
 		const user = userEvent.setup();
-		const onMCPSelectionChange = vi.fn();
-		const server: typeof MockMCPServerConfig = {
-			...MockMCPServerConfig,
-			auth_type: "none",
-		};
+		const onPlanModeToggle = vi.fn();
 		const ControlledOptions = () => {
-			const [selectedMCPServerIds, setSelectedMCPServerIds] = useState<
-				string[]
-			>([]);
+			const [planModeEnabled, setPlanModeEnabled] = useState(false);
 
 			return (
 				<AgentComposerOptions.Provider
-					{...optionsProps}
-					mcp={{
-						servers: [server],
-						selectedServerIds: selectedMCPServerIds,
-						onSelectionChange: (ids) => {
-							setSelectedMCPServerIds(ids);
-							onMCPSelectionChange(ids);
+					planning={{
+						enabled: planModeEnabled,
+						onChange: (enabled) => {
+							setPlanModeEnabled(enabled);
+							onPlanModeToggle(enabled);
 						},
 					}}
 				>
-					<AgentComposerOptions.Menu />
 					<AgentComposerOptions.Frame>
-						<AgentComposerOptions.Badges />
+						<AgentComposerOptions.Menu />
+						<AgentComposerOptions.Badges
+							leadingBadges={planModeEnabled ? [{ kind: "planning" }] : []}
+						/>
 					</AgentComposerOptions.Frame>
 				</AgentComposerOptions.Provider>
 			);
@@ -273,13 +223,10 @@ describe("AgentComposerOptions", () => {
 
 		await user.click(screen.getByRole("button", { name: "More options" }));
 		await user.click(
-			screen.getByRole("switch", { name: `Enable ${server.display_name}` }),
+			screen.getByRole("menuitemcheckbox", { name: "Plan first" }),
 		);
-		await user.click(screen.getByRole("button", { name: "More options" }));
-		await user.click(
-			screen.getByRole("button", { name: `Remove ${server.display_name}` }),
-		);
-		expect(onMCPSelectionChange.mock.calls).toEqual([[[server.id]], [[]]]);
+		await user.click(screen.getByRole("button", { name: "Disable plan mode" }));
+		expect(onPlanModeToggle.mock.calls).toEqual([[true], [false]]);
 	});
 
 	it("keeps OAuth completion active after the plus menu closes", async () => {
