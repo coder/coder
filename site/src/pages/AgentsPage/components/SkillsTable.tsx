@@ -187,14 +187,14 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 		},
 	});
 
-	// Clicks that land before the pending state re-renders the switch would
-	// otherwise send duplicate updates.
-	const togglingSkillNameRef = useRef<string | undefined>(undefined);
+	// Tracks every in-flight toggle: the rendered pending state lags a click
+	// and only reflects the latest toggle, so it cannot block repeats alone.
+	const pendingToggleNamesRef = useRef(new Set<string>());
 	const toggleMutation = useMutation({
 		mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) =>
 			updateMutationOptions.mutationFn({ name, req: { enabled } }),
-		onSettled: () => {
-			togglingSkillNameRef.current = undefined;
+		onSettled: (_skill, _error, { name }) => {
+			pendingToggleNamesRef.current.delete(name);
 		},
 		onSuccess: (skill, { name, enabled }) =>
 			updateMutationOptions.onSuccess(skill, { name, req: { enabled } }),
@@ -422,10 +422,10 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 				exportAllMutation.mutate();
 			}}
 			onToggleEnabled={(skill, enabled) => {
-				if (togglingSkillNameRef.current === skill.name) {
+				if (pendingToggleNamesRef.current.has(skill.name)) {
 					return;
 				}
-				togglingSkillNameRef.current = skill.name;
+				pendingToggleNamesRef.current.add(skill.name);
 				toggleMutation.mutate({ name: skill.name, enabled });
 			}}
 			downloadingSkillName={downloadingSkillName}

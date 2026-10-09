@@ -104,6 +104,10 @@ export const LongDescriptionNarrow: Story = {
 	globals: { viewport: { value: "ipad" } },
 };
 
+export const Mobile: Story = {
+	globals: { viewport: { value: "iphone12" } },
+};
+
 export const DownloadingSkill: Story = {
 	args: {
 		downloadingSkillName: "review-sql",

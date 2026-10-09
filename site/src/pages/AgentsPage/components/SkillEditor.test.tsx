@@ -42,8 +42,6 @@ describe("SkillEditor file import", () => {
 				screen.getByLabelText("Upload SKILL.md"),
 				new File([markdown], "SKILL.md", { type: "text/markdown" }),
 			);
-			// In edit mode the file names another skill, so the editor warns and
-			// keeps the existing name.
 			await screen.findByText(
 				mode === "create"
 					? "Imported SKILL.md"

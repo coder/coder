@@ -22,11 +22,15 @@ const copy: SkillsCopy = {
 };
 
 const mockReviewSkill = { ...MockSkill, name: "review-sql", enabled: true };
+const mockDocsSkill = {
+	...MockSkill,
+	id: "skill-docs-style",
+	name: "docs-style",
+	enabled: true,
+};
 
-const renderTable = (canEdit: boolean) => {
-	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([
-		mockReviewSkill,
-	]);
+const renderTable = (canEdit: boolean, skills = [mockReviewSkill]) => {
+	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue(skills);
 	const updateSkill = vi
 		.spyOn(API.experimental, "updateOrganizationSkill")
 		.mockResolvedValue({ ...mockReviewSkill, enabled: false, content: "" });
@@ -56,6 +60,38 @@ describe("SkillsTable enabled toggle", () => {
 			"review-sql",
 			{ enabled: false },
 		]);
+	});
+
+	it("ignores a repeat click while that skill's update is pending", async () => {
+		const { user, updateSkill } = renderTable(true, [
+			mockReviewSkill,
+			mockDocsSkill,
+		]);
+		updateSkill.mockReturnValue(new Promise(() => {}));
+
+		await user.click(
+			await screen.findByRole("switch", { name: "Enable review-sql" }),
+		);
+		await user.click(screen.getByRole("switch", { name: "Enable docs-style" }));
+		await user.click(screen.getByRole("switch", { name: "Enable review-sql" }));
+
+		expect(updateSkill.mock.calls.map(([, name]) => name)).toStrictEqual([
+			"review-sql",
+			"docs-style",
+		]);
+	});
+
+	it("toggles the same skill again after its update settles", async () => {
+		const { user, updateSkill } = renderTable(true);
+		const toggle = await screen.findByRole("switch", {
+			name: "Enable review-sql",
+		});
+
+		await user.click(toggle);
+		await waitFor(() => expect(toggle).not.toBeChecked());
+		await user.click(toggle);
+
+		await waitFor(() => expect(updateSkill).toHaveBeenCalledTimes(2));
 	});
 
 	it("does not send an update when the user cannot edit", async () => {
