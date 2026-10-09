@@ -55,19 +55,16 @@ You can filter connection logs by the following parameters:
      connected to.
 - `workspace_owner` - The username of the owner of the workspace being connected
     to.
-- `method` - How the connection was established: `ssh`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`.
-  `method:ssh` matches every SSH connection, whichever app made it.
-- `app` - The client app that made an SSH or reconnecting PTY connection, such as `cursor` or `goland`.
+- `method` - How the connection was established, such as `ssh`, `reconnecting_pty`, or `workspace_app`.
+  For every method, refer to the [`codersdk.ConnectionLogMethod` schema](../../reference/api/schemas.md#codersdkconnectionlogmethod).
+  For example, `method:ssh` matches every SSH connection, whichever app made it.
+- `app` - The name of the application that made an SSH or reconnecting PTY connection, such as `cursor`.
+  Repeat the filter to match any of several apps, for example `app:vscode app:cursor`.
+  Some clients report only `vscode` or `jetbrains` instead of their own name, so `app:vscode` and `app:jetbrains` can also include other VS Code-based editors and JetBrains IDEs.
   Coder lowercases the value and replaces hyphens with underscores before it matches.
   Workspace app slugs and forwarded ports don't match this filter.
-- `family` - The app family of the client app, such as `vscode` or `jetbrains`.
-  `family:vscode` matches every registered VS Code-family app, such as `vscode` and `cursor`.
-- `type` - Deprecated, and removed together with the `type` response field.
-  Use `method` and `family` instead.
-  `type:vscode` and `type:jetbrains` match SSH connections from that app family.
-  `type:ssh` matches every other SSH connection, including connections from unrecognized apps and connections with no reported app.
-  Other values match the method of the same name.
-  `type` can't be combined with `method`, `app`, or `family`.
+- `type` - Deprecated and will be removed in a future release.
+  Use `method` and `app` instead, as described in [Replace the type filter](#replace-the-type-filter).
 - `username`: The name of the user who initiated the connection.
    Results do not include agent-reported SSH or IDE sessions.
 - `user_email`: The email of the user who initiated the connection.
@@ -82,6 +79,17 @@ You can filter connection logs by the following parameters:
   Only SSH and reconnecting PTY connections have a status.
   A connection is `completed` after Coder receives its disconnect event, and `ongoing` until then.
   Workspace app, port forwarding, and tunnel events never match a `status` filter.
+
+### Replace the type filter
+
+If you have saved searches or scripts that use the `type` filter, replace it with `method` and `app`:
+
+| `type` filter                                                                        | Replacement                                                                                       |
+|--------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| `type:ssh`                                                                           | `method:ssh`, which also matches SSH connections from VS Code and JetBrains apps                  |
+| `type:vscode`                                                                        | `method:ssh` with an `app` filter for each VS Code-based app, for example `app:vscode app:cursor` |
+| `type:jetbrains`                                                                     | `method:ssh app:jetbrains`, plus an `app` filter for any JetBrains IDE that reports its own name  |
+| `type:reconnecting_pty`, `type:workspace_app`, `type:port_forwarding`, `type:tunnel` | `method` with the same value, for example `method:workspace_app`                                  |
 
 <a id="capturingexporting-connection-logs"></a>
 
@@ -100,13 +108,13 @@ for details.
 Each connection log in the response describes the connection with these fields:
 
 - `connection_method`: How the connection was established, with the same values as the `method` filter.
-- `app_name`: The client app that made an SSH or reconnecting PTY connection, such as `vscode`.
-  The response omits this field when the client app isn't known, and for workspace app, port forwarding, and tunnel connections.
+- `app_name`: The name of the application that made an SSH or reconnecting PTY connection, such as `vscode`.
+  The client reports this name, so treat it as a label rather than a verified identity.
+  The response omits this field when the app isn't known, and for workspace app, port forwarding, and tunnel connections.
 - `web_info.slug_or_port`: The workspace app slug or forwarded port, for workspace app and port forwarding connections.
-  This field keeps its existing meaning.
 - `type`: Deprecated.
   Use `connection_method` and `app_name` instead.
-  It will be removed in the same release as the `type` filter.
+  It will be removed in a future release.
 
 If you read `type`, map its values to the new fields as follows:
 
@@ -115,7 +123,7 @@ If you read `type`, map its values to the new fields as follows:
 | `ssh`                                        | `ssh`               | Omitted, or an app outside the VS Code and JetBrains families |
 | `vscode`                                     | `ssh`               | An app in the VS Code family, such as `vscode`                |
 | `jetbrains`                                  | `ssh`               | An app in the JetBrains family, such as `jetbrains`           |
-| `reconnecting_pty`                           | `reconnecting_pty`  | Omitted unless the client app is known                        |
+| `reconnecting_pty`                           | `reconnecting_pty`  | Omitted unless the app is known                               |
 | `workspace_app`, `port_forwarding`, `tunnel` | Same as `type`      | Omitted                                                       |
 
 The `type` field keeps the same values, but the API schema describes it as a string rather than an enum.
@@ -128,7 +136,7 @@ categorized using any log management tool such as [Splunk](https://splunk.com).
 Each `connection_log` entry describes the connection with these fields:
 
 - `ConnectionMethod`: How the connection was established, with the same values as the API `connection_method` field.
-- `AppNameOrPort`: The client app for SSH and reconnecting PTY connections, or the workspace app slug or forwarded port for workspace app and port forwarding connections.
+- `AppNameOrPort`: The name of the connecting application for SSH and reconnecting PTY connections, or the workspace app slug or forwarded port for workspace app and port forwarding connections.
   The value is an empty string when there is nothing to report.
 
 If your log pipeline reads the `Type` or `SlugOrPort` fields, update it to read `ConnectionMethod` and `AppNameOrPort`, because entries no longer include the old fields.

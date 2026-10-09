@@ -1,11 +1,11 @@
 import capitalize from "lodash/capitalize";
 import {
-	type AppFamilyName,
 	type ConnectionLogMethod,
 	ConnectionLogMethods,
 	type ConnectionLogStatus,
 	ConnectionLogStatuses,
 } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import {
 	Filter,
 	MenuSkeleton,
@@ -34,7 +34,6 @@ import { connectionLogMethodLabels } from "./connectionLogMethodLabels";
 type ConnectionLogFilterValues = {
 	status?: ConnectionLogStatus;
 	method?: ConnectionLogMethod;
-	family?: AppFamilyName;
 	workspace_owner?: string;
 	organization?: string;
 };
@@ -45,7 +44,6 @@ const buildConnectionLogFilterQuery = (
 	const parts: string[] = [];
 	if (v.status) parts.push(`status:${v.status}`);
 	if (v.method) parts.push(`method:${v.method}`);
-	if (v.family) parts.push(`family:${v.family}`);
 	if (v.workspace_owner) parts.push(`workspace_owner:${v.workspace_owner}`);
 	if (v.organization) parts.push(`organization:${v.organization}`);
 	return parts.join(" ");
@@ -55,14 +53,6 @@ const CONNECTION_LOG_PRESET_FILTERS = [
 	{
 		query: buildConnectionLogFilterQuery({ status: "ongoing", method: "ssh" }),
 		name: "Active SSH connections",
-	},
-	{
-		query: buildConnectionLogFilterQuery({ family: "vscode" }),
-		name: "VS Code family sessions",
-	},
-	{
-		query: buildConnectionLogFilterQuery({ family: "jetbrains" }),
-		name: "JetBrains sessions",
 	},
 ] satisfies { name: string; query: string }[];
 
@@ -85,33 +75,46 @@ export const ConnectionLogFilter: React.FC<ConnectionLogFilterProps> = ({
 }) => {
 	const width = menus.organization ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	return (
-		<Filter
-			learnMoreLink={docs(
-				"/admin/monitoring/connection-logs#how-to-filter-connection-logs",
+		<>
+			{/* Saved links and bookmarks can still carry the deprecated filter. */}
+			{filter.values.type && (
+				<Alert severity="warning" className="mb-4">
+					The <code>type</code> filter is deprecated and will be removed in a
+					future release. Use <code>method</code> and <code>app</code> instead.
+				</Alert>
 			)}
-			presets={CONNECTION_LOG_PRESET_FILTERS}
-			isLoading={menus.user.isInitializing}
-			filter={filter}
-			error={error}
-			options={
-				<>
-					<UserMenu placeholder="All owners" menu={menus.user} width={width} />
-					<StatusMenu menu={menus.status} width={width} />
-					<MethodMenu menu={menus.method} width={width} />
-					{menus.organization && (
-						<OrganizationsMenu menu={menus.organization} width={width} />
-					)}
-				</>
-			}
-			optionsSkeleton={
-				<>
-					<MenuSkeleton />
-					<MenuSkeleton />
-					<MenuSkeleton />
-					{menus.organization && <MenuSkeleton />}
-				</>
-			}
-		/>
+			<Filter
+				learnMoreLink={docs(
+					"/admin/monitoring/connection-logs#how-to-filter-connection-logs",
+				)}
+				presets={CONNECTION_LOG_PRESET_FILTERS}
+				isLoading={menus.user.isInitializing}
+				filter={filter}
+				error={error}
+				options={
+					<>
+						<UserMenu
+							placeholder="All owners"
+							menu={menus.user}
+							width={width}
+						/>
+						<StatusMenu menu={menus.status} width={width} />
+						<MethodMenu menu={menus.method} width={width} />
+						{menus.organization && (
+							<OrganizationsMenu menu={menus.organization} width={width} />
+						)}
+					</>
+				}
+				optionsSkeleton={
+					<>
+						<MenuSkeleton />
+						<MenuSkeleton />
+						<MenuSkeleton />
+						{menus.organization && <MenuSkeleton />}
+					</>
+				}
+			/>
+		</>
 	);
 };
 

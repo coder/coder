@@ -23,11 +23,12 @@ type ConnectionLog struct {
 	// Deprecated: Use ConnectionMethod and AppName.
 	Type             string              `json:"type"`
 	ConnectionMethod ConnectionLogMethod `json:"connection_method"`
-	// AppName identifies the originating client, when known. Web destinations
-	// are reported separately in WebInfo.
+	// AppName is the name of the connecting application, when known. The
+	// client reports it, so it is a normalized label and not a guarantee.
+	// Workspace app slugs and forwarded ports are reported in WebInfo.
 	AppName string `json:"app_name,omitempty"`
-	// AppDisplayName is the registry display name for a known client identity,
-	// or its normalized identifier when unregistered.
+	// AppDisplayName is the registry display name for AppName, or AppName
+	// itself when the app is unregistered.
 	AppDisplayName string `json:"app_display_name,omitempty"`
 
 	// WebInfo is set for connections that coderd records.
@@ -38,7 +39,8 @@ type ConnectionLog struct {
 }
 
 // ConnectionType is a connection method with SSH split by app family. It backs
-// the legacy `type` filter, which is removed together with ConnectionLog.Type.
+// the legacy `type` filter. Remove it when that filter and ConnectionLog.Type
+// are removed.
 type ConnectionType string
 
 const (

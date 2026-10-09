@@ -720,7 +720,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 		require.Empty(t, pty.ExcludedAppNames)
 
 		// An app is not a type, and type cannot be combined with its replacements.
-		for _, q := range []string{"type:cursor", "type:unknown", "type:ssh method:ssh", "type:vscode app:cursor", "type:vscode family:vscode"} {
+		for _, q := range []string{"type:cursor", "type:unknown", "type:ssh method:ssh", "type:vscode app:cursor"} {
 			_, _, errs := searchquery.ConnectionLogs(context.Background(), nil, q, database.APIKey{})
 			require.Len(t, errs, 1, q)
 		}
@@ -741,33 +741,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 		}
 	})
 
-	t.Run("Family", func(t *testing.T) {
-		t.Parallel()
-
-		values, count, errs := searchquery.ConnectionLogs(context.Background(), nil, "family:jetbrains", database.APIKey{})
-		require.Len(t, errs, 0)
-		require.Contains(t, values.AppNames, "goland")
-		require.NotContains(t, values.AppNames, "cursor")
-		require.Empty(t, values.ConnectionMethod)
-		require.Equal(t, values.AppNames, count.AppNames)
-
-		// Like other filters, family and app intersect.
-		values, _, errs = searchquery.ConnectionLogs(context.Background(), nil, "family:vscode app:Cursor", database.APIKey{})
-		require.Len(t, errs, 0)
-		require.Equal(t, []string{"cursor"}, values.AppNames)
-		values, _, errs = searchquery.ConnectionLogs(context.Background(), nil, "family:jetbrains app:cursor", database.APIKey{})
-		require.Len(t, errs, 0)
-		require.NotNil(t, values.AppNames)
-		require.Empty(t, values.AppNames, "an app outside the family matches nothing")
-
-		// Unknown has no registered apps.
-		for _, q := range []string{"family:unknown", "family:cursor"} {
-			_, _, errs = searchquery.ConnectionLogs(context.Background(), nil, q, database.APIKey{})
-			require.Len(t, errs, 1, q)
-		}
-	})
-
-	// app: matches a normalized client identity.
+	// app: matches the normalized name of the connecting application.
 	t.Run("App", func(t *testing.T) {
 		t.Parallel()
 
@@ -775,6 +749,13 @@ func TestSearchConnectionLogs(t *testing.T) {
 		require.Len(t, errs, 0)
 		require.Equal(t, []string{"code_server"}, values.AppNames)
 		require.Equal(t, values.AppNames, count.AppNames)
+
+		// Repeated app terms match any of them.
+		values, count, errs = searchquery.ConnectionLogs(context.Background(), nil, "app:vscode app:Cursor app:cursor method:ssh", database.APIKey{})
+		require.Len(t, errs, 0)
+		require.Equal(t, []string{"cursor", "vscode"}, values.AppNames)
+		require.Equal(t, values.AppNames, count.AppNames)
+		require.Equal(t, string(database.ConnectionLogMethodSSH), values.ConnectionMethod)
 	})
 
 	t.Run("Me", func(t *testing.T) {

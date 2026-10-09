@@ -99,7 +99,7 @@ describe("ConnectionLogPage", () => {
 					count_cap: 0,
 				});
 
-			const query = "type:ssh status:ongoing";
+			const query = "method:ssh status:ongoing";
 			await renderPage({ filter: query });
 
 			expect(getConnectionLogsSpy).toHaveBeenCalledWith({
@@ -124,7 +124,7 @@ describe("ConnectionLogPage", () => {
 				screen.getByRole("button", { name: "Filter by connection method" }),
 			);
 			await user.click(
-				await screen.findByRole("option", { name: "Reconnecting PTY" }),
+				await screen.findByRole("option", { name: "Web Terminal" }),
 			);
 
 			await waitFor(() =>
@@ -136,6 +136,35 @@ describe("ConnectionLogPage", () => {
 			);
 		});
 
+		it("replaces a deprecated type filter when a method is selected", async () => {
+			const getConnectionLogsSpy = vi
+				.spyOn(API, "getConnectionLogs")
+				.mockResolvedValue({
+					connection_logs: [MockConnectedSSHConnectionLog],
+					count: 1,
+					count_cap: 0,
+				});
+			await renderPage({ filter: "status:ongoing type:ssh" });
+			expect(screen.getByRole("alert")).toHaveTextContent(
+				"The type filter is deprecated",
+			);
+
+			const user = userEvent.setup();
+			await user.click(
+				screen.getByRole("button", { name: "Filter by connection method" }),
+			);
+			await user.click(await screen.findByRole("option", { name: "SSH" }));
+
+			await waitFor(() =>
+				expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: 0,
+					q: "status:ongoing method:ssh",
+				}),
+			);
+			expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+		});
+
 		it("resets page to 1 when filter is changed", async () => {
 			await renderPage({ page: 2 });
 
@@ -143,7 +172,7 @@ describe("ConnectionLogPage", () => {
 			getConnectionLogsSpy.mockClear();
 
 			const filterField = screen.getByLabelText("Filter");
-			const query = "type:ssh status:ongoing";
+			const query = "method:ssh status:ongoing";
 			await userEvent.type(filterField, query);
 
 			await waitFor(() =>

@@ -57,11 +57,12 @@ const ConnectionLogPage: React.FC = () => {
 
 	const methodMenu = useMethodFilterMenu({
 		value: filter.values.method,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				method: option?.value,
-			}),
+		onChange: (option) => {
+			// Saved links can carry the deprecated type filter, which the API
+			// rejects when combined with method.
+			const { type: _legacyType, ...values } = filter.values;
+			filter.update({ ...values, method: option?.value });
+		},
 	});
 
 	const organizationsMenu = useOrganizationsFilterMenu({

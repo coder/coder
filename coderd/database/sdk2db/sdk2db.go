@@ -18,7 +18,8 @@ func ProvisionerDaemonStatuses(params []codersdk.ProvisionerDaemonStatus) []data
 	return slice.List(params, ProvisionerDaemonStatus)
 }
 
-// ConnectionLogFromAgentType recovers method and identity from legacy reports.
+// ConnectionLogFromAgentType recovers the method and app name from legacy
+// reports.
 // An unspecified legacy type was used by SSH handlers for unfamiliar apps.
 func ConnectionLogFromAgentType(typ agentproto.Connection_Type) (database.ConnectionLogMethod, string, error) {
 	switch typ {

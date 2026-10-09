@@ -3,7 +3,7 @@ CREATE TYPE connection_type AS ENUM (
 	'workspace_app', 'port_forwarding', 'tunnel'
 );
 
--- Client identities collapse to the historical SSH families on rollback.
+-- App names collapse to the historical SSH families on rollback.
 ALTER TABLE connection_logs
 	ALTER COLUMN app_name_or_port TYPE text USING (
 		CASE
@@ -14,6 +14,8 @@ ALTER TABLE connection_logs
 	ALTER COLUMN connection_method TYPE connection_type USING (
 		CASE
 			WHEN connection_method != 'ssh' THEN connection_method::text
+			-- Snapshot of the VS Code and JetBrains families in
+			-- codersdk/appname.go. Apps registered later roll back to ssh.
 			WHEN app_name_or_port IN (
 				'vscode', 'vscode_insiders', 'vscode_web', 'code_server', 'cursor',
 				'windsurf', 'positron', 'vscodium', 'codium', 'antigravity', 'trae',

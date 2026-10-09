@@ -149,13 +149,17 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		if dblog.ConnectionLog.Code.Valid {
 			sshInfo.ExitCode = &dblog.ConnectionLog.Code.Int32
 		}
-	default:
+	case database.ConnectionLogMethodWorkspaceApp,
+		database.ConnectionLogMethodPortForwarding,
+		database.ConnectionLogMethodTunnel:
 		webInfo = &codersdk.ConnectionLogWebInfo{
 			UserAgent:  dblog.ConnectionLog.UserAgent.String,
 			User:       user,
 			SlugOrPort: dblog.ConnectionLog.AppNameOrPort.String,
 			StatusCode: dblog.ConnectionLog.Code.Int32,
 		}
+	default:
+		panic("developer error: unknown connection log method " + string(dblog.ConnectionLog.ConnectionMethod))
 	}
 
 	return codersdk.ConnectionLog{

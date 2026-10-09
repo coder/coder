@@ -113,26 +113,23 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 		Status:              string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[codersdk.ConnectionLogStatus])),
 		ConnectionMethod:    string(httpapi.ParseCustom(parser, values, "", "method", httpapi.ParseEnum[codersdk.ConnectionLogMethod])),
 	}
-	app := parser.String(values, "", "app")
-	familyApps := httpapi.ParseCustom(parser, values, nil, "family", parseAppFamily)
+	apps := parser.Strings(values, nil, "app")
 	typ := httpapi.ParseCustom(parser, values, "", "type", httpapi.ParseEnum[codersdk.ConnectionType])
 	switch {
-	case typ != "" && (filter.ConnectionMethod != "" || app != "" || familyApps != nil):
+	case typ != "" && (filter.ConnectionMethod != "" || len(apps) > 0):
 		parser.Errors = append(parser.Errors, codersdk.ValidationError{
 			Field:  "type",
-			Detail: "type cannot be combined with method, app, or family",
+			Detail: "type cannot be combined with method or app",
 		})
 	case typ != "":
 		applyConnectionTypeFilter(&filter, typ)
-	case app != "":
-		app = codersdk.NormalizeAppName(app)
-		filter.AppNames = []string{app}
-		if familyApps != nil && !slices.Contains(familyApps, app) {
-			// Filters intersect: an app outside the family matches nothing.
-			filter.AppNames = []string{}
+	case len(apps) > 0:
+		// Repeated app terms match any of the apps.
+		for i, app := range apps {
+			apps[i] = codersdk.NormalizeAppName(app)
 		}
-	default:
-		filter.AppNames = familyApps
+		slices.Sort(apps)
+		filter.AppNames = slices.Compact(apps)
 	}
 
 	if filter.Username == "me" {
@@ -184,14 +181,6 @@ func applyConnectionTypeFilter(filter *database.GetConnectionLogsOffsetParams, t
 	default:
 		filter.ConnectionMethod = string(typ)
 	}
-}
-
-func parseAppFamily(family string) ([]string, error) {
-	apps := appsInFamily(codersdk.AppFamilyName(family))
-	if len(apps) == 0 {
-		return nil, xerrors.Errorf("%q is not an app family with registered apps", family)
-	}
-	return apps, nil
 }
 
 func appsInFamily(family codersdk.AppFamilyName) []string {
