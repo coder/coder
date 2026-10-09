@@ -13,17 +13,17 @@ import {
 	userSkills,
 } from "#/api/queries/userSkills";
 import type { SkillMetadata } from "#/api/typesGenerated";
-import type { SkillErrorDisplay } from "./components/SkillEditor";
-import {
-	type SkillDeleteState,
-	type SkillEditorState,
-	SkillsTableView,
-} from "./components/SkillsTableView";
 import {
 	parseSkillMarkdown,
 	SKILLS_MAX_PER_OWNER,
 	type SkillFormValues,
-} from "./utils/skills";
+} from "../utils/skills";
+import type { SkillErrorDisplay } from "./SkillEditor";
+import {
+	type SkillDeleteState,
+	type SkillEditorState,
+	SkillsTableView,
+} from "./SkillsTableView";
 
 const emptySkillFormValues: SkillFormValues = {
 	name: "",
