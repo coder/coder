@@ -3580,7 +3580,8 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		if cursor.HistoryVersion > chat.HistoryVersion {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid history_version parameter.",
-				Detail:  "history_version is above the chat's history version.",
+				Detail: fmt.Sprintf("history_version %d is above the chat's history_version %d. Send the history_version of the chat's newest messages page or its last preview_reset event.",
+					cursor.HistoryVersion, chat.HistoryVersion),
 			})
 			return
 		}
