@@ -86,6 +86,22 @@ export const ensureToolBlock = (
 	return [...blocks, { type: "tool", id }];
 };
 
+/**
+ * Provider-executed calls render no block, so without this mark the text
+ * before a web search would render as the answer. It skips citations that
+ * streamed after the text.
+ */
+export const markTextBeforeProviderTool = (
+	blocks: RenderBlock[],
+): RenderBlock[] => {
+	const index = blocks.findLastIndex((block) => block.type !== "sources");
+	const block = blocks[index];
+	if (block?.type !== "response" || block.beforeProviderTool) {
+		return blocks;
+	}
+	return blocks.with(index, { ...block, beforeProviderTool: true });
+};
+
 const isToolCallPart = (
 	part: TypesGen.ChatMessagePart,
 ): part is TypesGen.ChatToolCallPart => part.type === "tool-call";
@@ -240,6 +256,7 @@ export const parseMessageContent = (
 				// tool card UI and let the sources component render
 				// their results.
 				if (part.provider_executed) {
+					parsed.blocks = markTextBeforeProviderTool(parsed.blocks);
 					break;
 				}
 				const id = part.tool_call_id || `tool-call-${index}`;

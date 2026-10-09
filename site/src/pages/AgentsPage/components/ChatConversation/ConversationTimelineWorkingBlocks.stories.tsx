@@ -11,6 +11,7 @@ import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
 	MockCollapsedStepsPreferences,
+	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
 	MockQuestionCallMessage,
 	MockWebSearchAnswerMessages,
@@ -101,6 +102,19 @@ export const SearchOnlyAnswerFolds: Story = {
 			MockWebSearchAnswerMessages[0],
 			...MockWebSearchAnswerMessages.slice(5),
 		]),
+	},
+};
+
+export const LeadInBeforeSearchFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockLeadInSearchMessages),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 2s (1 step)",
+			}),
+		);
 	},
 };
 

@@ -247,6 +247,45 @@ export const MockWebSearchAnswerMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
+/**
+ * A turn without tools whose answer narrates, then searches the web from 1s to
+ * 3s before writing its text, with no reasoning.
+ */
+export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
+	MockWorkingMessages[0],
+	{
+		...MockChatMessage,
+		id: 2,
+		role: "assistant",
+		created_at: workingFixtureTime(4),
+		content: [
+			{ type: "text", text: "I'll look up the latest Coder release." },
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				args: { query: "latest coder release" },
+				provider_executed: true,
+				created_at: workingFixtureTime(1),
+			},
+			{
+				type: "source",
+				url: "https://releases.example.com",
+				title: "Coder releases",
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				result: {},
+				provider_executed: true,
+				created_at: workingFixtureTime(3),
+			},
+			{ type: "text", text: "The latest Coder release is v2.30." },
+		],
+	},
+];
+
 /** A question the agent asks after the first step of MockWorkingMessages. */
 export const MockQuestionCallMessage: TypesGen.ChatMessage = {
 	...MockChatMessage,

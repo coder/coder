@@ -44,6 +44,11 @@ export type RenderBlock =
 	| {
 			type: "response";
 			text: string;
+			/**
+			 * A provider-executed call, such as web search, followed this text,
+			 * so later text starts a new block.
+			 */
+			beforeProviderTool?: boolean;
 	  }
 	| {
 			type: "thinking";
@@ -121,4 +126,9 @@ export type StreamState = {
 	toolResults: Record<string, StreamToolResult>;
 	sources: Array<{ url: string; title: string }>;
 	startedAt?: string;
+	/**
+	 * Set by a provider-executed result, so a search counts as a step even
+	 * before or without citations.
+	 */
+	providerToolRan?: boolean;
 };

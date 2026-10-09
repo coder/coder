@@ -3,6 +3,7 @@ import { appendTextBlock } from "./blockUtils";
 import {
 	ensureToolBlock,
 	getToolResultStatus,
+	markTextBeforeProviderTool,
 	parseToolResultIsError,
 } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
@@ -51,7 +52,11 @@ export const applyMessagePartToStreamState = (
 			// handled natively by the provider — skip rendering them
 			// as tool cards.
 			if (part.provider_executed) {
-				return prev;
+				const blocks = markTextBeforeProviderTool(nextState.blocks);
+				const startedAt = nextState.startedAt ?? part.created_at;
+				return blocks === nextState.blocks && startedAt === nextState.startedAt
+					? prev
+					: { ...nextState, startedAt, blocks };
 			}
 			const existingByName = Object.values(nextState.toolCalls).find(
 				(call) => call.name === part.tool_name,
@@ -96,9 +101,13 @@ export const applyMessagePartToStreamState = (
 			};
 		}
 		case "tool-result": {
-			// Skip synthetic results for provider-executed tools.
+			// Provider-executed results render no card, but the search they end
+			// is a step. Recording it may create an empty state, which still
+			// shows the Thinking indicator.
 			if (part.provider_executed) {
-				return prev;
+				return nextState.providerToolRan
+					? nextState
+					: { ...nextState, providerToolRan: true };
 			}
 			const existingByName = Object.values(nextState.toolResults).find(
 				(result) => result.name === part.tool_name,
