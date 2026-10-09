@@ -288,15 +288,16 @@ type ChatContext struct {
 	// Error is the snapshot-level error copied from the pinned snapshot
 	// (empty when healthy).
 	Error string `json:"error,omitempty"`
-	// Resources is the chat's pinned context (instruction files and
-	// skills) the prompt is built from, metadata only (no bodies). It is
+	// Resources lists the chat's pinned context resources of the kinds
+	// ChatContextResourceKind describes, metadata only (no bodies). It is
 	// populated only on the single-chat GET response; list and watch
 	// payloads leave it nil to stay lightweight.
 	Resources []ChatContextResource `json:"resources,omitempty"`
 }
 
-// ChatContextResourceKind classifies a pinned context resource the prompt
-// uses. Only the kinds that contribute to the prompt are reported.
+// ChatContextResourceKind classifies a pinned context resource. Only the
+// kinds that contribute to the prompt, and Agent Plugin manifests, are
+// reported.
 type ChatContextResourceKind string
 
 const (
@@ -304,6 +305,8 @@ const (
 	ChatContextResourceKindSkill           ChatContextResourceKind = "skill"
 	ChatContextResourceKindMCPConfig       ChatContextResourceKind = "mcp_config"
 	ChatContextResourceKindMCPServer       ChatContextResourceKind = "mcp_server"
+	// ChatContextResourceKindPlugin is an Agent Plugin manifest (plugin.json).
+	ChatContextResourceKindPlugin ChatContextResourceKind = "plugin"
 )
 
 // ChatContextResource is one pinned workspace-context resource the chat's
@@ -312,7 +315,9 @@ const (
 type ChatContextResource struct {
 	// Source is the resource locator: the canonical file path for an
 	// instruction file, the skill directory for a skill, the file path for
-	// an MCP config, or the server name for an MCP server.
+	// an MCP config, the server name for an MCP server
+	// ("<plugin_name>/<server_name>" for a plugin's server), or the plugin
+	// root directory for a plugin.
 	Source string                  `json:"source"`
 	Kind   ChatContextResourceKind `json:"kind"`
 	// SizeBytes is the original payload size in bytes.
@@ -320,13 +325,20 @@ type ChatContextResource struct {
 	// SkillName and SkillDescription are populated only for skill kinds.
 	SkillName        string `json:"skill_name,omitempty"`
 	SkillDescription string `json:"skill_description,omitempty"`
+	// PluginName is the owning Agent Plugin's name. It is the manifest name
+	// on OK plugin rows, empty on non-OK plugin rows, and the attributing
+	// plugin on skill and mcp_server rows shipped inside a plugin, in every
+	// status; empty otherwise.
+	PluginName string `json:"plugin_name,omitempty"`
 	// Tools lists the tools exposed by an MCP server. Populated only for the
 	// mcp_server kind; nil otherwise.
 	Tools []ChatContextTool `json:"tools,omitempty"`
 	// Status is the resource's health. Non-ok resources (invalid, unreadable,
 	// oversize, excluded) are still reported so the UI can surface why a
 	// resource was dropped from the prompt instead of silently omitting it;
-	// their body-specific fields (skill name, tools) are empty.
+	// their body-specific fields (skill name, tools) are empty, but
+	// plugin_name is still set on skill and mcp_server rows shipped by a
+	// plugin.
 	Status ChatContextResourceStatus `json:"status"`
 	// Error explains a non-ok Status; empty when healthy. May also carry a
 	// non-fatal warning when Status is ok.

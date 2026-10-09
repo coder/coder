@@ -21505,7 +21505,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "resources": {
-                    "description": "Resources is the chat's pinned context (instruction files and\nskills) the prompt is built from, metadata only (no bodies). It is\npopulated only on the single-chat GET response; list and watch\npayloads leave it nil to stay lightweight.",
+                    "description": "Resources lists the chat's pinned context resources of the kinds\nChatContextResourceKind describes, metadata only (no bodies). It is\npopulated only on the single-chat GET response; list and watch\npayloads leave it nil to stay lightweight.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatContextResource"
@@ -21523,6 +21523,10 @@ const docTemplate = `{
                 "kind": {
                     "$ref": "#/definitions/codersdk.ChatContextResourceKind"
                 },
+                "plugin_name": {
+                    "description": "PluginName is the owning Agent Plugin's name. It is the manifest name\non OK plugin rows, empty on non-OK plugin rows, and the attributing\nplugin on skill and mcp_server rows shipped inside a plugin, in every\nstatus; empty otherwise.",
+                    "type": "string"
+                },
                 "size_bytes": {
                     "description": "SizeBytes is the original payload size in bytes.",
                     "type": "integer"
@@ -21535,11 +21539,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "source": {
-                    "description": "Source is the resource locator: the canonical file path for an\ninstruction file, the skill directory for a skill, the file path for\nan MCP config, or the server name for an MCP server.",
+                    "description": "Source is the resource locator: the canonical file path for an\ninstruction file, the skill directory for a skill, the file path for\nan MCP config, the server name for an MCP server\n(\"\u003cplugin_name\u003e/\u003cserver_name\u003e\" for a plugin's server), or the plugin\nroot directory for a plugin.",
                     "type": "string"
                 },
                 "status": {
-                    "description": "Status is the resource's health. Non-ok resources (invalid, unreadable,\noversize, excluded) are still reported so the UI can surface why a\nresource was dropped from the prompt instead of silently omitting it;\ntheir body-specific fields (skill name, tools) are empty.",
+                    "description": "Status is the resource's health. Non-ok resources (invalid, unreadable,\noversize, excluded) are still reported so the UI can surface why a\nresource was dropped from the prompt instead of silently omitting it;\ntheir body-specific fields (skill name, tools) are empty, but\nplugin_name is still set on skill and mcp_server rows shipped by a\nplugin.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatContextResourceStatus"
@@ -21561,13 +21565,15 @@ const docTemplate = `{
                 "instruction_file",
                 "skill",
                 "mcp_config",
-                "mcp_server"
+                "mcp_server",
+                "plugin"
             ],
             "x-enum-varnames": [
                 "ChatContextResourceKindInstructionFile",
                 "ChatContextResourceKindSkill",
                 "ChatContextResourceKindMCPConfig",
-                "ChatContextResourceKindMCPServer"
+                "ChatContextResourceKindMCPServer",
+                "ChatContextResourceKindPlugin"
             ]
         },
         "codersdk.ChatContextResourceStatus": {

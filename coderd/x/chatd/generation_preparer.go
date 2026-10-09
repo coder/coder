@@ -317,7 +317,7 @@ func (server *Server) prepareGeneration(
 		inlineMCPTools     []fantasy.AgentTool
 		inlineMCPSummaries []mcpclient.ConnectSummary
 		workspaceMCPTools  []fantasy.AgentTool
-		workspaceSkills    []chattool.SkillMeta
+		pinnedSkills       []chattool.SkillMeta
 		personalSkills     []skillspkg.Skill
 		resolvedUserPrompt string
 		planPathBlock      string
@@ -363,7 +363,7 @@ func (server *Server) prepareGeneration(
 		server.ensureChatContextPinnedOnFirstTurn(ctx, workspaceCtx.currentChatSnapshot())
 
 		var resolveErr error
-		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
+		instruction, pinnedSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
 		if resolveErr != nil {
 			return generationPrepared{}, resolveErr
 		}
@@ -528,13 +528,7 @@ func (server *Server) prepareGeneration(
 	if !isRootChat {
 		subagentInstruction = defaultSubagentInstruction
 	}
-	resolvedSkillsFor := func(workspaceSkills []chattool.SkillMeta) []skillspkg.ResolvedSkill {
-		return mergeTurnSkills(personalSkills, workspaceSkills)
-	}
-	resolveSkillAlias := func(alias string) (skillspkg.ResolvedSkill, error) {
-		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
-	}
-	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
+	initialResolvedSkills := chattool.MergePinnedSkills(personalSkills, pinnedSkills)
 	memoryStore, memoryProjectName, hasMemory := server.resolveProjectMemory(ctx, chat)
 	memoryIndex := ""
 	if hasMemory {
@@ -624,15 +618,15 @@ func (server *Server) prepareGeneration(
 	skillOpts := chattool.ReadSkillOptions{
 		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		GetSkills: func() []chattool.SkillMeta {
-			return workspaceSkills
+			return pinnedSkills
 		},
-		ResolveAlias: resolveSkillAlias,
+		PersonalSkills: personalSkills,
 		LoadPersonalSkillBody: func(ctx context.Context, name string) (skillspkg.ParsedSkill, error) {
 			return server.loadPersonalSkillBody(ctx, chat.OwnerID, name)
 		},
 	}
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
-		if len(personalSkills) == 0 && len(workspaceSkills) == 0 {
+		if len(personalSkills) == 0 && len(pinnedSkills) == 0 {
 			return current, false
 		}
 		updated := current
@@ -651,7 +645,7 @@ func (server *Server) prepareGeneration(
 			updated = append(updated, tool)
 		}
 		appendTool(chattool.ReadSkill(skillOpts))
-		if len(workspaceSkills) > 0 {
+		if len(pinnedSkills) > 0 {
 			appendTool(chattool.ReadSkillFile(skillOpts))
 		}
 		return updated, changed
