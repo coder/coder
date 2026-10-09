@@ -38,6 +38,31 @@ import {
 } from "./chatStore";
 import type { RetryState } from "./types";
 
+// Rewrites the cached newest page, which carries the chat's queue and history
+// version. An update that returns the page unchanged leaves the cache as is.
+const patchNewestPage = (
+	queryClient: QueryClient,
+	chatID: string,
+	update: (
+		page: TypesGen.ChatMessagesResponse,
+	) => TypesGen.ChatMessagesResponse,
+): void => {
+	patchChatMessages(queryClient, chatID, (currentData) => {
+		if (!currentData?.pages?.length) {
+			return currentData;
+		}
+		const firstPage = currentData.pages[0];
+		const nextPage = update(firstPage);
+		if (nextPage === firstPage) {
+			return currentData;
+		}
+		return {
+			...currentData,
+			pages: [nextPage, ...currentData.pages.slice(1)],
+		};
+	});
+};
+
 // Prevents REST re-hydration from replaying a stale queue over the store.
 const writeQueuedMessagesToCache = (
 	queryClient: QueryClient,
@@ -45,24 +70,11 @@ const writeQueuedMessagesToCache = (
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 ): void => {
 	const nextQueuedMessages = queuedMessages ?? [];
-	patchChatMessages(queryClient, chatID, (currentData) => {
-		if (!currentData?.pages?.length) {
-			return currentData;
-		}
-		const firstPage = currentData.pages[0];
-		if (
-			chatQueuedMessagesEqualByID(firstPage.queued_messages, nextQueuedMessages)
-		) {
-			return currentData;
-		}
-		return {
-			...currentData,
-			pages: [
-				{ ...firstPage, queued_messages: nextQueuedMessages },
-				...currentData.pages.slice(1),
-			],
-		};
-	});
+	patchNewestPage(queryClient, chatID, (page) =>
+		chatQueuedMessagesEqualByID(page.queued_messages, nextQueuedMessages)
+			? page
+			: { ...page, queued_messages: nextQueuedMessages },
+	);
 };
 
 const readQueuedMessagesFromCache = (
@@ -80,22 +92,11 @@ const writeHistoryVersionToCache = (
 	chatID: string,
 	historyVersion: number,
 ): void => {
-	patchChatMessages(queryClient, chatID, (currentData) => {
-		if (!currentData?.pages?.length) {
-			return currentData;
-		}
-		const firstPage = currentData.pages[0];
-		if (firstPage.history_version === historyVersion) {
-			return currentData;
-		}
-		return {
-			...currentData,
-			pages: [
-				{ ...firstPage, history_version: historyVersion },
-				...currentData.pages.slice(1),
-			],
-		};
-	});
+	patchNewestPage(queryClient, chatID, (page) =>
+		page.history_version === historyVersion
+			? page
+			: { ...page, history_version: historyVersion },
+	);
 };
 
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
