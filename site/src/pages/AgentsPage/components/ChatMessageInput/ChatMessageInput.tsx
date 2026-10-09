@@ -696,10 +696,16 @@ const ChatMessageInput = ({
 		: [];
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
-	// Lists stay undefined while loading: triggers stay qualified and
-	// built-in commands stay hidden until every list resolves. A failed list
-	// counts as empty, matching the submit intercept.
+	// Lists stay undefined until fetched, which keeps triggers qualified
+	// and built-in commands hidden.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
+		{ source: "personal", skills: personalSkills },
+		{ source: "org", skills: loadedOrganizationSkills },
+		{ source: "workspace", skills: loadedWorkspaceSkills },
+	];
+	// A list that failed with no data counts as empty for built-in commands
+	// only, matching the submit intercept.
+	const commandSkillLists: SkillSourceList<SkillMetadata>[] = [
 		{
 			source: "personal",
 			skills: personalSkills ?? (skillsQuery.isError ? [] : undefined),
@@ -714,7 +720,8 @@ const ChatMessageInput = ({
 	];
 	const availableSlashCommands = (slashCommands ?? []).filter(
 		(command) =>
-			resolveChatSlashCommandAvailability(command, skillLists) === "available",
+			resolveChatSlashCommandAvailability(command, commandSkillLists) ===
+			"available",
 	);
 	const hasSlashCommands = availableSlashCommands.length > 0;
 	// A stale empty cache with a refetch in flight must not dismiss the menu.

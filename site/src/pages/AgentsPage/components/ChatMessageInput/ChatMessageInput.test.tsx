@@ -371,5 +371,13 @@ describe("ChatMessageInput", () => {
 			await user.keyboard("{Enter}");
 			expect(inputRef.current?.getValue()).toBe("/compact");
 		});
+
+		it("keeps triggers qualified when the organization list fails", async () => {
+			const inputRef = renderWithSkills({ personal: [mockReviewerSkill] });
+			const user = await pasteTrigger("/rev");
+			await screen.findByText(/Could not load organization skills/);
+			await user.click(screen.getByRole("option", { name: /reviewer/ }));
+			expect(inputRef.current?.getValue()).toBe("/personal/reviewer");
+		});
 	});
 });
