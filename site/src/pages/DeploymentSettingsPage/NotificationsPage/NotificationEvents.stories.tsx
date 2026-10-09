@@ -40,7 +40,7 @@ export const SMTPNotConfigured: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("link", { name: /View docs/ }),
+			canvas.getByRole("link", { name: /View SMTP docs/ }),
 		).toHaveAttribute(
 			"href",
 			docs("/admin/monitoring/notifications#smtp-email"),
@@ -66,7 +66,7 @@ export const WebhookNotConfigured: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("link", { name: /View docs/ }),
+			canvas.getByRole("link", { name: /View webhook docs/ }),
 		).toHaveAttribute("href", docs("/admin/monitoring/notifications#webhook"));
 	},
 };

@@ -267,9 +267,9 @@ const InstructionsForm: React.FC<InstructionsFormProps> = ({
 				{systemInvisibleCharCount > 0 && (
 					<Alert severity="warning" className="mt-2">
 						<AlertDescription>
-							This text contains {systemInvisibleCharCount} invisible Unicode{" "}
+							This text has {systemInvisibleCharCount} invisible Unicode{" "}
 							{systemInvisibleCharCount !== 1 ? "characters" : "character"} that
-							could hide content. These will be stripped on save.
+							could hide content. They'll be removed when you save.
 						</AlertDescription>
 					</Alert>
 				)}
@@ -294,9 +294,9 @@ const InstructionsForm: React.FC<InstructionsFormProps> = ({
 				{planModeInvisibleCharCount > 0 && (
 					<Alert severity="warning" className="mt-2">
 						<AlertDescription>
-							This text contains {planModeInvisibleCharCount} invisible Unicode{" "}
+							This text has {planModeInvisibleCharCount} invisible Unicode{" "}
 							{planModeInvisibleCharCount !== 1 ? "characters" : "character"}{" "}
-							that could hide content. These will be stripped on save.
+							that could hide content. They'll be removed when you save.
 						</AlertDescription>
 					</Alert>
 				)}

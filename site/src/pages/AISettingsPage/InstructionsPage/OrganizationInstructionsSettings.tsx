@@ -95,9 +95,9 @@ export const OrganizationInstructionsSettings: React.FC<
 					{invisibleCharCount > 0 && (
 						<Alert severity="warning" className="mt-2">
 							<AlertDescription>
-								This text contains {invisibleCharCount} invisible Unicode{" "}
+								This text has {invisibleCharCount} invisible Unicode{" "}
 								{invisibleCharCount !== 1 ? "characters" : "character"} that
-								could hide content. These will be stripped on save.
+								could hide content. They'll be removed when you save.
 							</AlertDescription>
 						</Alert>
 					)}

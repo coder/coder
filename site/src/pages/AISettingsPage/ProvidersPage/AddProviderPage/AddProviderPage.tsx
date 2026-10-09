@@ -1,6 +1,6 @@
 import { ArrowLeftIcon } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
-import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -25,11 +25,8 @@ const AddProviderPage: React.FC = () => {
 					</Button>
 				</Link>
 				<Alert severity="warning">
-					<AlertTitle>Provider type not found</AlertTitle>
-					<AlertDescription>
-						The provider type you are trying to add is not valid. Please try
-						again.
-					</AlertDescription>
+					We don't support this provider type. Go back to providers and choose
+					one from Add provider.
 				</Alert>
 			</div>
 		);
