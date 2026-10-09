@@ -29392,6 +29392,37 @@ func (q *sqlQuerier) UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpu
 	return err
 }
 
+const deleteOrganizationSkillByOrganizationIDAndName = `-- name: DeleteOrganizationSkillByOrganizationIDAndName :one
+DELETE FROM skills
+WHERE organization_id = $1::uuid AND name = $2
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+`
+
+type DeleteOrganizationSkillByOrganizationIDAndNameParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg DeleteOrganizationSkillByOrganizationIDAndNameParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, deleteOrganizationSkillByOrganizationIDAndName, arg.OrganizationID, arg.Name)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
 const deleteUserSkillByUserIDAndName = `-- name: DeleteUserSkillByUserIDAndName :one
 DELETE FROM skills
 WHERE user_id = $1::uuid AND name = $2
@@ -29423,6 +29454,37 @@ func (q *sqlQuerier) DeleteUserSkillByUserIDAndName(ctx context.Context, arg Del
 	return i, err
 }
 
+const getOrganizationSkillByOrganizationIDAndName = `-- name: GetOrganizationSkillByOrganizationIDAndName :one
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+FROM skills
+WHERE organization_id = $1::uuid AND name = $2
+`
+
+type GetOrganizationSkillByOrganizationIDAndNameParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg GetOrganizationSkillByOrganizationIDAndNameParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationSkillByOrganizationIDAndName, arg.OrganizationID, arg.Name)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
 const getUserSkillByUserIDAndName = `-- name: GetUserSkillByUserIDAndName :one
 SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
 FROM skills
@@ -29436,6 +29498,50 @@ type GetUserSkillByUserIDAndNameParams struct {
 
 func (q *sqlQuerier) GetUserSkillByUserIDAndName(ctx context.Context, arg GetUserSkillByUserIDAndNameParams) (Skill, error) {
 	row := q.db.QueryRowContext(ctx, getUserSkillByUserIDAndName, arg.UserID, arg.Name)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
+const insertOrganizationSkill = `-- name: InsertOrganizationSkill :one
+INSERT INTO skills (id, organization_id, name, description, content, group_acl, user_acl)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text, $6, $7)
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+`
+
+type InsertOrganizationSkillParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	Content        string    `db:"content" json:"content"`
+	GroupACL       ChatACL   `db:"group_acl" json:"group_acl"`
+	UserACL        ChatACL   `db:"user_acl" json:"user_acl"`
+}
+
+func (q *sqlQuerier) InsertOrganizationSkill(ctx context.Context, arg InsertOrganizationSkillParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, insertOrganizationSkill,
+		arg.ID,
+		arg.OrganizationID,
+		arg.Name,
+		arg.Description,
+		arg.Content,
+		arg.GroupACL,
+		arg.UserACL,
+	)
 	var i Skill
 	err := row.Scan(
 		&i.ID,
@@ -29494,6 +29600,57 @@ func (q *sqlQuerier) InsertUserSkill(ctx context.Context, arg InsertUserSkillPar
 	return i, err
 }
 
+const listOrganizationSkillMetadataByOrganizationID = `-- name: ListOrganizationSkillMetadataByOrganizationID :many
+SELECT
+    id, organization_id, name, description, enabled, created_at, updated_at
+FROM skills
+WHERE organization_id = $1::uuid
+    -- Authorize Filter clause will be injected below in GetAuthorizedOrganizationSkillMetadata
+    -- @authorize_filter
+ORDER BY name ASC
+`
+
+type ListOrganizationSkillMetadataByOrganizationIDRow struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Enabled        bool          `db:"enabled" json:"enabled"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) ListOrganizationSkillMetadataByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ListOrganizationSkillMetadataByOrganizationIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganizationSkillMetadataByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOrganizationSkillMetadataByOrganizationIDRow
+	for rows.Next() {
+		var i ListOrganizationSkillMetadataByOrganizationIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.Name,
+			&i.Description,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserSkillMetadataByUserID = `-- name: ListUserSkillMetadataByUserID :many
 SELECT
     id, user_id, name, description, created_at, updated_at
@@ -29539,6 +29696,51 @@ func (q *sqlQuerier) ListUserSkillMetadataByUserID(ctx context.Context, userID u
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateOrganizationSkillByOrganizationIDAndName = `-- name: UpdateOrganizationSkillByOrganizationIDAndName :one
+UPDATE skills
+SET
+    description = COALESCE($1::text, description),
+    content     = COALESCE($2::text, content),
+    enabled     = COALESCE($3::boolean, enabled),
+    updated_at  = now()
+WHERE organization_id = $4::uuid AND name = $5
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+`
+
+type UpdateOrganizationSkillByOrganizationIDAndNameParams struct {
+	Description    sql.NullString `db:"description" json:"description"`
+	Content        sql.NullString `db:"content" json:"content"`
+	Enabled        sql.NullBool   `db:"enabled" json:"enabled"`
+	OrganizationID uuid.UUID      `db:"organization_id" json:"organization_id"`
+	Name           string         `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg UpdateOrganizationSkillByOrganizationIDAndNameParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, updateOrganizationSkillByOrganizationIDAndName,
+		arg.Description,
+		arg.Content,
+		arg.Enabled,
+		arg.OrganizationID,
+		arg.Name,
+	)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
 }
 
 const updateUserSkillByUserIDAndName = `-- name: UpdateUserSkillByUserIDAndName :one

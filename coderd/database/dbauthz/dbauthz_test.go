@@ -7072,6 +7072,70 @@ func (s *MethodTestSuite) TestUserSkills() {
 	}))
 }
 
+func (s *MethodTestSuite) TestOrganizationSkills() {
+	orgSkill := func(orgID uuid.UUID, name string) database.Skill {
+		return database.Skill{
+			ID:             uuid.New(),
+			OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true},
+			Name:           name,
+			GroupACL:       database.ChatACL{orgID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+		}
+	}
+	s.Run("InsertOrganizationSkill", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertOrganizationSkillParams{ID: uuid.New(), OrganizationID: uuid.New(), Name: "test"}
+		ret := orgSkill(arg.OrganizationID, arg.Name)
+		dbm.EXPECT().InsertOrganizationSkill(gomock.Any(), arg).Return(ret, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceOrganizationSkill.InOrg(arg.OrganizationID), policy.ActionCreate).
+			Returns(ret)
+	}))
+	s.Run("GetOrganizationSkillByOrganizationIDAndName", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetOrganizationSkillByOrganizationIDAndNameParams{OrganizationID: uuid.New(), Name: "test"}
+		skill := orgSkill(arg.OrganizationID, arg.Name)
+		dbm.EXPECT().GetOrganizationSkillByOrganizationIDAndName(gomock.Any(), arg).Return(skill, nil).AnyTimes()
+		check.Args(arg).Asserts(skill, policy.ActionRead).Returns(skill)
+	}))
+	s.Run("ListOrganizationSkillMetadataByOrganizationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		rows := []database.ListOrganizationSkillMetadataByOrganizationIDRow{
+			testutil.Fake(s.T(), faker, database.ListOrganizationSkillMetadataByOrganizationIDRow{OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true}}),
+		}
+		dbm.EXPECT().GetAuthorizedOrganizationSkillMetadata(gomock.Any(), orgID, gomock.Any()).Return(rows, nil).AnyTimes()
+		check.Args(orgID).Asserts().Returns(rows)
+	}))
+	s.Run("GetAuthorizedOrganizationSkillMetadata", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		rows := []database.ListOrganizationSkillMetadataByOrganizationIDRow{
+			testutil.Fake(s.T(), faker, database.ListOrganizationSkillMetadataByOrganizationIDRow{OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true}}),
+		}
+		dbm.EXPECT().GetAuthorizedOrganizationSkillMetadata(gomock.Any(), orgID, gomock.Any()).Return(rows, nil).AnyTimes()
+		check.Args(orgID, emptyPreparedAuthorized{}).Asserts().Returns(rows)
+	}))
+	s.Run("UpdateOrganizationSkillByOrganizationIDAndName", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
+			OrganizationID: uuid.New(),
+			Name:           "test",
+			Enabled:        sql.NullBool{Bool: false, Valid: true},
+		}
+		skill := orgSkill(arg.OrganizationID, arg.Name)
+		updated := skill
+		updated.Enabled = false
+		dbm.EXPECT().GetOrganizationSkillByOrganizationIDAndName(gomock.Any(), database.GetOrganizationSkillByOrganizationIDAndNameParams{
+			OrganizationID: arg.OrganizationID,
+			Name:           arg.Name,
+		}).Return(skill, nil).AnyTimes()
+		dbm.EXPECT().UpdateOrganizationSkillByOrganizationIDAndName(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(skill, policy.ActionUpdate).Returns(updated)
+	}))
+	s.Run("DeleteOrganizationSkillByOrganizationIDAndName", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.DeleteOrganizationSkillByOrganizationIDAndNameParams{OrganizationID: uuid.New(), Name: "test"}
+		skill := orgSkill(arg.OrganizationID, arg.Name)
+		dbm.EXPECT().GetOrganizationSkillByOrganizationIDAndName(gomock.Any(), database.GetOrganizationSkillByOrganizationIDAndNameParams(arg)).Return(skill, nil).AnyTimes()
+		dbm.EXPECT().DeleteOrganizationSkillByOrganizationIDAndName(gomock.Any(), arg).Return(skill, nil).AnyTimes()
+		check.Args(arg).Asserts(skill, policy.ActionDelete).Returns(skill)
+	}))
+}
+
 func (s *MethodTestSuite) TestUsageEvents() {
 	s.Run("InsertUsageEvent", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		params := database.InsertUsageEventParams{
