@@ -4435,7 +4435,7 @@ describe("useChatStore", () => {
 				kind: "generic",
 				message: "turn failed",
 			});
-			result.current.store.setChatStatus("running");
+			result.current.store.setChatStatus("error");
 			result.current.store.setPendingEdit({ messageID: 1 });
 			sockets[0].emitError();
 		});
