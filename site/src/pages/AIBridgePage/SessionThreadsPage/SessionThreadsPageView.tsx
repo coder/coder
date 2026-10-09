@@ -31,7 +31,7 @@ const SessionSummaryTooltip: React.FC<React.PropsWithChildren> = ({
 				<button
 					type="button"
 					aria-label="About sessions"
-					className="m-0 shrink-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+					className="m-0 ml-2 shrink-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 				>
 					{children}
 				</button>
@@ -164,7 +164,7 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 					<h2 className="text-sm font-semibold flex items-center m-0">
 						Session summary
 						<SessionSummaryTooltip>
-							<InfoIcon className="ml-2 text-content-secondary size-icon-xs" />
+							<InfoIcon className="text-content-secondary size-icon-xs" />
 						</SessionSummaryTooltip>
 					</h2>
 					{loading && <Loader className="my-4" />}

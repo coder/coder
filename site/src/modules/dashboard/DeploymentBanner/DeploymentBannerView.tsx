@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import {
 	AppWindowIcon,
@@ -128,7 +129,10 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 							<button
 								type="button"
 								aria-label="Deployment status"
-								className={`${tooltipTriggerClassName} ml-3 flex items-center justify-center`}
+								className={cn(
+									tooltipTriggerClassName,
+									"ml-3 flex items-center justify-center",
+								)}
 								data-testid="deployment-health-trigger"
 							>
 								<RocketIcon className="size-icon-sm" />
@@ -193,7 +197,10 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 						<TooltipTrigger asChild>
 							<button
 								type="button"
-								className={`${tooltipTriggerClassName} mr-4 text-content-primary`}
+								className={cn(
+									tooltipTriggerClassName,
+									"mr-4 text-content-primary",
+								)}
 							>
 								Transmission
 							</button>
@@ -209,7 +216,10 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 							<TooltipTrigger asChild>
 								<button
 									type="button"
-									className={`${tooltipTriggerClassName} flex items-center gap-1`}
+									className={cn(
+										tooltipTriggerClassName,
+										"flex items-center gap-1",
+									)}
 								>
 									<CloudDownloadIcon className="size-icon-xs" />
 									{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
@@ -224,7 +234,10 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 							<TooltipTrigger asChild>
 								<button
 									type="button"
-									className={`${tooltipTriggerClassName} flex items-center gap-1`}
+									className={cn(
+										tooltipTriggerClassName,
+										"flex items-center gap-1",
+									)}
 								>
 									<CloudUploadIcon className="size-icon-xs" />
 									{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
@@ -239,7 +252,10 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 							<TooltipTrigger asChild>
 								<button
 									type="button"
-									className={`${tooltipTriggerClassName} flex items-center gap-1`}
+									className={cn(
+										tooltipTriggerClassName,
+										"flex items-center gap-1",
+									)}
 								>
 									<GaugeIcon className="size-icon-xs" />
 									{displayLatency > 0
@@ -265,7 +281,10 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 						<TooltipTrigger asChild>
 							<button
 								type="button"
-								className={`${tooltipTriggerClassName} flex items-center gap-1`}
+								className={cn(
+									tooltipTriggerClassName,
+									"flex items-center gap-1",
+								)}
 							>
 								<GitCompareArrowsIcon className="size-icon-xs" />
 								{lastAggregated}
