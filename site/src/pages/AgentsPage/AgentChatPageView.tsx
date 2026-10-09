@@ -1090,7 +1090,7 @@ export const AgentChatPageLoadingView: React.FC<
 						onToggleSidebar: () => {},
 					}}
 				/>
-				<div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+				<div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable scrollbar-thin">
 					<div className="px-4">
 						<div
 							className={cn(
