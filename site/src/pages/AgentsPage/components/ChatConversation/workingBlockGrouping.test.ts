@@ -291,6 +291,25 @@ describe("groupWorkingBlocks", () => {
 		},
 	);
 
+	it("counts a search that rendered no row before the block's first step", () => {
+		const prompt = user("Go");
+		// The answer's own search stays out of the block that follows it.
+		const answer = message("assistant", [
+			searchCall("first", at(1)),
+			searchResult("first", at(2)),
+			text("Nothing found."),
+		]);
+		const search = message("assistant", [
+			searchCall("second", at(3)),
+			searchResult("second", at(4)),
+		]);
+		const steps = step("a", 5, 6);
+
+		expect(group([prompt, answer, search, ...steps]).blocks).toMatchObject([
+			{ stepCount: 2, startedAt: WORKING_FIXTURE_START + 3000 },
+		]);
+	});
+
 	it("leaves an answer's reasoning unfolded in a turn without steps", () => {
 		const prompt = user("Go");
 		const answer = message("assistant", [reasoning("Easy"), text("Done.")]);
