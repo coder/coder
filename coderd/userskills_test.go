@@ -474,7 +474,7 @@ func TestUserSkillDatabaseConstraints(t *testing.T) {
 				Description: "Invalid",
 				Content:     userSkillMarkdown("not kebab", "Invalid", "Body."),
 			},
-			constraint: database.CheckUserSkillsNameFormat,
+			constraint: database.CheckSkillsNameFormat,
 		},
 		{
 			name: "NameSize",
@@ -485,7 +485,7 @@ func TestUserSkillDatabaseConstraints(t *testing.T) {
 				Description: "Invalid",
 				Content:     userSkillMarkdown("too-long-name", "Invalid", "Body."),
 			},
-			constraint: database.CheckUserSkillsNameSize,
+			constraint: database.CheckSkillsNameSize,
 		},
 		{
 			name: "ContentSize",
@@ -496,7 +496,7 @@ func TestUserSkillDatabaseConstraints(t *testing.T) {
 				Description: "Invalid",
 				Content:     strings.Repeat("a", skills.MaxPersonalSkillSizeBytes+1),
 			},
-			constraint: database.CheckUserSkillsContentSize,
+			constraint: database.CheckSkillsContentSize,
 		},
 	}
 	for _, tt := range tests {
@@ -521,14 +521,14 @@ func TestUserSkillSchemaConstants(t *testing.T) {
 	var triggerDef string
 	require.NoError(t, sqlDB.QueryRowContext(
 		ctx,
-		`SELECT pg_get_functiondef('enforce_user_skills_per_user_limit'::regproc)`,
+		`SELECT pg_get_functiondef('enforce_skills_per_user_limit'::regproc)`,
 	).Scan(&triggerDef))
 	assert.Contains(t, triggerDef, fmt.Sprintf("skill_limit constant int := %d;", skills.MaxPersonalSkillsPerUser))
 
 	constraints := map[database.CheckConstraint]string{
-		database.CheckUserSkillsNameSize:    fmt.Sprintf("octet_length(name) <= %d", skills.MaxPersonalSkillNameBytes),
-		database.CheckUserSkillsNameFormat:  "name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text",
-		database.CheckUserSkillsContentSize: fmt.Sprintf("octet_length(content) <= %d", skills.MaxPersonalSkillSizeBytes),
+		database.CheckSkillsNameSize:    fmt.Sprintf("octet_length(name) <= %d", skills.MaxPersonalSkillNameBytes),
+		database.CheckSkillsNameFormat:  "name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text",
+		database.CheckSkillsContentSize: fmt.Sprintf("octet_length(content) <= %d", skills.MaxPersonalSkillSizeBytes),
 	}
 	for constraint, expected := range constraints {
 		t.Run(string(constraint), func(t *testing.T) {

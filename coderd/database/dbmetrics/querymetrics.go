@@ -1000,7 +1000,7 @@ func (m queryMetricsStore) DeleteUserSecretByUserIDAndName(ctx context.Context, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteUserSkillByUserIDAndName(ctx context.Context, arg database.DeleteUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+func (m queryMetricsStore) DeleteUserSkillByUserIDAndName(ctx context.Context, arg database.DeleteUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteUserSkillByUserIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteUserSkillByUserIDAndName").Observe(time.Since(start).Seconds())
@@ -3696,7 +3696,7 @@ func (m queryMetricsStore) GetUserShellToolDisplayMode(ctx context.Context, user
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+func (m queryMetricsStore) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserSkillByUserIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetUserSkillByUserIDAndName").Observe(time.Since(start).Seconds())
@@ -4800,7 +4800,7 @@ func (m queryMetricsStore) InsertUserLink(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertUserSkill(ctx context.Context, arg database.InsertUserSkillParams) (database.UserSkill, error) {
+func (m queryMetricsStore) InsertUserSkill(ctx context.Context, arg database.InsertUserSkillParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertUserSkill(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertUserSkill").Observe(time.Since(start).Seconds())
@@ -6257,7 +6257,7 @@ func (m queryMetricsStore) UpdateUserShellToolDisplayMode(ctx context.Context, a
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateUserSkillByUserIDAndName(ctx context.Context, arg database.UpdateUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+func (m queryMetricsStore) UpdateUserSkillByUserIDAndName(ctx context.Context, arg database.UpdateUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateUserSkillByUserIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserSkillByUserIDAndName").Observe(time.Since(start).Seconds())

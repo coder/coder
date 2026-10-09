@@ -22,7 +22,7 @@ func TestUserSkillSchemaConstants(t *testing.T) {
 	_, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	var triggerDef string
 	err := sqlDB.QueryRowContext(ctx,
-		`SELECT pg_get_functiondef('enforce_user_skills_per_user_limit'::regproc)`,
+		`SELECT pg_get_functiondef('enforce_skills_per_user_limit'::regproc)`,
 	).Scan(&triggerDef)
 	require.NoError(t, err)
 	require.Contains(t, triggerDef, fmt.Sprintf(
@@ -31,16 +31,16 @@ func TestUserSkillSchemaConstants(t *testing.T) {
 	))
 
 	constraints := map[database.CheckConstraint]string{
-		database.CheckUserSkillsNameSize: fmt.Sprintf(
+		database.CheckSkillsNameSize: fmt.Sprintf(
 			"octet_length(name) <= %d",
 			skills.MaxPersonalSkillNameBytes,
 		),
-		database.CheckUserSkillsNameFormat: "name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text",
-		database.CheckUserSkillsDescriptionSize: fmt.Sprintf(
+		database.CheckSkillsNameFormat: "name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text",
+		database.CheckSkillsDescriptionSize: fmt.Sprintf(
 			"octet_length(description) <= %d",
 			skills.MaxPersonalSkillDescriptionBytes,
 		),
-		database.CheckUserSkillsContentSize: fmt.Sprintf(
+		database.CheckSkillsContentSize: fmt.Sprintf(
 			"octet_length(content) <= %d",
 			skills.MaxPersonalSkillSizeBytes,
 		),
