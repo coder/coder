@@ -799,8 +799,10 @@ const AgentChatPage: React.FC = () => {
 								isModelCatalogLoading: isModelDataPending,
 							}}
 							tools={{
-								planModeEnabled,
-								onPlanModeToggle: handlePlanModeToggle,
+								planning: {
+									enabled: planModeEnabled,
+									onChange: handlePlanModeToggle,
+								},
 							}}
 						/>
 					}

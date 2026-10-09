@@ -83,8 +83,7 @@ const inputProps = {
 		isModelCatalogLoading: false,
 	},
 	tools: {
-		planModeEnabled: false,
-		onPlanModeToggle: vi.fn(),
+		planning: { enabled: false, onChange: vi.fn() },
 	},
 	setup: { canConfigureAgentSetup: false },
 } satisfies React.ComponentProps<typeof ChatComposer>;
@@ -922,9 +921,11 @@ describe("ChatComposer", () => {
 				{...inputProps}
 				tools={{
 					...inputProps.tools,
-					mcpServers: mockMCPServers,
-					selectedMCPServerIds: mockSelectedMCPServerIds,
-					onMCPSelectionChange,
+					mcp: {
+						servers: mockMCPServers,
+						selectedServerIds: mockSelectedMCPServerIds,
+						onSelectionChange: onMCPSelectionChange,
+					},
 				}}
 			/>,
 		);
@@ -949,9 +950,11 @@ describe("ChatComposer", () => {
 				{...inputProps}
 				tools={{
 					...inputProps.tools,
-					mcpServers: [...mockMCPServers, mockNotionMCP],
-					selectedMCPServerIds: mockSelectedMCPServerIds,
-					onMCPSelectionChange,
+					mcp: {
+						servers: [...mockMCPServers, mockNotionMCP],
+						selectedServerIds: mockSelectedMCPServerIds,
+						onSelectionChange: onMCPSelectionChange,
+					},
 				}}
 			/>,
 		);
@@ -976,9 +979,11 @@ describe("ChatComposer", () => {
 				{...inputProps}
 				tools={{
 					...inputProps.tools,
-					mcpServers: [mockLinearMCP, mockGitHubMCP],
-					selectedMCPServerIds: [mockLinearMCP.id, mockGitHubMCP.id],
-					onMCPSelectionChange,
+					mcp: {
+						servers: [mockLinearMCP, mockGitHubMCP],
+						selectedServerIds: [mockLinearMCP.id, mockGitHubMCP.id],
+						onSelectionChange: onMCPSelectionChange,
+					},
 				}}
 			/>,
 		);
@@ -995,13 +1000,15 @@ describe("ChatComposer", () => {
 				{...inputProps}
 				tools={{
 					...inputProps.tools,
-					mcpServers: [mockSentryMCP, mockLinearMCP, mockGitHubMCPNeedingAuth],
-					selectedMCPServerIds: [
-						mockSentryMCP.id,
-						mockLinearMCP.id,
-						mockGitHubMCPNeedingAuth.id,
-					],
-					onMCPSelectionChange,
+					mcp: {
+						servers: [mockSentryMCP, mockLinearMCP, mockGitHubMCPNeedingAuth],
+						selectedServerIds: [
+							mockSentryMCP.id,
+							mockLinearMCP.id,
+							mockGitHubMCPNeedingAuth.id,
+						],
+						onSelectionChange: onMCPSelectionChange,
+					},
 				}}
 			/>,
 		);
@@ -1022,9 +1029,11 @@ describe("ChatComposer", () => {
 				bindings={{ ...inputProps.bindings, isDisabled: true }}
 				tools={{
 					...inputProps.tools,
-					mcpServers: mockMCPServers,
-					selectedMCPServerIds: mockSelectedMCPServerIds,
-					onMCPSelectionChange,
+					mcp: {
+						servers: mockMCPServers,
+						selectedServerIds: mockSelectedMCPServerIds,
+						onSelectionChange: onMCPSelectionChange,
+					},
 				}}
 			/>,
 		);

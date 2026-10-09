@@ -31,8 +31,7 @@ const modelProps = {
 } satisfies React.ComponentProps<typeof AgentComposerOptions.Model>;
 
 const optionsProps = {
-	planModeEnabled: false,
-	onPlanModeToggle: vi.fn(),
+	planning: { enabled: false, onChange: vi.fn() },
 } satisfies Omit<
 	React.ComponentProps<typeof AgentComposerOptions.Provider>,
 	"children"
@@ -137,8 +136,8 @@ describe("AgentComposerOptions", () => {
 		renderOptions(
 			<Options
 				{...optionsProps}
-				onPlanModeToggle={onPlanModeToggle}
-				onManageAutomationsToggle={onManageAutomationsToggle}
+				planning={{ enabled: false, onChange: onPlanModeToggle }}
+				automations={{ onChange: onManageAutomationsToggle }}
 			/>,
 			{
 				...composerContext,
@@ -176,9 +175,11 @@ describe("AgentComposerOptions", () => {
 			renderOptions(
 				<Options
 					{...optionsProps}
-					workspaceOptions={workspaceOptions}
-					chatOrganizationId={workspace.organization_id}
-					onWorkspaceChange={onWorkspaceChange}
+					organizationId={workspace.organization_id}
+					workspaceSelection={{
+						options: workspaceOptions,
+						onChange: onWorkspaceChange,
+					}}
 				/>,
 				{
 					...composerContext,
@@ -222,7 +223,7 @@ describe("AgentComposerOptions", () => {
 					}}
 				>
 					<AgentComposer.Frame>
-						<Options {...optionsProps} mcpServers={[server]} />
+						<Options {...optionsProps} mcp={{ servers: [server] }} />
 					</AgentComposer.Frame>
 				</AgentComposerProvider>,
 			);
@@ -264,10 +265,12 @@ describe("AgentComposerOptions", () => {
 
 				return (
 					<AgentComposerOptions.Provider
-						planModeEnabled={planModeEnabled}
-						onPlanModeToggle={(enabled) => {
-							setPlanModeEnabled(enabled);
-							onPlanModeToggle(enabled);
+						planning={{
+							enabled: planModeEnabled,
+							onChange: (enabled) => {
+								setPlanModeEnabled(enabled);
+								onPlanModeToggle(enabled);
+							},
 						}}
 					>
 						<AgentComposerOptions.Frame>
@@ -308,11 +311,13 @@ describe("AgentComposerOptions", () => {
 			return (
 				<AgentComposerOptions.Provider
 					{...optionsProps}
-					mcpServers={[server]}
-					selectedMCPServerIds={selectedMCPServerIds}
-					onMCPSelectionChange={(ids) => {
-						setSelectedMCPServerIds(ids);
-						onMCPSelectionChange(ids);
+					mcp={{
+						servers: [server],
+						selectedServerIds: selectedMCPServerIds,
+						onSelectionChange: (ids) => {
+							setSelectedMCPServerIds(ids);
+							onMCPSelectionChange(ids);
+						},
 					}}
 				>
 					<AgentComposerOptions.Menu />
@@ -349,11 +354,13 @@ describe("AgentComposerOptions", () => {
 		renderOptions(
 			<Options
 				{...optionsProps}
-				chatOrganizationId="org-1"
-				mcpServers={[server]}
-				selectedMCPServerIds={[]}
-				onMCPAuthComplete={onMCPAuthComplete}
-				onMCPSelectionChange={onMCPSelectionChange}
+				organizationId="org-1"
+				mcp={{
+					servers: [server],
+					selectedServerIds: [],
+					onAuthComplete: onMCPAuthComplete,
+					onSelectionChange: onMCPSelectionChange,
+				}}
 			/>,
 		);
 

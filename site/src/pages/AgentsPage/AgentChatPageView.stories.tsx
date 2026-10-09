@@ -396,11 +396,12 @@ type StoryLoadingProps = Pick<
 	Pick<
 		React.ComponentProps<typeof LoadingChatComposer>["model"],
 		"modelOptions" | "modelSelectorPlaceholder" | "isModelCatalogLoading"
-	> &
-	Pick<
-		React.ComponentProps<typeof LoadingChatComposer>["tools"],
-		"onPlanModeToggle" | "planModeEnabled"
 	> & {
+		planModeEnabled: boolean;
+		onPlanModeToggle: React.ComponentProps<
+			typeof LoadingChatComposer
+		>["tools"]["planning"]["onChange"];
+	} & {
 		showRightPanel: boolean;
 		isInputDisabled: boolean;
 		effectiveSelectedModel: React.ComponentProps<
@@ -441,8 +442,10 @@ const StoryAgentChatPageLoadingView: React.FC<StoryLoadingProps> = ({
 					isModelCatalogLoading: inputProps.isModelCatalogLoading,
 				}}
 				tools={{
-					planModeEnabled: inputProps.planModeEnabled,
-					onPlanModeToggle: inputProps.onPlanModeToggle,
+					planning: {
+						enabled: inputProps.planModeEnabled,
+						onChange: inputProps.onPlanModeToggle,
+					},
 				}}
 			/>
 		}

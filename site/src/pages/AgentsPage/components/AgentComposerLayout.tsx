@@ -38,15 +38,21 @@ export type AgentComposerSetup = {
 	aiGatewayDisabled?: boolean;
 };
 
-export const needsAgentSetup = (setup: AgentComposerSetup): boolean =>
-	Boolean(
-		setup.aiGatewayDisabled ||
-			(setup.canConfigureAgentSetup
-				? setup.providerCount !== undefined &&
-					setup.modelCount !== undefined &&
-					(setup.providerCount === 0 || setup.modelCount === 0)
-				: setup.modelCount !== undefined && setup.modelCount === 0),
-	);
+export const needsAgentSetup = (setup: AgentComposerSetup): boolean => {
+	if (setup.aiGatewayDisabled) {
+		return true;
+	}
+
+	if (!setup.canConfigureAgentSetup) {
+		return setup.modelCount === 0;
+	}
+
+	if (setup.providerCount === undefined || setup.modelCount === undefined) {
+		return false;
+	}
+
+	return setup.providerCount === 0 || setup.modelCount === 0;
+};
 
 export const AgentComposerSetupNotice = ({
 	organizationId,

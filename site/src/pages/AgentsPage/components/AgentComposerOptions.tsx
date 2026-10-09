@@ -31,57 +31,48 @@ const AgentComposerOptionsProvider = ({
 	children,
 	...data
 }: AgentComposerOptionsProviderProps) => {
-	const {
-		workspaceOptions,
-		selectedWorkspaceId,
-		onWorkspaceChange,
-		selectedMCPServerIds,
-		onMCPSelectionChange,
-		workspace,
-		workspaceAgent,
-		chatId,
-		attachedWorkspace,
-	} = data;
+	const { planning, mcp, workspaceSelection, linkedWorkspace } = data;
+	const { selectedServerIds, onSelectionChange } = mcp ?? {};
+	const { options, selectedId, onChange } = workspaceSelection ?? {};
+	const { workspace, agent, chatId, attachedWorkspace } = linkedWorkspace ?? {};
 
 	const toggleMcp = (serverId: string, checked: boolean) => {
-		if (!onMCPSelectionChange || !selectedMCPServerIds) {
+		if (!onSelectionChange || !selectedServerIds) {
 			return;
 		}
 
-		onMCPSelectionChange(
+		onSelectionChange(
 			checked
-				? [...selectedMCPServerIds, serverId]
-				: selectedMCPServerIds.filter((id) => id !== serverId),
+				? [...selectedServerIds, serverId]
+				: selectedServerIds.filter((id) => id !== serverId),
 		);
 	};
 
 	const enabledMcpServers =
-		data.mcpServers?.filter((server) => server.enabled) ?? [];
+		mcp?.servers?.filter((server) => server.enabled) ?? [];
 	const activeMcpServers = enabledMcpServers.filter(
 		(server) =>
 			(server.availability === "force_on" ||
-				selectedMCPServerIds?.includes(server.id)) &&
+				selectedServerIds?.includes(server.id)) &&
 			!(server.auth_type === "oauth2" && !server.auth_connected),
 	);
-	const selectedWorkspace = workspaceOptions?.find(
-		(item) => item.id === selectedWorkspaceId,
-	);
+	const selectedWorkspace = options?.find((item) => item.id === selectedId);
 	const linkedWorkspaceId = workspace?.id ?? attachedWorkspace?.id;
-	const workspacePill: WorkspacePillBadge | undefined =
-		workspace && workspaceAgent && chatId
-			? {
-					badge: attachedWorkspace
-						? { kind: "attached-workspace", ...attachedWorkspace }
-						: { kind: "workspace", name: workspace.name },
-					props: {
-						workspace,
-						agent: workspaceAgent,
-						chatId,
-						sshCommand: data.sshCommand,
-						folder: data.folder,
-					},
-				}
-			: undefined;
+	let workspacePill: WorkspacePillBadge | undefined;
+	if (workspace && agent && chatId) {
+		workspacePill = {
+			badge: attachedWorkspace
+				? { kind: "attached-workspace", ...attachedWorkspace }
+				: { kind: "workspace", name: workspace.name },
+			props: {
+				workspace,
+				agent,
+				chatId,
+				sshCommand: linkedWorkspace?.sshCommand,
+				folder: linkedWorkspace?.folder,
+			},
+		};
+	}
 
 	// Ordering controls which trailing badges move into the overflow menu.
 	const badges: ToolBadgeData[] = [];
@@ -106,13 +97,18 @@ const AgentComposerOptionsProvider = ({
 	return (
 		<OptionsContext
 			value={{
-				state: { ...data, mcpServers: enabledMcpServers },
+				state: {
+					...data,
+					mcp: { ...mcp, servers: enabledMcpServers },
+					workspaceSelection: {
+						...workspaceSelection,
+						isLoading: workspaceSelection?.isLoading ?? false,
+					},
+				},
 				actions: {
 					toggleMcp,
-					removeWorkspace: onWorkspaceChange
-						? () => onWorkspaceChange(null)
-						: undefined,
-					disablePlanMode: () => data.onPlanModeToggle(false),
+					removeWorkspace: onChange ? () => onChange(null) : undefined,
+					disablePlanMode: () => planning.onChange(false),
 				},
 				meta: { badges, workspacePill },
 			}}
@@ -167,7 +163,7 @@ const AgentComposerOptionsPlanningBadge = () => {
 	const { state, actions } = useAgentComposerOptions();
 	const composer = useAgentComposer();
 
-	if (!state.planModeEnabled) {
+	if (!state.planning.enabled) {
 		return null;
 	}
 

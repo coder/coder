@@ -69,8 +69,7 @@ const defaultModel = {
 } satisfies React.ComponentProps<typeof AgentComposerOptions.Model>;
 
 const defaultTools = {
-	planModeEnabled: false,
-	onPlanModeToggle: fn(),
+	planning: { enabled: false, onChange: fn() },
 } satisfies Omit<
 	React.ComponentProps<typeof AgentComposerOptions.Provider>,
 	"children"
@@ -759,9 +758,8 @@ const mockSlackMCPAlwaysOnNeedingAuth = buildMCPServer({
 
 const mcpDefaults = {
 	...defaultTools,
-	chatOrganizationId: "org-1",
-	onMCPSelectionChange: fn(),
-	onMCPAuthComplete: fn(),
+	organizationId: "org-1",
+	mcp: { onSelectionChange: fn(), onAuthComplete: fn() },
 };
 
 const dispatchMCPOAuthComplete = (
@@ -793,8 +791,11 @@ export const WithMCPServers: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
-			selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [sentryMCP, linearMCP, githubMCPConnected],
+				selectedServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+			},
 		},
 	},
 };
@@ -803,8 +804,11 @@ export const WithTwoMCPServers: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [linearMCP, githubMCPConnected],
-			selectedMCPServerIds: [linearMCP.id, githubMCPConnected.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [linearMCP, githubMCPConnected],
+				selectedServerIds: [linearMCP.id, githubMCPConnected.id],
+			},
 		},
 	},
 };
@@ -815,12 +819,10 @@ export const MCPGroupPopoverOpen: Story = {
 		tools: {
 			...defaultTools,
 			...WithMCPServers.args?.tools,
-			mcpServers: [
-				sentryMCP,
-				linearMCP,
-				githubMCPConnected,
-				notionMCPConnected,
-			],
+			mcp: {
+				...WithMCPServers.args?.tools?.mcp,
+				servers: [sentryMCP, linearMCP, githubMCPConnected, notionMCPConnected],
+			},
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -853,8 +855,11 @@ export const MCPGroupPopoverLongName: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [sentryMCP, linearMCP, mockLongNameMCP],
-			selectedMCPServerIds: [sentryMCP.id, linearMCP.id, mockLongNameMCP.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [sentryMCP, linearMCP, mockLongNameMCP],
+				selectedServerIds: [sentryMCP.id, linearMCP.id, mockLongNameMCP.id],
+			},
 		},
 	},
 	play: MCPGroupPopoverOpen.play,
@@ -865,12 +870,15 @@ export const PlusMenuAlwaysOnNeedingAuth: Story = {
 		tools: {
 			...defaultTools,
 			...WithMCPServers.args?.tools,
-			mcpServers: [
-				sentryMCP,
-				linearMCP,
-				githubMCPConnected,
-				mockSlackMCPAlwaysOnNeedingAuth,
-			],
+			mcp: {
+				...WithMCPServers.args?.tools?.mcp,
+				servers: [
+					sentryMCP,
+					linearMCP,
+					githubMCPConnected,
+					mockSlackMCPAlwaysOnNeedingAuth,
+				],
+			},
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -885,8 +893,11 @@ export const WithMCPNeedingAuth: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [sentryMCP, githubMCP],
-			selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [sentryMCP, githubMCP],
+				selectedServerIds: [sentryMCP.id, githubMCP.id],
+			},
 		},
 	},
 	beforeEach: () => {
@@ -912,8 +923,11 @@ export const MCPAutoEnablesAfterOAuthCompletes: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [linearMCP, githubMCP],
-			selectedMCPServerIds: [linearMCP.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [linearMCP, githubMCP],
+				selectedServerIds: [linearMCP.id],
+			},
 		},
 	},
 	beforeEach: () => {
@@ -929,11 +943,11 @@ export const MCPAutoEnablesAfterOAuthCompletes: Story = {
 		dispatchMCPOAuthComplete(githubMCP.id, window);
 
 		await waitFor(() => {
-			expect(args.tools.onMCPSelectionChange).toHaveBeenCalledWith([
+			expect(args.tools.mcp?.onSelectionChange).toHaveBeenCalledWith([
 				linearMCP.id,
 				githubMCP.id,
 			]);
-			expect(args.tools.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+			expect(args.tools.mcp?.onAuthComplete).toHaveBeenCalledWith(githubMCP.id);
 		});
 	},
 };
@@ -946,8 +960,7 @@ export const MCPAutoEnablesWhenPopupClosesBeforeMessage: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [githubMCP],
-			selectedMCPServerIds: [],
+			mcp: { ...mcpDefaults.mcp, servers: [githubMCP], selectedServerIds: [] },
 		},
 	},
 	play: async ({ args, canvasElement }) => {
@@ -975,7 +988,7 @@ export const MCPAutoEnablesWhenPopupClosesBeforeMessage: Story = {
 		dispatchMCPOAuthComplete(githubMCP.id, popup);
 
 		await waitFor(() => {
-			expect(args.tools.onMCPSelectionChange).toHaveBeenCalledWith([
+			expect(args.tools.mcp?.onSelectionChange).toHaveBeenCalledWith([
 				githubMCP.id,
 			]);
 		});
@@ -986,8 +999,11 @@ export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [githubMCP],
-			selectedMCPServerIds: [githubMCP.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [githubMCP],
+				selectedServerIds: [githubMCP.id],
+			},
 		},
 	},
 	beforeEach: () => {
@@ -998,9 +1014,9 @@ export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
 		dispatchMCPOAuthComplete(githubMCP.id, window);
 
 		await waitFor(() => {
-			expect(args.tools.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+			expect(args.tools.mcp?.onAuthComplete).toHaveBeenCalledWith(githubMCP.id);
 		});
-		expect(args.tools.onMCPSelectionChange).not.toHaveBeenCalled();
+		expect(args.tools.mcp?.onSelectionChange).not.toHaveBeenCalled();
 	},
 };
 
@@ -1008,17 +1024,20 @@ export const MCPIgnoresUnsolicitedOAuthComplete: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [linearMCP, githubMCP],
-			selectedMCPServerIds: [linearMCP.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [linearMCP, githubMCP],
+				selectedServerIds: [linearMCP.id],
+			},
 		},
 	},
 	play: async ({ args }) => {
 		dispatchMCPOAuthComplete(githubMCP.id, window);
 
 		await waitFor(() => {
-			expect(args.tools.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+			expect(args.tools.mcp?.onAuthComplete).toHaveBeenCalledWith(githubMCP.id);
 		});
-		expect(args.tools.onMCPSelectionChange).not.toHaveBeenCalled();
+		expect(args.tools.mcp?.onSelectionChange).not.toHaveBeenCalled();
 	},
 };
 
@@ -1026,8 +1045,11 @@ export const MCPIgnoresMismatchedServerAfterOAuthCompletes: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [linearMCP, githubMCP],
-			selectedMCPServerIds: [],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [linearMCP, githubMCP],
+				selectedServerIds: [],
+			},
 		},
 	},
 	beforeEach: () => {
@@ -1038,9 +1060,9 @@ export const MCPIgnoresMismatchedServerAfterOAuthCompletes: Story = {
 		dispatchMCPOAuthComplete(linearMCP.id, window);
 
 		await waitFor(() => {
-			expect(args.tools.onMCPAuthComplete).toHaveBeenCalledWith(linearMCP.id);
+			expect(args.tools.mcp?.onAuthComplete).toHaveBeenCalledWith(linearMCP.id);
 		});
-		expect(args.tools.onMCPSelectionChange).not.toHaveBeenCalled();
+		expect(args.tools.mcp?.onSelectionChange).not.toHaveBeenCalled();
 	},
 };
 
@@ -1049,20 +1071,19 @@ export const WithMCPNoneActive: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [
-				{
-					...sentryMCP,
-					availability: "default_off",
-					auth_connected: false,
-				},
-				{
-					...linearMCP,
-					availability: "default_off",
-					auth_type: "oauth2",
-					auth_connected: false,
-				},
-			],
-			selectedMCPServerIds: [],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [
+					{ ...sentryMCP, availability: "default_off", auth_connected: false },
+					{
+						...linearMCP,
+						availability: "default_off",
+						auth_type: "oauth2",
+						auth_connected: false,
+					},
+				],
+				selectedServerIds: [],
+			},
 		},
 	},
 };
@@ -1072,8 +1093,11 @@ export const PlusMenuOpen: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
-			selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [sentryMCP, linearMCP, githubMCPConnected],
+				selectedServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+			},
 		},
 		bindings: {
 			...defaultBindings,
@@ -1091,8 +1115,11 @@ export const MCPDisconnectControls: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [linearMCP, githubMCP, notionMCPConnected],
-			selectedMCPServerIds: [linearMCP.id, notionMCPConnected.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [linearMCP, githubMCP, notionMCPConnected],
+				selectedServerIds: [linearMCP.id, notionMCPConnected.id],
+			},
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -1105,8 +1132,11 @@ export const MCPDisconnectCancel: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [githubMCPConnected],
-			selectedMCPServerIds: [githubMCPConnected.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [githubMCPConnected],
+				selectedServerIds: [githubMCPConnected.id],
+			},
 		},
 	},
 	beforeEach: () => {
@@ -1134,8 +1164,11 @@ export const MCPDisconnectConfirm: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [githubMCPConnected],
-			selectedMCPServerIds: [githubMCPConnected.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [githubMCPConnected],
+				selectedServerIds: [githubMCPConnected.id],
+			},
 		},
 	},
 	beforeEach: () => {
@@ -1166,8 +1199,11 @@ export const MCPDisconnectRevocationWarning: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [githubMCPConnected],
-			selectedMCPServerIds: [githubMCPConnected.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [githubMCPConnected],
+				selectedServerIds: [githubMCPConnected.id],
+			},
 		},
 	},
 	decorators: [withToaster],
@@ -1197,8 +1233,11 @@ export const MCPDisconnectError: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [githubMCPConnected],
-			selectedMCPServerIds: [githubMCPConnected.id],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [githubMCPConnected],
+				selectedServerIds: [githubMCPConnected.id],
+			},
 		},
 	},
 	beforeEach: () => {
@@ -1224,7 +1263,7 @@ export const MCPDisconnectError: Story = {
 
 export const PlanFirstMenuItem: Story = {
 	args: {
-		tools: { ...defaultTools, onPlanModeToggle: fn() },
+		tools: { ...defaultTools, planning: { enabled: false, onChange: fn() } },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1236,7 +1275,7 @@ export const PlanFirstMenuItem: Story = {
 
 export const PlanningIndicator: Story = {
 	args: {
-		tools: { ...defaultTools, planModeEnabled: true, onPlanModeToggle: fn() },
+		tools: { ...defaultTools, planning: { enabled: true, onChange: fn() } },
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
@@ -1262,7 +1301,7 @@ const narrowPlanningModelOptions = [
 
 export const PlanningIndicatorNarrow: Story = {
 	args: {
-		tools: { ...defaultTools, planModeEnabled: true, onPlanModeToggle: fn() },
+		tools: { ...defaultTools, planning: { enabled: true, onChange: fn() } },
 		context: { usage: narrowPlanningContextUsage },
 		model: {
 			...defaultModel,
@@ -1281,7 +1320,7 @@ export const PlanningIndicatorNarrow: Story = {
 
 export const DisablePlanModeFromBadge: Story = {
 	args: {
-		tools: { ...defaultTools, planModeEnabled: true, onPlanModeToggle: fn() },
+		tools: { ...defaultTools, planning: { enabled: true, onChange: fn() } },
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1289,14 +1328,14 @@ export const DisablePlanModeFromBadge: Story = {
 			name: "Disable plan mode",
 		});
 		await userEvent.click(dismiss);
-		expect(args.tools.onPlanModeToggle).toHaveBeenCalledTimes(1);
-		expect(args.tools.onPlanModeToggle).toHaveBeenCalledWith(false);
+		expect(args.tools.planning.onChange).toHaveBeenCalledTimes(1);
+		expect(args.tools.planning.onChange).toHaveBeenCalledWith(false);
 	},
 };
 
 export const PlanFirstCheckedState: Story = {
 	args: {
-		tools: { ...defaultTools, planModeEnabled: true, onPlanModeToggle: fn() },
+		tools: { ...defaultTools, planning: { enabled: true, onChange: fn() } },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1310,9 +1349,8 @@ export const ManageAutomationsCheckedState: Story = {
 	args: {
 		tools: {
 			...defaultTools,
-			onPlanModeToggle: fn(),
-			manageAutomationsEnabled: true,
-			onManageAutomationsToggle: fn(),
+			planning: { enabled: false, onChange: fn() },
+			automations: { enabled: true, onChange: fn() },
 		},
 	},
 	play: PlanFirstCheckedState.play,
@@ -1323,21 +1361,25 @@ export const DetailPageWorkspacePicker: Story = {
 		editor: { hasWorkspace: true },
 		tools: {
 			...defaultTools,
-			workspaceOptions: [
-				{
+			workspaceSelection: {
+				options: [
+					{
+						id: "ws-detail",
+						name: "agents-workspace",
+						organization_id: "org-1",
+					},
+				],
+				selectedId: "ws-detail",
+				onChange: fn(),
+			},
+			linkedWorkspace: {
+				attachedWorkspace: {
 					id: "ws-detail",
 					name: "agents-workspace",
-					organization_id: "org-1",
+					route: "/@mike/agents-workspace",
+					statusIcon: <MonitorDotIcon className="size-3" />,
+					statusLabel: "Workspace running",
 				},
-			],
-			selectedWorkspaceId: "ws-detail",
-			onWorkspaceChange: fn(),
-			attachedWorkspace: {
-				id: "ws-detail",
-				name: "agents-workspace",
-				route: "/@mike/agents-workspace",
-				statusIcon: <MonitorDotIcon className="size-3" />,
-				statusLabel: "Workspace running",
 			},
 		},
 	},
@@ -1350,7 +1392,7 @@ export const DetailPageWorkspacePicker: Story = {
 		});
 		expect(removeWorkspaceButton).toBeVisible();
 		await userEvent.click(removeWorkspaceButton);
-		expect(args.tools.onWorkspaceChange).toHaveBeenCalledWith(null);
+		expect(args.tools.workspaceSelection?.onChange).toHaveBeenCalledWith(null);
 
 		const moreOptionsButton = canvas.getByRole("button", {
 			name: "More options",
@@ -1378,11 +1420,12 @@ export const LinkedWorkspaceRemoveWhenInputDisabled: Story = {
 		editor: { hasWorkspace: true },
 		tools: {
 			...defaultTools,
-			workspace: MockWorkspace,
-			workspaceAgent: MockWorkspaceAgent,
-			chatId: "chat-detail",
-			selectedWorkspaceId: MockWorkspace.id,
-			onWorkspaceChange: fn(),
+			linkedWorkspace: {
+				workspace: MockWorkspace,
+				agent: MockWorkspaceAgent,
+				chatId: "chat-detail",
+			},
+			workspaceSelection: { selectedId: MockWorkspace.id, onChange: fn() },
 		},
 	},
 	play: async ({ args, canvasElement }) => {
@@ -1421,7 +1464,7 @@ export const LinkedWorkspaceRemoveWhenInputDisabled: Story = {
 		}
 
 		await userEvent.click(detachWorkspaceItem);
-		expect(args.tools.onWorkspaceChange).toHaveBeenCalledWith(null);
+		expect(args.tools.workspaceSelection?.onChange).toHaveBeenCalledWith(null);
 	},
 };
 
@@ -1431,12 +1474,16 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 		editor: { hasWorkspace: true },
 		tools: {
 			...defaultTools,
-			workspace: MockWorkspace,
-			workspaceAgent: MockWorkspaceAgent,
-			chatId: "chat-detail",
-			workspaceOptions: [MockWorkspace],
-			selectedWorkspaceId: MockWorkspace.id,
-			onWorkspaceChange: fn(),
+			linkedWorkspace: {
+				workspace: MockWorkspace,
+				agent: MockWorkspaceAgent,
+				chatId: "chat-detail",
+			},
+			workspaceSelection: {
+				options: [MockWorkspace],
+				selectedId: MockWorkspace.id,
+				onChange: fn(),
+			},
 		},
 	},
 	parameters: {
@@ -1469,7 +1516,7 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 		}
 		await userEvent.click(selectedWorkspaceOption);
 
-		expect(args.tools.onWorkspaceChange).toHaveBeenCalledWith(null);
+		expect(args.tools.workspaceSelection?.onChange).toHaveBeenCalledWith(null);
 	},
 };
 
@@ -1512,20 +1559,23 @@ export const MCPGroupMoreThanThree: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [
-				sentryMCP,
-				linearMCP,
-				githubMCPConnected,
-				notionMCPConnected,
-				confluenceMCP,
-			],
-			selectedMCPServerIds: [
-				sentryMCP.id,
-				linearMCP.id,
-				githubMCPConnected.id,
-				notionMCPConnected.id,
-				confluenceMCP.id,
-			],
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [
+					sentryMCP,
+					linearMCP,
+					githubMCPConnected,
+					notionMCPConnected,
+					confluenceMCP,
+				],
+				selectedServerIds: [
+					sentryMCP.id,
+					linearMCP.id,
+					githubMCPConnected.id,
+					notionMCPConnected.id,
+					confluenceMCP.id,
+				],
+			},
 		},
 	},
 };
@@ -1536,8 +1586,8 @@ export const MCPGroupInOverflow: Story = {
 		tools: {
 			...defaultTools,
 			...WithMCPServers.args?.tools,
-			attachedWorkspace: mockOverflowAttachedWorkspace,
-			onWorkspaceChange: fn(),
+			linkedWorkspace: { attachedWorkspace: mockOverflowAttachedWorkspace },
+			workspaceSelection: { onChange: fn() },
 		},
 	},
 	parameters: {
@@ -1562,24 +1612,27 @@ export const OverflowBadges: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [
-				sentryMCP,
-				linearMCP,
-				githubMCPConnected,
-				confluenceMCP,
-				datadogMCP,
-				pagerdutyMCP,
-			],
-			selectedMCPServerIds: [
-				sentryMCP.id,
-				linearMCP.id,
-				githubMCPConnected.id,
-				confluenceMCP.id,
-				datadogMCP.id,
-				pagerdutyMCP.id,
-			],
-			attachedWorkspace: mockOverflowAttachedWorkspace,
-			onWorkspaceChange: fn(),
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [
+					sentryMCP,
+					linearMCP,
+					githubMCPConnected,
+					confluenceMCP,
+					datadogMCP,
+					pagerdutyMCP,
+				],
+				selectedServerIds: [
+					sentryMCP.id,
+					linearMCP.id,
+					githubMCPConnected.id,
+					confluenceMCP.id,
+					datadogMCP.id,
+					pagerdutyMCP.id,
+				],
+			},
+			linkedWorkspace: { attachedWorkspace: mockOverflowAttachedWorkspace },
+			workspaceSelection: { onChange: fn() },
 		},
 		editor: { hasWorkspace: true },
 	},
@@ -1673,21 +1726,26 @@ export const LongWorkspaceNameMobile: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [githubMCPConnected],
-			selectedMCPServerIds: [githubMCPConnected.id],
-			attachedWorkspace: {
-				id: MockWorkspace.id,
-				name: "my-super-extremely-long-workspace-name-that-overflows",
-				route: `/@${MockWorkspace.owner_name}/my-super-extremely-long-workspace-name-that-overflows`,
-				statusIcon: <MonitorDotIcon className="size-3" />,
-				statusLabel: "Workspace running",
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [githubMCPConnected],
+				selectedServerIds: [githubMCPConnected.id],
 			},
-			workspace: {
-				...MockWorkspace,
-				name: "my-super-extremely-long-workspace-name-that-overflows",
+			linkedWorkspace: {
+				attachedWorkspace: {
+					id: MockWorkspace.id,
+					name: "my-super-extremely-long-workspace-name-that-overflows",
+					route: `/@${MockWorkspace.owner_name}/my-super-extremely-long-workspace-name-that-overflows`,
+					statusIcon: <MonitorDotIcon className="size-3" />,
+					statusLabel: "Workspace running",
+				},
+				workspace: {
+					...MockWorkspace,
+					name: "my-super-extremely-long-workspace-name-that-overflows",
+				},
+				agent: MockWorkspaceAgent,
+				chatId: "test-chat-id",
 			},
-			workspaceAgent: MockWorkspaceAgent,
-			chatId: "test-chat-id",
 		},
 		editor: { hasWorkspace: true },
 	},
@@ -1768,11 +1826,16 @@ export const ShortModelNameHasNoDeadSpace: Story = {
 		},
 		tools: {
 			...mcpDefaults,
-			mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
-			selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
-			workspace: MockWorkspace,
-			workspaceAgent: MockWorkspaceAgent,
-			chatId: "short-model-chat-id",
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [sentryMCP, linearMCP, githubMCPConnected],
+				selectedServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+			},
+			linkedWorkspace: {
+				workspace: MockWorkspace,
+				agent: MockWorkspaceAgent,
+				chatId: "short-model-chat-id",
+			},
 		},
 		editor: { hasWorkspace: true },
 	},
@@ -1802,12 +1865,14 @@ export const LongLabelsExpandWithoutMCPs: Story = {
 		},
 		tools: {
 			...mcpDefaults,
-			workspace: {
-				...MockWorkspace,
-				name: "my-workspace-name-that-should-not-clamp",
+			linkedWorkspace: {
+				workspace: {
+					...MockWorkspace,
+					name: "my-workspace-name-that-should-not-clamp",
+				},
+				agent: MockWorkspaceAgent,
+				chatId: "long-labels-chat-id",
 			},
-			workspaceAgent: MockWorkspaceAgent,
-			chatId: "long-labels-chat-id",
 		},
 		editor: { hasWorkspace: true },
 	},
@@ -1836,9 +1901,12 @@ export const ModelExpandsWhileBadgesOverflow: Story = {
 		},
 		tools: {
 			...mcpDefaults,
-			mcpServers: [confluenceMCP, datadogMCP],
-			selectedMCPServerIds: [confluenceMCP.id, datadogMCP.id],
-			attachedWorkspace: mockOverflowAttachedWorkspace,
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [confluenceMCP, datadogMCP],
+				selectedServerIds: [confluenceMCP.id, datadogMCP.id],
+			},
+			linkedWorkspace: { attachedWorkspace: mockOverflowAttachedWorkspace },
 		},
 		editor: { hasWorkspace: true },
 	},
@@ -1865,15 +1933,20 @@ export const OverflowPopoverSuppressesStatusTooltip: Story = {
 	args: {
 		tools: {
 			...mcpDefaults,
-			mcpServers: [githubMCPConnected],
-			selectedMCPServerIds: [githubMCPConnected.id],
-			attachedWorkspace: {
-				id: MockWorkspace.id,
-				// Wide enough to collapse into the +N popover at tablet width.
-				name: "an-extremely-long-attached-workspace-name-that-cannot-fit-inline-at-tablet-width",
-				route: `/@${MockWorkspace.owner_name}/attached`,
-				statusIcon: <MonitorDotIcon className="size-3" />,
-				statusLabel: "Workspace stopped",
+			mcp: {
+				...mcpDefaults.mcp,
+				servers: [githubMCPConnected],
+				selectedServerIds: [githubMCPConnected.id],
+			},
+			linkedWorkspace: {
+				attachedWorkspace: {
+					id: MockWorkspace.id,
+					// Wide enough to collapse into the +N popover at tablet width.
+					name: "an-extremely-long-attached-workspace-name-that-cannot-fit-inline-at-tablet-width",
+					route: `/@${MockWorkspace.owner_name}/attached`,
+					statusIcon: <MonitorDotIcon className="size-3" />,
+					statusLabel: "Workspace stopped",
+				},
 			},
 		},
 		editor: { hasWorkspace: true },

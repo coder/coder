@@ -65,12 +65,17 @@ export type WorkspacePillBadge = {
 };
 
 // Non-MCP badges can share a kind, so their keys are position-qualified.
-const badgeKey = (badge: ToolBadgeData, index: number) =>
-	badge.kind === "mcp"
-		? badge.server.id
-		: badge.kind === "mcp-group"
-			? badge.kind
-			: `${badge.kind}-${index}`;
+const badgeKey = (badge: ToolBadgeData, index: number) => {
+	if (badge.kind === "mcp") {
+		return badge.server.id;
+	}
+
+	if (badge.kind === "mcp-group") {
+		return badge.kind;
+	}
+
+	return `${badge.kind}-${index}`;
+};
 
 // Clamp pills to the popover width so a long name cannot push its X out of view.
 const BadgePopoverContent = ({ className, ...props }: PopoverContentProps) => (

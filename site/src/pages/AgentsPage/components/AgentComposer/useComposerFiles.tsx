@@ -12,11 +12,6 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import type { AgentComposerBindings } from "./context";
 
-const workspaceRequiredAttachmentMessage =
-	"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.";
-const workspaceUploadPendingSendMessage =
-	"Wait for the current message to finish sending, then add the file again.";
-
 type TextPreview = { content: string; fileName: string; mediaType: string };
 
 /** Handles file selection, upload readiness, and attachment previews. */
@@ -82,12 +77,16 @@ export function useComposerFiles(
 		}
 
 		if (workspaceRequired.length > 0) {
-			toast.error(
-				workspaceAttachBlockedBySend
-					? workspaceUploadPendingSendMessage
-					: (workspaceUploads?.unavailableMessage ??
-							workspaceRequiredAttachmentMessage),
-			);
+			if (workspaceAttachBlockedBySend) {
+				toast.error(
+					"Wait for the current message to finish sending, then add the file again.",
+				);
+			} else {
+				toast.error(
+					workspaceUploads?.unavailableMessage ??
+						"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+				);
+			}
 		}
 
 		if (rejected.length > 0) {

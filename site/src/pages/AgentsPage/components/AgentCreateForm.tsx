@@ -869,17 +869,22 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		}
 	}, [prefillFile, canAttachPrefillFile]);
 
+	// Sending before adoption would omit persisted files not yet restored.
+	const isDraftReady = orgSelectionSettled && organizationAdopted;
+
+	const areSelectionsReady =
+		!workspaceValidationPending &&
+		!isPersonalModelOverridesUnresolved &&
+		!isMCPSelectionUnresolved;
+
+	const isChatCreationAvailable =
+		!isForbidden && hasModelOptions && !aiGatewayDisabled;
+
 	const isComposerDisabled =
 		isSubmitPending ||
-		isForbidden ||
-		!orgSelectionSettled ||
-		// Sending before adoption would omit persisted files not yet restored.
-		!organizationAdopted ||
-		workspaceValidationPending ||
-		isPersonalModelOverridesUnresolved ||
-		isMCPSelectionUnresolved ||
-		!hasModelOptions ||
-		Boolean(aiGatewayDisabled);
+		!isDraftReady ||
+		!areSelectionsReady ||
+		!isChatCreationAvailable;
 
 	return (
 		<>
@@ -1015,30 +1020,38 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						isModelCatalogLoading: isModelDataPending,
 					}}
 					tools={{
-						planModeEnabled,
-						onPlanModeToggle: setPlanModeEnabled,
-						manageAutomationsEnabled,
-						onManageAutomationsToggle: automationsExperimentEnabled
-							? setManageAutomationsEnabled
-							: undefined,
-						mcpServers,
-						chatOrganizationId: organizationId,
-						selectedMCPServerIds: effectiveMCPServerIds,
-						onMCPSelectionChange: (ids) => {
-							setUserMCPServerIds(ids);
-							if (!isLocked) {
-								saveMCPSelection(organizationId, ids);
-							}
+						organizationId,
+						planning: {
+							enabled: planModeEnabled,
+							onChange: setPlanModeEnabled,
 						},
-						onMCPAuthComplete: () => void mcpServersQuery.refetch(),
-						workspaceOptions: filteredWorkspaces,
-						selectedWorkspaceId: effectiveWorkspaceId,
-						// Do not persist a workspace until its organization is authorized.
-						onWorkspaceChange:
-							orgSelectionSettled && !noPermittedOrgs && !isSubmitPending
-								? setSelectedWorkspaceId
+						automations: {
+							enabled: manageAutomationsEnabled,
+							onChange: automationsExperimentEnabled
+								? setManageAutomationsEnabled
 								: undefined,
-						isWorkspaceLoading: isWorkspacesLoading,
+						},
+						mcp: {
+							servers: mcpServers,
+							selectedServerIds: effectiveMCPServerIds,
+							onSelectionChange: (ids) => {
+								setUserMCPServerIds(ids);
+								if (!isLocked) {
+									saveMCPSelection(organizationId, ids);
+								}
+							},
+							onAuthComplete: () => void mcpServersQuery.refetch(),
+						},
+						workspaceSelection: {
+							options: filteredWorkspaces,
+							selectedId: effectiveWorkspaceId,
+							// Do not persist a workspace until its organization is authorized.
+							onChange:
+								orgSelectionSettled && !noPermittedOrgs && !isSubmitPending
+									? setSelectedWorkspaceId
+									: undefined,
+							isLoading: isWorkspacesLoading,
+						},
 					}}
 					setup={{
 						canConfigureAgentSetup,

@@ -52,7 +52,7 @@ export const NewAgentComposer = ({
 					{showSetupNotice && (
 						<AgentComposerSetupNotice
 							{...setup}
-							organizationId={tools.chatOrganizationId}
+							organizationId={tools.organizationId}
 						/>
 					)}
 					<AgentComposer.Frame showSetupNotice={showSetupNotice}>
@@ -120,7 +120,7 @@ export const ChatComposer = ({
 					{showSetupNotice && (
 						<AgentComposerSetupNotice
 							{...setup}
-							organizationId={tools.chatOrganizationId}
+							organizationId={tools.organizationId}
 						/>
 					)}
 					<AgentComposer.Frame showSetupNotice={showSetupNotice}>
@@ -138,7 +138,7 @@ export const ChatComposer = ({
 								{context ? (
 									<AgentComposerOptions.Badges
 										leadingBadges={
-											tools.planModeEnabled ? [{ kind: "planning" }] : []
+											tools.planning.enabled ? [{ kind: "planning" }] : []
 										}
 									/>
 								) : (

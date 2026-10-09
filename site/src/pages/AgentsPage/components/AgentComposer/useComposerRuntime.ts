@@ -68,33 +68,42 @@ export function useComposerRuntime(bindings: AgentComposerBindings) {
 
 	const hasSendableContent =
 		editor.hasContent ||
-		files.hasUploadedAttachments ||
-		editor.hasFileReferences;
+		editor.hasFileReferences ||
+		files.hasUploadedAttachments;
+
 	const submissionBlocked =
 		isDisabled || isReadOnly || isLoading || files.hasActiveUploads;
-	const canSend = !submissionBlocked && hasModelOptions && hasSendableContent;
 
-	const draftOccupiesSlot =
-		hasSendableContent || files.hasActiveUploads || editor.speech.isRecording;
-	const editingHoldsStop =
-		isEditingHistoryMessage && !editor.speech.isRecording;
-	const showStopButton =
-		isStreaming &&
-		onInterrupt !== undefined &&
-		(!draftOccupiesSlot || editingHoldsStop);
-	const showSendButton =
-		!isStreaming || (draftOccupiesSlot && !editingHoldsStop);
+	let canSend = false;
+	if (!submissionBlocked && hasModelOptions) {
+		canSend = hasSendableContent;
+	}
 
-	const sendShortcutLabel = isMobile
-		? undefined
-		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-			? "Cmd/Ctrl+Enter"
-			: "Enter";
-	const sendButtonKeyShortcuts = isMobile
-		? undefined
-		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-			? "Control+Enter Meta+Enter"
-			: "Enter";
+	let showSendButton = true;
+	let showStopButton = false;
+
+	if (isStreaming && !editor.speech.isRecording) {
+		if (isEditingHistoryMessage) {
+			showSendButton = false;
+		} else if (!hasSendableContent && !files.hasActiveUploads) {
+			showSendButton = false;
+		}
+
+		showStopButton = !showSendButton && onInterrupt !== undefined;
+	}
+
+	let sendShortcutLabel: string | undefined;
+	let sendButtonKeyShortcuts: string | undefined;
+
+	if (!isMobile) {
+		if (sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT) {
+			sendShortcutLabel = "Cmd/Ctrl+Enter";
+			sendButtonKeyShortcuts = "Control+Enter Meta+Enter";
+		} else {
+			sendShortcutLabel = "Enter";
+			sendButtonKeyShortcuts = "Enter";
+		}
+	}
 
 	const submit = () => {
 		const text = editorRef.current?.getValue()?.trim() ?? "";
