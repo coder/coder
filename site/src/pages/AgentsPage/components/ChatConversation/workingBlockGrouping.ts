@@ -55,11 +55,6 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"chat_cleared",
 ]);
 
-const isWorkBlock = (block: RenderBlock): boolean =>
-	block.type === "thinking" ||
-	block.type === "tool" ||
-	block.type === "sources";
-
 /**
  * A row that ends a working block renders its work inside the block and its
  * answer after it.
@@ -67,24 +62,24 @@ const isWorkBlock = (block: RenderBlock): boolean =>
 export type RowSection = "work" | "answer";
 
 /**
- * Splits a row into the work that folds into a working block and the answer
- * after its last step. Text before a step is narration that folds with it,
- * and sources fold even when they trail the answer text they cite.
+ * The answer is the content after a row's last reasoning or tool call; earlier
+ * text is narration. Sources fold without splitting the answer, since OpenAI
+ * streams citations between its text deltas.
  */
 export const splitRowBlocks = (
 	blocks: readonly RenderBlock[],
 	tools: readonly MergedTool[],
 ) => {
 	const visible = new Set(getVisibleContent(blocks, tools).visibleBlocks);
-	const answerEnd = blocks.findLastIndex(
-		(block) => visible.has(block) && block.type !== "sources",
-	);
-	const lastWorkIndex = blocks.findLastIndex(
-		(block, index) =>
-			index <= answerEnd && visible.has(block) && isWorkBlock(block),
+	const lastReasoningOrToolIndex = blocks.findLastIndex(
+		(block) =>
+			visible.has(block) &&
+			(block.type === "thinking" || block.type === "tool"),
 	);
 	const isAnswer = (block: RenderBlock, index: number) =>
-		index > lastWorkIndex && index <= answerEnd && !isWorkBlock(block);
+		index > lastReasoningOrToolIndex &&
+		visible.has(block) &&
+		block.type !== "sources";
 
 	return {
 		work: blocks.filter((block, index) => !isAnswer(block, index)),
@@ -276,6 +271,7 @@ export const groupWorkingBlocks = (
 		const lastRowIndex = draft.rowIndices[draft.rowIndices.length - 1];
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
 
+		// A persisted answer completes its block even while the chat still runs.
 		const isLive =
 			options.isWorking &&
 			!(draft.endsWithAnswer && rows[lastRowIndex].type === "message") &&

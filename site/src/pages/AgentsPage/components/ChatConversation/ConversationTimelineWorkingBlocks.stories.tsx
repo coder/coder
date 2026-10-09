@@ -74,8 +74,7 @@ export const Expanded: Story = {
 	},
 };
 
-// The answer's reasoning, narration, and web search fold into the block it
-// ends, so only its final text shows after the summary.
+// Only the answer's final text shows after the summary.
 export const AnswerWorkFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
@@ -95,7 +94,6 @@ export const AnswerWorkFoldsExpanded: Story = {
 	},
 };
 
-// A turn whose only step is the answer's web search still folds it.
 export const SearchOnlyAnswerFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools([
@@ -240,5 +238,12 @@ export const EditingPrecedingMessage: Story = {
 			canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
 		);
 		await userEvent.click(canvas.getByRole("button", { name: "Edit prompt" }));
+	},
+};
+
+export const EditingBeforeAnswerWorkFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
+		editingMessageId: 1,
 	},
 };
