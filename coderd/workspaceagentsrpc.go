@@ -517,6 +517,26 @@ func checkBuildIsLatest(ctx context.Context, db database.Store, build database.W
 		return err
 	}
 	if build.ID != latestBuild.ID {
+		// Keep the previous successful START connected while STOP or DELETE
+		// is pending or running, allowing shutdown lookup and final logs.
+		// Once the job finishes, this check retires the connection as outdated.
+		if build.Transition == database.WorkspaceTransitionStart &&
+			latestBuild.BuildNumber == build.BuildNumber+1 &&
+			(latestBuild.Transition == database.WorkspaceTransitionStop || latestBuild.Transition == database.WorkspaceTransitionDelete) {
+			job, err := db.GetProvisionerJobByID(ctx, latestBuild.JobID)
+			if err != nil {
+				return err
+			}
+			if job.JobStatus == database.ProvisionerJobStatusPending || job.JobStatus == database.ProvisionerJobStatusRunning {
+				startJob, err := db.GetProvisionerJobByID(ctx, build.JobID)
+				if err != nil {
+					return err
+				}
+				if startJob.JobStatus == database.ProvisionerJobStatusSucceeded {
+					return nil
+				}
+			}
+		}
 		return xerrors.New("build is outdated")
 	}
 	return nil

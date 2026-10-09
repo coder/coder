@@ -116,6 +116,9 @@ type Config struct {
 	BlockLocalPortForwarding bool
 	// ConnectionReporter reports connect and disconnect events.
 	ConnectionReporter proto.ConnectionReporter
+	// ShutdownCause is sampled before closing active sessions and connections.
+	// If nil, connections are closed with server_shutdown as the reason.
+	ShutdownCause func() ShutdownCause
 	// Experimental: allow connecting to running containers via Docker exec.
 	// Note that this is different from the devcontainers feature, which uses
 	// subagents.
@@ -242,10 +245,13 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 				}
 				directStreamLocalHandler(srv, conn, newChan, ctx)
 			},
-			"session": ssh.DefaultSessionHandler,
+			"session": sessionChannelHandler,
 		},
 		ConnCallback: func(ctx ssh.Context, conn net.Conn) net.Conn {
 			ctx.SetValue(clientSessionIDContextKey{}, ClientSessionIDFromConn(conn))
+			if tracked, ok := conn.(*trackedSSHConn); ok {
+				ctx.SetValue(shutdownContextKey{}, tracked)
+			}
 			return conn
 		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
@@ -394,6 +400,7 @@ type sessionCloseTracker struct {
 var _ ssh.Session = &sessionCloseTracker{}
 
 func (s *sessionCloseTracker) track(code int) {
+	recordSessionTermination(s.Context())
 	s.exitOnce.Do(func() {
 		s.code.Store(int64(code))
 	})
@@ -527,11 +534,18 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			ClientSessionID: clientSessionID,
 		})
 		defer func() {
+			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", scr.exitCode())}
+			if cause := sessionShutdownCause(ctx); cause != nil {
+				if reason != "" && reason != codersdk.DisconnectReasonGraceful {
+					fields = append(fields, codersdk.SlogDisconnectDetail(string(reason)))
+				}
+				reason = cause.Reason
+				fields = append(fields, cause.fields()...)
+			} else {
+				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
+			}
 			logger.Info(ctx, "ssh session closed",
-				codersdk.ConnectionDirectionAgentToClient.SlogField(),
-				reason.SlogField(),
-				reason.SlogExpectedField(),
-				slog.F("exit_code", scr.exitCode()),
+				fields...,
 			)
 			connReporter.Disconnect(proto.DisconnectEvent{
 				Code:   scr.exitCode(),
@@ -1132,23 +1146,36 @@ func (s *Server) Serve(l net.Listener) (retErr error) {
 // session ID will be extracted from it.
 func (s *Server) handleConn(l net.Listener, c net.Conn) {
 	clientSessionID := ClientSessionIDFromConn(c)
+	tracked := &trackedSSHConn{Conn: c, clientSessionID: clientSessionID}
+	c = tracked
 	logger := s.logger.With(
 		slog.F("remote_addr", c.RemoteAddr()),
 		slog.F("local_addr", c.LocalAddr()),
 		slog.F("listen_addr", l.Addr()),
 		slog.F("client_session_id", clientSessionID))
 
-	defer logger.Info(context.Background(), "ssh connection complete")
+	registered := s.trackConn(l, c, true)
+	if registered {
+		// Close must wait for the completion log, including forwarding-only
+		// connections that have no separate session completion report.
+		defer s.trackConn(l, c, false)
+	}
+	defer func() {
+		fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
+		if cause := tracked.shutdownCause(); cause != nil {
+			fields = append(fields, cause.fields()...)
+		}
+		logger.Info(context.Background(), "ssh connection complete", fields...)
+	}()
 
 	defer c.Close()
 
-	if !s.trackConn(l, c, true) {
+	if !registered {
 		// Server is closed or we no longer want
 		// connections from this listener.
 		logger.Info(context.Background(), "received connection after server closed")
 		return
 	}
-	defer s.trackConn(l, c, false)
 	logger.Info(context.Background(), "started serving ssh connection")
 	s.srv.HandleConn(c)
 }
@@ -1262,6 +1289,17 @@ func (s *Server) Close() error {
 		return xerrors.New("server is closed")
 	}
 	s.closing = make(chan struct{})
+	cause := ShutdownCause{Reason: codersdk.DisconnectReasonServerShutdown}
+	if s.config.ShutdownCause != nil {
+		cause = s.config.ShutdownCause()
+	}
+	// Preserve the cause before closing any channel or socket can wake its
+	// handler. Each connection retains it after the server is reused.
+	for conn := range s.conns {
+		if tracked, ok := conn.(*trackedSSHConn); ok {
+			tracked.recordTermination(&cause)
+		}
+	}
 
 	ctx := context.Background()
 

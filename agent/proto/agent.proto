@@ -663,6 +663,14 @@ message PushContextStateResponse {
 	bool accepted = 1;
 }
 
+// WorkspaceShutdown describes a running or successful stop/delete build.
+// An empty build_id means there is no known workspace shutdown.
+message WorkspaceShutdown {
+	string build_id = 1;
+	string transition = 2;
+	string build_reason = 3;
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -683,4 +691,5 @@ service Agent {
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
 	rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse);
 	rpc PushContextState(PushContextStateRequest) returns (PushContextStateResponse);
+	rpc GetWorkspaceShutdown(google.protobuf.Empty) returns (WorkspaceShutdown);
 }

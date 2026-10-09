@@ -192,6 +192,16 @@ func (c *Client) ConnectRPC212WithRole(ctx context.Context, role string) (
 	return c.ConnectRPC211WithRole(ctx, role)
 }
 
+func (c *Client) ConnectRPC213WithRole(ctx context.Context, role string) (
+	agentproto.DRPCAgentClient213, proto.DRPCTailnetClient28, error,
+) {
+	aAPI, tAPI, err := c.ConnectRPC212WithRole(ctx, role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return agentproto.NewDRPCAgentClient(aAPI.DRPCConn()), tAPI, nil
+}
+
 func (c *Client) ConnectRPC29(ctx context.Context) (
 	agentproto.DRPCAgentClient29, proto.DRPCTailnetClient28, error,
 ) {
@@ -312,6 +322,10 @@ type FakeAgentAPI struct {
 
 func (*FakeAgentAPI) UpdateAppStatus(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
 	panic("unimplemented")
+}
+
+func (*FakeAgentAPI) GetWorkspaceShutdown(context.Context, *emptypb.Empty) (*agentproto.WorkspaceShutdown, error) {
+	return &agentproto.WorkspaceShutdown{}, nil
 }
 
 // PushContextState records the incoming snapshot and returns

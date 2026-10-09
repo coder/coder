@@ -36,6 +36,7 @@ type JetbrainsChannelWatcher struct {
 	originAddr         string
 	clientSessionID    string
 	connectionReporter proto.ConnectionReporter
+	ctx                context.Context
 }
 
 func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger,
@@ -78,6 +79,7 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger,
 		originAddr:         d.OriginAddr,
 		connectionReporter: connectionReporter,
 		clientSessionID:    clientSessionID,
+		ctx:                ctx,
 	}
 }
 
@@ -102,19 +104,31 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 	// nolint: gocritic // JetBrains is a proper noun and should be capitalized
 	w.logger.Debug(context.Background(), "JetBrains watcher accepted channel")
 
+	termination := &channelTermination{ctx: w.ctx}
+	// DirectTCPIPHandler closes both directions after either copy ends, so
+	// forwarding EOF is terminal even though session stdin EOF is not.
 	return &ChannelOnClose{
-		Channel: c,
+		Channel:   c,
+		onIOError: termination.record,
 		done: func() {
+			termination.record()
 			endSession()
+			detail := "normal close"
+			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
+			if cause := termination.shutdownCause(); cause != nil {
+				detail = string(cause.Reason)
+				fields = append(fields, cause.fields()...)
+			} else {
+				reason := codersdk.DisconnectReasonGraceful
+				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
+			}
 			connReporter.Disconnect(proto.DisconnectEvent{
 				Code:   0,
-				Reason: "normal close",
+				Reason: detail,
 			})
 			// nolint: gocritic // JetBrains is a proper noun and should be capitalized
 			w.logger.Debug(context.Background(), "JetBrains channel closed",
-				codersdk.ConnectionDirectionAgentToClient.SlogField(),
-				codersdk.DisconnectReasonGraceful.SlogField(),
-				codersdk.DisconnectReasonGraceful.SlogExpectedField(),
+				fields...,
 			)
 		},
 	}, r, err
@@ -124,8 +138,25 @@ type ChannelOnClose struct {
 	gossh.Channel
 	// once ensures close only decrements the counter once.
 	// Because close can be called multiple times.
-	once sync.Once
-	done func()
+	once      sync.Once
+	done      func()
+	onIOError func()
+}
+
+func (c *ChannelOnClose) Read(p []byte) (int, error) {
+	n, err := c.Channel.Read(p)
+	if err != nil && c.onIOError != nil {
+		c.onIOError()
+	}
+	return n, err
+}
+
+func (c *ChannelOnClose) Write(p []byte) (int, error) {
+	n, err := c.Channel.Write(p)
+	if err != nil && c.onIOError != nil {
+		c.onIOError()
+	}
+	return n, err
 }
 
 func (c *ChannelOnClose) Close() error {
