@@ -236,7 +236,8 @@ export const useChatStore = (
 	// its snapshot, defeating pagination.
 	const initialDataLoaded = chatMessages !== undefined;
 
-	// A chat opened again renders from this cache, which is never refetched.
+	// A chat opened again renders from this cache, which after its first load
+	// is updated here rather than refetched.
 	const upsertCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			if (messages.length === 0) {
