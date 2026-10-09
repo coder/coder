@@ -5,7 +5,6 @@ import {
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
 	GitPullRequestArrowIcon,
-	LockIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
@@ -364,9 +363,9 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 			<div className="flex items-center gap-2">
 				{!isEmbedded && isReadOnlyViewer && (
 					<span className="inline-flex size-7 items-center justify-center text-content-secondary">
-						<LockIcon
+						<UsersIcon
 							className="size-icon-sm p-0.5"
-							aria-label="Read-only chat"
+							aria-label="Shared chat"
 						/>
 					</span>
 				)}
