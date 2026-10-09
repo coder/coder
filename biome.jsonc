@@ -69,7 +69,7 @@
 							},
 							// "#/components/Stack/Stack": "Use Tailwind flex utilities instead (e.g., <div className='flex flex-col gap-4'>).",
 							"sonner": {
-								"message": "Import toast from #/components/Toaster/toast so error toasts stay until dismissed (WCAG 2.2.1).",
+								"message": "Import toast from #/components/Toaster/toast.",
 								"importNames": ["toast"]
 							},
 							"lodash": "Use lodash/<name> instead."

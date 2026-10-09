@@ -12,8 +12,7 @@ const error: typeof sonnerToast.error = (message, data) =>
 	sonnerToast.error(message, { ...persistentToast, ...data });
 
 // Sonner renders a rejected promise as an error toast without calling
-// toast.error, so the error result needs the persistent duration too. An
-// object result keeps any options the caller set, the same as Sonner.
+// toast.error, so the error result needs the persistent duration too.
 const promise: typeof sonnerToast.promise = (promiseToTrack, data) => {
 	if (data?.error === undefined) {
 		return sonnerToast.promise(promiseToTrack, data);
@@ -39,11 +38,6 @@ const promise: typeof sonnerToast.promise = (promiseToTrack, data) => {
 	});
 };
 
-/**
- * Sonner's `toast` with error toasts, including rejected `toast.promise`
- * calls, kept on screen until the user dismisses them. Import this instead of
- * `toast` from "sonner".
- */
 export const toast: typeof sonnerToast = Object.assign(
 	(...args: Parameters<typeof sonnerToast>) => sonnerToast(...args),
 	sonnerToast,
