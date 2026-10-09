@@ -22292,7 +22292,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "history_version": {
-                    "description": "HistoryVersion is the chat's history_version for the messages in this\npage. Pass it as the stream's history_version parameter. It is set only\non pages requested without before_id or after_id.",
+                    "description": "HistoryVersion is the chat's history_version, read before the messages\nin this page, so the page can include changes newer than it. Pass it as\nthe stream's history_version parameter. It is set only on pages\nrequested without before_id or after_id.",
                     "type": "integer"
                 },
                 "messages": {
