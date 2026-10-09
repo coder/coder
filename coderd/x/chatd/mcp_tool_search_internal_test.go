@@ -36,6 +36,38 @@ func testDeferredTool(name, description string, parameters map[string]any) defer
 	}}}
 }
 
+type deferredTestFullSchemaTool struct {
+	deferredTestAgentTool
+	schema map[string]any
+}
+
+func (t deferredTestFullSchemaTool) FullInputSchema() map[string]any { return t.schema }
+
+// TestEstimateDeferredMCPToolTokensPrefersFullSchema verifies that
+// deferral budgeting weighs the complete input schema when a tool
+// reports one, since that is what reactivation puts on the wire.
+func TestEstimateDeferredMCPToolTokensPrefersFullSchema(t *testing.T) {
+	t.Parallel()
+
+	parameters := map[string]any{"value": map[string]any{"type": "string"}}
+	flattened := testDeferredTool("server__tool", "desc", parameters)
+	full := deferredMCPTool{tool: deferredTestFullSchemaTool{
+		deferredTestAgentTool: deferredTestAgentTool{info: fantasy.ToolInfo{
+			Name: "server__tool", Description: "desc", Parameters: parameters,
+		}},
+		schema: map[string]any{
+			"type":       "object",
+			"properties": parameters,
+			"$defs": map[string]any{
+				"Filter": map[string]any{"type": "string", "description": strings.Repeat("x", 100)},
+			},
+		},
+	}}
+	require.Greater(t,
+		estimateDeferredMCPToolTokens([]deferredMCPTool{full}),
+		estimateDeferredMCPToolTokens([]deferredMCPTool{flattened}))
+}
+
 func TestDecideMCPToolSearch(t *testing.T) {
 	t.Parallel()
 	candidates := []deferredMCPTool{testDeferredTool("server__small", "small", map[string]any{"value": map[string]any{"type": "string"}})}

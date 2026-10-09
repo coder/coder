@@ -1108,6 +1108,7 @@ type mcpToolWrapper struct {
 	prefixedName string
 	originalName string
 	description  string
+	inputSchema  map[string]any
 	parameters   map[string]any
 	required     []string
 	modelIntent  bool
@@ -1135,7 +1136,7 @@ func newMCPTool(
 	redactor secretRedactor,
 	maxResultBytes int,
 ) *mcpToolWrapper {
-	properties, required := splitInputSchema(tool.InputSchema)
+	inputSchema, properties, required := splitInputSchema(tool.InputSchema)
 	// Model-visible fields are redacted once here. originalName is
 	// deliberately left as is: it is the name sent in tools/call and the
 	// server must recognize it.
@@ -1144,6 +1145,7 @@ func newMCPTool(
 		prefixedName:   truncateToolName(aidmcp.SanitizeToolName(redactor.redactString(serverSlug)) + toolNameSep + aidmcp.SanitizeToolName(redactor.redactString(tool.Name))),
 		originalName:   tool.Name,
 		description:    redactor.redactString(tool.Description),
+		inputSchema:    redactor.redactMap(inputSchema),
 		parameters:     redactor.redactMap(properties),
 		required:       redactor.redactStrings(required),
 		modelIntent:    modelIntent,
@@ -1153,16 +1155,18 @@ func newMCPTool(
 	}
 }
 
-func splitInputSchema(schema any) (map[string]any, []string) {
+// splitInputSchema returns the tool's full input schema map plus the
+// derived properties/required pair that fantasy.ToolInfo carries. The
+// full map is nil when the server sent no object schema.
+func splitInputSchema(schema any) (full map[string]any, properties map[string]any, required []string) {
 	m, _ := schema.(map[string]any)
-	properties, _ := m["properties"].(map[string]any)
+	properties, _ = m["properties"].(map[string]any)
 	if properties == nil {
 		// A tool with no parameters has no "properties" object. A nil
 		// map serializes to JSON null, which some providers reject as
 		// an invalid schema, so normalize to an empty object.
 		properties = map[string]any{}
 	}
-	var required []string
 	if rawRequired, ok := m["required"].([]any); ok {
 		for _, r := range rawRequired {
 			if str, ok := r.(string); ok {
@@ -1170,7 +1174,7 @@ func splitInputSchema(schema any) (map[string]any, []string) {
 			}
 		}
 	}
-	return properties, required
+	return m, properties, required
 }
 
 func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
@@ -1193,17 +1197,7 @@ func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
 	// "model_intent" so the LLM provides a human-readable
 	// description of each tool call.
 	wrapped := map[string]any{
-		"model_intent": map[string]any{
-			"type": "string",
-			"description": "A short, natural-language, present-participle " +
-				"phrase describing why you are calling this tool. " +
-				"This is shown to the user as a status label while " +
-				"the tool runs. Use plain English with no underscores " +
-				"or technical jargon. Keep it under 100 characters. " +
-				"Good examples: \"Reading the authentication module\", " +
-				"\"Searching for configuration files\", " +
-				"\"Creating a new workspace\".",
-		},
+		"model_intent": modelIntentPropertySchema(),
 		"properties": map[string]any{
 			"type":       "object",
 			"properties": t.parameters,
@@ -1217,6 +1211,117 @@ func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
 		Required:    []string{"model_intent", "properties"},
 		Parallel:    true,
 	}
+}
+
+func modelIntentPropertySchema() map[string]any {
+	return map[string]any{
+		"type": "string",
+		"description": "A short, natural-language, present-participle " +
+			"phrase describing why you are calling this tool. " +
+			"This is shown to the user as a status label while " +
+			"the tool runs. Use plain English with no underscores " +
+			"or technical jargon. Keep it under 100 characters. " +
+			"Good examples: \"Reading the authentication module\", " +
+			"\"Searching for configuration files\", " +
+			"\"Creating a new workspace\".",
+	}
+}
+
+// FullInputSchema returns the tool's complete input schema, preserving
+// keys such as $defs, additionalProperties, and combinators that
+// Info() cannot carry. It returns nil when the server sent no object
+// schema, in which case callers reconstruct a schema from Info().
+func (t *mcpToolWrapper) FullInputSchema() map[string]any {
+	if t.inputSchema == nil {
+		return nil
+	}
+	if !t.modelIntent {
+		return t.inputSchema
+	}
+
+	// Nest the original schema under "properties" alongside
+	// "model_intent", mirroring Info(). JSON pointers resolve from the
+	// document root, so definitions are hoisted to the wrapped root,
+	// where "#/$defs/..." and "#/definitions/..." keep resolving, and
+	// every other local pointer is rebased onto the nested schema.
+	inner, _ := rebaseSchemaRefs(t.inputSchema).(map[string]any)
+	wrapped := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"model_intent": modelIntentPropertySchema(),
+			"properties":   inner,
+		},
+		"required": []string{"model_intent", "properties"},
+	}
+	for _, key := range []string{"$defs", "definitions"} {
+		if defs, ok := inner[key]; ok {
+			wrapped[key] = defs
+			delete(inner, key)
+		}
+	}
+	return wrapped
+}
+
+// modelIntentSchemaPointer locates the tool's own schema inside the
+// model_intent wrapper.
+const modelIntentSchemaPointer = "#/properties/properties"
+
+// rebaseSchemaRefs returns a copy of a schema value with local "$ref"
+// pointers rebased onto modelIntentSchemaPointer. Pointers into "$defs"
+// and "definitions" are kept because those are hoisted to the root.
+func rebaseSchemaRefs(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, item := range typed {
+			switch key {
+			case "$ref":
+				if ref, ok := item.(string); ok {
+					item = rebaseLocalRef(ref)
+				}
+				out[key] = item
+			case "enum", "const", "default", "examples":
+				// Instance values, not schemas.
+				out[key] = item
+			case "properties", "patternProperties", "dependentSchemas", "$defs", "definitions":
+				// Keys of these maps are names, not keywords.
+				named, ok := item.(map[string]any)
+				if !ok {
+					out[key] = item
+					continue
+				}
+				schemas := make(map[string]any, len(named))
+				for name, schema := range named {
+					schemas[name] = rebaseSchemaRefs(schema)
+				}
+				out[key] = schemas
+			default:
+				out[key] = rebaseSchemaRefs(item)
+			}
+		}
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for i, item := range typed {
+			out[i] = rebaseSchemaRefs(item)
+		}
+		return out
+	default:
+		return value
+	}
+}
+
+func rebaseLocalRef(ref string) string {
+	if ref != "#" && !strings.HasPrefix(ref, "#/") {
+		// Remote and anchor references do not depend on the wrapper.
+		return ref
+	}
+	for _, defs := range []string{"#/$defs", "#/definitions"} {
+		if ref == defs || strings.HasPrefix(ref, defs+"/") {
+			return ref
+		}
+	}
+	return modelIntentSchemaPointer + strings.TrimPrefix(ref, "#")
 }
 
 func (t *mcpToolWrapper) Run(
