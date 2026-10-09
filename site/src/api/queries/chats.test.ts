@@ -146,7 +146,6 @@ vi.mock("#/api/api", () => ({
 			createChat: vi.fn(),
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
-			getChatMessages: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
 			getChatCost: vi.fn(),
 			getChatDiffContents: vi.fn(),
