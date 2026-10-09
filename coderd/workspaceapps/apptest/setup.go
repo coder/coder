@@ -3,6 +3,7 @@ package apptest
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -116,6 +117,8 @@ type Details struct {
 	Workspace *codersdk.Workspace
 	Agent     *codersdk.WorkspaceAgent
 	AppPort   uint16
+
+	closeAgent func() error
 
 	Apps struct {
 		Fake                      App
@@ -237,7 +240,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	if opts.port == 0 {
 		opts.port = appServer(t, opts.headers, opts.ServeHTTPS, opts.handler)
 	}
-	workspace, agnt := createWorkspaceWithApps(t, deployment.SDKClient, deployment.FirstUser.OrganizationID, me, opts.port, opts.ServeHTTPS)
+	workspace, agnt, agentCloser := createWorkspaceWithApps(t, deployment.SDKClient, deployment.FirstUser.OrganizationID, me, opts.port, opts.ServeHTTPS)
 
 	details := &Details{
 		Deployment: deployment,
@@ -245,6 +248,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 		Workspace:  &workspace,
 		Agent:      &agnt,
 		AppPort:    opts.port,
+		closeAgent: agentCloser.Close,
 	}
 
 	details.Apps.Fake = App{
@@ -363,7 +367,7 @@ func appServer(t *testing.T, headers http.Header, isHTTPS bool, handler http.Han
 }
 
 //nolint:revive
-func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, me codersdk.User, port uint16, serveHTTPS bool, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) (codersdk.Workspace, codersdk.WorkspaceAgent) {
+func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, me codersdk.User, port uint16, serveHTTPS bool, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) (codersdk.Workspace, codersdk.WorkspaceAgent, io.Closer) {
 	authToken := uuid.NewString()
 
 	scheme := "http"
@@ -552,7 +556,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	}
 	require.Len(t, agents, 1)
 
-	return workspace, agents[0]
+	return workspace, agents[0], agentCloser
 }
 
 func findProtoApp(t *testing.T, protoApps []*proto.App, slug string) *proto.App {

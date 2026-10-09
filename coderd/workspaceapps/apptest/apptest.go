@@ -1927,7 +1927,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			// Create workspace.
 			port := appServer(t, nil, false, nil)
-			workspace, _ = createWorkspaceWithApps(t, client, user.OrganizationIDs[0], user, port, false)
+			workspace, _, _ = createWorkspaceWithApps(t, client, user.OrganizationIDs[0], user, port, false)
 
 			// Verify that the apps have the correct sharing levels set.
 			workspaceBuild, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
@@ -2363,6 +2363,8 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		// The agent must report its final state before stopping revokes its token.
+		require.NoError(t, appDetails.closeAgent())
 		_ = coderdtest.MustTransitionWorkspace(t, appDetails.SDKClient, appDetails.Workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		u := appDetails.PathAppURL(appDetails.Apps.Owner)
@@ -2477,7 +2479,7 @@ func assertWorkspaceLastUsedAtUpdated(t testing.TB, details *Details, timeout ti
 		details.FlushStats()
 		after, err := details.SDKClient.Workspace(ctx, details.Workspace.ID)
 		return assert.NoError(t, err) && after.LastUsedAt.After(before.LastUsedAt)
-	}, testutil.IntervalMedium)
+	}, testutil.IntervalFast)
 }
 
 // Except when it sometimes shouldn't (e.g. no access)
