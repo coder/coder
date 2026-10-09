@@ -839,7 +839,7 @@ const AgentChatPage: React.FC = () => {
 					isFetchingMoreMessages={isLoadOlderMessagesPending}
 					isHydratingMessages={isHydratingMessages}
 					hasFetchMoreError={isLoadOlderMessagesError}
-					onFetchMoreMessages={async () => loadOlderMessages()}
+					onFetchMoreMessages={loadOlderMessages}
 					desktopChatId={desktopEnabled ? agentId : undefined}
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
