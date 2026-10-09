@@ -201,6 +201,10 @@ const (
 	ScopeWorkspaceProxyDelete                ScopeName = "workspace_proxy:delete"
 	ScopeWorkspaceProxyRead                  ScopeName = "workspace_proxy:read"
 	ScopeWorkspaceProxyUpdate                ScopeName = "workspace_proxy:update"
+	ScopeWorkspaceSecretCreate               ScopeName = "workspace_secret:create"
+	ScopeWorkspaceSecretRead                 ScopeName = "workspace_secret:read"
+	ScopeWorkspaceSecretReadSecret           ScopeName = "workspace_secret:read_secret"
+	ScopeWorkspaceSecretUpdate               ScopeName = "workspace_secret:update"
 )
 
 // Valid reports whether the ScopeName matches one of the known scope values.
@@ -405,7 +409,11 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceProxyCreate,
 		ScopeWorkspaceProxyDelete,
 		ScopeWorkspaceProxyRead,
-		ScopeWorkspaceProxyUpdate:
+		ScopeWorkspaceProxyUpdate,
+		ScopeWorkspaceSecretCreate,
+		ScopeWorkspaceSecretRead,
+		ScopeWorkspaceSecretReadSecret,
+		ScopeWorkspaceSecretUpdate:
 		return true
 	}
 	return false
@@ -612,5 +620,9 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceProxyDelete,
 		ScopeWorkspaceProxyRead,
 		ScopeWorkspaceProxyUpdate,
+		ScopeWorkspaceSecretCreate,
+		ScopeWorkspaceSecretRead,
+		ScopeWorkspaceSecretReadSecret,
+		ScopeWorkspaceSecretUpdate,
 	}
 }

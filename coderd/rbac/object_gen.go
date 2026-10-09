@@ -535,6 +535,17 @@ var (
 	ResourceWorkspaceProxy = Object{
 		Type: "workspace_proxy",
 	}
+
+	// ResourceWorkspaceSecret
+	// Valid Actions
+	//  - "ActionCreate" :: set a workspace secret on a workspace build
+	//  - "ActionRead" :: read workspace secret metadata, never the value
+	//  - "ActionReadSecret" :: read decrypted workspace secret values, granted only to the workspace secret manager actor
+	//  - "ActionUpdate" :: clear or re-encrypt workspace secret values
+	// Workspace secrets are write-only for users. No built-in user role is granted read_secret.
+	ResourceWorkspaceSecret = Object{
+		Type: "workspace_secret",
+	}
 )
 
 func AllResources() []Objecter {
@@ -594,6 +605,7 @@ func AllResources() []Objecter {
 		ResourceWorkspaceBuildOrchestration,
 		ResourceWorkspaceDormant,
 		ResourceWorkspaceProxy,
+		ResourceWorkspaceSecret,
 	}
 }
 
@@ -607,6 +619,7 @@ func AllActions() []policy.Action {
 		policy.ActionDeleteAgent,
 		policy.ActionRead,
 		policy.ActionReadPersonal,
+		policy.ActionReadSecret,
 		policy.ActionSSH,
 		policy.ActionShare,
 		policy.ActionUnassign,

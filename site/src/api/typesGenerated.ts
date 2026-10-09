@@ -960,6 +960,11 @@ export type APIKeyScope =
 	| "workspace_proxy:read"
 	| "workspace_proxy:update"
 	| "workspace:read"
+	| "workspace_secret:*"
+	| "workspace_secret:create"
+	| "workspace_secret:read"
+	| "workspace_secret:read_secret"
+	| "workspace_secret:update"
 	| "workspace:share"
 	| "workspace:ssh"
 	| "workspace:start"
@@ -1221,6 +1226,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_proxy:read",
 	"workspace_proxy:update",
 	"workspace:read",
+	"workspace_secret:*",
+	"workspace_secret:create",
+	"workspace_secret:read",
+	"workspace_secret:read_secret",
+	"workspace_secret:update",
 	"workspace:share",
 	"workspace:ssh",
 	"workspace:start",
@@ -8904,6 +8914,7 @@ export type RBACAction =
 	| "delete_agent"
 	| "read"
 	| "read_personal"
+	| "read_secret"
 	| "ssh"
 	| "share"
 	| "unassign"
@@ -8924,6 +8935,7 @@ export const RBACActions: RBACAction[] = [
 	"delete_agent",
 	"read",
 	"read_personal",
+	"read_secret",
 	"ssh",
 	"share",
 	"unassign",
@@ -8992,7 +9004,8 @@ export type RBACResource =
 	| "workspace_agent_resource_monitor"
 	| "workspace_build_orchestration"
 	| "workspace_dormant"
-	| "workspace_proxy";
+	| "workspace_proxy"
+	| "workspace_secret";
 
 export const RBACResources: RBACResource[] = [
 	"ai_gateway_key",
@@ -9050,6 +9063,7 @@ export const RBACResources: RBACResource[] = [
 	"workspace_build_orchestration",
 	"workspace_dormant",
 	"workspace_proxy",
+	"workspace_secret",
 ];
 
 // From codersdk/deployment.go

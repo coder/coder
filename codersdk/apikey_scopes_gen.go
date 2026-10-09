@@ -263,6 +263,11 @@ const (
 	APIKeyScopeWorkspaceProxyDelete                APIKeyScope = "workspace_proxy:delete"
 	APIKeyScopeWorkspaceProxyRead                  APIKeyScope = "workspace_proxy:read"
 	APIKeyScopeWorkspaceProxyUpdate                APIKeyScope = "workspace_proxy:update"
+	APIKeyScopeWorkspaceSecretAll                  APIKeyScope = "workspace_secret:*"
+	APIKeyScopeWorkspaceSecretCreate               APIKeyScope = "workspace_secret:create"
+	APIKeyScopeWorkspaceSecretRead                 APIKeyScope = "workspace_secret:read"
+	APIKeyScopeWorkspaceSecretReadSecret           APIKeyScope = "workspace_secret:read_secret"
+	APIKeyScopeWorkspaceSecretUpdate               APIKeyScope = "workspace_secret:update"
 )
 
 // PublicAPIKeyScopes lists all public low-level API key scopes.

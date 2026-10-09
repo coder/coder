@@ -20147,3 +20147,147 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		require.Empty(t, outOfRange)
 	})
 }
+
+func TestClearWorkspaceSecretsBeforeBuild(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	first := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).Do()
+	ws := first.Workspace
+	build1 := first.Build
+	build2 := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+	build3 := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 3}).Do().Build
+
+	for _, b := range []database.WorkspaceBuild{build1, build2, build3} {
+		dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      ws.ID,
+			WorkspaceBuildID: b.ID,
+			Name:             "api-key",
+		})
+	}
+
+	// Build 2 clearing late must not touch build 3, which is newer.
+	err := db.ClearWorkspaceSecretsBeforeBuild(ctx, database.ClearWorkspaceSecretsBeforeBuildParams{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: build2.ID,
+	})
+	require.NoError(t, err)
+
+	live := func(buildID uuid.UUID) int {
+		rows, err := db.ListActiveWorkspaceSecrets(ctx, buildID)
+		require.NoError(t, err)
+		return len(rows)
+	}
+	require.Equal(t, 0, live(build1.ID), "earlier build is cleared")
+	require.Equal(t, 1, live(build2.ID), "the clearing build keeps its own secrets")
+	require.Equal(t, 1, live(build3.ID), "a later build is untouched")
+
+	history, err := db.GetWorkspaceSecretsHistory(ctx, ws.ID)
+	require.NoError(t, err)
+	require.Len(t, history, 3, "cleared rows are kept as history")
+	for _, row := range history {
+		require.Equal(t, row.WorkspaceBuildID == build1.ID, row.ClearedAt.Valid,
+			"only build 1's row is cleared")
+	}
+}
+
+func TestClearWorkspaceSecretsByWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	newWorkspace := func() dbfake.WorkspaceResponse {
+		resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).Do()
+		dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      resp.Workspace.ID,
+			WorkspaceBuildID: resp.Build.ID,
+		})
+		return resp
+	}
+	deleted := newWorkspace()
+	other := newWorkspace()
+
+	require.NoError(t, db.ClearWorkspaceSecretsByWorkspaceID(ctx, deleted.Workspace.ID))
+
+	live, err := db.ListActiveWorkspaceSecrets(ctx, deleted.Build.ID)
+	require.NoError(t, err)
+	require.Empty(t, live, "the workspace's secrets are cleared")
+	history, err := db.GetWorkspaceSecretsHistory(ctx, deleted.Workspace.ID)
+	require.NoError(t, err)
+	require.Len(t, history, 1, "cleared rows are kept as history")
+	require.True(t, history[0].ClearedAt.Valid)
+
+	live, err = db.ListActiveWorkspaceSecrets(ctx, other.Build.ID)
+	require.NoError(t, err)
+	require.Len(t, live, 1, "other workspaces are untouched")
+}
+
+func TestGetWorkspaceSecretsPaginates(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	first := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+		OwnerID:        dbgen.User(t, db, database.User{}).ID,
+	}).Do()
+	ws := first.Workspace
+	second := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{BuildNumber: 2}).Do().Build
+
+	// Build 1's secret is cleared below and must not be listed.
+	dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: first.Build.ID,
+		Name:             "cleared",
+	})
+	var want []uuid.UUID
+	for i := range 5 {
+		secret := dbgen.WorkspaceSecret(t, db, database.WorkspaceSecret{
+			WorkspaceID:      ws.ID,
+			WorkspaceBuildID: second.ID,
+			Name:             fmt.Sprintf("secret-%d", i),
+			EnvName:          fmt.Sprintf("SECRET_%d", i),
+		})
+		want = append(want, secret.ID)
+	}
+	require.NoError(t, db.ClearWorkspaceSecretsBeforeBuild(ctx, database.ClearWorkspaceSecretsBeforeBuildParams{
+		WorkspaceID:      ws.ID,
+		WorkspaceBuildID: second.ID,
+	}))
+	slices.SortFunc(want, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+
+	var got []uuid.UUID
+	var pages int
+	afterID := uuid.Nil
+	for {
+		page, err := db.GetWorkspaceSecrets(ctx, database.GetWorkspaceSecretsParams{
+			AfterID:    afterID,
+			LimitCount: 2,
+		})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		pages++
+		for _, secret := range page {
+			got = append(got, secret.ID)
+		}
+		afterID = page[len(page)-1].ID
+	}
+	require.Equal(t, want, got, "every live secret is listed once, in id order")
+	require.Equal(t, 3, pages)
+}

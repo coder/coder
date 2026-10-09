@@ -7024,6 +7024,69 @@ func (s *MethodTestSuite) TestUserSecrets() {
 	}))
 }
 
+func (s *MethodTestSuite) TestWorkspaceSecrets() {
+	secretObj := func(ws database.Workspace) rbac.Object {
+		return rbac.ResourceWorkspaceSecret.WithOwner(ws.OwnerID.String()).InOrg(ws.OrganizationID)
+	}
+	s.Run("InsertWorkspaceSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		arg := database.InsertWorkspaceSecretParams{WorkspaceID: ws.ID}
+		ret := testutil.Fake(s.T(), faker, database.WorkspaceSecret{WorkspaceID: ws.ID})
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().InsertWorkspaceSecret(gomock.Any(), arg).Return(ret, nil).AnyTimes()
+		check.Args(arg).Asserts(secretObj(ws), policy.ActionCreate).Returns(ret)
+	}))
+	s.Run("ClearWorkspaceSecretsBeforeBuild", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		arg := database.ClearWorkspaceSecretsBeforeBuildParams{WorkspaceID: ws.ID, WorkspaceBuildID: uuid.New()}
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().ClearWorkspaceSecretsBeforeBuild(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(secretObj(ws), policy.ActionUpdate)
+	}))
+	s.Run("ClearWorkspaceSecretsByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().ClearWorkspaceSecretsByWorkspaceID(gomock.Any(), ws.ID).Return(nil).AnyTimes()
+		check.Args(ws.ID).Asserts(secretObj(ws), policy.ActionUpdate)
+	}))
+	s.Run("ListActiveWorkspaceSecrets", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{})
+		secret := testutil.Fake(s.T(), faker, database.WorkspaceSecret{WorkspaceBuildID: build.ID})
+		dbm.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), build.ID).Return([]database.WorkspaceSecret{secret}, nil).AnyTimes()
+		check.Args(build.ID).
+			Asserts(rbac.ResourceWorkspaceSecret, policy.ActionReadSecret).
+			Returns([]database.WorkspaceSecret{secret})
+	}))
+	s.Run("GetWorkspaceSecrets", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		secret := testutil.Fake(s.T(), faker, database.WorkspaceSecret{})
+		arg := database.GetWorkspaceSecretsParams{AfterID: uuid.New(), LimitCount: 1000}
+		dbm.EXPECT().GetWorkspaceSecrets(gomock.Any(), arg).Return([]database.WorkspaceSecret{secret}, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceWorkspaceSecret, policy.ActionReadSecret).
+			Returns([]database.WorkspaceSecret{secret})
+	}))
+	s.Run("GetWorkspaceSecretsHistory", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		row := testutil.Fake(s.T(), faker, database.GetWorkspaceSecretsHistoryRow{
+			WorkspaceID:             ws.ID,
+			WorkspaceOwnerID:        ws.OwnerID,
+			WorkspaceOrganizationID: ws.OrganizationID,
+		})
+		dbm.EXPECT().GetWorkspaceSecretsHistory(gomock.Any(), ws.ID).Return([]database.GetWorkspaceSecretsHistoryRow{row}, nil).AnyTimes()
+		check.Args(ws.ID).
+			Asserts(row, policy.ActionRead).
+			Returns([]database.GetWorkspaceSecretsHistoryRow{row})
+	}))
+	s.Run("UpdateEncryptedWorkspaceSecretValue", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		secret := testutil.Fake(s.T(), faker, database.WorkspaceSecret{})
+		arg := database.UpdateEncryptedWorkspaceSecretValueParams{ID: secret.ID, Value: secret.Value}
+		dbm.EXPECT().UpdateEncryptedWorkspaceSecretValue(gomock.Any(), arg).Return(secret, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceWorkspaceSecret, policy.ActionReadSecret, rbac.ResourceWorkspaceSecret, policy.ActionUpdate).
+			Returns(secret)
+	}))
+}
+
 func (s *MethodTestSuite) TestUserSkills() {
 	s.Run("GetUserSkillByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
@@ -8242,6 +8305,33 @@ func TestAsChatd(t *testing.T) {
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceProvisionerDaemon)
 		require.Error(t, err, "provisioner daemon read should be denied")
 	})
+}
+
+func TestAsWorkspaceSecretManager(t *testing.T) {
+	t.Parallel()
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	secret := rbac.ResourceWorkspaceSecret.WithOwner(uuid.NewString()).InOrg(uuid.New())
+
+	ctx := dbauthz.AsWorkspaceSecretManager(context.Background())
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	require.True(t, ok, "actor must be present")
+
+	for _, action := range []policy.Action{policy.ActionReadSecret, policy.ActionCreate, policy.ActionUpdate} {
+		require.NoError(t, auth.Authorize(ctx, actor, action, secret), "workspace secret %s should be allowed", action)
+	}
+	for _, res := range []rbac.Object{rbac.ResourceWorkspace, rbac.ResourceUserSecret, rbac.ResourceSystem} {
+		require.Error(t, auth.Authorize(ctx, actor, policy.ActionRead, res), "%s read should be denied", res.Type)
+	}
+
+	// The general system actor must not read decrypted values or write
+	// workspace secrets. Its wildcard read only covers metadata.
+	sysCtx := dbauthz.AsSystemRestricted(context.Background())
+	sysActor, ok := dbauthz.ActorFromContext(sysCtx)
+	require.True(t, ok, "actor must be present")
+	for _, action := range []policy.Action{policy.ActionReadSecret, policy.ActionCreate, policy.ActionUpdate} {
+		require.Error(t, auth.Authorize(sysCtx, sysActor, action, secret), "system workspace secret %s should be denied", action)
+	}
 }
 
 func TestAsExternalAuthChecker(t *testing.T) {
