@@ -41,6 +41,7 @@ import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
+	getVisibleContent,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { assignTimelineRows } from "./timelineRows";
@@ -248,7 +249,10 @@ const ChatMessageItem = memo<{
 				: splitRowBlocks(rowBlocks, rowTools)[section];
 		// An answer whose only work was a search without citations folds
 		// nothing, and an empty row would still add a gap inside the block.
-		if (isWorkSection && blocks.length === 0 && rowTools.length === 0) {
+		if (
+			isWorkSection &&
+			getVisibleContent(blocks, rowTools).visibleBlocks.length === 0
+		) {
 			return null;
 		}
 		const outputLiveStatus = isWorkSection ? undefined : liveStatus;
