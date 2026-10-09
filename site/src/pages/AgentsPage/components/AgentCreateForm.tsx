@@ -987,7 +987,6 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 							handleContentChange(content, serializedEditorState, hasRefs);
 						},
 						warning: isPrefillEdited ? undefined : prefill?.warning,
-						hasModelOptions,
 						files: {
 							attachments,
 							// Files attached before org adoption cannot upload and would be discarded

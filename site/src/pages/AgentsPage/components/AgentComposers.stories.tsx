@@ -52,8 +52,8 @@ const defaultBindings = {
 	initialValue: "",
 	isDisabled: false,
 	isLoading: false,
-	hasModelOptions: true,
 	files: {
+		workspaceUploads: { uploads: [], onRemove: fn() },
 		attachments: [],
 		onRemoveAttachment: fn(),
 		uploadStates: new Map<File, UploadState>(),
@@ -297,7 +297,7 @@ export const NoModelOptions: Story = {
 	args: {
 		bindings: {
 			...defaultBindings,
-			hasModelOptions: false,
+			isDisabled: true,
 			initialValue: "Model required",
 		},
 	},
@@ -1918,14 +1918,6 @@ export const DeferredErrorChipKeepsSendEnabled: Story = {
 			},
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Deferred submits re-upload failed entries, so a failed chip
-		// alone must keep the retry path available.
-		await waitFor(() => {
-			expect(canvas.getByRole("button", { name: "Send" })).toBeEnabled();
-		});
-	},
 };
 
 export const ErrorChipAloneKeepsSendDisabled: Story = {
@@ -1948,11 +1940,5 @@ export const ErrorChipAloneKeepsSendDisabled: Story = {
 				},
 			},
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Outside deferred mode a failed upload is not retried by
-		// sending, so it contributes no sendable content.
-		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };

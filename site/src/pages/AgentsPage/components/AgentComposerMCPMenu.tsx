@@ -11,6 +11,18 @@ export const enabledMcpServers = (
 	mcp: AgentComposerOptionsData["mcp"],
 ): MCPServerConfig[] => mcp?.servers.filter((server) => server.enabled) ?? [];
 
+/** Whether the server's tools apply: it is always on or the user selected it. */
+export const isMCPServerSelected = (
+	mcp: Pick<NonNullable<AgentComposerOptionsData["mcp"]>, "selectedServerIds">,
+	server: MCPServerConfig,
+): boolean =>
+	server.availability === "force_on" ||
+	mcp.selectedServerIds.includes(server.id);
+
+/** Whether the server requires the user to complete OAuth before use. */
+export const mcpServerNeedsAuth = (server: MCPServerConfig): boolean =>
+	server.auth_type === "oauth2" && !server.auth_connected;
+
 /** Updates controlled MCP selection without changing unrelated server IDs. */
 export function setMCPServerSelected(
 	mcp: Pick<
@@ -46,9 +58,9 @@ export const MCPServerMenuItem = ({
 	onDisconnect,
 }: MCPServerMenuItemProps) => {
 	const isForceOn = server.availability === "force_on";
-	const isSelected = isForceOn || mcp.selectedServerIds.includes(server.id);
+	const isSelected = isMCPServerSelected(mcp, server);
 
-	const needsAuth = server.auth_type === "oauth2" && !server.auth_connected;
+	const needsAuth = mcpServerNeedsAuth(server);
 	const isConnecting = connectingServerId === server.id;
 
 	return (

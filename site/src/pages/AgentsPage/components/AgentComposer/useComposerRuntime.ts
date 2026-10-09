@@ -8,9 +8,9 @@ import {
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../../utils/agentChatSendShortcut";
 import type { ChatMessageInputRef } from "../ChatMessageInput/ChatMessageInput";
+import { composerFiles } from "./composerFiles";
 import type { AgentComposerBindings, ComposerContextValue } from "./context";
 import { useComposerEditor } from "./useComposerEditor";
-import { useComposerFiles } from "./useComposerFiles";
 
 /** Coordinates submission and exposes the public state/actions/meta contract. */
 export function useComposerRuntime(
@@ -21,8 +21,7 @@ export function useComposerRuntime(
 		onSend,
 		isDisabled,
 		isReadOnly = false,
-		isLoading,
-		hasModelOptions,
+		isLoading = false,
 		isStreaming = false,
 		onInterrupt,
 		isInterruptPending = false,
@@ -45,13 +44,17 @@ export function useComposerRuntime(
 		null,
 	);
 
-	const editor = useComposerEditor(
-		bindings,
-		editorRef,
-		(bindings.files?.attachments.length ?? 0) > 0 ||
-			(bindings.files?.workspaceUploads?.uploads.length ?? 0) > 0,
-	);
-	const files = useComposerFiles(bindings, editorRef, editor.resetPromptCycle);
+	let hasDraftFiles = false;
+
+	if (bindings.files) {
+		const hasAttachments = bindings.files.attachments.length > 0;
+		const hasWorkspaceFiles =
+			bindings.files.workspaceUploads.uploads.length > 0;
+		hasDraftFiles = hasAttachments || hasWorkspaceFiles;
+	}
+
+	const editor = useComposerEditor(bindings, editorRef, hasDraftFiles);
+	const files = composerFiles(bindings, editor.resetPromptCycle);
 
 	const hasSendableContent =
 		editor.hasContent ||
@@ -62,7 +65,7 @@ export function useComposerRuntime(
 		isDisabled || isReadOnly || isLoading || files.hasActiveUploads;
 
 	let canSend = false;
-	if (!submissionBlocked && hasModelOptions) {
+	if (!submissionBlocked && onSend) {
 		canSend = hasSendableContent;
 	}
 
@@ -98,17 +101,25 @@ export function useComposerRuntime(
 		const hasSubmissionContent =
 			Boolean(text) || files.hasUploadedAttachments || editor.hasFileReferences;
 
-		if (
-			!hasSubmissionContent &&
-			!submissionBlocked &&
-			queuedMessages.length > 0 &&
-			onPromoteQueuedMessage
-		) {
-			void onPromoteQueuedMessage(queuedMessages[0].id);
+		if (submissionBlocked || !onSend) {
 			return;
 		}
 
-		if (!hasSubmissionContent || submissionBlocked || !hasModelOptions) {
+		if (!hasSubmissionContent) {
+			if (isEditingHistoryMessage) {
+				return;
+			}
+
+			const nextMessage = queuedMessages[0];
+
+			if (nextMessage && onPromoteQueuedMessage) {
+				void onPromoteQueuedMessage(nextMessage.id);
+			}
+
+			return;
+		}
+
+		if (isEditingHistoryMessage && !showSendButton) {
 			return;
 		}
 
@@ -128,6 +139,25 @@ export function useComposerRuntime(
 		}
 	};
 
+	let canAttachFiles = false;
+
+	if (bindings.files && !isReadOnly) {
+		canAttachFiles = bindings.files.onAttach !== undefined;
+	}
+
+	const inlineText = (file: File, nextContent?: string) => {
+		const content = nextContent ?? bindings.files?.textContents.get(file);
+		const input = editorRef.current;
+
+		if (content === undefined || !input) {
+			return;
+		}
+
+		editor.resetPromptCycle();
+		input.insertText(content);
+		bindings.files?.onRemoveAttachment(file);
+	};
+
 	const context: ComposerContextValue = {
 		state: {
 			isDisabled,
@@ -141,7 +171,7 @@ export function useComposerRuntime(
 			canSend,
 			showSendButton,
 			showStopButton,
-			canAttachFiles: bindings.files?.onAttach !== undefined,
+			canAttachFiles,
 			needsSetup,
 			files: bindings.files
 				? {
@@ -149,9 +179,9 @@ export function useComposerRuntime(
 						uploadStates: bindings.files.uploadStates,
 						previewUrls: bindings.files.previewUrls,
 						textContents: bindings.files.textContents,
-						workspaceUploads: bindings.files.workspaceUploads
-							? { uploads: bindings.files.workspaceUploads.uploads }
-							: undefined,
+						workspaceUploads: {
+							uploads: bindings.files.workspaceUploads.uploads,
+						},
 					}
 				: undefined,
 			speechSupported: editor.speech.isSupported,
@@ -160,10 +190,10 @@ export function useComposerRuntime(
 		},
 		actions: {
 			attachFiles: files.attachFiles,
-			inlineText: files.inlineText,
+			inlineText,
 			removeAttachment: (file) => bindings.files?.onRemoveAttachment(file),
 			removeWorkspaceUpload: (id) =>
-				bindings.files?.workspaceUploads?.onRemove(id),
+				bindings.files?.workspaceUploads.onRemove(id),
 			resetPromptCycle: editor.resetPromptCycle,
 			submit,
 			startRecording: editor.startRecording,

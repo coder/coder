@@ -26,7 +26,7 @@ export type ComposerFileBindings = {
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
 	textContents: Map<File, string>;
-	workspaceUploads?: WorkspaceUploadsProps;
+	workspaceUploads: WorkspaceUploadsProps;
 };
 
 /** Initial document and change notifications for the uncontrolled editor. */
@@ -45,11 +45,10 @@ export type ComposerEditorBindings = {
 
 /** Submission capabilities shared by new and existing chat drafts. */
 export type ComposerDraftBindings = ComposerEditorBindings & {
-	onSend: (message: string) => Promise<void> | void;
+	onSend?: (message: string) => Promise<void> | void;
 	isDisabled: boolean;
 	isReadOnly?: boolean;
-	isLoading: boolean;
-	hasModelOptions: boolean;
+	isLoading?: boolean;
 	warning?: string;
 };
 
@@ -93,7 +92,7 @@ export type ComposerContextValue = {
 			ComposerFileBindings,
 			"attachments" | "uploadStates" | "previewUrls" | "textContents"
 		> & {
-			workspaceUploads?: { uploads: readonly WorkspaceFileUpload[] };
+			workspaceUploads: { uploads: readonly WorkspaceFileUpload[] };
 		};
 	};
 	actions: {

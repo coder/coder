@@ -1640,8 +1640,7 @@ export const DelayedOrganizationAuthorization: Story = {
 			canvas.queryByText(/AI models aren't available yet/i),
 		).not.toBeInTheDocument();
 		expect(canvas.queryByText("No model is available")).not.toBeInTheDocument();
-		// dispatchEvent returns false when a handler accepted the drop
-		// via preventDefault, giving a race-free accepted/ignored signal.
+		// dispatchEvent returns false when the drop's browser default is prevented.
 		const dropFile = (name: string): boolean => {
 			const dataTransfer = new DataTransfer();
 			dataTransfer.items.add(new File(["hello"], name, { type: "text/plain" }));
@@ -1653,9 +1652,8 @@ export const DelayedOrganizationAuthorization: Story = {
 				}),
 			);
 		};
-		// Pending authorization leaves attachments without a valid org, so drops
-		// must be ignored.
-		expect(dropFile("drop.txt")).toBe(true);
+		// Without an authorized organization, prevent navigation without attaching.
+		expect(dropFile("drop.txt")).toBe(false);
 		expect(canvas.queryByLabelText("Remove drop.txt")).not.toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: /organization/i }),

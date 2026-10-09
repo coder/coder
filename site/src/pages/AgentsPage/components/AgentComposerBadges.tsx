@@ -31,6 +31,8 @@ import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useAgentComposer } from "./AgentComposer";
 import {
 	enabledMcpServers,
+	isMCPServerSelected,
+	mcpServerNeedsAuth,
 	setMCPServerSelected,
 } from "./AgentComposerMCPMenu";
 import {
@@ -77,14 +79,22 @@ const badgeKey = (badge: ToolBadgeData) =>
 	badge.kind === "mcp" ? badge.server.id : badge.kind;
 
 // Ordering controls which trailing badges move into the overflow menu.
-const toolBadges = ({
-	linkedWorkspace,
-	workspaceSelection,
-	mcp,
-}: AgentComposerOptionsData): ToolBadgeData[] => {
+const toolBadges = (
+	{
+		planning,
+		linkedWorkspace,
+		workspaceSelection,
+		mcp,
+	}: AgentComposerOptionsData,
+	includePlanning: boolean,
+): ToolBadgeData[] => {
 	const { workspace, agent, chatId, sshCommand, folder, attachedWorkspace } =
 		linkedWorkspace ?? {};
 	const badges: ToolBadgeData[] = [];
+
+	if (includePlanning && planning.enabled) {
+		badges.push({ kind: "planning" });
+	}
 
 	if (workspace && agent && chatId) {
 		badges.push({
@@ -107,11 +117,12 @@ const toolBadges = ({
 		badges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
 
+	if (!mcp) {
+		return badges;
+	}
+
 	const activeMcpServers = enabledMcpServers(mcp).filter(
-		(server) =>
-			(server.availability === "force_on" ||
-				mcp?.selectedServerIds.includes(server.id)) &&
-			!(server.auth_type === "oauth2" && !server.auth_connected),
+		(server) => isMCPServerSelected(mcp, server) && !mcpServerNeedsAuth(server),
 	);
 	if (activeMcpServers.length >= 3) {
 		badges.push({ kind: "mcp-group", servers: activeMcpServers });
@@ -137,14 +148,18 @@ const BadgePopoverContent = ({ className, ...props }: PopoverContentProps) => (
 	/>
 );
 
-/** Measures the ordered badge row and renders trailing badges in its overflow menu. */
+/**
+ * Measures the ordered badge row and renders trailing badges in its overflow
+ * menu. With `includePlanning`, the planning badge leads the measured row and
+ * can overflow; otherwise compose AgentComposerPlanningBadge beside the row.
+ */
 export const AgentComposerBadges = ({
-	leadingBadges = [],
+	includePlanning = false,
 }: {
-	leadingBadges?: readonly Extract<ToolBadgeData, { kind: "planning" }>[];
+	includePlanning?: boolean;
 }) => {
 	const options = useAgentComposerOptions();
-	const badges = [...leadingBadges, ...toolBadges(options)];
+	const badges = toolBadges(options, includePlanning);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [open, setOpen] = useState(false);
 
@@ -311,13 +326,14 @@ const ComposerBadge = ({
 	badge: ToolBadgeData;
 	placement: BadgePlacement;
 }) => {
-	const { workspaceSelection, mcp } = useAgentComposerOptions();
+	const { workspaceSelection, changeWorkspace, mcp } =
+		useAgentComposerOptions();
 	const { state } = useAgentComposer();
 	const isDisabled = state.isDisabled;
 	const inPopover = placement === "popover";
-	const onRemoveWorkspace = workspaceSelection?.onChange
-		? () => workspaceSelection.onChange?.(null)
-		: undefined;
+	const isWorkspaceRemovalOffered = workspaceSelection?.onChange !== undefined;
+	const canChangeWorkspace = changeWorkspace !== undefined;
+	const removeWorkspace = () => changeWorkspace?.(null);
 
 	if (badge.kind === "linked-workspace") {
 		return (
@@ -334,7 +350,7 @@ const ComposerBadge = ({
 					chatId={badge.chatId}
 					sshCommand={badge.sshCommand}
 					folder={badge.folder}
-					onRemoveWorkspace={onRemoveWorkspace}
+					onRemoveWorkspace={canChangeWorkspace ? removeWorkspace : undefined}
 					inOverflowPopover={inPopover}
 				/>
 			</span>
@@ -369,11 +385,11 @@ const ComposerBadge = ({
 							{badge.statusIcon}
 							<span className="truncate">{badge.name}</span>
 						</Link>
-						{onRemoveWorkspace && (
+						{isWorkspaceRemovalOffered && (
 							<BadgeDismissButton
-								onClick={onRemoveWorkspace}
+								onClick={removeWorkspace}
 								ariaLabel={`Remove workspace ${badge.name}`}
-								isDisabled={isDisabled}
+								isDisabled={!canChangeWorkspace}
 							/>
 						)}
 					</span>
@@ -393,11 +409,11 @@ const ComposerBadge = ({
 			<span className={badgeCls}>
 				<MonitorIcon className="size-3" />
 				<span className="truncate">{badge.name}</span>
-				{onRemoveWorkspace && (
+				{isWorkspaceRemovalOffered && (
 					<BadgeDismissButton
-						onClick={onRemoveWorkspace}
+						onClick={removeWorkspace}
 						ariaLabel={`Remove workspace ${badge.name}`}
-						isDisabled={isDisabled}
+						isDisabled={!canChangeWorkspace}
 					/>
 				)}
 			</span>

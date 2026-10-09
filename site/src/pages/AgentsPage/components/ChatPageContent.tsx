@@ -26,7 +26,6 @@ import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
-	isWorkspaceUploadInProgress,
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
@@ -45,7 +44,7 @@ import type { AgentComposerSetup } from "./AgentComposerLayout";
 import type { AgentComposerModelProps } from "./AgentComposerOptions";
 import type { AgentComposerOptionsData } from "./AgentComposerOptionsContext";
 import { ChatComposer } from "./AgentComposers";
-import { isUploadInProgress, type UploadState } from "./AttachmentPreview";
+import type { UploadState } from "./AttachmentPreview";
 import type { ChatAutomationNames } from "./ChatConversation/AutomationLabel";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
@@ -327,7 +326,6 @@ type ChatPageInputProps = {
 	bindings: ComposerEditorBindings & {
 		isDisabled: boolean;
 		isLoading: boolean;
-		hasModelOptions: boolean;
 		isInterruptPending?: boolean;
 		isEditingHistoryMessage?: boolean;
 		onCancelHistoryEdit?: () => void;
@@ -603,18 +601,18 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		}
 		if (
 			hydratedEditBlocksRef.current !== null &&
-			hydratedEditBlocksRef.current.blocks === (editingFileBlocks ?? null) &&
+			hydratedEditBlocksRef.current.blocks === editingFileBlocks &&
 			hydratedEditBlocksRef.current.workspaceId === selectedWorkspaceId
 		) {
 			return;
 		}
 		hydratedEditBlocksRef.current = {
-			blocks: editingFileBlocks ?? null,
+			blocks: editingFileBlocks,
 			workspaceId: selectedWorkspaceId,
 		};
 		resetEditWorkspaceUploads();
 		setPreservedWorkspaceUploads(
-			(editingFileBlocks ?? [])
+			editingFileBlocks
 				.filter(isWorkspaceFileReferencePart)
 				.filter(
 					(part) =>
@@ -690,9 +688,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			getWorkspaceAgents(workspace).some(
 				(agent) => !agent.parent_id && agent.status === "connected",
 			);
-	const canUploadWorkspaceFiles = Boolean(
-		chatId && workspace && uploadAgentConnected,
-	);
+	const canUploadWorkspaceFiles = Boolean(workspace && uploadAgentConnected);
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
@@ -718,14 +714,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 				...bindings,
 				isReadOnly: !chat.archived && currentUser.id !== chat.owner_id,
 				onSend: async (message) => {
-					const hasActiveUploads =
-						attachments.some((file) =>
-							isUploadInProgress(uploadStates.get(file)),
-						) || visibleWorkspaceUploads.some(isWorkspaceUploadInProgress);
-					if (hasActiveUploads) {
-						toast.warning("Wait for file uploads to finish before sending.");
-						return;
-					}
 					// Collect uploaded attachment metadata for the optimistic
 					// transcript builder while keeping the server payload
 					// shape unchanged downstream.

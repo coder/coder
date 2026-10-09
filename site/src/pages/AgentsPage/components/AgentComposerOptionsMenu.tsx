@@ -23,7 +23,6 @@ import {
 import { Separator } from "#/components/Separator/Separator";
 import { isBelowMdViewport } from "#/utils/mobile";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
-import { chatAttachmentAcceptAttribute } from "../utils/chatAttachments";
 import { useAgentComposer } from "./AgentComposer";
 import {
 	enabledMcpServers,
@@ -41,7 +40,7 @@ import {
 export const AgentComposerOptionsMenu = () => {
 	const options = useAgentComposerOptions();
 	const composer = useAgentComposer();
-	const { mcp, workspaceSelection } = options;
+	const { mcp, workspaceSelection, changeWorkspace } = options;
 	const mcpServers = enabledMcpServers(mcp);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,11 +68,11 @@ export const AgentComposerOptionsMenu = () => {
 		},
 	});
 
-	const canUseWorkspacePicker =
-		workspaceSelection?.onChange !== undefined && !workspaceSelection.isLoading;
+	const isWorkspaceChoiceOffered = workspaceSelection?.onChange !== undefined;
+	const canChangeWorkspace = changeWorkspace !== undefined;
 
 	const selectWorkspace = (id: string | null) => {
-		workspaceSelection?.onChange?.(id);
+		changeWorkspace?.(id);
 		setOpen(false);
 	};
 
@@ -109,21 +108,21 @@ export const AgentComposerOptionsMenu = () => {
 	const menuHasEnabledItems =
 		!composer.state.isDisabled ||
 		composer.state.needsSetup ||
-		canUseWorkspacePicker;
+		canChangeWorkspace;
 	let workspaceEntry: React.ReactNode;
 
-	if (workspaceSelection?.onChange) {
+	if (isWorkspaceChoiceOffered) {
 		if (isBelowMdViewport()) {
 			workspaceEntry = (
 				<AgentComposerWorkspaceMenuEntry
-					disabled={!canUseWorkspacePicker}
+					disabled={!canChangeWorkspace}
 					onClick={() => setView("workspace")}
 				/>
 			);
 		} else {
 			workspaceEntry = (
 				<AgentComposerWorkspacePicker
-					disabled={!canUseWorkspacePicker}
+					disabled={!canChangeWorkspace}
 					onSelect={selectWorkspace}
 				/>
 			);
@@ -202,11 +201,6 @@ export const AgentComposerOptionsMenu = () => {
 					type="file"
 					data-testid="chat-attachment-file-input"
 					multiple
-					accept={
-						composer.state.files?.workspaceUploads
-							? undefined
-							: chatAttachmentAcceptAttribute
-					}
 					onChange={(event) => {
 						const files = Array.from(event.target.files ?? []);
 						if (files.length > 0) {
@@ -218,27 +212,16 @@ export const AgentComposerOptionsMenu = () => {
 					className="hidden"
 				/>
 			)}
-			{/* Portaled dialog keys still bubble through the React composer tree. */}
-			<div
-				className="contents"
-				role="presentation"
-				onKeyDown={(event) => {
-					if (event.key === "Escape") {
-						event.stopPropagation();
-					}
-				}}
-			>
-				<ConfirmDialog
-					open={disconnectTarget !== null}
-					title={`Disconnect ${disconnectTarget?.display_name ?? "MCP server"}?`}
-					description="This removes your credentials for this MCP server from Coder. You can authenticate again later."
-					type="delete"
-					confirmText="Disconnect"
-					confirmLoading={disconnectMutation.isPending}
-					onConfirm={confirmDisconnect}
-					onClose={() => setDisconnectTarget(null)}
-				/>
-			</div>
+			<ConfirmDialog
+				open={disconnectTarget !== null}
+				title={`Disconnect ${disconnectTarget?.display_name ?? "MCP server"}?`}
+				description="This removes your credentials for this MCP server from Coder. You can authenticate again later."
+				type="delete"
+				confirmText="Disconnect"
+				confirmLoading={disconnectMutation.isPending}
+				onConfirm={confirmDisconnect}
+				onClose={() => setDisconnectTarget(null)}
+			/>
 		</>
 	);
 };

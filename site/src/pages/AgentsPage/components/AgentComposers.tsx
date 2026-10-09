@@ -32,7 +32,10 @@ type ComposerConfiguration = {
 };
 
 type NewAgentComposerProps = ComposerConfiguration & {
-	bindings: ComposerDraftBindings & { files: ComposerFileBindings };
+	bindings: ComposerDraftBindings & {
+		onSend: (message: string) => Promise<void> | void;
+		files: ComposerFileBindings;
+	};
 };
 
 /** Composer for creating a chat with the selected organization's settings. */
@@ -85,7 +88,10 @@ export const NewAgentComposer = ({
 
 type ChatComposerProps = ComposerConfiguration & {
 	bindings: ComposerDraftBindings &
-		ComposerChatBindings & { files: ComposerFileBindings };
+		ComposerChatBindings & {
+			onSend: (message: string) => Promise<void> | void;
+			files: ComposerFileBindings;
+		};
 	queue?: Omit<React.ComponentProps<typeof QueuedMessagesList>, "className">;
 	context?: React.ComponentProps<typeof AgentComposerContextIndicator>;
 };
@@ -142,11 +148,7 @@ export const ChatComposer = ({
 								<AgentComposerOptions.Menu />
 								<AgentComposerOptions.Model {...model} />
 								{context ? (
-									<AgentComposerOptions.Badges
-										leadingBadges={
-											tools.planning.enabled ? [{ kind: "planning" }] : []
-										}
-									/>
+									<AgentComposerOptions.Badges includePlanning />
 								) : (
 									<>
 										<AgentComposerOptions.PlanningBadge />
@@ -185,14 +187,7 @@ export const LoadingChatComposer = ({
 	model,
 	tools,
 }: LoadingChatComposerProps) => (
-	<AgentComposerRuntimeProvider
-		bindings={{
-			...bindings,
-			onSend: () => {},
-			isLoading: false,
-			hasModelOptions: false,
-		}}
-	>
+	<AgentComposerRuntimeProvider bindings={bindings}>
 		<AgentComposerOptions.Provider {...tools}>
 			<AgentComposerContainer>
 				<AgentComposer.Frame>

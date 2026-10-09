@@ -46,7 +46,6 @@ const renderChatPageInput = (
 				isDisabled: false,
 				isLoading: false,
 				isInterruptPending: false,
-				hasModelOptions: true,
 				isEditingHistoryMessage: false,
 				onCancelHistoryEdit: vi.fn(),
 				inputRef: { current: null },
@@ -153,7 +152,6 @@ describe("ChatPageInput", () => {
 				onInterrupt,
 				isDisabled: false,
 				isLoading: false,
-				hasModelOptions: true,
 				initialValue: "",
 				onContentChange: vi.fn(),
 			},
@@ -190,7 +188,6 @@ describe("ChatPageInput", () => {
 				initialValue: "edited",
 				isDisabled: false,
 				isLoading: false,
-				hasModelOptions: true,
 				onContentChange: vi.fn(),
 			},
 			editingFileBlocks: [

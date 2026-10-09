@@ -21,6 +21,7 @@ import { createMockFile } from "#/testHelpers/files";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
+import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
 import {
 	AgentComposer,
 	AgentComposerRuntimeProvider,
@@ -71,10 +72,10 @@ const inputProps = {
 		onSend: vi.fn(),
 		isDisabled: false,
 		isLoading: false,
-		hasModelOptions: true,
 		initialValue: "",
 		onContentChange: vi.fn(),
 		files: {
+			workspaceUploads: { uploads: [], onRemove: vi.fn() },
 			attachments: [],
 			onRemoveAttachment: vi.fn(),
 			uploadStates: new Map(),
@@ -203,6 +204,7 @@ describe("ChatComposer", () => {
 				speechError: null,
 				needsSetup: false,
 				files: {
+					workspaceUploads: { uploads: [] },
 					attachments: [],
 					uploadStates: new Map(),
 					previewUrls: new Map(),
@@ -248,18 +250,24 @@ describe("ChatComposer", () => {
 	});
 
 	it.each([
-		{ isDisabled: false, isLoading: false, promoted: true },
-		{ isDisabled: true, isLoading: false, promoted: false },
+		{ isDisabled: false, isEditingHistoryMessage: false, promoted: true },
+		{ isDisabled: true, isEditingHistoryMessage: false, promoted: false },
+		{ isDisabled: false, isEditingHistoryMessage: true, promoted: false },
 	])(
 		"handles empty Enter with the canonical queue (%o)",
-		async ({ isDisabled, isLoading, promoted }) => {
+		async ({ isDisabled, isEditingHistoryMessage, promoted }) => {
 			const user = userEvent.setup();
 			const onSend = vi.fn();
 			const onPromote = vi.fn();
 			renderInput(
 				<ChatComposer
 					{...inputProps}
-					bindings={{ ...inputProps.bindings, onSend, isDisabled, isLoading }}
+					bindings={{
+						...inputProps.bindings,
+						onSend,
+						isDisabled,
+						isEditingHistoryMessage,
+					}}
 					queue={{
 						messages: [
 							MockChatQueuedMessage,
@@ -420,31 +428,72 @@ describe("ChatComposer", () => {
 		expect(inputRef.current?.getValue()).toBe("Draft while chat loads");
 	});
 
-	it("accepts drafts without sending while submission is disabled", async () => {
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		const onSend = vi.fn();
+	it.each([
+		{
+			isDisabled: true,
+			isStreaming: false,
+			isLoading: false,
+			isEditingHistoryMessage: false,
+			key: "{Enter}",
+		},
+		{
+			isDisabled: false,
+			isStreaming: true,
+			isLoading: false,
+			isEditingHistoryMessage: true,
+			key: "{Enter}",
+		},
+		{
+			isDisabled: false,
+			isStreaming: false,
+			isLoading: true,
+			isEditingHistoryMessage: true,
+			key: "{Escape}",
+		},
+	])(
+		"preserves drafts without submitting or canceling while locked (%o)",
+		async ({
+			isDisabled,
+			isStreaming,
+			isLoading,
+			isEditingHistoryMessage,
+			key,
+		}) => {
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			const onSend = vi.fn();
+			const onCancelHistoryEdit = vi.fn();
 
-		renderInput(
-			<ChatComposer
-				{...inputProps}
-				bindings={{
-					...inputProps.bindings,
-					onSend,
-					inputRef,
-					isDisabled: true,
-				}}
-			/>,
-		);
+			renderInput(
+				<ChatComposer
+					{...inputProps}
+					bindings={{
+						...inputProps.bindings,
+						onSend,
+						inputRef,
+						isDisabled,
+						isStreaming,
+						isLoading,
+						isEditingHistoryMessage,
+						onCancelHistoryEdit,
+						initialValue: isLoading ? "Existing draft" : "",
+					}}
+				/>,
+			);
 
-		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-		await user.paste("Draft while models load");
-		await waitFor(() => {
-			expect(inputRef.current?.getValue()).toBe("Draft while models load");
-		});
-		await user.keyboard("{Enter}");
-		expect(onSend).not.toHaveBeenCalled();
-	});
+			await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+			if (!isLoading) {
+				await user.paste("Existing draft");
+			}
+			await waitFor(() => {
+				expect(inputRef.current?.getValue()).toBe("Existing draft");
+			});
+			await user.keyboard(key);
+			expect(onSend).not.toHaveBeenCalled();
+			expect(onCancelHistoryEdit).not.toHaveBeenCalled();
+			expect(inputRef.current?.getValue()).toBe("Existing draft");
+		},
+	);
 
 	it.each([
 		{ isMobile: false, rejects: false, completesWhileLoading: false },
@@ -830,7 +879,7 @@ describe("ChatComposer", () => {
 		expect(onSend).toHaveBeenCalledWith("Replacement draft after remount");
 	});
 
-	it("attaches supported dropped files and reports unsupported ones", () => {
+	it("attaches chat files and asks for a running workspace for other dropped files", () => {
 		const onAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");
 
@@ -852,7 +901,7 @@ describe("ChatComposer", () => {
 
 		expect(onAttach).toHaveBeenCalledWith([svg]);
 		expect(toastError).toHaveBeenCalledWith(
-			"Unsupported file type: archive.zip",
+			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
 		);
 	});
 
@@ -1134,34 +1183,44 @@ describe("ChatComposer", () => {
 		expect(cancel).toHaveBeenCalledTimes(1);
 	});
 
-	it("lets a recording start while a turn is streaming", async () => {
-		const user = userEvent.setup();
-		const start = vi.fn();
-		mockedUseSpeechRecognition.mockReturnValue({
-			isSupported: true,
-			isRecording: false,
-			transcript: "",
-			error: null,
-			start,
-			stop: vi.fn(),
-			cancel: vi.fn(),
-		});
+	it.each([
+		{ isDisabled: false, isLoading: false, isReadOnly: false, starts: true },
+		{ isDisabled: true, isLoading: false, isReadOnly: false, starts: true },
+		{ isDisabled: false, isLoading: true, isReadOnly: false, starts: false },
+		{ isDisabled: false, isLoading: false, isReadOnly: true, starts: false },
+	])(
+		"guards voice input while streaming (%o)",
+		async ({ isDisabled, isLoading, isReadOnly, starts }) => {
+			const user = userEvent.setup();
+			const start = vi.fn();
+			mockedUseSpeechRecognition.mockReturnValue({
+				isSupported: true,
+				isRecording: false,
+				transcript: "",
+				error: null,
+				start,
+				stop: vi.fn(),
+				cancel: vi.fn(),
+			});
 
-		renderInput(
-			<ChatComposer
-				{...inputProps}
-				bindings={{
-					...inputProps.bindings,
-					isStreaming: true,
-					onInterrupt: vi.fn(),
-				}}
-			/>,
-		);
+			renderInput(
+				<ChatComposer
+					{...inputProps}
+					bindings={{
+						...inputProps.bindings,
+						isStreaming: true,
+						isDisabled,
+						isLoading,
+						isReadOnly,
+						onInterrupt: vi.fn(),
+					}}
+				/>,
+			);
 
-		await user.click(screen.getByRole("button", { name: "Voice input" }));
-		expect(start).toHaveBeenCalledTimes(1);
-		expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
-	});
+			await user.click(screen.getByRole("button", { name: "Voice input" }));
+			expect(start).toHaveBeenCalledTimes(starts ? 1 : 0);
+		},
+	);
 
 	it("falls back to pasted text when every pasted file is refused", async () => {
 		const onAttach = vi.fn();
@@ -1180,9 +1239,7 @@ describe("ChatComposer", () => {
 
 		const target = screen.getByRole("textbox", { name: "Chat message" });
 		target.focus();
-		// Clipboard carrying both a file and a text payload. Without
-		// workspaceUploads the zip cannot be routed anywhere, so the
-		// paste must fall back to inserting the clipboard text.
+		// Without a running workspace, insert the clipboard text instead.
 		fireEvent.paste(target, {
 			clipboardData: {
 				files: [createMockFile("dataset.zip", "application/zip")],
@@ -1197,6 +1254,47 @@ describe("ChatComposer", () => {
 		});
 		expect(onAttach).not.toHaveBeenCalled();
 	});
+
+	it.each<{
+		status: Exclude<WorkspaceFileUpload["status"], "uploaded">;
+		deferred: boolean;
+		sends: boolean;
+	}>([
+		{ status: "deferred", deferred: true, sends: true },
+		{ status: "uploading", deferred: false, sends: false },
+		{ status: "error", deferred: false, sends: false },
+		{ status: "error", deferred: true, sends: true },
+	])(
+		"gates file-only submission on workspace readiness (%o)",
+		async ({ status, deferred, sends }) => {
+			const user = userEvent.setup();
+			const onSend = vi.fn();
+			const file = createMockFile("dataset.zip", "application/zip");
+			const uploads: WorkspaceFileUpload[] =
+				status === "error"
+					? [{ id: "workspace-file", file, status, error: "Upload failed" }]
+					: [{ id: "workspace-file", file, status }];
+			renderInput(
+				<ChatComposer
+					{...inputProps}
+					bindings={{
+						...inputProps.bindings,
+						onSend,
+						files: {
+							...inputProps.bindings.files,
+							workspaceUploads: { uploads, onRemove: vi.fn(), deferred },
+						},
+					}}
+				/>,
+			);
+			await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+			await user.keyboard("{Enter}");
+			expect(onSend).toHaveBeenCalledTimes(sends ? 1 : 0);
+			if (sends) {
+				expect(onSend).toHaveBeenCalledWith("");
+			}
+		},
+	);
 
 	it("routes workspace files to workspace uploads instead of attachments", () => {
 		const onAttach = vi.fn();
@@ -1239,89 +1337,102 @@ describe("ChatComposer", () => {
 				"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
 		},
 		{
-			name: "workspace files while a send is pending",
+			name: "dropped chat files while a send is pending",
 			isDisabled: false,
 			isLoading: true,
 			paste: false,
+			chatFile: true,
 			message:
 				"Wait for the current message to finish sending, then add the file again.",
 		},
 		{
-			name: "pasted workspace files while a send is pending",
+			name: "pasted chat files while a send is pending",
 			isDisabled: false,
 			isLoading: true,
 			paste: true,
+			chatFile: true,
 			message:
 				"Wait for the current message to finish sending, then add the file again.",
 		},
-	])("refuses $name", ({ isDisabled, isLoading, paste, message }) => {
-		const onAttach = vi.fn();
-		const onWorkspaceAttach = vi.fn();
-		const toastError = vi.spyOn(toast, "error");
+		{
+			name: "all dropped files while read-only",
+			isDisabled: false,
+			isLoading: false,
+			isReadOnly: true,
+			paste: false,
+			chatFile: true,
+			message: undefined,
+		},
+	])(
+		"refuses $name without losing the draft",
+		async ({
+			isDisabled,
+			isLoading,
+			isReadOnly = false,
+			paste,
+			chatFile = false,
+			message,
+		}) => {
+			const inputRef = createRef<ChatMessageInputRef>();
+			const onAttach = vi.fn();
+			const onWorkspaceAttach = vi.fn();
+			const toastError = vi.spyOn(toast, "error").mockClear();
 
-		renderInput(
-			<ChatComposer
-				{...inputProps}
-				bindings={{
-					...inputProps.bindings,
-					files: {
-						...inputProps.bindings.files,
-						onAttach,
-						workspaceUploads: {
-							uploads: [],
-							onAttach: onWorkspaceAttach,
-							onRemove: vi.fn(),
+			renderInput(
+				<ChatComposer
+					{...inputProps}
+					bindings={{
+						...inputProps.bindings,
+						files: {
+							...inputProps.bindings.files,
+							onAttach,
+							workspaceUploads: {
+								uploads: [],
+								onAttach: onWorkspaceAttach,
+								onRemove: vi.fn(),
+							},
 						},
-					},
-					isDisabled,
-					isLoading,
-				}}
-			/>,
-		);
+						isDisabled,
+						isLoading,
+						isReadOnly,
+						inputRef,
+						initialValue: "Existing draft",
+					}}
+				/>,
+			);
 
-		const textbox = screen.getByRole("textbox", { name: "Chat message" });
-		const files = [createMockFile("dataset.zip", "application/zip")];
-		// The post-send reset would discard the chip after the bytes
-		// already landed, so pending sends must refuse both drops and pastes.
-		if (paste) {
-			fireEvent.paste(textbox, {
-				clipboardData: { files, types: ["Files"], getData: () => "" },
-			});
-		} else {
-			fireEvent.drop(textbox, { dataTransfer: { files } });
-		}
+			await waitFor(() =>
+				expect(inputRef.current?.getValue()).toBe("Existing draft"),
+			);
+			const textbox = screen.getByRole("textbox", { name: "Chat message" });
+			const files = [createMockFile("dataset.zip", "application/zip")];
+			if (chatFile) {
+				files.push(createMockFile("notes.txt", "text/plain"));
+			}
+			if (paste) {
+				fireEvent.paste(textbox, {
+					clipboardData: { files, types: ["Files"], getData: () => "" },
+				});
+			} else {
+				expect(fireEvent.drop(textbox, { dataTransfer: { files } })).toBe(
+					false,
+				);
+			}
 
-		expect(onWorkspaceAttach).not.toHaveBeenCalled();
-		expect(onAttach).not.toHaveBeenCalled();
-		expect(toastError).toHaveBeenCalledWith(message);
-	});
+			expect(onWorkspaceAttach).not.toHaveBeenCalled();
+			expect(onAttach).not.toHaveBeenCalled();
+			let expectedToasts: string[][] = [];
 
-	it("asks for a workspace when workspace uploads are wired but unavailable", () => {
-		const onAttach = vi.fn();
-		const toastError = vi.spyOn(toast, "error");
+			if (message !== undefined) {
+				expectedToasts = [[message]];
 
-		renderInput(
-			<ChatComposer
-				{...inputProps}
-				bindings={{
-					...inputProps.bindings,
-					files: {
-						...inputProps.bindings.files,
-						onAttach,
-						workspaceUploads: { uploads: [], onRemove: vi.fn() },
-					},
-				}}
-			/>,
-		);
+				if (paste) {
+					expectedToasts = files.map(() => [message]);
+				}
+			}
 
-		const zip = createMockFile("archive.zip", "application/zip");
-		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
-			dataTransfer: { files: [zip] },
-		});
-
-		expect(onAttach).not.toHaveBeenCalled();
-		expect(toastError).toHaveBeenCalledWith(
-			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
-		);
-	});
+			expect(toastError.mock.calls).toEqual(expectedToasts);
+			expect(inputRef.current?.getValue()).toBe("Existing draft");
+		},
+	);
 });

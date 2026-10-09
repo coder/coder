@@ -882,7 +882,6 @@ const AgentChatPage: React.FC = () => {
 								isDisabled: isInputDisabled,
 								isLoading: isSubmissionPending,
 								isInterruptPending,
-								hasModelOptions,
 							}}
 							editingFileBlocks={editing.editingFileBlocks}
 							mcp={{

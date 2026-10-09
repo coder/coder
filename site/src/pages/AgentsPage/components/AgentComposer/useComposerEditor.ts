@@ -43,9 +43,7 @@ export function useComposerEditor(
 	);
 	const promptCycle =
 		historySession?.editorKey === remountKey ? historySession : null;
-	const currentCycleValueRef = useRef<{
-		value: string;
-	} | null>(null);
+	const currentCycleValueRef = useRef<string | null>(null);
 
 	const speech = useSpeechRecognition();
 	const [preRecordingValue, setPreRecordingValue] = useState("");
@@ -100,7 +98,7 @@ export function useComposerEditor(
 		}
 
 		// Editor callbacks may run before React commits the next history index.
-		currentCycleValueRef.current = { value: text };
+		currentCycleValueRef.current = text;
 		editor.setValue(text);
 		editor.focus();
 	};
@@ -112,10 +110,7 @@ export function useComposerEditor(
 	) => {
 		const expected = currentCycleValueRef.current;
 
-		if (
-			promptCycle !== null &&
-			(expected === null || content !== expected.value)
-		) {
+		if (promptCycle !== null && content !== expected) {
 			resetPromptCycle();
 		}
 
@@ -188,18 +183,20 @@ export function useComposerEditor(
 			return;
 		}
 
-		const nextPrompt = promptCycle.history[nextIndex];
-
-		if (nextPrompt === undefined) {
+		if (nextIndex < 0) {
 			restoreCycleDraft();
 			return;
 		}
 
 		setHistorySession({ ...promptCycle, index: nextIndex });
-		applyCycleValue(nextPrompt);
+		applyCycleValue(promptCycle.history[nextIndex]);
 	};
 
 	const startRecording = () => {
+		if (isReadOnly || isLoading) {
+			return;
+		}
+
 		resetPromptCycle();
 		setPreRecordingValue(editorRef.current?.getValue()?.trim() ?? "");
 		speech.start();

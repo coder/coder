@@ -178,11 +178,19 @@ export function Frame({
 	}, [composerElement]);
 
 	const handleKeyDown = (event: React.KeyboardEvent) => {
-		if (event.key !== "Escape") {
+		if (event.key !== "Escape" || !(event.target instanceof Node)) {
+			return;
+		}
+
+		// Portaled menus and dialogs own their Escape action, not the draft behind them.
+		if (!event.currentTarget.contains(event.target)) {
 			return;
 		}
 
 		if (state.isEditingHistoryMessage) {
+			if (state.isLoading) {
+				return;
+			}
 			event.preventDefault();
 			actions.cancelHistoryEdit?.();
 		} else if (
@@ -196,13 +204,13 @@ export function Frame({
 	};
 
 	const handleDragOver = (event: React.DragEvent) => {
-		if (!state.canAttachFiles) {
+		if (!event.dataTransfer.types.includes("Files")) {
 			return;
 		}
 
 		event.preventDefault();
 
-		if (event.dataTransfer.types.includes("Files")) {
+		if (state.canAttachFiles) {
 			setIsDragging(true);
 		}
 	};
@@ -221,14 +229,14 @@ export function Frame({
 	};
 
 	const handleDrop = (event: React.DragEvent) => {
-		if (!state.canAttachFiles) {
+		if (event.dataTransfer.files.length === 0) {
 			return;
 		}
 
 		event.preventDefault();
 		setIsDragging(false);
 
-		if (event.dataTransfer.files.length > 0) {
+		if (state.canAttachFiles) {
 			actions.attachFiles(Array.from(event.dataTransfer.files));
 		}
 	};

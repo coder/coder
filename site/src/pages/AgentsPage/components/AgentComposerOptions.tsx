@@ -20,10 +20,21 @@ import { AgentComposerOptionsMenu } from "./AgentComposerOptionsMenu";
 /** Shares controlled tool settings with the menu and badges. */
 const AgentComposerOptionsProvider = ({
 	children,
-	...value
-}: AgentComposerOptionsData & { children: React.ReactNode }) => (
-	<OptionsContext value={value}>{children}</OptionsContext>
-);
+	...data
+}: AgentComposerOptionsData & { children: React.ReactNode }) => {
+	const onWorkspaceChange = data.workspaceSelection?.onChange;
+	const isWorkspaceSelectionLoading =
+		data.workspaceSelection?.isLoading === true;
+	const changeWorkspace = isWorkspaceSelectionLoading
+		? undefined
+		: onWorkspaceChange;
+
+	return (
+		<OptionsContext value={{ ...data, changeWorkspace }}>
+			{children}
+		</OptionsContext>
+	);
+};
 
 const AgentComposerOptionsFrame = ({
 	children,

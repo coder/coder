@@ -212,7 +212,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		onContentChange: fn(),
 		isDisabled: false,
 		isLoading: false,
-		hasModelOptions: true,
 		onInterrupt: fn(),
 		isEditingHistoryMessage: props.editing.editingMessageId !== null,
 		onCancelHistoryEdit: fn(),
@@ -660,7 +659,7 @@ export const SidebarCollapsed: Story = {
 export const NoModelOptions: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			bindings={{ hasModelOptions: false, isDisabled: true }}
+			bindings={{ isDisabled: true }}
 			model={{ modelOptions: [] }}
 		/>
 	),
@@ -671,7 +670,7 @@ export const MissingProviderAndModelSetup: Story = {
 		<StoryAgentChatPageView
 			chat={{ organization_id: MockDefaultOrganization.id }}
 			setup={{ providerCount: 0, modelCount: 0 }}
-			bindings={{ hasModelOptions: false, isDisabled: true }}
+			bindings={{ isDisabled: true }}
 			model={{ modelOptions: [] }}
 		/>
 	),
@@ -682,7 +681,7 @@ export const MissingModelSetup: Story = {
 		<StoryAgentChatPageView
 			chat={{ organization_id: MockDefaultOrganization.id }}
 			setup={{ modelCount: 0 }}
-			bindings={{ hasModelOptions: false, isDisabled: true }}
+			bindings={{ isDisabled: true }}
 			model={{ modelOptions: [] }}
 		/>
 	),
@@ -696,7 +695,7 @@ export const MemberNoModelsAvailable: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			setup={{ canConfigureAgentSetup: false, providerCount: 0, modelCount: 0 }}
-			bindings={{ hasModelOptions: false, isDisabled: true }}
+			bindings={{ isDisabled: true }}
 			model={{ modelOptions: [] }}
 		/>
 	),

@@ -1,10 +1,12 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
+import { getPreferredProxy, ProxyContext } from "#/contexts/ProxyContext";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
-import { MockWorkspace } from "#/testHelpers/entities";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { belowMdViewportMediaQuery } from "#/utils/mobile";
 import { AgentComposer, AgentComposerRuntimeProvider } from "./AgentComposer";
 import { AgentComposerOptions } from "./AgentComposerOptions";
@@ -22,9 +24,7 @@ const Options = (
 	>
 		<AgentComposerOptions.Frame>
 			<AgentComposerOptions.Menu />
-			<AgentComposerOptions.Badges
-				leadingBadges={props.planning?.enabled ? [{ kind: "planning" }] : []}
-			/>
+			<AgentComposerOptions.Badges includePlanning />
 		</AgentComposerOptions.Frame>
 	</AgentComposerOptions.Provider>
 );
@@ -43,7 +43,6 @@ const renderOptions = (
 				isLoading: false,
 				initialValue: "",
 				onContentChange: vi.fn(),
-				hasModelOptions: true,
 				...bindings,
 			}}
 		>
@@ -52,6 +51,31 @@ const renderOptions = (
 		{ wrapper: AppProviders },
 	);
 };
+
+// WorkspacePill links to the workspace and reads proxy hostnames.
+const WorkspacePillProviders = ({
+	children,
+}: {
+	children: React.ReactNode;
+}) => (
+	<MemoryRouter>
+		<ProxyContext.Provider
+			value={{
+				proxy: getPreferredProxy([], undefined),
+				proxies: [],
+				proxyLatencies: {},
+				latenciesLoaded: true,
+				isFetched: true,
+				isLoading: false,
+				setProxy: vi.fn(),
+				clearProxy: vi.fn(),
+				refetchProxyLatencies: () => new Date(),
+			}}
+		>
+			{children}
+		</ProxyContext.Provider>
+	</MemoryRouter>
+);
 
 const originalMatchMedia = window.matchMedia;
 
@@ -72,6 +96,7 @@ describe("AgentComposerOptions", () => {
 				uploadStates: new Map(),
 				previewUrls: new Map(),
 				textContents: new Map(),
+				workspaceUploads: { uploads: [], onRemove: vi.fn() },
 			},
 		});
 		const input = screen.getByTestId<HTMLInputElement>(
@@ -123,7 +148,63 @@ describe("AgentComposerOptions", () => {
 	);
 
 	it.each([false, true])(
-		"dismisses disconnect confirmation without composer Escape actions (history editing: %s)",
+		"removes the selected workspace while disabled unless selection is loading (loading: %s)",
+		async (isLoading) => {
+			const user = userEvent.setup();
+			const onWorkspaceChange = vi.fn();
+			renderOptions(
+				<Options
+					workspaceSelection={{
+						options: [workspace],
+						selectedId: workspace.id,
+						onChange: onWorkspaceChange,
+						isLoading,
+					}}
+				/>,
+				{ isDisabled: true },
+			);
+
+			await user.click(
+				screen.getByRole("button", {
+					name: `Remove workspace ${workspace.name}`,
+				}),
+			);
+			expect(onWorkspaceChange.mock.calls).toEqual(isLoading ? [] : [[null]]);
+		},
+	);
+
+	it("detaches the linked workspace while disabled", async () => {
+		const user = userEvent.setup();
+		const onWorkspaceChange = vi.fn();
+		renderOptions(
+			<WorkspacePillProviders>
+				<Options
+					linkedWorkspace={{
+						workspace,
+						agent: MockWorkspaceAgent,
+						chatId: "chat-1",
+					}}
+					workspaceSelection={{
+						options: [workspace],
+						selectedId: workspace.id,
+						onChange: onWorkspaceChange,
+					}}
+				/>
+			</WorkspacePillProviders>,
+			{ isDisabled: true },
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: `${workspace.name} workspace menu` }),
+		);
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Detach workspace" }),
+		);
+		expect(onWorkspaceChange).toHaveBeenCalledWith(null);
+	});
+
+	it.each([false, true])(
+		"dismisses disconnect confirmation and plus menu without composer Escape actions (history editing: %s)",
 		async (isEditingHistoryMessage) => {
 			const user = userEvent.setup();
 			const onInterrupt = vi.fn();
@@ -164,9 +245,13 @@ describe("AgentComposerOptions", () => {
 			expect(onInterrupt).not.toHaveBeenCalled();
 			expect(onCancelHistoryEdit).not.toHaveBeenCalled();
 
-			// The dismissed dialog releases focus, and plus-menu Escape
-			// still reaches the composer's existing keyboard handler.
+			// Escape that closes the plus menu belongs to the menu. Focus then
+			// returns to the trigger inside the composer, where Escape acts.
 			await user.click(screen.getByRole("button", { name: "More options" }));
+			await user.keyboard("{Escape}");
+			expect(onInterrupt).not.toHaveBeenCalled();
+			expect(onCancelHistoryEdit).not.toHaveBeenCalled();
+
 			await user.keyboard("{Escape}");
 			if (isEditingHistoryMessage) {
 				expect(onCancelHistoryEdit).toHaveBeenCalledTimes(1);

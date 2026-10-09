@@ -86,7 +86,7 @@ function Editor({
 			onFilePaste={
 				state.canAttachFiles ? (file) => actions.attachFiles([file]) : undefined
 			}
-			acceptFilePasteWhileDisabled={state.isLoading && !state.isReadOnly}
+			acceptFilePasteWhileDisabled={state.isLoading}
 			onPaste={actions.resetPromptCycle}
 			aria-label="Chat message"
 			aria-describedby={state.warning ? meta.warningId : undefined}
@@ -136,35 +136,22 @@ function Attachments() {
 				}}
 				onInlineText={actions.inlineText}
 			/>
-			{files.workspaceUploads && (
-				<WorkspaceUploadPreview
-					uploads={files.workspaceUploads.uploads}
-					onRemove={actions.removeWorkspaceUpload}
+			<WorkspaceUploadPreview
+				uploads={files.workspaceUploads.uploads}
+				onRemove={actions.removeWorkspaceUpload}
+			/>
+			{previewImage && (
+				<ImageLightbox
+					src={previewImage}
+					onClose={() => setPreviewImage(null)}
 				/>
 			)}
-			{/* Dialog Escape must not reach the composer's interrupt or history actions. */}
-			<div
-				className="contents"
-				role="presentation"
-				onKeyDown={(event) => {
-					if (event.key === "Escape") {
-						event.stopPropagation();
-					}
-				}}
-			>
-				{previewImage && (
-					<ImageLightbox
-						src={previewImage}
-						onClose={() => setPreviewImage(null)}
-					/>
-				)}
-				{previewText && (
-					<TextPreviewDialog
-						{...previewText}
-						onClose={() => setPreviewText(null)}
-					/>
-				)}
-			</div>
+			{previewText && (
+				<TextPreviewDialog
+					{...previewText}
+					onClose={() => setPreviewText(null)}
+				/>
+			)}
 		</>
 	);
 }
@@ -196,7 +183,9 @@ function VoiceInput() {
 						? actions.cancelRecording
 						: actions.startRecording
 				}
-				disabled={state.isDisabled}
+				disabled={
+					!state.speechRecording && (state.isReadOnly || state.isLoading)
+				}
 				aria-label={
 					state.speechRecording ? "Cancel voice input" : "Voice input"
 				}
