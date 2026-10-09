@@ -188,9 +188,8 @@ export const WorkspaceTerminal = ({
 		try {
 			fitAddon.fit();
 			fitAddon.fit();
-		} catch (error) {
-			// biome-ignore lint/suspicious/noConsole: Expected transient fit failure while xterm initializes.
-			console.debug("Terminal fit skipped: renderer not ready", error);
+		} catch {
+			// Expected transient fit failure while xterm initializes.
 		}
 	}, []);
 

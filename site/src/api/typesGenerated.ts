@@ -6703,6 +6703,12 @@ export interface LoginWithPasswordResponse {
 
 // From codersdk/mcp.go
 /**
+ * MCPEndpoint is the remote MCP HTTP endpoint path.
+ */
+export const MCPEndpoint = "/api/experimental/mcp/http";
+
+// From codersdk/mcp.go
+/**
  * MCPServerConfig represents an admin-configured MCP server.
  */
 export interface MCPServerConfig {
