@@ -3,7 +3,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { useTime } from "#/hooks/useTime";
 import { shortRelativeTime } from "#/utils/time";
 import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
-import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
+import { getPRIconConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 
 type ChatStatusLineProps = {
 	readonly chat: Chat;
@@ -44,8 +44,8 @@ export const ChatStatusLine: React.FC<ChatStatusLineProps> = ({
 	chat,
 	className,
 }) => {
-	const display = getChatDisplayConfig(chat);
-	const pr = display.diffStatus;
+	const pr = chat.diff_status;
+	const prIcon = getPRIconConfig(pr);
 	const settled = !isActiveChatStatus(chat.status);
 	if (!chat.last_turn_summary && !pr?.url && !settled) return null;
 	const visible = pr?.pr_number ? `#${pr.pr_number}` : "PR";
@@ -56,20 +56,17 @@ export const ChatStatusLine: React.FC<ChatStatusLineProps> = ({
 				className,
 			)}
 		>
-			{pr?.url && display.prIcon && (
+			{pr?.url && prIcon && (
 				<a
 					href={pr.url}
 					target="_blank"
 					rel="noreferrer"
-					aria-label={`${visible}, ${display.prIcon.label}`}
+					aria-label={`${visible}, ${prIcon.label}`}
 					className="relative z-[1] inline-flex h-4 shrink-0 items-center gap-1 rounded bg-content-primary/5 px-1.5 font-mono text-[11px] text-content-secondary no-underline hover:text-content-primary"
 					onPointerDown={(e) => e.stopPropagation()}
 				>
 					<span
-						className={cn(
-							"size-1.5 rounded-full bg-current",
-							display.prIcon.className,
-						)}
+						className={cn("size-1.5 rounded-full bg-current", prIcon.className)}
 					/>
 					{visible}
 				</a>
