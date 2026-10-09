@@ -1,6 +1,6 @@
 import { CheckIcon } from "lucide-react";
 import { useId, useState } from "react";
-import { keepPreviousData, type QueryKey, useQuery } from "react-query";
+import { keepPreviousData, type UseQueryOptions, useQuery } from "react-query";
 import type {
 	ACLAvailable,
 	Group,
@@ -18,17 +18,15 @@ export type ACLPrincipal = ReducedUser | Group;
 type ACLPrincipalAutocompleteProps = {
 	value: ACLPrincipal | null;
 	onChange: (value: ACLPrincipal | null) => void;
-	availableQuery: (options: UsersRequest) => {
-		queryKey: QueryKey;
-		queryFn: () => Promise<ACLAvailable>;
-	};
+	availableQueryOptions: (
+		options: UsersRequest,
+	) => UseQueryOptions<ACLAvailable>;
 	excludedPrincipalIds: readonly string[];
-	className?: string;
 };
 
 export const ACLPrincipalAutocomplete: React.FC<
 	ACLPrincipalAutocompleteProps
-> = ({ value, onChange, availableQuery, excludedPrincipalIds, className }) => {
+> = ({ value, onChange, availableQueryOptions, excludedPrincipalIds }) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
 	const autocompleteId = useId();
@@ -41,7 +39,7 @@ export const ACLPrincipalAutocomplete: React.FC<
 	};
 
 	const aclAvailableQuery = useQuery({
-		...availableQuery({ q: prepareQuery(inputValue), limit: 25 }),
+		...availableQueryOptions({ q: prepareQuery(inputValue), limit: 25 }),
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});
@@ -93,7 +91,6 @@ export const ACLPrincipalAutocomplete: React.FC<
 						? "Unable to load users or groups"
 						: "No users or groups found"
 				}
-				className={className}
 				id={autocompleteId}
 			/>
 			{aclAvailableQuery.error && (

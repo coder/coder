@@ -64,11 +64,10 @@ const OpenMCPServerSharingDialog: React.FC<OpenMCPServerSharingDialogProps> = ({
 				<ACLPrincipalAutocomplete
 					value={value}
 					onChange={onChange}
-					availableQuery={(options) =>
+					availableQueryOptions={(options) =>
 						mcpServerConfigACLAvailable(organizationId, serverId, options)
 					}
 					excludedPrincipalIds={excludedPrincipalIds}
-					className="w-full"
 				/>
 			)}
 			getPrincipal={selectedPrincipal}

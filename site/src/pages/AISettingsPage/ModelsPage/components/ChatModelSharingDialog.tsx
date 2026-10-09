@@ -64,11 +64,10 @@ const OpenChatModelSharingDialog: React.FC<OpenChatModelSharingDialogProps> = ({
 				<ACLPrincipalAutocomplete
 					value={value}
 					onChange={onChange}
-					availableQuery={(options) =>
+					availableQueryOptions={(options) =>
 						chatModelACLAvailable(organizationId, modelId, options)
 					}
 					excludedPrincipalIds={excludedPrincipalIds}
-					className="w-full"
 				/>
 			)}
 			getPrincipal={selectedPrincipal}
