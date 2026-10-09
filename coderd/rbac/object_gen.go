@@ -345,6 +345,17 @@ var (
 		Type: "organization_member",
 	}
 
+	// ResourceOrganizationSkill
+	// Valid Actions
+	//  - "ActionCreate" :: create an organization skill
+	//  - "ActionDelete" :: delete an organization skill
+	//  - "ActionRead" :: read organization skill metadata and content
+	//  - "ActionShare" :: share an organization skill with other users or groups
+	//  - "ActionUpdate" :: update an organization skill
+	ResourceOrganizationSkill = Object{
+		Type: "organization_skill",
+	}
+
 	// ResourcePrebuiltWorkspace
 	// Valid Actions
 	//  - "ActionDelete" :: delete prebuilt workspace
@@ -576,6 +587,7 @@ func AllResources() []Objecter {
 		ResourceOauth2AppSecret,
 		ResourceOrganization,
 		ResourceOrganizationMember,
+		ResourceOrganizationSkill,
 		ResourcePrebuiltWorkspace,
 		ResourceProvisionerDaemon,
 		ResourceProvisionerJobs,

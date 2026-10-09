@@ -299,7 +299,13 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_project_memory:*',
     'chat_project_memory:create',
     'chat_project_memory:read',
-    'chat_project_memory:delete'
+    'chat_project_memory:delete',
+    'organization_skill:*',
+    'organization_skill:create',
+    'organization_skill:read',
+    'organization_skill:update',
+    'organization_skill:delete',
+    'organization_skill:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -663,7 +669,8 @@ CREATE TYPE resource_type AS ENUM (
     'chat_project',
     'chat_automation',
     'chat_project_memory',
-    'chat_organization_system_prompt'
+    'chat_organization_system_prompt',
+    'organization_skill'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (

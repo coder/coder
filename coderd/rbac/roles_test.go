@@ -1605,6 +1605,66 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "OrganizationSkillRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceOrganizationSkill.WithID(uuid.New()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin, auditor, orgAuditor},
+				false: {
+					memberMe, orgMemberMe, orgWorkspaceAccessUser, orgAgentsAccessUser,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+					otherOrgAdmin, otherOrgAuditor,
+				},
+			},
+		},
+		{
+			Name:     "OrganizationSkillCreateUpdateDeleteShare",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
+			Resource: rbac.ResourceOrganizationSkill.WithID(uuid.New()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin},
+				false: {
+					memberMe, orgMemberMe, orgWorkspaceAccessUser, orgAgentsAccessUser,
+					auditor, orgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+					otherOrgAdmin, otherOrgAuditor,
+				},
+			},
+		},
+		{
+			// memberMe shares orgMemberMe's ID but is not an org member, so
+			// the user grant does not apply to it.
+			Name:    "OrganizationSkillUserACLRead",
+			Actions: []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceOrganizationSkill.WithID(uuid.New()).InOrg(orgID).WithACLUserList(map[string][]policy.Action{
+				currentUser.String(): {policy.ActionRead},
+			}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin, auditor, orgAuditor, orgMemberMe, orgWorkspaceAccessUser},
+				false: {
+					memberMe, orgUserAdmin, orgTemplateAdmin,
+					otherOrgAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+					templateAdmin, userAdmin,
+				},
+			},
+		},
+		{
+			Name:    "OrganizationSkillUserACLWrite",
+			Actions: []policy.Action{policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
+			Resource: rbac.ResourceOrganizationSkill.WithID(uuid.New()).InOrg(orgID).WithACLUserList(map[string][]policy.Action{
+				currentUser.String(): {policy.ActionRead},
+			}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin},
+				false: {
+					orgMemberMe, orgWorkspaceAccessUser, memberMe, auditor, orgAuditor,
+					orgUserAdmin, orgTemplateAdmin, setOtherOrg, templateAdmin, userAdmin,
+				},
+			},
+		},
+		{
 			Name:     "ChatModelConfigCreateUpdateDeleteShare",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
 			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID),

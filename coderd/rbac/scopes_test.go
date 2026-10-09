@@ -5,10 +5,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestExpandScope(t *testing.T) {
@@ -428,5 +431,24 @@ func TestScopesCoverEveryExternalScope(t *testing.T) {
 		covered, err = rbac.ScopesCover([]rbac.ScopeName{scope}, scope)
 		require.NoErrorf(t, err, "%q vs itself", scope)
 		require.Truef(t, covered, "%q must cover itself", scope)
+	}
+}
+
+func TestOrganizationSkillReadScope(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, rbac.ExternalScopeNames(), "organization_skill:read")
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+	subject := rbac.Subject{
+		ID:    uuid.NewString(),
+		Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()},
+		Scope: rbac.ScopeName("organization_skill:read"),
+	}
+	skill := rbac.ResourceOrganizationSkill.WithID(uuid.New()).InOrg(uuid.New())
+	require.NoError(t, authz.Authorize(ctx, subject, policy.ActionRead, skill))
+	for _, action := range []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare} {
+		require.Error(t, authz.Authorize(ctx, subject, action, skill), action)
 	}
 }

@@ -114,6 +114,14 @@ var chatModelConfigActions = map[Action]ActionDefinition{
 	ActionShare:  "share a chat model config with other users or groups",
 }
 
+var organizationSkillActions = map[Action]ActionDefinition{
+	ActionCreate: "create an organization skill",
+	ActionRead:   "read organization skill metadata and content",
+	ActionUpdate: "update an organization skill",
+	ActionDelete: "delete an organization skill",
+	ActionShare:  "share an organization skill with other users or groups",
+}
+
 // RBACPermissions is indexed by the type
 var RBACPermissions = map[string]PermissionDefinition{
 	// Wildcard is every object, and the action "*" provides all actions.
@@ -282,6 +290,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: "update an organization member",
 			ActionDelete: "delete member",
 		},
+	},
+	"organization_skill": {
+		Actions: organizationSkillActions,
 	},
 	"debug_info": {
 		Actions: map[Action]ActionDefinition{

@@ -1,0 +1,1 @@
+-- api_key_scope and resource_type enum values cannot be dropped.

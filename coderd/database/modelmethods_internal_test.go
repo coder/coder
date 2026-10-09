@@ -291,3 +291,29 @@ func TestSkillRBACObjectProjectRowsDenied(t *testing.T) {
 		}
 	}
 }
+
+func TestSkillRBACObjectOrganizationACL(t *testing.T) {
+	t.Parallel()
+
+	orgID, groupID, userID := uuid.New(), uuid.New(), uuid.New()
+	read := ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+	for name, tc := range map[string]struct {
+		skill  Skill
+		groups []string
+	}{
+		"UserGrant":  {skill: Skill{UserACL: ChatACL{userID.String(): read}}},
+		"GroupGrant": {skill: Skill{GroupACL: ChatACL{groupID.String(): read}}, groups: []string{groupID.String()}},
+	} {
+		tc.skill.ID = uuid.New()
+		tc.skill.OrganizationID = uuid.NullUUID{UUID: orgID, Valid: true}
+		subject := rbac.Subject{
+			ID:     userID.String(),
+			Roles:  rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleAgentsAccess(orgID)},
+			Groups: tc.groups,
+			Scope:  rbac.ScopeAll,
+		}
+		require.NoError(t, authz.Authorize(context.Background(), subject, policy.ActionRead, tc.skill.RBACObject()), name)
+		require.Error(t, authz.Authorize(context.Background(), subject, policy.ActionUpdate, tc.skill.RBACObject()), name)
+	}
+}
