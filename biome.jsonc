@@ -24,6 +24,7 @@
 			},
 			"correctness": {
 				"noInvalidBuiltinInstantiation": "off", // oxlint owns new-for-builtins
+				"useExhaustiveDependencies": "off", // oxlint owns exhaustive-deps
 				"noUnusedImports": "warn",
 				"useUniqueElementIds": "off", // TODO: This is new but we want to fix it
 				"noNestedComponentDefinitions": "off", // TODO: Investigate, since it is used by shadcn components
