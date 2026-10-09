@@ -1,9 +1,23 @@
 import { cn } from "cn";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatDiffStatus } from "#/api/typesGenerated";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { useTime } from "#/hooks/useTime";
 import { shortRelativeTime } from "#/utils/time";
 import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
-import { getPRIconConfig } from "../../components/ChatsSidebar/tree/statusConfig";
+import {
+	getChatDisplayConfig,
+	getPRIconConfig,
+} from "../../components/ChatsSidebar/tree/statusConfig";
+import {
+	PRMenuLinks,
+	prMenuContentClassName,
+} from "../../components/PRMenuLinks";
+import { prNumber } from "../../utils/pullRequest";
 
 type ChatStatusLineProps = {
 	readonly chat: Chat;
@@ -44,11 +58,11 @@ export const ChatStatusLine: React.FC<ChatStatusLineProps> = ({
 	chat,
 	className,
 }) => {
-	const pr = chat.diff_status;
-	const prIcon = getPRIconConfig(pr);
+	const { prStatuses } = getChatDisplayConfig(chat);
 	const settled = !isActiveChatStatus(chat.status);
-	if (!chat.last_turn_summary && !pr?.url && !settled) return null;
-	const visible = pr?.pr_number ? `#${pr.pr_number}` : "PR";
+	if (!chat.last_turn_summary && prStatuses.length === 0 && !settled) {
+		return null;
+	}
 	return (
 		<div
 			className={cn(
@@ -56,21 +70,7 @@ export const ChatStatusLine: React.FC<ChatStatusLineProps> = ({
 				className,
 			)}
 		>
-			{pr?.url && prIcon && (
-				<a
-					href={pr.url}
-					target="_blank"
-					rel="noreferrer"
-					aria-label={`${visible}, ${prIcon.label}`}
-					className="relative z-[1] inline-flex h-4 shrink-0 items-center gap-1 rounded bg-content-primary/5 px-1.5 font-mono text-[11px] text-content-secondary no-underline hover:text-content-primary"
-					onPointerDown={(e) => e.stopPropagation()}
-				>
-					<span
-						className={cn("size-1.5 rounded-full bg-current", prIcon.className)}
-					/>
-					{visible}
-				</a>
-			)}
+			<PRChip prStatuses={prStatuses} />
 			{chat.last_turn_summary && (
 				<span className="min-w-0 flex-1 truncate">
 					{chat.last_turn_summary}
@@ -87,5 +87,56 @@ export const ChatStatusLine: React.FC<ChatStatusLineProps> = ({
 				</time>
 			)}
 		</div>
+	);
+};
+
+const chipClassName =
+	"relative z-[1] inline-flex h-4 shrink-0 cursor-pointer items-center gap-1 rounded border-0 bg-content-primary/5 px-1.5 font-mono text-[11px] text-content-secondary no-underline hover:text-content-primary";
+
+type PRChipProps = { readonly prStatuses: readonly ChatDiffStatus[] };
+
+/**
+ * One PR links straight to it. Several open the same menu as the top bar,
+ * with a neutral count: one state color would misrepresent the rest.
+ */
+const PRChip: React.FC<PRChipProps> = ({ prStatuses }) => {
+	const [sole] = prStatuses;
+	if (prStatuses.length === 1 && sole.url) {
+		const number = prNumber(sole);
+		const visible = number ? `#${number}` : "PR";
+		const state = getPRIconConfig(sole);
+		return (
+			<a
+				href={sole.url}
+				target="_blank"
+				rel="noreferrer"
+				aria-label={state ? `${visible}, ${state.label}` : visible}
+				className={chipClassName}
+				onPointerDown={(e) => e.stopPropagation()}
+			>
+				<span
+					className={cn("size-1.5 rounded-full bg-current", state?.className)}
+				/>
+				{visible}
+			</a>
+		);
+	}
+	if (prStatuses.length < 2) return null;
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<button
+					type="button"
+					aria-label={`${prStatuses.length} pull requests`}
+					className={chipClassName}
+					onPointerDown={(e) => e.stopPropagation()}
+				>
+					{prStatuses.length} PRs
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="start" className={prMenuContentClassName}>
+				<PRMenuLinks prStatuses={prStatuses} Item={DropdownMenuItem} />
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 };

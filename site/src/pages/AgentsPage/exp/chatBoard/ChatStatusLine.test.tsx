@@ -1,25 +1,30 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { shortRelativeTime } from "#/utils/time";
 import { ChatStatusLine } from "./ChatStatusLine";
 
+const pr = (number: number, state: "open" | "merged" = "open") => ({
+	chat_id: MockChat.id,
+	url: `https://github.com/coder/coder/pull/${number}`,
+	pr_number: number,
+	pull_request_state: state,
+	pull_request_title: `Fix ${number}`,
+	pull_request_draft: false,
+	changes_requested: false,
+	remote_origin: "https://github.com/coder/coder",
+	git_branch: `fix-${number}`,
+	additions: 12,
+	deletions: 3,
+	changed_files: 2,
+});
+
 const chat = (overrides: Partial<Chat>): Chat => ({
 	...MockChat,
 	last_turn_summary: "Fixed the build",
-	diff_status: {
-		chat_id: MockChat.id,
-		url: "https://github.com/coder/coder/pull/12",
-		pr_number: 12,
-		pull_request_state: "open",
-		pull_request_title: "Fix",
-		pull_request_draft: false,
-		changes_requested: false,
-		additions: 12,
-		deletions: 3,
-		changed_files: 2,
-	},
+	diff_statuses: [pr(12)],
 	...overrides,
 });
 
@@ -54,9 +59,24 @@ describe("ChatStatusLine", () => {
 				chat({
 					status: "running",
 					last_turn_summary: null,
-					diff_status: undefined,
+					diff_statuses: [],
 				}),
 			),
 		).toBe("");
+	});
+
+	it("opens a menu linking every PR when the chat has several", async () => {
+		const user = userEvent.setup();
+		render(
+			<ChatStatusLine
+				chat={chat({ diff_statuses: [pr(12), pr(13, "merged")] })}
+			/>,
+		);
+		await user.click(screen.getByRole("button", { name: "2 pull requests" }));
+		const links = await screen.findAllByRole("menuitem");
+		expect(links.map((link) => link.getAttribute("href"))).toEqual([
+			"https://github.com/coder/coder/pull/12",
+			"https://github.com/coder/coder/pull/13",
+		]);
 	});
 });
