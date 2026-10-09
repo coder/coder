@@ -44,6 +44,17 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 		return &agentproto.BatchUpdateAppHealthResponse{}, nil
 	}
 
+	// Attach the cached workspace RBAC object so dbauthz can take its fast
+	// path instead of fetching the workspace on every per-app update below.
+	if a.Workspace != nil {
+		injected, err := a.Workspace.ContextInject(ctx)
+		if err != nil {
+			a.Log.Debug(ctx, "failed to inject cached workspace RBAC object", slog.Error(err))
+		} else {
+			ctx = injected
+		}
+	}
+
 	apps, err := a.Database.GetWorkspaceAppsByAgentID(ctx, a.AgentID)
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace apps by agent ID %q: %w", a.AgentID, err)
