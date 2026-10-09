@@ -376,6 +376,11 @@ const SegmentedField: React.FC<
 									? "rounded bg-surface-tertiary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",
 								disabled && "pointer-events-none text-content-disabled",
+								// content-disabled text is unreadable on the filled highlight,
+								// so a disabled selection is marked with an outline instead.
+								disabled &&
+									isActive &&
+									"bg-transparent inset-ring inset-ring-border",
 							)}
 							onClick={() => void form.setFieldValue(fieldKey, opt.value)}
 						>
