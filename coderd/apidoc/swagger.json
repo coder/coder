@@ -1226,6 +1226,82 @@
 				}
 			}
 		},
+		"/api/experimental/organizations/{organization}/skills": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Organizations"],
+				"summary": "List organization skills",
+				"operationId": "list-organization-skills",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Organization ID or name",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.SkillMetadata"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/experimental/organizations/{organization}/skills/{skillName}": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Organizations"],
+				"summary": "Get an organization skill by name",
+				"operationId": "get-an-organization-skill-by-name",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Organization ID or name",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Skill name",
+						"name": "skillName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Skill"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/experimental/users/email": {
 			"put": {
 				"consumes": ["application/json"],

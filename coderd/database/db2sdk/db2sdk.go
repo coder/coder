@@ -2449,6 +2449,23 @@ func Skill(skill database.Skill) codersdk.Skill {
 	}
 }
 
+// OrganizationSkillMetadataList converts organization skill metadata rows to
+// SDK values.
+func OrganizationSkillMetadataList(rows []database.ListOrganizationSkillMetadataByOrganizationIDRow) []codersdk.SkillMetadata {
+	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
+	for _, row := range rows {
+		metadata = append(metadata, codersdk.SkillMetadata{
+			ID:          row.ID,
+			Name:        row.Name,
+			Description: row.Description,
+			Enabled:     row.Enabled,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		})
+	}
+	return metadata
+}
+
 // UserSkillMetadataList converts personal skill metadata rows to SDK values.
 func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []codersdk.SkillMetadata {
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
