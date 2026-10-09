@@ -54,7 +54,7 @@ export const TopbarDivider: React.FC<
 	Omit<React.ComponentProps<"span">, "children">
 > = ({ className, ...props }) => {
 	return (
-		<span {...props} className={cn("text-border", className)}>
+		<span {...props} className={cn("text-content-secondary", className)}>
 			/
 		</span>
 	);
