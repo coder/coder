@@ -6,6 +6,8 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { Switch as SwitchPrimitives } from "radix-ui";
 
+// The aria-disabled styles key on aria-checked because a read-only switch
+// wrapped in a tooltip trigger gets the tooltip's data-state instead.
 const switchVariants = cva(
 	`peer inline-flex shrink-0 cursor-pointer items-center rounded-full shadow-xs transition-colors
 	border-2 border-transparent
@@ -13,6 +15,8 @@ const switchVariants = cva(
 	focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary
 	disabled:cursor-not-allowed
 	data-[state=checked]:disabled:bg-surface-tertiary data-[state=unchecked]:disabled:bg-surface-tertiary
+	aria-disabled:cursor-not-allowed
+	aria-disabled:aria-checked:bg-surface-invert-secondary aria-disabled:aria-[checked=false]:bg-surface-tertiary
 	data-[state=checked]:hover:bg-surface-invert-secondary data-[state=unchecked]:hover:bg-surface-tertiary
 	data-[state=checked]:bg-surface-invert-primary data-[state=unchecked]:bg-surface-quaternary`,
 	{

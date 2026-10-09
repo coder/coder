@@ -1,4 +1,11 @@
-import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
+import { Button } from "#/components/Button/Button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogFooter,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 import { Response } from "./ChatElements/Response";
 
 type TextPreviewDialogProps = {
@@ -7,6 +14,8 @@ type TextPreviewDialogProps = {
 	/** Explicit media type for the attachment, if known. */
 	mediaType?: string;
 	onClose: () => void;
+	onCloseAutoFocus?: (event: Event) => void;
+	showCloseButton?: boolean;
 };
 
 /**
@@ -34,6 +43,8 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 	fileName,
 	mediaType,
 	onClose,
+	onCloseAutoFocus,
+	showCloseButton = false,
 }) => {
 	const renderAsMarkdown = isMarkdownPreview(fileName, mediaType);
 
@@ -42,11 +53,12 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 			<DialogContent
 				className="max-h-[85vh] max-w-[90vw] w-full sm:w-fit sm:min-w-[400px] flex flex-col gap-0 p-0"
 				aria-describedby={undefined}
+				onCloseAutoFocus={onCloseAutoFocus}
 			>
 				<DialogTitle className="px-4 py-3 border-b border-border text-sm font-medium">
 					{fileName ?? "Pasted text"}
 				</DialogTitle>
-				<div className="overflow-auto p-4 max-h-[calc(85vh-3rem)]">
+				<div className="min-h-0 overflow-auto p-4 max-h-[calc(85vh-3rem)]">
 					{renderAsMarkdown ? (
 						// Reuse the same Markdown renderer used for chat messages
 						// so attached markdown previews look consistent with the
@@ -58,6 +70,13 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 						</pre>
 					)}
 				</div>
+				{showCloseButton && (
+					<DialogFooter className="border-t border-border px-4 py-3">
+						<DialogClose asChild>
+							<Button variant="outline">Close</Button>
+						</DialogClose>
+					</DialogFooter>
+				)}
 			</DialogContent>
 		</Dialog>
 	);

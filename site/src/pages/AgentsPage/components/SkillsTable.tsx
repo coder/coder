@@ -8,9 +8,11 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	createSkill,
 	deleteSkill,
+	isSkillTogglePending,
 	organizationSkills,
 	type SkillOwner,
 	skill,
+	toggleSkillEnabled,
 	updateSkill,
 	userSkills,
 } from "#/api/queries/skills";
@@ -26,6 +28,7 @@ import {
 	type SkillEditorState,
 	type SkillsCopy,
 	SkillsTableView,
+	type SkillViewState,
 } from "./SkillsTableView";
 
 const emptySkillFormValues: SkillFormValues = {
@@ -37,6 +40,7 @@ const emptySkillFormValues: SkillFormValues = {
 type DialogState =
 	| { type: "create"; submittedContent?: string }
 	| { type: "edit"; name: string; submittedContent?: string }
+	| { type: "view"; name: string }
 	| { type: "delete"; skill: SkillMetadata; submittedName?: string }
 	| null;
 
@@ -120,10 +124,13 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	const existingNames = skills.map((skill) =>
 		skill.name.toLocaleLowerCase("en-US"),
 	);
-	const editName = dialogState?.type === "edit" ? dialogState.name : "";
-	const editSkillQuery = useQuery({
-		...skill(owner, editName),
-		enabled: Boolean(editName),
+	const detailName =
+		dialogState?.type === "edit" || dialogState?.type === "view"
+			? dialogState.name
+			: "";
+	const detailQuery = useQuery({
+		...skill(owner, detailName),
+		enabled: Boolean(detailName),
 	});
 
 	const createMutationOptions = createSkill(queryClient, owner);
@@ -157,7 +164,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 		},
 		onError: (error, variables) => {
 			if (isAxiosError(error) && error.response?.status === 404) {
-				toast.info("That skill was deleted while you were editing it.");
+				toast.info(`That ${lowerNoun} was deleted while you were editing it.`);
 				setDialogState((current) =>
 					current?.type === "edit" &&
 					current.name === variables.name &&
@@ -167,6 +174,22 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 				);
 				void skillsQuery.refetch();
 			}
+		},
+	});
+
+	const toggleMutation = useMutation({
+		...toggleSkillEnabled(queryClient, owner),
+		onError: (error) => {
+			void skillsQuery.refetch();
+			if (isAxiosError(error) && error.response?.status === 404) {
+				toast.info(
+					`That ${lowerNoun} was deleted before your change was saved.`,
+				);
+				return;
+			}
+			toast.error(getErrorMessage(error, `Failed to update ${lowerNoun}.`), {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
@@ -223,15 +246,18 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	const downloadingSkillName = downloadMutation.isPending
 		? downloadMutation.variables
 		: undefined;
+	const togglingSkill = toggleMutation.isPending
+		? toggleMutation.variables
+		: undefined;
 
 	let editInitialValues: SkillFormValues | undefined;
-	let editLoadError: unknown = editSkillQuery.error;
-	if (editSkillQuery.data) {
+	let editLoadError: unknown = detailQuery.error;
+	if (dialogState?.type === "edit" && detailQuery.data) {
 		try {
-			const parsed = parseSkillMarkdown(editSkillQuery.data.content);
+			const parsed = parseSkillMarkdown(detailQuery.data.content);
 			editInitialValues = {
-				name: editSkillQuery.data.name,
-				description: editSkillQuery.data.description,
+				name: detailQuery.data.name,
+				description: detailQuery.data.description,
 				body: parsed.body,
 			};
 		} catch (error) {
@@ -270,8 +296,8 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			initialValues: editInitialValues,
 			existingNames,
 			loadError: editLoadError,
-			isLoading: editSkillQuery.isLoading,
-			isRetrying: editSkillQuery.isFetching,
+			isLoading: detailQuery.isLoading,
+			isRetrying: detailQuery.isFetching,
 			submitError:
 				updateMutation.variables?.name === dialogState.name &&
 				updateMutation.variables.req.content === dialogState.submittedContent
@@ -283,7 +309,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 					: undefined,
 			isSubmitting: updateMutation.isPending,
 			onRetry: () => {
-				void editSkillQuery.refetch();
+				void detailQuery.refetch();
 			},
 			onSubmit: (_values, content) => {
 				setDialogState((current) =>
@@ -295,6 +321,21 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 					name: dialogState.name,
 					req: { content },
 				});
+			},
+			onClose: () => setDialogState(null),
+		};
+	}
+
+	let viewState: SkillViewState | undefined;
+	if (dialogState?.type === "view") {
+		viewState = {
+			name: dialogState.name,
+			content: detailQuery.data?.content,
+			loadError: detailQuery.error,
+			isLoading: detailQuery.isLoading,
+			isRetrying: detailQuery.isFetching,
+			onRetry: () => {
+				void detailQuery.refetch();
 			},
 			onClose: () => setDialogState(null),
 		};
@@ -352,6 +393,9 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 				updateMutation.reset();
 				setDialogState({ type: "edit", name });
 			}}
+			onView={(name) => {
+				setDialogState({ type: "view", name });
+			}}
 			onDelete={(skill) => {
 				deleteMutation.reset();
 				setDialogState({ type: "delete", skill });
@@ -362,9 +406,17 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			onExportAll={() => {
 				exportAllMutation.mutate();
 			}}
+			onToggleEnabled={(skill, enabled) => {
+				if (isSkillTogglePending(queryClient, owner, skill.name)) {
+					return;
+				}
+				toggleMutation.mutate({ name: skill.name, enabled });
+			}}
 			downloadingSkillName={downloadingSkillName}
+			togglingSkill={togglingSkill}
 			isExportingAll={exportAllMutation.isPending}
 			editorState={editorState}
+			viewState={viewState}
 			deleteState={deleteState}
 		/>
 	);

@@ -2,11 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockSkill } from "#/testHelpers/skills";
 import { SKILLS_MAX_PER_OWNER } from "../utils/skills";
-import {
-	type SkillsCopy,
-	SkillsTableView,
-	type SkillsTableViewProps,
-} from "./SkillsTableView";
+import { SkillsTableView, type SkillsTableViewProps } from "./SkillsTableView";
 
 const MockReviewSQLSkill = {
 	...MockSkill,
@@ -22,6 +18,7 @@ const MockReleaseNotesSkill = {
 	id: "skill-write-release-notes",
 	name: "write-release-notes",
 	description: "Draft concise release notes from a change list.",
+	enabled: false,
 	created_at: "2026-05-01T12:00:00.000Z",
 	updated_at: "2026-05-04T09:15:00.000Z",
 };
@@ -51,21 +48,19 @@ const MockDebugHTTPSkill = {
 
 const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
-const personalSkillsCopy: SkillsCopy = {
-	noun: "Personal skill",
-	title: "Personal skills",
-	description:
-		"Reusable instructions your agents can pick when they need specialized guidance.",
-	emptyDescription:
-		"Create a personal skill to save reusable agent guidance for your workflows.",
-	editorDescription:
-		"Personal skills are available to your agents and stored as a single SKILL.md file with frontmatter.",
-	archiveName: "personal-skills.zip",
-};
-
 const baseArgs: SkillsTableViewProps = {
 	skills: MockPersonalSkills,
-	copy: personalSkillsCopy,
+	copy: {
+		noun: "Personal skill",
+		title: "Personal skills",
+		description:
+			"Reusable instructions your agents can pick when they need specialized guidance.",
+		emptyDescription:
+			"Create a personal skill to save reusable agent guidance for your workflows.",
+		editorDescription:
+			"Personal skills are available to your agents and stored as a single SKILL.md file with frontmatter.",
+		archiveName: "personal-skills.zip",
+	},
 	limit: SKILLS_MAX_PER_OWNER,
 	canEdit: true,
 	error: undefined,
@@ -74,9 +69,11 @@ const baseArgs: SkillsTableViewProps = {
 	onRetry: fn(),
 	onCreate: fn(),
 	onEdit: fn(),
+	onView: fn(),
 	onDelete: fn(),
 	onDownload: fn(),
 	onExportAll: fn(),
+	onToggleEnabled: fn(),
 	isExportingAll: false,
 };
 
@@ -107,6 +104,10 @@ export const LongDescriptionNarrow: Story = {
 	globals: { viewport: { value: "ipad" } },
 };
 
+export const Mobile: Story = {
+	globals: { viewport: { value: "iphone12" } },
+};
+
 export const DownloadingSkill: Story = {
 	args: {
 		downloadingSkillName: "review-sql",
@@ -128,9 +129,25 @@ export const DownloadingSkill: Story = {
 	},
 };
 
+export const TogglingSkill: Story = {
+	args: {
+		togglingSkill: { name: "write-release-notes", enabled: true },
+	},
+};
+
 export const ReadOnly: Story = {
 	args: {
 		canEdit: false,
+	},
+};
+
+export const ReadOnlyRowMenu: Story = {
+	args: ReadOnly.args,
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /review-sql/ });
+		await userEvent.click(
+			within(row).getByRole("button", { name: "Open menu" }),
+		);
 	},
 };
 
@@ -138,6 +155,21 @@ export const ReadOnlyEmpty: Story = {
 	args: {
 		canEdit: false,
 		skills: [],
+	},
+};
+
+export const ViewDialogOpen: Story = {
+	args: {
+		canEdit: false,
+		viewState: {
+			name: "review-sql",
+			content:
+				"---\nname: review-sql\ndescription: Review SQL changes for query and index risks.\n---\nCheck query plans, missing indexes, and transaction boundaries.\n",
+			isLoading: false,
+			isRetrying: false,
+			onRetry: fn(),
+			onClose: fn(),
+		},
 	},
 };
 
@@ -412,10 +444,10 @@ export const ImportSkillMarkdownKeepsEditName: Story = {
 			"---\nname: pasted-name\ndescription: New description.\n---\n\nNew body.",
 		);
 
-		// Wait for the import confirmation so the snapshot captures the
+		// Wait for the mismatch warning so the snapshot captures the
 		// updated fields with the kept name.
 		await dialogCanvas.findByText(
-			"Updated description and body fields. Kept the existing name.",
+			"The file is named pasted-name. Updated description and body fields, and kept the name review-sql.",
 		);
 	},
 };

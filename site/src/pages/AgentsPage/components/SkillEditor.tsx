@@ -37,7 +37,6 @@ export type SkillErrorDisplay = {
 type SkillEditorProps = {
 	open: boolean;
 	mode: "create" | "edit";
-	/** Singular noun in sentence case, for example "Personal skill". */
 	noun: string;
 	description: string;
 	initialValues: SkillFormValues;
@@ -45,11 +44,12 @@ type SkillEditorProps = {
 	submitError?: SkillErrorDisplay;
 	isSubmitting: boolean;
 	onOpenChange: (open: boolean) => void;
+	onCloseAutoFocus?: (event: Event) => void;
 	onSubmit: (values: SkillFormValues, content: string) => void;
 };
 
 type ImportStatus = {
-	kind: "success" | "error";
+	kind: "success" | "warning" | "error";
 	title: string;
 	detail?: string;
 };
@@ -70,6 +70,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 	submitError,
 	isSubmitting,
 	onOpenChange,
+	onCloseAutoFocus,
 	onSubmit,
 }) => {
 	const isCreate = mode === "create";
@@ -175,6 +176,14 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 		}
 
 		setImportContent("");
+		if (!isCreate && result.values.name !== form.values.name) {
+			setImportStatus({
+				kind: "warning",
+				title: "Imported SKILL.md for a different skill",
+				detail: `The file is named ${result.values.name}. Updated description and body fields, and kept the name ${form.values.name}.`,
+			});
+			return;
+		}
 		setImportStatus({
 			kind: "success",
 			title: "Imported SKILL.md",
@@ -262,7 +271,10 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+			<DialogContent
+				className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0"
+				onCloseAutoFocus={onCloseAutoFocus}
+			>
 				<form
 					className="flex min-h-0 flex-1 flex-col"
 					onSubmit={form.handleSubmit}
