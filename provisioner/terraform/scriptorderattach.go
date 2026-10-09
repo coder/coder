@@ -6,13 +6,14 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 // attachScriptOrderDependencies adds one ScriptDependency to the dependent
 // script of every edge in order. Prerequisites gain nothing. scriptsByAddress
 // must hold every address the graphs name.
-func attachScriptOrderDependencies(order ScriptOrder, scriptsByAddress map[string]*proto.Script) error {
+func attachScriptOrderDependencies(order scriptorder.ScriptOrder, scriptsByAddress map[string]*proto.Script) error {
 	// Nothing is attached until every edge validates, so an error leaves
 	// every script unchanged.
 	additions := make(map[*proto.Script][]*proto.ScriptDependency)
@@ -49,11 +50,11 @@ func attachScriptOrderDependencies(order ScriptOrder, scriptsByAddress map[strin
 
 // scriptDependencyRequirementProto maps a validated requirement to the wire
 // enum. Anything else is an error so that UNSPECIFIED is never sent.
-func scriptDependencyRequirementProto(requirement ScriptOrderRequirement) (proto.ScriptDependencyRequirement, error) {
+func scriptDependencyRequirementProto(requirement scriptorder.Requirement) (proto.ScriptDependencyRequirement, error) {
 	switch requirement {
-	case ScriptOrderRequirementSuccess:
+	case scriptorder.ScriptOrderRequirementSuccess:
 		return proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS, nil
-	case ScriptOrderRequirementCompletion:
+	case scriptorder.ScriptOrderRequirementCompletion:
 		return proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION, nil
 	default:
 		return proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_UNSPECIFIED,
