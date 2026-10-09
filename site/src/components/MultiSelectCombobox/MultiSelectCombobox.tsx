@@ -541,7 +541,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 							}}
 							onFocus={(event) => {
 								setOpen(true);
-								triggerSearchOnFocus && onSearch?.(debouncedSearchTerm);
+								if (triggerSearchOnFocus) {
+									onSearch?.(debouncedSearchTerm);
+								}
 								inputProps?.onFocus?.(event);
 							}}
 							placeholder={
