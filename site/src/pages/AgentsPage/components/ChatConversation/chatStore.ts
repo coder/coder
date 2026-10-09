@@ -110,9 +110,10 @@ export const isActiveChatStatus = (
 	status === "interrupting";
 
 /**
- * An edit the server has not answered yet. The transcript shows the
- * placeholder in place of the edited message and hides every later message,
- * which stay in the store so that a failed edit shows them again.
+ * An edit whose history reset the stream has not delivered yet. The
+ * transcript shows the placeholder in place of the edited message and hides
+ * every later message, which stay in the store so that a failed edit shows
+ * them again. Replacing the messages without the edited one ends it.
  */
 type PendingEdit = {
 	messageID: number;
@@ -202,11 +203,6 @@ export type ChatStore = {
 	) => void;
 	resetTransientState: () => void;
 	setPendingEdit: (edit: PendingEdit | null) => void;
-	// Applies the server's answer to the pending edit and ends it.
-	completeEdit: (
-		deletedMessageIDs: readonly number[],
-		insertedMessages: readonly TypesGen.ChatMessage[],
-	) => void;
 };
 
 const createInitialState = (): ChatStoreState => ({
@@ -299,6 +295,11 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				messagesByID: nextMessagesByID,
 				orderedMessageIDs: nextOrderedMessageIDs,
+				pendingEdit:
+					current.pendingEdit &&
+					nextMessagesByID.has(current.pendingEdit.messageID)
+						? current.pendingEdit
+						: null,
 			};
 		});
 	};
@@ -759,18 +760,6 @@ export const createChatStore = (): ChatStore => {
 			}));
 		},
 		setPendingEdit,
-		completeEdit: (deletedMessageIDs, insertedMessages) => {
-			const deleted = new Set(deletedMessageIDs);
-			batch(() => {
-				replaceMessages(
-					[...state.messagesByID.values()].filter(
-						(message) => !deleted.has(message.id),
-					),
-				);
-				upsertDurableMessages(insertedMessages);
-				setPendingEdit(null);
-			});
-		},
 	};
 };
 

@@ -269,20 +269,40 @@ describe("submitChatTurn", () => {
 			return { store, params, response, submitted };
 		};
 
-		it("shows the edited text in place of the edited message and hides the rest", async () => {
+		const replacement: ChatMessage = {
+			...question,
+			id: 7,
+			content: [{ type: "text", text: "new text" }],
+		};
+
+		it("shows the edited text in place of the edited message and hides the rest until the stream delivers the edit", async () => {
 			const { store, response, submitted } = startEdit();
 
 			expect(shown(store)).toEqual(["5:new text"]);
 
-			const replacement: ChatMessage = {
-				...question,
-				id: 7,
-				content: [{ type: "text", text: "new text" }],
-			};
 			response.resolve({ message: replacement, deleted_message_ids: [5, 6] });
 			await submitted;
 
+			expect(shown(store)).toEqual(["5:new text"]);
+
+			// The stream's history_reset for the edit.
+			store.replaceMessages([replacement]);
+
 			expect(shown(store)).toEqual(["7:new text"]);
+		});
+
+		it("does not bring back a message that a later edit deleted when the edit response arrives late", async () => {
+			const { store, response, submitted } = startEdit();
+			// The stream delivers the edit, then another tab's edit of its result.
+			store.replaceMessages([replacement]);
+			store.replaceMessages([
+				{ ...replacement, id: 8, content: [{ type: "text", text: "newer" }] },
+			]);
+
+			response.resolve({ message: replacement, deleted_message_ids: [5, 6] });
+			await submitted;
+
+			expect(shown(store)).toEqual(["8:newer"]);
 		});
 
 		it("shows every stored message again and reports the error when the edit fails", async () => {

@@ -1902,56 +1902,42 @@ describe("mutation invalidation scope", () => {
 		).toEqual([4, 3, 2, 1]);
 	});
 
-	it("editChatMessage preserves websocket-upserted newer messages on success", async () => {
+	it("editChatMessage does not bring back a message that a later edit deleted when the edit response arrives late", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
-		const messages = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
-		const responseMessage = {
-			...makeMsg(chatId, 9),
-			content: [{ type: "text" as const, text: "edited authoritative" }],
-		};
-		const websocketMessage = {
-			...makeMsg(chatId, 10),
-			content: [{ type: "text" as const, text: "assistant follow-up" }],
-			role: "assistant" as const,
-		};
-
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
-			pages: [{ messages, queued_messages: [], has_more: false }],
+			pages: [
+				{
+					messages: [2, 1].map((id) => makeMsg(chatId, id)),
+					queued_messages: [],
+					has_more: false,
+				},
+			],
 			pageParams: [undefined],
 		});
-
-		const mutation = editChatMessage(queryClient, chatId);
-		queryClient.setQueryData<InfMessages | undefined>(
-			chatMessagesKey(chatId),
-			(current) => {
-				if (!current) {
-					return current;
-				}
-				return {
-					...current,
-					pages: [
-						{
-							...current.pages[0],
-							messages: [websocketMessage, ...current.pages[0].messages],
-						},
-						...current.pages.slice(1),
-					],
-				};
-			},
-		);
-		mutation.onSuccess(
-			{ message: responseMessage, deleted_message_ids: [3, 4, 5] },
-			{ messageId: 3, req: editReq },
+		const request = createDeferred<TypesGen.EditChatMessageResponse>();
+		vi.mocked(API.experimental.editChatMessage).mockReturnValue(
+			request.promise,
 		);
 
-		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
-		expect(data?.pages[0]?.messages.map((message) => message.id)).toEqual([
-			10, 9, 2, 1,
-		]);
-		expect(data?.pages[0]?.messages[1]?.content).toEqual(
-			responseMessage.content,
-		);
+		const edit = new MutationObserver(
+			queryClient,
+			editChatMessage(queryClient, chatId),
+		).mutate({ messageId: 2, req: editReq });
+		await vi.waitFor(() => {
+			expect(API.experimental.editChatMessage).toHaveBeenCalled();
+		});
+		// The stream delivers the edit, then another tab's edit of its result.
+		replaceChatMessagesFrom(queryClient, chatId, 2, [makeMsg(chatId, 3)]);
+		replaceChatMessagesFrom(queryClient, chatId, 3, [makeMsg(chatId, 4)]);
+		request.resolve({ message: makeMsg(chatId, 3), deleted_message_ids: [2] });
+		await edit;
+
+		expect(
+			queryClient
+				.getQueryData<InfMessages>(chatMessagesKey(chatId))
+				?.pages[0]?.messages.map((message) => message.id),
+		).toEqual([4, 1]);
 	});
 
 	it("interruptChat invalidates debug runs without touching unrelated queries", async () => {

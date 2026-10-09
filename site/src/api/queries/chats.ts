@@ -15,7 +15,6 @@ import { isWorkspaceNotFound } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
 import { authorizationKey } from "./authCheck";
-import { reconcileEditedMessageInCache } from "./chatMessageEdits";
 import { organizationsPermissions } from "./organizations";
 import { workspaceQuotaKey } from "./workspaceQuota";
 import { invalidateWorkspaceListQueries } from "./workspaces";
@@ -2475,27 +2474,12 @@ type EditChatMessageMutationArgs = {
 	req: TypesGen.EditChatMessageRequest;
 };
 
-// The cache is written only with the server's answer. Until then the chat
-// store hides the replaced messages, so a failed edit leaves nothing to undo.
+// The messages cache is left to the stream, which delivers the edit's history
+// reset. Until then the chat store hides the messages the edit replaces.
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),
-	onSuccess: (
-		response: TypesGen.EditChatMessageResponse,
-		variables: EditChatMessageMutationArgs,
-	) => {
-		patchChatMessages(queryClient, chatId, (current) =>
-			reconcileEditedMessageInCache({
-				currentData: current,
-				editedMessageId: variables.messageId,
-				responseMessages: response.messages ?? [response.message],
-				deletedMessageIds: response.deleted_message_ids,
-			}),
-		);
-	},
 	onSettled: () => {
-		// The messages are not refetched: the stream delivers the edit's
-		// history reset.
 		void invalidateChatEntity(queryClient, chatId);
 		void invalidateChatPrompts(queryClient, chatId);
 		void invalidateChatDebugRuns(queryClient, chatId);

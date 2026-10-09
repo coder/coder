@@ -389,7 +389,6 @@ export const useChatStore = (
 		// them on chat change so a stale promote suppression doesn't
 		// hide queued messages in another chat.
 		store.clearSuppressedQueuedMessageIDs();
-		store.setPendingEdit(null);
 	}, [chatID, store]);
 
 	useEffect(() => {

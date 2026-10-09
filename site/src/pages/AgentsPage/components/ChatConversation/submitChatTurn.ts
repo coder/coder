@@ -352,9 +352,8 @@ export async function submitChatTurn(
 				placeholder: optimisticMessage,
 			});
 		});
-		let response: TypesGen.EditChatMessageResponse;
 		try {
-			response = await editMessage({
+			await editMessage({
 				messageId: editedMessageID,
 				req: request,
 			});
@@ -369,12 +368,6 @@ export async function submitChatTurn(
 			acceptServerChatStatus();
 			invalidateChat(agentId);
 			throw error;
-		}
-		if (store.getActiveChatID() === agentId) {
-			store.completeEdit(
-				[editedMessageID, ...(response.deleted_message_ids ?? [])],
-				response.messages ?? [response.message],
-			);
 		}
 		scrollToEnd({ behavior: "smooth" });
 		return;

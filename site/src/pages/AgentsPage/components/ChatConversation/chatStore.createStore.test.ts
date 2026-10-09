@@ -1107,16 +1107,20 @@ describe("pending edit", () => {
 		expect(shown(store)).toEqual(["1:m1", "2:m2", "3:m3", "4:m4", "5:m5"]);
 	});
 
-	it("completeEdit applies the server's answer and ends the edit", () => {
+	it("ends the edit when the history no longer holds the edited message", () => {
 		const store = storeWith(1, 2, 3, 4);
 		store.setPendingEdit({
 			messageID: 3,
 			placeholder: makeMessage(3, "user", "edited"),
 		});
 
-		store.completeEdit([3, 4], [makeMessage(5, "user", "edited")]);
+		// The stream's history_reset for the committed edit.
+		store.replaceMessages([
+			makeMessage(1, "user", "m1"),
+			makeMessage(2, "assistant", "m2"),
+			makeMessage(5, "user", "edited"),
+		]);
 
-		expect(store.getSnapshot().pendingEdit).toBeNull();
 		expect(shown(store)).toEqual(["1:m1", "2:m2", "5:edited"]);
 	});
 });
