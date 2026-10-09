@@ -62,7 +62,8 @@ and multiple filters can be specified separated by a space i.e
 The following filters are supported:
 
 - `owner` - Represents the `username` of the owner. You can also use `me` as a
-  convenient alias for the logged-in user, e.g., `owner:me`
+  convenient alias for the logged-in user, e.g., `owner:me`. Accepts multiple
+  values, e.g., `owner:me owner:alice` or `owner:me,alice`.
 - `user` - Workspaces a user owns, plus workspaces shared with them directly
   or through a group they belong to. Accepts a `username`, user ID, or `me`,
   e.g., `user:me`

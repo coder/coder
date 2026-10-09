@@ -200,9 +200,20 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if filter.OwnerUsername == "me" {
-		filter.OwnerID = apiKey.UserID
-		filter.OwnerUsername = ""
+	if slices.Contains(filter.OwnerUsernames, codersdk.Me) {
+		me, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching user.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		for i, owner := range filter.OwnerUsernames {
+			if owner == codersdk.Me {
+				filter.OwnerUsernames[i] = strings.ToLower(me.Username)
+			}
+		}
 	}
 
 	// To show the requester's favorite workspaces first, we pass their userID and compare it to

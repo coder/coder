@@ -42004,10 +42004,10 @@ WHERE
 		ELSE true
 	END
 
-	-- Filter by owner_name
+	-- Filter by owner_usernames
 	AND CASE
-		WHEN $9 :: text != '' THEN
-			workspaces.owner_id = (SELECT id FROM users WHERE lower(users.username) = lower($9) AND deleted = false)
+		WHEN array_length($9 :: text[], 1) > 0 THEN
+			workspaces.owner_id = ANY(SELECT id FROM users WHERE lower(users.username) = ANY($9 :: text[]) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_names (lowercase)
@@ -42293,7 +42293,7 @@ type GetWorkspacesParams struct {
 	OwnerID                               uuid.UUID    `db:"owner_id" json:"owner_id"`
 	OrganizationID                        uuid.UUID    `db:"organization_id" json:"organization_id"`
 	HasParam                              []string     `db:"has_param" json:"has_param"`
-	OwnerUsername                         string       `db:"owner_username" json:"owner_username"`
+	OwnerUsernames                        []string     `db:"owner_usernames" json:"owner_usernames"`
 	TemplateNames                         []string     `db:"template_names" json:"template_names"`
 	TemplateIDs                           []uuid.UUID  `db:"template_ids" json:"template_ids"`
 	WorkspaceIds                          []uuid.UUID  `db:"workspace_ids" json:"workspace_ids"`
@@ -42373,7 +42373,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.OwnerID,
 		arg.OrganizationID,
 		pq.Array(arg.HasParam),
-		arg.OwnerUsername,
+		pq.Array(arg.OwnerUsernames),
 		pq.Array(arg.TemplateNames),
 		pq.Array(arg.TemplateIDs),
 		pq.Array(arg.WorkspaceIds),

@@ -2172,12 +2172,14 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		otherUser, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+		thirdUser, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		// Add a non-matching workspace
-		coderdtest.CreateWorkspace(t, otherUser, template.ID)
+		// Workspaces owned by other users
+		otherWorkspace := coderdtest.CreateWorkspace(t, otherUser, template.ID)
+		_ = coderdtest.CreateWorkspace(t, thirdUser, template.ID)
 
 		workspaces := []codersdk.Workspace{
 			coderdtest.CreateWorkspace(t, client, template.ID),
@@ -2199,6 +2201,31 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		for _, found := range res.Workspaces {
 			require.Equal(t, found.OwnerName, sdkUser.Username)
 		}
+
+		otherSDKUser, err := otherUser.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		expected := append(slices.Clone(workspaces), otherWorkspace)
+
+		// multiple owners, repeated key
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("owner:%s owner:%s", sdkUser.Username, otherSDKUser.Username),
+		})
+		require.NoError(t, err)
+		expectIDs(t, expected, res.Workspaces)
+
+		// multiple owners, comma separated with "me"
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("owner:me,%s", otherSDKUser.Username),
+		})
+		require.NoError(t, err)
+		expectIDs(t, expected, res.Workspaces)
+
+		// "me" alone
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Owner: codersdk.Me,
+		})
+		require.NoError(t, err)
+		expectIDs(t, workspaces, res.Workspaces)
 	})
 	t.Run("IDs", func(t *testing.T) {
 		t.Parallel()
