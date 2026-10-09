@@ -1,9 +1,12 @@
 package agentcontext
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 func TestBuildMCPServerResources(t *testing.T) {
@@ -150,5 +153,65 @@ func TestBuildMCPServerResources(t *testing.T) {
 		require.Equal(t, StatusUnreadable, got[0].Status)
 		require.Equal(t, "fs", got[1].Source)
 		require.Equal(t, StatusOK, got[1].Status)
+	})
+
+	t.Run("LegacyServerHidesCollidingPluginServer", func(t *testing.T) {
+		t.Parallel()
+		workspace := MCPServerStatus{Name: "github/search", Connected: true, Tools: []MCPTool{{Name: "query"}}}
+		plugin := MCPServerStatus{Name: "search", PluginName: "github", Connected: true, Tools: []MCPTool{{Name: "find"}}}
+		other := MCPServerStatus{Name: "fs", PluginName: "github", Connected: true, Tools: []MCPTool{{Name: "read"}}}
+
+		got := buildMCPServerResources([]MCPServerStatus{plugin, workspace, other})
+		require.Len(t, got, 2)
+		require.Equal(t, "github/fs", got[0].Source)
+		require.Empty(t, got[0].Error)
+		require.Equal(t, "github/search", got[1].Source)
+		require.Empty(t, got[1].PluginName)
+		require.Equal(t, StatusOK, got[1].Status)
+		require.Equal(t, `plugin "github" server "search" is not started because its ID "github/search" equals this server's name; rename this server in .mcp.json to run both`, got[1].Error)
+		require.Equal(t, "query", got[1].Tools[0].Name)
+
+		alone := buildMCPServerResources([]MCPServerStatus{workspace})
+		require.NotEqual(t, alone[0].ContentHash, got[1].ContentHash)
+
+		workspace.Connected = false
+		workspace.Err = "boom"
+		got = buildMCPServerResources([]MCPServerStatus{plugin, workspace})
+		require.Len(t, got, 1)
+		require.Equal(t, StatusUnreadable, got[0].Status)
+		require.Equal(t, `boom; plugin "github" server "search" is not started because its ID "github/search" equals this server's name; rename this server in .mcp.json to run both`, got[0].Error)
+	})
+	t.Run("PluginServerWithLongSourceReportedOnPluginResource", func(t *testing.T) {
+		t.Parallel()
+		fits := strings.Repeat("a", workspacesdk.MaxContextSourceBytes-len("github/"))
+		tooLong := fits + "b"
+		got := buildMCPServerResources([]MCPServerStatus{
+			{Name: fits, PluginName: "github", Connected: true, Tools: []MCPTool{{Name: "read"}}},
+			{Name: tooLong, PluginName: "github", Connected: true, Tools: []MCPTool{{Name: "read"}}},
+			{Name: tooLong + "c", PluginName: "github", Connected: false, Err: "boom"},
+		})
+		require.Len(t, got, 2)
+		require.Equal(t, "github/"+fits, got[0].Source)
+		require.Equal(t, StatusOK, got[0].Status)
+		require.Equal(t, "github/mcp.json", got[1].Source)
+		require.Equal(t, "github", got[1].PluginName)
+		require.Equal(t, StatusUnreadable, got[1].Status)
+		require.Equal(t, "MCP servers not listed because their names are too long for a 1024-byte source: 2; shorten them in mcp.json", got[1].Error)
+		for _, r := range got {
+			require.LessOrEqual(t, len(r.Source), workspacesdk.MaxContextSourceBytes)
+		}
+	})
+	t.Run("LongSourceMessageJoinsServerNamedMCPJSON", func(t *testing.T) {
+		t.Parallel()
+		tooLong := strings.Repeat("a", workspacesdk.MaxContextSourceBytes)
+		got := buildMCPServerResources([]MCPServerStatus{
+			{Name: "mcp.json", PluginName: "github", Connected: true, Tools: []MCPTool{{Name: "read"}}},
+			{Name: tooLong, PluginName: "github", Connected: false, Err: "boom"},
+		})
+		require.Len(t, got, 1)
+		require.Equal(t, "github/mcp.json", got[0].Source)
+		require.Equal(t, StatusOK, got[0].Status)
+		require.Equal(t, "MCP servers not listed because their names are too long for a 1024-byte source: 1; shorten them in mcp.json", got[0].Error)
+		require.Equal(t, hashMCPServer("mcp.json", got[0].Tools, got[0].Error), got[0].ContentHash)
 	})
 }

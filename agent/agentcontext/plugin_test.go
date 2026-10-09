@@ -383,6 +383,13 @@ func TestPlugin_DiscoveredFromContainers(t *testing.T) {
 	require.Empty(t, plain.PluginName)
 	// skills/empty has no SKILL.md and is not a skill.
 	require.Len(t, resourcesOfKind(snap, agentcontext.KindSkill), 3)
+
+	// Plugins follows discovery order: the plugins/ container is
+	// walked before .agents/plugins/.
+	require.Equal(t, []agentcontext.PluginInfo{
+		{Name: "alpha", Root: first},
+		{Name: "beta", Root: second},
+	}, snap.Plugins())
 }
 
 func TestPlugin_RootIsPlugin(t *testing.T) {
@@ -950,6 +957,7 @@ func TestPlugin_DuplicateNameAcrossRootsFirstWins(t *testing.T) {
 	skills := resourcesOfKind(snap, agentcontext.KindSkill)
 	require.Len(t, skills, 1)
 	require.Equal(t, filepath.Join(firstPlugin, "skills", "first"), skills[0].Source)
+	require.Equal(t, []agentcontext.PluginInfo{{Name: "dup", Root: firstPlugin}}, snap.Plugins())
 }
 
 func TestPlugin_SkillCoexistsWithPlainSkillOfSameName(t *testing.T) {
@@ -1000,6 +1008,7 @@ func TestPlugin_DisabledEmitsNothingPluginRelated(t *testing.T) {
 		"instruction_file:" + filepath.Join(root, "AGENTS.md"),
 		"skill:" + filepath.Join(root, "skills", "plain"),
 	}, kinds)
+	require.Empty(t, snap.Plugins())
 }
 
 func TestPlugin_IncludedInAggregateHash(t *testing.T) {
@@ -1035,6 +1044,7 @@ func TestManager_SetPluginsEnabledTriggersResolve(t *testing.T) {
 	require.Equal(t, uint64(2), snap.Version)
 	plugin := findResource(t, snap.Resources, agentcontext.KindPlugin, pluginDir)
 	require.Equal(t, agentcontext.StatusOK, plugin.Status, plugin.Error)
+	require.Equal(t, []agentcontext.PluginInfo{{Name: "p", Root: pluginDir}}, snap.Plugins())
 	skill := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(pluginDir, "skills", "one"))
 	require.Equal(t, "p", skill.PluginName)
 
@@ -1045,7 +1055,7 @@ func TestManager_SetPluginsEnabledTriggersResolve(t *testing.T) {
 	m.SetPluginsEnabled(false)
 	snap = m.Snapshot()
 	require.Equal(t, uint64(3), snap.Version)
-	require.Empty(t, resourcesOfKind(snap, agentcontext.KindPlugin))
+	require.Empty(t, snap.Plugins())
 	require.Empty(t, resourcesOfKind(snap, agentcontext.KindSkill))
 }
 
@@ -1063,7 +1073,7 @@ func TestManager_SetPluginsEnabledBeforeReady(t *testing.T) {
 	m.SetReady()
 	snap := m.Snapshot()
 	require.Equal(t, uint64(1), snap.Version)
-	require.Len(t, resourcesOfKind(snap, agentcontext.KindPlugin), 1)
+	require.Len(t, snap.Plugins(), 1)
 }
 
 func TestManager_SetPluginsEnabledWithRunLoop(t *testing.T) {
@@ -1087,7 +1097,64 @@ func TestManager_SetPluginsEnabledWithRunLoop(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("expected a broadcast after SetPluginsEnabled")
 	}
-	require.Len(t, resourcesOfKind(m.Snapshot(), agentcontext.KindPlugin), 1)
+	require.Len(t, m.Snapshot().Plugins(), 1)
+}
+
+func TestManager_MCPCatalogPluginNamePassthrough(t *testing.T) {
+	t.Parallel()
+	dir := testutil.TempDirResolved(t)
+	mustWritePlugin(t, filepath.Join(dir, "plugins", "p"), "p")
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return dir },
+		MCPCatalog: func() []agentcontext.MCPServerStatus {
+			return []agentcontext.MCPServerStatus{
+				{Name: "srv", Connected: true, PluginName: "p", Tools: []agentcontext.MCPTool{{Name: "echo"}}},
+				{Name: "down", Connected: false, PluginName: "p", Err: "boom"},
+				{Name: "srv", Connected: true, Tools: []agentcontext.MCPTool{{Name: "echo"}}},
+				{Name: "gone", Connected: true, PluginName: "missing", Tools: []agentcontext.MCPTool{{Name: "echo"}}},
+			}
+		},
+	})
+	m.SetPluginsEnabled(true)
+
+	snap := m.Snapshot()
+	up := findResource(t, snap.Resources, agentcontext.KindMCPServer, "p/srv")
+	require.Equal(t, "p", up.PluginName)
+	require.Equal(t, "srv", up.Name)
+	down := findResource(t, snap.Resources, agentcontext.KindMCPServer, "p/down")
+	require.Equal(t, "p", down.PluginName)
+	plain := findResource(t, snap.Resources, agentcontext.KindMCPServer, "srv")
+	require.Empty(t, plain.PluginName)
+	// A server of a plugin with no StatusOK resource is left out.
+	for _, r := range snap.Resources {
+		require.NotEqual(t, "missing/gone", r.Source)
+	}
+}
+
+func TestPlugin_SnapshotPluginsFollowScanRootOrder(t *testing.T) {
+	t.Parallel()
+	// The higher-priority root sorts after the lower-priority one by
+	// path, so resource order (by ID) and root order disagree.
+	base := testutil.TempDirResolved(t)
+	high := filepath.Join(base, "z-user-source")
+	low := filepath.Join(base, "a-working-dir")
+	highPlugin := filepath.Join(high, "plugins", "zed")
+	lowPlugin := filepath.Join(low, ".agents", "plugins", "alpha")
+	mustWritePlugin(t, highPlugin, "zed")
+	mustWritePlugin(t, lowPlugin, "alpha")
+
+	snap := resolvePlugins(
+		agentcontext.ScanRoot{Path: high, UserSource: high},
+		agentcontext.ScanRoot{Path: low},
+	)
+
+	plugins := resourcesOfKind(snap, agentcontext.KindPlugin)
+	require.Len(t, plugins, 2)
+	require.Equal(t, lowPlugin, plugins[0].Source, "resources are sorted by ID")
+	require.Equal(t, []agentcontext.PluginInfo{
+		{Name: "zed", Root: highPlugin},
+		{Name: "alpha", Root: lowPlugin},
+	}, snap.Plugins(), "Plugins follows scan-root priority")
 }
 
 // A path that is not valid UTF-8 cannot be sent as a resource Source, so

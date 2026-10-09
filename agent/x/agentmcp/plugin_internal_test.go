@@ -311,6 +311,39 @@ func TestReloadSources_PluginNameCollision(t *testing.T) {
 	assert.Equal(t, "first", otherCfg.Plugin.Name)
 }
 
+func TestReloadSources_LegacyNameMatchesPluginServerID(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	_, entry := fakeMCPServerConfig(t, "tools/srv")
+	legacyPath := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{"tools/srv": entry})
+
+	scope := newPluginScope(t, "tools")
+	installFakeServer(t, scope.Root)
+	src := writePluginMCP(t, scope, map[string]any{
+		"srv":  fakePluginServerEntry(nil),
+		"keep": fakePluginServerEntry(nil),
+	})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{src, {Path: legacyPath}}))
+
+	catalog := m.Catalog()
+	require.Len(t, catalog, 3)
+	assert.True(t, findStatus(t, catalog, "tools/srv", "").Connected)
+	assert.True(t, findStatus(t, catalog, "keep", "tools").Connected)
+	pluginSrv := findStatus(t, catalog, "srv", "tools")
+	assert.False(t, pluginSrv.Connected)
+	assert.Equal(t, `server ID "tools/srv" is already used by a legacy server in `+legacyPath, pluginSrv.Err)
+
+	m.mu.RLock()
+	_, started := m.servers["srv"]
+	m.mu.RUnlock()
+	assert.False(t, started, "the plugin server must not run")
+}
+
 func TestSnapshotChanged_PluginScope(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
