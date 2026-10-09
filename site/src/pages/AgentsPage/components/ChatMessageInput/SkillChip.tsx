@@ -9,6 +9,7 @@ import {
 type SkillChipProps = {
 	source: SkillSource;
 	name: string;
+	pluginName?: string;
 	className?: string;
 };
 
@@ -25,18 +26,19 @@ const SkillChipLabel: React.FC<{ alias: string }> = ({ alias }) => (
 export const SkillChip: React.FC<SkillChipProps> = ({
 	source,
 	name,
+	pluginName,
 	className,
 }) => (
 	<span className={cn(fileReferenceChipVariants(), className)}>
-		<SkillChipLabel alias={getSkillAlias(source, name)} />
+		<SkillChipLabel alias={getSkillAlias(source, name, pluginName)} />
 	</span>
 );
 
 /** Atomic Lexical decorator for SkillInvocationNode; arrows skip it, Backspace or its button removes it. */
 export const EditableSkillChip: React.FC<
 	SkillChipProps & { onRemove: () => void }
-> = ({ source, name, onRemove, className }) => {
-	const alias = getSkillAlias(source, name);
+> = ({ source, name, pluginName, onRemove, className }) => {
+	const alias = getSkillAlias(source, name, pluginName);
 	return (
 		<span
 			className={cn(fileReferenceChipVariants({ editable: true }), className)}

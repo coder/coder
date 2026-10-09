@@ -22,7 +22,7 @@ import { useFileReferenceSpacing } from "./FileReferenceNode";
 import { EditableSkillChip } from "./SkillChip";
 
 type SerializedSkillInvocationNode = Spread<
-	{ source: SkillSource; name: string },
+	{ source: SkillSource; name: string; pluginName?: string },
 	SerializedLexicalNode
 >;
 
@@ -34,19 +34,34 @@ export const isSerializedSkillInvocationNode = (
 export class SkillInvocationNode extends DecoratorNode<React.ReactNode> {
 	__source: SkillSource;
 	__name: string;
+	__pluginName: string | undefined;
 
 	static getType(): string {
 		return "skill-invocation";
 	}
 
 	static clone(node: SkillInvocationNode): SkillInvocationNode {
-		return new SkillInvocationNode(node.__source, node.__name, node.__key);
+		return new SkillInvocationNode(
+			node.__source,
+			node.__name,
+			node.__pluginName,
+			node.__key,
+		);
 	}
 
-	constructor(source: SkillSource, name: string, key?: NodeKey) {
+	constructor(
+		source: SkillSource,
+		name: string,
+		pluginName?: string,
+		key?: NodeKey,
+	) {
 		super(key);
 		this.__source = source;
 		this.__name = name;
+		// Identity checks compare pluginName with ===, so a missing or empty
+		// name must be undefined.
+		this.__pluginName =
+			source === "plugin" ? pluginName || undefined : undefined;
 	}
 
 	createDOM(): HTMLElement {
@@ -65,11 +80,12 @@ export class SkillInvocationNode extends DecoratorNode<React.ReactNode> {
 			version: 1,
 			source: this.__source,
 			name: this.__name,
+			pluginName: this.__pluginName,
 		};
 	}
 
 	static importJSON(json: SerializedSkillInvocationNode): SkillInvocationNode {
-		return new SkillInvocationNode(json.source, json.name);
+		return new SkillInvocationNode(json.source, json.name, json.pluginName);
 	}
 
 	getTextContent(): string {
@@ -94,6 +110,7 @@ export class SkillInvocationNode extends DecoratorNode<React.ReactNode> {
 				nodeKey={this.__key}
 				source={this.__source}
 				name={this.__name}
+				pluginName={this.__pluginName}
 			/>
 		);
 	}
@@ -104,7 +121,8 @@ const SkillChipWrapper: React.FC<{
 	nodeKey: NodeKey;
 	source: SkillSource;
 	name: string;
-}> = ({ editor, nodeKey, source, name }) => {
+	pluginName: string | undefined;
+}> = ({ editor, nodeKey, source, name, pluginName }) => {
 	const spacing = useFileReferenceSpacing(editor, nodeKey);
 	const handleRemove = () => {
 		editor.update(() => {
@@ -116,6 +134,7 @@ const SkillChipWrapper: React.FC<{
 		<EditableSkillChip
 			source={source}
 			name={name}
+			pluginName={pluginName}
 			onRemove={handleRemove}
 			className={cn(spacing.before && "ml-1", spacing.after && "mr-1")}
 		/>
@@ -143,9 +162,16 @@ export const $getSkillInvocationNodes = (): SkillInvocationNode[] =>
 				: [],
 		);
 
-export const $hasSkillInvocationNode = (source: SkillSource, name: string) =>
+export const $hasSkillInvocationNode = (
+	source: SkillSource,
+	name: string,
+	pluginName: string | undefined,
+) =>
 	$getSkillInvocationNodes().some(
-		(node) => node.__source === source && node.__name === name,
+		(node) =>
+			node.__source === source &&
+			node.__name === name &&
+			node.__pluginName === pluginName,
 	);
 
 /**
@@ -156,8 +182,9 @@ export function $insertSkillInvocation(
 	selection: RangeSelection,
 	source: SkillSource,
 	name: string,
+	pluginName?: string,
 ) {
-	if ($hasSkillInvocationNode(source, name)) {
+	if ($hasSkillInvocationNode(source, name, pluginName)) {
 		selection.removeText();
 		return;
 	}
@@ -166,7 +193,7 @@ export function $insertSkillInvocation(
 		warnSkillLimit();
 		return;
 	}
-	const chip = new SkillInvocationNode(source, name);
+	const chip = new SkillInvocationNode(source, name, pluginName);
 	selection.insertNodes([chip]);
 	const next = chip.getNextSibling();
 	if ($isTextNode(next) && /^\s/.test(next.getTextContent())) {
@@ -192,7 +219,11 @@ export const serializeMessageDraft = (
 			for (const part of content) {
 				if (part.type === "skill-invocation") {
 					paragraph.append(
-						new SkillInvocationNode(part.skill_source, part.skill_name),
+						new SkillInvocationNode(
+							part.skill_source,
+							part.skill_name,
+							part.skill_plugin_name,
+						),
 					);
 				} else if (part.type === "text") {
 					for (const [index, line] of part.text.split("\n").entries()) {

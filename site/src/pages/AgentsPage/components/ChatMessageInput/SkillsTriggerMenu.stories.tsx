@@ -50,6 +50,18 @@ const mockProjectSkillItems = resolveSkillTriggers([
 const mockWorkspaceSkillItems = resolveSkillTriggers([
 	{ source: "workspace", skills: mockWorkspaceSkills },
 ]);
+const mockPluginSkillItems = resolveSkillTriggers([
+	{
+		source: "plugin",
+		skills: [
+			{
+				name: "deploy",
+				description: "Deploy with the acme toolchain.",
+				pluginName: "acme",
+			},
+		],
+	},
+]);
 
 // Provides the composer-box element the menu anchors to, since the
 // menu is pinned above its anchor at the anchor's width.
@@ -118,6 +130,15 @@ export const AllSkillGroups: Story = {
 		workspaceSkills: mockWorkspaceSkillItems,
 		organizationSkillsEnabled: true,
 		projectSkillsEnabled: true,
+		workspaceSkillsEnabled: true,
+	},
+};
+
+// Plugin skills sit in the workspace group with a /plugin/<plugin>/<skill>
+// trigger.
+export const WithPluginSkill: Story = {
+	args: {
+		workspaceSkills: [...mockWorkspaceSkillItems, ...mockPluginSkillItems],
 		workspaceSkillsEnabled: true,
 	},
 };

@@ -134,6 +134,12 @@ export const WithSkillChips: Story = {
 					skill_source: "project",
 					skill_name: "triage",
 				},
+				{
+					type: "skill-invocation",
+					skill_source: "plugin",
+					skill_plugin_name: "acme-tools",
+					skill_name: "deploy",
+				},
 			]),
 			buildMessage(3, [
 				{

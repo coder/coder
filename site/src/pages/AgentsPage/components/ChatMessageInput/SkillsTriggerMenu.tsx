@@ -17,6 +17,7 @@ import type { SkillTrigger } from "../../utils/skillAliases";
 export type SkillMetadata = {
 	name: string;
 	description: string;
+	pluginName?: string;
 };
 
 export type SkillMenuItem = Omit<SkillTrigger, "source"> & {

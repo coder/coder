@@ -85,6 +85,35 @@ describe("workspaceSkillsFromChat", () => {
 		]);
 	});
 
+	it("attributes plugin skills and keys duplicates by plugin and name", () => {
+		const chat = chatWithContext({
+			dirty: false,
+			resources: [
+				skillResource("deploy"),
+				skillResource("deploy", {
+					source: "/workspace/.agents/plugins/acme/skills/deploy",
+					skill_description: "acme deploy",
+					plugin_name: "acme",
+				}),
+				skillResource("deploy", {
+					source: "/workspace/.agents/plugins/beta/skills/deploy",
+					skill_description: "beta deploy",
+					plugin_name: "beta",
+				}),
+				skillResource("deploy", {
+					source: "/workspace/other/plugins/acme/skills/deploy",
+					skill_description: "shadowed duplicate",
+					plugin_name: "acme",
+				}),
+			],
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([
+			{ name: "deploy", description: "deploy description" },
+			{ name: "deploy", description: "acme deploy", pluginName: "acme" },
+			{ name: "deploy", description: "beta deploy", pluginName: "beta" },
+		]);
+	});
+
 	it("returns an empty authoritative list when pinned context has no skills", () => {
 		const chat = chatWithContext({
 			dirty: false,

@@ -47,6 +47,7 @@ const renderUserInlineBlock = (
 				key={index}
 				source={block.skill_source}
 				name={block.skill_name}
+				pluginName={block.skill_plugin_name}
 				className={spacing}
 			/>
 		);
