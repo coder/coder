@@ -6,12 +6,13 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
-	createUserSkill,
-	deleteUserSkill,
-	updateUserSkill,
-	userSkill,
+	createSkill,
+	deleteSkill,
+	type SkillOwner,
+	skill,
+	updateSkill,
 	userSkills,
-} from "#/api/queries/userSkills";
+} from "#/api/queries/skills";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import {
 	parseSkillMarkdown,
@@ -24,6 +25,8 @@ import {
 	type SkillEditorState,
 	SkillsTableView,
 } from "./SkillsTableView";
+
+const personalSkillOwner: SkillOwner = { type: "user", user: "me" };
 
 const emptySkillFormValues: SkillFormValues = {
 	name: "",
@@ -102,11 +105,11 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 	);
 	const editName = dialogState?.type === "edit" ? dialogState.name : "";
 	const editSkillQuery = useQuery({
-		...userSkill(editName),
+		...skill(personalSkillOwner, editName),
 		enabled: Boolean(editName),
 	});
 
-	const createMutationOptions = createUserSkill(queryClient);
+	const createMutationOptions = createSkill(queryClient, personalSkillOwner);
 	const createMutation = useMutation({
 		...createMutationOptions,
 		onSuccess: async (_skill, variables) => {
@@ -121,7 +124,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 		},
 	});
 
-	const updateMutationOptions = updateUserSkill(queryClient);
+	const updateMutationOptions = updateSkill(queryClient, personalSkillOwner);
 	const updateMutation = useMutation({
 		...updateMutationOptions,
 		onSuccess: async (skill, variables) => {
@@ -150,7 +153,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 		},
 	});
 
-	const deleteMutationOptions = deleteUserSkill(queryClient);
+	const deleteMutationOptions = deleteSkill(queryClient, personalSkillOwner);
 	const deleteMutation = useMutation({
 		...deleteMutationOptions,
 		onSuccess: async (data, variables) => {
@@ -179,7 +182,9 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 	});
 
 	const fetchSkillContent = (name: string): Promise<string> =>
-		queryClient.fetchQuery(userSkill(name)).then((skill) => skill.content);
+		queryClient
+			.fetchQuery(skill(personalSkillOwner, name))
+			.then((skill) => skill.content);
 
 	const downloadMutation = useMutation({
 		mutationFn: (name: string) =>

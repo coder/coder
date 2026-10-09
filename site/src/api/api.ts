@@ -362,6 +362,10 @@ const userSkillsPath = (user: string) =>
 	`/api/experimental/users/${encodeURIComponent(user)}/skills`;
 const userSkillPath = (user: string, name: string) =>
 	`${userSkillsPath(user)}/${encodeURIComponent(name)}`;
+const organizationSkillsPath = (organizationId: string) =>
+	`/api/experimental/organizations/${encodeURIComponent(organizationId)}/skills`;
+const organizationSkillPath = (organizationId: string, name: string) =>
+	`${organizationSkillsPath(organizationId)}/${encodeURIComponent(name)}`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/v2/users/${encodeURIComponent(user)}/ai-provider-keys`;
 const mcpServerConfigsPath = (organization: string) =>
@@ -3898,6 +3902,55 @@ class ExperimentalApiMethods {
 
 	deleteUserSkill = async (user: string, name: string): Promise<void> => {
 		await this.axios.delete(userSkillPath(user, name));
+	};
+
+	createOrganizationSkill = async (
+		organizationId: string,
+		req: TypesGen.CreateSkillRequest,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.post<TypesGen.Skill>(
+			organizationSkillsPath(organizationId),
+			req,
+		);
+		return response.data;
+	};
+
+	getOrganizationSkills = async (
+		organizationId: string,
+	): Promise<TypesGen.SkillMetadata[]> => {
+		const response = await this.axios.get<TypesGen.SkillMetadata[]>(
+			organizationSkillsPath(organizationId),
+		);
+		return response.data;
+	};
+
+	getOrganizationSkillByName = async (
+		organizationId: string,
+		name: string,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.get<TypesGen.Skill>(
+			organizationSkillPath(organizationId, name),
+		);
+		return response.data;
+	};
+
+	updateOrganizationSkill = async (
+		organizationId: string,
+		name: string,
+		req: TypesGen.UpdateSkillRequest,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.patch<TypesGen.Skill>(
+			organizationSkillPath(organizationId, name),
+			req,
+		);
+		return response.data;
+	};
+
+	deleteOrganizationSkill = async (
+		organizationId: string,
+		name: string,
+	): Promise<void> => {
+		await this.axios.delete(organizationSkillPath(organizationId, name));
 	};
 
 	getUserChatCompactionThresholds =
