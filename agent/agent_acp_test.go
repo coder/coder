@@ -30,7 +30,7 @@ func TestAgent_ACPInterface(t *testing.T) {
 	require.NoError(t, os.MkdirAll(configDir, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(configDir, "broken.json"), []byte(`{"command":"false"}`), 0o600))
 	//nolint:dogsled // The integration fixture also returns unrelated transports.
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{Directory: dir}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+	conn, client, _, _, _ := setupAgent(t, agentsdk.Manifest{Directory: dir}, 0, func(_ *agenttest.Client, opts *agent.Options) {
 		opts.EnvInfo = acpEnvInfo{home: home}
 		opts.Filesystem = afero.NewOsFs()
 	})
@@ -40,4 +40,14 @@ func TestAgent_ACPInterface(t *testing.T) {
 	var catalog []workspacesdk.ACPHarness
 	require.Eventually(t, func() bool { catalog, err = conn.ListACPHarnesses(ctx); return err == nil && len(catalog) == 1 }, testutil.WaitLong, testutil.IntervalFast)
 	require.Equal(t, "broken", catalog[0].Slug)
+	require.Eventually(t, func() bool {
+		for _, push := range client.ContextStatePushes() {
+			for _, resource := range push.Resources {
+				if harness := resource.GetAcpHarness(); harness != nil && harness.Slug == "broken" {
+					return true
+				}
+			}
+		}
+		return false
+	}, testutil.WaitLong, testutil.IntervalFast, "context pushes must include the harness catalog")
 }
