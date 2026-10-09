@@ -4,29 +4,44 @@ import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import type { AgentComposerOptionsData } from "./AgentComposerOptionsMenu";
+
+/** Updates controlled MCP selection without changing unrelated server IDs. */
+export function setMCPServerSelected(
+	mcp: Pick<
+		NonNullable<AgentComposerOptionsData["mcp"]>,
+		"selectedServerIds" | "onSelectionChange"
+	>,
+	serverId: string,
+	checked: boolean,
+) {
+	mcp.onSelectionChange(
+		checked
+			? [...mcp.selectedServerIds, serverId]
+			: mcp.selectedServerIds.filter((id) => id !== serverId),
+	);
+}
 
 type MCPServerMenuItemProps = {
 	server: MCPServerConfig;
-	selectedServerIds: readonly string[];
+	mcp: NonNullable<AgentComposerOptionsData["mcp"]>;
 	connectingServerId: string | null;
 	isDisabled: boolean;
 	onConnect: (id: string) => void;
 	onDisconnect: (server: MCPServerConfig) => void;
-	onToggle: (id: string, checked: boolean) => void;
 };
 
 /** MCP authentication actions and controlled selection for one server. */
 export const MCPServerMenuItem = ({
 	server,
-	selectedServerIds,
+	mcp,
 	connectingServerId,
 	isDisabled,
 	onConnect,
 	onDisconnect,
-	onToggle,
 }: MCPServerMenuItemProps) => {
 	const isForceOn = server.availability === "force_on";
-	const isSelected = isForceOn || selectedServerIds.includes(server.id);
+	const isSelected = isForceOn || mcp.selectedServerIds.includes(server.id);
 
 	const needsAuth = server.auth_type === "oauth2" && !server.auth_connected;
 	const isConnecting = connectingServerId === server.id;
@@ -79,7 +94,9 @@ export const MCPServerMenuItem = ({
 					<Switch
 						size="sm"
 						checked={isSelected}
-						onCheckedChange={(checked) => onToggle(server.id, checked)}
+						onCheckedChange={(checked) =>
+							setMCPServerSelected(mcp, server.id, checked)
+						}
 						disabled={isDisabled || isForceOn}
 						aria-label={
 							isForceOn

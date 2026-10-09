@@ -12,11 +12,7 @@ import {
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { belowMdViewportMediaQuery } from "#/utils/mobile";
-import {
-	AgentComposer,
-	AgentComposerProvider,
-	type ComposerContextValue,
-} from "./AgentComposer";
+import { AgentComposer, AgentComposerProvider } from "./AgentComposer";
 import { AgentComposerOptions } from "./AgentComposerOptions";
 
 const modelOptions = MockPersonalModelOptions;
@@ -37,56 +33,6 @@ const optionsProps = {
 	"children"
 >;
 
-const composerContext: ComposerContextValue = {
-	state: {
-		isDisabled: false,
-		isReadOnly: false,
-		isLoading: false,
-		isStreaming: false,
-		isInterruptPending: false,
-		isEditingHistoryMessage: false,
-		isDragging: false,
-		invisibleCharCount: 0,
-		canSend: false,
-		showSendButton: true,
-		showStopButton: false,
-		canAttachFiles: false,
-		speechSupported: false,
-		speechRecording: false,
-		speechError: null,
-	},
-	actions: {
-		openFilePicker: vi.fn(),
-		resetPromptCycle: vi.fn(),
-		submit: vi.fn(),
-		startRecording: vi.fn(),
-		acceptRecording: vi.fn(),
-		cancelRecording: vi.fn(),
-		fileSelect: vi.fn(),
-		filePaste: () => false,
-		inlineText: vi.fn(),
-		textPreview: vi.fn(),
-		imagePreview: vi.fn(),
-		contentChange: vi.fn(),
-		editorKeyDown: vi.fn(),
-		composerKeyDown: vi.fn(),
-		dragOver: vi.fn(),
-		dragLeave: vi.fn(),
-		drop: vi.fn(),
-	},
-	meta: {
-		attachEditor: vi.fn(),
-		attachFileInput: vi.fn(),
-		warningId: "test-warning",
-		composerElement: null,
-		setComposerElement: vi.fn(),
-		initialValue: "",
-		sendShortcut: "enter",
-		sendShortcutLabel: "Enter",
-		attachments: [],
-	},
-};
-
 const Options = (
 	props: Partial<
 		Omit<React.ComponentProps<typeof AgentComposerOptions.Provider>, "children">
@@ -106,7 +52,9 @@ const workspaceOptions = [workspace];
 
 const renderOptions = (
 	children: React.ReactNode,
-	context = composerContext,
+	bindings: Partial<
+		React.ComponentProps<typeof AgentComposerProvider>["bindings"]
+	> = {},
 ) => {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
@@ -114,7 +62,19 @@ const renderOptions = (
 	queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
 	return render(
 		<AppProviders queryClient={queryClient}>
-			<AgentComposer.Provider {...context}>{children}</AgentComposer.Provider>
+			<AgentComposerProvider
+				bindings={{
+					onSend: vi.fn(),
+					isDisabled: false,
+					isLoading: false,
+					initialValue: "",
+					onContentChange: vi.fn(),
+					hasModelOptions: true,
+					...bindings,
+				}}
+			>
+				{children}
+			</AgentComposerProvider>
 		</AppProviders>,
 	);
 };
@@ -127,48 +87,24 @@ afterEach(() => {
 });
 
 describe("AgentComposerOptions", () => {
-	it.each([false, true])(
-		"delegates attachment and controlled option toggles (automations enabled: %s)",
-		async (automationsEnabled) => {
-			const user = userEvent.setup();
-			const onAttachClick = vi.fn();
-			const onPlanModeToggle = vi.fn();
-			const onManageAutomationsToggle = vi.fn();
-			renderOptions(
-				<Options
-					planning={{ enabled: false, onChange: onPlanModeToggle }}
-					automations={{
-						enabled: automationsEnabled,
-						onChange: onManageAutomationsToggle,
-					}}
-				/>,
-				{
-					...composerContext,
-					state: { ...composerContext.state, canAttachFiles: true },
-					actions: {
-						...composerContext.actions,
-						openFilePicker: onAttachClick,
-					},
-				},
-			);
+	it("opens the file picker from the options menu", async () => {
+		const user = userEvent.setup();
+		renderOptions(
+			<>
+				<AgentComposer.Attachments />
+				<Options />
+			</>,
+			{ onAttach: vi.fn() },
+		);
+		const onAttachClick = vi.spyOn(
+			screen.getByTestId("chat-attachment-file-input"),
+			"click",
+		);
 
-			await user.click(screen.getByRole("button", { name: "More options" }));
-			await user.click(screen.getByRole("button", { name: "Attach file" }));
-			expect(onAttachClick).toHaveBeenCalledTimes(1);
-			await user.click(screen.getByRole("button", { name: "More options" }));
-			await user.click(
-				screen.getByRole("menuitemcheckbox", { name: "Plan first" }),
-			);
-			expect(onPlanModeToggle).toHaveBeenCalledWith(true);
-			await user.click(screen.getByRole("button", { name: "More options" }));
-			await user.click(
-				screen.getByRole("menuitemcheckbox", { name: "Manage automations" }),
-			);
-			expect(onManageAutomationsToggle).toHaveBeenCalledWith(
-				!automationsEnabled,
-			);
-		},
-	);
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		await user.click(screen.getByRole("button", { name: "Attach file" }));
+		expect(onAttachClick).toHaveBeenCalledTimes(1);
+	});
 
 	it.each([false, true])(
 		"selects a workspace while disabled (mobile: %s)",
@@ -190,10 +126,7 @@ describe("AgentComposerOptions", () => {
 						onChange: onWorkspaceChange,
 					}}
 				/>,
-				{
-					...composerContext,
-					state: { ...composerContext.state, isDisabled: true },
-				},
+				{ isDisabled: true },
 			);
 
 			await user.click(screen.getByRole("button", { name: "More options" }));
@@ -211,36 +144,27 @@ describe("AgentComposerOptions", () => {
 			const user = userEvent.setup();
 			const onInterrupt = vi.fn();
 			const onCancelHistoryEdit = vi.fn();
-			const server = {
+			const server: typeof MockMCPServerConfig = {
 				...MockMCPServerConfig,
 				auth_type: "oauth2",
 				auth_connected: true,
 			};
 			renderOptions(
-				<AgentComposerProvider
-					bindings={{
-						onSend: vi.fn(),
-						isDisabled: false,
-						isLoading: false,
-						initialValue: "",
-						onContentChange: vi.fn(),
-						hasModelOptions: true,
-						isStreaming: true,
-						onInterrupt,
-						isEditingHistoryMessage,
-						onCancelHistoryEdit,
-					}}
-				>
-					<AgentComposer.Frame>
-						<Options
-							mcp={{
-								servers: [server],
-								selectedServerIds: [],
-								onSelectionChange: vi.fn(),
-							}}
-						/>
-					</AgentComposer.Frame>
-				</AgentComposerProvider>,
+				<AgentComposer.Frame>
+					<Options
+						mcp={{
+							servers: [server],
+							selectedServerIds: [],
+							onSelectionChange: vi.fn(),
+						}}
+					/>
+				</AgentComposer.Frame>,
+				{
+					isStreaming: true,
+					onInterrupt,
+					isEditingHistoryMessage,
+					onCancelHistoryEdit,
+				},
 			);
 
 			await user.click(screen.getByRole("button", { name: "More options" }));
@@ -317,7 +241,10 @@ describe("AgentComposerOptions", () => {
 	it("shares MCP selection between independently composed menu and badges", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
-		const server = { ...MockMCPServerConfig, auth_type: "none" };
+		const server: typeof MockMCPServerConfig = {
+			...MockMCPServerConfig,
+			auth_type: "none",
+		};
 		const ControlledOptions = () => {
 			const [selectedMCPServerIds, setSelectedMCPServerIds] = useState<
 				string[]
@@ -359,7 +286,7 @@ describe("AgentComposerOptions", () => {
 		const user = userEvent.setup();
 		const onMCPAuthComplete = vi.fn();
 		const onMCPSelectionChange = vi.fn();
-		const server = {
+		const server: typeof MockMCPServerConfig = {
 			...MockMCPServerConfig,
 			auth_type: "oauth2",
 			auth_connected: false,

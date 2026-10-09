@@ -32,7 +32,10 @@ import type {
 	AttachedWorkspaceInfo,
 	ToolBadgeData,
 } from "./AgentComposerBadges";
-import { MCPServerMenuItem } from "./AgentComposerMCPMenu";
+import {
+	MCPServerMenuItem,
+	setMCPServerSelected,
+} from "./AgentComposerMCPMenu";
 import {
 	AgentComposerWorkspacePicker,
 	AgentComposerWorkspaceView,
@@ -77,16 +80,11 @@ export type AgentComposerOptionsData = {
 };
 
 /** Shared options contract for sibling tool controls. */
-type AgentComposerOptionsContextValue = {
-	state: Omit<AgentComposerOptionsData, "linkedWorkspace">;
-	actions: {
-		toggleMcp: (id: string, checked: boolean) => void;
-		removeWorkspace?: () => void;
-		disablePlanMode: () => void;
-	};
-	meta: {
-		badges: readonly ToolBadgeData[];
-	};
+type AgentComposerOptionsContextValue = Omit<
+	AgentComposerOptionsData,
+	"linkedWorkspace"
+> & {
+	badges: readonly ToolBadgeData[];
 };
 
 export const OptionsContext =
@@ -113,7 +111,7 @@ export const AgentComposerOptionsMenu = ({
 }) => {
 	const options = useAgentComposerOptions();
 	const composer = useAgentComposer();
-	const { mcp, workspaceSelection } = options.state;
+	const { mcp, workspaceSelection } = options;
 
 	const [open, setOpen] = useState(false);
 	const [view, setView] = useState<"main" | "workspace">("main");
@@ -127,14 +125,14 @@ export const AgentComposerOptionsMenu = ({
 	);
 
 	const { connectingServerId, connect } = useMCPOAuthFlow({
-		organizationId: options.state.organizationId,
+		organizationId: options.organizationId,
 		onAuthComplete: mcp?.onAuthComplete,
 		onFlowSuccess: (serverId) => {
 			if (
 				mcp?.servers.some((server) => server.id === serverId) &&
 				!mcp.selectedServerIds.includes(serverId)
 			) {
-				options.actions.toggleMcp(serverId, true);
+				setMCPServerSelected(mcp, serverId, true);
 			}
 		},
 	});
@@ -208,7 +206,7 @@ export const AgentComposerOptionsMenu = ({
 						<AgentComposerWorkspaceView
 							workspaceOptions={workspaceSelection.options}
 							selectedWorkspaceId={workspaceSelection.selectedId}
-							chatOrganizationId={options.state.organizationId}
+							chatOrganizationId={options.organizationId}
 							onSelect={selectWorkspace}
 							onBack={() => setView("main")}
 						/>
@@ -219,7 +217,7 @@ export const AgentComposerOptionsMenu = ({
 								<AgentComposerWorkspacePicker
 									workspaceOptions={workspaceSelection.options}
 									selectedWorkspaceId={workspaceSelection.selectedId}
-									chatOrganizationId={options.state.organizationId}
+									chatOrganizationId={options.organizationId}
 									onSelect={selectWorkspace}
 									isMobile={isBelowMdViewport()}
 									open={workspacePickerOpen}
@@ -235,11 +233,10 @@ export const AgentComposerOptionsMenu = ({
 										<MCPServerMenuItem
 											key={server.id}
 											server={server}
-											selectedServerIds={mcp.selectedServerIds}
+											mcp={mcp}
 											connectingServerId={connectingServerId}
 											isDisabled={composer.state.isDisabled}
 											onConnect={connect}
-											onToggle={options.actions.toggleMcp}
 											onDisconnect={(server) => {
 												setOpen(false);
 												setDisconnectTarget(server);
@@ -279,7 +276,7 @@ export const AgentComposerOptionsMenu = ({
 
 const ComposerMenuActions = ({ onClose }: { onClose: () => void }) => {
 	const { state, actions } = useAgentComposer();
-	const { planning, automations } = useAgentComposerOptions().state;
+	const { planning, automations } = useAgentComposerOptions();
 
 	return (
 		<>

@@ -24,6 +24,9 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useOverflowCount } from "../hooks/useOverflowCount";
+import { useAgentComposer } from "./AgentComposer";
+import { setMCPServerSelected } from "./AgentComposerMCPMenu";
+import { useAgentComposerOptions } from "./AgentComposerOptionsMenu";
 import { MCPServerIconStack } from "./MCPServerIconStack";
 import { WorkspacePill } from "./WorkspacePill";
 
@@ -55,13 +58,6 @@ export type ToolBadgeData =
 export const composerPillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 
-type BadgeActions = {
-	onRemoveWorkspace?: () => void;
-	onRemoveMcp: (serverId: string) => void;
-	onRemovePlanning?: () => void;
-	isDisabled: boolean;
-};
-
 // Non-MCP badges can share a kind, so their keys are position-qualified.
 const badgeKey = (badge: ToolBadgeData, index: number) => {
 	if (badge.kind === "mcp") {
@@ -90,11 +86,12 @@ const BadgePopoverContent = ({ className, ...props }: PopoverContentProps) => (
 
 /** Measures the ordered badge row and renders trailing badges in its overflow menu. */
 export const AgentComposerBadges = ({
-	badges,
-	...actions
-}: BadgeActions & {
-	badges: readonly ToolBadgeData[];
+	leadingBadges = [],
+}: {
+	leadingBadges?: readonly Extract<ToolBadgeData, { kind: "planning" }>[];
 }) => {
+	const options = useAgentComposerOptions();
+	const badges = [...leadingBadges, ...options.badges];
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [open, setOpen] = useState(false);
 
@@ -112,7 +109,6 @@ export const AgentComposerBadges = ({
 				<ComposerBadge
 					key={badgeKey(badge, index)}
 					badge={badge}
-					{...actions}
 					hidden={overflowCount > 0 && index >= visibleCount}
 				/>
 			))}
@@ -152,51 +148,12 @@ export const AgentComposerBadges = ({
 						<ComposerBadge
 							key={badgeKey(badge, visibleCount + index)}
 							badge={badge}
-							{...actions}
 							inOverflowPopover
 						/>
 					))}
 				</BadgePopoverContent>
 			</Popover>
 		</div>
-	);
-};
-
-const ComposerBadge = ({
-	badge,
-	hidden,
-	inOverflowPopover = false,
-	...actions
-}: BadgeActions & {
-	badge: ToolBadgeData;
-	hidden?: boolean;
-	inOverflowPopover?: boolean;
-}) => {
-	if (badge.kind === "linked-workspace") {
-		return (
-			<span
-				className={cn(
-					"flex min-w-0 text-xs",
-					!inOverflowPopover && composerPillSizingClasses,
-					hidden && "hidden",
-				)}
-			>
-				<WorkspacePill
-					{...badge.props}
-					onRemoveWorkspace={actions.onRemoveWorkspace}
-					inOverflowPopover={inOverflowPopover}
-				/>
-			</span>
-		);
-	}
-
-	return (
-		<ToolBadge
-			badge={badge}
-			{...actions}
-			className={hidden ? "hidden" : undefined}
-			disableTooltip={inOverflowPopover}
-		/>
 	);
 };
 
@@ -224,42 +181,43 @@ const BadgeDismissButton = ({
 
 /** Planning badge composed separately from the measured row. */
 export const AgentComposerPlanningBadge = ({
-	onRemove,
-	isDisabled,
 	className = "hidden sm:inline-flex",
 }: {
-	onRemove?: () => void;
-	isDisabled: boolean;
 	className?: string;
-}) => (
-	<span
-		data-testid="planning-badge"
-		className={cn(
-			"shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
-			className,
-		)}
-	>
-		<PencilIcon className="size-3" />
-		Planning
-		{onRemove && (
+}) => {
+	const { planning } = useAgentComposerOptions();
+	const { state } = useAgentComposer();
+
+	if (!planning.enabled) {
+		return null;
+	}
+
+	return (
+		<span
+			data-testid="planning-badge"
+			className={cn(
+				"shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
+				className,
+			)}
+		>
+			<PencilIcon className="size-3" />
+			Planning
 			<BadgeDismissButton
-				onClick={onRemove}
+				onClick={() => planning.onChange(false)}
 				ariaLabel="Disable plan mode"
-				isDisabled={isDisabled}
+				isDisabled={state.isDisabled}
 			/>
-		)}
-	</span>
-);
+		</span>
+	);
+};
 
 const MCPGroupBadge = ({
 	servers,
-	onRemoveMcp,
-	isDisabled,
 	className,
-}: { servers: readonly MCPServerConfig[]; className: string } & Pick<
-	BadgeActions,
-	"onRemoveMcp" | "isDisabled"
->) => {
+}: {
+	servers: readonly MCPServerConfig[];
+	className: string;
+}) => {
 	const [open, setOpen] = useState(false);
 
 	const label = `${servers.length} MCPs`;
@@ -284,45 +242,54 @@ const MCPGroupBadge = ({
 			</PopoverTrigger>
 			<BadgePopoverContent>
 				{servers.map((server) => (
-					<ToolBadge
-						key={server.id}
-						badge={{ kind: "mcp", server }}
-						onRemoveMcp={onRemoveMcp}
-						isDisabled={isDisabled}
-					/>
+					<ComposerBadge key={server.id} badge={{ kind: "mcp", server }} />
 				))}
 			</BadgePopoverContent>
 		</Popover>
 	);
 };
 
-const ToolBadge = ({
+const ComposerBadge = ({
 	badge,
-	onRemoveWorkspace,
-	onRemoveMcp,
-	onRemovePlanning,
-	isDisabled,
-	className,
-	disableTooltip,
-}: BadgeActions & {
-	badge: Exclude<ToolBadgeData, { kind: "linked-workspace" }>;
-	className?: string;
-	// Overflow popovers auto-focus badges; suppress the tooltip there.
-	disableTooltip?: boolean;
+	hidden,
+	inOverflowPopover = false,
+}: {
+	badge: ToolBadgeData;
+	hidden?: boolean;
+	inOverflowPopover?: boolean;
 }) => {
+	const { workspaceSelection, mcp } = useAgentComposerOptions();
+	const { state } = useAgentComposer();
+	const isDisabled = state.isDisabled;
+	const onRemoveWorkspace = workspaceSelection?.onChange
+		? () => workspaceSelection.onChange?.(null)
+		: undefined;
+
+	if (badge.kind === "linked-workspace") {
+		return (
+			<span
+				className={cn(
+					"flex min-w-0 text-xs",
+					!inOverflowPopover && composerPillSizingClasses,
+					hidden && "hidden",
+				)}
+			>
+				<WorkspacePill
+					{...badge.props}
+					onRemoveWorkspace={onRemoveWorkspace}
+					inOverflowPopover={inOverflowPopover}
+				/>
+			</span>
+		);
+	}
+
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
-		className,
+		hidden && "hidden",
 	);
 
 	if (badge.kind === "planning") {
-		return (
-			<AgentComposerPlanningBadge
-				onRemove={onRemovePlanning}
-				isDisabled={isDisabled}
-				className={badgeCls}
-			/>
-		);
+		return <AgentComposerPlanningBadge className={badgeCls} />;
 	}
 
 	if (badge.kind === "attached-workspace") {
@@ -354,7 +321,7 @@ const ToolBadge = ({
 					</span>
 				</TooltipTrigger>
 				{/* Touch focus would stick the tooltip open below md. */}
-				{!disableTooltip && (
+				{!inOverflowPopover && (
 					<TooltipContent className="hidden md:block">
 						{badge.statusLabel}
 					</TooltipContent>
@@ -380,14 +347,7 @@ const ToolBadge = ({
 	}
 
 	if (badge.kind === "mcp-group") {
-		return (
-			<MCPGroupBadge
-				servers={badge.servers}
-				onRemoveMcp={onRemoveMcp}
-				isDisabled={isDisabled}
-				className={badgeCls}
-			/>
-		);
+		return <MCPGroupBadge servers={badge.servers} className={badgeCls} />;
 	}
 
 	return (
@@ -409,7 +369,11 @@ const ToolBadge = ({
 				</>
 			) : (
 				<BadgeDismissButton
-					onClick={() => onRemoveMcp(badge.server.id)}
+					onClick={() => {
+						if (mcp) {
+							setMCPServerSelected(mcp, badge.server.id, false);
+						}
+					}}
 					ariaLabel={`Remove ${badge.server.display_name}`}
 					isDisabled={isDisabled}
 				/>

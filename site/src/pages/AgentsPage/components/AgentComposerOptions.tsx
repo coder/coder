@@ -16,7 +16,6 @@ import {
 	type AgentComposerOptionsData,
 	AgentComposerOptionsMenu,
 	OptionsContext,
-	useAgentComposerOptions,
 } from "./AgentComposerOptionsMenu";
 
 export type { AttachedWorkspaceInfo } from "./AgentComposerBadges";
@@ -28,24 +27,13 @@ type AgentComposerOptionsProviderProps = AgentComposerOptionsData & {
 
 const AgentComposerOptionsProvider = ({
 	children,
+	linkedWorkspace,
 	...data
 }: AgentComposerOptionsProviderProps) => {
-	const { planning, mcp, workspaceSelection, linkedWorkspace } = data;
+	const { mcp, workspaceSelection } = data;
 	const selectedServerIds = mcp?.selectedServerIds;
-	const { options, selectedId, onChange } = workspaceSelection ?? {};
+	const { options, selectedId } = workspaceSelection ?? {};
 	const { workspace, agent, chatId, attachedWorkspace } = linkedWorkspace ?? {};
-
-	const toggleMcp = (serverId: string, checked: boolean) => {
-		if (!mcp) {
-			return;
-		}
-
-		mcp.onSelectionChange(
-			checked
-				? [...mcp.selectedServerIds, serverId]
-				: mcp.selectedServerIds.filter((id) => id !== serverId),
-		);
-	};
 
 	const enabledMcpServers =
 		mcp?.servers.filter((server) => server.enabled) ?? [];
@@ -90,19 +78,9 @@ const AgentComposerOptionsProvider = ({
 	return (
 		<OptionsContext
 			value={{
-				state: {
-					organizationId: data.organizationId,
-					planning,
-					automations: data.automations,
-					mcp: mcp ? { ...mcp, servers: enabledMcpServers } : undefined,
-					workspaceSelection,
-				},
-				actions: {
-					toggleMcp,
-					removeWorkspace: onChange ? () => onChange(null) : undefined,
-					disablePlanMode: () => planning.onChange(false),
-				},
-				meta: { badges },
+				...data,
+				mcp: mcp ? { ...mcp, servers: enabledMcpServers } : undefined,
+				badges,
 			}}
 		>
 			{children}
@@ -151,47 +129,12 @@ const AgentComposerModel = (props: AgentComposerModelProps) => {
 	);
 };
 
-const AgentComposerOptionsPlanningBadge = () => {
-	const { state, actions } = useAgentComposerOptions();
-	const composer = useAgentComposer();
-
-	if (!state.planning.enabled) {
-		return null;
-	}
-
-	return (
-		<AgentComposerPlanningBadge
-			onRemove={actions.disablePlanMode}
-			isDisabled={composer.state.isDisabled}
-		/>
-	);
-};
-
-const AgentComposerOptionsBadges = ({
-	leadingBadges = [],
-}: {
-	leadingBadges?: readonly Extract<ToolBadgeData, { kind: "planning" }>[];
-}) => {
-	const { actions, meta } = useAgentComposerOptions();
-	const { state } = useAgentComposer();
-
-	return (
-		<AgentComposerBadges
-			badges={[...leadingBadges, ...meta.badges]}
-			onRemoveWorkspace={actions.removeWorkspace}
-			onRemoveMcp={(id) => actions.toggleMcp(id, false)}
-			onRemovePlanning={actions.disablePlanMode}
-			isDisabled={state.isDisabled}
-		/>
-	);
-};
-
 /** Composer controls that callers can arrange or omit independently. */
 export const AgentComposerOptions = {
 	Provider: AgentComposerOptionsProvider,
 	Frame: AgentComposerOptionsFrame,
 	Model: AgentComposerModel,
 	Menu: AgentComposerOptionsMenu,
-	PlanningBadge: AgentComposerOptionsPlanningBadge,
-	Badges: AgentComposerOptionsBadges,
+	PlanningBadge: AgentComposerPlanningBadge,
+	Badges: AgentComposerBadges,
 };

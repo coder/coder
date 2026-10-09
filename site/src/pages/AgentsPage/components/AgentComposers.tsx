@@ -25,12 +25,7 @@ type AgentComposerConfiguration = {
 		"children"
 	>;
 	setup: AgentComposerSetup;
-	editor?: Omit<
-		React.ComponentProps<typeof AgentComposer.Editor>,
-		"hasWorkspace"
-	> & {
-		hasWorkspace?: boolean;
-	};
+	editor?: Partial<React.ComponentProps<typeof AgentComposer.Editor>>;
 	fillWidth?: boolean;
 };
 
@@ -170,10 +165,12 @@ export const ChatComposer = ({
 								<AgentComposer.VoiceInput />
 								{context && <AgentComposerContextIndicator {...context} />}
 								{bindings.isEditingHistoryMessage ? (
-									<HistoryEditComposerActions />
+									<AgentComposer.SaveEdit />
 								) : (
-									<ChatComposerActions />
+									<AgentComposer.Submit />
 								)}
+								<AgentComposer.Stop />
+								<AgentComposer.InterruptStatus />
 							</div>
 						</AgentComposer.Toolbar>
 					</AgentComposer.Frame>
@@ -182,26 +179,6 @@ export const ChatComposer = ({
 		</AgentComposerProvider>
 	);
 };
-
-function ChatComposerActions() {
-	return (
-		<>
-			<AgentComposer.Submit />
-			<AgentComposer.Stop />
-			<AgentComposer.InterruptStatus />
-		</>
-	);
-}
-
-function HistoryEditComposerActions() {
-	return (
-		<>
-			<AgentComposer.SaveEdit />
-			<AgentComposer.Stop />
-			<AgentComposer.InterruptStatus />
-		</>
-	);
-}
 
 type LoadingChatComposerProps = {
 	bindings: Pick<
