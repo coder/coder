@@ -194,8 +194,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		retryState,
 		reconnectState,
 		streamError,
-		// The persisted error belongs to the turn a pending edit replaces.
-		persistedError: pendingEdit ? null : (persistedError ?? null),
+		persistedError: persistedError ?? null,
 		isAwaitingFirstStreamChunk,
 		chatStatus,
 	});
