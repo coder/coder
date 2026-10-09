@@ -1009,20 +1009,6 @@ func (mr *MockStoreMockRecorder) DeleteChatOrganizationModelOverride(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatOrganizationModelOverride", reflect.TypeOf((*MockStore)(nil).DeleteChatOrganizationModelOverride), ctx, arg)
 }
 
-// DeleteChatProjectByID mocks base method.
-func (m *MockStore) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatProjectByID", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteChatProjectByID indicates an expected call of DeleteChatProjectByID.
-func (mr *MockStoreMockRecorder) DeleteChatProjectByID(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatProjectByID", reflect.TypeOf((*MockStore)(nil).DeleteChatProjectByID), ctx, id)
-}
-
 // DeleteChatProjectMemoryByID mocks base method.
 func (m *MockStore) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -3697,21 +3683,6 @@ func (m *MockStore) GetChatProjectMemoryByName(ctx context.Context, arg database
 func (mr *MockStoreMockRecorder) GetChatProjectMemoryByName(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectMemoryByName", reflect.TypeOf((*MockStore)(nil).GetChatProjectMemoryByName), ctx, arg)
-}
-
-// GetChatProjectsByOwnerID mocks base method.
-func (m *MockStore) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatProjectsByOwnerID", ctx, ownerID)
-	ret0, _ := ret[0].([]database.ChatProject)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatProjectsByOwnerID indicates an expected call of GetChatProjectsByOwnerID.
-func (mr *MockStoreMockRecorder) GetChatProjectsByOwnerID(ctx, ownerID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetChatProjectsByOwnerID), ctx, ownerID)
 }
 
 // GetChatProjectsOwnedOrSharedWithUserID mocks base method.

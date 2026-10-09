@@ -2349,10 +2349,6 @@ func (q *querier) DeleteChatOrganizationModelOverride(ctx context.Context, arg d
 	return q.db.DeleteChatOrganizationModelOverride(ctx, arg)
 }
 
-func (q *querier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
-	return deleteQ(q.log, q.auth, q.db.GetChatProjectByID, q.db.DeleteChatProjectByID)(ctx, id)
-}
-
 func (q *querier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
 	row, err := q.db.GetChatProjectMemoryByID(ctx, id)
 	if err != nil {
@@ -3834,10 +3830,6 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 		return database.GetChatProjectMemoryByNameRow{}, err
 	}
 	return row, nil
-}
-
-func (q *querier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOwnerID)(ctx, ownerID)
 }
 
 func (q *querier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {

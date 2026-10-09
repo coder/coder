@@ -9,6 +9,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
 
 // SetFamilyArchivedInput configures [SetFamilyArchived]. The struct
@@ -85,6 +87,18 @@ func SetFamilyArchived(
 		if root.ParentChatID.Valid {
 			return ErrChatNotRoot
 		}
+		// A family archived by its project delete must stay archived; the
+		// root lock serializes this check with that delete.
+		if !input.Archived && root.ProjectID.Valid {
+			//nolint:gocritic // The caller authorized the root chat; the query requires reading every chat.
+			inDeletedProject, err := tx.IsChatInDeletedChatProject(dbauthz.AsChatd(ctx), root.ID)
+			if err != nil {
+				return xerrors.Errorf("check root chat project: %w", err)
+			}
+			if inDeletedProject {
+				return ErrChatNotFound
+			}
+		}
 		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)
 		if err != nil {
 			return xerrors.Errorf("get chat family: %w", err)
@@ -150,4 +164,81 @@ func SetFamilyArchived(
 		return familyChats, err
 	}
 	return familyChats, nil
+}
+
+// DeleteChatProject tombstones a project and archives every user's chats
+// in it with their sub-chats, then returns those chats as they were before
+// the archive. ctx's actor must be allowed to delete the project: the
+// project lock and tombstone run as that actor, and the chat reads and
+// writes run as chatd. Each chat moves from any execution state to
+// [StateXW], or [StateXE0] from error, with no worker or runner and an
+// empty queue. A chat:update per chat is published after commit, so the
+// runners the chats named before the archive stop without waiting for
+// heartbeat renewal. A publish error is returned with the committed chats.
+// The transaction is retried once on a deadlock with a chat purge.
+func DeleteChatProject(ctx context.Context, store database.Store, publisher Publisher, projectID uuid.UUID) ([]database.Chat, error) {
+	if store == nil {
+		return nil, xerrors.New("chatstate: DeleteChatProject called with nil store")
+	}
+	if publisher == nil {
+		return nil, xerrors.New("chatstate: DeleteChatProject called with nil publisher")
+	}
+	chats, buffer, err := deleteChatProjectTx(ctx, store, publisher, projectID)
+	if database.IsDeadlockError(err) {
+		chats, buffer, err = deleteChatProjectTx(ctx, store, publisher, projectID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := buffer.Flush(); err != nil {
+		return chats, xerrors.Errorf("publish chat updates: %w", err)
+	}
+	return chats, nil
+}
+
+func deleteChatProjectTx(ctx context.Context, store database.Store, publisher Publisher, projectID uuid.UUID) ([]database.Chat, *PublishBuffer, error) {
+	//nolint:gocritic // Sharees own some of the chats; the tombstone update authorizes the delete.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	buffer := NewPublishBuffer(publisher)
+	var before []database.Chat
+	err := store.InTx(func(tx database.Store) error {
+		// FOR UPDATE waits for root chat creations in the project, which
+		// hold it FOR SHARE, and makes a concurrent delete find no project.
+		if _, err := tx.GetChatProjectByIDForUpdate(ctx, projectID); err != nil {
+			return xerrors.Errorf("lock project: %w", err)
+		}
+		// Runs as the caller: this call is the delete authorization check.
+		if err := tx.UpdateChatProjectDeletedByID(ctx, projectID); err != nil {
+			return xerrors.Errorf("mark project deleted: %w", err)
+		}
+		if err := tx.LockChatProjectRootChats(chatdCtx, projectID); err != nil {
+			return xerrors.Errorf("lock project root chats: %w", err)
+		}
+		var err error
+		before, err = tx.GetChatProjectChatFamilies(chatdCtx, projectID)
+		if err != nil {
+			return xerrors.Errorf("get project chats: %w", err)
+		}
+		if err := tx.ArchiveChatsOfDeletedChatProject(chatdCtx, projectID); err != nil {
+			return xerrors.Errorf("archive project chats: %w", err)
+		}
+		if err := tx.DeleteChatQueuedMessagesOfDeletedChatProject(chatdCtx, projectID); err != nil {
+			return xerrors.Errorf("clear project chat queues: %w", err)
+		}
+		after, err := tx.GetChatProjectChatFamilies(chatdCtx, projectID)
+		if err != nil {
+			return xerrors.Errorf("reload project chats: %w", err)
+		}
+		for _, chat := range after {
+			if err := buffer.Publish(coderdpubsub.ChatStateUpdateChannel(chat.ID), buildChatUpdateMessage(chat)); err != nil {
+				return xerrors.Errorf("buffer chat update: %w", err)
+			}
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		buffer.Discard()
+		return nil, nil, err
+	}
+	return before, buffer, nil
 }

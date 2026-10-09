@@ -8,10 +8,11 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { QueryClientProvider } from "react-query";
+import { type QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
@@ -85,6 +86,7 @@ type WrapperProps = React.PropsWithChildren<{
 	experiments?: TypesGen.Experiment[];
 	organizations?: TypesGen.Organization[];
 	initialEntry?: string;
+	queryClient?: QueryClient;
 }>;
 
 const Wrapper: React.FC<WrapperProps> = ({
@@ -92,8 +94,8 @@ const Wrapper: React.FC<WrapperProps> = ({
 	experiments = [],
 	organizations = [MockDefaultOrganization],
 	initialEntry = "/agents",
+	queryClient = createTestQueryClient(),
 }) => {
-	const queryClient = createTestQueryClient();
 	const dashboardValue = {
 		entitlements: MockEntitlements,
 		experiments,
@@ -473,10 +475,19 @@ describe("ChatsSidebar projects", () => {
 			),
 		);
 
+		const queryClient = createTestQueryClient();
+		const projectChat = buildChat({ project_id: MockChatProject.id });
+		// Nothing observes the entity, so keep it from being collected.
+		queryClient.setQueryDefaults(chatEntityKey(projectChat.id), {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatEntityKey(projectChat.id), projectChat);
+
 		render(
 			<Wrapper
 				experiments={["chat-projects"]}
 				initialEntry={`/agents/projects/${MockChatProject.id}`}
+				queryClient={queryClient}
 			>
 				<ChatsSidebar {...defaultProps} />
 				<ProjectLocationProbe />
@@ -502,6 +513,9 @@ describe("ChatsSidebar projects", () => {
 			expect(localStorage.getItem(draftKeys.text)).toBeNull();
 		});
 		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
+		expect(
+			queryClient.getQueryData(chatEntityKey(projectChat.id)),
+		).toBeUndefined();
 		await waitFor(() =>
 			expect(screen.getByTestId("location-pathname")).toHaveTextContent(
 				/^\/agents$/,

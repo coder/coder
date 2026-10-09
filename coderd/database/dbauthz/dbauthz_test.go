@@ -1376,13 +1376,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().CountChatProjectsByOwnerID(gomock.Any(), ownerID).Return(int64(3), nil).AnyTimes()
 		check.Args(ownerID).Asserts(rbac.ResourceChatProject, policy.ActionRead).Returns(int64(3))
 	}))
-	s.Run("GetChatProjectsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		ownerID := uuid.New()
-		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: ownerID})
-		rows := []database.ChatProject{project}
-		dbm.EXPECT().GetChatProjectsByOwnerID(gomock.Any(), ownerID).Return(rows, nil).AnyTimes()
-		check.Args(ownerID).Asserts(project, policy.ActionRead).Returns(rows)
-	}))
 	s.Run("GetChatProjectsOwnedOrSharedWithUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		userID := uuid.New()
 		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: userID})
@@ -1577,12 +1570,6 @@ func (s *MethodTestSuite) TestChats() {
 		arg := database.UpsertChatOrganizationSystemPromptParams{OrganizationID: orgID, SystemPrompt: "prompt"}
 		dbm.EXPECT().UpsertChatOrganizationSystemPrompt(gomock.Any(), arg).Return(database.ChatOrganizationSystemPrompt{OrganizationID: orgID, SystemPrompt: "prompt"}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatModelConfig.InOrg(orgID), policy.ActionUpdate)
-	}))
-	s.Run("DeleteChatProjectByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		project := testutil.Fake(s.T(), faker, database.ChatProject{})
-		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
-		dbm.EXPECT().DeleteChatProjectByID(gomock.Any(), project.ID).Return(nil).AnyTimes()
-		check.Args(project.ID).Asserts(project, policy.ActionDelete)
 	}))
 	s.Run("UpdateChatProjectDeletedByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})

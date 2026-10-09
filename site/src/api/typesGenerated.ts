@@ -3586,6 +3586,22 @@ export interface ChatProject {
 	readonly icon: string;
 	readonly created_at: string;
 	readonly updated_at: string;
+	readonly permissions: ChatProjectPermissions;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectACL lists who a chat project is shared with. The Everyone
+ * group's ID is the organization ID.
+ */
+export interface ChatProjectACL {
+	readonly users: readonly ChatProjectUser[];
+	readonly groups: readonly ChatProjectGroup[];
+}
+
+// From codersdk/chats.go
+export interface ChatProjectGroup extends Group {
+	readonly role: ChatProjectRole;
 }
 
 // From codersdk/chats.go
@@ -3602,6 +3618,26 @@ export interface ChatProjectMemory {
 	readonly created_by: string;
 	readonly created_by_username: string;
 	readonly created_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectPermissions are the actions the caller may take on a project.
+ */
+export interface ChatProjectPermissions {
+	readonly update: boolean;
+	readonly delete: boolean;
+	readonly share: boolean;
+}
+
+// From codersdk/chats.go
+export type ChatProjectRole = "admin" | "" | "use";
+
+export const ChatProjectRoles: ChatProjectRole[] = ["admin", "", "use"];
+
+// From codersdk/chats.go
+export interface ChatProjectUser extends MinimalUser {
+	readonly role: ChatProjectRole;
 }
 
 // From codersdk/chats.go
@@ -4020,6 +4056,7 @@ export type ChatWatchEventKind =
 	| "created"
 	| "deleted"
 	| "diff_status_change"
+	| "hard_deleted"
 	| "status_change"
 	| "summary_change"
 	| "title_change";
@@ -4031,6 +4068,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"created",
 	"deleted",
 	"diff_status_change",
+	"hard_deleted",
 	"status_change",
 	"summary_change",
 	"title_change",
@@ -10831,6 +10869,15 @@ export interface UpdateChatPersonalModelOverridesAdminSettingsRequest {
  */
 export interface UpdateChatPlanModeInstructionsRequest {
 	readonly plan_mode_instructions: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatProjectACL changes only the listed principals.
+ */
+export interface UpdateChatProjectACL {
+	readonly user_roles?: Record<string, ChatProjectRole>;
+	readonly group_roles?: Record<string, ChatProjectRole>;
 }
 
 // From codersdk/chats.go

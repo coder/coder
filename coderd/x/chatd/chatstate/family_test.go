@@ -304,6 +304,86 @@ WHERE datname = current_database()
 	require.Equal(t, []uuid.UUID{root.ID}, ids, "no child may join the archived family")
 }
 
+func TestCreateChatInChatProject(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+
+	create := func(projectID, rootID uuid.NullUUID) error {
+		_, err := chatstate.CreateChat(ctx, db, newRecordingPubsub(), chatstate.CreateChatInput{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			ProjectID:         projectID,
+			LastModelConfigID: model.ID,
+			Title:             "chat",
+			ClientType:        database.ChatClientTypeApi,
+			ParentChatID:      rootID,
+			RootChatID:        rootID,
+			InitialStatus:     database.ChatStatusRunning,
+			InitialMessages: []chatstate.Message{
+				userTextMessage("hello", user.ID, model.ID),
+			},
+		})
+		return err
+	}
+	inProject := uuid.NullUUID{UUID: project.ID, Valid: true}
+	require.NoError(t, create(inProject, uuid.NullUUID{}))
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		ProjectID:         inProject,
+		Status:            database.ChatStatusWaiting,
+	})
+	require.NoError(t, create(uuid.NullUUID{}, uuid.NullUUID{UUID: root.ID, Valid: true}), "sub-chats of a live project's chat are allowed")
+
+	require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+	require.ErrorIs(t, create(inProject, uuid.NullUUID{}), chatstate.ErrChatProjectNotFound)
+}
+
+func TestSetFamilyArchivedKeepsDeletedProjectArchived(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+	newRoot := func() database.Chat {
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+			ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+			Status:            database.ChatStatusWaiting,
+		})
+	}
+	setArchived := func(rootID uuid.UUID, archived bool) error {
+		_, err := chatstate.SetFamilyArchived(ctx, db, newRecordingPubsub(), chatstate.SetFamilyArchivedInput{RootID: rootID, Archived: archived})
+		return err
+	}
+
+	live := newRoot()
+	require.NoError(t, setArchived(live.ID, true))
+	require.NoError(t, setArchived(live.ID, false), "a live project's chats can be unarchived")
+	chat, err := db.GetChatByID(ctx, live.ID)
+	require.NoError(t, err)
+	require.False(t, chat.Archived)
+
+	root := newRoot()
+	_, err = chatstate.DeleteChatProject(ctx, db, newRecordingPubsub(), project.ID)
+	require.NoError(t, err)
+
+	_, err = chatstate.SetFamilyArchived(ctx, db, newRecordingPubsub(), chatstate.SetFamilyArchivedInput{
+		RootID:   root.ID,
+		Archived: false,
+	})
+	require.ErrorIs(t, err, chatstate.ErrChatNotFound)
+	chat, err = db.GetChatByID(ctx, root.ID)
+	require.NoError(t, err)
+	require.True(t, chat.Archived)
+}
+
 func seedFamilyDeps(t *testing.T, db database.Store) (database.User, database.Organization, database.ChatModelConfig) {
 	t.Helper()
 	user := dbgen.User(t, db, database.User{})

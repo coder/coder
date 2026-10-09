@@ -5048,22 +5048,139 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "permissions": {
+    "delete": true,
+    "share": true,
+    "update": true
+  },
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description                                                                                   |
-|-------------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------|
-| `created_at`      | string | false    |              |                                                                                               |
-| `description`     | string | false    |              |                                                                                               |
-| `icon`            | string | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
-| `id`              | string | false    |              |                                                                                               |
-| `name`            | string | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
-| `organization_id` | string | false    |              |                                                                                               |
-| `owner_id`        | string | false    |              |                                                                                               |
-| `updated_at`      | string | false    |              |                                                                                               |
+| Name              | Type                                                               | Required | Restrictions | Description                                                                                   |
+|-------------------|--------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------|
+| `created_at`      | string                                                             | false    |              |                                                                                               |
+| `description`     | string                                                             | false    |              |                                                                                               |
+| `icon`            | string                                                             | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
+| `id`              | string                                                             | false    |              |                                                                                               |
+| `name`            | string                                                             | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
+| `organization_id` | string                                                             | false    |              |                                                                                               |
+| `owner_id`        | string                                                             | false    |              |                                                                                               |
+| `permissions`     | [codersdk.ChatProjectPermissions](#codersdkchatprojectpermissions) | false    |              |                                                                                               |
+| `updated_at`      | string                                                             | false    |              |                                                                                               |
+
+## codersdk.ChatProjectACL
+
+```json
+{
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "use",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "use",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                            | Required | Restrictions | Description |
+|----------|-----------------------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.ChatProjectGroup](#codersdkchatprojectgroup) | false    |              |             |
+| `users`  | array of [codersdk.ChatProjectUser](#codersdkchatprojectuser)   | false    |              |             |
+
+## codersdk.ChatProjectGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "use",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.ChatProjectRole](#codersdkchatprojectrole)  | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value(s)       |
+|----------|----------------|
+| `role`   | `admin`, `use` |
 
 ## codersdk.ChatProjectMemory
 
@@ -5094,6 +5211,66 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`                | string | false    |              |             |
 | `organization_id`     | string | false    |              |             |
 | `project_id`          | string | false    |              |             |
+
+## codersdk.ChatProjectPermissions
+
+```json
+{
+  "delete": true,
+  "share": true,
+  "update": true
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+|----------|---------|----------|--------------|-------------|
+| `delete` | boolean | false    |              |             |
+| `share`  | boolean | false    |              |             |
+| `update` | boolean | false    |              |             |
+
+## codersdk.ChatProjectRole
+
+```json
+"use"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)           |
+|--------------------|
+| ``, `admin`, `use` |
+
+## codersdk.ChatProjectUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "role": "use",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                                 | Required | Restrictions | Description |
+|--------------|------------------------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                               | false    |              |             |
+| `id`         | string                                               | true     |              |             |
+| `name`       | string                                               | false    |              |             |
+| `role`       | [codersdk.ChatProjectRole](#codersdkchatprojectrole) | false    |              |             |
+| `username`   | string                                               | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)       |
+|----------|----------------|
+| `role`   | `admin`, `use` |
 
 ## codersdk.ChatPrompt
 
@@ -5989,9 +6166,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                 |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                                                                 |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `hard_deleted`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ChatWorkspaceTTLResponse
 
@@ -16888,6 +17065,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name                     | Type   | Required | Restrictions | Description |
 |--------------------------|--------|----------|--------------|-------------|
 | `plan_mode_instructions` | string | false    |              |             |
+
+## codersdk.UpdateChatProjectACL
+
+```json
+{
+  "group_roles": {
+    "property1": "use",
+    "property2": "use"
+  },
+  "user_roles": {
+    "property1": "use",
+    "property2": "use"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                 | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                               | false    |              |             |
+| » `[any property]` | [codersdk.ChatProjectRole](#codersdkchatprojectrole) | false    |              |             |
+| `user_roles`       | object                                               | false    |              |             |
+| » `[any property]` | [codersdk.ChatProjectRole](#codersdkchatprojectrole) | false    |              |             |
 
 ## codersdk.UpdateChatProjectRequest
 

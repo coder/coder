@@ -186,7 +186,6 @@ type sqlcQuerier interface {
 	DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg DeleteChatMCPServersByChatIDExcludingSlugsParams) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
-	DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (ChatProjectMemory, error)
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
@@ -587,7 +586,6 @@ type sqlcQuerier interface {
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
-	GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatProject, error)
 	// Entries match regardless of the actions they grant, so callers must
 	// authorize each row.
 	GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error)

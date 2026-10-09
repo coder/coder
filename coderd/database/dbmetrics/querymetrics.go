@@ -608,14 +608,6 @@ func (m queryMetricsStore) DeleteChatOrganizationModelOverride(ctx context.Conte
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteChatProjectByID(ctx, id)
-	m.queryLatencies.WithLabelValues("DeleteChatProjectByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatProjectByID").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatProjectMemoryByID(ctx, id)
@@ -1973,14 +1965,6 @@ func (m queryMetricsStore) GetChatProjectMemoryByName(ctx context.Context, arg d
 	r0, r1 := m.s.GetChatProjectMemoryByName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChatProjectMemoryByName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectMemoryByName").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatProjectsByOwnerID(ctx, ownerID)
-	m.queryLatencies.WithLabelValues("GetChatProjectsByOwnerID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectsByOwnerID").Inc()
 	return r0, r1
 }
 

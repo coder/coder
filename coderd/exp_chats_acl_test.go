@@ -600,6 +600,32 @@ func TestChatSharingDisabled(t *testing.T) {
 	viewerChats, err := viewerClientExp.ListChats(ctx, nil)
 	require.NoError(t, err)
 	require.Empty(t, viewerChats)
+
+	project := dbgen.ChatProject(t, store, database.ChatProject{
+		OrganizationID: firstUser.OrganizationID,
+		OwnerID:        firstUser.UserID,
+		Name:           "disabled project sharing",
+	})
+	err = store.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID: project.ID,
+		UserACL: database.ChatACL{
+			viewer.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+		},
+		GroupACL: database.ChatACL{},
+	})
+	require.NoError(t, err)
+	ownerView, err := client.GetChatProject(ctx, project.OrganizationID, project.ID)
+	require.NoError(t, err)
+	require.False(t, ownerView.Permissions.Share)
+	_, err = viewerClientExp.GetChatProject(ctx, project.OrganizationID, project.ID)
+	requireSDKError(t, err, http.StatusNotFound)
+	_, err = client.ChatProjectACL(ctx, project.OrganizationID, project.ID)
+	sdkErr = requireSDKError(t, err, http.StatusForbidden)
+	require.Equal(t, "Chat sharing is disabled for this deployment.", sdkErr.Message)
+	err = client.UpdateChatProjectACL(ctx, project.OrganizationID, project.ID, codersdk.UpdateChatProjectACL{
+		UserRoles: map[string]codersdk.ChatProjectRole{viewer.ID.String(): codersdk.ChatProjectRoleUse},
+	})
+	requireSDKError(t, err, http.StatusForbidden)
 }
 
 func createChatForSharing(

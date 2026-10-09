@@ -12,8 +12,10 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { chatProjectsKey } from "#/api/queries/chatProjects";
-import { userChatProviderConfigsKey } from "#/api/queries/chats";
+import {
+	chatProjectsKey,
+	userChatProviderConfigsKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -2722,6 +2724,31 @@ export const ProjectsSectionCollapsed: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", { name: "Projects" }),
+		);
+	},
+};
+
+export const ProjectActionsWithoutUpdateOrDeletePermission: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [
+					{
+						...MockChatProject,
+						permissions: { update: false, delete: false, share: false },
+					},
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
 		);
 	},
 };

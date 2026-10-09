@@ -175,6 +175,17 @@ func insertChat(
 				return ErrChatFamilyArchived
 			}
 		}
+		if input.ProjectID.Valid {
+			// Held until commit so a concurrent project delete, which locks
+			// the project FOR UPDATE, either archives this chat or is seen
+			// here as a missing project.
+			if _, err := store.GetChatProjectByIDForShare(ctx, input.ProjectID.UUID); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return ErrChatProjectNotFound
+				}
+				return xerrors.Errorf("lock chat project: %w", err)
+			}
+		}
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
 			ID:                chatID,
 			OrganizationID:    input.OrganizationID,

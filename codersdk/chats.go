@@ -237,9 +237,17 @@ type ChatProject struct {
 	Description string `json:"description"`
 	// Icon is a URL, typically an emoji image under /emojis, or empty for the
 	// default folder glyph.
-	Icon      string    `json:"icon"`
-	CreatedAt time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
+	Icon        string                 `json:"icon"`
+	CreatedAt   time.Time              `json:"created_at" format:"date-time"`
+	UpdatedAt   time.Time              `json:"updated_at" format:"date-time"`
+	Permissions ChatProjectPermissions `json:"permissions"`
+}
+
+// ChatProjectPermissions are the actions the caller may take on a project.
+type ChatProjectPermissions struct {
+	Update bool `json:"update"`
+	Delete bool `json:"delete"`
+	Share  bool `json:"share"`
 }
 
 // CreateChatProjectRequest creates a chat project in the organization named
@@ -255,6 +263,40 @@ type UpdateChatProjectRequest struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Icon        *string `json:"icon,omitempty"`
+}
+
+// ChatProjectRole is the access a project ACL grants.
+type ChatProjectRole string
+
+const (
+	// ChatProjectRoleUse can start chats, whose agents read and write memories.
+	ChatProjectRoleUse ChatProjectRole = "use"
+	// ChatProjectRoleAdmin can also edit and share the project, but not delete it.
+	ChatProjectRoleAdmin   ChatProjectRole = "admin"
+	ChatProjectRoleDeleted ChatProjectRole = ""
+)
+
+type ChatProjectUser struct {
+	MinimalUser
+	Role ChatProjectRole `json:"role" enums:"use,admin"`
+}
+
+type ChatProjectGroup struct {
+	Group
+	Role ChatProjectRole `json:"role" enums:"use,admin"`
+}
+
+// ChatProjectACL lists who a chat project is shared with. The Everyone
+// group's ID is the organization ID.
+type ChatProjectACL struct {
+	Users  []ChatProjectUser  `json:"users"`
+	Groups []ChatProjectGroup `json:"groups"`
+}
+
+// UpdateChatProjectACL changes only the listed principals.
+type UpdateChatProjectACL struct {
+	UserRoles  map[string]ChatProjectRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatProjectRole `json:"group_roles,omitempty"`
 }
 
 // ChatProjectMemory is a durable memory shared by chats in a project.
@@ -2150,9 +2192,12 @@ const (
 	// ChatWatchEventKindTitleChange is published after each title write.
 	// Take only the title fields from it, ordered by title_updated_at,
 	// because a title write does not change updated_at.
-	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
-	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
-	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
+	ChatWatchEventKindTitleChange ChatWatchEventKind = "title_change"
+	ChatWatchEventKindCreated     ChatWatchEventKind = "created"
+	// ChatWatchEventKindDeleted is published when a chat is archived.
+	ChatWatchEventKindDeleted ChatWatchEventKind = "deleted"
+	// ChatWatchEventKindHardDeleted is published when a chat is permanently deleted.
+	ChatWatchEventKindHardDeleted      ChatWatchEventKind = "hard_deleted"
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
@@ -2337,8 +2382,7 @@ func chatProjectPath(organizationID, projectID uuid.UUID) string {
 	return fmt.Sprintf("%s/%s", chatProjectsPath(organizationID), projectID)
 }
 
-// ListChatProjects lists the authenticated user's chat projects across all
-// organizations.
+// ListChatProjects lists projects the user owns or that are shared with them.
 func (c *ExperimentalClient) ListChatProjects(ctx context.Context) ([]ChatProject, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/projects", nil)
 	if err != nil {
@@ -2394,9 +2438,36 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organization
 	return project, ReadBodyAsJSON(res, &project)
 }
 
-// DeleteChatProject deletes a chat project and detaches its chats.
+// DeleteChatProject deletes a chat project and every chat in it.
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatProjectACL returns who a chat project is shared with.
+func (c *ExperimentalClient) ChatProjectACL(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProjectACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/acl", nil)
+	if err != nil {
+		return ChatProjectACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectACL{}, ReadBodyAsError(res)
+	}
+	var acl ChatProjectACL
+	return acl, ReadBodyAsJSON(res, &acl)
+}
+
+// UpdateChatProjectACL changes who a chat project is shared with.
+func (c *ExperimentalClient) UpdateChatProjectACL(ctx context.Context, organizationID, projectID uuid.UUID, req UpdateChatProjectACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, chatProjectPath(organizationID, projectID)+"/acl", req)
 	if err != nil {
 		return err
 	}

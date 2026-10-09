@@ -33,7 +33,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AIGatewayKey":                  {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"AuditableGroupAIBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
+	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete}, // Users archive chats; deleting a project deletes its chats.
 	"ChatProject":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatProjectMemory":             {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"ChatModelConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},

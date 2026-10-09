@@ -492,10 +492,12 @@ func (m *runnerManager) heartbeatOnce(ctx context.Context) error {
 		if _, ok := renewedKeys[key]; ok {
 			continue
 		}
-		// The lease went stale or lost ownership, so its capacity slot
-		// may belong to another chat. Stop generating; the chat stays
-		// owned by the stale lease until an admitted worker takes it over.
-		m.opts.Logger.Warn(ctx, "chatworker heartbeat lease lost, stopping runner",
+		// The lease went stale or lost ownership, for example because a
+		// project delete cleared the chat's runner. Stop generating. A chat
+		// archived with its deleted project has no worker or runner left;
+		// any other chat stays owned by the stale lease until an admitted
+		// worker takes it over.
+		m.opts.Logger.Warn(ctx, "chatworker lease lost or project deleted, stopping runner",
 			slog.F("chat_id", key.ChatID), slog.F("runner_id", key.RunnerID))
 		m.requestCleanup(ctx, key)
 	}

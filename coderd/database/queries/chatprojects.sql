@@ -21,12 +21,6 @@ FROM chat_projects
 WHERE id = @id::uuid AND NOT deleted
 FOR UPDATE;
 
--- name: GetChatProjectsByOwnerID :many
-SELECT *
-FROM chat_projects
-WHERE owner_id = @owner_id::uuid AND NOT deleted
-ORDER BY lower(name), id;
-
 -- name: GetChatProjectsOwnedOrSharedWithUserID :many
 -- Entries match regardless of the actions they grant, so callers must
 -- authorize each row.
@@ -100,10 +94,6 @@ SET
     updated_at = now()
 WHERE id = @id::uuid AND NOT deleted
 RETURNING *;
-
--- name: DeleteChatProjectByID :exec
-DELETE FROM chat_projects
-WHERE id = @id::uuid;
 
 -- name: UpdateChatProjectDeletedByID :exec
 -- Irreversible. The project delete must run, in one READ COMMITTED

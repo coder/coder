@@ -74,3 +74,12 @@ export const Mobile: Story = {
 		),
 	},
 };
+
+export const WithoutUpdateOrDeletePermission: Story = {
+	args: {
+		project: {
+			...MockChatProject,
+			permissions: { update: false, delete: false, share: false },
+		},
+	},
+};

@@ -995,6 +995,19 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	return []policy.Action{}
 }
 
+// ChatProjectRoleActions returns the chat project actions a role grants.
+// Project read also grants reading its memories, and update grants creating
+// and deleting them.
+func ChatProjectRoleActions(role codersdk.ChatProjectRole) []policy.Action {
+	switch role {
+	case codersdk.ChatProjectRoleAdmin:
+		return []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}
+	case codersdk.ChatProjectRoleUse:
+		return []policy.Action{policy.ActionRead}
+	}
+	return []policy.Action{}
+}
+
 func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
 	if role == codersdk.ChatRoleRead {
 		return []policy.Action{policy.ActionRead}
@@ -1898,8 +1911,10 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 	return &payload
 }
 
-func ChatProject(project database.ChatProject) codersdk.ChatProject {
+// ChatProject converts a project with the caller's permissions on it.
+func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectPermissions) codersdk.ChatProject {
 	return codersdk.ChatProject{
+		Permissions:    permissions,
 		ID:             project.ID,
 		OrganizationID: project.OrganizationID,
 		OwnerID:        project.OwnerID,

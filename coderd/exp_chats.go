@@ -1395,11 +1395,15 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		// Projects are private to their owner, and a chat in a project reads
-		// and writes its memory, so the chat's owner must own the project.
-		// This matches the unreadable-project response so callers creating
-		// chats for other users cannot probe for project IDs.
-		if project.OwnerID != ownerID {
+		// The chat owner must be able to use the project because its agent
+		// reads and writes project memory. The 404 matches an unreadable
+		// project so callers cannot probe for project IDs.
+		usable, err := chatd.ChatProjectUsableBy(ctx, api.Database, project, ownerID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		if !usable {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
 			return
 		}
@@ -1611,6 +1615,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 				Message: "Invalid model config ID.",
 				Detail:  err.Error(),
 			})
+			return
+		}
+		if errors.Is(err, chatstate.ErrChatProjectNotFound) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
 			return
 		}
 		if dbauthz.IsNotAuthorizedError(err) {
@@ -2671,6 +2679,11 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if writeChatInvalidState(ctx, rw, err) {
+				return
+			}
+			// The chat's project was deleted after the request loaded it.
+			if errors.Is(err, chatstate.ErrChatNotFound) {
+				httpapi.ResourceNotFound(rw)
 				return
 			}
 			if errors.Is(err, chatstate.ErrTransitionNotAllowed) {

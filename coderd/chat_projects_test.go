@@ -17,7 +17,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
+func TestChatProjectsCRUDListAndDelete(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -99,9 +99,8 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 	require.Equal(t, duplicate.ID, fetched.ID)
 
 	require.NoError(t, client.DeleteChatProject(ctx, firstUser.OrganizationID, project.ID))
-	storedChat, err := client.GetChat(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Nil(t, storedChat.ProjectID)
+	_, err = client.GetChat(ctx, chat.ID)
+	requireSDKError(t, err, http.StatusNotFound)
 }
 
 func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
@@ -182,10 +181,6 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 	_, err = admin.UpdateChatProject(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectRequest{Name: &adminName})
 	require.NoError(t, err)
 
-	// The owner may create chats for other users, but binding one to the
-	// owner's project would expose its memory to someone who cannot read
-	// the project, so the chat owner must own the project. The response
-	// matches an unknown project so the check does not reveal existence.
 	_, memberUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -315,17 +310,16 @@ func TestChatProjectsExperimentDisabled(t *testing.T) {
 	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
 }
 
-func newChatProjectClient(t testing.TB) (*codersdk.ExperimentalClient, database.Store) {
+func newChatProjectClient(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store) {
 	t.Helper()
-	client, db := newChatClientWithDatabase(t,
+	return newChatClientWithDatabase(t, append([]func(*coderdtest.Options){
 		func(options *coderdtest.Options) {
 			options.DeploymentValues.Experiments = serpent.StringArray{
 				string(codersdk.ExperimentChatProjects),
 			}
 		},
 		withChatWorkerDisabled,
-	)
-	return client, db
+	}, overrides...)...)
 }
 
 func createChatProject(t testing.TB, client *codersdk.ExperimentalClient, organizationID uuid.UUID, name string) codersdk.ChatProject {

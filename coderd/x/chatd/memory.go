@@ -19,8 +19,8 @@ import (
 
 // resolveProjectMemory returns the durable-memory store and project name for
 // a chat. Only root chats inside a project have memory; chats outside a
-// project, subagents, the disabled experiment, and transient lookup failures
-// all report ok=false.
+// project, subagents, chats whose owner cannot use the project, the disabled
+// experiment, and transient lookup failures all report ok=false.
 func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (store chattool.MemoryStore, projectName string, ok bool) {
 	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
 		return nil, "", false
@@ -30,15 +30,24 @@ func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (
 	}
 	project, err := p.db.GetChatProjectByID(ctx, chat.ProjectID.UUID)
 	if err != nil {
-		p.logger.Debug(ctx, "failed to load chat project for memory", slog.F("chat_id", chat.ID), slog.Error(err))
+		p.logger.Warn(ctx, "failed to load chat project for memory", slog.F("chat_id", chat.ID), slog.F("project_id", chat.ProjectID.UUID), slog.Error(err))
+		return nil, "", false
+	}
+	usable, err := ChatProjectUsableBy(ctx, p.db, project, chat.OwnerID)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to check chat project access for memory", slog.F("chat_id", chat.ID), slog.F("project_id", chat.ProjectID.UUID), slog.Error(err))
+		return nil, "", false
+	}
+	if !usable {
+		p.logger.Debug(ctx, "chat owner cannot use chat project, memory disabled", slog.F("chat_id", chat.ID), slog.F("project_id", chat.ProjectID.UUID), slog.F("owner_id", chat.OwnerID))
 		return nil, "", false
 	}
 	return chattool.NewProjectMemoryStore(p.db, chat.ProjectID.UUID, chat.OrganizationID, chat.OwnerID, p.memoryAuditor(chat)), project.Name, true
 }
 
 // memoryAuditor records memory changes made by a chat's tools. There is no
-// HTTP request, so entries are attributed to the chat owner, whose
-// permissions the change ran with, and name the chat that made it.
+// HTTP request, so entries are attributed to the chat owner and name the
+// chat that made it.
 func (p *Server) memoryAuditor(chat database.Chat) chattool.MemoryAuditFunc {
 	return func(ctx context.Context, action database.AuditAction, oldMemory, newMemory database.ChatProjectMemory) {
 		if p.chatWorker == nil || p.chatWorker.opts.Auditor == nil {

@@ -2486,7 +2486,7 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	count, err := db.CountChatProjectsByOwnerID(ctx, owner.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, 2, count)
-	for _, list := range []func(context.Context, uuid.UUID) ([]database.ChatProject, error){db.GetChatProjectsOwnedOrSharedWithUserID, db.GetChatProjectsByOwnerID} {
+	for _, list := range []func(context.Context, uuid.UUID) ([]database.ChatProject, error){db.GetChatProjectsOwnedOrSharedWithUserID} {
 		projects, err := list(ctx, owner.ID)
 		require.NoError(t, err)
 		listed := make([]uuid.UUID, 0, len(projects))
