@@ -44,7 +44,7 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 
 	return (
 		<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
-			<Tooltip>
+			<Tooltip interactive>
 				<TooltipTrigger
 					type="button"
 					aria-label={ariaLabel}

@@ -85,7 +85,7 @@ export const NetworkDisabledKeyboard: Story = {
 			await userEvent.tab();
 		}
 		await waitFor(() =>
-			expect(screen.getByRole("tooltip")).toHaveTextContent(
+			expect(screen.getByRole("dialog")).toHaveTextContent(
 				"Network request monitoring was not active for this session.",
 			),
 		);
