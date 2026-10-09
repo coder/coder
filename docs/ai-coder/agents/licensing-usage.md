@@ -16,6 +16,7 @@ With this agent pool, individuals and small teams can experiment with Coder Agen
 A Premium license includes a preset amount of Agent Time.
 Agent Time is shared across the deployment, allowing unlimited agents to run concurrently while consuming from a shared pool of purchased working hours.
 This usage-based model supports enterprise workloads where large development teams, background automation, and API-triggered tasks can create variable bursts of agent activity.
+To plan how the pool is divided between organizations and groups, refer to [Agent Hours allotments](./platform-controls/agent-hours-allotments.md).
 
 ## Agent Time measurement
 

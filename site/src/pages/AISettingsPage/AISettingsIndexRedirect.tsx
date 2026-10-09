@@ -1,11 +1,13 @@
 import { useQuery } from "react-query";
 import { Navigate } from "react-router";
+import { agentHoursAllotmentOrganizations } from "#/api/queries/agentHours";
 import { aiSpendOrganizations } from "#/api/queries/aiBridge";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { canAccessAnyChatModelConfig } from "#/modules/permissions";
+import { canViewAgentHours } from "./AgentHoursPage/agentHoursAccess";
 import { useCanShareOrganizationMCPServers } from "./MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "./ModelsPage/organizationModels";
 import { canViewAISpend } from "./SpendPage/spendAccess";
@@ -22,6 +24,12 @@ export const AISettingsIndexRedirect = () => {
 		...aiSpendOrganizations(),
 		enabled:
 			entitlements.features.aibridge.enabled &&
+			!permissions.editDeploymentConfig,
+	});
+	const agentHoursOrganizationsQuery = useQuery({
+		...agentHoursAllotmentOrganizations(),
+		enabled:
+			entitlements.features.agent_runtime_hours.enabled &&
 			!permissions.editDeploymentConfig,
 	});
 
@@ -91,6 +99,24 @@ export const AISettingsIndexRedirect = () => {
 
 	if (canViewAISpend(entitlements, spendOrganizationsQuery.data)) {
 		return <Navigate to="/ai/settings/spend" replace />;
+	}
+
+	if (agentHoursOrganizationsQuery.isLoading) {
+		return <Loader fullscreen />;
+	}
+
+	if (agentHoursOrganizationsQuery.error !== null) {
+		return <ErrorAlert error={agentHoursOrganizationsQuery.error} />;
+	}
+
+	if (
+		canViewAgentHours(
+			entitlements,
+			permissions,
+			agentHoursOrganizationsQuery.data,
+		)
+	) {
+		return <Navigate to="/ai/settings/agent-hours" replace />;
 	}
 
 	return <Navigate to="/ai/settings/providers" replace />;

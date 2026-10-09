@@ -23,6 +23,7 @@ type AISettingsSidebarViewProps = {
 	canAccessOrganizationModels?: boolean;
 	canShareOrganizationMCPServers?: boolean;
 	canViewOrganizationInstructions: boolean;
+	canViewAgentHours: boolean;
 };
 
 const SubNavItem: React.FC<{ href: To; children?: React.ReactNode }> = ({
@@ -89,6 +90,7 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 	canAccessOrganizationModels = false,
 	canShareOrganizationMCPServers = false,
 	canViewOrganizationInstructions,
+	canViewAgentHours,
 }) => {
 	const [searchParams] = useSearchParams();
 	const organizationName = searchParams.get(modelOrganizationSearchParam);
@@ -114,6 +116,10 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 	);
 	const instructionsPath = organizationScopedPath(
 		"/ai/settings/instructions",
+		organizationName,
+	);
+	const agentHoursPath = organizationScopedPath(
+		"/ai/settings/agent-hours",
 		organizationName,
 	);
 
@@ -152,6 +158,9 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 							<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
 						)}
 						<SubNavItem href={instructionsPath}>Instructions</SubNavItem>
+						{canViewAgentHours && (
+							<SubNavItem href={agentHoursPath}>Agent Hours</SubNavItem>
+						)}
 						<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
 					</SubNavGroup>
 				)}
@@ -187,6 +196,11 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 							<SubNavItem href={instructionsPath}>Instructions</SubNavItem>
 						</SubNavGroup>
 					)}
+				{!permissions.editDeploymentConfig && canViewAgentHours && (
+					<SubNavGroup>
+						<SubNavItem href={agentHoursPath}>Agent Hours</SubNavItem>
+					</SubNavGroup>
+				)}
 			</div>
 		</BaseSidebar>
 	);

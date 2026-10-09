@@ -3340,6 +3340,25 @@ export const MockGroup3: TypesGen.Group = {
 	total_member_count: 2,
 };
 
+export const MockAgentHoursOrganizationAllotment: TypesGen.AgentHoursOrganizationAllotment =
+	{
+		organization_id: MockOrganization.id,
+		organization_name: MockOrganization.name,
+		organization_display_name: MockOrganization.display_name,
+		allotment_bps: 4000,
+		created_at: "2026-10-01T00:00:00Z",
+		updated_at: "2026-10-01T00:00:00Z",
+	};
+
+export const MockAgentHoursGroupAllotment: TypesGen.AgentHoursGroupAllotment = {
+	group_id: MockGroup.id,
+	group_name: MockGroup.name,
+	group_display_name: MockGroup.display_name,
+	allotment_bps: 5000,
+	created_at: "2026-10-01T00:00:00Z",
+	updated_at: "2026-10-01T00:00:00Z",
+};
+
 export const MockEveryoneGroup: TypesGen.Group = {
 	// The "Everyone" group must have the same ID as a the organization it belongs
 	// to.

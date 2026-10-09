@@ -452,6 +452,9 @@ const AISettingsOrganizationModelsLayout = lazy(
 const AISettingsInstructionsPage = lazy(
 	() => import("./pages/AISettingsPage/InstructionsPage/InstructionsPage"),
 );
+const AISettingsAgentHoursPage = lazy(
+	() => import("./pages/AISettingsPage/AgentHoursPage/AgentHoursPage"),
+);
 const AISettingsTemplatesPage = lazy(
 	() => import("./pages/AISettingsPage/TemplatesPage/TemplatesPage"),
 );
@@ -764,6 +767,7 @@ export const router = createBrowserRouter(
 							element={<AISettingsInstructionsPage />}
 						/>
 						<Route path="lifecycle" element={<AISettingsLifecyclePage />} />
+						<Route path="agent-hours" element={<AISettingsAgentHoursPage />} />
 						<Route path="coder-agents" element={<CoderAgentsPage />} />
 						<Route path="templates" element={<AISettingsTemplatesPage />} />
 						<Route path="mcp-servers" element={<AISettingsMCPServersPage />} />

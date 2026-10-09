@@ -2437,6 +2437,56 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/groups/${groupId}/ai/budget`);
 	};
 
+	getAgentHoursOrganizationAllotments = async (): Promise<
+		TypesGen.AgentHoursOrganizationAllotment[]
+	> => {
+		const response = await this.axios.get("/api/v2/agent-hours/allotments");
+		return response.data;
+	};
+
+	upsertAgentHoursOrganizationAllotment = async (
+		organizationId: string,
+		data: TypesGen.UpsertAgentHoursAllotmentRequest,
+	): Promise<TypesGen.AgentHoursOrganizationAllotment> => {
+		const response = await this.axios.put(
+			`/api/v2/organizations/${organizationId}/agent-hours/allotment`,
+			data,
+		);
+		return response.data;
+	};
+
+	deleteAgentHoursOrganizationAllotment = async (
+		organizationId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/v2/organizations/${organizationId}/agent-hours/allotment`,
+		);
+	};
+
+	getAgentHoursGroupAllotments = async (
+		organizationId: string,
+	): Promise<TypesGen.AgentHoursGroupAllotments> => {
+		const response = await this.axios.get(
+			`/api/v2/organizations/${organizationId}/agent-hours/group-allotments`,
+		);
+		return response.data;
+	};
+
+	upsertAgentHoursGroupAllotment = async (
+		groupId: string,
+		data: TypesGen.UpsertAgentHoursAllotmentRequest,
+	): Promise<TypesGen.AgentHoursGroupAllotment> => {
+		const response = await this.axios.put(
+			`/api/v2/groups/${groupId}/agent-hours/allotment`,
+			data,
+		);
+		return response.data;
+	};
+
+	deleteAgentHoursGroupAllotment = async (groupId: string): Promise<void> => {
+		await this.axios.delete(`/api/v2/groups/${groupId}/agent-hours/allotment`);
+	};
+
 	getWorkspaceQuota = async (
 		organizationName: string,
 		username: string,
