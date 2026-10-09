@@ -7,7 +7,7 @@ import {
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
 import CreateTokenPage from "./CreateTokenPage";
-import { NANO_HOUR } from "./utils";
+import { NANO_DAY, NANO_HOUR } from "./utils";
 
 describe("TokenPage", () => {
 	const originalExecCommand = document.execCommand;
@@ -18,9 +18,9 @@ describe("TokenPage", () => {
 		vi.restoreAllMocks();
 	});
 
-	const createToken = async () => {
+	const createToken = async (maxTokenLifetime = 90 * 24 * NANO_HOUR) => {
 		vi.spyOn(API, "getTokenConfig").mockResolvedValue({
-			max_token_lifetime: 90 * 24 * NANO_HOUR,
+			max_token_lifetime: maxTokenLifetime,
 		});
 		vi.spyOn(API, "createToken").mockResolvedValueOnce({
 			key: "abcd",
@@ -45,6 +45,17 @@ describe("TokenPage", () => {
 
 		// Then
 		expect(screen.getByText("abcd")).toBeInTheDocument();
+	});
+
+	it("submits the default lifetime allowed by the max token lifetime", async () => {
+		// 30 days exceeds the max, so the form defaults to 7 days.
+		await createToken(10 * NANO_DAY);
+
+		expect(API.createToken).toHaveBeenCalledTimes(1);
+		expect(vi.mocked(API.createToken).mock.calls[0][0]).toMatchObject({
+			lifetime: 7 * NANO_DAY,
+			token_name: "my-token",
+		});
 	});
 
 	it("selects only the created token from the success modal", async () => {
