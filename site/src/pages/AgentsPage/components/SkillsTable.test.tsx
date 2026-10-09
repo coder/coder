@@ -1,6 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
+import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { MockOrganization } from "#/testHelpers/entities";
@@ -94,6 +95,26 @@ describe("SkillsTable enabled toggle", () => {
 		await waitFor(() => expect(updateSkill).toHaveBeenCalledTimes(2));
 	});
 
+	it("refetches the list when the skill was deleted elsewhere", async () => {
+		const { user, updateSkill } = renderTable(true);
+		updateSkill.mockRejectedValue({
+			isAxiosError: true,
+			response: { status: 404, data: { message: "Resource not found." } },
+		});
+		const infoToast = vi.spyOn(toast, "info");
+		const toggle = await screen.findByRole("switch", {
+			name: "Enable review-sql",
+		});
+		vi.mocked(API.experimental.getOrganizationSkills).mockResolvedValue([]);
+
+		await user.click(toggle);
+
+		await waitFor(() => expect(toggle).not.toBeInTheDocument());
+		expect(infoToast).toHaveBeenCalledWith(
+			"That organization skill was deleted before your change was saved.",
+		);
+	});
+
 	it("does not send an update when the user cannot edit", async () => {
 		const { user, updateSkill } = renderTable(false);
 
@@ -104,6 +125,42 @@ describe("SkillsTable enabled toggle", () => {
 		);
 
 		expect(updateSkill).not.toHaveBeenCalled();
+	});
+});
+
+describe("SkillsTable create dialog", () => {
+	it("returns focus to the empty-state Add skill button on Escape", async () => {
+		const { user } = renderTable(true, []);
+
+		await screen.findByText("No organization skills yet");
+		const [, emptyStateButton] = screen.getAllByRole("button", {
+			name: "Add skill",
+		});
+		await user.click(emptyStateButton);
+		await screen.findByRole("dialog");
+		await user.keyboard("{Escape}");
+
+		await waitFor(() => expect(emptyStateButton).toHaveFocus());
+	});
+
+	it("moves focus to the header Add skill button after creating the first skill", async () => {
+		const { user } = renderTable(true, []);
+		vi.spyOn(API.experimental, "createOrganizationSkill").mockResolvedValue({
+			...mockReviewSkill,
+			content: "---\nname: review-sql\n---\nBody.",
+		});
+
+		await screen.findByText("No organization skills yet");
+		const [headerButton, emptyStateButton] = screen.getAllByRole("button", {
+			name: "Add skill",
+		});
+		await user.click(emptyStateButton);
+		await user.type(await screen.findByLabelText("Name"), "review-sql");
+		await user.type(screen.getByLabelText("Body"), "Body.");
+		await user.click(screen.getByRole("button", { name: "Create skill" }));
+
+		await waitFor(() => expect(headerButton).toHaveFocus());
+		expect(emptyStateButton).not.toBeInTheDocument();
 	});
 });
 

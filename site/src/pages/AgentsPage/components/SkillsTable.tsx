@@ -192,6 +192,13 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	const toggleMutation = useMutation({
 		...toggleSkillEnabled(queryClient, owner),
 		onError: (error) => {
+			void skillsQuery.refetch();
+			if (isAxiosError(error) && error.response?.status === 404) {
+				toast.info(
+					`That ${lowerNoun} was deleted before your change was saved.`,
+				);
+				return;
+			}
 			toast.error(getErrorMessage(error, `Failed to update ${lowerNoun}.`), {
 				description: getErrorDetail(error),
 			});

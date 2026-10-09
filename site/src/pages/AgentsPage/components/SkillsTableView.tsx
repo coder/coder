@@ -393,7 +393,7 @@ const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
 type AddSkillButtonProps = {
 	ref?: React.Ref<HTMLButtonElement>;
 	disabled: boolean;
-	onClick: () => void;
+	onClick: React.MouseEventHandler<HTMLButtonElement>;
 };
 
 const AddSkillButton: React.FC<AddSkillButtonProps> = ({
@@ -433,23 +433,27 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	viewState,
 	deleteState,
 }) => {
-	const rowMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+	const dialogTriggerRef = useRef<HTMLButtonElement | null>(null);
 	const addSkillButtonRef = useRef<HTMLButtonElement | null>(null);
-	const rememberRowMenuTrigger = (
+	const rememberDialogTrigger = (
 		event: React.SyntheticEvent<HTMLButtonElement>,
 	) => {
-		rowMenuTriggerRef.current = event.currentTarget;
+		dialogTriggerRef.current = event.currentTarget;
 	};
-	// Row menu dialogs open from a menu item that unmounts with the menu, so
-	// Radix would otherwise return focus to the document body on close. A
-	// deleted skill takes its row menu button with it.
-	const restoreRowMenuFocus = (event: Event) => {
-		const trigger = rowMenuTriggerRef.current;
+	// These dialogs open without a Radix DialogTrigger, so Radix would
+	// otherwise return focus to the document body on close. The opener can
+	// unmount meanwhile: a deleted row or a replaced empty state.
+	const restoreDialogFocus = (event: Event) => {
+		const trigger = dialogTriggerRef.current;
 		const target = trigger?.isConnected ? trigger : addSkillButtonRef.current;
 		if (target) {
 			event.preventDefault();
 			target.focus();
 		}
+	};
+	const openCreateDialog = (event: React.MouseEvent<HTMLButtonElement>) => {
+		rememberDialogTrigger(event);
+		onCreate();
 	};
 	const pluralNoun = `${copy.noun.toLocaleLowerCase("en-US")}s`;
 	const isAtLimit = skills.length >= limit;
@@ -471,7 +475,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				<AddSkillButton
 					ref={addSkillButtonRef}
 					disabled={addSkillDisabled}
-					onClick={onCreate}
+					onClick={openCreateDialog}
 				/>
 			)}
 		</div>
@@ -556,7 +560,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 								canEdit && (
 									<AddSkillButton
 										disabled={addSkillDisabled}
-										onClick={onCreate}
+										onClick={openCreateDialog}
 									/>
 								)
 							}
@@ -601,8 +605,8 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 												size="icon"
 												variant="subtle"
 												aria-label="Open menu"
-												onPointerDown={rememberRowMenuTrigger}
-												onKeyDown={rememberRowMenuTrigger}
+												onPointerDown={rememberDialogTrigger}
+												onKeyDown={rememberDialogTrigger}
 											>
 												{downloadingSkillName === skill.name ? (
 													<Spinner className="size-4" loading />
@@ -621,7 +625,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 											{onManagePermissions && (
 												<DropdownMenuItem
 													onClick={() =>
-														onManagePermissions(skill, restoreRowMenuFocus)
+														onManagePermissions(skill, restoreDialogFocus)
 													}
 												>
 													Manage permissions
@@ -670,26 +674,27 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						}
 					}}
 					onSubmit={editorState.onSubmit}
+					onCloseAutoFocus={restoreDialogFocus}
 				/>
 			)}
 			{editorState?.mode === "edit" && (
 				<EditSkillDialog
 					copy={copy}
 					state={editorState}
-					onCloseAutoFocus={restoreRowMenuFocus}
+					onCloseAutoFocus={restoreDialogFocus}
 				/>
 			)}
 			{viewState && (
 				<ViewSkillDialog
 					noun={copy.noun}
 					state={viewState}
-					onCloseAutoFocus={restoreRowMenuFocus}
+					onCloseAutoFocus={restoreDialogFocus}
 				/>
 			)}
 			{deleteState && (
 				<DeleteSkillDialog
 					state={deleteState}
-					onCloseAutoFocus={restoreRowMenuFocus}
+					onCloseAutoFocus={restoreDialogFocus}
 				/>
 			)}
 		</div>
