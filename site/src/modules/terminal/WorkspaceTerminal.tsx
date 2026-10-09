@@ -103,7 +103,11 @@ export const WorkspaceTerminal = ({
 	const fitAddonRef = useRef<FitAddon | undefined>(undefined);
 	const websocketRef = useRef<Websocket | undefined>(undefined);
 	const handleOpenLink = useEffectEvent((uri: string) => {
-		onOpenLink ? onOpenLink(uri) : window.open(uri, "_blank", "noopener");
+		if (onOpenLink) {
+			onOpenLink(uri);
+		} else {
+			window.open(uri, "_blank", "noopener");
+		}
 	});
 	const handleStatusChange = useEffectEvent((status: ConnectionStatus) => {
 		onStatusChange?.(status);
