@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4/database"
+	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/lib/pq"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 const (
@@ -25,6 +29,22 @@ type pgTxnDriver struct {
 	ctx context.Context
 	db  *sql.DB
 	tx  *sql.Tx
+
+	logger slog.Logger
+	// logCtx is used only for logging so the caller's context fields are
+	// attached without letting its cancellation abort the migration
+	// transaction.
+	logCtx context.Context
+	// source resolves migration versions to their names for logging.
+	source source.Driver
+	// inFlight is the version of the migration currently executing, or -1.
+	inFlight      int
+	inFlightStart time.Time
+	// applied lists the versions applied in the current transaction. They are
+	// not durable until the transaction commits in Unlock.
+	applied []int
+	// commitErr is the result of the commit in the most recent Unlock.
+	commitErr error
 }
 
 func (*pgTxnDriver) Open(string) (database.Driver, error) {
@@ -42,20 +62,35 @@ func (d *pgTxnDriver) Lock() error {
 	if err != nil {
 		return err
 	}
-	const q = `
-SELECT pg_advisory_xact_lock($1)
-`
+	d.inFlight = -1
+	d.applied = nil
+	d.commitErr = nil
 
-	_, err = d.tx.ExecContext(d.ctx, q, lockID)
+	// Try the lock first so that waiting on another instance, which holds it
+	// for the duration of its migrations, is visible in the logs.
+	var acquired bool
+	err = d.tx.QueryRowContext(d.ctx, `SELECT pg_try_advisory_xact_lock($1)`, lockID).Scan(&acquired)
+	if err != nil {
+		return xerrors.Errorf("try advisory lock: %w", err)
+	}
+	if acquired {
+		return nil
+	}
+
+	d.logger.Info(d.logCtx, "waiting for database migration lock held by another instance")
+	start := time.Now()
+	_, err = d.tx.ExecContext(d.ctx, `SELECT pg_advisory_xact_lock($1)`, lockID)
 	if err != nil {
 		return xerrors.Errorf("exec select: %w", err)
 	}
+	d.logger.Info(d.logCtx, "acquired database migration lock", slog.F("waited", time.Since(start)))
 	return nil
 }
 
 func (d *pgTxnDriver) Unlock() error {
 	err := d.tx.Commit()
 	d.tx = nil
+	d.commitErr = err
 	if err != nil {
 		return xerrors.Errorf("commit tx on unlock: %w", err)
 	}
@@ -95,8 +130,31 @@ func (d *pgTxnDriver) runStatement(statement []byte) error {
 	return nil
 }
 
+// SetVersion is called by golang-migrate with dirty=true immediately before
+// running a migration and with dirty=false once it succeeds, which makes it
+// the hook for per-migration progress logging.
+//
 //nolint:revive
 func (d *pgTxnDriver) SetVersion(version int, dirty bool) error {
+	switch {
+	case version < 0:
+	case dirty:
+		d.inFlight = version
+		d.inFlightStart = time.Now()
+		d.logger.Info(d.logCtx, "starting database migration",
+			slog.F("version", version),
+			slog.F("name", d.migrationName(version)),
+		)
+	case d.inFlight == version:
+		d.logger.Info(d.logCtx, "database migration applied, pending commit",
+			slog.F("version", version),
+			slog.F("name", d.migrationName(version)),
+			slog.F("duration", time.Since(d.inFlightStart)),
+		)
+		d.applied = append(d.applied, version)
+		d.inFlight = -1
+	}
+
 	query := `TRUNCATE ` + migrationsTableName
 	if _, err := d.tx.Exec(query); err != nil {
 		return &database.Error{OrigErr: err, Query: []byte(query)}
@@ -110,6 +168,20 @@ func (d *pgTxnDriver) SetVersion(version int, dirty bool) error {
 	}
 
 	return nil
+}
+
+// migrationName returns the identifier of the up migration for version, for
+// example "add_users_table" for 000002_add_users_table.up.sql.
+func (d *pgTxnDriver) migrationName(version int) string {
+	if d.source == nil {
+		return ""
+	}
+	r, name, err := d.source.ReadUp(uint(version)) //nolint:gosec // Callers only pass non-negative versions.
+	if err != nil {
+		return ""
+	}
+	_ = r.Close()
+	return name
 }
 
 func (d *pgTxnDriver) Version() (version int, dirty bool, err error) {

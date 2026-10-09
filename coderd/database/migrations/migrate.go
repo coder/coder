@@ -17,7 +17,10 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/lib/pq"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 //go:embed *.sql
@@ -73,33 +76,32 @@ func GetMigrationsHash() string {
 	return migrationsHash
 }
 
-func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
+func setup(ctx context.Context, db *sql.DB, migs fs.FS, logger slog.Logger) (source.Driver, *pgTxnDriver, *migrate.Migrate, error) {
 	if migs == nil {
 		migs = migrations
 	}
-	ctx := context.Background()
 	sourceDriver, err := iofs.New(migs, ".")
 	if err != nil {
-		return nil, nil, xerrors.Errorf("create iofs: %w", err)
+		return nil, nil, nil, xerrors.Errorf("create iofs: %w", err)
 	}
 
 	// migration_cursor is a v1 migration table. If this exists, we're on v1.
-	// Do no run v2 migrations on a v1 database!
-	row := db.QueryRowContext(ctx, "SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'migration_cursor';")
+	// Do not run v2 migrations on a v1 database!
+	row := db.QueryRowContext(context.Background(), "SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'migration_cursor';")
 	var v1Exists int
 	if row.Scan(&v1Exists) == nil {
-		return nil, nil, xerrors.New("currently connected to a Coder v1 database, aborting database setup")
+		return nil, nil, nil, xerrors.New("currently connected to a Coder v1 database, aborting database setup")
 	}
 
-	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db}
+	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db, logger: logger, logCtx: ctx, source: sourceDriver, inFlight: -1}
 	err = dbDriver.ensureVersionTable()
 	if err != nil {
-		return nil, nil, xerrors.Errorf("ensure version table: %w", err)
+		return nil, nil, nil, xerrors.Errorf("ensure version table: %w", err)
 	}
 
 	m, err := migrate.NewWithInstance("", sourceDriver, "", dbDriver)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("new migrate instance: %w", err)
+		return nil, nil, nil, xerrors.Errorf("new migrate instance: %w", err)
 	}
 
 	// The default LockTimeout of 15s is too short for concurrent migrations,
@@ -109,7 +111,7 @@ func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
 	// finish.
 	m.LockTimeout = 2 * time.Minute
 
-	return sourceDriver, m, nil
+	return sourceDriver, dbDriver, m, nil
 }
 
 // Up runs SQL migrations to ensure the database schema is up-to-date.
@@ -117,9 +119,19 @@ func Up(db *sql.DB) error {
 	return UpWithFS(db, migrations)
 }
 
+// UpWithLogger runs SQL migrations like Up and logs the progress of each
+// migration along with whether the batch was committed or rolled back.
+func UpWithLogger(ctx context.Context, db *sql.DB, logger slog.Logger) error {
+	return runUp(ctx, db, migrations, logger)
+}
+
 // UpWithFS runs SQL migrations in the given fs.
-func UpWithFS(db *sql.DB, migs fs.FS) (retErr error) {
-	_, m, err := setup(db, migs)
+func UpWithFS(db *sql.DB, migs fs.FS) error {
+	return runUp(context.Background(), db, migs, slog.Make())
+}
+
+func runUp(ctx context.Context, db *sql.DB, migs fs.FS, logger slog.Logger) (retErr error) {
+	sourceDriver, dbDriver, m, err := setup(ctx, db, migs, logger)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -135,22 +147,111 @@ func UpWithFS(db *sql.DB, migs fs.FS) (retErr error) {
 		retErr = srcErr
 	}()
 
-	err = m.Up()
+	// This check runs outside the migration lock, so a concurrent replica may
+	// apply the pending migrations first. The summary logged after m.Up is
+	// authoritative.
+	currentVersion := -1
+	if v, _, err := m.Version(); err == nil {
+		currentVersion = int(v) //nolint:gosec // Migration versions are small sequential numbers.
+	} else if !errors.Is(err, migrate.ErrNilVersion) {
+		return xerrors.Errorf("get migration version: %w", err)
+	}
+	targetVersion, pending, err := pendingMigrations(sourceDriver, currentVersion)
 	if err != nil {
-		if errors.Is(err, migrate.ErrNoChange) {
-			// It's OK if no changes happened!
-			return nil
-		}
-
-		return xerrors.Errorf("up: %w", err)
+		return xerrors.Errorf("count pending migrations: %w", err)
+	}
+	if pending == 0 {
+		logger.Info(ctx, "database schema is up to date", slog.F("version", currentVersion))
+	} else {
+		logger.Info(ctx, "database migrations required", append(schemaVersionFields("current_version", currentVersion),
+			slog.F("target_version", targetVersion),
+			slog.F("pending", pending),
+		)...)
 	}
 
-	return nil
+	start := time.Now()
+	err = m.Up()
+	if err == nil || errors.Is(err, migrate.ErrNoChange) {
+		if len(dbDriver.applied) > 0 {
+			logger.Info(ctx, "committed database migrations",
+				slog.F("count", len(dbDriver.applied)),
+				slog.F("from_version", dbDriver.applied[0]),
+				slog.F("to_version", dbDriver.applied[len(dbDriver.applied)-1]),
+				slog.F("duration", time.Since(start)),
+			)
+		}
+		return nil
+	}
+
+	// The returned error is logged by the caller, so name the failed migration
+	// in it rather than logging the failure separately.
+	if dbDriver.inFlight >= 0 {
+		err = xerrors.Errorf("migration %d (%s): %w", dbDriver.inFlight, dbDriver.migrationName(dbDriver.inFlight), err)
+	}
+
+	// Nothing was written in the migration transaction, or the lock was never
+	// acquired, so there is no commit outcome to report.
+	if len(dbDriver.applied) == 0 && dbDriver.inFlight < 0 {
+		return xerrors.Errorf("up: %w", err)
+	}
+	// golang-migrate commits in Unlock even after a failure. A SQL error aborts
+	// the transaction, so Postgres rolls it back. Any other error, such as a
+	// failure to read the next migration, leaves the transaction healthy and
+	// the work done so far is committed.
+	outcomeFields := []slog.Field{slog.F("count", len(dbDriver.applied))}
+	if len(dbDriver.applied) > 0 {
+		outcomeFields = append(outcomeFields,
+			slog.F("from_version", dbDriver.applied[0]),
+			slog.F("to_version", dbDriver.applied[len(dbDriver.applied)-1]),
+		)
+	}
+	switch {
+	case errors.Is(dbDriver.commitErr, pq.ErrInFailedTransaction):
+		logger.Warn(ctx, "rolled back database migrations",
+			append(outcomeFields, schemaVersionFields("schema_version", currentVersion)...)...)
+	case dbDriver.commitErr == nil:
+		if dbDriver.inFlight >= 0 {
+			// The failed migration's dirty marker was committed as well.
+			outcomeFields = append(outcomeFields, slog.F("dirty_version", dbDriver.inFlight))
+		}
+		logger.Warn(ctx, "committed database migrations before failure", outcomeFields...)
+	default:
+		logger.Warn(ctx, "database migration commit outcome unknown",
+			append(outcomeFields, slog.Error(dbDriver.commitErr))...)
+	}
+	return xerrors.Errorf("up: %w", err)
+}
+
+// schemaVersionFields returns log fields describing a schema version, where -1
+// means no migrations have been applied.
+func schemaVersionFields(name string, version int) []slog.Field {
+	if version < 0 {
+		return []slog.Field{slog.F("fresh_database", true)}
+	}
+	return []slog.Field{slog.F("fresh_database", false), slog.F(name, version)}
+}
+
+// pendingMigrations returns the latest migration version in sourceDriver and
+// the number of migrations newer than currentVersion. A currentVersion of -1
+// means no migrations have been applied.
+func pendingMigrations(sourceDriver source.Driver, currentVersion int) (latest int, pending int, err error) {
+	v, err := sourceDriver.First()
+	for err == nil {
+		latest = int(v) //nolint:gosec // Migration versions are small sequential numbers.
+		if latest > currentVersion {
+			pending++
+		}
+		v, err = sourceDriver.Next(v)
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return 0, 0, err
+	}
+	return latest, pending, nil
 }
 
 // Down runs all down SQL migrations.
 func Down(db *sql.DB) error {
-	_, m, err := setup(db, migrations)
+	_, _, m, err := setup(context.Background(), db, migrations, slog.Make())
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -172,7 +273,7 @@ func Down(db *sql.DB) error {
 // applied, without making any changes to the database. If not, returns a
 // non-nil error.
 func EnsureClean(db *sql.DB) error {
-	sourceDriver, m, err := setup(db, migrations)
+	sourceDriver, _, m, err := setup(context.Background(), db, migrations, slog.Make())
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -238,7 +339,7 @@ func CheckLatestVersion(sourceDriver source.Driver, currentVersion uint) error {
 // Stepper cannot be closed pre-emptively, it must be run to completion
 // (or until an error is encountered).
 func Stepper(db *sql.DB) (next func() (version uint, more bool, err error), err error) {
-	_, m, err := setup(db, migrations)
+	_, _, m, err := setup(context.Background(), db, migrations, slog.Make())
 	if err != nil {
 		return nil, xerrors.Errorf("migrate setup: %w", err)
 	}
