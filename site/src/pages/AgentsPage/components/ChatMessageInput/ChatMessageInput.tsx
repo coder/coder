@@ -55,6 +55,7 @@ import {
 } from "./pasteHelpers";
 import {
 	createCommandMenuItem,
+	createPinnedSkillMenuItem,
 	createSkillMenuItem,
 	type SkillMenuItem,
 	type SkillMetadata,
@@ -734,9 +735,7 @@ const ChatMessageInput = ({
 		skillsSearchQuery,
 	);
 	const workspaceSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
-		loadedWorkspaceSkills.map((skill) =>
-			createSkillMenuItem("workspace", skill),
-		),
+		loadedWorkspaceSkills.map(createPinnedSkillMenuItem),
 		skillsSearchQuery,
 	);
 	// Commands come first so partitioned menu groups match selection order.
