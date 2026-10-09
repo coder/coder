@@ -64,7 +64,7 @@ type UserCompactionThresholdSettingsProps = {
 	>;
 	modelsError?: unknown;
 	compactionTriggerLoadErrors: readonly CompactionTriggerLoadError[];
-	isLoadingModels?: boolean;
+	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;
 	thresholdsError: unknown;
@@ -611,7 +611,7 @@ export const UserCompactionThresholdSettings: React.FC<
 	);
 	const shouldShowActions =
 		hasAnyDrafts || hasAnyErrors || hasAnyPending || dirtyRows.length > 0;
-	const isTableLoading = isThresholdsLoading || isLoadingModels === true;
+	const isTableLoading = isThresholdsLoading || isLoadingModels;
 	const showRows =
 		!isTableLoading && thresholdsError == null && enabledModels.length > 0;
 	// A failed load is the alert above the table. The in-table empty state is

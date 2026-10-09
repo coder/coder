@@ -482,14 +482,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		messages,
 		modelOptions.find((option) => option.id === selectedModel)?.contextLimit,
 	);
-	const latestContextUsage =
-		rawUsage || chatContext
-			? {
-					...(rawUsage ?? {}),
-					compactionThreshold,
-					context: chatContext,
-				}
-			: rawUsage;
+	const latestContextUsage = {
+		...rawUsage,
+		compactionThreshold,
+		context: chatContext,
+	};
 	const queryClient = useQueryClient();
 	const refreshContextMutation = useMutation(
 		refreshChatContext(queryClient, chatId),

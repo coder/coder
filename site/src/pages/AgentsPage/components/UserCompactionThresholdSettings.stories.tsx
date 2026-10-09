@@ -96,6 +96,7 @@ const meta = {
 		organizations: [modelsOrganization],
 		compactionTriggersByOrganizationID: new Map(),
 		compactionTriggerLoadErrors: [],
+		isLoadingModels: false,
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
