@@ -196,11 +196,8 @@ export const useChatStore = (
 	const [store] = useState(createChatStore);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
 	// Tracks whether the WebSocket has delivered a queue_update for the
-	// current chat. When true, the stream is the authoritative source
-	// and REST re-fetches must not overwrite the store. When false,
-	// REST data is allowed to re-hydrate so stale cached queued
-	// messages are corrected when switching back to a chat whose
-	// queue was drained while the user was away.
+	// current chat. Until it has, the store takes the queue from the cached
+	// page, which the stream's first queue_update then corrects.
 	const wsQueueUpdateReceivedRef = useRef(false);
 	// Tracks whether the WebSocket has delivered a status event for
 	// the current chat. Once true, the WS is the authoritative
@@ -245,8 +242,7 @@ export const useChatStore = (
 	// its snapshot, defeating pagination.
 	const initialDataLoaded = chatMessages !== undefined;
 
-	// Writes durable messages into the messages cache, which a chat opened
-	// again starts from because the cache is not refetched.
+	// A chat opened again renders from this cache, which is never refetched.
 	const upsertCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			if (messages.length === 0) {
@@ -874,8 +870,7 @@ export const useChatStore = (
 		getCacheQueuedMessages: () =>
 			readQueuedMessagesFromCache(queryClient, chatID),
 		// The send and edit responses are applied ahead of the stream, which
-		// later delivers the same messages or removes them. After the user
-		// leaves the chat, only its cache takes a response.
+		// later delivers the same messages or removes them.
 		applySendResponse: (messages) => {
 			if (!isAheadOfCachedMessages(queryClient, chatID, messages)) {
 				return;
@@ -885,8 +880,8 @@ export const useChatStore = (
 			}
 			upsertCacheMessages(messages);
 		},
-		// An edit replaces the history from the edited message and empties the
-		// queue.
+		// The server's edit also empties the queue. replaceMessages empties the
+		// store's when it commits the pending edit; this empties the cache's.
 		applyEditResponse: (messages, editedMessageID) => {
 			if (!isAheadOfCachedMessages(queryClient, chatID, messages)) {
 				return;
