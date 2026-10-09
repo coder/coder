@@ -106,7 +106,10 @@ func (t *Tunnel) requestLoop() {
 		if req.msg.Rpc != nil && req.msg.Rpc.MsgId != 0 {
 			t.handleRPC(req)
 			if _, ok := req.msg.GetMsg().(*ManagerMessage_Stop); ok {
-				close(t.sendCh)
+				// sendReply has handed the Stop response to serdes, which
+				// finishes writing it before checking cancellation. Do not
+				// close sendCh: other goroutines may still be sending.
+				t.speaker.cancel()
 				return
 			}
 			continue
@@ -550,6 +553,8 @@ func (u *updater) setConn(conn Conn) bool {
 }
 
 func (u *updater) stop() error {
+	// Release senders holding mu, including when Start has not succeeded.
+	u.cancel()
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
@@ -557,7 +562,6 @@ func (u *updater) stop() error {
 		return nil
 	}
 	err := u.conn.Close()
-	u.cancel()
 	u.conn = nil
 	return err
 }
