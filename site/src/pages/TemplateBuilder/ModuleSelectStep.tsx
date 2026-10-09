@@ -33,6 +33,8 @@ type ModuleSelectStepProps = {
 	) => void;
 };
 
+const emptyModules: TemplateBuilderModule[] = [];
+
 function toMeta(m: TemplateBuilderModule): SelectedModuleMeta {
 	return {
 		id: m.id,
@@ -99,7 +101,7 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 }) => {
 	const { data, error, isLoading } = useQuery(templateBuilderModules(baseId));
 	const [moduleSearchText, setModuleSearchText] = useState("");
-	const modules = data?.modules ?? [];
+	const modules = data?.modules ?? emptyModules;
 	const doesBaseTemplateHaveModules = modules.length > 0;
 	const sortedModules = sortByPriority(modules, MODULE_PRIORITY);
 	const categories = [
