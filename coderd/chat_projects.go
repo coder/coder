@@ -254,7 +254,7 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = project
 
-	err := api.Database.MarkChatProjectDeleted(ctx, project.ID)
+	err := api.Database.DeleteChatProjectByID(ctx, project.ID)
 	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return

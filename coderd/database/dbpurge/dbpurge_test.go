@@ -257,6 +257,8 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().LockDeletedChatProjectRootChats(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+		mDB.EXPECT().DeleteEmptyDeletedChatProjects(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
@@ -310,7 +312,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
-		mDB.EXPECT().DeleteChatFamiliesOfDeletedProjects(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().LockDeletedChatProjectRootChats(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 		mDB.EXPECT().DeleteEmptyDeletedChatProjects(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
@@ -2966,6 +2968,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: deps.org.ID, OwnerID: deps.user.ID})
 				keptProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: deps.org.ID, OwnerID: deps.user.ID})
+				emptyProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: deps.org.ID, OwnerID: deps.user.ID})
 				root := dbgen.Chat(t, db, database.Chat{
 					OrganizationID:    deps.org.ID,
 					OwnerID:           deps.user.ID,
@@ -2985,7 +2988,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 					LastModelConfigID: deps.modelConfig.ID,
 					ProjectID:         uuid.NullUUID{UUID: keptProject.ID, Valid: true},
 				})
-				require.NoError(t, db.MarkChatProjectDeleted(ctx, project.ID))
+				require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
 
 				done := awaitDoTick(ctx, t, clk)
 				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
@@ -3004,6 +3007,8 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 				_, err = db.GetChatProjectByID(ctx, keptProject.ID)
 				require.NoError(t, err)
+				_, err = db.GetChatProjectByID(ctx, emptyProject.ID)
+				require.NoError(t, err, "a live project with no chats is not purged")
 			},
 		},
 	}

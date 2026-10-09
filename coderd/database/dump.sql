@@ -2318,6 +2318,8 @@ COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, k
 
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
 
+COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. Project queries hide the project and its chats; dbpurge deletes its chat families, then the row.';
+
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
     INCREMENT BY 1
@@ -5552,7 +5554,7 @@ ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_parent_chat_id_fkey FOREIGN KEY (parent_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
-    ADD CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_root_chat_id_fkey FOREIGN KEY (root_chat_id) REFERENCES chats(id) ON DELETE SET NULL;

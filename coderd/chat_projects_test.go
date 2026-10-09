@@ -17,7 +17,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func TestChatProjectsCRUDListAndDelete(t *testing.T) {
+func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -99,8 +99,9 @@ func TestChatProjectsCRUDListAndDelete(t *testing.T) {
 	require.Equal(t, duplicate.ID, fetched.ID)
 
 	require.NoError(t, client.DeleteChatProject(ctx, firstUser.OrganizationID, project.ID))
-	_, err = client.GetChat(ctx, chat.ID)
-	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
+	storedChat, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Nil(t, storedChat.ProjectID)
 }
 
 func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {

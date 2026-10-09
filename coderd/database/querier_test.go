@@ -2379,7 +2379,8 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	unrelated := newChat(owner.ID, uuid.NullUUID{}, nil)
 	unrelatedChild := newChat(owner.ID, uuid.NullUUID{}, &unrelated)
 	otherProjectChat := newChat(owner.ID, uuid.NullUUID{UUID: otherProject.ID, Valid: true}, nil)
-	family := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID}
+	emptyProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	projectChatIDs := []uuid.UUID{ownerRoot.ID, ownerChild.ID, shareeRoot.ID}
 
 	chats, err := db.GetChatProjectChatFamilies(ctx, project.ID)
 	require.NoError(t, err)
@@ -2387,34 +2388,82 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	for _, chat := range chats {
 		ids = append(ids, chat.ID)
 	}
-	require.ElementsMatch(t, family, ids)
+	require.ElementsMatch(t, projectChatIDs, ids)
 
-	deletedLease := database.GetChatHeartbeatParams{ChatID: ownerChild.ID, RunnerID: uuid.New()}
-	keptLease := database.GetChatHeartbeatParams{ChatID: unrelated.ID, RunnerID: uuid.New()}
-	for _, lease := range []database.GetChatHeartbeatParams{deletedLease, keptLease} {
-		require.NoError(t, db.UpsertChatHeartbeat(ctx, database.UpsertChatHeartbeatParams(lease)))
+	linkFile := func(chatID uuid.UUID) uuid.UUID {
+		file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        owner.ID,
+			OrganizationID: org.ID,
+			Name:           "file.png",
+			Mimetype:       "image/png",
+			Data:           []byte("data"),
+		})
+		require.NoError(t, err)
+		_, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{ChatID: chatID, MaxFileLinks: 10, FileIds: []uuid.UUID{file.ID}})
+		require.NoError(t, err)
+		return file.ID
 	}
-	require.NoError(t, db.DeleteChatHeartbeatsByChatIDs(ctx, family))
-	_, err = db.GetChatHeartbeat(ctx, deletedLease)
-	require.ErrorIs(t, err, sql.ErrNoRows)
-	_, err = db.GetChatHeartbeat(ctx, keptLease)
+	hiddenFile := linkFile(ownerChild.ID)
+	visibleFile := linkFile(unrelated.ID)
+
+	accessible, err := db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: project.ID, UserID: owner.ID})
+	require.NoError(t, err)
+	require.True(t, accessible)
+
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'running', worker_id = $2, runner_id = $2 WHERE id = ANY($1)",
+		pq.Array([]uuid.UUID{ownerRoot.ID, ownerChild.ID, unrelated.ID, otherProjectChat.ID}), uuid.New())
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'error', pin_order = 1 WHERE id = $1", shareeRoot.ID)
+	require.NoError(t, err)
+	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{ChatID: ownerRoot.ID, Content: json.RawMessage(`[]`)})
 	require.NoError(t, err)
 
-	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'running' WHERE id = ANY($1)", pq.Array([]uuid.UUID{ownerRoot.ID, ownerChild.ID, unrelated.ID}))
-	require.NoError(t, err)
-	require.NoError(t, db.MarkChatProjectDeleted(ctx, project.ID))
+	require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+	require.NoError(t, db.LockChatProjectRootChats(ctx, project.ID))
+	require.NoError(t, db.DeleteChatQueuedMessagesByChatIDs(ctx, projectChatIDs))
+	require.NoError(t, db.ArchiveChatsOfDeletedChatProject(ctx, projectChatIDs))
+	for _, id := range projectChatIDs {
+		chat, err := db.GetChatByID(ctx, id)
+		require.NoError(t, err)
+		queued, err := db.CountChatQueuedMessages(ctx, id)
+		require.NoError(t, err)
+		require.Zero(t, queued)
+		require.True(t, chat.Archived)
+		require.Zero(t, chat.PinOrder)
+		require.False(t, chat.WorkerID.Valid)
+		require.False(t, chat.RunnerID.Valid)
+		if id == shareeRoot.ID {
+			require.Equal(t, database.ChatStatusError, chat.Status)
+		} else {
+			require.Equal(t, database.ChatStatusWaiting, chat.Status)
+		}
+	}
 
 	_, err = db.GetChatProjectByID(ctx, project.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetChatProjectByIDForUpdate(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetChatProjectByIDForShare(ctx, project.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{ID: project.ID, Name: "renamed"})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	accessible, err = db.IsChatProjectAccessibleByUserID(ctx, database.IsChatProjectAccessibleByUserIDParams{ProjectID: project.ID, UserID: owner.ID})
+	require.NoError(t, err)
+	require.False(t, accessible)
 	count, err := db.CountChatProjectsByOwnerID(ctx, owner.ID)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, count)
-	projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, owner.ID)
-	require.NoError(t, err)
-	require.Len(t, projects, 1)
-	require.Equal(t, otherProject.ID, projects[0].ID)
+	require.EqualValues(t, 2, count)
+	for _, list := range []func(context.Context, uuid.UUID) ([]database.ChatProject, error){db.GetChatProjectsOwnedOrSharedWithUserID, db.GetChatProjectsByOwnerID} {
+		projects, err := list(ctx, owner.ID)
+		require.NoError(t, err)
+		listed := make([]uuid.UUID, 0, len(projects))
+		for _, p := range projects {
+			listed = append(listed, p.ID)
+		}
+		require.ElementsMatch(t, []uuid.UUID{otherProject.ID, emptyProject.ID}, listed)
+	}
 
-	for _, id := range family {
+	for _, id := range projectChatIDs {
 		inDeleted, err := db.IsChatInDeletedProject(ctx, id)
 		require.NoError(t, err)
 		require.True(t, inDeleted)
@@ -2431,28 +2480,44 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	}
 	require.ElementsMatch(t, []uuid.UUID{unrelated.ID, otherProjectChat.ID}, listed)
 
+	fileChats, err := db.GetChatsByChatFileID(ctx, hiddenFile)
+	require.NoError(t, err)
+	require.Empty(t, fileChats)
+	fileChats, err = db.GetChatsByChatFileID(ctx, visibleFile)
+	require.NoError(t, err)
+	require.Len(t, fileChats, 1)
+
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET worker_id = NULL, runner_id = NULL WHERE id = ANY($1)",
+		pq.Array([]uuid.UUID{unrelated.ID, otherProjectChat.ID}))
+	require.NoError(t, err)
 	candidates, err := db.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{LimitCount: 10, StaleSeconds: 30})
 	require.NoError(t, err)
 	candidateIDs := make([]uuid.UUID, 0, len(candidates))
 	for _, candidate := range candidates {
 		candidateIDs = append(candidateIDs, candidate.ID)
 	}
-	require.Equal(t, []uuid.UUID{unrelated.ID}, candidateIDs)
+	require.ElementsMatch(t, []uuid.UUID{unrelated.ID, otherProjectChat.ID}, candidateIDs)
 
-	purged, err := db.DeleteChatFamiliesOfDeletedProjects(ctx, 1)
+	roots, err := db.LockDeletedChatProjectRootChats(ctx, 1)
+	require.NoError(t, err)
+	require.Len(t, roots, 1)
+	purged, err := db.DeleteChatFamiliesByRootIDs(ctx, roots)
 	require.NoError(t, err)
 	require.NotZero(t, purged)
 	removed, err := db.DeleteEmptyDeletedChatProjects(ctx, 10)
 	require.NoError(t, err)
 	require.Zero(t, removed)
-	purged, err = db.DeleteChatFamiliesOfDeletedProjects(ctx, 10)
+	roots, err = db.LockDeletedChatProjectRootChats(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, roots, 1)
+	purged, err = db.DeleteChatFamiliesByRootIDs(ctx, roots)
 	require.NoError(t, err)
 	require.NotZero(t, purged)
 	removed, err = db.DeleteEmptyDeletedChatProjects(ctx, 10)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, removed)
 
-	for _, id := range family {
+	for _, id := range projectChatIDs {
 		_, err := db.GetChatByID(ctx, id)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	}
@@ -2460,6 +2525,8 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		_, err := db.GetChatByID(ctx, id)
 		require.NoError(t, err)
 	}
+	_, err = db.GetChatProjectByID(ctx, emptyProject.ID)
+	require.NoError(t, err, "a live project with no chats is not purged")
 }
 
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
