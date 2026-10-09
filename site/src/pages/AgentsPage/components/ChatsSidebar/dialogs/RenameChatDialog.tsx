@@ -158,7 +158,7 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 		}
 		setIsTypingGeneratedTitle(false);
 		setIsGeneratingTitle(false);
-	});
+	}, [prevChatId]);
 
 	useEffect(() => {
 		return () => {
