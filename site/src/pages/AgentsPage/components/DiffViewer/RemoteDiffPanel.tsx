@@ -172,10 +172,7 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 					</div>
 				</div>
 			)}
-			{/* A remount per ref keeps any open inline comment box
-				from leaking into a different PR's diff. */}
 			<CommentableDiffViewer
-				key={`${remoteRef?.remote_origin ?? ""}/${remoteRef?.git_branch ?? ""}`}
 				parsedFiles={parsedFiles}
 				isExpanded={isExpanded}
 				diffStyle={diffStyle}

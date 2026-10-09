@@ -571,6 +571,9 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 			<div className="min-h-0 flex-1">
 				{isRemoteView ? (
 					<RemoteContent
+						// A remount per ref keeps any open inline comment box
+						// from leaking into a different ref's diff.
+						key={viewRefId}
 						chatId={chatId}
 						hasGitContext={hasGitContext}
 						isGitStatusLoading={isGitStatusLoading}
