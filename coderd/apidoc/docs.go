@@ -22271,6 +22271,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "reasoning_tokens": {
+                    "description": "ReasoningTokens counts reasoning, which output_tokens already\nincludes, so do not add the two.",
                     "type": "integer"
                 },
                 "total_tokens": {
@@ -22295,6 +22296,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
                     }
+                },
+                "turn_start_id": {
+                    "description": "TurnStartID is the ID of the user prompt that starts the turn\ncontaining the page's oldest message. Omitted for after_id-only polls\nand when no prompt is at or before that message.",
+                    "type": "integer"
                 }
             }
         },

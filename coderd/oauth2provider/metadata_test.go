@@ -119,6 +119,31 @@ func TestGetAuthorizationServerMetadata_DCREnabled(t *testing.T) {
 	}
 }
 
+func TestOAuth2ProtectedResourceMetadataUnknownPath(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	for _, suffix := range []string{
+		"/unknown", "/api/v2/users/me", "/api/experimental/mcp/http/unknown",
+		"/api/experimental/mcp/http-extra", "/../api/experimental/mcp/http",
+		"/api/experimental/mcp/../mcp/http", "/api//experimental/mcp/http",
+		"//api/experimental/mcp/http", "/api/experimental/mcp/http//",
+		"/api/experimental/mcp/%2e%2e/mcp/http", "/%ff",
+	} {
+		t.Run(suffix, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+				client.URL.String()+"/.well-known/oauth-protected-resource"+suffix, nil)
+			require.NoError(t, err)
+			resp, err := client.HTTPClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusNotFound, resp.StatusCode)
+		})
+	}
+}
+
 func TestOAuth2ProtectedResourceMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -135,10 +160,17 @@ func TestOAuth2ProtectedResourceMetadata(t *testing.T) {
 	testutil.RequireEventuallyResponseOK(ctx, t, endpoint, &metadata)
 
 	// Verify the metadata
-	require.NotEmpty(t, metadata.Resource)
+	require.Equal(t, serverURL.String(), metadata.Resource)
 	require.NotEmpty(t, metadata.AuthorizationServers)
 	require.Len(t, metadata.AuthorizationServers, 1)
 	require.Equal(t, metadata.Resource, metadata.AuthorizationServers[0])
+
+	for _, suffix := range []string{"/api/experimental/mcp/http", "/api/experimental/mcp/http/"} {
+		var pathMetadata codersdk.OAuth2ProtectedResourceMetadata
+		testutil.RequireEventuallyResponseOK(ctx, t, endpoint+suffix, &pathMetadata)
+		require.Equal(t, serverURL.String()+suffix, pathMetadata.Resource)
+		require.Equal(t, []string{serverURL.String()}, pathMetadata.AuthorizationServers)
+	}
 	// RFC 6750 bearer tokens are now supported as fallback methods
 	require.Contains(t, metadata.BearerMethodsSupported, "header")
 	require.Contains(t, metadata.BearerMethodsSupported, "query")

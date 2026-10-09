@@ -1,8 +1,10 @@
 import { cn } from "cn";
 import {
 	ArrowLeftIcon,
+	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
+	GitPullRequestArrowIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
@@ -30,10 +32,16 @@ import {
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import { parsePullRequestUrl } from "../utils/pullRequest";
+import { prNumber } from "../utils/pullRequest";
 import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import {
@@ -45,6 +53,7 @@ import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
+import { PRMenuLinks, prMenuContentClassName } from "./PRMenuLinks";
 
 type SidebarPanelState = {
 	showSidebarPanel: boolean;
@@ -200,15 +209,13 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	// Suppressed when there is no chat to act on (loading and not-found views).
 	const showActionsMenu =
 		!isEmbedded && chat !== undefined && Boolean(chatTitle);
-	const diffStatus = chat?.diff_status;
 
-	const prUrl = diffStatus?.url;
-	const prState = diffStatus?.pull_request_state;
-	const prDraft = diffStatus?.pull_request_draft;
-	const prTitle = diffStatus?.pull_request_title;
-	const parsedPr = parsePullRequestUrl(prUrl);
-	const prNumberMatch = diffStatus?.pr_number?.toString() ?? parsedPr?.number;
-	const hasPR = Boolean(prState || prNumberMatch || parsedPr);
+	// Branch rows carry a /tree URL with no number, so they stay out
+	// of the PR chips.
+	const prStatuses = (chat?.diff_statuses ?? []).filter(
+		(status) => prNumber(status) !== undefined,
+	);
+	const hasMultiplePRs = prStatuses.length > 1;
 
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
@@ -322,31 +329,34 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 					</ChatActionsMenu>
 				)}
 			</div>
-			{/* PR link. On mobile: icon + number; on desktop: icon + title.
-			   Hidden on desktop when the sidebar panel is open
-			   (which already shows PR info). */}
-			{prUrl && hasPR && (
-				<a
-					href={prUrl}
-					target="_blank"
-					rel="noreferrer"
-					className={cn(
-						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
-						panel.showSidebarPanel && "lg:hidden",
-					)}
-				>
-					<PrStateIcon
-						state={prState}
-						draft={prDraft}
-						className="size-3.5! shrink-0"
+			{/* Hidden on desktop when the sidebar panel is open,
+			   which already shows PR info. */}
+			{hasMultiplePRs ? (
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<button
+							type="button"
+							className={cn(
+								"inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+								panel.showSidebarPanel && "lg:hidden",
+							)}
+						>
+							<GitPullRequestArrowIcon className="size-3.5 shrink-0" />
+							<span className="tabular-nums">{prStatuses.length} PRs</span>
+							<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
+						</button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="start" className={prMenuContentClassName}>
+						<PRMenuLinks prStatuses={prStatuses} Item={DropdownMenuItem} />
+					</DropdownMenuContent>
+				</DropdownMenu>
+			) : (
+				prStatuses.length === 1 && (
+					<PrLink
+						status={prStatuses[0]}
+						className={panel.showSidebarPanel ? "lg:hidden" : undefined}
 					/>
-					<span className="truncate max-w-[120px] hidden sm:inline">
-						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
-					</span>
-					<span className="sm:hidden">
-						{prNumberMatch ? prNumberMatch : "PR"}
-					</span>
-				</a>
+				)
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
@@ -373,5 +383,36 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 				)}
 			</div>
 		</div>
+	);
+};
+
+type PrLinkProps = {
+	status: TypesGen.ChatDiffStatus;
+	className?: string;
+};
+
+const PrLink: React.FC<PrLinkProps> = ({ status, className }) => {
+	const number = prNumber(status);
+
+	return (
+		<a
+			href={status.url}
+			target="_blank"
+			rel="noreferrer"
+			className={cn(
+				"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+				className,
+			)}
+		>
+			<PrStateIcon
+				state={status.pull_request_state}
+				draft={status.pull_request_draft}
+				className="size-3.5! shrink-0"
+			/>
+			<span className="truncate max-w-[120px] hidden sm:inline">
+				{status.pull_request_title || (number ? `#${number}` : "PR")}
+			</span>
+			<span className="sm:hidden">{number ?? "PR"}</span>
+		</a>
 	);
 };

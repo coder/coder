@@ -394,9 +394,11 @@ type ChatMessage struct {
 
 // ChatMessageUsage contains token usage information for a chat message.
 type ChatMessageUsage struct {
-	InputTokens         *int64 `json:"input_tokens,omitempty"`
-	OutputTokens        *int64 `json:"output_tokens,omitempty"`
-	TotalTokens         *int64 `json:"total_tokens,omitempty"`
+	InputTokens  *int64 `json:"input_tokens,omitempty"`
+	OutputTokens *int64 `json:"output_tokens,omitempty"`
+	TotalTokens  *int64 `json:"total_tokens,omitempty"`
+	// ReasoningTokens counts reasoning, which output_tokens already
+	// includes, so do not add the two.
 	ReasoningTokens     *int64 `json:"reasoning_tokens,omitempty"`
 	CacheCreationTokens *int64 `json:"cache_creation_tokens,omitempty"`
 	CacheReadTokens     *int64 `json:"cache_read_tokens,omitempty"`
@@ -963,6 +965,10 @@ type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 	HasMore        bool                `json:"has_more"`
+	// TurnStartID is the ID of the user prompt that starts the turn
+	// containing the page's oldest message. Omitted for after_id-only polls
+	// and when no prompt is at or before that message.
+	TurnStartID *int64 `json:"turn_start_id,omitempty"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by
