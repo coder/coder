@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
+	MockChatContextACPHarnesses,
+	MockChatContextACPHarnessIssue,
 	MockChatContextClean,
 	MockChatContextDirty,
 } from "#/testHelpers/chatEntities";
@@ -16,6 +18,61 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 
 export default meta;
 type Story = StoryObj<typeof ContextUsageIndicator>;
+
+export const ACPHarnesses: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: MockChatContextACPHarnesses,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(within(canvasElement).getByRole("button"));
+	},
+};
+
+export const ACPHarnessesWithOtherContext: Story = {
+	...ACPHarnesses,
+	args: {
+		usage: {
+			...ACPHarnesses.args?.usage,
+			context: {
+				...MockChatContextClean,
+				resources: [
+					...(MockChatContextClean.resources ?? []),
+					...(MockChatContextACPHarnesses.resources ?? []),
+				],
+			},
+		},
+	},
+};
+
+export const ACPHarnessIssue: Story = {
+	...ACPHarnesses,
+	args: {
+		usage: {
+			...ACPHarnesses.args?.usage,
+			context: MockChatContextACPHarnessIssue,
+		},
+	},
+};
+
+export const ACPHarnessesWithoutSourcePath: Story = {
+	...ACPHarnesses,
+	args: {
+		usage: {
+			...ACPHarnesses.args?.usage,
+			context: {
+				...MockChatContextACPHarnesses,
+				resources: MockChatContextACPHarnesses.resources?.map((resource) => ({
+					...resource,
+					source_path: undefined,
+				})),
+			},
+		},
+	},
+};
 
 // A pinned resource issue flags the ring and appears under Issues.
 export const ResourceIssue: Story = {

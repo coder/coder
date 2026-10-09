@@ -113,10 +113,12 @@ export const applyMessagePartToStreamState = (
 					? existingCallByName.id
 					: null) ||
 				`tool-result-${Object.keys(nextState.toolResults).length + 1}-${++nextFallbackID}`;
-			const existing = nextState.toolResults[toolCallID];
+			const existing = part.result_reset
+				? undefined
+				: nextState.toolResults[toolCallID];
 			const isFinalResult = part.result !== undefined || Boolean(part.is_error);
 			const hasDelta = Boolean(part.result_delta || part.reasoning_delta);
-			if (part.result_reset) {
+			if (part.result_reset && !hasDelta && !isFinalResult) {
 				const toolResults = { ...nextState.toolResults };
 				delete toolResults[toolCallID];
 				return {
