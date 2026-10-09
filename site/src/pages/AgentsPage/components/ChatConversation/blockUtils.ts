@@ -29,14 +29,10 @@ export const appendTextBlock = (
 	}
 	const nextBlocks = [...blocks];
 	const last = nextBlocks[nextBlocks.length - 1];
-	if (
-		last &&
-		last.type === type &&
-		!(
-			last.type === "response" &&
-			(last.beforeProviderTool || (last.narration ?? false) !== narration)
-		)
-	) {
+	const keepsApart =
+		last?.type === "response" &&
+		(last.beforeProviderTool || (last.narration ?? false) !== narration);
+	if (last && last.type === type && !keepsApart) {
 		nextBlocks[nextBlocks.length - 1] = textBlock(
 			type,
 			`${last.text}${text}`,

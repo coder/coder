@@ -305,18 +305,18 @@ func TestOpenAIResponsesNarrationKeepsPhase(t *testing.T) {
 
 	requests := recorder.all()
 	require.Len(t, requests, 2)
-	var phases []string
+	var replayed [][2]any
 	for _, item := range requests[1].Prompt {
 		itemMap, ok := item.(map[string]interface{})
 		if !ok || chattest.StringResponseField(itemMap, "role") != "assistant" {
 			continue
 		}
-		phases = append(phases, fmt.Sprintf("%v: %v", itemMap["content"], itemMap["phase"]))
+		replayed = append(replayed, [2]any{itemMap["content"], itemMap["phase"]})
 	}
-	require.Equal(t, []string{
-		"Checking the docs.: commentary",
-		"The docs cover it.: final_answer",
-	}, phases)
+	require.Equal(t, [][2]any{
+		{"Checking the docs.", "commentary"},
+		{"The docs cover it.", "final_answer"},
+	}, replayed)
 }
 
 type recordedResponsesRequest struct {

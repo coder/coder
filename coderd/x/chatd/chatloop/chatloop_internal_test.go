@@ -95,7 +95,7 @@ func TestProcessStepStreamLabelsNarration(t *testing.T) {
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "msg_1", ProviderMetadata: phase("msg_1", "commentary")})
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "msg_1", Delta: "Reading"})
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "msg_1", Delta: " the file."})
-		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "msg_1"})
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "msg_1", ProviderMetadata: fantasy.ProviderMetadata{}})
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "msg_2", ProviderMetadata: phase("msg_2", "final_answer")})
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "msg_2", Delta: "It is flaky."})
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "msg_2", ProviderMetadata: phase("msg_2", "final_answer")})
