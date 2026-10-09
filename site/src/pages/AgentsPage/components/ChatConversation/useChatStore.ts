@@ -110,8 +110,9 @@ const writeHistoryVersionToCache = (
 };
 
 // Message IDs within a chat follow commit order, because every insert holds
-// the chat row lock, so a response with no message newer than the newest
-// cached one describes history the cache has already moved past.
+// the chat row lock, and the only deletion, an edit, inserts a newer message.
+// So a response with no message newer than the newest cached one describes
+// history the cache has already moved past.
 const isAheadOfCachedMessages = (
 	queryClient: QueryClient,
 	chatID: string,
