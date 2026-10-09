@@ -1078,6 +1078,59 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 	}
 }
 
+func TestHardLimitedPresetWithBuildInFlight(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	cfg := codersdk.PrebuildsConfig{
+		FailureHardLimit:              serpent.Int64(1),
+		ReconciliationBackoffInterval: 0,
+	}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, pubSub := dbtestutil.NewDB(t)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(
+		db, pubSub, cache, cfg, logger,
+		clock,
+		prometheus.NewRegistry(),
+		newFakeEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+		nil,
+	)
+
+	ownerID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: ownerID,
+	})
+	org, template := setupTestDBTemplate(t, db, ownerID, false)
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+	preset := setupTestDBPreset(t, db, templateVersionID, 2, uuid.New().String())
+
+	// Given: a failed prebuild, followed by a newer one that is still pending, as the reconciler
+	// sees when a failing build outlasts a reconciliation interval.
+	setupTestDBPrebuild(t, clock, db, pubSub, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, org.ID, preset, template.ID, templateVersionID)
+	clock.Advance(time.Second).MustWait(ctx)
+	setupTestDBPrebuild(t, clock, db, pubSub, database.WorkspaceTransitionStart, database.ProvisionerJobStatusPending, org.ID, preset, template.ID, templateVersionID)
+	clock.Advance(time.Nanosecond).MustWait(ctx)
+
+	// When: reconciling.
+	_, err := controller.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Then: the in-flight build does not hide the failure, so the preset is hard limited and nothing new is created.
+	workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 2)
+	updatedPreset, err := db.GetPresetByID(ctx, preset.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
+}
+
 func TestValidationFailedPresets(t *testing.T) {
 	t.Parallel()
 
