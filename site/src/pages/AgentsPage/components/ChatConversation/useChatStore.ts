@@ -769,8 +769,6 @@ export const useChatStore = (
 					store.upsertDurableMessages(pendingMessages);
 					upsertCacheMessages(pendingMessages);
 				}
-				// After the messages, so the cache never claims a version whose
-				// messages it does not hold.
 				if (syncedHistoryVersion !== undefined) {
 					writeHistoryVersionToCache(queryClient, chatID, syncedHistoryVersion);
 				}
