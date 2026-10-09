@@ -2048,6 +2048,17 @@ func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountA
 	return q.db.CountAuthorizedAIBridgeSessions(ctx, arg, prep)
 }
 
+func (q *querier) CountAgentsACPSessionsByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return 0, err
+	}
+	return q.db.CountAgentsACPSessionsByChatID(ctx, chatID)
+}
+
 func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	// Shortcut if the user is an owner. The SQL filter is noticeable,
 	// and this is an easy win for owners. Which is the common case.
@@ -3172,6 +3183,17 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 		return []database.WorkspaceBuild{}, err
 	}
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
+}
+
+func (q *querier) GetAgentsACPSessionByIDAndChatID(ctx context.Context, arg database.GetAgentsACPSessionByIDAndChatIDParams) (database.AgentsAcpSession, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.AgentsAcpSession{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return database.AgentsAcpSession{}, err
+	}
+	return q.db.GetAgentsACPSessionByIDAndChatID(ctx, arg)
 }
 
 func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
@@ -6375,6 +6397,17 @@ func (q *querier) InsertAgentContextResourcesIntoChat(ctx context.Context, arg d
 	return q.db.InsertAgentContextResourcesIntoChat(ctx, arg)
 }
 
+func (q *querier) InsertAgentsACPSession(ctx context.Context, arg database.InsertAgentsACPSessionParams) (database.AgentsAcpSession, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.AgentsAcpSession{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.AgentsAcpSession{}, err
+	}
+	return q.db.InsertAgentsACPSession(ctx, arg)
+}
+
 func (q *querier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	// This method creates a new group.
 	return insert(q.log, q.auth, rbac.ResourceGroup.InOrg(organizationID), q.db.InsertAllUsersGroup)(ctx, organizationID)
@@ -7251,6 +7284,17 @@ func (q *querier) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatew
 	return q.db.ListAIGatewayKeys(ctx)
 }
 
+func (q *querier) ListAgentsACPSessionsByChatID(ctx context.Context, arg database.ListAgentsACPSessionsByChatIDParams) ([]database.AgentsAcpSession, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return nil, err
+	}
+	return q.db.ListAgentsACPSessionsByChatID(ctx, arg)
+}
+
 func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceBoundaryLog); err != nil {
 		return nil, err
@@ -7751,6 +7795,17 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
+}
+
+func (q *querier) UpdateAgentsACPSessionUpdatedAt(ctx context.Context, arg database.UpdateAgentsACPSessionUpdatedAtParams) (uuid.UUID, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.UpdateAgentsACPSessionUpdatedAt(ctx, arg)
 }
 
 func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChatACLByIDParams) error {

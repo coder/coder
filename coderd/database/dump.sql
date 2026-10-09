@@ -702,7 +702,8 @@ CREATE TYPE workspace_agent_context_body_kind AS ENUM (
     'plugin',
     'hook',
     'subagent',
-    'command'
+    'command',
+    'acp_harness'
 );
 
 CREATE TYPE workspace_agent_context_resource_status AS ENUM (
@@ -1632,6 +1633,19 @@ END;
 $$;
 
 COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv and search_tsv_config.';
+
+CREATE TABLE agents_acp_sessions (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    chat_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    working_directory text NOT NULL,
+    harness_slug text NOT NULL,
+    harness_display_name text NOT NULL,
+    session_id text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
@@ -4475,6 +4489,12 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY agents_acp_sessions
+    ADD CONSTRAINT agents_acp_sessions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY agents_acp_sessions
+    ADD CONSTRAINT agents_acp_sessions_workspace_id_harness_slug_working_direc_key UNIQUE (workspace_id, harness_slug, working_directory, session_id);
+
 ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
@@ -4921,6 +4941,8 @@ ALTER TABLE ONLY workspace_resources
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
+
+CREATE INDEX agents_acp_sessions_chat_updated_idx ON agents_acp_sessions USING btree (chat_id, updated_at DESC, id);
 
 CREATE UNIQUE INDEX ai_gateway_keys_hashed_secret_idx ON ai_gateway_keys USING btree (hashed_secret);
 
@@ -5389,6 +5411,15 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY agents_acp_sessions
+    ADD CONSTRAINT agents_acp_sessions_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY agents_acp_sessions
+    ADD CONSTRAINT agents_acp_sessions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY agents_acp_sessions
+    ADD CONSTRAINT agents_acp_sessions_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

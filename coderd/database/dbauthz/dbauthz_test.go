@@ -697,6 +697,51 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 }
 
 func (s *MethodTestSuite) TestChats() {
+	s.Run("CountAgentsACPSessionsByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := chat.ID
+		result := int64(2)
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().CountAgentsACPSessionsByChatID(gomock.Any(), arg).Return(result, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(result)
+	}))
+
+	s.Run("GetAgentsACPSessionByIDAndChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.GetAgentsACPSessionByIDAndChatIDParams{ID: uuid.New(), ChatID: chat.ID}
+		result := database.AgentsAcpSession{ChatID: chat.ID}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetAgentsACPSessionByIDAndChatID(gomock.Any(), arg).Return(result, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(result)
+	}))
+
+	s.Run("ListAgentsACPSessionsByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.ListAgentsACPSessionsByChatIDParams{ChatID: chat.ID, LimitValue: 10}
+		result := []database.AgentsAcpSession{{ChatID: chat.ID}}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ListAgentsACPSessionsByChatID(gomock.Any(), arg).Return(result, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(result)
+	}))
+
+	s.Run("InsertAgentsACPSession", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.InsertAgentsACPSessionParams{ID: uuid.New(), ChatID: chat.ID, OrganizationID: chat.OrganizationID}
+		result := database.AgentsAcpSession{ChatID: chat.ID}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().InsertAgentsACPSession(gomock.Any(), arg).Return(result, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(result)
+	}))
+
+	s.Run("UpdateAgentsACPSessionUpdatedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpdateAgentsACPSessionUpdatedAtParams{ID: uuid.New(), ChatID: chat.ID, AgentID: uuid.New()}
+		result := uuid.New()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateAgentsACPSessionUpdatedAt(gomock.Any(), arg).Return(result, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(result)
+	}))
+
 	s.Run("HydrateAgentChatsContext", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.HydrateAgentChatsContextParams{AgentID: uuid.New()}
 		hydrated := []uuid.UUID{uuid.New()}

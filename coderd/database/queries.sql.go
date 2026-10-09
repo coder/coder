@@ -111,6 +111,179 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const countAgentsACPSessionsByChatID = `-- name: CountAgentsACPSessionsByChatID :one
+SELECT count(*) FROM agents_acp_sessions WHERE chat_id = $1::uuid
+`
+
+func (q *sqlQuerier) CountAgentsACPSessionsByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAgentsACPSessionsByChatID, chatID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getAgentsACPSessionByIDAndChatID = `-- name: GetAgentsACPSessionByIDAndChatID :one
+SELECT id, organization_id, chat_id, workspace_id, working_directory, harness_slug, harness_display_name, session_id, created_at, updated_at FROM agents_acp_sessions
+WHERE id = $1::uuid AND chat_id = $2::uuid
+`
+
+type GetAgentsACPSessionByIDAndChatIDParams struct {
+	ID     uuid.UUID `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+func (q *sqlQuerier) GetAgentsACPSessionByIDAndChatID(ctx context.Context, arg GetAgentsACPSessionByIDAndChatIDParams) (AgentsAcpSession, error) {
+	row := q.db.QueryRowContext(ctx, getAgentsACPSessionByIDAndChatID, arg.ID, arg.ChatID)
+	var i AgentsAcpSession
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ChatID,
+		&i.WorkspaceID,
+		&i.WorkingDirectory,
+		&i.HarnessSlug,
+		&i.HarnessDisplayName,
+		&i.SessionID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertAgentsACPSession = `-- name: InsertAgentsACPSession :one
+INSERT INTO agents_acp_sessions (
+    id, organization_id, chat_id, workspace_id,
+    working_directory, harness_slug, harness_display_name, session_id
+)
+SELECT
+    $1::uuid, chats.organization_id, chats.id, chats.workspace_id,
+    $2::text, $3::text, $4::text, $5::text
+FROM chats
+WHERE chats.id = $6::uuid
+    AND chats.organization_id = $7::uuid
+    AND chats.workspace_id = $8::uuid
+    AND chats.agent_id = $9::uuid
+ON CONFLICT (id) DO UPDATE SET id = agents_acp_sessions.id
+WHERE agents_acp_sessions.chat_id = EXCLUDED.chat_id
+    AND agents_acp_sessions.workspace_id = EXCLUDED.workspace_id
+    AND agents_acp_sessions.harness_slug = EXCLUDED.harness_slug
+    AND agents_acp_sessions.working_directory = EXCLUDED.working_directory
+    AND agents_acp_sessions.session_id = EXCLUDED.session_id
+RETURNING id, organization_id, chat_id, workspace_id, working_directory, harness_slug, harness_display_name, session_id, created_at, updated_at
+`
+
+type InsertAgentsACPSessionParams struct {
+	ID                 uuid.UUID `db:"id" json:"id"`
+	WorkingDirectory   string    `db:"working_directory" json:"working_directory"`
+	HarnessSlug        string    `db:"harness_slug" json:"harness_slug"`
+	HarnessDisplayName string    `db:"harness_display_name" json:"harness_display_name"`
+	SessionID          string    `db:"session_id" json:"session_id"`
+	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
+	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceID        uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentID            uuid.UUID `db:"agent_id" json:"agent_id"`
+}
+
+func (q *sqlQuerier) InsertAgentsACPSession(ctx context.Context, arg InsertAgentsACPSessionParams) (AgentsAcpSession, error) {
+	row := q.db.QueryRowContext(ctx, insertAgentsACPSession,
+		arg.ID,
+		arg.WorkingDirectory,
+		arg.HarnessSlug,
+		arg.HarnessDisplayName,
+		arg.SessionID,
+		arg.ChatID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.AgentID,
+	)
+	var i AgentsAcpSession
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ChatID,
+		&i.WorkspaceID,
+		&i.WorkingDirectory,
+		&i.HarnessSlug,
+		&i.HarnessDisplayName,
+		&i.SessionID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listAgentsACPSessionsByChatID = `-- name: ListAgentsACPSessionsByChatID :many
+SELECT id, organization_id, chat_id, workspace_id, working_directory, harness_slug, harness_display_name, session_id, created_at, updated_at FROM agents_acp_sessions
+WHERE chat_id = $1::uuid
+ORDER BY updated_at DESC, id
+LIMIT $3::int OFFSET $2::int
+`
+
+type ListAgentsACPSessionsByChatIDParams struct {
+	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
+	OffsetValue int32     `db:"offset_value" json:"offset_value"`
+	LimitValue  int32     `db:"limit_value" json:"limit_value"`
+}
+
+func (q *sqlQuerier) ListAgentsACPSessionsByChatID(ctx context.Context, arg ListAgentsACPSessionsByChatIDParams) ([]AgentsAcpSession, error) {
+	rows, err := q.db.QueryContext(ctx, listAgentsACPSessionsByChatID, arg.ChatID, arg.OffsetValue, arg.LimitValue)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AgentsAcpSession
+	for rows.Next() {
+		var i AgentsAcpSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.ChatID,
+			&i.WorkspaceID,
+			&i.WorkingDirectory,
+			&i.HarnessSlug,
+			&i.HarnessDisplayName,
+			&i.SessionID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateAgentsACPSessionUpdatedAt = `-- name: UpdateAgentsACPSessionUpdatedAt :one
+UPDATE agents_acp_sessions AS sessions
+SET updated_at = now()
+FROM chats
+WHERE sessions.id = $1::uuid AND sessions.chat_id = $2::uuid
+    AND chats.id = sessions.chat_id
+    AND chats.organization_id = sessions.organization_id
+    AND chats.workspace_id = sessions.workspace_id
+    AND chats.agent_id = $3::uuid
+RETURNING sessions.id
+`
+
+type UpdateAgentsACPSessionUpdatedAtParams struct {
+	ID      uuid.UUID `db:"id" json:"id"`
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+}
+
+func (q *sqlQuerier) UpdateAgentsACPSessionUpdatedAt(ctx context.Context, arg UpdateAgentsACPSessionUpdatedAtParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, updateAgentsACPSessionUpdatedAt, arg.ID, arg.ChatID, arg.AgentID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const deleteAIGatewayKey = `-- name: DeleteAIGatewayKey :one
 DELETE FROM ai_gateway_keys WHERE id = $1
 RETURNING id, name, secret_prefix, created_at, last_heartbeat_at

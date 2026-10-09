@@ -288,15 +288,14 @@ type ChatContext struct {
 	// Error is the snapshot-level error copied from the pinned snapshot
 	// (empty when healthy).
 	Error string `json:"error,omitempty"`
-	// Resources is the chat's pinned context (instruction files and
-	// skills) the prompt is built from, metadata only (no bodies). It is
-	// populated only on the single-chat GET response; list and watch
+	// Resources is the chat's pinned workspace-context inventory,
+	// metadata only (no bodies). It is populated only on the single-chat
+	// GET response; list and watch
 	// payloads leave it nil to stay lightweight.
 	Resources []ChatContextResource `json:"resources,omitempty"`
 }
 
-// ChatContextResourceKind classifies a pinned context resource the prompt
-// uses. Only the kinds that contribute to the prompt are reported.
+// ChatContextResourceKind classifies a pinned workspace-context resource.
 type ChatContextResourceKind string
 
 const (
@@ -304,17 +303,20 @@ const (
 	ChatContextResourceKindSkill           ChatContextResourceKind = "skill"
 	ChatContextResourceKindMCPConfig       ChatContextResourceKind = "mcp_config"
 	ChatContextResourceKindMCPServer       ChatContextResourceKind = "mcp_server"
+	ChatContextResourceKindACPHarness      ChatContextResourceKind = "acp_harness"
 )
 
-// ChatContextResource is one pinned workspace-context resource the chat's
-// prompt is built from. It is metadata only; bodies are omitted. Reported
+// ChatContextResource is one resource in the chat's pinned workspace-context
+// inventory. It is metadata only; bodies are omitted. Reported
 // only on the single-chat GET response.
 type ChatContextResource struct {
 	// Source is the resource locator: the canonical file path for an
 	// instruction file, the skill directory for a skill, the file path for
-	// an MCP config, or the server name for an MCP server.
+	// an MCP config, the server name for an MCP server, or an ACP harness slug.
 	Source string                  `json:"source"`
 	Kind   ChatContextResourceKind `json:"kind"`
+	// SourcePath is the configuration directory for an ACP harness.
+	SourcePath string `json:"source_path,omitempty"`
 	// SizeBytes is the original payload size in bytes.
 	SizeBytes int64 `json:"size_bytes"`
 	// SkillName and SkillDescription are populated only for skill kinds.
@@ -365,6 +367,13 @@ type ChatFileMetadata struct {
 	MimeType       string    `json:"mime_type"`
 	SizeBytes      int64     `json:"size_bytes"`
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
+}
+
+// ChatACPTranscriptMessage is a workspace-local ACP message returned by
+// acp_wait_agent without database message metadata.
+type ChatACPTranscriptMessage struct {
+	Role    ChatMessageRole   `json:"role"`
+	Content []ChatMessagePart `json:"content"`
 }
 
 // ChatMessage represents a single message in a chat.
