@@ -241,10 +241,9 @@ export const groupWorkingBlocks = (
 		}
 
 		if (!current) {
-			// The stream opens empty before every step, and a search without
-			// citations renders nothing. Such rows extend a block that is
-			// already working but never start one, so a turn's first moments
-			// keep the plain thinking indicator and no block expands to nothing.
+			// Rows that render nothing, like the empty stream before each step or
+			// an uncited search, extend a block but never start one: a turn's
+			// first moments keep the thinking indicator, and no block is empty.
 			if (!member.showsWork) {
 				continue;
 			}
