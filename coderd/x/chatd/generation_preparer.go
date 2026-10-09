@@ -246,7 +246,7 @@ func (server *Server) prepareGeneration(
 		chatStateMu:      &chatStateMu,
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
-		conns:            input.AgentConns,
+		runnerAgentConn:  input.RunnerAgentConn,
 	}
 	// mcpCleanup and inlineMCPCleanup are assigned by g2 goroutines and
 	// read only after g2.Wait, so no error path can run this before
@@ -287,15 +287,13 @@ func (server *Server) prepareGeneration(
 		planCtx, cancel := context.WithTimeout(resolveCtx, planPathLookupTimeout)
 		defer cancel()
 
-		_, latestAgentID, err := workspaceCtx.workspaceAgentIDForConn(planCtx)
-		if err != nil {
+		if _, _, err := workspaceCtx.workspaceAgentIDForConn(planCtx); err != nil {
 			logger.Debug(resolveCtx, "plan path instruction: agent not reachable",
 				slog.Error(err),
 				slog.F("chat_id", chat.ID),
 			)
 			return ""
 		}
-		workspaceCtx.dropStaleRunnerConn(latestAgentID)
 
 		planPath, home, err := planPathFn(planCtx)
 		if err != nil {
