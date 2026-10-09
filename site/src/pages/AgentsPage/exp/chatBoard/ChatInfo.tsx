@@ -3,7 +3,7 @@ import { InfoIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { chatCost, chat as chatQuery } from "#/api/queries/chats";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatDiffStatus } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Popover,
@@ -14,6 +14,12 @@ import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { getChatCostTreeID } from "../../components/ChatConversation/chatHelpers";
+import {
+	getChatDisplayConfig,
+	getPRIconConfig,
+} from "../../components/ChatsSidebar/tree/statusConfig";
+import { originRepoLabel } from "../../utils/originRepoLabel";
+import { prNumber } from "../../utils/pullRequest";
 import { CompactMarkdown } from "./CompactMarkdown";
 
 type ChatInfoPopoverProps = {
@@ -125,7 +131,9 @@ const ChatInfoBody: React.FC<ChatInfoBodyProps> = ({ chat }) => {
 	if (costQuery.data) cost = formatCostMicros(costQuery.data.total_cost_micros);
 	else if (costQuery.isError) cost = "unavailable";
 	const unpricedRequests = costQuery.data?.unpriced_request_count ?? 0;
-	const pr = (detail ?? chat).diff_status;
+	const prs = getChatDisplayConfig(detail ?? chat).prStatuses.filter(
+		(status) => status.url,
+	);
 
 	return (
 		<div className="max-h-[60vh] overflow-y-auto px-3.5 py-3 text-[12.5px] leading-[1.45] text-content-primary">
@@ -148,24 +156,17 @@ const ChatInfoBody: React.FC<ChatInfoBodyProps> = ({ chat }) => {
 				<dd className="m-0 text-content-primary">
 					{formatDateTime(chat.updated_at, DATE_FORMAT.MEDIUM_DATE)}
 				</dd>
-				{pr?.url && (
+				{prs.length > 0 && (
 					<>
-						<dt>Changes</dt>
-						<dd className="m-0 flex items-center gap-2 font-mono text-content-primary">
-							<a
-								href={pr.url}
-								target="_blank"
-								rel="noreferrer"
-								className="text-content-link no-underline hover:underline"
-							>
-								{pr.pr_number ? `#${pr.pr_number}` : "branch"}
-							</a>
-							<span>
-								<span className="text-git-added-bright">+{pr.additions}</span>{" "}
-								<span className="text-git-deleted-bright">
-									&minus;{pr.deletions}
-								</span>
-							</span>
+						<dt>{prs.length === 1 ? "Changes" : `${prs.length} PRs`}</dt>
+						<dd className="m-0 flex flex-col gap-0.5 font-mono text-content-primary">
+							{prs.map((status) => (
+								<PRRow
+									key={`${status.remote_origin}/${status.git_branch}`}
+									status={status}
+									showRepo={new Set(prs.map((p) => p.remote_origin)).size > 1}
+								/>
+							))}
 						</dd>
 					</>
 				)}
@@ -189,5 +190,49 @@ const ChatInfoBody: React.FC<ChatInfoBodyProps> = ({ chat }) => {
 				</p>
 			)}
 		</div>
+	);
+};
+
+type PRRowProps = {
+	readonly status: ChatDiffStatus;
+	/** PR numbers repeat across repositories, so name it when PRs span several. */
+	readonly showRepo: boolean;
+};
+
+const PRRow: React.FC<PRRowProps> = ({ status, showRepo }) => {
+	const number = prNumber(status);
+	const state = getPRIconConfig(status);
+	return (
+		<span className="flex min-w-0 items-center gap-2">
+			<a
+				href={status.url}
+				target="_blank"
+				rel="noreferrer"
+				aria-label={
+					state ? `${number ? `#${number}` : "PR"}, ${state.label}` : undefined
+				}
+				className="inline-flex min-w-0 items-center gap-1 text-content-link no-underline hover:underline"
+			>
+				<span
+					className={cn(
+						"size-1.5 shrink-0 rounded-full bg-current",
+						state?.className,
+					)}
+				/>
+				<span className="truncate">
+					{showRepo && status.remote_origin
+						? `${originRepoLabel(status.remote_origin)}#${number ?? ""}`
+						: number
+							? `#${number}`
+							: "PR"}
+				</span>
+			</a>
+			<span className="shrink-0">
+				<span className="text-git-added-bright">+{status.additions}</span>{" "}
+				<span className="text-git-deleted-bright">
+					&minus;{status.deletions}
+				</span>
+			</span>
+		</span>
 	);
 };
