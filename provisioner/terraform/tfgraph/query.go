@@ -43,6 +43,10 @@ type ReferenceLookup func(
 // configuration and parsed template or module HCL, when graph metadata alone
 // is insufficient. Plan configuration omits local expressions, so restoring
 // dependencies from local nodes requires their HCL expression provenance.
+// Plan configuration also reports module-output reads through dynamic indexes
+// or splats as whole-module references. Resolvers must use the parsed HCL
+// expression AST to narrow them to the selected output before calling lookup;
+// otherwise lookup returns all module outputs.
 // Terraform may omit direct value edges during transitive reduction when
 // another path reaches the same node. Resolvers must restore those value
 // dependencies for every visited source where they can be omitted, while
@@ -133,6 +137,12 @@ func newQueryWithLimits(
 // module's output nodes. Terraform plan JSON emits a whole-module reference
 // after each module-output reference. Such implied references are ignored; an
 // additional whole-module occurrence still resolves to all outputs.
+//
+// Terraform plan JSON reports module-output reads through dynamic indexes or
+// splats as whole-module references. For example, module.rep[each.key].agent_id
+// is reported as module.rep. Callers that need a specific output must recover
+// its name from the expression AST and pass a narrowed reference; otherwise all
+// outputs resolve.
 func (q *Query) ConfigurationNodesForReferences(
 	ctx context.Context,
 	moduleAddress string,

@@ -630,6 +630,73 @@ func TestQueryMatchesCapturedTerraformGraphs(t *testing.T) {
 		})
 	})
 
+	t.Run("HCLNarrowingSelectsDynamicModuleOutput", func(t *testing.T) {
+		t.Parallel()
+
+		// Terraform reports the plan references for
+		// module.rep[each.key].agent_id as only module.rep and each.key. The
+		// parsed HCL expression AST retains the selected output name.
+		sourceGraph := graphFromFile(
+			t, "testdata/dynamic-module-output.tfplan.dot",
+		)
+		startNodes := sourceGraph.NodesForConfigurationAddress(
+			"terraform_data.script",
+		)
+		require.Len(t, startNodes, 1)
+		boundaryAddresses := func(t *testing.T, references []string) []string {
+			t.Helper()
+
+			resolver := func(
+				_ context.Context,
+				lookup tfgraph.ReferenceLookup,
+				source tfgraph.Node,
+				graphDependencies []tfgraph.NodeID,
+			) ([]tfgraph.NodeID, error) {
+				if source.ConfigurationAddress() != "terraform_data.script" {
+					return graphDependencies, nil
+				}
+				return lookup("", references)
+			}
+			resolvedGraph, err := sourceGraph.WithResolvedDependencies(resolver)
+			require.NoError(t, err)
+			query, err := tfgraph.NewQuery(resolvedGraph)
+			require.NoError(t, err)
+			boundaries, err := query.ReachableBoundaryNodes(
+				t.Context(), startNodes,
+				func(node tfgraph.Node) bool {
+					return node.Address() == "terraform_data.agent" ||
+						node.Address() == "terraform_data.other"
+				},
+			)
+			require.NoError(t, err)
+			return nodeAddresses(t, resolvedGraph, boundaries)
+		}
+
+		t.Run("PlanReferences", func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(
+				t,
+				[]string{
+					"terraform_data.agent",
+					"terraform_data.other",
+				},
+				boundaryAddresses(t, []string{"module.rep", "each.key"}),
+			)
+		})
+
+		t.Run("ASTNarrowedReferences", func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(
+				t, []string{"terraform_data.agent"},
+				boundaryAddresses(
+					t, []string{"module.rep.agent_id", "each.key"},
+				),
+			)
+		})
+	})
+
 	t.Run("PlanGraphSkipsModuleCloseCompletionOnlyEdges", func(t *testing.T) {
 		t.Parallel()
 
