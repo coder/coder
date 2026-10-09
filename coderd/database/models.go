@@ -5745,9 +5745,9 @@ type ChatTable struct {
 	GroupACL          ChatACL               `db:"group_acl" json:"group_acl"`
 	// Monotonic version for the full chat snapshot. Starts at 1 so stream loops and workers can use 0 to mean they have not loaded the chat yet.
 	SnapshotVersion int64 `db:"snapshot_version" json:"snapshot_version"`
-	// Snapshot version of the latest durable history change. Starts at 0 until chat_messages triggers set it to the current snapshot_version.
+	// Snapshot version of the latest durable history change. Starts at 0; the commit write of a transition that changes chat_messages sets it to the new snapshot_version.
 	HistoryVersion int64 `db:"history_version" json:"history_version"`
-	// Snapshot version of the latest queued-message change. Starts at 0 until chat_queued_messages triggers set it to the current snapshot_version.
+	// Snapshot version of the latest queued-message change. Starts at 0; the commit write of a transition that changes chat_queued_messages sets it to the new snapshot_version.
 	QueueVersion             int64                 `db:"queue_version" json:"queue_version"`
 	GenerationAttempt        int64                 `db:"generation_attempt" json:"generation_attempt"`
 	RetryState               pqtype.NullRawMessage `db:"retry_state" json:"retry_state"`

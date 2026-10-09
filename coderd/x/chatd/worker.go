@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"sync"
 	"time"
@@ -266,18 +265,12 @@ func (w *chatWorker) acquireCandidate(
 	var takenOver bool
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(ctx, chatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errSkipAcquire
-		}
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
+		chat, state, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
-		queueCount, err := store.CountChatQueuedMessages(ctx, chatID)
-		if err != nil {
-			return xerrors.Errorf("count queue: %w", err)
-		}
-		if !chatstate.ClassifyExecutionState(chat, queueCount > 0, true).IsRunnable() || chat.Archived {
+		if !state.IsRunnable() || chat.Archived {
 			return errSkipAcquire
 		}
 		if chat.WorkerID.Valid && chat.RunnerID.Valid {
@@ -362,11 +355,9 @@ func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownCleanupTimeout)
 	defer cancel()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(cleanupCtx, chatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errSkipAcquire
-		}
+	err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, _ database.Store) error {
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
+		chat, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}

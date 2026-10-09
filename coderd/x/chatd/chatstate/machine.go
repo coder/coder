@@ -52,14 +52,42 @@ func NewChatMachine(
 
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
 // callbacks. It carries the active context, the transactional store,
-// and the chat ID. Tx does not cache mutable chat state across calls:
-// every transition method reads the chat row and queue cardinality
-// from the database on entry, so a bundle of transitions inside one
-// Update callback always validates against the latest committed state.
+// the chat ID, the row returned by the transition lock (locked), and
+// the write intent the transaction's commit write must record
+// (historyChanged, queueChanged, commits).
+//
+// locked lets the first read in the transaction skip a round trip while
+// the row lock is held. It is safe to reuse because the lock blocks
+// every other writer of the chats row until commit, and every queue
+// write goes through a transition under the same lock, so only this
+// transaction can make it stale. A transition's commit write does make
+// it stale, so the first loadState call consumes it and later calls
+// read the database. That relies on every transition validating before
+// it writes, which is a convention of the transition methods, not
+// something Tx checks. Writes a callback makes through the raw store
+// are not visible to locked.
+//
+// Triggers no longer record history or queue changes, so the message
+// and queue helpers set historyChanged and queueChanged, and the next
+// commit write consumes them (see takeVersionFlags). commits counts
+// commit writes so Update knows whether it still has to bump.
 type Tx struct {
 	ctx    context.Context
 	store  database.Store
 	chatID uuid.UUID
+
+	locked *lockedRow
+
+	historyChanged bool
+	queueChanged   bool
+	commits        int
+}
+
+// lockedRow carries the queue state read right after the lock so the
+// first execution-state classification needs no further reads.
+type lockedRow struct {
+	chat      database.Chat
+	hasQueued bool
 }
 
 // Ctx returns the context the surrounding [ChatMachine.Update] call
@@ -81,11 +109,22 @@ func (tx *Tx) ChatID() uuid.UUID { return tx.chatID }
 // matrix.
 func (tx *Tx) Store() database.Store { return tx.store }
 
-// loadState reads the current chat row and queue cardinality from the
-// active transaction, classifies the execution state, and returns the
-// inputs every transition method needs. Returns ErrChatNotFound if
-// the chat row was deleted in this transaction (or never existed).
+// loadState returns the chat row and execution state for a transition
+// to validate against. The locked row is returned at most once because
+// the transition that reads it is about to write the chat.
 func (tx *Tx) loadState() (database.Chat, ExecutionState, error) {
+	if l := tx.locked; l != nil {
+		tx.locked = nil
+		return l.chat, ClassifyExecutionState(l.chat, l.hasQueued, true), nil
+	}
+	return tx.readState()
+}
+
+// readState reads the chat row and queue cardinality from the database,
+// for callers that need the row after a commit write. Returns
+// ErrChatNotFound if the chat row was deleted in this transaction (or
+// never existed).
+func (tx *Tx) readState() (database.Chat, ExecutionState, error) {
 	chat, err := tx.store.GetChatByID(tx.ctx, tx.chatID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -98,6 +137,19 @@ func (tx *Tx) loadState() (database.Chat, ExecutionState, error) {
 		return database.Chat{}, "", xerrors.Errorf("count queued messages: %w", err)
 	}
 	return chat, ClassifyExecutionState(chat, count > 0, true), nil
+}
+
+// Current returns the chat row and execution state without another round
+// trip or lock when no transition has run yet, by returning the row the
+// [ChatMachine.Update] lock already returned. It does not consume that
+// row, so a callback can inspect state and then call a transition that
+// validates against the same row. Once a transition has run, it reads
+// the database.
+func (tx *Tx) Current() (database.Chat, ExecutionState, error) {
+	if l := tx.locked; l != nil {
+		return l.chat, ClassifyExecutionState(l.chat, l.hasQueued, true), nil
+	}
+	return tx.loadState()
 }
 
 // requireFromAllowed loads the current state and validates t against
@@ -121,11 +173,20 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 
 // Update applies one or more transitions to the machine's chat.
 //
-// Update opens a transaction on the captured store, atomically locks
-// the chat row with FOR UPDATE and increments `snapshot_version`
-// exactly once, then runs fn against a fresh [*Tx] and the active
-// transaction store. It constructs a [PublishBuffer], enqueues
-// `chat:update` (and a `chat:ownership` hint
+// Update opens a transaction on the captured store, locks the chat row
+// with FOR NO KEY UPDATE without writing it, then runs fn against a
+// fresh [*Tx] and the active transaction store. Each transition ends
+// with a single commit write that advances `snapshot_version`; the lock
+// itself writes nothing so that commit write is the only UPDATE of the
+// row in the transaction and Postgres does not re-run the chat's foreign
+// key checks against parent rows shared by many chats. FOR NO KEY UPDATE
+// still serializes transitions but does not block the FOR KEY SHARE locks
+// that foreign-key child writes such as heartbeats take on the chat row
+// (see LockChatForTransition). If fn performs no commit write, Update
+// bumps `snapshot_version` once after it so every Update publishes a new
+// version. Rows read inside fn before that bump carry the pre-commit
+// versions. Update constructs a
+// [PublishBuffer], enqueues `chat:update` (and a `chat:ownership` hint
 // when the post-transition state is worker-runnable and ownership is
 // missing or stale) inside the transaction, and flushes the buffer only after
 // the transaction function succeeds. If the transaction rolls back,
@@ -142,8 +203,8 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 // If the chat row does not exist, Update returns [ErrChatNotFound]
 // without mutating anything.
 //
-// Callbacks that return an error roll back the transaction (rolling
-// back the automatic snapshot bump) and publish nothing.
+// Callbacks that return an error roll back the transaction and publish
+// nothing.
 //
 // Lock order is the chat row first, then automations in ascending id
 // order (see [LockAutomations]). When an attempt that took automation
@@ -191,21 +252,41 @@ func (m *ChatMachine) updateOnce(
 	defer buffer.Discard()
 
 	err := m.store.InTx(func(store database.Store) error {
-		if _, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID); err != nil {
+		locked, err := store.LockChatForTransition(ctx, m.chatID)
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
 			}
-			return xerrors.Errorf("lock chat and bump snapshot: %w", err)
+			return xerrors.Errorf("lock chat: %w", err)
+		}
+		queued, err := store.CountChatQueuedMessages(ctx, m.chatID)
+		if err != nil {
+			return xerrors.Errorf("count queued messages: %w", err)
 		}
 		tx := &Tx{
 			ctx:    ctx,
 			store:  store,
 			chatID: m.chatID,
+			locked: &lockedRow{chat: locked, hasQueued: queued > 0},
 		}
 		if err := fn(tx, store); err != nil {
 			return err
 		}
-		chat, state, err := tx.loadState()
+		if tx.commits == 0 {
+			historyChanged, queueChanged := tx.takeVersionFlags()
+			if _, err := store.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{
+				ID:             m.chatID,
+				HistoryChanged: historyChanged,
+				QueueChanged:   queueChanged,
+			}); err != nil {
+				return xerrors.Errorf("bump chat snapshot: %w", err)
+			}
+		} else if tx.historyChanged || tx.queueChanged {
+			return ErrStagedAfterCommitWrite
+		}
+		// The commit write changed the row, so publication must not use
+		// the locked row.
+		chat, state, err := tx.readState()
 		if err != nil {
 			return err
 		}
@@ -237,36 +318,6 @@ func (m *ChatMachine) updateOnce(
 	return buffer.Flush()
 }
 
-// Lock locks the chat row with FOR UPDATE and runs fn in a
-// transaction without advancing snapshot_version. It uses the store
-// captured by [NewChatMachine]. Use it when the caller needs a
-// consistent chat snapshot plus related rows such as messages or
-// queued messages but is NOT applying a transition.
-//
-// Callers must not pass a store here; it belongs on the machine.
-//
-// Lock publishes nothing. Callback errors roll back the transaction
-// and propagate to the caller.
-func (m *ChatMachine) Lock(
-	ctx context.Context,
-	fn func(database.Store) error,
-) error {
-	if m.store == nil {
-		return xerrors.New("chatstate: ChatMachine has nil store")
-	}
-	return m.store.InTx(func(store database.Store) error {
-		// GetChatByIDForUpdate locks the row WITHOUT bumping snapshot.
-		_, err := store.GetChatByIDForUpdate(ctx, m.chatID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrChatNotFound
-			}
-			return xerrors.Errorf("lock chat: %w", err)
-		}
-		return fn(store)
-	}, nil)
-}
-
 // ReadSnapshot runs fn in a read-only REPEATABLE READ transaction without
 // advancing snapshot_version. It uses the store captured by
 // [NewChatMachine]. Use it when the caller needs a consistent chat
@@ -274,11 +325,11 @@ func (m *ChatMachine) Lock(
 // NOT applying a transition.
 //
 // Snapshot isolation gives fn a consistent multi-statement view without
-// taking any row lock, so it never blocks (or is blocked by) the FOR
-// UPDATE writers in [ChatMachine.Update] and [ChatMachine.Lock]. A
-// transition committing mid-read is simply not visible to this snapshot;
-// callers reconcile ordering via snapshot_version, so an older snapshot
-// triggers a later refetch rather than an inconsistent read.
+// taking any row lock, so it never blocks (or is blocked by) the FOR NO
+// KEY UPDATE lock in [ChatMachine.Update]. A transition committing
+// mid-read is simply not visible to this snapshot; callers reconcile
+// ordering via snapshot_version, so an older snapshot triggers a later
+// refetch rather than an inconsistent read.
 //
 // ReadSnapshot does not check that the chat exists; fn's own reads report
 // a missing chat as sql.ErrNoRows.

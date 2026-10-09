@@ -38,7 +38,7 @@ func TestTransitionCreate_NToR0(t *testing.T) {
 	require.Equal(t, database.ChatStatusRunning, res.Chat.Status)
 	require.False(t, res.Chat.Archived)
 	require.Equal(t, int64(1), res.Chat.SnapshotVersion, "snapshot_version starts at 1")
-	require.Equal(t, int64(1), res.Chat.HistoryVersion, "history_version set by trigger after initial insert")
+	require.Equal(t, int64(1), res.Chat.HistoryVersion, "the creation commit write records the initial history")
 	require.Equal(t, int64(0), res.Chat.QueueVersion, "queue_version stays 0 when no queue rows")
 	require.Equal(t, int64(0), res.Chat.GenerationAttempt)
 	require.NotEmpty(t, res.InitialMessages)
@@ -291,10 +291,11 @@ func promoteQueuedMessageWithModel(
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 	message := userTextMessage("queued model resolution", f.User.ID, modelConfigID)
-	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:        created.Chat.ID,
 		Content:       message.Content.RawMessage,
 		ModelConfigID: message.ModelConfigID,
+		CreatedBy:     created.Chat.OwnerID,
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)

@@ -15899,8 +15899,6 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.Equal(t, sql.NullString{String: "still fresh summary", Valid: true}, fetched.LastTurnSummary)
 	require.Equal(t, advanced.UpdatedAt, fetched.UpdatedAt)
 
-	_, err = db.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
-	require.NoError(t, err)
 	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 		ChatID:              chat.ID,
 		CreatedBy:           []uuid.UUID{owner.ID},
@@ -15919,6 +15917,10 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 		Compressed:          []bool{false},
 		RuntimeMs:           []int64{0},
 	})
+	require.NoError(t, err)
+	// Messages are stamped with the version the transaction commits, so
+	// commit the insert the way a transition would.
+	_, err = db.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{ID: chat.ID, HistoryChanged: true})
 	require.NoError(t, err)
 
 	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
@@ -16020,8 +16022,6 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, affected)
 
-	_, err = db.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
-	require.NoError(t, err)
 	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 		ChatID:              chat.ID,
 		CreatedBy:           []uuid.UUID{owner.ID},
@@ -16040,6 +16040,10 @@ func TestUpdateChatSummary(t *testing.T) {
 		Compressed:          []bool{false},
 		RuntimeMs:           []int64{0},
 	})
+	require.NoError(t, err)
+	// Messages are stamped with the version the transaction commits, so
+	// commit the insert the way a transition would.
+	_, err = db.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{ID: chat.ID, HistoryChanged: true})
 	require.NoError(t, err)
 
 	affected, err = db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{

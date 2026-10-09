@@ -160,10 +160,10 @@ func insertChat(
 			// Lock the family root before inserting the child so this
 			// transaction serializes with SetFamilyArchived, which also
 			// locks the root first and then writes the members. FOR
-			// SHARE conflicts with that FOR UPDATE lock and with the
-			// row lock of any plain UPDATE on the root, so the archived
-			// flag read here holds until commit. Concurrent child
-			// creations under the same root still run in parallel.
+			// SHARE conflicts with that FOR NO KEY UPDATE lock and with
+			// the row lock of any plain UPDATE on the root, so the
+			// archived flag read here holds until commit. Concurrent
+			// child creations under the same root still run in parallel.
 			root, err := store.GetChatByIDForShare(ctx, input.RootChatID.UUID)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
@@ -210,9 +210,8 @@ func insertChat(
 			initialMessages = slices.Clone(initialMessages)
 			initialMessages[admittedIndex].Automation = &provenance
 		}
-		// Insert the initial history under the new chat row. The
-		// message revision trigger advances `history_version` to the
-		// current `snapshot_version` (which is 1 for a brand new chat).
+		// The chat was inserted at snapshot_version 0 so this transaction's
+		// single commit write below lands it on version 1.
 		inserted, err := store.InsertChatMessages(ctx, toInsertParams(chat.ID, initialMessages))
 		if err != nil {
 			return xerrors.Errorf("insert initial messages: %w", err)
@@ -225,9 +224,13 @@ func insertChat(
 				return err
 			}
 		}
-		refreshed, err := store.GetChatByID(ctx, chat.ID)
+		refreshed, err := store.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{
+			ID:             chat.ID,
+			HistoryChanged: true,
+			QueueChanged:   false,
+		})
 		if err != nil {
-			return xerrors.Errorf("reload chat after initial messages: %w", err)
+			return xerrors.Errorf("commit chat creation: %w", err)
 		}
 		result = CreateChatResult{
 			Chat:            refreshed,
@@ -258,75 +261,6 @@ func insertChat(
 	return result, nil
 }
 
-// applyExecutionStateUpdate is a small adapter so transition methods
-// do not have to repeat the UpdateChatExecutionState boilerplate.
-// The state machine writes status, archived, last_error, ownership
-// identifiers, the requires-action deadline, and the manual
-// compaction request marker as one atomic update.
-//
-// CompactionRequestedAt is one-shot by construction: leaving it at
-// its zero value clears any pending manual compaction request, so a
-// stale request can never replay on a later turn. Transitions that
-// must keep a pending request alive (archive toggles, ownership
-// changes, queue appends) explicitly carry the current value forward.
-type executionStateUpdate struct {
-	Status                   database.ChatStatus
-	Archived                 bool
-	WorkerID                 uuid.NullUUID
-	RunnerID                 uuid.NullUUID
-	LastError                pqtype.NullRawMessage
-	RequiresActionDeadlineAt sql.NullTime
-	CompactionRequestedAt    sql.NullTime
-	GrantHistoryEpoch        bool
-}
-
-func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error) {
-	return tx.store.UpdateChatExecutionState(tx.ctx, database.UpdateChatExecutionStateParams{
-		ID:                       tx.chatID,
-		Status:                   u.Status,
-		Archived:                 u.Archived,
-		WorkerID:                 u.WorkerID,
-		RunnerID:                 u.RunnerID,
-		LastError:                u.LastError,
-		RequiresActionDeadlineAt: u.RequiresActionDeadlineAt,
-		CompactionRequestedAt:    u.CompactionRequestedAt,
-		GrantHistoryEpoch:        u.GrantHistoryEpoch,
-	})
-}
-
-// insertMessages inserts the given Message batch under the current
-// chat.
-func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error) {
-	if len(messages) == 0 {
-		return nil, nil
-	}
-	inserted, err := tx.store.InsertChatMessages(tx.ctx, toInsertParams(tx.chatID, messages))
-	if err != nil {
-		return nil, xerrors.Errorf("insert messages: %w", err)
-	}
-	return fromInsertedRows(inserted), nil
-}
-
-// clearQueue deletes all queued messages on the chat and returns the
-// IDs that were deleted in queue order.
-func (tx *Tx) clearQueue() ([]int64, error) {
-	queued, err := tx.store.GetChatQueuedMessagesByPosition(tx.ctx, tx.chatID)
-	if err != nil {
-		return nil, xerrors.Errorf("get queued for clear: %w", err)
-	}
-	if len(queued) == 0 {
-		return nil, nil
-	}
-	if _, err := tx.store.DeleteAllChatQueuedMessagesReturningCount(tx.ctx, tx.chatID); err != nil {
-		return nil, xerrors.Errorf("delete queued: %w", err)
-	}
-	ids := make([]int64, len(queued))
-	for i, q := range queued {
-		ids[i] = q.ID
-	}
-	return ids, nil
-}
-
 // requireQueueCapacity rejects the call when the chat already has
 // maxQueueSize queued messages with a *MessageQueueFullError that wraps
 // [ErrMessageQueueFull]. Queue-appending transitions invoke this helper
@@ -344,45 +278,6 @@ func (tx *Tx) requireQueueCapacity(maxQueueSize int) error {
 		return &MessageQueueFullError{Max: int64(maxQueueSize)}
 	}
 	return nil
-}
-
-// insertQueuedMessage inserts a queued user message. created_by falls
-// back to chats.owner_id only when the message does not supply one.
-func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, maxQueueSize int) (database.ChatQueuedMessage, error) {
-	createdBy := ownerFallback
-	if m.CreatedBy.Valid {
-		createdBy = m.CreatedBy.UUID
-	}
-	rawContent := m.Content.RawMessage
-	if !m.Content.Valid || len(rawContent) == 0 {
-		rawContent = json.RawMessage("null")
-	}
-	if err := tx.requireQueueCapacity(maxQueueSize); err != nil {
-		return database.ChatQueuedMessage{}, err
-	}
-	var (
-		automationID    uuid.NullUUID
-		inputID         uuid.NullUUID
-		queueGeneration sql.NullInt64
-	)
-	if m.Automation != nil {
-		if err := m.Automation.validate(); err != nil {
-			return database.ChatQueuedMessage{}, err
-		}
-		automationID = uuid.NullUUID{UUID: m.Automation.AutomationID, Valid: true}
-		inputID = uuid.NullUUID{UUID: m.Automation.InputID, Valid: true}
-		queueGeneration = sql.NullInt64{Int64: m.Automation.QueueGeneration, Valid: true}
-	}
-	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:          tx.chatID,
-		Content:         rawContent,
-		ModelConfigID:   m.ModelConfigID,
-		ReasoningEffort: m.ReasoningEffort,
-		CreatedBy:       createdBy,
-		AutomationID:    automationID,
-		InputID:         inputID,
-		QueueGeneration: queueGeneration,
-	})
 }
 
 func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueuedMessage) (Message, error) {
@@ -408,25 +303,6 @@ func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueue
 		}
 	}
 	return message, nil
-}
-
-// deletePromotedQueuedMessage deletes the queue row a promotion just
-// copied into history. The row was read under the chat row lock, so any
-// count other than one means the queue changed underneath the lock; the
-// error rolls back the promotion instead of leaving a duplicate or a
-// message linked to a row that was never removed.
-func (tx *Tx) deletePromotedQueuedMessage(id int64) error {
-	rows, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     id,
-		ChatID: tx.chatID,
-	})
-	if err != nil {
-		return err
-	}
-	if rows != 1 {
-		return xerrors.Errorf("promoted queued message %d: deleted %d rows, want 1", id, rows)
-	}
-	return nil
 }
 
 func (tx *Tx) resolveQueuedMessageModelConfigID(
@@ -486,7 +362,7 @@ func (tx *Tx) SetArchived(input SetArchivedInput) (SetArchivedResult, error) {
 			"SetArchived input matches the current archived flag",
 		)
 	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   chat.Status,
 		Archived:                 input.Archived,
 		WorkerID:                 chat.WorkerID,
@@ -605,11 +481,11 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (Sen
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	inserted, err := tx.insertMessages(append(cancels, input.Message))
+	inserted, err := tx.stageInsertMessages(append(cancels, input.Message))
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert direct user message: %w", err)
 	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,
@@ -625,11 +501,11 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (Sen
 }
 
 func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.MaxQueueSize)
+	queued, err := tx.stageInsertQueuedMessage(chat.OwnerID, input.Message, input.MaxQueueSize)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
-	head, ok, err := tx.nextPromotableQueueHead()
+	head, ok, err := tx.stageNextPromotableQueueHead()
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("get queue head: %w", err)
 	}
@@ -646,14 +522,14 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("resolve promoted queued head: %w", err)
 	}
-	inserted, err := tx.insertMessages(append(cancels, promoted))
+	inserted, err := tx.stageInsertMessages(append(cancels, promoted))
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert promoted queued head: %w", err)
 	}
-	if err := tx.deletePromotedQueuedMessage(head.ID); err != nil {
+	if err := tx.stageDeletePromotedQueuedMessage(head.ID); err != nil {
 		return SendMessageResult{}, xerrors.Errorf("delete promoted queued head: %w", err)
 	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,
@@ -683,14 +559,14 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	lastError pqtype.NullRawMessage,
 	deadline sql.NullTime,
 ) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.MaxQueueSize)
+	queued, err := tx.stageInsertQueuedMessage(chat.OwnerID, input.Message, input.MaxQueueSize)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
 	// Queueing does not start a new turn, so a pending manual
 	// compaction request stays live: the in-flight compaction
 	// commits first and the queued message is promoted afterwards.
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   status,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,
@@ -737,7 +613,7 @@ func (tx *Tx) sendMessageInterruptRequiresAction(chat database.Chat, input SendM
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	inserted, err := tx.insertMessages(cancels)
+	inserted, err := tx.stageInsertMessages(cancels)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert requires-action cancellations: %w", err)
 	}
@@ -815,20 +691,14 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		}
 	}
 
-	if err := tx.store.SoftDeleteChatMessageByID(tx.ctx, target.ID); err != nil {
-		return EditMessageResult{}, xerrors.Errorf("soft-delete target: %w", err)
-	}
-	if err := tx.store.SoftDeleteChatMessagesAfterID(tx.ctx, database.SoftDeleteChatMessagesAfterIDParams{
-		ChatID:  tx.chatID,
-		AfterID: target.ID,
-	}); err != nil {
-		return EditMessageResult{}, xerrors.Errorf("soft-delete suffix: %w", err)
+	if err := tx.stageSoftDeleteMessageAndSuffix(target.ID); err != nil {
+		return EditMessageResult{}, err
 	}
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by message edit", false)
 	if err != nil {
 		return EditMessageResult{}, err
 	}
-	cancellationMessages, err := tx.insertMessages(cancels)
+	cancellationMessages, err := tx.stageInsertMessages(cancels)
 	if err != nil {
 		return EditMessageResult{}, xerrors.Errorf("insert message edit cancellations: %w", err)
 	}
@@ -850,7 +720,7 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		CreatedBy:       uuid.NullUUID{UUID: input.CreatedBy, Valid: true},
 		ContentVersion:  chatprompt.CurrentContentVersion,
 	}
-	insertedReplacement, err := tx.insertMessages([]Message{replacement})
+	insertedReplacement, err := tx.stageInsertMessages([]Message{replacement})
 	if err != nil {
 		return EditMessageResult{}, xerrors.Errorf("insert replacement message: %w", err)
 	}
@@ -858,17 +728,17 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	if len(insertedReplacement) == 1 {
 		replacementRow = insertedReplacement[0]
 	}
-	insertedSuffix, err := tx.insertMessages(input.SuffixMessages)
+	insertedSuffix, err := tx.stageInsertMessages(input.SuffixMessages)
 	if err != nil {
 		return EditMessageResult{}, xerrors.Errorf("insert edit suffix messages: %w", err)
 	}
 
-	deletedQueuedIDs, err := tx.clearQueue()
+	deletedQueuedIDs, err := tx.stageClearQueue()
 	if err != nil {
 		return EditMessageResult{}, err
 	}
 
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,
@@ -916,7 +786,7 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 	if err != nil {
 		return RequestCompactionResult{}, xerrors.Errorf("get db now: %w", err)
 	}
-	updated, err := tx.applyExecutionState(executionStateUpdate{
+	updated, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
 		WorkerID:                 uuid.NullUUID{},
@@ -934,7 +804,7 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 
 // ClearContextInput configures [Tx.ClearContext]. Messages carries
 // the boundary rows built by chatd; chatstate requires a non-empty
-// batch so the insert trigger grants the fresh history epoch.
+// batch so the commit write grants the fresh history epoch.
 type ClearContextInput struct {
 	Messages []Message
 }
@@ -948,8 +818,8 @@ type ClearContextResult struct {
 // ClearContext commits a synchronous context reset: it inserts the
 // caller-built boundary rows, clears any stored error and pending
 // compaction request, preserves ownership, and lands in waiting. No
-// worker turn is needed; the message insert trigger advances
-// history_version and resets the retry budget.
+// worker turn is needed; the commit write records the inserted rows,
+// which advances history_version and resets the retry budget.
 func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionClearContext)
 	if err != nil {
@@ -961,11 +831,11 @@ func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) 
 			"ClearContext requires boundary messages",
 		)
 	}
-	inserted, err := tx.insertMessages(input.Messages)
+	inserted, err := tx.stageInsertMessages(input.Messages)
 	if err != nil {
 		return ClearContextResult{}, xerrors.Errorf("insert clear boundary messages: %w", err)
 	}
-	updated, err := tx.applyExecutionState(executionStateUpdate{
+	updated, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusWaiting,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,
@@ -1005,10 +875,7 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	if err != nil {
 		return DeleteQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
 	}
-	rows, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     input.QueuedMessageID,
-		ChatID: tx.chatID,
-	})
+	rows, err := tx.stageRemoveQueuedMessage(input.QueuedMessageID)
 	if err != nil {
 		return DeleteQueuedMessageResult{}, xerrors.Errorf("delete queued: %w", err)
 	}
@@ -1060,18 +927,14 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
 	}
-	passing, err := tx.guardQueuedRows([]database.ChatQueuedMessage{target})
+	passing, err := tx.stageGuardQueuedRows([]database.ChatQueuedMessage{target})
 	if err != nil {
 		return PromoteQueuedMessageResult{}, err
 	}
 	if len(passing) == 0 {
 		return PromoteQueuedMessageResult{QueuedMessage: target, Rejected: true}, nil
 	}
-	_, err = tx.store.ReorderChatQueuedMessageToHead(tx.ctx, database.ReorderChatQueuedMessageToHeadParams{
-		ID:     input.QueuedMessageID,
-		ChatID: tx.chatID,
-	})
-	if err != nil {
+	if err := tx.stageReorderQueuedMessageToHead(input.QueuedMessageID); err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("reorder queue: %w", err)
 	}
 
@@ -1080,7 +943,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	// generation before promoting the queue head into active history.
 	// No history row is inserted here and no queue rows are deleted.
 	if from == StateR1 || from == StateI1 {
-		if _, err := tx.applyExecutionState(executionStateUpdate{
+		if _, err := tx.commitExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusInterrupting,
 			Archived:                 false,
 			WorkerID:                 chat.WorkerID,
@@ -1107,7 +970,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("resolve promoted queued message: %w", err)
 	}
-	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
+	inserted, err := tx.stageInsertMessages(append(cancels, promotedMsg))
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("insert promoted queued message: %w", err)
 	}
@@ -1117,10 +980,10 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 			len(cancels)+1, len(inserted),
 		)
 	}
-	if err := tx.deletePromotedQueuedMessage(target.ID); err != nil {
+	if err := tx.stageDeletePromotedQueuedMessage(target.ID); err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("delete promoted queued: %w", err)
 	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,
@@ -1184,7 +1047,7 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 	}
 	switch from {
 	case StateR0, StateR1:
-		if _, err := tx.applyExecutionState(executionStateUpdate{
+		if _, err := tx.commitExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusInterrupting,
 			Archived:                 false,
 			WorkerID:                 chat.WorkerID,
@@ -1211,11 +1074,11 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 		if err != nil {
 			return InterruptResult{}, err
 		}
-		inserted, err := tx.insertMessages(cancels)
+		inserted, err := tx.stageInsertMessages(cancels)
 		if err != nil {
 			return InterruptResult{}, xerrors.Errorf("insert interrupt cancellations: %w", err)
 		}
-		if _, err := tx.applyExecutionState(executionStateUpdate{
+		if _, err := tx.commitExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusRunning,
 			Archived:                 false,
 			WorkerID:                 chat.WorkerID,
@@ -1330,11 +1193,11 @@ func (tx *Tx) CompleteRequiresAction(input CompleteRequiresActionInput) (Complet
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
 	}
-	inserted, err := tx.insertMessages(append(messages, input.SuffixMessages...))
+	inserted, err := tx.stageInsertMessages(append(messages, input.SuffixMessages...))
 	if err != nil {
 		return CompleteRequiresActionResult{}, xerrors.Errorf("insert tool results: %w", err)
 	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,
@@ -1387,7 +1250,7 @@ func (tx *Tx) Acquire(input AcquireInput) (AcquireResult, error) {
 	if err != nil {
 		return AcquireResult{}, err
 	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   chat.Status,
 		Archived:                 chat.Archived,
 		WorkerID:                 uuid.NullUUID{UUID: input.WorkerID, Valid: true},
@@ -1431,7 +1294,7 @@ func (tx *Tx) Abandon(_ AbandonInput) (AbandonResult, error) {
 	if !chat.WorkerID.Valid {
 		return AbandonResult{}, newTransitionError(TransitionAbandon, from, "chat is not owned")
 	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   chat.Status,
 		Archived:                 chat.Archived,
 		WorkerID:                 uuid.NullUUID{},
@@ -1458,6 +1321,9 @@ type RecordGenerationAttemptResult struct {
 func (tx *Tx) RecordGenerationAttempt(_ RecordGenerationAttemptInput) (RecordGenerationAttemptResult, error) {
 	_, _, err := tx.requireFromAllowed(TransitionRecordGenerationAttempt)
 	if err != nil {
+		return RecordGenerationAttemptResult{}, err
+	}
+	if err := tx.requireNoVersionFlags(TransitionRecordGenerationAttempt); err != nil {
 		return RecordGenerationAttemptResult{}, err
 	}
 	value, err := tx.store.IncrementChatGenerationAttempt(tx.ctx, tx.chatID)
@@ -1498,6 +1364,9 @@ func (tx *Tx) RecordRetryState(input RecordRetryStateInput) (RecordRetryStateRes
 			"retry payload is not valid JSON",
 		)
 	}
+	if err := tx.requireNoVersionFlags(TransitionRecordRetryState); err != nil {
+		return RecordRetryStateResult{}, err
+	}
 	chat, err := tx.store.UpdateChatRetryState(tx.ctx, database.UpdateChatRetryStateParams{
 		ID:         tx.chatID,
 		RetryState: input.RetryState.RawMessage,
@@ -1536,12 +1405,12 @@ func (tx *Tx) CommitStep(input CommitStepInput) (CommitStepResult, error) {
 			"CommitStep requires at least one message",
 		)
 	}
-	inserted, err := tx.insertMessages(input.Messages)
+	inserted, err := tx.stageInsertMessages(input.Messages)
 	if err != nil {
 		return CommitStepResult{}, xerrors.Errorf("insert commit step messages: %w", err)
 	}
 	if input.ConsumeCompactionRequest && chat.CompactionRequestedAt.Valid {
-		if _, err := tx.applyExecutionState(executionStateUpdate{
+		if _, err := tx.commitExecutionState(executionStateUpdate{
 			Status:                   chat.Status,
 			Archived:                 chat.Archived,
 			WorkerID:                 chat.WorkerID,
@@ -1593,7 +1462,7 @@ func (tx *Tx) EnterRequiresAction(_ EnterRequiresActionInput) (EnterRequiresActi
 		return EnterRequiresActionResult{}, xerrors.Errorf("get db now: %w", err)
 	}
 	deadline := sql.NullTime{Time: now.Add(requiresActionTimeout), Valid: true}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRequiresAction,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,
@@ -1630,7 +1499,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, err
 	}
-	insertedPartial, err := tx.insertMessages(input.PartialMessages)
+	insertedPartial, err := tx.stageInsertMessages(input.PartialMessages)
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert interruption partial messages: %w", err)
 	}
@@ -1648,14 +1517,14 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	var head database.ChatQueuedMessage
 	promote := false
 	if from == StateI1 {
-		head, promote, err = tx.nextPromotableQueueHead()
+		head, promote, err = tx.stageNextPromotableQueueHead()
 		if err != nil {
 			return FinishInterruptionResult{}, xerrors.Errorf("get queue head: %w", err)
 		}
 	}
 	// I0, or I1 whose queued rows all failed the promotion guard.
 	if !promote {
-		if _, err := tx.applyExecutionState(executionStateUpdate{
+		if _, err := tx.commitExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusWaiting,
 			Archived:                 false,
 			WorkerID:                 chat.WorkerID,
@@ -1675,14 +1544,14 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
 	}
-	insertedHead, err := tx.insertMessages([]Message{promotedMsg})
+	insertedHead, err := tx.stageInsertMessages([]Message{promotedMsg})
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
 	}
-	if err := tx.deletePromotedQueuedMessage(head.ID); err != nil {
+	if err := tx.stageDeletePromotedQueuedMessage(head.ID); err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("delete promoted head: %w", err)
 	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,
@@ -1726,14 +1595,14 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	var head database.ChatQueuedMessage
 	promote := false
 	if from == StateR1 {
-		head, promote, err = tx.nextPromotableQueueHead()
+		head, promote, err = tx.stageNextPromotableQueueHead()
 		if err != nil {
 			return FinishTurnResult{}, xerrors.Errorf("get queue head: %w", err)
 		}
 	}
 	// R0, or R1 whose queued rows all failed the promotion guard.
 	if !promote {
-		updated, err := tx.applyExecutionState(executionStateUpdate{
+		updated, err := tx.commitExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusWaiting,
 			Archived:                 false,
 			WorkerID:                 chat.WorkerID,
@@ -1755,14 +1624,14 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
 	}
-	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
+	inserted, err := tx.stageInsertMessages(append(cancels, promotedMsg))
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
 	}
-	if err := tx.deletePromotedQueuedMessage(head.ID); err != nil {
+	if err := tx.stageDeletePromotedQueuedMessage(head.ID); err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("delete promoted head: %w", err)
 	}
-	updated, err := tx.applyExecutionState(executionStateUpdate{
+	updated, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,
@@ -1799,7 +1668,7 @@ func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 	if err != nil {
 		return FinishErrorResult{}, err
 	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusError,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,
@@ -1843,11 +1712,11 @@ func (tx *Tx) CancelRequiresAction(input CancelRequiresActionInput) (CancelRequi
 			"no pending dynamic tool calls to cancel",
 		)
 	}
-	inserted, err := tx.insertMessages(cancels)
+	inserted, err := tx.stageInsertMessages(cancels)
 	if err != nil {
 		return CancelRequiresActionResult{}, xerrors.Errorf("insert requires-action cancellations: %w", err)
 	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,
@@ -1897,7 +1766,7 @@ func (tx *Tx) ReconcileInvalidState(input ReconcileInvalidStateInput) (Reconcile
 	}
 	var inserted []database.ChatMessage
 	if len(cancels) > 0 {
-		inserted, err = tx.insertMessages(cancels)
+		inserted, err = tx.stageInsertMessages(cancels)
 		if err != nil {
 			return ReconcileInvalidStateResult{}, xerrors.Errorf("insert invalid-state cancellations: %w", err)
 		}
@@ -1909,7 +1778,7 @@ func (tx *Tx) ReconcileInvalidState(input ReconcileInvalidStateInput) (Reconcile
 			Valid:      true,
 		}
 	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	if _, err := tx.commitExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusError,
 		Archived:                 false,
 		WorkerID:                 chat.WorkerID,

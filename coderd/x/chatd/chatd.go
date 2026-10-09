@@ -1560,7 +1560,8 @@ func (p *Server) SendMessage(
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		// Update may rerun this callback after a deadlock abort.
 		result = SendMessageResult{}
-		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
+		lockedChat, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
@@ -1959,7 +1960,8 @@ func (p *Server) EditMessage(
 	)
 	machine := p.newChatMachine(opts.ChatID)
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
+		lockedChat, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
@@ -2231,7 +2233,8 @@ func (p *Server) PromoteQueued(
 		result = PromoteQueuedResult{}
 		rejected = false
 		promotedQueuedAt = time.Time{}
-		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
+		lockedChat, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
@@ -2346,7 +2349,8 @@ func (p *Server) SubmitToolResults(
 		refreshedOK    bool
 	)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		locked, err := store.GetChatByID(ctx, opts.ChatID)
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
+		locked, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
@@ -2528,7 +2532,8 @@ func (p *Server) CompactChat(
 	var refreshed database.Chat
 	machine := p.newChatMachine(chat.ID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		lockedChat, err := store.GetChatByID(ctx, chat.ID)
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
+		lockedChat, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
@@ -2585,7 +2590,8 @@ func (p *Server) ClearChat(
 	var refreshed database.Chat
 	machine := p.newChatMachine(chat.ID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		lockedChat, err := store.GetChatByID(ctx, chat.ID)
+		// Row already locked by ChatMachine.Update (LockChatForTransition).
+		lockedChat, _, err := tx.Current()
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}

@@ -123,11 +123,8 @@ func applySendMessageQueue(t *testing.T, f *testFixture, tx *chatstate.Tx, _ see
 	return err
 }
 
-func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
+func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
-	if err := ownRunningChat(t, tx, seeded, from); err != nil {
-		return err
-	}
 	var err error
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-interrupt", f.User.ID, f.Model.ID),
@@ -175,11 +172,8 @@ func applyPromoteQueuedMessage(t *testing.T, _ *testFixture, tx *chatstate.Tx, s
 	return err
 }
 
-func applyInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
+func applyInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
-	if err := ownRunningChat(t, tx, seeded, from); err != nil {
-		return err
-	}
 	var err error
 	result.interrupt, err = tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 	return err
@@ -781,6 +775,75 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 	})
 }
 
+// TestTransitionMatrix_AfterCommitWrite reruns every positive matrix case
+// as if another transition had already made the Update's commit write.
+// A transition that stages history or queue changes without a commit
+// write of its own must then fail with ErrStagedAfterCommitWrite and roll
+// back; every other transition must leave the committed versions
+// consistent with what it wrote. The matrix requires a case for every
+// allowed transition, so a new transition is covered here too.
+func TestTransitionMatrix_AfterCommitWrite(t *testing.T) {
+	t.Parallel()
+
+	var (
+		mu       sync.Mutex
+		rejected = map[chatstate.Transition]bool{}
+	)
+	// CommitStep stages history and relies on Update's commit write, so
+	// it not being rejected means the check was bypassed. Cleanup runs
+	// after every parallel subtest finishes.
+	t.Cleanup(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		require.True(t, rejected[chatstate.TransitionCommitStep], "CommitStep after a commit write must be rejected")
+	})
+	for _, spec := range matrixCases() {
+		if spec.assertFailure != nil {
+			continue
+		}
+		t.Run(spec.subtestName(), func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			seeder := spec.seed
+			if seeder == nil {
+				seeder = seedState
+			}
+			seeded := seeder(t, f, spec.from)
+			base := captureBaseline(ctx, t, f, seeded)
+
+			m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+			var result transitionCaseResult
+			err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				tx.MarkCommitWrite()
+				return spec.apply(t, f, tx, seeded, spec.from, &result)
+			})
+			if err != nil {
+				require.ErrorIs(t, err, chatstate.ErrStagedAfterCommitWrite)
+				assertNoMutationOrPublish(ctx, t, f, seeded.chatID, base)
+				mu.Lock()
+				rejected[spec.transition] = true
+				mu.Unlock()
+				return
+			}
+
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			msgs, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: seeded.chatID})
+			require.NoError(t, err)
+			for _, msg := range msgs {
+				require.LessOrEqual(t, msg.Revision, after.SnapshotVersion, "message %d carries an uncommitted version", msg.ID)
+				if msg.Revision > base.snapshot {
+					require.Equal(t, after.SnapshotVersion, after.HistoryVersion, "history written but not recorded")
+				}
+			}
+			if !slices.Equal(base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID)) {
+				require.Equal(t, after.SnapshotVersion, after.QueueVersion, "queue changed but not recorded")
+			}
+		})
+	}
+}
+
 // Positive case specs.
 //
 // Each case asserts (at minimum) the resulting classified post-state
@@ -1110,6 +1173,7 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 		from:       from,
 		want:       want,
 		scenario:   scenarioInterrupt,
+		seed:       seedOwnedRunningState,
 		apply:      applySendMessageInterrupt,
 		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
 			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
@@ -1577,9 +1641,9 @@ func clearContextCase(from chatstate.ExecutionState) transitionCaseSpec {
 			require.Greater(t, after.HistoryVersion, base.historyVersion,
 				"inserted boundary rows must advance history_version")
 			require.Equal(t, after.SnapshotVersion, after.HistoryVersion,
-				"insert trigger advances history_version to snapshot_version")
+				"the commit write advances history_version to snapshot_version")
 			require.Zero(t, after.GenerationAttempt,
-				"insert trigger grants a fresh retry budget")
+				"the commit write grants a fresh retry budget")
 			// activeHistoryIDs reads the user-visible query, which
 			// excludes the hidden model-only boundary anchor, so only
 			// the tool call/result pair appears.
@@ -1603,6 +1667,7 @@ func interruptCase(from, want chatstate.ExecutionState) transitionCaseSpec {
 		transition: chatstate.TransitionInterrupt,
 		from:       from,
 		want:       want,
+		seed:       seedOwnedRunningState,
 		apply:      applyInterrupt,
 		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
 			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
@@ -2029,13 +2094,21 @@ func reconcileInvalidStateCase(want chatstate.ExecutionState, shape queueShape) 
 	return spec
 }
 
-// ownRunningChat owns a seeded running chat before an interrupt so the
-// matrix covers the interrupting states. The unowned variants finish
-// the interruption inline and have their own tests.
-func ownRunningChat(t *testing.T, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState) error {
+// seedOwnedRunningState seeds the state and, for running chats, owns the
+// chat in its own Update: ownership is a transition with its own commit
+// write, so it must not share the measured Update. Owned chats cover the
+// interrupting states; the unowned variants finish the interruption
+// inline and have their own tests.
+func seedOwnedRunningState(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
 	t.Helper()
+	seeded := seedState(t, f, from)
 	if from != chatstate.StateR0 && from != chatstate.StateR1 {
-		return nil
+		return seeded
 	}
-	return ownChat(testutil.Context(t, testutil.WaitShort), tx, tx.Store(), seeded.chatID)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		return ownChat(ctx, tx, store, seeded.chatID)
+	}))
+	return seeded
 }

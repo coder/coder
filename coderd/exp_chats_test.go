@@ -174,13 +174,17 @@ func insertTestChatQueuedMessageWithReasoningEffort(
 ) database.ChatQueuedMessage {
 	t.Helper()
 
-	queued, err := db.InsertChatQueuedMessage(
-		dbauthz.AsSystemRestricted(ctx),
-		database.InsertChatQueuedMessageParams{
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	chat, err := db.GetChatByID(sysCtx, chatID)
+	require.NoError(t, err)
+	queued, err := db.InsertChatQueuedMessageWithCreator(
+		sysCtx,
+		database.InsertChatQueuedMessageWithCreatorParams{
 			ChatID:          chatID,
 			Content:         content,
 			ModelConfigID:   uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
 			ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(reasoningEffort), Valid: reasoningEffort != ""},
+			CreatedBy:       chat.OwnerID,
 		},
 	)
 	require.NoError(t, err)
@@ -10735,7 +10739,13 @@ func TestProposeChatTitle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Authorizer: &coderdtest.FakeAuthorizer{
-				ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
+				ConditionalReturn: func(_ context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
+					// dbgen seeds rows with a synthetic "owner" subject;
+					// committing the chat creation needs chat update, so
+					// let it pass.
+					if subject.ID == "owner" {
+						return nil
+					}
 					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
 						return xerrors.New("denied")
 					}
@@ -10828,7 +10838,7 @@ func TestProposeChatTitle(t *testing.T) {
 
 		// Bump the snapshot version up front so the assertion below
 		// detects any further bump caused by the propose call.
-		_, err := db.LockChatAndBumpSnapshotVersion(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		_, err := db.BumpChatSnapshotVersion(dbauthz.AsSystemRestricted(ctx), database.BumpChatSnapshotVersionParams{ID: chat.ID})
 		require.NoError(t, err)
 
 		before, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)

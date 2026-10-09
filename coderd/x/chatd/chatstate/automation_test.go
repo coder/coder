@@ -214,6 +214,8 @@ func promoteStaleCase(from, want chatstate.ExecutionState, shape staleQueueShape
 			require.Equal(t, base.chat.Status, after.Status, "a rejected promotion keeps the status")
 			require.Equal(t, base.chat.LastError, after.LastError)
 			require.Equal(t, base.chat.RequiresActionDeadlineAt.Valid, after.RequiresActionDeadlineAt.Valid)
+			require.Greater(t, after.QueueVersion, base.queueVersion,
+				"dropping the stale row advances queue_version")
 		},
 	}
 }
@@ -235,6 +237,8 @@ func finishStaleQueueCase(tr chatstate.Transition, from chatstate.ExecutionState
 				"landing in waiting inserts no history")
 			require.Nil(t, result.finishTurn.PromotedMessage)
 			require.Nil(t, result.finishInterruption.PromotedMessage)
+			require.Greater(t, f.readChat(ctx, t, seeded.chatID).QueueVersion, base.queueVersion,
+				"dropping the stale rows advances queue_version")
 		},
 	}
 }
@@ -419,6 +423,7 @@ func TestQueuePromotionGuard_UnownedInterrupt(t *testing.T) {
 				before := historyMessageIDs(ctx, t, f, chat.Chat.ID)
 				start.prep(t, f, m, chat.Chat.ID)
 				reason.apply(ctx, t, f, stale.ID)
+				queueVersionBefore := f.readChat(ctx, t, chat.Chat.ID).QueueVersion
 
 				interrupt(ctx, t, m)
 
@@ -428,7 +433,10 @@ func TestQueuePromotionGuard_UnownedInterrupt(t *testing.T) {
 				require.Equal(t, before, historyMessageIDs(ctx, t, f, chat.Chat.ID),
 					"landing in waiting inserts no history")
 				require.Equal(t, chatstate.StateW, f.classify(ctx, t, chat.Chat.ID))
-				require.False(t, f.readChat(ctx, t, chat.Chat.ID).WorkerID.Valid)
+				after := f.readChat(ctx, t, chat.Chat.ID)
+				require.False(t, after.WorkerID.Valid)
+				require.Greater(t, after.QueueVersion, queueVersionBefore,
+					"dropping the stale rows advances queue_version")
 			})
 
 			t.Run(start.name+"/SendMessageInterruptPromotesNewMessage/"+reason.name, func(t *testing.T) {
