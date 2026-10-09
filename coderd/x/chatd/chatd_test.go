@@ -7281,7 +7281,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			OwnerID:        user.ID,
 			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
 			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-			Title:          "compaction-override-threshold-lowered",
+			Title:          "compaction-override-added-lower-trigger",
 			ModelConfigID:  model.ID,
 			InitialUserContent: []codersdk.ChatMessagePart{
 				codersdk.ChatMessageText("read the file and continue"),

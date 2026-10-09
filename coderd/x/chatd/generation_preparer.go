@@ -850,16 +850,12 @@ func (server *Server) prepareGeneration(
 			thresholdPercent: compactionOverrideWindowPercent,
 			contextLimit:     resolvedCompactionOverride.Config.ContextLimit,
 		}
-		// With an unknown window, nothing bounds the history by the
-		// override's window, so the chat model summarizes instead.
-		if overrideTrigger.enabled() {
-			compactionOverride = &resolvedCompactionOverride
-			otherTrigger = overrideTrigger
-			bindingSource = bindingCompactionTriggerSource(chatTrigger, overrideTrigger)
-			if bindingSource == compactionTriggerSourceOrganization {
-				binding = overrideTrigger
-				otherTrigger = chatTrigger
-			}
+		compactionOverride = &resolvedCompactionOverride
+		otherTrigger = overrideTrigger
+		bindingSource = bindingCompactionTriggerSource(chatTrigger, overrideTrigger)
+		if bindingSource == compactionTriggerSourceOrganization {
+			binding = overrideTrigger
+			otherTrigger = chatTrigger
 		}
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
@@ -959,8 +955,9 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 	return fantasy.Usage{}
 }
 
-// compactionOverrideWindowPercent leaves room in the override's window for
-// the summary prompt and the summary.
+// compactionOverrideWindowPercent leaves the rest of the override's window as
+// headroom for the summary prompt and summary. It is a target margin, not a
+// guarantee: the trigger reads the previous step's prompt usage.
 const compactionOverrideWindowPercent = int32(80)
 
 type compactionTrigger struct {
