@@ -416,73 +416,69 @@ func (p *Server) pinnedWorkspaceMCPTools(
 
 type turnWorkspaceContext struct {
 	server           *Server
+	chatStateMu      *sync.Mutex
+	currentChat      *database.Chat
 	loadChatSnapshot func(context.Context, uuid.UUID) (database.Chat, error)
-
-	chatStateMu sync.Mutex
-	currentChat database.Chat
+	conns            *agentConnCache // The chat runner's; nil keeps connections for this step only.
 
 	mu                sync.Mutex
 	agent             database.WorkspaceAgent
 	agentLoaded       bool
 	conn              workspacesdk.AgentConn
 	releaseConn       func()
+	connAgentID       uuid.UUID
 	cachedWorkspaceID uuid.NullUUID
-	home              string
-}
-
-func (p *Server) newTurnWorkspaceContext() *turnWorkspaceContext {
-	return &turnWorkspaceContext{
-		server: p,
-		loadChatSnapshot: func(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
-			return p.db.GetChatByID(ctx, chatID)
-		},
-	}
-}
-
-// setAgentLocked clears derived state, such as home, when agent differs from
-// the cached agent.
-func (c *turnWorkspaceContext) setAgentLocked(agent database.WorkspaceAgent, workspaceID uuid.NullUUID) {
-	if c.agent.ID != agent.ID {
-		c.home = ""
-	}
-	c.agent = agent
-	c.agentLoaded = true
-	c.cachedWorkspaceID = workspaceID
-}
-
-func (c *turnWorkspaceContext) clearAgentLocked() {
-	c.agent = database.WorkspaceAgent{}
-	c.agentLoaded = false
-	c.home = ""
+	// retired holds the release funcs of connections the step stopped using.
+	// The step's tool calls may still use them, so they are released when
+	// the step closes.
+	retired []func()
 }
 
 func (c *turnWorkspaceContext) close() {
-	c.clearCachedWorkspaceState()
-}
-
-func (c *turnWorkspaceContext) clearCachedWorkspaceState() {
 	c.mu.Lock()
-	releaseConn := c.releaseConn
-	c.clearAgentLocked()
-	c.conn = nil
-	c.releaseConn = nil
-	c.cachedWorkspaceID = uuid.NullUUID{}
+	c.clearLocked()
+	releases := c.retired
+	c.retired = nil
 	c.mu.Unlock()
 
-	if releaseConn != nil {
-		releaseConn()
+	for _, release := range releases {
+		release()
 	}
+}
+
+// clearCachedWorkspaceState forgets the workspace agent and its connection,
+// so the next use resolves and dials again, and drops the chat runner's
+// connection.
+func (c *turnWorkspaceContext) clearCachedWorkspaceState() {
+	c.mu.Lock()
+	c.clearLocked()
+	c.mu.Unlock()
+	c.conns.drop()
+}
+
+// clearLocked forgets the workspace agent and retires its connection.
+// c.mu must be held.
+func (c *turnWorkspaceContext) clearLocked() {
+	c.agent = database.WorkspaceAgent{}
+	c.agentLoaded = false
+	if c.releaseConn != nil {
+		c.retired = append(c.retired, c.releaseConn)
+	}
+	c.conn = nil
+	c.releaseConn = nil
+	c.connAgentID = uuid.Nil
+	c.cachedWorkspaceID = uuid.NullUUID{}
 }
 
 func (c *turnWorkspaceContext) setCurrentChat(chat database.Chat) {
 	c.chatStateMu.Lock()
-	c.currentChat = chat
+	*c.currentChat = chat
 	c.chatStateMu.Unlock()
 }
 
 func (c *turnWorkspaceContext) currentChatSnapshot() database.Chat {
 	c.chatStateMu.Lock()
-	chatSnapshot := c.currentChat
+	chatSnapshot := *c.currentChat
 	c.chatStateMu.Unlock()
 	return chatSnapshot
 }
@@ -585,7 +581,8 @@ func (c *turnWorkspaceContext) ensureWorkspaceAgent(
 		if nullUUIDEqual(c.cachedWorkspaceID, chatSnapshot.WorkspaceID) {
 			return chatSnapshot, c.agent, nil
 		}
-		c.clearAgentLocked()
+		// The connection belongs to the previous workspace's agent.
+		c.clearLocked()
 	}
 
 	return c.loadWorkspaceAgentLocked(ctx)
@@ -643,7 +640,9 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 					chatSnapshot = latestChat
 					continue
 				}
-				c.setAgentLocked(agent, chatSnapshot.WorkspaceID)
+				c.agent = agent
+				c.agentLoaded = true
+				c.cachedWorkspaceID = chatSnapshot.WorkspaceID
 				return chatSnapshot, c.agent, nil
 			}
 			if !xerrors.Is(err, sql.ErrNoRows) {
@@ -696,7 +695,9 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			chatSnapshot = latestChat
 			continue
 		}
-		c.setAgentLocked(selected, chatSnapshot.WorkspaceID)
+		c.agent = selected
+		c.agentLoaded = true
+		c.cachedWorkspaceID = chatSnapshot.WorkspaceID
 		return chatSnapshot, c.agent, nil
 	}
 
@@ -772,25 +773,19 @@ func (c *turnWorkspaceContext) workspaceAgentIDForConn(
 }
 
 // getWorkspaceConnLocked returns the cached connection when it still matches
-// the current workspace. When the workspace changed, it clears the stale
-// cached state and returns the release func for the caller to run after
-// unlocking.
-func (c *turnWorkspaceContext) getWorkspaceConnLocked() (workspacesdk.AgentConn, func()) {
+// the current workspace. When the workspace changed, it forgets the cached
+// agent and connection.
+func (c *turnWorkspaceContext) getWorkspaceConnLocked() workspacesdk.AgentConn {
 	if c.conn == nil {
-		return nil, nil
+		return nil
 	}
 
 	chatSnapshot := c.currentChatSnapshot()
 	if nullUUIDEqual(c.cachedWorkspaceID, chatSnapshot.WorkspaceID) {
-		return c.conn, nil
+		return c.conn
 	}
-
-	agentRelease := c.releaseConn
-	c.clearAgentLocked()
-	c.conn = nil
-	c.releaseConn = nil
-	c.cachedWorkspaceID = uuid.NullUUID{}
-	return nil, agentRelease
+	c.clearLocked()
+	return nil
 }
 
 // isAgentUnreachable reports whether the given agent row's
@@ -902,7 +897,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 	for attempt := 0; attempt < 2; attempt++ {
 		c.mu.Lock()
-		currentConn, staleRelease := c.getWorkspaceConnLocked()
+		currentConn := c.getWorkspaceConnLocked()
 		// Capture agentID in the same lock section as
 		// currentConn to prevent a TOCTOU race with
 		// concurrent clearCachedWorkspaceState calls.
@@ -935,9 +930,6 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			c.trackWorkspaceUsage(ctx, chatSnapshot)
 			return currentConn, nil
 		}
-		if staleRelease != nil {
-			staleRelease()
-		}
 
 		chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
 		if err != nil {
@@ -945,6 +937,9 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 		}
 		if err := c.externalAgentPreflightError(ctx, chatSnapshot, agent); err != nil {
 			return nil, err
+		}
+		if conn, ok := c.borrowRunnerConn(ctx, chatSnapshot, agent.ID); ok {
+			return conn, nil
 		}
 
 		// Wrap the dial in a timeout to bound the time spent
@@ -1023,7 +1018,9 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			chatSnapshot = updatedChat
 
 			c.mu.Lock()
-			c.setAgentLocked(switchedAgent, chatSnapshot.WorkspaceID)
+			c.agent = switchedAgent
+			c.agentLoaded = true
+			c.cachedWorkspaceID = chatSnapshot.WorkspaceID
 			c.mu.Unlock()
 		}
 
@@ -1035,25 +1032,30 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			continue
 		}
 
+		var ancestorIDs []string
+		if chatSnapshot.ParentChatID.Valid {
+			ancestorIDs = append(ancestorIDs, chatSnapshot.ParentChatID.UUID.String())
+		}
+		ancestorJSON, marshalErr := json.Marshal(ancestorIDs)
+		if marshalErr != nil {
+			ancestorJSON = []byte("[]")
+		}
+		// Set before the connection is shared with tool calls or the chat
+		// runner, which send this chat's requests on it.
+		agentConn.SetExtraHeaders(http.Header{
+			workspacesdk.CoderChatIDHeader:          {chatSnapshot.ID.String()},
+			workspacesdk.CoderAncestorChatIDsHeader: {string(ancestorJSON)},
+		})
+		// If another step of this chat connected to the same workspace agent
+		// meanwhile, adopt releases agentConn and returns that connection.
+		agentConn, agentRelease = c.conns.adopt(dialResult.AgentID, agentConn, agentRelease)
+
 		c.mu.Lock()
 		if c.conn == nil {
 			c.conn = agentConn
 			c.releaseConn = agentRelease
+			c.connAgentID = dialResult.AgentID
 			c.cachedWorkspaceID = chatSnapshot.WorkspaceID
-
-			var ancestorIDs []string
-			if chatSnapshot.ParentChatID.Valid {
-				ancestorIDs = append(ancestorIDs, chatSnapshot.ParentChatID.UUID.String())
-			}
-			ancestorJSON, marshalErr := json.Marshal(ancestorIDs)
-			if marshalErr != nil {
-				ancestorJSON = []byte("[]")
-			}
-			agentConn.SetExtraHeaders(http.Header{
-				workspacesdk.CoderChatIDHeader:          {chatSnapshot.ID.String()},
-				workspacesdk.CoderAncestorChatIDsHeader: {string(ancestorJSON)},
-			})
-
 			c.mu.Unlock()
 			c.server.logger.Debug(ctx, "set chat headers on agent conn",
 				slog.F("chat_id", chatSnapshot.ID),
@@ -1077,34 +1079,89 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	return nil, xerrors.New("chat workspace changed while connecting")
 }
 
-// workspaceHome fetches the home directory once per cached agent.
+// borrowRunnerConn uses the chat runner's connection to agentID, unless the
+// workspace agent is disconnected. It applies the status check that a
+// connection cached within the step gets.
+func (c *turnWorkspaceContext) borrowRunnerConn(
+	ctx context.Context,
+	chatSnapshot database.Chat,
+	agentID uuid.UUID,
+) (workspacesdk.AgentConn, bool) {
+	conn, ret, ok := c.conns.borrow(agentID)
+	if !ok {
+		return nil, false
+	}
+	freshAgent, err := c.server.db.GetWorkspaceAgentByID(ctx, agentID)
+	if err != nil {
+		c.server.logger.Warn(ctx, "failed to re-fetch agent for status check",
+			slog.F("agent_id", agentID),
+			slog.Error(err),
+		)
+	} else if _, disconnected := agentDisconnectedFor(
+		c.server.clock.Now(),
+		freshAgent,
+		c.server.agentInactiveDisconnectTimeout,
+	); disconnected {
+		ret()
+		c.conns.drop()
+		return nil, false
+	}
+
+	c.mu.Lock()
+	if c.conn != nil {
+		conn = c.conn
+		c.mu.Unlock()
+		ret()
+	} else {
+		c.conn = conn
+		c.releaseConn = ret
+		c.connAgentID = agentID
+		c.cachedWorkspaceID = chatSnapshot.WorkspaceID
+		c.mu.Unlock()
+	}
+	c.trackWorkspaceUsage(ctx, chatSnapshot)
+	return conn, true
+}
+
+// workspaceHome returns the home directory of the workspace agent. The chat
+// runner keeps it with its connection, so later steps skip the lookup.
 func (c *turnWorkspaceContext) workspaceHome(ctx context.Context) (string, error) {
-	_, agent, err := c.ensureWorkspaceAgent(ctx)
+	chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
 	if err != nil {
 		return "", err
 	}
-	c.mu.Lock()
-	home := c.home
-	c.mu.Unlock()
-	if home != "" {
+	if home, ok := c.conns.home(agent.ID); ok {
+		// Bump workspace usage as getWorkspaceConn does on the uncached path.
+		c.trackWorkspaceUsage(ctx, chatSnapshot)
 		return home, nil
 	}
-
 	conn, err := c.getWorkspaceConn(ctx)
 	if err != nil {
 		return "", err
 	}
-	home, err = chattool.ResolveWorkspaceHome(ctx, conn)
+	home, err := chattool.ResolveWorkspaceHome(ctx, conn)
 	if err != nil {
 		return "", err
 	}
 	c.mu.Lock()
-	// The dial may have switched agents.
-	if c.agent.ID == agent.ID {
-		c.home = home
+	agentID := uuid.Nil
+	if c.conn == conn {
+		agentID = c.connAgentID
 	}
 	c.mu.Unlock()
+	c.conns.setHome(agentID, home)
 	return home, nil
+}
+
+// dropStaleRunnerConn drops the chat runner's connection when the chat is
+// bound to a workspace agent other than latestAgentID, the chat agent of the
+// workspace's latest build. The next use then dials, which switches to the
+// latest agent when the bound one does not answer in time.
+func (c *turnWorkspaceContext) dropStaleRunnerConn(latestAgentID uuid.UUID) {
+	chatSnapshot := c.currentChatSnapshot()
+	if chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != latestAgentID {
+		c.conns.drop()
+	}
 }
 
 // AgentConnFunc provides access to workspace agent connections.

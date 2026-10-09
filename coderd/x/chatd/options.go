@@ -74,7 +74,7 @@ type chatWorkerTaskStartInput struct {
 	SessionStart             *sessionStartTracker
 	StopNudges               *stopNudgeTracker
 	TurnExperiments          *turnExperimentDecisions
-	Workspace                *turnWorkspaceContext
+	AgentConns               *agentConnCache
 }
 
 func (i chatWorkerTaskStartInput) hookTurnID() *uuid.UUID {

@@ -235,14 +235,19 @@ func (server *Server) prepareGeneration(
 		advisorPromptSnapshot = slices.Clone(msgs)
 	}
 
-	var workspaceMu sync.Mutex
-	workspaceCtx := input.Workspace
-	if workspaceCtx == nil {
-		return generationPrepared{}, xerrors.New("workspace context is required")
+	currentChat := chat
+	loadChatSnapshot := func(loadCtx context.Context, chatID uuid.UUID) (database.Chat, error) {
+		return server.db.GetChatByID(loadCtx, chatID)
 	}
-	workspaceCtx.setCurrentChat(chat)
-	// Bump every step; steps without tool calls may never dial.
-	workspaceCtx.trackWorkspaceUsage(ctx, chat)
+	var chatStateMu sync.Mutex
+	var workspaceMu sync.Mutex
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      &chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: loadChatSnapshot,
+		conns:            input.AgentConns,
+	}
 	// mcpCleanup and inlineMCPCleanup are assigned by g2 goroutines and
 	// read only after g2.Wait, so no error path can run this before
 	// they are set.
@@ -254,6 +259,7 @@ func (server *Server) prepareGeneration(
 		if mcpCleanup != nil {
 			mcpCleanup()
 		}
+		workspaceCtx.close()
 	}
 	defer func() {
 		if err != nil {
@@ -281,13 +287,15 @@ func (server *Server) prepareGeneration(
 		planCtx, cancel := context.WithTimeout(resolveCtx, planPathLookupTimeout)
 		defer cancel()
 
-		if _, _, err := workspaceCtx.workspaceAgentIDForConn(planCtx); err != nil {
+		_, latestAgentID, err := workspaceCtx.workspaceAgentIDForConn(planCtx)
+		if err != nil {
 			logger.Debug(resolveCtx, "plan path instruction: agent not reachable",
 				slog.Error(err),
 				slog.F("chat_id", chat.ID),
 			)
 			return ""
 		}
+		workspaceCtx.dropStaleRunnerConn(latestAgentID)
 
 		planPath, home, err := planPathFn(planCtx)
 		if err != nil {
@@ -477,7 +485,7 @@ func (server *Server) prepareGeneration(
 	}
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
-			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, workspaceCtx)
+			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, &workspaceCtx)
 			return nil
 		})
 	}
@@ -563,7 +571,7 @@ func (server *Server) prepareGeneration(
 	}
 	setAdvisorPromptSnapshot(prompt)
 
-	storeChatAttachment := server.newStoreChatAttachmentFunc(workspaceCtx)
+	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.WriteFile(chattool.WriteFileOptions{
@@ -595,7 +603,7 @@ func (server *Server) prepareGeneration(
 		tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
 			chat:            chat,
 			modelConfigID:   modelConfig.ID,
-			workspaceCtx:    workspaceCtx,
+			workspaceCtx:    &workspaceCtx,
 			workspaceMu:     &workspaceMu,
 			resolvePlanPath: resolvePlanPathForTools,
 			storeFile:       storeChatAttachment,

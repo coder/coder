@@ -19,7 +19,9 @@ func (p *Server) newStoreChatAttachmentFunc(workspaceCtx *turnWorkspaceContext) 
 		detectName string,
 		data []byte,
 	) (chattool.AttachmentMetadata, error) {
-		chatSnapshot := workspaceCtx.currentChatSnapshot()
+		workspaceCtx.chatStateMu.Lock()
+		chatSnapshot := *workspaceCtx.currentChat
+		workspaceCtx.chatStateMu.Unlock()
 
 		return p.storeChatAttachment(ctx, chatSnapshot, name, detectName, data)
 	}

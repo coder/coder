@@ -160,7 +160,6 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
-		Workspace:       server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
@@ -276,7 +275,6 @@ func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
 				Chat:            created.Chat,
 				Messages:        created.InitialMessages,
 				TurnExperiments: &turnExperimentDecisions{},
-				Workspace:       server.newTurnWorkspaceContext(),
 			})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Cleanup)
@@ -382,7 +380,6 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
-		Workspace:       server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
@@ -466,11 +463,7 @@ func TestPrepareGenerationMemory(t *testing.T) {
 				serverOpts = append(serverOpts, withInternalTestServerExperiments([]codersdk.Experiment{}))
 			}
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, serverOpts...)
-			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
-				Chat:      created.Chat,
-				Messages:  created.InitialMessages,
-				Workspace: server.newTurnWorkspaceContext(),
-			})
+			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Cleanup)
 
@@ -566,7 +559,6 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
-		Workspace:       server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
