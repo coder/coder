@@ -280,20 +280,21 @@ export const useChatStore = (
 		[chatID, queryClient],
 	);
 
-	// Replaces the messages at or above fromID, or all of them without it.
-	const replaceHistory = useCallback(
-		(messages: readonly TypesGen.ChatMessage[], fromID?: number) => {
-			const kept =
-				fromID === undefined
-					? []
-					: [...store.getSnapshot().messagesByID.values()].filter(
-							(message) => message.id < fromID,
-						);
-			store.replaceMessages([...kept, ...messages]);
-			replaceCacheMessages(messages, fromID);
-		},
-		[replaceCacheMessages, store],
-	);
+	// Replaces the store's and the cache's messages from fromID, or all of
+	// them when fromID is undefined.
+	const replaceStoreAndCacheMessages = (
+		messages: readonly TypesGen.ChatMessage[],
+		fromID?: number,
+	) => {
+		const kept =
+			fromID === undefined
+				? []
+				: [...store.getSnapshot().messagesByID.values()].filter(
+						(message) => message.id < fromID,
+					);
+		store.replaceMessages([...kept, ...messages]);
+		replaceCacheMessages(messages, fromID);
+	};
 
 	// Content snapshot of the messages the hydration effect last ingested.
 	// State (not a ref) so the paging gate re-renders when hydration lands.
@@ -551,7 +552,10 @@ export const useChatStore = (
 					return;
 				}
 				historyResetPending = false;
-				replaceHistory(historyReplacementBuf.splice(0), historyResetFromID);
+				replaceStoreAndCacheMessages(
+					historyReplacementBuf.splice(0),
+					historyResetFromID,
+				);
 			};
 
 			// Wrap all store mutations in a batch so subscribers
@@ -839,7 +843,7 @@ export const useChatStore = (
 		chatID,
 		initialDataLoaded,
 		queryClient,
-		replaceHistory,
+		replaceStoreAndCacheMessages,
 		store,
 		upsertCacheMessages,
 	]);
@@ -889,7 +893,7 @@ export const useChatStore = (
 			}
 			writeQueuedMessagesToCache(queryClient, chatID, []);
 			if (store.getActiveChatID() === chatID) {
-				replaceHistory(messages, editedMessageID);
+				replaceStoreAndCacheMessages(messages, editedMessageID);
 			} else {
 				replaceCacheMessages(messages, editedMessageID);
 			}
