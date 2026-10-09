@@ -2065,14 +2065,22 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	for _, status := range statuses {
 		ctx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
 
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		var expectedIDs []uuid.UUID
+		for _, apiWorkspace := range workspaces.Workspaces {
+			if apiWorkspace.LatestBuild.Status == status {
+				expectedIDs = append(expectedIDs, apiWorkspace.ID)
+			}
+		}
+
+		filtered, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Status: string(status),
 		})
 		require.NoErrorf(t, err, "fetch with status: %s", status)
-		require.NotEmptyf(t, workspaces.Workspaces, "fetch with status: %s", status)
-		for _, workspace := range workspaces.Workspaces {
-			assert.Equal(t, status, workspace.LatestBuild.Status, "expect matching status to filter")
+		gotIDs := make([]uuid.UUID, 0, len(filtered.Workspaces))
+		for _, workspace := range filtered.Workspaces {
+			gotIDs = append(gotIDs, workspace.ID)
 		}
+		require.ElementsMatchf(t, expectedIDs, gotIDs, "fetch with status: %s", status)
 		cancel()
 	}
 

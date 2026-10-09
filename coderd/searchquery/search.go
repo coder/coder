@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -283,11 +284,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.OwnerUsername = parser.String(values, "", "owner")
 	filter.TemplateNames = parser.Strings(values, []string{}, "template")
 	filter.Name = parser.String(values, "", "name")
-	statuses := httpapi.ParseCustomList(parser, values, []database.WorkspaceStatus{}, "status", httpapi.ParseEnum[database.WorkspaceStatus])
-	filter.Statuses = make([]string, 0, len(statuses))
-	for _, status := range statuses {
-		filter.Statuses = append(filter.Statuses, string(status))
-	}
+	filter.Statuses = slice.ToStrings(httpapi.ParseCustomList(parser, values, []database.WorkspaceStatus{}, "status", httpapi.ParseEnum[database.WorkspaceStatus]))
 	filter.HasAgentStatuses = parser.Strings(values, []string{}, "has-agent")
 	filter.Dormant = parser.Boolean(values, false, "dormant")
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")

@@ -592,7 +592,7 @@ func TestSearchWorkspace(t *testing.T) {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.TemplateNames = values.TemplateNames
 				}
-				if len(c.Expected.Statuses) == len(values.Statuses) {
+				if len(c.Expected.Statuses) == 0 && len(values.Statuses) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.Statuses = values.Statuses
 				}
