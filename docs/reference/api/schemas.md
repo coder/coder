@@ -12886,6 +12886,159 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------|-----------------------|
 | `status` | `active`, `suspended` |
 
+## codersdk.OrganizationSkillACL
+
+```json
+{
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "read",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "read",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                                        | Required | Restrictions | Description |
+|----------|-----------------------------------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.OrganizationSkillGroup](#codersdkorganizationskillgroup) | false    |              |             |
+| `users`  | array of [codersdk.OrganizationSkillUser](#codersdkorganizationskilluser)   | false    |              |             |
+
+## codersdk.OrganizationSkillGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "read",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                             | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                           | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                           | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                           | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser)            | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                           | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                           | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                           | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                           | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                                          | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)                     | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                                          | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
+
+## codersdk.OrganizationSkillRole
+
+```json
+"read"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)   |
+|------------|
+| ``, `read` |
+
+## codersdk.OrganizationSkillUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "role": "read",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                                             | Required | Restrictions | Description |
+|--------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                                           | false    |              |             |
+| `id`         | string                                                           | true     |              |             |
+| `name`       | string                                                           | false    |              |             |
+| `role`       | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
+| `username`   | string                                                           | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
+
 ## codersdk.OrganizationSyncSettings
 
 ```json
@@ -17189,6 +17342,30 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `display_name`             | string          | false    |              |                                                                                 |
 | `icon`                     | string          | false    |              |                                                                                 |
 | `name`                     | string          | false    |              |                                                                                 |
+
+## codersdk.UpdateOrganizationSkillACLRequest
+
+```json
+{
+  "group_roles": {
+    "property1": "read",
+    "property2": "read"
+  },
+  "user_roles": {
+    "property1": "read",
+    "property2": "read"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                             | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                                           | false    |              |             |
+| » `[any property]` | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
+| `user_roles`       | object                                                           | false    |              |             |
+| » `[any property]` | [codersdk.OrganizationSkillRole](#codersdkorganizationskillrole) | false    |              |             |
 
 ## codersdk.UpdateRoles
 

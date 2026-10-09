@@ -1394,6 +1394,12 @@ func New(options *Options) *API {
 					policy.ActionUpdate)).Patch("/", api.patchOrganizationSkill)
 				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
 					policy.ActionDelete)).Delete("/", api.deleteOrganizationSkill)
+				r.Route("/acl", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize, policy.ActionShare))
+					r.Get("/", api.getOrganizationSkillACL)
+					r.Patch("/", api.patchOrganizationSkillACL)
+					r.Get("/available", api.getOrganizationSkillACLAvailable)
+				})
 			})
 		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
