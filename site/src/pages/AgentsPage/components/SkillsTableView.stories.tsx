@@ -1,10 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockSkill } from "#/testHelpers/skills";
-import {
-	AgentSettingsPersonalSkillsPageView,
-	type AgentSettingsPersonalSkillsPageViewProps,
-} from "./AgentSettingsPersonalSkillsPageView";
+import { SkillsTableView, type SkillsTableViewProps } from "./SkillsTableView";
 
 const MockReviewSQLSkill = {
 	...MockSkill,
@@ -49,7 +46,7 @@ const MockDebugHTTPSkill = {
 
 const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
-const baseArgs: AgentSettingsPersonalSkillsPageViewProps = {
+const baseArgs: SkillsTableViewProps = {
 	skills: MockPersonalSkills,
 	error: undefined,
 	isLoading: false,
@@ -64,13 +61,13 @@ const baseArgs: AgentSettingsPersonalSkillsPageViewProps = {
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsPersonalSkillsPageView",
-	component: AgentSettingsPersonalSkillsPageView,
+	title: "pages/AgentsPage/components/SkillsTableView",
+	component: SkillsTableView,
 	args: baseArgs,
-} satisfies Meta<typeof AgentSettingsPersonalSkillsPageView>;
+} satisfies Meta<typeof SkillsTableView>;
 
 export default meta;
-type Story = StoryObj<typeof AgentSettingsPersonalSkillsPageView>;
+type Story = StoryObj<typeof SkillsTableView>;
 
 export const Populated: Story = {};
 
