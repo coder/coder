@@ -11312,6 +11312,59 @@ func (q *sqlQuerier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID)
 	return items, nil
 }
 
+const getChatTransitionState = `-- name: GetChatTransitionState :one
+SELECT
+    c.id,
+    c.status,
+    c.archived,
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = c.id
+    ) AS has_queued,
+    (
+        c.worker_id IS NULL
+        OR c.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1 FROM chat_heartbeats h
+            WHERE h.chat_id = c.id
+              AND h.runner_id = c.runner_id
+              AND h.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+        )
+    )::boolean AS ownership_stale
+FROM chats c
+WHERE c.id = $2::uuid
+`
+
+type GetChatTransitionStateParams struct {
+	StaleSeconds int32     `db:"stale_seconds" json:"stale_seconds"`
+	ID           uuid.UUID `db:"id" json:"id"`
+}
+
+type GetChatTransitionStateRow struct {
+	ID             uuid.UUID  `db:"id" json:"id"`
+	Status         ChatStatus `db:"status" json:"status"`
+	Archived       bool       `db:"archived" json:"archived"`
+	HasQueued      bool       `db:"has_queued" json:"has_queued"`
+	OwnershipStale bool       `db:"ownership_stale" json:"ownership_stale"`
+}
+
+// Lock-free read of the fields the worker's acquisition pre-check needs:
+// the execution-state inputs plus whether the current ownership lease is
+// stale, so a replica that lost the race skips without taking the row
+// lock. The authoritative check still runs under the lock.
+func (q *sqlQuerier) GetChatTransitionState(ctx context.Context, arg GetChatTransitionStateParams) (GetChatTransitionStateRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatTransitionState, arg.StaleSeconds, arg.ID)
+	var i GetChatTransitionStateRow
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.Archived,
+		&i.HasQueued,
+		&i.OwnershipStale,
+	)
+	return i, err
+}
+
 const getChatUserPromptsByChatID = `-- name: GetChatUserPromptsByChatID :many
 SELECT
     cm.id,
@@ -13546,6 +13599,148 @@ func (q *sqlQuerier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID,
 	var id_2 uuid.UUID
 	err := row.Scan(&id_2)
 	return id_2, err
+}
+
+const lockChatForAcquisition = `-- name: LockChatForAcquisition :one
+WITH bumped_chat AS (
+    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id, title_source, title_updated_at, automation_id, manage_automations_enabled
+    FROM chats
+    WHERE id = $1::uuid
+    FOR NO KEY UPDATE NOWAIT
+),
+versions AS (
+    UPDATE chat_versions
+    SET snapshot_version = snapshot_version + 1
+    WHERE chat_id = (SELECT id FROM bumped_chat)
+    RETURNING chat_id, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version
+),
+chats_expanded AS (
+    SELECT
+        bumped_chat.id,
+        bumped_chat.owner_id,
+        bumped_chat.workspace_id,
+        bumped_chat.title,
+        bumped_chat.status,
+        bumped_chat.worker_id,
+        bumped_chat.started_at,
+        bumped_chat.heartbeat_at,
+        bumped_chat.created_at,
+        bumped_chat.updated_at,
+        bumped_chat.parent_chat_id,
+        bumped_chat.root_chat_id,
+        bumped_chat.last_model_config_id,
+        bumped_chat.last_reasoning_effort,
+        bumped_chat.archived,
+        bumped_chat.last_error,
+        bumped_chat.mode,
+        bumped_chat.mcp_server_ids,
+        bumped_chat.labels,
+        bumped_chat.build_id,
+        bumped_chat.agent_id,
+        bumped_chat.pin_order,
+        bumped_chat.last_read_message_id,
+        bumped_chat.dynamic_tools,
+        bumped_chat.organization_id,
+        bumped_chat.project_id,
+        bumped_chat.plan_mode,
+        bumped_chat.client_type,
+        bumped_chat.last_turn_summary,
+        bumped_chat.summary,
+        bumped_chat.summary_generated_at,
+        versions.snapshot_version,
+        versions.history_version,
+        versions.queue_version,
+        versions.generation_attempt,
+        versions.retry_state,
+        versions.retry_state_version,
+        bumped_chat.runner_id,
+        bumped_chat.requires_action_deadline_at,
+        COALESCE(root.user_acl, bumped_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, bumped_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name,
+        bumped_chat.context_aggregate_hash,
+        bumped_chat.context_dirty_since,
+        bumped_chat.context_dirty_resources,
+        bumped_chat.context_error,
+        bumped_chat.compaction_requested_at,
+        bumped_chat.title_source,
+        bumped_chat.title_updated_at,
+        bumped_chat.automation_id,
+        bumped_chat.manage_automations_enabled
+    FROM bumped_chat
+    JOIN versions ON versions.chat_id = bumped_chat.id
+    LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = bumped_chat.owner_id
+)
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at, automation_id, manage_automations_enabled
+FROM chats_expanded
+`
+
+// LockChatAndBumpSnapshotVersion with NOWAIT, for worker acquisition only.
+// Several replicas wake on the same ownership hint and only one can claim
+// the chat; a held row lock means another transaction is already claiming
+// or driving it, so the caller skips (SQLSTATE 55P03) instead of queueing
+// behind the winner and rolling back once it can read the owner. Every
+// other transition keeps the blocking lock.
+func (q *sqlQuerier) LockChatForAcquisition(ctx context.Context, id uuid.UUID) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, lockChatForAcquisition, id)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.LastReasoningEffort,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
+		&i.PinOrder,
+		&i.LastReadMessageID,
+		&i.DynamicTools,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.PlanMode,
+		&i.ClientType,
+		&i.LastTurnSummary,
+		&i.Summary,
+		&i.SummaryGeneratedAt,
+		&i.SnapshotVersion,
+		&i.HistoryVersion,
+		&i.QueueVersion,
+		&i.GenerationAttempt,
+		&i.RetryState,
+		&i.RetryStateVersion,
+		&i.RunnerID,
+		&i.RequiresActionDeadlineAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.OwnerUsername,
+		&i.OwnerName,
+		&i.ContextAggregateHash,
+		&i.ContextDirtySince,
+		&i.ContextDirtyResources,
+		&i.ContextError,
+		&i.CompactionRequestedAt,
+		&i.TitleSource,
+		&i.TitleUpdatedAt,
+		&i.AutomationID,
+		&i.ManageAutomationsEnabled,
+	)
+	return i, err
 }
 
 const markChatsContextDirtyByAgent = `-- name: MarkChatsContextDirtyByAgent :many

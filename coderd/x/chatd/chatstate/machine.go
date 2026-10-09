@@ -31,6 +31,7 @@ type ChatMachine struct {
 	store     database.Store
 	publisher Publisher
 	chatID    uuid.UUID
+	noWait    bool
 }
 
 // NewChatMachine constructs a chat-scoped state machine handle. The
@@ -48,6 +49,29 @@ func NewChatMachine(
 		publisher: publisher,
 		chatID:    chatID,
 	}
+}
+
+// WithNonBlockingLock makes Update fail with [ErrChatLocked] instead of
+// waiting when another transaction holds the chat row. Worker acquisition
+// uses it: a held lock means another replica is already claiming or
+// driving the chat, so queueing behind it only delays that replica's next
+// transition.
+func (m *ChatMachine) WithNonBlockingLock() *ChatMachine {
+	m.noWait = true
+	return m
+}
+
+// lockChat takes the transition lock and bumps snapshot_version.
+func (m *ChatMachine) lockChat(ctx context.Context, store database.Store) error {
+	if m.noWait {
+		_, err := store.LockChatForAcquisition(ctx, m.chatID)
+		if database.IsLockNotAvailableError(err) {
+			return ErrChatLocked
+		}
+		return err
+	}
+	_, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID)
+	return err
 }
 
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
@@ -191,9 +215,12 @@ func (m *ChatMachine) updateOnce(
 	defer buffer.Discard()
 
 	err := m.store.InTx(func(store database.Store) error {
-		if _, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID); err != nil {
+		if err := m.lockChat(ctx, store); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
+			}
+			if errors.Is(err, ErrChatLocked) {
+				return err
 			}
 			return xerrors.Errorf("lock chat and bump snapshot: %w", err)
 		}

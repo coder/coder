@@ -3791,6 +3791,21 @@ func (mr *MockStoreMockRecorder) GetChatSystemPromptConfig(ctx any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatSystemPromptConfig", reflect.TypeOf((*MockStore)(nil).GetChatSystemPromptConfig), ctx)
 }
 
+// GetChatTransitionState mocks base method.
+func (m *MockStore) GetChatTransitionState(ctx context.Context, arg database.GetChatTransitionStateParams) (database.GetChatTransitionStateRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatTransitionState", ctx, arg)
+	ret0, _ := ret[0].(database.GetChatTransitionStateRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatTransitionState indicates an expected call of GetChatTransitionState.
+func (mr *MockStoreMockRecorder) GetChatTransitionState(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatTransitionState", reflect.TypeOf((*MockStore)(nil).GetChatTransitionState), ctx, arg)
+}
+
 // GetChatUserModelOverride mocks base method.
 func (m *MockStore) GetChatUserModelOverride(ctx context.Context, arg database.GetChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {
 	m.ctrl.T.Helper()
@@ -9817,6 +9832,21 @@ func (m *MockStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, 
 func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatByID", reflect.TypeOf((*MockStore)(nil).LockChatByID), ctx, id)
+}
+
+// LockChatForAcquisition mocks base method.
+func (m *MockStore) LockChatForAcquisition(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockChatForAcquisition", ctx, id)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockChatForAcquisition indicates an expected call of LockChatForAcquisition.
+func (mr *MockStoreMockRecorder) LockChatForAcquisition(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatForAcquisition", reflect.TypeOf((*MockStore)(nil).LockChatForAcquisition), ctx, id)
 }
 
 // LockProvisionerKeyByIDForShare mocks base method.
