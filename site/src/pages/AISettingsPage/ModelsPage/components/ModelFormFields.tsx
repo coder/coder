@@ -32,7 +32,11 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import {
+	disabledFieldClassName,
+	disabledInputAddonClassName,
+	disabledInputGroupClassName,
 	GeneralModelConfigFields,
+	inputSuffixClassName,
 	ModelConfigFields,
 	PricingEstimateFields,
 	ReasoningEffortConfigFields,
@@ -380,6 +384,7 @@ export const ModelFormFields: React.FC<{
 							</Label>
 							<InputGroup
 								className={cn(
+									disabledInputGroupClassName,
 									compressionThresholdField.error &&
 										"border-border-destructive",
 								)}
@@ -387,7 +392,7 @@ export const ModelFormFields: React.FC<{
 								<InputGroupInput
 									id={compressionThresholdField.id}
 									name={compressionThresholdField.name}
-									className="placeholder:text-content-disabled"
+									className={disabledFieldClassName}
 									placeholder="70"
 									value={compressionThresholdField.value}
 									onChange={compressionThresholdField.onChange}
@@ -395,8 +400,11 @@ export const ModelFormFields: React.FC<{
 									disabled={isSaving || isReadOnly}
 									aria-invalid={compressionThresholdField.error}
 								/>
-								<InputGroupAddon align="inline-end">
-									<span className="text-xs text-content-disabled">%</span>
+								<InputGroupAddon
+									align="inline-end"
+									className={disabledInputAddonClassName}
+								>
+									<span className={inputSuffixClassName}>%</span>
 								</InputGroupAddon>
 							</InputGroup>
 							{compressionThresholdField.error && (
