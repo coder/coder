@@ -20665,7 +20665,8 @@ const docTemplate = `{
             "properties": {
                 "allotment_bps": {
                     "description": "AllotmentBps is the share in basis points (10000 = 100%).",
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 2500
                 },
                 "created_at": {
                     "type": "string",
@@ -20698,7 +20699,8 @@ const docTemplate = `{
                 },
                 "organization_allotment_bps": {
                     "description": "OrganizationAllotmentBps is the organization's own share of the\ndeployment's Agent Hours. It is null when the organization has no\nallotment and draws from the shared pool.",
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 2500
                 }
             }
         },
@@ -20707,7 +20709,8 @@ const docTemplate = `{
             "properties": {
                 "allotment_bps": {
                     "description": "AllotmentBps is the share in basis points (10000 = 100%).",
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 2500
                 },
                 "created_at": {
                     "type": "string",
@@ -33053,7 +33056,8 @@ const docTemplate = `{
             "properties": {
                 "allotment_bps": {
                     "description": "AllotmentBps is the share in basis points, from 1 to\nAgentHoursAllotmentMaxBps.",
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 2500
                 }
             }
         },

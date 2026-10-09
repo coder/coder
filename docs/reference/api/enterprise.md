@@ -203,7 +203,7 @@ curl -X GET http://coder-server:8080/api/v2/agent-hours/allotments \
 ```json
 [
   {
-    "allotment_bps": 0,
+    "allotment_bps": 2500,
     "created_at": "2019-08-24T14:15:22Z",
     "organization_display_name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -1040,7 +1040,7 @@ curl -X PUT http://coder-server:8080/api/v2/groups/{group}/agent-hours/allotment
 
 ```json
 {
-  "allotment_bps": 0
+  "allotment_bps": 2500
 }
 ```
 
@@ -1057,7 +1057,7 @@ curl -X PUT http://coder-server:8080/api/v2/groups/{group}/agent-hours/allotment
 
 ```json
 {
-  "allotment_bps": 0,
+  "allotment_bps": 2500,
   "created_at": "2019-08-24T14:15:22Z",
   "group_display_name": "string",
   "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
@@ -2140,7 +2140,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/agent-h
 
 ```json
 {
-  "allotment_bps": 0
+  "allotment_bps": 2500
 }
 ```
 
@@ -2157,7 +2157,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/agent-h
 
 ```json
 {
-  "allotment_bps": 0,
+  "allotment_bps": 2500,
   "created_at": "2019-08-24T14:15:22Z",
   "organization_display_name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -2227,7 +2227,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/agent-h
 {
   "groups": [
     {
-      "allotment_bps": 0,
+      "allotment_bps": 2500,
       "created_at": "2019-08-24T14:15:22Z",
       "group_display_name": "string",
       "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
@@ -2235,7 +2235,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/agent-h
       "updated_at": "2019-08-24T14:15:22Z"
     }
   ],
-  "organization_allotment_bps": 0
+  "organization_allotment_bps": 2500
 }
 ```
 

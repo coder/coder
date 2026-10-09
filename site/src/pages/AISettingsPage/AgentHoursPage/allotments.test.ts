@@ -49,4 +49,13 @@ describe("formatHours", () => {
 		// 0.01% of 600 hours.
 		expect(formatHours(0.06)).toBe("0.06 hours");
 	});
+
+	it("does not round a non-zero share down to zero hours", () => {
+		// 0.01% of 0.01% of 1,000 hours.
+		expect(formatHours(0.00001)).toBe("< 0.01 hours");
+	});
+
+	it("formats no hours as zero", () => {
+		expect(formatHours(0)).toBe("0 hours");
+	});
 });

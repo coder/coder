@@ -1,8 +1,10 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import { createMemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { API, withDefaultFeatures } from "#/api/api";
+import { Toaster } from "#/components/Toaster/Toaster";
 import {
 	MockAgentHoursGroupAllotment,
 	MockAgentHoursOrganizationAllotment,
@@ -10,16 +12,23 @@ import {
 	MockGroup,
 	MockNoPermissions,
 	MockOrganization,
+	MockOrganization2,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import AgentHoursPage from "./AgentHoursPage";
+
+const access = vi.hoisted(() => ({ isOwner: true, isLicensed: true }));
 
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
 		user: MockUserOwner,
-		permissions: { ...MockNoPermissions, editDeploymentConfig: true },
+		permissions: {
+			...MockNoPermissions,
+			editDeploymentConfig: access.isOwner,
+		},
 	}),
 }));
 
@@ -28,31 +37,44 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 		organizations: [MockOrganization],
 		entitlements: {
 			...MockEntitlements,
-			features: withDefaultFeatures({
-				agent_runtime_hours: {
-					enabled: true,
-					entitlement: "entitled",
-					limit: 1000,
-				},
-			}),
+			features: withDefaultFeatures(
+				access.isLicensed
+					? {
+							agent_runtime_hours: {
+								enabled: true,
+								entitlement: "entitled",
+								limit: 1000,
+							},
+						}
+					: {},
+			),
 		},
 	}),
 }));
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	access.isOwner = true;
+	access.isLicensed = true;
 });
 
-const renderPage = () => {
+const renderPage = ({ canUpdateGroups = true } = {}) => {
 	vi.spyOn(API, "getOrganizations").mockResolvedValue([MockOrganization]);
 	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
-		[MockOrganization.id]: true,
+		[MockOrganization.id]: canUpdateGroups,
 	});
 	vi.spyOn(API, "getGroupsByOrganization").mockResolvedValue([MockGroup]);
 	const getOrganizationAllotments = vi
 		.spyOn(API, "getAgentHoursOrganizationAllotments")
 		.mockResolvedValue([
 			{ ...MockAgentHoursOrganizationAllotment, allotment_bps: 6000 },
+			{
+				...MockAgentHoursOrganizationAllotment,
+				organization_id: MockOrganization2.id,
+				organization_name: MockOrganization2.name,
+				organization_display_name: MockOrganization2.display_name,
+				allotment_bps: 1000,
+			},
 		]);
 	const getGroupAllotments = vi
 		.spyOn(API, "getAgentHoursGroupAllotments")
@@ -61,7 +83,17 @@ const renderPage = () => {
 			groups: [MockAgentHoursGroupAllotment],
 		});
 	const router = createMemoryRouter(
-		[{ path: "/ai/settings/agent-hours", element: <AgentHoursPage /> }],
+		[
+			{
+				path: "/ai/settings/agent-hours",
+				element: (
+					<>
+						<AgentHoursPage />
+						<Toaster />
+					</>
+				),
+			},
+		],
 		{ initialEntries: ["/ai/settings/agent-hours"] },
 	);
 	renderWithRouter(router);
@@ -147,24 +179,63 @@ it("saves and removes group allotments", async () => {
 	await waitFor(() => expect(remove).toHaveBeenCalledWith(MockGroup.id));
 });
 
-it("refreshes the allotments after a rejected save", async () => {
+it("refreshes every allotment view after a rejected save", async () => {
 	const user = userEvent.setup();
 	vi.spyOn(API, "upsertAgentHoursOrganizationAllotment").mockRejectedValue(
 		mockApiError({
 			message: "Agent Hours allotments cannot exceed 100% in total.",
 		}),
 	);
-	const { getOrganizationAllotments } = renderPage();
+	const { getOrganizationAllotments, getGroupAllotments } = renderPage();
 	const region = screen.getByRole("region", {
 		name: "Organization allotments",
 	});
-	await waitFor(() =>
-		expect(getOrganizationAllotments).toHaveBeenCalledTimes(1),
-	);
+	await waitFor(() => expect(getGroupAllotments).toHaveBeenCalledTimes(1));
 
-	// A conflict means another change landed, so the totals are stale.
-	await saveAllotment(user, region, MockOrganization.display_name, "80");
+	// A conflict means another change landed, possibly to the organization
+	// whose groups are shown, so every total is stale.
+	await saveAllotment(user, region, MockOrganization2.display_name, "20");
 	await waitFor(() =>
 		expect(getOrganizationAllotments).toHaveBeenCalledTimes(2),
 	);
+	await waitFor(() => expect(getGroupAllotments).toHaveBeenCalledTimes(2));
+});
+
+it("reports an allotment that is already gone as removed", async () => {
+	const user = userEvent.setup();
+	server.use(
+		http.delete("/api/v2/groups/:groupId/agent-hours/allotment", () =>
+			HttpResponse.json({ message: "Resource not found." }, { status: 404 }),
+		),
+	);
+	renderPage();
+	const region = await screen.findByRole("region", {
+		name: "Group allotments",
+	});
+
+	await user.click(
+		await within(region).findByRole("button", {
+			name: `Remove allotment for ${MockGroup.display_name}`,
+		}),
+	);
+	await user.click(screen.getByRole("button", { name: "Remove" }));
+	await screen.findByText(
+		`The allotment for ${MockGroup.display_name} was already removed.`,
+	);
+});
+
+it("shows group managers that the license lacks Agent Hours", async () => {
+	access.isOwner = false;
+	access.isLicensed = false;
+	renderPage();
+
+	await screen.findByText("Your license does not include Agent Hours");
+});
+
+it("denies users who cannot manage allotments", async () => {
+	access.isOwner = false;
+	access.isLicensed = false;
+	renderPage({ canUpdateGroups: false });
+
+	await screen.findByText("You don't have permission to view this page");
 });

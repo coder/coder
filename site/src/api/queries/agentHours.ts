@@ -27,21 +27,11 @@ type OrganizationAllotmentChange = {
 	allotmentBps: number;
 };
 
-// An organization's own share is also part of its group allotments response,
-// so organization-tier changes invalidate both views. Failed writes refresh
-// too: a 409 means another change made the cached totals stale.
-const invalidateOrganizationAllotment = (
-	queryClient: QueryClient,
-	organizationId: string,
-) =>
-	Promise.all([
-		queryClient.invalidateQueries({
-			queryKey: agentHoursOrganizationAllotmentsKey,
-		}),
-		queryClient.invalidateQueries({
-			queryKey: agentHoursGroupAllotmentsKey(organizationId),
-		}),
-	]);
+// Group views derive their hours from their organization's share, and a 409
+// means another admin's change made cached totals stale, so every write,
+// including a failed one, refreshes all Agent Hours queries.
+const invalidateAgentHours = (queryClient: QueryClient) =>
+	queryClient.invalidateQueries({ queryKey: agentHoursKey });
 
 export const upsertAgentHoursOrganizationAllotment = (
 	queryClient: QueryClient,
@@ -50,11 +40,7 @@ export const upsertAgentHoursOrganizationAllotment = (
 		API.upsertAgentHoursOrganizationAllotment(organizationId, {
 			allotment_bps: allotmentBps,
 		}),
-	onSettled: (
-		_: unknown,
-		__: unknown,
-		{ organizationId }: OrganizationAllotmentChange,
-	) => invalidateOrganizationAllotment(queryClient, organizationId),
+	onSettled: () => invalidateAgentHours(queryClient),
 });
 
 export const deleteAgentHoursOrganizationAllotment = (
@@ -62,8 +48,7 @@ export const deleteAgentHoursOrganizationAllotment = (
 ) => ({
 	mutationFn: (organizationId: string) =>
 		API.deleteAgentHoursOrganizationAllotment(organizationId),
-	onSettled: (_: unknown, __: unknown, organizationId: string) =>
-		invalidateOrganizationAllotment(queryClient, organizationId),
+	onSettled: () => invalidateAgentHours(queryClient),
 });
 
 type GroupAllotmentChange = {
@@ -71,29 +56,17 @@ type GroupAllotmentChange = {
 	allotmentBps: number;
 };
 
-export const upsertAgentHoursGroupAllotment = (
-	queryClient: QueryClient,
-	organizationId: string,
-) => ({
+export const upsertAgentHoursGroupAllotment = (queryClient: QueryClient) => ({
 	mutationFn: ({ groupId, allotmentBps }: GroupAllotmentChange) =>
 		API.upsertAgentHoursGroupAllotment(groupId, {
 			allotment_bps: allotmentBps,
 		}),
-	onSettled: () =>
-		queryClient.invalidateQueries({
-			queryKey: agentHoursGroupAllotmentsKey(organizationId),
-		}),
+	onSettled: () => invalidateAgentHours(queryClient),
 });
 
-export const deleteAgentHoursGroupAllotment = (
-	queryClient: QueryClient,
-	organizationId: string,
-) => ({
+export const deleteAgentHoursGroupAllotment = (queryClient: QueryClient) => ({
 	mutationFn: (groupId: string) => API.deleteAgentHoursGroupAllotment(groupId),
-	onSettled: () =>
-		queryClient.invalidateQueries({
-			queryKey: agentHoursGroupAllotmentsKey(organizationId),
-		}),
+	onSettled: () => invalidateAgentHours(queryClient),
 });
 
 // Group allotment writes authorize on updating groups, so this lists the

@@ -23,7 +23,7 @@ type AgentHoursOrganizationAllotment struct {
 	OrganizationName        string    `json:"organization_name"`
 	OrganizationDisplayName string    `json:"organization_display_name"`
 	// AllotmentBps is the share in basis points (10000 = 100%).
-	AllotmentBps int32     `json:"allotment_bps"`
+	AllotmentBps int32     `json:"allotment_bps" example:"2500"`
 	CreatedAt    time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt    time.Time `json:"updated_at" format:"date-time"`
 }
@@ -35,7 +35,7 @@ type AgentHoursGroupAllotment struct {
 	GroupName        string    `json:"group_name"`
 	GroupDisplayName string    `json:"group_display_name"`
 	// AllotmentBps is the share in basis points (10000 = 100%).
-	AllotmentBps int32     `json:"allotment_bps"`
+	AllotmentBps int32     `json:"allotment_bps" example:"2500"`
 	CreatedAt    time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt    time.Time `json:"updated_at" format:"date-time"`
 }
@@ -45,7 +45,7 @@ type AgentHoursGroupAllotments struct {
 	// OrganizationAllotmentBps is the organization's own share of the
 	// deployment's Agent Hours. It is null when the organization has no
 	// allotment and draws from the shared pool.
-	OrganizationAllotmentBps *int32                     `json:"organization_allotment_bps"`
+	OrganizationAllotmentBps *int32                     `json:"organization_allotment_bps" example:"2500"`
 	Groups                   []AgentHoursGroupAllotment `json:"groups"`
 }
 
@@ -53,7 +53,7 @@ type AgentHoursGroupAllotments struct {
 type UpsertAgentHoursAllotmentRequest struct {
 	// AllotmentBps is the share in basis points, from 1 to
 	// AgentHoursAllotmentMaxBps.
-	AllotmentBps int32 `json:"allotment_bps"`
+	AllotmentBps int32 `json:"allotment_bps" example:"2500"`
 }
 
 // AgentHoursOrganizationAllotments lists every organization's Agent Hours

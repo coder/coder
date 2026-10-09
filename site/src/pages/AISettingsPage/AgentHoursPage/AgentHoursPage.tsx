@@ -15,7 +15,7 @@ import {
 } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { pageTitle } from "#/utils/page";
 import { AgentHoursPageView } from "./AgentHoursPageView";
-import { canViewAgentHours } from "./agentHoursAccess";
+import { canManageAgentHoursAllotments } from "./agentHoursAccess";
 import { OrganizationAgentHours } from "./OrganizationAgentHours";
 
 const AgentHoursPage: React.FC = () => {
@@ -26,10 +26,11 @@ const AgentHoursPage: React.FC = () => {
 	const feature = entitlements.features.agent_runtime_hours;
 	const licenseHours = feature.limit;
 
-	const allotmentOrganizationsQuery = useQuery({
-		...agentHoursAllotmentOrganizations(),
-		enabled: feature.enabled,
-	});
+	// Loaded without the license too, so everyone who could manage allotments
+	// sees the license notice instead of a permission denial.
+	const allotmentOrganizationsQuery = useQuery(
+		agentHoursAllotmentOrganizations(),
+	);
 	const allotmentOrganizations = allotmentOrganizationsQuery.data ?? [];
 	const organizationSelection = selectModelOrganization(
 		allotmentOrganizations,
@@ -44,9 +45,8 @@ const AgentHoursPage: React.FC = () => {
 	// Do not deny access before organization access resolves; the view shows a
 	// failed lookup's error instead.
 	const isAccessPending =
-		feature.enabled &&
-		(allotmentOrganizationsQuery.isLoading ||
-			allotmentOrganizationsQuery.error != null);
+		allotmentOrganizationsQuery.isLoading ||
+		allotmentOrganizationsQuery.error != null;
 	const upsertMutation = useMutation(
 		upsertAgentHoursOrganizationAllotment(queryClient),
 	);
@@ -57,12 +57,8 @@ const AgentHoursPage: React.FC = () => {
 	return (
 		<RequirePermission
 			isFeatureVisible={
-				// Owners learn why the page is empty instead of being told they
-				// lack permission.
-				(!feature.enabled && permissions.editDeploymentConfig) ||
 				isAccessPending ||
-				canViewAgentHours(
-					entitlements,
+				canManageAgentHoursAllotments(
 					permissions,
 					allotmentOrganizationsQuery.data,
 				)

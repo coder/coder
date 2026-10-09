@@ -23,10 +23,10 @@ export const OrganizationAgentHours: React.FC<OrganizationAgentHoursProps> = ({
 	);
 	const groupsQuery = useQuery(groupsByOrganization(organization.name));
 	const upsertMutation = useMutation(
-		upsertAgentHoursGroupAllotment(queryClient, organization.id),
+		upsertAgentHoursGroupAllotment(queryClient),
 	);
 	const deleteMutation = useMutation(
-		deleteAgentHoursGroupAllotment(queryClient, organization.id),
+		deleteAgentHoursGroupAllotment(queryClient),
 	);
 
 	return (

@@ -1,7 +1,7 @@
 import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getErrorDetail } from "#/api/errors";
+import { getErrorDetail, getErrorStatus } from "#/api/errors";
 import { AgentHoursAllotmentMaxBps } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -76,14 +76,27 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 
 	const handleRemove = (entry: AllotmentEntry) => {
 		setEntryToRemove(undefined);
-		toast.promise(onRemove(entry.id), {
-			loading: `Removing allotment for ${entry.name}...`,
-			success: `Removed allotment for ${entry.name}.`,
-			error: (removeError) => ({
-				message: `Failed to remove allotment for ${entry.name}.`,
-				description: getErrorDetail(removeError),
-			}),
-		});
+		toast.promise(
+			// A 404 means another admin removed the allotment or deleted its
+			// target, which leaves the intended end state.
+			onRemove(entry.id).then(
+				() => `Removed allotment for ${entry.name}.`,
+				(removeError) => {
+					if (getErrorStatus(removeError) === 404) {
+						return `The allotment for ${entry.name} was already removed.`;
+					}
+					throw removeError;
+				},
+			),
+			{
+				loading: `Removing allotment for ${entry.name}...`,
+				success: (message) => message,
+				error: (removeError) => ({
+					message: `Failed to remove allotment for ${entry.name}.`,
+					description: getErrorDetail(removeError),
+				}),
+			},
+		);
 	};
 
 	return (
@@ -112,7 +125,6 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 					<TableRow>
 						<TableHead>{entityLabel}</TableHead>
 						<TableHead>Allotment</TableHead>
-						{poolHours !== undefined && <TableHead>Hours</TableHead>}
 						<TableHead>
 							<span className="sr-only">Actions</span>
 						</TableHead>
@@ -213,11 +225,15 @@ const AllotmentRow: React.FC<AllotmentRowProps> = ({
 	const hours = allotmentHours(entry.bps, poolHours);
 	return (
 		<TableRow>
-			<TableCell className="font-medium text-content-primary">
+			<TableCell className="font-medium text-content-primary wrap-anywhere">
 				{entry.name}
 			</TableCell>
-			<TableCell>{formatAllotmentPercent(entry.bps)}</TableCell>
-			{hours !== undefined && <TableCell>{formatHours(hours)}</TableCell>}
+			<TableCell className="text-content-primary">
+				{formatAllotmentPercent(entry.bps)}
+				{hours !== undefined && (
+					<div className="text-content-secondary">{formatHours(hours)}</div>
+				)}
+			</TableCell>
 			<TableCell>
 				<div className="flex flex-wrap justify-end gap-2">
 					<Button

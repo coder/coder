@@ -15,6 +15,7 @@ import {
 	MockOrganization3,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { pixelWithPhone } from "#/testHelpers/pixel";
 import { AgentHoursPageView } from "./AgentHoursPageView";
 import { OrganizationAgentHoursView } from "./OrganizationAgentHoursView";
 
@@ -144,6 +145,37 @@ export const OrganizationWithoutAllotment: Story = {
 			/>
 		),
 	},
+};
+
+const longName =
+	"PlatformEngineeringInfrastructureReliabilityOperationsNorthAmer";
+
+export const LongNamesAndSmallShares: Story = {
+	args: {
+		organizationAllotments: [
+			{
+				...MockAgentHoursOrganizationAllotment,
+				organization_display_name: longName,
+				allotment_bps: 1,
+			},
+		],
+		organizationAgentHours: (
+			<OrganizationAgentHoursView
+				{...mockOrganizationSectionProps}
+				groupAllotments={{
+					organization_allotment_bps: 1,
+					groups: [
+						{
+							...MockAgentHoursGroupAllotment,
+							group_display_name: longName,
+							allotment_bps: 1,
+						},
+					],
+				}}
+			/>
+		),
+	},
+	parameters: { pixel: { matrix: pixelWithPhone } },
 };
 
 export const Unlicensed: Story = {

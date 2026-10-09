@@ -29,4 +29,6 @@ export const allotmentHours = (
 		: (poolHours * bps) / AgentHoursAllotmentMaxBps;
 
 export const formatHours = (hours: number): string =>
-	`${hours.toLocaleString("en-US", { maximumFractionDigits: 2 })} hours`;
+	hours > 0 && hours < 0.01
+		? "< 0.01 hours"
+		: `${hours.toLocaleString("en-US", { maximumFractionDigits: 2 })} hours`;

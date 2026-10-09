@@ -1568,7 +1568,7 @@ None
 
 ```json
 {
-  "allotment_bps": 0,
+  "allotment_bps": 2500,
   "created_at": "2019-08-24T14:15:22Z",
   "group_display_name": "string",
   "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
@@ -1594,7 +1594,7 @@ None
 {
   "groups": [
     {
-      "allotment_bps": 0,
+      "allotment_bps": 2500,
       "created_at": "2019-08-24T14:15:22Z",
       "group_display_name": "string",
       "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
@@ -1602,7 +1602,7 @@ None
       "updated_at": "2019-08-24T14:15:22Z"
     }
   ],
-  "organization_allotment_bps": 0
+  "organization_allotment_bps": 2500
 }
 ```
 
@@ -1617,7 +1617,7 @@ None
 
 ```json
 {
-  "allotment_bps": 0,
+  "allotment_bps": 2500,
   "created_at": "2019-08-24T14:15:22Z",
   "organization_display_name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -17755,7 +17755,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "allotment_bps": 0
+  "allotment_bps": 2500
 }
 ```
 
