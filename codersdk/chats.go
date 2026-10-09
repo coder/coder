@@ -519,6 +519,14 @@ type ChatMessagePart struct {
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
 	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
+	// ProviderIdentity records the provider that produced a reasoning
+	// part, because a model config's provider can change after the
+	// message was written. Internal only: stripped before API responses.
+	ProviderIdentity string `json:"provider_identity,omitempty" typescript:"-"`
+	// ProviderModel records the model that produced a reasoning part,
+	// because a model config's model can change after the message was
+	// written. Internal only: stripped before API responses.
+	ProviderModel string `json:"provider_model,omitempty" typescript:"-"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
@@ -605,6 +613,8 @@ type ChatMessagePart struct {
 // the advisor streaming callbacks.
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
+	p.ProviderIdentity = ""
+	p.ProviderModel = ""
 	if p.FileID.Valid {
 		p.Data = nil
 	}

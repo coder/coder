@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -13,22 +15,31 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestStripForeignProviderExecutedToolRows(t *testing.T) {
+func TestStripForeignProviderStateRows(t *testing.T) {
 	t.Parallel()
 
-	const (
-		anthropic = "anthropic"
-		bedrock   = "bedrock"
-		openai    = "openai"
-	)
+	const model = "model-a"
+	source := func(identity string) reasoningProvenance {
+		return reasoningProvenance{ProviderIdentity: identity, Model: model}
+	}
+	anthropic := source("anthropic")
+	bedrock := source("bedrock")
+	openai := source("openai")
 
 	anthropicCfg := uuid.New()
 	openAICfg := uuid.New()
 	unknownCfg := uuid.New()
 
-	vllmProviderID := uuid.New()
-	togetherProviderID := uuid.New()
+	vllm := source(uuid.NewString())
+	together := source(uuid.NewString())
 	vllmCfg := uuid.New()
+
+	openAIInstance := source(uuid.NewString())
+	otherOpenAIInstance := source(uuid.NewString())
+	openAIInstanceOtherModel := reasoningProvenance{ProviderIdentity: openAIInstance.ProviderIdentity, Model: "model-b"}
+	openAIInstanceCfg := uuid.New()
+	openAIInstanceOtherCfg := uuid.New()
+	openAIInstanceOtherModelCfg := uuid.New()
 
 	peCall := func(id string) codersdk.ChatMessagePart {
 		p := codersdk.ChatMessageToolCall(id, "web_search", json.RawMessage(`{"query":"x"}`))
@@ -44,6 +55,17 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 		return codersdk.ChatMessageToolCall(id, "read_file", json.RawMessage(`{}`))
 	}
 	text := codersdk.ChatMessageText
+	encryptedReasoning := "encrypted-blob"
+	openAIReasoning := chatprompt.PartFromContent(fantasy.ReasoningContent{
+		ProviderMetadata: fantasy.ProviderMetadata{
+			fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+				ItemID:           "rs_1",
+				EncryptedContent: &encryptedReasoning,
+				Summary:          []string{},
+				Finalized:        true,
+			},
+		},
+	})
 
 	assistantRow := func(t *testing.T, cfg uuid.UUID, parts ...codersdk.ChatMessagePart) database.ChatMessage {
 		t.Helper()
@@ -67,20 +89,18 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 		}
 	}
 
-	origin := func(providerByConfig map[uuid.UUID]string) func(uuid.NullUUID) (string, bool) {
-		return func(id uuid.NullUUID) (string, bool) {
-			if !id.Valid {
-				return "", false
-			}
-			provider, ok := providerByConfig[id.UUID]
-			return provider, ok
-		}
-	}
-	resolver := origin(map[uuid.UUID]string{
+	sourceByConfig := map[uuid.UUID]reasoningProvenance{
 		anthropicCfg: anthropic,
 		openAICfg:    openai,
-		vllmCfg:      vllmProviderID.String(),
-	})
+		vllmCfg:      vllm,
+
+		openAIInstanceCfg:           openAIInstance,
+		openAIInstanceOtherCfg:      openAIInstance,
+		openAIInstanceOtherModelCfg: openAIInstanceOtherModel,
+	}
+	resolver := func(id uuid.NullUUID) reasoningProvenance {
+		return sourceByConfig[id.UUID]
+	}
 
 	partsOf := func(t *testing.T, row database.ChatMessage) []codersdk.ChatMessagePart {
 		t.Helper()
@@ -95,7 +115,7 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 			userRow(t, "hi"),
 			assistantRow(t, anthropicCfg, peCall("ws"), peResult("ws"), text("done")),
 		}
-		got, stats := stripForeignProviderExecutedToolRows(rows, anthropic, resolver)
+		got, stats := stripForeignProviderStateRows(rows, anthropic, resolver)
 		require.Equal(t, rows, got)
 		require.Zero(t, stats)
 	})
@@ -106,7 +126,7 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 			userRow(t, "hi"),
 			assistantRow(t, anthropicCfg, peCall("ws"), peResult("ws"), text("done")),
 		}
-		got, stats := stripForeignProviderExecutedToolRows(rows, bedrock, resolver)
+		got, stats := stripForeignProviderStateRows(rows, bedrock, resolver)
 		require.Len(t, got, 2)
 		require.Equal(t, []codersdk.ChatMessagePart{text("done")}, partsOf(t, got[1]))
 		require.Equal(t, providerSwitchStripStats{RemovedToolCalls: 1, RemovedToolResults: 1}, stats)
@@ -119,7 +139,7 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 			assistantRow(t, anthropicCfg, peCall("ws")),
 			userRow(t, "again"),
 		}
-		got, stats := stripForeignProviderExecutedToolRows(rows, bedrock, resolver)
+		got, stats := stripForeignProviderStateRows(rows, bedrock, resolver)
 		require.Len(t, got, 2)
 		require.Equal(t, database.ChatMessageRoleUser, got[0].Role)
 		require.Equal(t, database.ChatMessageRoleUser, got[1].Role)
@@ -132,7 +152,7 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 			assistantRow(t, openAICfg, peCall("os"), peResult("os"), text("openai")),
 			assistantRow(t, anthropicCfg, peCall("as"), peResult("as"), text("anthropic")),
 		}
-		got, stats := stripForeignProviderExecutedToolRows(rows, anthropic, resolver)
+		got, stats := stripForeignProviderStateRows(rows, anthropic, resolver)
 		require.Len(t, got, 2)
 		require.Equal(t, []codersdk.ChatMessagePart{text("openai")}, partsOf(t, got[0]))
 		require.Equal(t, rows[1], got[1])
@@ -144,7 +164,7 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 		rows := []database.ChatMessage{
 			assistantRow(t, anthropicCfg, text("hello"), localCall("local")),
 		}
-		got, stats := stripForeignProviderExecutedToolRows(rows, bedrock, resolver)
+		got, stats := stripForeignProviderStateRows(rows, bedrock, resolver)
 		require.Equal(t, rows, got)
 		require.Zero(t, stats)
 	})
@@ -154,7 +174,7 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 		rows := []database.ChatMessage{
 			assistantRow(t, anthropicCfg, peCall("ws"), peResult("ws")),
 		}
-		got, stats := stripForeignProviderExecutedToolRows(rows, "", resolver)
+		got, stats := stripForeignProviderStateRows(rows, reasoningProvenance{}, resolver)
 		require.Equal(t, rows, got)
 		require.Zero(t, stats)
 	})
@@ -164,7 +184,7 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 		rows := []database.ChatMessage{
 			assistantRow(t, unknownCfg, peResult("ws"), text("done")),
 		}
-		got, stats := stripForeignProviderExecutedToolRows(rows, bedrock, resolver)
+		got, stats := stripForeignProviderStateRows(rows, bedrock, resolver)
 		require.Len(t, got, 1)
 		require.Equal(t, []codersdk.ChatMessagePart{text("done")}, partsOf(t, got[0]))
 		require.Equal(t, providerSwitchStripStats{RemovedToolResults: 1}, stats)
@@ -178,7 +198,7 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 			Content:        pqtype.NullRawMessage{RawMessage: []byte("{not json"), Valid: true},
 			ContentVersion: chatprompt.ContentVersionV1,
 		}}
-		got, stats := stripForeignProviderExecutedToolRows(rows, bedrock, resolver)
+		got, stats := stripForeignProviderStateRows(rows, bedrock, resolver)
 		require.Equal(t, rows, got)
 		require.Zero(t, stats)
 	})
@@ -189,10 +209,117 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 			userRow(t, "hi"),
 			assistantRow(t, vllmCfg, peCall("ws"), peResult("ws"), text("done")),
 		}
-		got, stats := stripForeignProviderExecutedToolRows(rows, togetherProviderID.String(), resolver)
+		got, stats := stripForeignProviderStateRows(rows, together, resolver)
 		require.Len(t, got, 2)
 		require.Equal(t, []codersdk.ChatMessagePart{text("done")}, partsOf(t, got[1]))
 		require.Equal(t, providerSwitchStripStats{RemovedToolCalls: 1, RemovedToolResults: 1}, stats)
+	})
+
+	t.Run("same instance different config keeps OpenAI reasoning", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			userRow(t, "hi"),
+			assistantRow(t, openAIInstanceOtherCfg, openAIReasoning, localCall("local")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, openAIInstance, resolver)
+		require.Equal(t, rows, got)
+		require.Zero(t, stats)
+	})
+
+	t.Run("foreign instance drops OpenAI reasoning", func(t *testing.T) {
+		t.Parallel()
+		legacyReasoning := chatprompt.PartFromContent(fantasy.ReasoningContent{
+			Text: "summary",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{ItemID: "rs_legacy"},
+			},
+		})
+		rows := []database.ChatMessage{
+			userRow(t, "hi"),
+			assistantRow(t, openAIInstanceCfg, openAIReasoning, legacyReasoning, codersdk.ChatMessageReasoning("plain"), text("visible"), localCall("local")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, otherOpenAIInstance, resolver)
+		require.Len(t, got, 2)
+		require.Equal(t, rows[0], got[0])
+		require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageReasoning("plain"), text("visible"), localCall("local")}, partsOf(t, got[1]))
+		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 2}, stats)
+	})
+
+	t.Run("unknown origin drops OpenAI reasoning", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			assistantRow(t, unknownCfg, openAIReasoning, text("done")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, openAIInstance, resolver)
+		require.Len(t, got, 1)
+		require.Equal(t, []codersdk.ChatMessagePart{text("done")}, partsOf(t, got[0]))
+		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 1}, stats)
+	})
+
+	stampedReasoning := func(source reasoningProvenance) codersdk.ChatMessagePart {
+		p := openAIReasoning
+		p.ProviderIdentity = source.ProviderIdentity
+		p.ProviderModel = source.Model
+		return p
+	}
+
+	t.Run("stamped foreign reasoning dropped from native row", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			assistantRow(t, openAIInstanceCfg, stampedReasoning(otherOpenAIInstance), peCall("ws"), text("done")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, openAIInstance, resolver)
+		require.Len(t, got, 1)
+		require.Equal(t, []codersdk.ChatMessagePart{peCall("ws"), text("done")}, partsOf(t, got[0]))
+		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 1}, stats)
+	})
+
+	t.Run("stamped native reasoning kept after config moved", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			assistantRow(t, openAIInstanceCfg, stampedReasoning(otherOpenAIInstance), peCall("ws"), text("done")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, otherOpenAIInstance, resolver)
+		require.Len(t, got, 1)
+		require.Equal(t, []codersdk.ChatMessagePart{stampedReasoning(otherOpenAIInstance), text("done")}, partsOf(t, got[0]))
+		require.Equal(t, providerSwitchStripStats{RemovedToolCalls: 1}, stats)
+	})
+
+	t.Run("stamped reasoning from another model dropped", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			assistantRow(t, openAIInstanceCfg, stampedReasoning(openAIInstanceOtherModel), peCall("ws"), text("done")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, openAIInstance, resolver)
+		require.Len(t, got, 1)
+		require.Equal(t, []codersdk.ChatMessagePart{peCall("ws"), text("done")}, partsOf(t, got[0]))
+		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 1}, stats)
+	})
+
+	t.Run("unstamped reasoning from another model on same instance dropped", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			assistantRow(t, openAIInstanceOtherModelCfg, openAIReasoning, peCall("ws"), text("done")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, openAIInstance, resolver)
+		require.Len(t, got, 1)
+		require.Equal(t, []codersdk.ChatMessagePart{peCall("ws"), text("done")}, partsOf(t, got[0]))
+		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 1}, stats)
+	})
+
+	t.Run("unstamped reasoning follows row origin", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			assistantRow(t, openAIInstanceCfg, stampedReasoning(openAIInstance), openAIReasoning, text("done")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, openAIInstance, resolver)
+		require.Equal(t, rows, got)
+		require.Zero(t, stats)
+
+		got, stats = stripForeignProviderStateRows(rows, otherOpenAIInstance, resolver)
+		require.Len(t, got, 1)
+		require.Equal(t, []codersdk.ChatMessagePart{text("done")}, partsOf(t, got[0]))
+		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 2}, stats)
 	})
 
 	t.Run("same instance keeps provider blocks", func(t *testing.T) {
@@ -201,7 +328,7 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 			userRow(t, "hi"),
 			assistantRow(t, vllmCfg, peCall("ws"), peResult("ws"), text("done")),
 		}
-		got, stats := stripForeignProviderExecutedToolRows(rows, vllmProviderID.String(), resolver)
+		got, stats := stripForeignProviderStateRows(rows, vllm, resolver)
 		require.Equal(t, rows, got)
 		require.Zero(t, stats)
 	})
@@ -265,8 +392,8 @@ func TestPendingUserSegmentDerivedBeforeProviderSwitchSanitization(t *testing.T)
 		{Role: database.ChatMessageRoleUser, Content: userContent("pending"), ContentVersion: chatprompt.ContentVersionV1},
 	}
 
-	origin := func(id uuid.NullUUID) (string, bool) {
-		return "openai", id.Valid
+	origin := func(uuid.NullUUID) reasoningProvenance {
+		return reasoningProvenance{ProviderIdentity: "openai"}
 	}
 
 	// Segment first: only the truly unanswered tail is pending, and the
@@ -278,13 +405,13 @@ func TestPendingUserSegmentDerivedBeforeProviderSwitchSanitization(t *testing.T)
 	// The sanitizer drops the emptied foreign assistant row from the
 	// head; the answered user row stays in the head regardless, and the
 	// segment derived above is unaffected.
-	head, stats := stripForeignProviderExecutedToolRows(rows[:start], "anthropic", origin)
+	head, stats := stripForeignProviderStateRows(rows[:start], reasoningProvenance{ProviderIdentity: "anthropic"}, origin)
 	require.Equal(t, 1, stats.DroppedMessages)
 	require.Len(t, head, 1)
 	require.Equal(t, database.ChatMessageRoleUser, head[0].Role)
 
 	// Deriving the segment after sanitization would find no assistant
 	// row at all and therefore no pending segment.
-	sanitizedAll, _ := stripForeignProviderExecutedToolRows(rows, "anthropic", origin)
+	sanitizedAll, _ := stripForeignProviderStateRows(rows, reasoningProvenance{ProviderIdentity: "anthropic"}, origin)
 	require.Equal(t, len(sanitizedAll), pendingUserSegmentStart(sanitizedAll))
 }

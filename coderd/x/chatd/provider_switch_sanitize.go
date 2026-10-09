@@ -1,21 +1,26 @@
 package chatd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// providerSwitchStripStats counts provider-executed tool history removed
-// during a provider switch.
+// providerSwitchStripStats counts provider-specific history removed during a
+// provider switch.
 type providerSwitchStripStats struct {
 	RemovedToolCalls   int
 	RemovedToolResults int
+	RemovedReasoning   int
 	DroppedMessages    int
 }
 
@@ -32,20 +37,32 @@ func modelConfigProviderIdentity(modelConfig database.ChatModelConfig, normalize
 	return normalizedProvider
 }
 
-// stripForeignProviderExecutedToolRows drops provider-executed tool blocks
-// (calls and results) from assistant rows whose producing provider differs
-// from targetIdentity. Rows with an unknown origin are treated as foreign
-// (fail closed). Rows emptied by stripping are dropped; rows that fail to parse
-// or re-marshal are kept unchanged.
+// reasoningProvenance identifies the provider instance and model that
+// produced OpenAI reasoning state. Reasoning item IDs only resolve on the
+// issuing provider instance, and encrypted content can be rejected by a
+// different model.
+type reasoningProvenance struct {
+	ProviderIdentity string
+	Model            string
+}
+
+// stripForeignProviderStateRows drops provider-executed tool blocks (calls and
+// results) from assistant rows whose producing provider differs from the
+// target's, and OpenAI reasoning state whose provenance differs from target.
+// A reasoning part's recorded provenance takes precedence over its row's
+// origin, since the row's model config may have been changed. Rows with an
+// unknown origin are treated as foreign (fail closed). Rows emptied by
+// stripping are dropped; rows that fail to parse or re-marshal are kept
+// unchanged.
 //
 // See modelConfigProviderIdentity for how identity is derived.
-func stripForeignProviderExecutedToolRows(
+func stripForeignProviderStateRows(
 	rows []database.ChatMessage,
-	targetIdentity string,
-	originProvider func(uuid.NullUUID) (string, bool),
+	target reasoningProvenance,
+	originOf func(uuid.NullUUID) reasoningProvenance,
 ) ([]database.ChatMessage, providerSwitchStripStats) {
 	var stats providerSwitchStripStats
-	if targetIdentity == "" || len(rows) == 0 {
+	if target.ProviderIdentity == "" || len(rows) == 0 {
 		return rows, stats
 	}
 
@@ -55,7 +72,10 @@ func stripForeignProviderExecutedToolRows(
 			out = append(out, row)
 			continue
 		}
-		if origin, ok := originProvider(row.ModelConfigID); ok && origin == targetIdentity {
+		origin := originOf(row.ModelConfigID)
+		nativeRow := origin.ProviderIdentity == target.ProviderIdentity
+		// Only stamped reasoning parts can be foreign when the row origin matches.
+		if origin == target && !bytes.Contains(row.Content.RawMessage, []byte(`"provider_identity"`)) {
 			out = append(out, row)
 			continue
 		}
@@ -67,23 +87,26 @@ func stripForeignProviderExecutedToolRows(
 		}
 
 		kept := make([]codersdk.ChatMessagePart, 0, len(parts))
-		var removedCalls, removedResults int
+		var removedCalls, removedResults, removedReasoning int
 		for _, part := range parts {
 			switch {
-			case part.Type == codersdk.ChatMessagePartTypeToolCall && part.ProviderExecuted:
+			case !nativeRow && part.Type == codersdk.ChatMessagePartTypeToolCall && part.ProviderExecuted:
 				removedCalls++
-			case part.Type == codersdk.ChatMessagePartTypeToolResult && part.ProviderExecuted:
+			case !nativeRow && part.Type == codersdk.ChatMessagePartTypeToolResult && part.ProviderExecuted:
 				removedResults++
+			case part.Type == codersdk.ChatMessagePartTypeReasoning && isForeignReasoning(part, origin, target):
+				removedReasoning++
 			default:
 				kept = append(kept, part)
 			}
 		}
-		if removedCalls == 0 && removedResults == 0 {
+		if removedCalls == 0 && removedResults == 0 && removedReasoning == 0 {
 			out = append(out, row)
 			continue
 		}
 		stats.RemovedToolCalls += removedCalls
 		stats.RemovedToolResults += removedResults
+		stats.RemovedReasoning += removedReasoning
 		if len(kept) == 0 {
 			stats.DroppedMessages++
 			continue
@@ -101,30 +124,40 @@ func stripForeignProviderExecutedToolRows(
 	return out, stats
 }
 
-func (server *Server) sanitizeForeignProviderExecutedToolRows(
+func isForeignReasoning(part codersdk.ChatMessagePart, rowOrigin, target reasoningProvenance) bool {
+	source := rowOrigin
+	if part.ProviderIdentity != "" {
+		source = reasoningProvenance{ProviderIdentity: part.ProviderIdentity, Model: part.ProviderModel}
+	}
+	return source != target && hasOpenAIReasoningState(part)
+}
+
+func hasOpenAIReasoningState(part codersdk.ChatMessagePart) bool {
+	if len(part.ProviderMetadata) == 0 {
+		return false
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(part.ProviderMetadata, &raw); err != nil {
+		return false
+	}
+	options, err := fantasy.UnmarshalProviderOptions(raw)
+	return err == nil && chatsanitize.HasOpenAIReasoningState(options)
+}
+
+func (server *Server) sanitizeForeignProviderStateRows(
 	ctx context.Context,
 	logger slog.Logger,
 	rows []database.ChatMessage,
 	ownerID uuid.UUID,
-	modelConfigID uuid.UUID,
+	target reasoningProvenance,
 ) []database.ChatMessage {
-	targetCfg, targetProvider, err := server.resolveModelConfigAndNormalizedProvider(ctx, ownerID, modelConfigID)
-	if err != nil || targetProvider == "" {
-		logger.Debug(ctx, "skipping provider-switch sanitization: target provider unresolved",
-			slog.F("model_config_id", modelConfigID),
-			slog.Error(err),
-		)
-		return rows
-	}
-	targetIdentity := modelConfigProviderIdentity(targetCfg, targetProvider)
-
-	cache := make(map[uuid.UUID]string)
-	originProvider := func(id uuid.NullUUID) (string, bool) {
+	cache := make(map[uuid.UUID]reasoningProvenance)
+	originOf := func(id uuid.NullUUID) reasoningProvenance {
 		if !id.Valid {
-			return "", false
+			return reasoningProvenance{}
 		}
-		if identity, seen := cache[id.UUID]; seen {
-			return identity, identity != ""
+		if origin, seen := cache[id.UUID]; seen {
+			return origin
 		}
 		originCfg, provider, rErr := server.resolveModelConfigAndNormalizedProvider(ctx, ownerID, id.UUID)
 		if rErr != nil {
@@ -132,21 +165,26 @@ func (server *Server) sanitizeForeignProviderExecutedToolRows(
 				slog.F("model_config_id", id.UUID),
 				slog.Error(rErr),
 			)
-			cache[id.UUID] = ""
-			return "", false
+			cache[id.UUID] = reasoningProvenance{}
+			return reasoningProvenance{}
 		}
-		identity := modelConfigProviderIdentity(originCfg, provider)
-		cache[id.UUID] = identity
-		return identity, identity != ""
+		origin := reasoningProvenance{
+			ProviderIdentity: modelConfigProviderIdentity(originCfg, provider),
+			Model:            originCfg.Model,
+		}
+		cache[id.UUID] = origin
+		return origin
 	}
 
-	sanitized, stats := stripForeignProviderExecutedToolRows(rows, targetIdentity, originProvider)
+	sanitized, stats := stripForeignProviderStateRows(rows, target, originOf)
 	if stats != (providerSwitchStripStats{}) {
-		logger.Debug(ctx, "stripped foreign provider-executed tool history",
+		logger.Debug(ctx, "stripped foreign provider state from history",
 			slog.F("phase", "provider_switch"),
-			slog.F("target_provider_identity", targetIdentity),
+			slog.F("target_provider_identity", target.ProviderIdentity),
+			slog.F("target_model", target.Model),
 			slog.F("removed_tool_calls", stats.RemovedToolCalls),
 			slog.F("removed_tool_results", stats.RemovedToolResults),
+			slog.F("removed_reasoning", stats.RemovedReasoning),
 			slog.F("dropped_messages", stats.DroppedMessages),
 		)
 	}

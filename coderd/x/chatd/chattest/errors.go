@@ -11,6 +11,7 @@ import (
 type ErrorResponse struct {
 	StatusCode int
 	Type       string
+	Code       string
 	Message    string
 }
 
@@ -19,12 +20,14 @@ type ErrorResponse struct {
 func writeErrorResponse(t testing.TB, w http.ResponseWriter, errResp *ErrorResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(errResp.StatusCode)
-	body := map[string]interface{}{
-		"error": map[string]interface{}{
-			"type":    errResp.Type,
-			"message": errResp.Message,
-		},
+	errorBody := map[string]interface{}{
+		"type":    errResp.Type,
+		"message": errResp.Message,
 	}
+	if errResp.Code != "" {
+		errorBody["code"] = errResp.Code
+	}
+	body := map[string]interface{}{"error": errorBody}
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		t.Errorf("writeErrorResponse: failed to encode error response: %v", err)
 	}
