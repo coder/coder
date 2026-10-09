@@ -109,6 +109,27 @@ const writeHistoryVersionToCache = (
 	);
 };
 
+// Message IDs within a chat follow commit order, because every insert holds
+// the chat row lock, so a response with no message newer than the newest
+// cached one describes history the cache has already moved past.
+const isAheadOfCachedMessages = (
+	queryClient: QueryClient,
+	chatID: string,
+	messages: readonly TypesGen.ChatMessage[],
+): boolean => {
+	const pages =
+		queryClient.getQueryData<
+			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+		>(chatMessagesKey(chatID))?.pages ?? [];
+	// Pages and their messages are newest first.
+	const newestCachedID = pages.find((page) => page.messages.length > 0)
+		?.messages[0]?.id;
+	return (
+		newestCachedID === undefined ||
+		messages.some((message) => message.id > newestCachedID)
+	);
+};
+
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	attempt: Math.max(1, retry.attempt),
 	error: retry.error.trim() || "Retrying request shortly.",
@@ -148,7 +169,10 @@ export const useChatStore = (
 	getCacheQueuedMessages: () =>
 		| readonly TypesGen.ChatQueuedMessage[]
 		| undefined;
-	upsertCacheMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
+	applyResponseMessages: (
+		messages: readonly TypesGen.ChatMessage[],
+		fromID?: number,
+	) => void;
 } => {
 	const {
 		chatID,
@@ -248,6 +272,21 @@ export const useChatStore = (
 			void invalidateChatSearches(queryClient);
 		},
 		[chatID, queryClient],
+	);
+
+	// Replaces the messages at or above fromID, or all of them without it.
+	const replaceHistory = useCallback(
+		(messages: readonly TypesGen.ChatMessage[], fromID?: number) => {
+			const kept =
+				fromID === undefined
+					? []
+					: [...store.getSnapshot().messagesByID.values()].filter(
+							(message) => message.id < fromID,
+						);
+			store.replaceMessages([...kept, ...messages]);
+			replaceCacheMessages(messages, fromID);
+		},
+		[replaceCacheMessages, store],
 	);
 
 	// Content snapshot of the messages the hydration effect last ingested.
@@ -506,16 +545,7 @@ export const useChatStore = (
 					return;
 				}
 				historyResetPending = false;
-				const replacement = historyReplacementBuf.splice(0);
-				const fromID = historyResetFromID;
-				const kept =
-					fromID === undefined
-						? []
-						: [...store.getSnapshot().messagesByID.values()].filter(
-								(message) => message.id < fromID,
-							);
-				store.replaceMessages([...kept, ...replacement]);
-				replaceCacheMessages(replacement, fromID);
+				replaceHistory(historyReplacementBuf.splice(0), historyResetFromID);
 			};
 
 			// Wrap all store mutations in a batch so subscribers
@@ -803,7 +833,7 @@ export const useChatStore = (
 		chatID,
 		initialDataLoaded,
 		queryClient,
-		replaceCacheMessages,
+		replaceHistory,
 		store,
 		upsertCacheMessages,
 	]);
@@ -833,6 +863,25 @@ export const useChatStore = (
 		},
 		getCacheQueuedMessages: () =>
 			readQueuedMessagesFromCache(queryClient, chatID),
-		upsertCacheMessages,
+		// Applies a send or edit response ahead of the stream, which later
+		// delivers the same messages or removes them. An edit passes the edited
+		// message's ID as fromID, since it replaces the history from there.
+		applyResponseMessages: (messages, fromID) => {
+			if (!isAheadOfCachedMessages(queryClient, chatID, messages)) {
+				return;
+			}
+			// After the user leaves the chat, only its cache takes the response.
+			const inStore = store.getActiveChatID() === chatID;
+			if (fromID === undefined) {
+				if (inStore) {
+					store.upsertDurableMessages(messages);
+				}
+				upsertCacheMessages(messages);
+			} else if (inStore) {
+				replaceHistory(messages, fromID);
+			} else {
+				replaceCacheMessages(messages, fromID);
+			}
+		},
 	};
 };

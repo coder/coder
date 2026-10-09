@@ -1901,7 +1901,7 @@ describe("mutation invalidation scope", () => {
 		).toEqual([4, 3, 2, 1]);
 	});
 
-	it("editChatMessage does not bring back a message that a later edit deleted when the edit response arrives late", async () => {
+	it("editChatMessage leaves the messages cache to the chat page", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {

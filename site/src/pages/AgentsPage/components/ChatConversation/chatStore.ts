@@ -110,10 +110,10 @@ export const isActiveChatStatus = (
 	status === "interrupting";
 
 /**
- * An edit whose history reset the stream has not delivered yet. The
- * transcript shows the placeholder in place of the edited message and hides
- * every later message, which stay in the store so that a failed edit shows
- * them again. Replacing the messages without the edited one ends it.
+ * An edit whose result has not reached the store yet. The transcript shows
+ * the placeholder in place of the edited message and hides every later
+ * message, which stay in the store so that a failed edit shows them again.
+ * Replacing the messages without the edited one ends it.
  */
 type PendingEdit = {
 	messageID: number;

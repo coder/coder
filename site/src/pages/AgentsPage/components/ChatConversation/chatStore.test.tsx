@@ -4202,6 +4202,157 @@ describe("useChatStore", () => {
 		});
 	});
 
+	describe("applyResponseMessages", () => {
+		const chatID = "chat-response";
+		const question = buildMessage(chatID, 1, "user", "question");
+		const answer = buildMessage(chatID, 2, "assistant", "answer");
+		const renderChat = () => {
+			const queryClient = createCacheClient();
+			queryClient.setQueryData(chatMessagesKey(chatID), {
+				pages: [
+					{
+						messages: [answer, question],
+						queued_messages: [],
+						has_more: false,
+						history_version: 5,
+					},
+				],
+				pageParams: [undefined],
+			});
+			const sockets = mockWatchChatWithFreshSockets();
+			const { result } = renderHook(
+				() => {
+					const page = queryClient.getQueryData<{
+						pages: TypesGen.ChatMessagesResponse[];
+					}>(chatMessagesKey(chatID))?.pages[0];
+					const { store, applyResponseMessages } = useChatStore({
+						chatID,
+						chatMessages: page?.messages.toReversed(),
+						chatRecord: buildChat(chatID),
+						chatRecordUpdatedAt: 0,
+						chatMessagesData: page,
+						chatQueuedMessages: page?.queued_messages,
+						setChatErrorReason: vi.fn(),
+						clearChatErrorReason: vi.fn(),
+					});
+					return {
+						applyResponseMessages,
+						orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					};
+				},
+				{ wrapper: createWrapper(queryClient) },
+			);
+			const cachedIDs = () =>
+				queryClient
+					.getQueryData<{
+						pages: TypesGen.ChatMessagesResponse[];
+					}>(chatMessagesKey(chatID))
+					?.pages.flatMap((page) => page.messages.map((m) => m.id));
+			// Delivers an edit's history reset the way the stream does.
+			const streamEdit = (fromID: number, message: TypesGen.ChatMessage) => {
+				act(() => {
+					sockets[0].emitDataBatch([
+						{
+							type: "history_reset",
+							chat_id: chatID,
+							history_reset: { from_message_id: fromID },
+						},
+						{ type: "message", chat_id: chatID, message },
+						{
+							type: "preview_reset",
+							chat_id: chatID,
+							preview_reset: { history_version: message.id },
+						},
+					]);
+				});
+			};
+			return { result, sockets, cachedIDs, streamEdit };
+		};
+
+		it("applies a send response that is ahead of the stream", async () => {
+			const { result, cachedIDs } = renderChat();
+			await waitFor(() => {
+				expect(watchChat).toHaveBeenCalled();
+			});
+
+			act(() => {
+				result.current.applyResponseMessages([
+					buildMessage(chatID, 3, "user", "sent"),
+				]);
+			});
+
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+			expect(cachedIDs()).toEqual([3, 2, 1]);
+		});
+
+		it("drops a send response for a message that another tab's edit deleted", async () => {
+			const { result, sockets, cachedIDs, streamEdit } = renderChat();
+			await waitFor(() => {
+				expect(watchChat).toHaveBeenCalled();
+			});
+			const sent = buildMessage(chatID, 3, "user", "sent");
+			act(() => {
+				sockets[0].emitOpen();
+				sockets[0].emitData({
+					type: "message",
+					chat_id: chatID,
+					message: sent,
+				});
+			});
+			streamEdit(3, buildMessage(chatID, 4, "user", "edited elsewhere"));
+			await waitFor(() => {
+				expect(result.current.orderedMessageIDs).toEqual([1, 2, 4]);
+			});
+
+			act(() => {
+				result.current.applyResponseMessages([sent]);
+			});
+
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 4]);
+			expect(cachedIDs()).toEqual([4, 2, 1]);
+		});
+
+		it("applies an edit response from the edited message", async () => {
+			const { result, cachedIDs } = renderChat();
+			await waitFor(() => {
+				expect(watchChat).toHaveBeenCalled();
+			});
+
+			act(() => {
+				result.current.applyResponseMessages(
+					[buildMessage(chatID, 3, "user", "edited")],
+					1,
+				);
+			});
+
+			expect(result.current.orderedMessageIDs).toEqual([3]);
+			expect(cachedIDs()).toEqual([3]);
+		});
+
+		it("drops an edit response that a later edit replaced", async () => {
+			const { result, sockets, cachedIDs, streamEdit } = renderChat();
+			await waitFor(() => {
+				expect(watchChat).toHaveBeenCalled();
+			});
+			const edited = buildMessage(chatID, 3, "user", "edited");
+			act(() => {
+				sockets[0].emitOpen();
+			});
+			streamEdit(1, edited);
+			streamEdit(3, buildMessage(chatID, 4, "user", "edited elsewhere"));
+			await waitFor(() => {
+				expect(result.current.orderedMessageIDs).toEqual([4]);
+			});
+
+			act(() => {
+				result.current.applyResponseMessages([edited], 1);
+			});
+
+			expect(result.current.orderedMessageIDs).toEqual([4]);
+			expect(cachedIDs()).toEqual([4]);
+		});
+	});
+
 	it("sets reconnectState on WebSocket disconnect and clears it after reconnect", async () => {
 		immediateAnimationFrame();
 		vi.spyOn(Math, "random").mockReturnValue(0.5);

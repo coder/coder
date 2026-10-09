@@ -62,12 +62,12 @@ const buildParams = (
 		modelOptions: [pickerModel],
 		effectiveReasoningEffort: undefined,
 		mcpServerIds: ["mcp-1"],
-		editMessage: vi.fn().mockResolvedValue(undefined),
+		editMessage: vi.fn().mockResolvedValue({ message: MockChatMessage }),
 		sendMessage: vi.fn().mockResolvedValue({ queued: false }),
 		onRequestError: vi.fn(),
 		invalidateChat: vi.fn(),
 		scrollToEnd: vi.fn(),
-		upsertCacheMessages: vi.fn(),
+		applyResponseMessages: vi.fn(),
 		getCacheQueuedMessages: vi.fn(),
 		setCacheQueuedMessages: vi.fn(),
 		fetchQueueConvergence: vi.fn().mockResolvedValue({
@@ -204,7 +204,7 @@ describe("submitChatTurn", () => {
 			model_config_id: "stale-model",
 			content: [{ type: "text", text: "old" }],
 		};
-		const editMessage = vi.fn().mockResolvedValue(undefined);
+		const editMessage = vi.fn().mockResolvedValue({ message: MockChatMessage });
 		const scrollToEnd = vi.fn();
 		const sendMessage = vi.fn();
 
@@ -275,34 +275,22 @@ describe("submitChatTurn", () => {
 			content: [{ type: "text", text: "new text" }],
 		};
 
-		it("shows the edited text in place of the edited message and hides the rest until the stream delivers the edit", async () => {
-			const { store, response, submitted } = startEdit();
+		it("shows the edited text in place of the edited message and hides the rest", () => {
+			const { store } = startEdit();
 
 			expect(shown(store)).toEqual(["5:new text"]);
-
-			response.resolve({ message: replacement, deleted_message_ids: [5, 6] });
-			await submitted;
-
-			expect(shown(store)).toEqual(["5:new text"]);
-
-			// The stream's history_reset for the edit.
-			store.replaceMessages([replacement]);
-
-			expect(shown(store)).toEqual(["7:new text"]);
 		});
 
-		it("does not bring back a message that a later edit deleted when the edit response arrives late", async () => {
-			const { store, response, submitted } = startEdit();
-			// The stream delivers the edit, then another tab's edit of its result.
-			store.replaceMessages([replacement]);
-			store.replaceMessages([
-				{ ...replacement, id: 8, content: [{ type: "text", text: "newer" }] },
-			]);
+		it("applies the edit's messages from the edited message", async () => {
+			const { params, response, submitted } = startEdit();
 
 			response.resolve({ message: replacement, deleted_message_ids: [5, 6] });
 			await submitted;
 
-			expect(shown(store)).toEqual(["8:newer"]);
+			expect(params.applyResponseMessages).toHaveBeenCalledWith(
+				[replacement],
+				5,
+			);
 		});
 
 		it("shows every stored message again and reports the error when the edit fails", async () => {
@@ -327,7 +315,7 @@ describe("submitChatTurn", () => {
 			id: 5,
 			model_config_id: pickerModel.id,
 		};
-		const editMessage = vi.fn().mockResolvedValue(undefined);
+		const editMessage = vi.fn().mockResolvedValue({ message: MockChatMessage });
 		await submitChatTurn(
 			buildParams({
 				message: "new text",
@@ -371,7 +359,7 @@ describe("submitChatTurn", () => {
 		expect(invalidateChat).toHaveBeenCalledWith("chat-1");
 	});
 
-	it("upserts a non-queued send and sets running", async () => {
+	it("applies a non-queued send's messages and sets running", async () => {
 		const store = createChatStore();
 		store.setActiveChatID("chat-1");
 		const inserted = { ...MockChatMessage, id: 9 };
@@ -379,13 +367,13 @@ describe("submitChatTurn", () => {
 			queued: false,
 			message: inserted,
 		});
-		const upsertCacheMessages = vi.fn();
+		const applyResponseMessages = vi.fn();
 
 		await submitChatTurn(
 			buildParams({
 				store,
 				sendMessage,
-				upsertCacheMessages,
+				applyResponseMessages,
 			}),
 		);
 
@@ -395,7 +383,7 @@ describe("submitChatTurn", () => {
 				mcp_server_ids: ["mcp-1"],
 			}),
 		);
-		expect(upsertCacheMessages).toHaveBeenCalledWith([inserted]);
+		expect(applyResponseMessages).toHaveBeenCalledWith([inserted]);
 		expect(store.getSnapshot().chatStatus).toBe("running");
 	});
 

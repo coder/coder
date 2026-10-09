@@ -2474,8 +2474,8 @@ type EditChatMessageMutationArgs = {
 	req: TypesGen.EditChatMessageRequest;
 };
 
-// The messages cache is left to the stream, which delivers the edit's history
-// reset. Until then the chat store hides the messages the edit replaces.
+// The chat page applies the edit's messages, after checking that the stream
+// has not already moved past them.
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),

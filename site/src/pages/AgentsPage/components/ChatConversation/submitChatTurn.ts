@@ -57,14 +57,17 @@ export type SubmitChatTurnParams = {
 	editMessage: (args: {
 		messageId: number;
 		req: TypesGen.EditChatMessageRequest;
-	}) => Promise<unknown>;
+	}) => Promise<TypesGen.EditChatMessageResponse>;
 	sendMessage: (
 		req: CreateChatMessageRequestWithClearablePlanMode,
 	) => Promise<TypesGen.CreateChatMessageResponse>;
 	onRequestError: (error: unknown) => void;
 	invalidateChat: (chatId: string) => void;
 	scrollToEnd: (options: { behavior: "smooth" }) => void;
-	upsertCacheMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
+	applyResponseMessages: (
+		messages: readonly TypesGen.ChatMessage[],
+		fromID?: number,
+	) => void;
 	getCacheQueuedMessages: () =>
 		| readonly TypesGen.ChatQueuedMessage[]
 		| undefined;
@@ -271,7 +274,7 @@ export async function submitChatTurn(
 		onRequestError,
 		invalidateChat,
 		scrollToEnd,
-		upsertCacheMessages,
+		applyResponseMessages,
 		getCacheQueuedMessages,
 		setCacheQueuedMessages,
 		fetchQueueConvergence,
@@ -352,8 +355,9 @@ export async function submitChatTurn(
 				placeholder: optimisticMessage,
 			});
 		});
+		let response: TypesGen.EditChatMessageResponse;
 		try {
-			await editMessage({
+			response = await editMessage({
 				messageId: editedMessageID,
 				req: request,
 			});
@@ -369,6 +373,10 @@ export async function submitChatTurn(
 			invalidateChat(agentId);
 			throw error;
 		}
+		applyResponseMessages(
+			response.messages ?? [response.message],
+			editedMessageID,
+		);
 		scrollToEnd({ behavior: "smooth" });
 		return;
 	}
@@ -413,15 +421,12 @@ export async function submitChatTurn(
 		// instead, the WebSocket event overrides this optimistic value.
 		store.setChatStatus("running");
 	}
-	// Upsert the full batch because a queued send can insert a promoted
+	// Apply the full batch because a queued send can insert a promoted
 	// head below the highest cached ID, which a reconnect would skip.
 	const insertedMessages =
 		response.messages ?? (response.message ? [response.message] : []);
 	if (insertedMessages.length > 0) {
-		upsertCacheMessages(insertedMessages);
-		if (isActiveChat) {
-			store.upsertDurableMessages(insertedMessages);
-		}
+		applyResponseMessages(insertedMessages);
 		if (response.queued) {
 			applyQueuedSendReconciliation({
 				store,
