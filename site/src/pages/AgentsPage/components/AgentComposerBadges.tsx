@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import {
-	ChevronDownIcon,
 	LockIcon,
 	MonitorIcon,
 	PencilIcon,
@@ -11,6 +10,7 @@ import type React from "react";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
 import type { MCPServerConfig } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
@@ -218,26 +218,22 @@ const MCPGroupBadge = ({
 	servers: readonly MCPServerConfig[];
 	className: string;
 }) => {
-	const [open, setOpen] = useState(false);
-
 	const label = `${servers.length} MCPs`;
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
+		<Popover>
 			<PopoverTrigger asChild>
 				<button
 					type="button"
 					aria-label={label}
 					className={cn(
 						className,
-						"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+						"group cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
 					)}
 				>
 					<MCPServerIconStack servers={servers} />
 					{label}
-					<ChevronDownIcon
-						className={cn("size-3 transition-transform", open && "rotate-180")}
-					/>
+					<ChevronDownIcon className="size-3" />
 				</button>
 			</PopoverTrigger>
 			<BadgePopoverContent>
