@@ -162,7 +162,7 @@ export const StartWorkspace: Story = {
 	},
 };
 
-export const RequireActiveVersionBlocked: Story = {
+export const RequireActiveVersionForcedUpdate: Story = {
 	parameters: {
 		reactRouter: workspaceRouterParameters(
 			MockOutdatedStoppedWorkspaceRequireActiveVersion,
@@ -183,11 +183,11 @@ export const RequireActiveVersionBlocked: Story = {
 		const submitButton = canvas.getByRole("button", {
 			name: "Update and start",
 		});
-		expect(submitButton).toBeDisabled();
+		expect(submitButton).not.toBeDisabled();
 	},
 };
 
-export const RequireActiveVersionBlockedRunning: Story = {
+export const RequireActiveVersionForcedUpdateRunning: Story = {
 	parameters: {
 		reactRouter: workspaceRouterParameters(
 			MockOutdatedRunningWorkspaceRequireActiveVersion,
@@ -208,7 +208,7 @@ export const RequireActiveVersionBlockedRunning: Story = {
 		const submitButton = canvas.getByRole("button", {
 			name: "Update and restart",
 		});
-		expect(submitButton).toBeDisabled();
+		expect(submitButton).not.toBeDisabled();
 	},
 };
 

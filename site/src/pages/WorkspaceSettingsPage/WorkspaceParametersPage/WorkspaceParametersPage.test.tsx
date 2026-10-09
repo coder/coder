@@ -358,4 +358,65 @@ describe("WorkspaceParametersPage", () => {
 		});
 		await waitFor(() => expect(submitButton).toBeDisabled());
 	});
+
+	it("stays editable when the template forces an update", async () => {
+		const workspace: TypesGen.Workspace = {
+			...MockWorkspace,
+			outdated: true,
+			template_require_active_version: true,
+			template_active_version_id: "active-template-version-id",
+		};
+		const workspaceSpy = vi.spyOn(API, "getWorkspaceByOwnerAndName");
+		workspaceSpy.mockReset();
+		workspaceSpy.mockResolvedValue(workspace);
+
+		// A user with no template update permission, such as a member.
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+			readWorkspace: true,
+			shareWorkspace: true,
+			updateWorkspace: true,
+			updateWorkspaceVersion: false,
+			deleteFailedWorkspace: false,
+		});
+
+		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+
+		const [, mockPublisher] = mockDynamicParameterWebSocket();
+
+		renderWorkspaceParametersPage();
+
+		await connectWithInitialParameters(mockPublisher, [
+			MockPreviewParameter1,
+			MockPreviewParameter4,
+		]);
+
+		// Parameters are evaluated against the active version, since that is the
+		// only version this user is able to build.
+		expect(API.templateVersionDynamicParameters).toHaveBeenCalledWith(
+			workspace.template_active_version_id,
+			workspace.owner_id,
+			expect.anything(),
+		);
+
+		await waitForLoaderToBeRemoved();
+
+		const form = screen.getByTestId("form");
+
+		// Mutable parameters are editable even though the workspace is outdated.
+		const mutableField = within(form).getByTestId(
+			`parameter-field-${MockPreviewParameter1.name}`,
+		);
+		expect(within(mutableField).getByRole("textbox")).toBeEnabled();
+
+		// Immutable parameters are still locked.
+		const immutableField = within(form).getByTestId(
+			`parameter-field-${MockPreviewParameter4.name}`,
+		);
+		expect(within(immutableField).getByRole("textbox")).toBeDisabled();
+
+		const submitButton = within(form).getByRole("button", {
+			name: /update and restart/i,
+		});
+		await waitFor(() => expect(submitButton).toBeEnabled());
+	});
 });
