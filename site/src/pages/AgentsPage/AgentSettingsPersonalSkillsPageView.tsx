@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import type { UserSkillMetadata } from "#/api/typesGenerated";
+import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -69,7 +69,7 @@ export type PersonalSkillEditorState =
 	  };
 
 export type PersonalSkillDeleteState = {
-	skill: UserSkillMetadata;
+	skill: SkillMetadata;
 	error?: PersonalSkillErrorDisplay;
 	isDeleting: boolean;
 	onConfirm: () => void;
@@ -77,15 +77,15 @@ export type PersonalSkillDeleteState = {
 };
 
 export type AgentSettingsPersonalSkillsPageViewProps = {
-	skills: readonly UserSkillMetadata[];
+	skills: readonly SkillMetadata[];
 	error: unknown;
 	isLoading: boolean;
 	isRetrying: boolean;
 	onRetry: () => void;
 	onCreate: () => void;
 	onEdit: (name: string) => void;
-	onDelete: (skill: UserSkillMetadata) => void;
-	onDownload: (skill: UserSkillMetadata) => void;
+	onDelete: (skill: SkillMetadata) => void;
+	onDownload: (skill: SkillMetadata) => void;
 	onExportAll: () => void;
 	downloadingSkillName?: string;
 	isExportingAll: boolean;

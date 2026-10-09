@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -34,13 +35,13 @@ func TestPatchUserSkill(t *testing.T) {
 	auditorClient := codersdk.NewExperimentalClient(auditorRawClient)
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
-	_, err := memberClient.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+	_, err := memberClient.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 		Content: userSkillMarkdown("forbidden-skill", "Test skill", "Original body."),
 	})
 	require.NoError(t, err)
 
-	_, err = auditorClient.UpdateUserSkill(ctx, member.ID.String(), "forbidden-skill", codersdk.UpdateUserSkillRequest{
-		Content: userSkillMarkdown("forbidden-skill", "Test skill", "Updated body."),
+	_, err = auditorClient.UpdateUserSkill(ctx, member.ID.String(), "forbidden-skill", codersdk.UpdateSkillRequest{
+		Content: ptr.Ref(userSkillMarkdown("forbidden-skill", "Test skill", "Updated body.")),
 	})
 	requireSDKErrorStatus(t, err, http.StatusForbidden)
 }
@@ -69,7 +70,7 @@ func TestUserSkillsCRUD(t *testing.T) {
 	assert.Empty(t, rawEmptyList)
 
 	content := userSkillMarkdown("crud-skill", "Initial description", "Use this skill for CRUD tests.")
-	created, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{Content: content})
+	created, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{Content: content})
 	require.NoError(t, err)
 	assert.NotZero(t, created.ID)
 	assert.Equal(t, "crud-skill", created.Name)
@@ -84,6 +85,7 @@ func TestUserSkillsCRUD(t *testing.T) {
 	assert.Equal(t, created.ID, list[0].ID)
 	assert.Equal(t, "crud-skill", list[0].Name)
 	assert.Equal(t, "Initial description", list[0].Description)
+	assert.True(t, list[0].Enabled)
 
 	res, err := owner.Request(ctx, http.MethodGet, "/api/experimental/users/me/skills", nil)
 	require.NoError(t, err)
@@ -100,11 +102,25 @@ func TestUserSkillsCRUD(t *testing.T) {
 	assert.Equal(t, content, got.Content)
 
 	updatedContent := userSkillMarkdown("crud-skill", "Updated description", "Updated body.")
-	updated, err := owner.UpdateUserSkill(ctx, codersdk.Me, "crud-skill", codersdk.UpdateUserSkillRequest{Content: updatedContent})
+	updated, err := owner.UpdateUserSkill(ctx, codersdk.Me, "crud-skill", codersdk.UpdateSkillRequest{Content: ptr.Ref(updatedContent)})
 	require.NoError(t, err)
 	assert.Equal(t, created.ID, updated.ID)
 	assert.Equal(t, "Updated description", updated.Description)
 	assert.Equal(t, updatedContent, updated.Content)
+	assert.True(t, updated.Enabled)
+
+	disabled, err := owner.UpdateUserSkill(ctx, codersdk.Me, "crud-skill", codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
+	require.NoError(t, err)
+	assert.False(t, disabled.Enabled)
+	assert.Equal(t, updatedContent, disabled.Content)
+	assert.Equal(t, "Updated description", disabled.Description)
+	list, err = owner.UserSkills(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.False(t, list[0].Enabled)
+	got, err = owner.UserSkillByName(ctx, codersdk.Me, "crud-skill")
+	require.NoError(t, err)
+	assert.False(t, got.Enabled)
 
 	require.NoError(t, owner.DeleteUserSkill(ctx, codersdk.Me, "crud-skill"))
 	_, err = owner.UserSkillByName(ctx, codersdk.Me, "crud-skill")
@@ -164,7 +180,7 @@ func TestUserSkillValidationAndConflicts(t *testing.T) {
 			t.Parallel()
 
 			subCtx := testutil.Context(t, testutil.WaitMedium)
-			_, err := owner.CreateUserSkill(subCtx, codersdk.Me, codersdk.CreateUserSkillRequest{Content: tt.content})
+			_, err := owner.CreateUserSkill(subCtx, codersdk.Me, codersdk.CreateSkillRequest{Content: tt.content})
 			sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
 			assert.Equal(t, tt.expectedMessage, sdkErr.Message)
 		})
@@ -175,13 +191,26 @@ func TestUserSkillValidationAndConflicts(t *testing.T) {
 
 		subCtx := testutil.Context(t, testutil.WaitMedium)
 		patchValidationContent := userSkillMarkdown("patch-validation", "Valid", "Body.")
-		_, err := owner.CreateUserSkill(subCtx, codersdk.Me, codersdk.CreateUserSkillRequest{Content: patchValidationContent})
+		_, err := owner.CreateUserSkill(subCtx, codersdk.Me, codersdk.CreateSkillRequest{Content: patchValidationContent})
 		require.NoError(t, err)
-		_, err = owner.UpdateUserSkill(subCtx, codersdk.Me, "patch-validation", codersdk.UpdateUserSkillRequest{
-			Content: userSkillMarkdown("patch-validation", "Invalid", "   \n"),
+		_, err = owner.UpdateUserSkill(subCtx, codersdk.Me, "patch-validation", codersdk.UpdateSkillRequest{
+			Content: ptr.Ref(userSkillMarkdown("patch-validation", "Invalid", "   \n")),
 		})
 		sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
 		assert.Equal(t, "Skill body is required.", sdkErr.Message)
+	})
+
+	t.Run("PatchNoFields", func(t *testing.T) {
+		t.Parallel()
+
+		subCtx := testutil.Context(t, testutil.WaitMedium)
+		_, err := owner.CreateUserSkill(subCtx, codersdk.Me, codersdk.CreateSkillRequest{
+			Content: userSkillMarkdown("patch-no-fields", "Valid", "Body."),
+		})
+		require.NoError(t, err)
+		_, err = owner.UpdateUserSkill(subCtx, codersdk.Me, "patch-no-fields", codersdk.UpdateSkillRequest{})
+		sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
+		assert.Equal(t, "No skill fields to update.", sdkErr.Message)
 	})
 
 	t.Run("DuplicateNameConflict", func(t *testing.T) {
@@ -189,9 +218,9 @@ func TestUserSkillValidationAndConflicts(t *testing.T) {
 
 		subCtx := testutil.Context(t, testutil.WaitMedium)
 		sharedContent := userSkillMarkdown("shared-skill", "Shared", "Shared body.")
-		_, err := owner.CreateUserSkill(subCtx, codersdk.Me, codersdk.CreateUserSkillRequest{Content: sharedContent})
+		_, err := owner.CreateUserSkill(subCtx, codersdk.Me, codersdk.CreateSkillRequest{Content: sharedContent})
 		require.NoError(t, err)
-		_, err = owner.CreateUserSkill(subCtx, codersdk.Me, codersdk.CreateUserSkillRequest{Content: sharedContent})
+		_, err = owner.CreateUserSkill(subCtx, codersdk.Me, codersdk.CreateSkillRequest{Content: sharedContent})
 		requireSDKErrorStatus(t, err, http.StatusConflict)
 	})
 
@@ -200,7 +229,7 @@ func TestUserSkillValidationAndConflicts(t *testing.T) {
 
 		subCtx := testutil.Context(t, testutil.WaitMedium)
 		sharedContent := userSkillMarkdown("shared-skill", "Shared", "Shared body.")
-		_, err := other.CreateUserSkill(subCtx, codersdk.Me, codersdk.CreateUserSkillRequest{Content: sharedContent})
+		_, err := other.CreateUserSkill(subCtx, codersdk.Me, codersdk.CreateSkillRequest{Content: sharedContent})
 		require.NoError(t, err)
 	})
 }
@@ -216,13 +245,13 @@ func TestUserSkillLimit(t *testing.T) {
 
 	for i := range skills.MaxPersonalSkillsPerUser {
 		name := fmt.Sprintf("limit-skill-%03d", i)
-		_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+		_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 			Content: userSkillMarkdown(name, "Limit", "Body."),
 		})
 		require.NoError(t, err)
 	}
 
-	_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+	_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 		Content: userSkillMarkdown("limit-skill-overflow", "Limit", "Body."),
 	})
 	sdkErr := requireSDKErrorStatus(t, err, http.StatusConflict)
@@ -244,7 +273,7 @@ func TestUserSkillLimitConcurrentCreates(t *testing.T) {
 
 	for i := range skills.MaxPersonalSkillsPerUser - 1 {
 		name := fmt.Sprintf("concurrent-limit-skill-%03d", i)
-		_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+		_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 			Content: userSkillMarkdown(name, "Limit", "Body."),
 		})
 		require.NoError(t, err)
@@ -257,7 +286,7 @@ func TestUserSkillLimitConcurrentCreates(t *testing.T) {
 		go func() {
 			<-start
 			name := fmt.Sprintf("concurrent-limit-overflow-%03d", i)
-			_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+			_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 				Content: userSkillMarkdown(name, "Limit", "Body."),
 			})
 			results <- err
@@ -297,11 +326,11 @@ func TestUserSkillRequestAllowsEscapedMaxSizeContent(t *testing.T) {
 	content := prefix + strings.Repeat(`"`, bodyLen) + suffix
 	require.Len(t, []byte(content), skills.MaxPersonalSkillSizeBytes)
 
-	raw, err := json.Marshal(codersdk.CreateUserSkillRequest{Content: content})
+	raw, err := json.Marshal(codersdk.CreateSkillRequest{Content: content})
 	require.NoError(t, err)
 	require.Greater(t, len(raw), skills.MaxPersonalSkillSizeBytes+1024)
 
-	created, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+	created, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 		Content: content,
 	})
 	require.NoError(t, err)
@@ -320,20 +349,20 @@ func TestUserSkillMissingAndUpdateMismatch(t *testing.T) {
 	_, err := owner.UserSkillByName(ctx, codersdk.Me, "missing-skill")
 	requireSDKErrorStatus(t, err, http.StatusNotFound)
 
-	_, err = owner.UpdateUserSkill(ctx, codersdk.Me, "missing-skill", codersdk.UpdateUserSkillRequest{
-		Content: userSkillMarkdown("missing-skill", "Missing", "Body."),
+	_, err = owner.UpdateUserSkill(ctx, codersdk.Me, "missing-skill", codersdk.UpdateSkillRequest{
+		Content: ptr.Ref(userSkillMarkdown("missing-skill", "Missing", "Body.")),
 	})
 	requireSDKErrorStatus(t, err, http.StatusNotFound)
 
 	err = owner.DeleteUserSkill(ctx, codersdk.Me, "missing-skill")
 	requireSDKErrorStatus(t, err, http.StatusNotFound)
 
-	_, err = owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+	_, err = owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 		Content: userSkillMarkdown("old-name", "Old", "Body."),
 	})
 	require.NoError(t, err)
-	_, err = owner.UpdateUserSkill(ctx, codersdk.Me, "old-name", codersdk.UpdateUserSkillRequest{
-		Content: userSkillMarkdown("new-name", "New", "Body."),
+	_, err = owner.UpdateUserSkill(ctx, codersdk.Me, "old-name", codersdk.UpdateSkillRequest{
+		Content: ptr.Ref(userSkillMarkdown("new-name", "New", "Body.")),
 	})
 	sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
 	assert.Equal(t, "Skill name in path does not match frontmatter name.", sdkErr.Message)
@@ -355,7 +384,7 @@ func TestUserSkillAuthorization(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	targetUser := ownerUser.Username
 
-	_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+	_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 		Content: userSkillMarkdown("auth-skill", "Auth", "Body."),
 	})
 	require.NoError(t, err)
@@ -364,12 +393,12 @@ func TestUserSkillAuthorization(t *testing.T) {
 	requireSDKErrorStatus(t, err, http.StatusNotFound)
 	_, err = other.UserSkillByName(ctx, targetUser, "auth-skill")
 	requireSDKErrorStatus(t, err, http.StatusNotFound)
-	_, err = other.CreateUserSkill(ctx, targetUser, codersdk.CreateUserSkillRequest{
+	_, err = other.CreateUserSkill(ctx, targetUser, codersdk.CreateSkillRequest{
 		Content: userSkillMarkdown("denied-create", "Denied", "Body."),
 	})
 	requireSDKErrorStatus(t, err, http.StatusNotFound)
-	_, err = other.UpdateUserSkill(ctx, targetUser, "auth-skill", codersdk.UpdateUserSkillRequest{
-		Content: userSkillMarkdown("auth-skill", "Denied", "Body."),
+	_, err = other.UpdateUserSkill(ctx, targetUser, "auth-skill", codersdk.UpdateSkillRequest{
+		Content: ptr.Ref(userSkillMarkdown("auth-skill", "Denied", "Body.")),
 	})
 	requireSDKErrorStatus(t, err, http.StatusNotFound)
 	err = other.DeleteUserSkill(ctx, targetUser, "auth-skill")
@@ -379,18 +408,18 @@ func TestUserSkillAuthorization(t *testing.T) {
 	requireSDKErrorStatus(t, err, http.StatusNotFound)
 	_, err = userAdmin.UserSkillByName(ctx, targetUser, "auth-skill")
 	requireSDKErrorStatus(t, err, http.StatusNotFound)
-	_, err = userAdmin.CreateUserSkill(ctx, targetUser, codersdk.CreateUserSkillRequest{
+	_, err = userAdmin.CreateUserSkill(ctx, targetUser, codersdk.CreateSkillRequest{
 		Content: userSkillMarkdown("denied-admin-create", "Denied", "Body."),
 	})
 	requireSDKErrorStatus(t, err, http.StatusForbidden)
-	_, err = userAdmin.UpdateUserSkill(ctx, targetUser, "auth-skill", codersdk.UpdateUserSkillRequest{
-		Content: userSkillMarkdown("auth-skill", "Denied", "Body."),
+	_, err = userAdmin.UpdateUserSkill(ctx, targetUser, "auth-skill", codersdk.UpdateSkillRequest{
+		Content: ptr.Ref(userSkillMarkdown("auth-skill", "Denied", "Body.")),
 	})
 	requireSDKErrorStatus(t, err, http.StatusForbidden)
 	err = userAdmin.DeleteUserSkill(ctx, targetUser, "auth-skill")
 	requireSDKErrorStatus(t, err, http.StatusNotFound)
 
-	_, err = admin.CreateUserSkill(ctx, targetUser, codersdk.CreateUserSkillRequest{
+	_, err = admin.CreateUserSkill(ctx, targetUser, codersdk.CreateSkillRequest{
 		Content: userSkillMarkdown("admin-created", "Admin create", "Created by admin."),
 	})
 	requireSDKErrorStatus(t, err, http.StatusForbidden)
@@ -402,8 +431,8 @@ func TestUserSkillAuthorization(t *testing.T) {
 	got, err := admin.UserSkillByName(ctx, targetUser, "auth-skill")
 	require.NoError(t, err)
 	assert.Equal(t, "auth-skill", got.Name)
-	_, err = admin.UpdateUserSkill(ctx, targetUser, "auth-skill", codersdk.UpdateUserSkillRequest{
-		Content: userSkillMarkdown("auth-skill", "Admin update", "Updated by admin."),
+	_, err = admin.UpdateUserSkill(ctx, targetUser, "auth-skill", codersdk.UpdateSkillRequest{
+		Content: ptr.Ref(userSkillMarkdown("auth-skill", "Admin update", "Updated by admin.")),
 	})
 	requireSDKErrorStatus(t, err, http.StatusForbidden)
 	require.NoError(t, admin.DeleteUserSkill(ctx, targetUser, "auth-skill"))
@@ -418,7 +447,7 @@ func TestUserSkillSoftDeleteCleanup(t *testing.T) {
 	owner := codersdk.NewExperimentalClient(ownerClient)
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
-	_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+	_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 		Content: userSkillMarkdown("soft-delete-skill", "Soft delete", "Body."),
 	})
 	require.NoError(t, err)
@@ -566,7 +595,7 @@ func TestUserSkillAudit(t *testing.T) {
 		auditor.ResetLogs()
 		name := genName(t)
 
-		skill, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+		skill, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 			Content: userSkillMarkdown(name, "Audit", "Body."),
 		})
 		require.NoError(t, err)
@@ -583,12 +612,12 @@ func TestUserSkillAudit(t *testing.T) {
 		auditor.ResetLogs()
 		name := genName(t)
 
-		skill, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+		skill, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 			Content: userSkillMarkdown(name, "Initial", "Body."),
 		})
 		require.NoError(t, err)
-		_, err = member.UpdateUserSkill(ctx, codersdk.Me, name, codersdk.UpdateUserSkillRequest{
-			Content: userSkillMarkdown(name, "Updated", "Updated body."),
+		_, err = member.UpdateUserSkill(ctx, codersdk.Me, name, codersdk.UpdateSkillRequest{
+			Content: ptr.Ref(userSkillMarkdown(name, "Updated", "Updated body.")),
 		})
 		require.NoError(t, err)
 
@@ -605,7 +634,7 @@ func TestUserSkillAudit(t *testing.T) {
 		auditor.ResetLogs()
 		name := genName(t)
 
-		skill, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+		skill, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 			Content: userSkillMarkdown(name, "Delete", "Body."),
 		})
 		require.NoError(t, err)
@@ -624,7 +653,7 @@ func TestUserSkillAudit(t *testing.T) {
 		auditor.ResetLogs()
 		name := genName(t)
 
-		_, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+		_, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 			Content: userSkillMarkdown(name, "Read", "Body."),
 		})
 		require.NoError(t, err)
@@ -640,7 +669,7 @@ func TestUserSkillAudit(t *testing.T) {
 	t.Run("ValidationFailureDoesNotEmitLog", func(t *testing.T) {
 		auditor.ResetLogs()
 
-		_, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+		_, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateSkillRequest{
 			Content: userSkillMarkdown("bad-name", "Invalid", "   \n"),
 		})
 		requireSDKErrorStatus(t, err, http.StatusBadRequest)
@@ -650,8 +679,8 @@ func TestUserSkillAudit(t *testing.T) {
 	t.Run("MissingSkillFailuresDoNotEmitLogs", func(t *testing.T) {
 		auditor.ResetLogs()
 
-		_, err := member.UpdateUserSkill(ctx, codersdk.Me, "missing-audit-skill", codersdk.UpdateUserSkillRequest{
-			Content: userSkillMarkdown("missing-audit-skill", "Missing", "Body."),
+		_, err := member.UpdateUserSkill(ctx, codersdk.Me, "missing-audit-skill", codersdk.UpdateSkillRequest{
+			Content: ptr.Ref(userSkillMarkdown("missing-audit-skill", "Missing", "Body.")),
 		})
 		requireSDKErrorStatus(t, err, http.StatusNotFound)
 		err = member.DeleteUserSkill(ctx, codersdk.Me, "missing-audit-skill")

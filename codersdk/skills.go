@@ -10,35 +10,40 @@ import (
 	"github.com/google/uuid"
 )
 
-// UserSkillMetadata represents a user skill without its raw Markdown content.
-type UserSkillMetadata struct {
+// SkillMetadata represents a personal or organization skill without its raw
+// Markdown content.
+type SkillMetadata struct {
 	ID          uuid.UUID `json:"id" format:"uuid"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
+	Enabled     bool      `json:"enabled"`
 	CreatedAt   time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
 }
 
-// UserSkill represents a user skill with its raw Markdown content.
-type UserSkill struct {
-	UserSkillMetadata
+// Skill represents a personal or organization skill with its raw Markdown
+// content.
+type Skill struct {
+	SkillMetadata
 	Content string `json:"content"`
 }
 
-// CreateUserSkillRequest is the payload for creating a user skill.
-type CreateUserSkillRequest struct {
+// CreateSkillRequest is the payload for creating a skill.
+type CreateSkillRequest struct {
 	// Content must be SKILL.md-format Markdown with YAML frontmatter. The
 	// frontmatter must include name, may include description, and must be
 	// followed by a non-empty body.
 	Content string `json:"content"`
 }
 
-// UpdateUserSkillRequest is the payload for updating a user skill.
-type UpdateUserSkillRequest struct {
+// UpdateSkillRequest is the payload for updating a skill. At least one field
+// must be set.
+type UpdateSkillRequest struct {
 	// Content must be SKILL.md-format Markdown with YAML frontmatter. The
 	// frontmatter must include name, may include description, and must be
 	// followed by a non-empty body.
-	Content string `json:"content"`
+	Content *string `json:"content,omitempty"`
+	Enabled *bool   `json:"enabled,omitempty"`
 }
 
 func userSkillsPath(user string) string {
@@ -50,21 +55,21 @@ func userSkillPath(user string, name string) string {
 }
 
 // CreateUserSkill creates a user skill from raw Markdown content.
-func (c *ExperimentalClient) CreateUserSkill(ctx context.Context, user string, req CreateUserSkillRequest) (UserSkill, error) {
+func (c *ExperimentalClient) CreateUserSkill(ctx context.Context, user string, req CreateSkillRequest) (Skill, error) {
 	res, err := c.Request(ctx, http.MethodPost, userSkillsPath(user), req)
 	if err != nil {
-		return UserSkill{}, err
+		return Skill{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return UserSkill{}, ReadBodyAsError(res)
+		return Skill{}, ReadBodyAsError(res)
 	}
-	var skill UserSkill
+	var skill Skill
 	return skill, ReadBodyAsJSON(res, &skill)
 }
 
 // UserSkills lists user skill metadata for the specified user.
-func (c *ExperimentalClient) UserSkills(ctx context.Context, user string) ([]UserSkillMetadata, error) {
+func (c *ExperimentalClient) UserSkills(ctx context.Context, user string) ([]SkillMetadata, error) {
 	res, err := c.Request(ctx, http.MethodGet, userSkillsPath(user), nil)
 	if err != nil {
 		return nil, err
@@ -73,35 +78,35 @@ func (c *ExperimentalClient) UserSkills(ctx context.Context, user string) ([]Use
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	var skills []UserSkillMetadata
+	var skills []SkillMetadata
 	return skills, ReadBodyAsJSON(res, &skills)
 }
 
 // UserSkillByName returns a user skill by name.
-func (c *ExperimentalClient) UserSkillByName(ctx context.Context, user string, name string) (UserSkill, error) {
+func (c *ExperimentalClient) UserSkillByName(ctx context.Context, user string, name string) (Skill, error) {
 	res, err := c.Request(ctx, http.MethodGet, userSkillPath(user, name), nil)
 	if err != nil {
-		return UserSkill{}, err
+		return Skill{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return UserSkill{}, ReadBodyAsError(res)
+		return Skill{}, ReadBodyAsError(res)
 	}
-	var skill UserSkill
+	var skill Skill
 	return skill, ReadBodyAsJSON(res, &skill)
 }
 
-// UpdateUserSkill replaces a user skill's raw Markdown content.
-func (c *ExperimentalClient) UpdateUserSkill(ctx context.Context, user string, name string, req UpdateUserSkillRequest) (UserSkill, error) {
+// UpdateUserSkill updates a user skill's raw Markdown content or enabled state.
+func (c *ExperimentalClient) UpdateUserSkill(ctx context.Context, user string, name string, req UpdateSkillRequest) (Skill, error) {
 	res, err := c.Request(ctx, http.MethodPatch, userSkillPath(user, name), req)
 	if err != nil {
-		return UserSkill{}, err
+		return Skill{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return UserSkill{}, ReadBodyAsError(res)
+		return Skill{}, ReadBodyAsError(res)
 	}
-	var skill UserSkill
+	var skill Skill
 	return skill, ReadBodyAsJSON(res, &skill)
 }
 

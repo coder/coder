@@ -20,10 +20,11 @@ const skill = (
 	name: string,
 	description: string,
 	index: number,
-): TypesGen.UserSkillMetadata => ({
+): TypesGen.SkillMetadata => ({
 	id: `skill-${index}`,
 	name,
 	description,
+	enabled: true,
 	created_at: now,
 	updated_at: now,
 });

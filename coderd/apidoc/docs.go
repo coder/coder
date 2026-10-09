@@ -1416,7 +1416,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.UserSkillMetadata"
+                                "$ref": "#/definitions/codersdk.SkillMetadata"
                             }
                         }
                     }
@@ -1456,7 +1456,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.CreateUserSkillRequest"
+                            "$ref": "#/definitions/codersdk.CreateSkillRequest"
                         }
                     }
                 ],
@@ -1464,7 +1464,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UserSkill"
+                            "$ref": "#/definitions/codersdk.Skill"
                         }
                     }
                 },
@@ -1508,7 +1508,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UserSkill"
+                            "$ref": "#/definitions/codersdk.Skill"
                         }
                     }
                 },
@@ -1590,7 +1590,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateUserSkillRequest"
+                            "$ref": "#/definitions/codersdk.UpdateSkillRequest"
                         }
                     }
                 ],
@@ -1598,7 +1598,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UserSkill"
+                            "$ref": "#/definitions/codersdk.Skill"
                         }
                     }
                 },
@@ -24164,6 +24164,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateSkillRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateTemplateRequest": {
             "type": "object",
             "required": [
@@ -24613,15 +24622,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.CreateUserSkillRequest": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 }
             }
@@ -30403,6 +30403,61 @@ const docTemplate = `{
                 "SharedWorkspaceActorTypeUser"
             ]
         },
+        "codersdk.Skill": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.SkillMetadata": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.SlimRole": {
             "type": "object",
             "properties": {
@@ -32253,6 +32308,18 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateSkillRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.UpdateTemplateACL": {
             "type": "object",
             "properties": {
@@ -32571,15 +32638,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.UpdateUserSkillRequest": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 }
             }
@@ -33292,55 +33350,6 @@ const docTemplate = `{
                 "file_path_delivery_enabled": {
                     "description": "FilePathDeliveryEnabled reports whether Coder writes stored file paths\ninto workspaces. Stored paths are preserved either way.",
                     "type": "boolean"
-                }
-            }
-        },
-        "codersdk.UserSkill": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
-                }
-            }
-        },
-        "codersdk.UserSkillMetadata": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
                 }
             }
         },

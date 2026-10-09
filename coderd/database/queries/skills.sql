@@ -10,7 +10,7 @@ WHERE user_id = @user_id::uuid AND name = @name;
 
 -- name: ListUserSkillMetadataByUserID :many
 SELECT
-    id, user_id, name, description, created_at, updated_at
+    id, user_id, name, description, enabled, created_at, updated_at
 FROM skills
 WHERE user_id = @user_id::uuid
 ORDER BY name ASC;
@@ -18,8 +18,9 @@ ORDER BY name ASC;
 -- name: UpdateUserSkillByUserIDAndName :one
 UPDATE skills
 SET
-    description = @description,
-    content     = @content,
+    description = COALESCE(sqlc.narg('description')::text, description),
+    content     = COALESCE(sqlc.narg('content')::text, content),
+    enabled     = COALESCE(sqlc.narg('enabled')::boolean, enabled),
     updated_at  = now()
 WHERE user_id = @user_id::uuid AND name = @name
 RETURNING *;
