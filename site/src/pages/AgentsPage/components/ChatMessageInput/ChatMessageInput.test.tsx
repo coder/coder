@@ -3,9 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { AgentChatSendShortcut } from "#/api/typesGenerated";
+import { skillsKey } from "#/api/queries/skills";
+import type {
+	AgentChatSendShortcut,
+	SkillMetadata,
+} from "#/api/typesGenerated";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { MockSkill } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
+import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
 const requiredProps = () => ({
@@ -240,6 +246,102 @@ describe("ChatMessageInput", () => {
 
 		await waitFor(() => {
 			expect(inputRef.current?.getValue()).toBe("typed content");
+		});
+	});
+
+	describe("slash menu skill sources", () => {
+		const organizationId = "org-1";
+		const skill = (name: string, enabled = true): SkillMetadata => ({
+			...MockSkill,
+			id: `skill-${name}`,
+			name,
+			description: `${name} description`,
+			enabled,
+		});
+
+		const renderWithSkills = ({
+			personal,
+			organization,
+		}: {
+			personal: SkillMetadata[];
+			organization: SkillMetadata[];
+		}) => {
+			const queryClient = createTestQueryClient();
+			queryClient.setQueryData(
+				skillsKey({ type: "user", user: "me" }),
+				personal,
+			);
+			queryClient.setQueryData(
+				skillsKey({ type: "organization", organizationId }),
+				organization,
+			);
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+					organizationId={organizationId}
+					slashCommands={[COMPACT_SLASH_COMMAND]}
+				/>,
+				queryClient,
+			);
+			return inputRef;
+		};
+
+		const pasteTrigger = async (text: string) => {
+			const user = userEvent.setup();
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			await user.paste(text);
+			return user;
+		};
+
+		it("inserts the bare trigger of an organization skill", async () => {
+			const inputRef = renderWithSkills({
+				personal: [skill("reviewer")],
+				organization: [skill("release-notes")],
+			});
+			const user = await pasteTrigger("/rel");
+			await user.click(
+				await screen.findByRole("option", { name: /release-notes/ }),
+			);
+			expect(inputRef.current?.getValue()).toBe("/release-notes");
+		});
+
+		it("qualifies a name shared by personal and organization skills", async () => {
+			const inputRef = renderWithSkills({
+				personal: [skill("reviewer")],
+				organization: [skill("reviewer")],
+			});
+			const user = await pasteTrigger("/rev");
+			await user.click(
+				await screen.findByRole("option", { name: /\/org\/reviewer/ }),
+			);
+			expect(inputRef.current?.getValue()).toBe("/org/reviewer");
+		});
+
+		it("ignores disabled skills when qualifying triggers", async () => {
+			const inputRef = renderWithSkills({
+				personal: [skill("reviewer")],
+				organization: [skill("reviewer", false)],
+			});
+			const user = await pasteTrigger("/rev");
+			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
+			expect(inputRef.current?.getValue()).toBe("/reviewer");
+		});
+
+		it("hides a built-in command an organization skill shadows", async () => {
+			// With /compact hidden, Enter picks the first personal match.
+			const inputRef = renderWithSkills({
+				personal: [skill("compactor")],
+				organization: [skill("compact")],
+			});
+			const user = await pasteTrigger("/comp");
+			await screen.findByRole("option", { name: /compactor/ });
+			await user.keyboard("{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/compactor");
 		});
 	});
 });

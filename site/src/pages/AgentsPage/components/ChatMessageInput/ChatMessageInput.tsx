@@ -33,7 +33,7 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import { userSkills } from "#/api/queries/skills";
+import { organizationSkills, userSkills } from "#/api/queries/skills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MODIFIER_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import {
@@ -549,6 +549,11 @@ type ChatMessageInputProps = Omit<
 	 */
 	hasWorkspace: boolean;
 	/**
+	 * Organization whose skills the chat loads. Omitted when the
+	 * composer has no organization, so no organization skills apply.
+	 */
+	organizationId?: string;
+	/**
 	 * Story and test seam for deterministic personal skill menu data.
 	 */
 	personalSkillsOverride?: readonly TypesGen.SkillMetadata[];
@@ -633,6 +638,7 @@ const ChatMessageInput = ({
 	acceptFilePasteWhileDisabled,
 	disabled,
 	hasWorkspace,
+	organizationId,
 	personalSkillsOverride,
 	workspaceSkills,
 	slashCommands,
@@ -677,7 +683,20 @@ const ChatMessageInput = ({
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
-	const personalSkills = personalSkillsOverride ?? skillsQuery.data;
+	const organizationSkillsQueryEnabled =
+		hasSkillsTrigger && Boolean(organizationId);
+	const organizationSkillsQuery = useQuery({
+		...organizationSkills(organizationId ?? ""),
+		enabled: organizationSkillsQueryEnabled,
+		staleTime: 60_000,
+	});
+	// chatd skips disabled skills, so they never offer or collide.
+	const personalSkills = (personalSkillsOverride ?? skillsQuery.data)?.filter(
+		(skill) => skill.enabled,
+	);
+	const loadedOrganizationSkills = organizationId
+		? organizationSkillsQuery.data?.filter((skill) => skill.enabled)
+		: [];
 	// Until the chat detail resolves, workspace skills are unknown.
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
@@ -686,6 +705,7 @@ const ChatMessageInput = ({
 	// the submit intercept.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
+		{ source: "org", skills: loadedOrganizationSkills },
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];
 	const availableSlashCommands = (slashCommands ?? []).filter(
@@ -697,6 +717,9 @@ const ChatMessageInput = ({
 	const isResolvedEmptyPersonalSkills =
 		personalSkills?.length === 0 &&
 		(hasPersonalSkillsOverride || !skillsQuery.isFetching);
+	const isResolvedEmptyOrganizationSkills =
+		loadedOrganizationSkills?.length === 0 &&
+		!organizationSkillsQuery.isFetching;
 	// Unknown skills must not close the menu: the trigger plugin records a
 	// closed trigger as dismissed, so skills arriving later could never
 	// reopen it.
@@ -707,7 +730,11 @@ const ChatMessageInput = ({
 	const skillsMenuOpen =
 		hasSkillsTrigger &&
 		(hasSlashCommands ||
-			!(isResolvedEmptyPersonalSkills && isResolvedEmptyWorkspaceSkills));
+			!(
+				isResolvedEmptyPersonalSkills &&
+				isResolvedEmptyOrganizationSkills &&
+				isResolvedEmptyWorkspaceSkills
+			));
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
 	const commandMenuItems: readonly SkillMenuItem[] = filterSkillsByQuery(
 		availableSlashCommands.map(createCommandMenuItem),
@@ -720,16 +747,22 @@ const ChatMessageInput = ({
 			skillsSearchQuery,
 		);
 	const personalSkillItems = filterSkillTriggers("personal");
+	const organizationSkillItems = filterSkillTriggers("org");
 	const workspaceSkillItems = filterSkillTriggers("workspace");
 	const isPersonalSkillsLoading =
 		personalSkillsQueryEnabled &&
 		skillsQuery.isFetching &&
 		skillsQuery.data === undefined;
+	const isOrganizationSkillsLoading =
+		organizationSkillsQueryEnabled &&
+		organizationSkillsQuery.isFetching &&
+		organizationSkillsQuery.data === undefined;
 	const isWorkspaceSkillsLoading = loadedWorkspaceSkills === undefined;
 	// Commands come first so partitioned menu groups match selection order.
 	const allFilteredSkills: readonly SkillMenuItem[] = [
 		...commandMenuItems,
 		...personalSkillItems,
+		...organizationSkillItems,
 		...workspaceSkillItems,
 	];
 	const selectedSkillIndex =
@@ -1005,7 +1038,11 @@ const ChatMessageInput = ({
 				<SkillsTriggerPlugin
 					open={skillsMenuOpen}
 					skills={allFilteredSkills}
-					skillsLoading={isPersonalSkillsLoading || isWorkspaceSkillsLoading}
+					skillsLoading={
+						isPersonalSkillsLoading ||
+						isOrganizationSkillsLoading ||
+						isWorkspaceSkillsLoading
+					}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onTriggerChange={handleSkillsTriggerChange}
@@ -1022,13 +1059,21 @@ const ChatMessageInput = ({
 					query={skillsSearchQuery}
 					commands={commandMenuItems}
 					personalSkills={personalSkillItems}
+					organizationSkills={organizationSkillItems}
 					workspaceSkills={workspaceSkillItems}
+					organizationSkillsEnabled={Boolean(organizationId)}
 					workspaceSkillsEnabled={hasWorkspace}
 					isPersonalLoading={isPersonalSkillsLoading}
 					isPersonalError={
 						personalSkillsQueryEnabled &&
 						skillsQuery.isError &&
 						skillsQuery.data === undefined
+					}
+					isOrganizationLoading={isOrganizationSkillsLoading}
+					isOrganizationError={
+						organizationSkillsQueryEnabled &&
+						organizationSkillsQuery.isError &&
+						organizationSkillsQuery.data === undefined
 					}
 					isWorkspaceLoading={isWorkspaceSkillsLoading}
 					selectedIndex={selectedSkillIndex}

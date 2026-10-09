@@ -23,10 +23,20 @@ const mockWorkspaceSkills: SkillMetadata[] = [
 	},
 ];
 
+const mockOrganizationSkills: SkillMetadata[] = [
+	{
+		name: "release-notes",
+		description: "Write release notes in the organization style.",
+	},
+];
+
 const mockPersonalSkillItems = resolveSkillTriggers([
 	{ source: "personal", skills: MockSkills },
 ]);
 const compactCommandItem = createCommandMenuItem(COMPACT_SLASH_COMMAND);
+const mockOrganizationSkillItems = resolveSkillTriggers([
+	{ source: "org", skills: mockOrganizationSkills },
+]);
 const mockWorkspaceSkillItems = resolveSkillTriggers([
 	{ source: "workspace", skills: mockWorkspaceSkills },
 ]);
@@ -59,10 +69,14 @@ const meta: Meta<typeof SkillsTriggerMenu> = {
 		query: "",
 		commands: [],
 		personalSkills: mockPersonalSkillItems,
+		organizationSkills: [],
 		workspaceSkills: [],
+		organizationSkillsEnabled: false,
 		workspaceSkillsEnabled: false,
 		isPersonalLoading: false,
 		isPersonalError: false,
+		isOrganizationLoading: false,
+		isOrganizationError: false,
 		isWorkspaceLoading: false,
 		onSelectedIndexChange: fn(),
 		selectedIndex: 0,
@@ -92,6 +106,29 @@ export const BothGroups: Story = {
 	},
 };
 
+export const AllSkillGroups: Story = {
+	args: {
+		organizationSkills: mockOrganizationSkillItems,
+		workspaceSkills: mockWorkspaceSkillItems,
+		organizationSkillsEnabled: true,
+		workspaceSkillsEnabled: true,
+	},
+};
+
+export const OrganizationLoading: Story = {
+	args: {
+		organizationSkillsEnabled: true,
+		isOrganizationLoading: true,
+	},
+};
+
+export const OrganizationError: Story = {
+	args: {
+		organizationSkillsEnabled: true,
+		isOrganizationError: true,
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		isPersonalLoading: true,
@@ -112,6 +149,14 @@ export const EmptyWithWorkspace: Story = {
 	args: {
 		personalSkills: [],
 		workspaceSkills: [],
+		workspaceSkillsEnabled: true,
+	},
+};
+
+export const EmptyWithAllSources: Story = {
+	args: {
+		personalSkills: [],
+		organizationSkillsEnabled: true,
 		workspaceSkillsEnabled: true,
 	},
 };
