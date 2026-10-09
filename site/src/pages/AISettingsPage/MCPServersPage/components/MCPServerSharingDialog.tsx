@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import {
 	mcpServerConfigACL,
 	updateMCPServerConfigACL,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { getGroupSubtitle, isGroup } from "#/modules/groups";
 import {
 	ResourceSharingDialog,

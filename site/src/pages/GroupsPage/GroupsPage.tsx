@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	organizationGroupsAISpend,
@@ -11,6 +10,7 @@ import { organizationsPermissions } from "#/api/queries/organizations";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useFilter } from "#/components/Filter/Filter";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";

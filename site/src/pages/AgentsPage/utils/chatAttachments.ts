@@ -1,7 +1,7 @@
-import { toast } from "sonner";
 import { getErrorMessage, isApiErrorResponse } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { decodeDataURL } from "./dataUrls";
 
 const undisplayableAttachmentDetail = "File exists but could not be displayed.";

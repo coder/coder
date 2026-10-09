@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import { ContainerIcon, ExternalLinkIcon } from "lucide-react";
 import { useMutation, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
@@ -27,6 +26,7 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,

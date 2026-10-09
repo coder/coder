@@ -6,7 +6,6 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
 	type ChatAutomationNameMap,
@@ -19,6 +18,7 @@ import {
 } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { useDashboard } from "#/modules/dashboard/useDashboard";

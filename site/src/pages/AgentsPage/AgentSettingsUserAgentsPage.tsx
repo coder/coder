@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	chatModels,
@@ -11,6 +10,7 @@ import type {
 	Organization,
 } from "#/api/typesGenerated";
 import { getOrganizationLabel } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { toast } from "#/components/Toaster/toast";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {

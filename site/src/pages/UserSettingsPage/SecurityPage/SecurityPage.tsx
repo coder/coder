@@ -1,5 +1,4 @@
 import { useMutation, useQuery } from "react-query";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { authMethods, updatePassword } from "#/api/queries/users";
 import { Loader } from "#/components/Loader/Loader";
@@ -7,6 +6,7 @@ import {
 	SettingsHeader,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { SecurityForm } from "./SecurityForm";
 import {

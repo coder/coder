@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import {
 	updateUserQuietHoursSchedule,
 	userQuietHoursSchedule,
@@ -12,6 +11,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { ScheduleForm } from "./ScheduleForm";
 

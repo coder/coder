@@ -7,7 +7,6 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	chatDebugRun,
@@ -19,6 +18,7 @@ import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import { DebugRunList } from "./DebugRunList";
 import {
 	buildChatDebugExport,

@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	type selectTemplatesByGroup,
@@ -15,6 +14,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import { toast } from "#/components/Toaster/toast";
 import {
 	castNotificationMethod,
 	methodIcons,

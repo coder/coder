@@ -2,7 +2,6 @@ import { EllipsisVerticalIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	deleteChatProject,
@@ -19,6 +18,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { draftStorageKeys } from "../AgentCreateForm";

@@ -2,11 +2,11 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { Outlet, useParams } from "react-router";
-import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { archiveAndDeleteChatKey, chatEntityKey } from "#/api/queries/chats";
 import type { Chat, WorkspaceBuild } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import {

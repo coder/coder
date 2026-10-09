@@ -2,10 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from "react-router";
-import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { Chat } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
 import {

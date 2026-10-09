@@ -3,7 +3,6 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	aiProvider,
@@ -18,6 +17,7 @@ import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { Loader } from "#/components/Loader/Loader";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
+import { toast } from "#/components/Toaster/toast";
 import { getProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { pageTitle } from "#/utils/page";
 import { ProviderForm } from "../components/ProviderForm";

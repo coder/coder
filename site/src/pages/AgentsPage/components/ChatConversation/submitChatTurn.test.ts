@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("sonner", () => ({
+vi.mock("#/components/Toaster/toast", () => ({
 	toast: {
 		info: vi.fn(),
 		error: vi.fn(),
 	},
 }));
 
-import { toast } from "sonner";
 import type { ChatMessage } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	MockChatMessage,

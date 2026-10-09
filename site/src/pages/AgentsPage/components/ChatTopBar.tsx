@@ -17,7 +17,6 @@ import {
 	useQueryClient,
 } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import {
@@ -31,6 +30,7 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parsePullRequestUrl } from "../utils/pullRequest";

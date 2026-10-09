@@ -15,7 +15,6 @@ import {
 import { useId, useState } from "react";
 import { useIsMutating, useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	archiveAndDeleteChat,
@@ -44,6 +43,7 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { toast } from "#/components/Toaster/toast";
 import { useClipboard } from "#/hooks/useClipboard";
 import {
 	type ArchiveAndDeleteAction,

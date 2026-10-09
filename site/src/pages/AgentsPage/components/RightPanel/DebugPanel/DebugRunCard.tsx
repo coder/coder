@@ -2,7 +2,6 @@ import { cn } from "cn";
 import { ChevronDownIcon, DownloadIcon } from "lucide-react";
 import { useId, useState } from "react";
 import { useQuery } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { chatDebugRun } from "#/api/queries/chats";
 import type { ChatDebugRunSummary } from "#/api/typesGenerated";
@@ -15,6 +14,7 @@ import {
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import { DebugStepCard } from "./DebugStepCard";
 import {
 	buildDebugExportBlob,

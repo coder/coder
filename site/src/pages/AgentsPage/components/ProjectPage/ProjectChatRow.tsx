@@ -2,7 +2,6 @@ import { cn } from "cn";
 import { EllipsisVerticalIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, useLocation } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	archiveChat,
@@ -17,6 +16,7 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { toast } from "#/components/Toaster/toast";
 import { formatCostMicros } from "#/utils/currency";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { buildAgentChatPath } from "../../utils/navigation";

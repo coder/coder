@@ -2,9 +2,9 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { act } from "react";
 import { QueryClientProvider } from "react-query";
-import { toast } from "sonner";
 import * as API from "#/api/api";
 import type { WorkspaceAgentListContainersResponse } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import {
 	MockWorkspaceAgent,
 	MockWorkspaceAgentDevcontainer,

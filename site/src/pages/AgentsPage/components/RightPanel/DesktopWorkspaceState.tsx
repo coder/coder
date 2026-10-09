@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
 import { API, ParameterValidationError } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import { startWorkspace } from "#/api/queries/workspaces";
@@ -12,6 +11,7 @@ import type {
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 
 /** Build statuses in which the workspace is not running and not in flight. */
 const stoppedWorkspaceStatuses: readonly WorkspaceStatus[] = [

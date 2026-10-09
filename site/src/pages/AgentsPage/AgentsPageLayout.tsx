@@ -14,7 +14,6 @@ import {
 	useParams,
 	useSearchParams,
 } from "react-router";
-import { toast } from "sonner";
 import { watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -42,6 +41,7 @@ import {
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationId,

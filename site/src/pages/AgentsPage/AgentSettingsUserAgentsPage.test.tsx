@@ -2,13 +2,13 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import {
 	chatModels,
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
+import { toast } from "#/components/Toaster/toast";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
