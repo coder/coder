@@ -36,10 +36,6 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
 	return (
 		<button
 			className={cn(
-				// Text states match SettingsSidebarNavItem. The left bar matches
-				// the AI settings sub-nav and gives the selected state at least 3:1
-				// contrast with adjacent colors (WCAG 1.4.11). pl-3.5 plus the 2px
-				// border keeps content 16px from the edge.
 				"text-sm text-content-secondary font-medium py-2 pl-3.5 pr-4 text-left bg-transparent cursor-pointer",
 				"border-0 border-l-2 border-solid border-l-transparent",
 				"hover:bg-surface-secondary transition ease-in-out duration-150",
