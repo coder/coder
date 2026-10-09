@@ -1386,9 +1386,16 @@ func New(options *Options) *API {
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			r.Get("/", api.getOrganizationSkills)
+			r.Post("/", api.postOrganizationSkill)
 			r.Route("/{skillName}", func(r chi.Router) {
 				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
 					policy.ActionRead, policy.ActionUpdate, policy.ActionDelete)).Get("/", api.getOrganizationSkill)
+				// Readers reach the handlers, where the database wrapper denies
+				// the mutation with 403 rather than concealing the skill.
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead, policy.ActionUpdate)).Patch("/", api.patchOrganizationSkill)
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead, policy.ActionDelete)).Delete("/", api.deleteOrganizationSkill)
 			})
 		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)

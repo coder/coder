@@ -131,6 +131,21 @@ func organizationSkillPath(organizationID uuid.UUID, name string) string {
 	return fmt.Sprintf("%s/%s", organizationSkillsPath(organizationID), url.PathEscape(name))
 }
 
+// CreateOrganizationSkill creates an organization skill from raw Markdown
+// content.
+func (c *ExperimentalClient) CreateOrganizationSkill(ctx context.Context, organizationID uuid.UUID, req CreateSkillRequest) (Skill, error) {
+	res, err := c.Request(ctx, http.MethodPost, organizationSkillsPath(organizationID), req)
+	if err != nil {
+		return Skill{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return Skill{}, ReadBodyAsError(res)
+	}
+	var skill Skill
+	return skill, ReadBodyAsJSON(res, &skill)
+}
+
 // OrganizationSkills lists the organization skill metadata the caller can
 // read.
 func (c *ExperimentalClient) OrganizationSkills(ctx context.Context, organizationID uuid.UUID) ([]SkillMetadata, error) {
@@ -158,4 +173,32 @@ func (c *ExperimentalClient) OrganizationSkillByName(ctx context.Context, organi
 	}
 	var skill Skill
 	return skill, ReadBodyAsJSON(res, &skill)
+}
+
+// UpdateOrganizationSkill updates an organization skill's raw Markdown content
+// or enabled state.
+func (c *ExperimentalClient) UpdateOrganizationSkill(ctx context.Context, organizationID uuid.UUID, name string, req UpdateSkillRequest) (Skill, error) {
+	res, err := c.Request(ctx, http.MethodPatch, organizationSkillPath(organizationID, name), req)
+	if err != nil {
+		return Skill{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Skill{}, ReadBodyAsError(res)
+	}
+	var skill Skill
+	return skill, ReadBodyAsJSON(res, &skill)
+}
+
+// DeleteOrganizationSkill deletes an organization skill by name.
+func (c *ExperimentalClient) DeleteOrganizationSkill(ctx context.Context, organizationID uuid.UUID, name string) error {
+	res, err := c.Request(ctx, http.MethodDelete, organizationSkillPath(organizationID, name), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
