@@ -692,6 +692,8 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 		return err
 	}
 
+	logger.Info(ctx, "computed command", slog.F("command", cmd.String()))
+
 	if ssh.AgentRequested(session) {
 		l, err := ssh.NewAgentListener()
 		if err != nil {

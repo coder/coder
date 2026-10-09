@@ -139,3 +139,31 @@ func Test_Start_cancel_context(t *testing.T) {
 		t.Error("cmd.Wait() timed out")
 	}
 }
+
+func Test_Cmd_String(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		command pty.Cmd
+		expect  string
+	}{
+		{
+			expect: "",
+		},
+		{
+			command: pty.Cmd{
+				Path: "/bin/foo",
+			},
+			expect: "/bin/foo",
+		},
+		{
+			command: pty.Cmd{
+				Path: "foo",
+				Args: []string{"/bin/bash", "-l"},
+			},
+			expect: "/bin/bash -l",
+		},
+	}
+	for _, tc := range tests {
+		require.Equal(t, tc.expect, tc.command.String())
+	}
+}
