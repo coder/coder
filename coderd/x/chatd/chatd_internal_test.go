@@ -2106,10 +2106,10 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 		}
 
 		db.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), params).DoAndReturn(
-			func(ctx context.Context, gotParams database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+			func(ctx context.Context, gotParams database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, params, gotParams)
-				return database.UserSkill{
+				return database.Skill{
 					UserID:  userID,
 					Name:    "personal-review",
 					Content: "---\nname: personal-review\ndescription: Personal review process\n---\n\nUpdated instructions.\n",
@@ -2138,10 +2138,10 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 		}
 
 		db.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), params).DoAndReturn(
-			func(ctx context.Context, gotParams database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+			func(ctx context.Context, gotParams database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, params, gotParams)
-				return database.UserSkill{}, sql.ErrNoRows
+				return database.Skill{}, sql.ErrNoRows
 			},
 		)
 
@@ -2164,10 +2164,10 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 		dbErr := xerrors.New("database unavailable")
 
 		db.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), params).DoAndReturn(
-			func(ctx context.Context, gotParams database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+			func(ctx context.Context, gotParams database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, params, gotParams)
-				return database.UserSkill{}, dbErr
+				return database.Skill{}, dbErr
 			},
 		)
 
@@ -2196,10 +2196,10 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 		}
 
 		db.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), params).DoAndReturn(
-			func(ctx context.Context, gotParams database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+			func(ctx context.Context, gotParams database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, params, gotParams)
-				return database.UserSkill{
+				return database.Skill{
 					UserID:  userID,
 					Name:    "broken-skill",
 					Content: "---\nname: broken-skill\ndescription: Broken\n---\n\n   \n",

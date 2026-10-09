@@ -405,6 +405,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
 		{"Migration000602RestoreAgentsAccessDefaultRole", 602, testMigration000602RestoreAgentsAccessDefaultRole},
 		{"Migration000606ChatDiffStatusOriginCredentials", 606, testMigration000606ChatDiffStatusOriginCredentials},
+		{"Migration000614RenameUserSkillsToSkills", 614, testMigration000614RenameUserSkillsToSkills},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -1839,6 +1840,126 @@ func testMigration000606ChatDiffStatusOriginCredentials(t *testing.T, sqlDB *sql
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func testMigration000614RenameUserSkillsToSkills(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 614
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	insertUser := func() uuid.UUID {
+		t.Helper()
+		id := uuid.New()
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO users (id, username, email, hashed_password, created_at, updated_at) VALUES ($1, $2, $3, '', NOW(), NOW())",
+			id, id.String(), id.String()+"@test.com")
+		require.NoError(t, err)
+		return id
+	}
+	type skillQueries struct{ insert, exists string }
+	userSkillsTable := skillQueries{
+		insert: "INSERT INTO user_skills (id, user_id, name, description, content) VALUES ($1, $2, $3, 'desc', 'body')",
+		exists: "SELECT EXISTS (SELECT 1 FROM user_skills WHERE id = $1)",
+	}
+	skillsTable := skillQueries{
+		insert: "INSERT INTO skills (id, user_id, name, description, content) VALUES ($1, $2, $3, 'desc', 'body')",
+		exists: "SELECT EXISTS (SELECT 1 FROM skills WHERE id = $1)",
+	}
+	insertSkill := func(q skillQueries, userID uuid.UUID) uuid.UUID {
+		t.Helper()
+		id := uuid.New()
+		_, err := sqlDB.ExecContext(ctx, q.insert, id, userID, "skill-"+id.String())
+		require.NoError(t, err)
+		return id
+	}
+	// Soft deletion runs delete_deleted_user_resources, whose body must name
+	// the current table.
+	softDeleteRemovesSkills := func(q skillQueries) {
+		t.Helper()
+		userID := insertUser()
+		skillID := insertSkill(q, userID)
+		_, err := sqlDB.ExecContext(ctx, "UPDATE users SET deleted = true WHERE id = $1", userID)
+		require.NoError(t, err)
+		var exists bool
+		err = sqlDB.QueryRowContext(ctx, q.exists, skillID).Scan(&exists)
+		require.NoError(t, err)
+		require.False(t, exists)
+	}
+	schemaNames := func(table string) []string {
+		t.Helper()
+		rows, err := sqlDB.QueryContext(ctx, `
+			SELECT conname::text FROM pg_constraint WHERE conrelid = $1::regclass
+			UNION SELECT indexname::text FROM pg_indexes WHERE tablename = $1::text
+			UNION SELECT tgname::text || ':' || tgfoid::regproc::text FROM pg_trigger WHERE tgrelid = $1::regclass AND NOT tgisinternal
+			ORDER BY 1`, table)
+		require.NoError(t, err)
+		defer rows.Close()
+		var names []string
+		for rows.Next() {
+			var name string
+			require.NoError(t, rows.Scan(&name))
+			names = append(names, name)
+		}
+		require.NoError(t, rows.Err())
+		return names
+	}
+	oldNames := []string{
+		"trigger_upsert_user_skills:insert_user_skill_fail_if_user_deleted",
+		"trigger_user_skills_per_user_limit:enforce_user_skills_per_user_limit",
+		"user_skills_content_size",
+		"user_skills_description_size",
+		"user_skills_name_format",
+		"user_skills_name_size",
+		"user_skills_pkey",
+		"user_skills_user_id_fkey",
+		"user_skills_user_id_name_idx",
+	}
+	require.Equal(t, oldNames, schemaNames("user_skills"))
+
+	userID := insertUser()
+	skillID := insertSkill(userSkillsTable, userID)
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	require.Equal(t, []string{
+		"skills_content_size",
+		"skills_description_size",
+		"skills_name_format",
+		"skills_name_size",
+		"skills_pkey",
+		"skills_user_id_fkey",
+		"skills_user_id_name_idx",
+		"trigger_skills_per_user_limit:enforce_skills_per_user_limit",
+		"trigger_upsert_skills:insert_user_skill_fail_if_user_deleted",
+	}, schemaNames("skills"))
+	var gotUserID uuid.UUID
+	var name, description, content string
+	err = sqlDB.QueryRowContext(ctx, "SELECT user_id, name, description, content FROM skills WHERE id = $1", skillID).
+		Scan(&gotUserID, &name, &description, &content)
+	require.NoError(t, err)
+	require.Equal(t, userID, gotUserID)
+	require.Equal(t, "skill-"+skillID.String(), name)
+	require.Equal(t, "desc", description)
+	require.Equal(t, "body", content)
+	softDeleteRemovesSkills(skillsTable)
+
+	downSQL, err := os.ReadFile("000614_rename_user_skills_to_skills.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	require.Equal(t, oldNames, schemaNames("user_skills"))
+	softDeleteRemovesSkills(userSkillsTable)
+
+	upSQL, err := os.ReadFile("000614_rename_user_skills_to_skills.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	var exists bool
+	err = sqlDB.QueryRowContext(ctx, skillsTable.exists, skillID).Scan(&exists)
+	require.NoError(t, err)
+	require.True(t, exists)
+	softDeleteRemovesSkills(skillsTable)
 }
 
 func TestMigration000504AIProvidersBackfill(t *testing.T) {

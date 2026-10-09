@@ -668,6 +668,23 @@ Actions: `create`, `write`, `delete`
 </tbody>
 </table>
 
+### Skill
+
+Actions: `create`, `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>content</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
 ### Template
 
 Actions: `write`, `delete`
@@ -793,23 +810,6 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>user_id</code></td><td>Yes</td></tr>
 <tr><td><code>value</code></td><td>Yes</td></tr>
 <tr><td><code>value_key_id</code></td><td>No</td></tr>
-</tbody>
-</table>
-
-### UserSkill
-
-Actions: `create`, `write`, `delete`
-
-<table width="100%">
-<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
-<tbody>
-<tr><td><code>content</code></td><td>Yes</td></tr>
-<tr><td><code>created_at</code></td><td>No</td></tr>
-<tr><td><code>description</code></td><td>Yes</td></tr>
-<tr><td><code>id</code></td><td>Yes</td></tr>
-<tr><td><code>name</code></td><td>Yes</td></tr>
-<tr><td><code>updated_at</code></td><td>No</td></tr>
-<tr><td><code>user_id</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 

@@ -420,8 +420,8 @@ func Test_diff(t *testing.T) {
 			// User skill content is user-authored instruction text, not secret
 			// material, so audit diffs can include the content change.
 			name: "UserSkillContentTracked",
-			left: audit.Empty[database.UserSkill](),
-			right: database.UserSkill{
+			left: audit.Empty[database.Skill](),
+			right: database.Skill{
 				ID:          uuid.UUID{1},
 				UserID:      uuid.UUID{2},
 				Name:        "review-guidance",

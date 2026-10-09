@@ -2435,7 +2435,7 @@ func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
 }
 
 // UserSkill converts a database UserSkill to an SDK UserSkill.
-func UserSkill(skill database.UserSkill) codersdk.UserSkill {
+func UserSkill(skill database.Skill) codersdk.UserSkill {
 	return codersdk.UserSkill{
 		UserSkillMetadata: codersdk.UserSkillMetadata{
 			ID:          skill.ID,

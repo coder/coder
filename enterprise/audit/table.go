@@ -40,7 +40,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"ChatAutomation":                {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Skill":                         {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
 	"ChatOperationalSettings":       {codersdk.AuditActionWrite},
 	"ChatOrganizationSystemPrompt":  {codersdk.AuditActionWrite},
@@ -609,7 +609,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"oauth2_revocation_url":       ActionTrack,
 		"organization_id":             ActionIgnore,
 	},
-	&database.UserSkill{}: {
+	&database.Skill{}: {
 		"id":          ActionTrack,
 		"user_id":     ActionTrack,
 		"name":        ActionTrack,
