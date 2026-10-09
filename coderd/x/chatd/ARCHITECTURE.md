@@ -1336,7 +1336,7 @@ Initial null state:
 - preview part sequence is `0`;
 - `attempt_retired` is false;
 
-A client may open the stream with the `history_version` parameter, taken from the newest messages page or its last `preview_reset` event. Throughout this document, a stream opened with `history_version` means one opened with a non-zero value; zero, the version of a chat with no messages, is the same as omitting the parameter. The synchronized `history_version` then starts at that value, so the first sync sends only history changed after it. The endpoint then ignores `after_id`, because a client can hold a message ID without holding every message below it.
+A client may open the stream with the `history_version` parameter, taken from the newest messages page or its last `preview_reset` event. Throughout this document, a stream opened with `history_version` means one opened with a non-zero value; zero, the version of a chat with no messages, is the same as omitting the parameter. The synchronized `history_version` then starts at that value, so the first sync sends only history changed after it. The endpoint then ignores `after_id`, because a client can hold a message ID without holding every message below it. It rejects a value above the chat's `history_version`, which no client can have read.
 
 ## Stream loop operations
 
