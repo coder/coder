@@ -619,7 +619,7 @@ export const WorkspaceTerminal = ({
 
 				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-thumb {
 					min-height: 20px;
-					background-color: hsl(var(--surface-quaternary));
+					background-color: hsl(var(--surface-invert-secondary));
 				}
 			`}</style>
 			<ContextMenu onOpenChange={handleContextMenuOpenChange}>
