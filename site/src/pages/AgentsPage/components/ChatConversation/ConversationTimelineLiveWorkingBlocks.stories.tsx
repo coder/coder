@@ -147,15 +147,7 @@ export const AnswerStreamsAfterBlock: Story = {
 			{ type: "text", text: "The workspace looks healthy." },
 		]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Working for 12s" }),
-		);
-
-		// The answer text streams in through the smoothing buffer.
-		await canvas.findByText("The workspace looks healthy.");
-	},
+	play: expandBlock("Working for 12s"),
 };
 
 // Narration before a web search stays in the live block, and the answer, cited
@@ -189,14 +181,7 @@ export const SearchAnswerStreamsAfterBlock: Story = {
 			{ type: "text", text: " is v2.30." },
 		]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Working for 12s" }),
-		);
-
-		await canvas.findByText("The latest Coder release is v2.30.");
-	},
+	play: expandBlock("Working for 12s"),
 };
 
 export const RequiresActionCompletesBlock: Story = {
