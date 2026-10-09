@@ -19,9 +19,9 @@ export type SkillTrigger = {
 };
 
 /**
- * Builds the "/" trigger for every skill. A name in more than one source is
- * qualified in each, as chatd's MergeSkills requires. Unknown lists and
- * workspace skills also get the qualified alias, which always resolves.
+ * Builds every "/" trigger. Workspace skills and names in more than one
+ * source (chatd's MergeSkills) are qualified, as is every trigger while any
+ * list is unknown.
  */
 export const resolveSkillTriggers = (
 	lists: readonly SkillSourceList<{ name: string; description: string }>[],

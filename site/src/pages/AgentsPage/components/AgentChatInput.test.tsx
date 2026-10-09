@@ -10,9 +10,12 @@ import { createRef } from "react";
 import { toast } from "sonner";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
+import { skillsKey } from "#/api/queries/skills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { createMockFile } from "#/testHelpers/files";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { MockSkill } from "#/testHelpers/skills";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
@@ -180,6 +183,34 @@ describe("AgentChatInput", () => {
 		});
 		await user.keyboard("{Enter}");
 		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("offers the chat organization's skills in the slash menu", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(skillsKey({ type: "user", user: "me" }), []);
+		queryClient.setQueryData(
+			skillsKey({ type: "organization", organizationId: "org-1" }),
+			[{ ...MockSkill, name: "release-notes" }],
+		);
+
+		render(
+			<AppProviders queryClient={queryClient}>
+				<AgentChatInput
+					{...inputProps}
+					inputRef={inputRef}
+					chatOrganizationId="org-1"
+				/>
+			</AppProviders>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("/rel");
+		await user.click(
+			await screen.findByRole("option", { name: /release-notes/ }),
+		);
+		expect(inputRef.current?.getValue()).toBe("/release-notes");
 	});
 
 	it("attaches supported dropped files and reports unsupported ones", () => {
