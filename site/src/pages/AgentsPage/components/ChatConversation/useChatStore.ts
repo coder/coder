@@ -86,7 +86,17 @@ const readQueuedMessagesFromCache = (
 	>(chatMessagesKey(chatID))?.pages[0]?.queued_messages;
 };
 
-// Lets a remounted chat open the stream at the version it last synchronized.
+// The stream opens at the cached newest page's history version, which the
+// first load sets and each preview_reset advances. A page without one keeps
+// the chat on after_id.
+const readHistoryVersionFromCache = (
+	queryClient: QueryClient,
+	chatID: string,
+): number | undefined =>
+	queryClient.getQueryData<
+		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+	>(chatMessagesKey(chatID))?.pages[0]?.history_version;
+
 const writeHistoryVersionToCache = (
 	queryClient: QueryClient,
 	chatID: string,
@@ -192,30 +202,6 @@ export const useChatStore = (
 				? chatMessages[chatMessages.length - 1].id
 				: undefined;
 	});
-
-	// The history version the stream reconnects with. It is taken from the
-	// chat's first loaded page and then advances only on preview_reset events,
-	// because a refetched page does not remove every deleted message from the
-	// store. A first page without a version keeps the chat on after_id.
-	const historyVersionRef = useRef<
-		{ chatID: string; version: number | undefined } | undefined
-	>(undefined);
-	const pageLoaded = chatMessagesData !== undefined;
-	const pageHistoryVersion = chatMessagesData?.history_version;
-	useEffect(() => {
-		if (
-			!chatID ||
-			!pageLoaded ||
-			historyVersionRef.current?.chatID === chatID
-		) {
-			return;
-		}
-		historyVersionRef.current = { chatID, version: pageHistoryVersion };
-	}, [chatID, pageLoaded, pageHistoryVersion]);
-	const historyVersionFor = (id: string): number | undefined =>
-		historyVersionRef.current?.chatID === id
-			? historyVersionRef.current.version
-			: undefined;
 
 	// Wrap error-reason callbacks so the WebSocket effect can call
 	// them without including them in its dependency array.
@@ -592,7 +578,6 @@ export const useChatStore = (
 						store.clearStreamState();
 						const version = streamEvent.preview_reset?.history_version;
 						if (version !== undefined) {
-							historyVersionRef.current = { chatID, version };
 							syncedHistoryVersion = version;
 						}
 						continue;
@@ -769,7 +754,7 @@ export const useChatStore = (
 				const socket = watchChat(
 					chatID,
 					lastMessageIdRef.current,
-					historyVersionFor(chatID),
+					readHistoryVersionFromCache(queryClient, chatID),
 				);
 				socket.addEventListener("message", handleMessage);
 				return socket;
