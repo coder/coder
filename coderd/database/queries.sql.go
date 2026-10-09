@@ -11302,6 +11302,35 @@ func (q *sqlQuerier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID)
 	return items, nil
 }
 
+const getChatTurnStartID = `-- name: GetChatTurnStartID :one
+SELECT
+    id
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND id <= $2::bigint
+    AND deleted = false
+    AND role = 'user'
+    AND visibility IN ('user', 'both')
+ORDER BY
+    id DESC
+LIMIT
+    1
+`
+
+type GetChatTurnStartIDParams struct {
+	ChatID    uuid.UUID `db:"chat_id" json:"chat_id"`
+	MessageID int64     `db:"message_id" json:"message_id"`
+}
+
+func (q *sqlQuerier) GetChatTurnStartID(ctx context.Context, arg GetChatTurnStartIDParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getChatTurnStartID, arg.ChatID, arg.MessageID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getChatUserPromptsByChatID = `-- name: GetChatUserPromptsByChatID :many
 SELECT
     cm.id,
