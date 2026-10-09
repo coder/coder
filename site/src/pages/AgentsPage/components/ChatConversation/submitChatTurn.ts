@@ -64,9 +64,10 @@ export type SubmitChatTurnParams = {
 	onRequestError: (error: unknown) => void;
 	invalidateChat: (chatId: string) => void;
 	scrollToEnd: (options: { behavior: "smooth" }) => void;
-	applyResponseMessages: (
+	applySendResponse: (messages: readonly TypesGen.ChatMessage[]) => void;
+	applyEditResponse: (
 		messages: readonly TypesGen.ChatMessage[],
-		fromID?: number,
+		editedMessageID: number,
 	) => void;
 	getCacheQueuedMessages: () =>
 		| readonly TypesGen.ChatQueuedMessage[]
@@ -274,7 +275,8 @@ export async function submitChatTurn(
 		onRequestError,
 		invalidateChat,
 		scrollToEnd,
-		applyResponseMessages,
+		applySendResponse,
+		applyEditResponse,
 		getCacheQueuedMessages,
 		setCacheQueuedMessages,
 		fetchQueueConvergence,
@@ -343,13 +345,9 @@ export async function submitChatTurn(
 					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
 				})
 			: undefined;
-		const previousSnapshot = store.getSnapshot();
-		clearChatErrorReason(agentId);
-		store.clearStreamError();
+		const previousChatStatus = store.getSnapshot().chatStatus;
 		store.batch(() => {
-			store.setQueuedMessages([]);
 			store.setChatStatus("running");
-			store.clearStreamState();
 			store.setPendingEdit({
 				messageID: editedMessageID,
 				placeholder: optimisticMessage,
@@ -364,7 +362,7 @@ export async function submitChatTurn(
 		} catch (error) {
 			store.batch(() => {
 				store.setPendingEdit(null);
-				restoreOptimisticRequestSnapshot(store, previousSnapshot);
+				store.setChatStatus(previousChatStatus);
 			});
 			onRequestError(error);
 			// Hook dispatch failures can park an idle chat in error before
@@ -373,10 +371,7 @@ export async function submitChatTurn(
 			invalidateChat(agentId);
 			throw error;
 		}
-		applyResponseMessages(
-			response.messages ?? [response.message],
-			editedMessageID,
-		);
+		applyEditResponse(response.messages ?? [response.message], editedMessageID);
 		scrollToEnd({ behavior: "smooth" });
 		return;
 	}
@@ -426,7 +421,7 @@ export async function submitChatTurn(
 	const insertedMessages =
 		response.messages ?? (response.message ? [response.message] : []);
 	if (insertedMessages.length > 0) {
-		applyResponseMessages(insertedMessages);
+		applySendResponse(insertedMessages);
 		if (response.queued) {
 			applyQueuedSendReconciliation({
 				store,

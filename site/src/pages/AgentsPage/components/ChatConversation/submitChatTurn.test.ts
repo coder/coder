@@ -20,7 +20,12 @@ import {
 import { createDeferred } from "#/testHelpers/deferred";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
 import { NIL_UUID } from "../../utils/modelOptions";
-import { createChatStore, visibleMessages } from "./chatStore";
+import {
+	createChatStore,
+	selectQueuedMessages,
+	selectStreamState,
+	visibleMessages,
+} from "./chatStore";
 import {
 	resolveEditModelConfigID,
 	type SubmitChatTurnParams,
@@ -67,7 +72,8 @@ const buildParams = (
 		onRequestError: vi.fn(),
 		invalidateChat: vi.fn(),
 		scrollToEnd: vi.fn(),
-		applyResponseMessages: vi.fn(),
+		applySendResponse: vi.fn(),
+		applyEditResponse: vi.fn(),
 		getCacheQueuedMessages: vi.fn(),
 		setCacheQueuedMessages: vi.fn(),
 		fetchQueueConvergence: vi.fn().mockResolvedValue({
@@ -287,7 +293,7 @@ describe("submitChatTurn", () => {
 			response.resolve({ message: replacement, deleted_message_ids: [5, 6] });
 			await submitted;
 
-			expect(params.applyResponseMessages).toHaveBeenCalledWith(
+			expect(params.applyEditResponse).toHaveBeenCalledWith(
 				[replacement],
 				5,
 			);
@@ -306,6 +312,21 @@ describe("submitChatTurn", () => {
 			expect(params.onRequestError).toHaveBeenCalledWith(error);
 			expect(params.acceptServerChatStatus).toHaveBeenCalled();
 			expect(params.invalidateChat).toHaveBeenCalledWith("chat-1");
+		});
+
+		it("keeps the queue and the stream the stream delivered meanwhile when the edit fails", async () => {
+			const { store, response, submitted } = startEdit();
+			// The turn the edit would replace streams and queues meanwhile.
+			store.applyMessagePart({ type: "text", text: "partial" });
+			const queued = { ...MockChatQueuedMessage, id: 10 };
+			store.applyAuthoritativeQueuedMessages([queued]);
+
+			response.reject(new Error("edit rejected"));
+			await expect(submitted).rejects.toThrow("edit rejected");
+
+			const state = store.getSnapshot();
+			expect(selectQueuedMessages(state)).toEqual([queued]);
+			expect(selectStreamState(state)).not.toBeNull();
 		});
 	});
 
@@ -367,13 +388,13 @@ describe("submitChatTurn", () => {
 			queued: false,
 			message: inserted,
 		});
-		const applyResponseMessages = vi.fn();
+		const applySendResponse = vi.fn();
 
 		await submitChatTurn(
 			buildParams({
 				store,
 				sendMessage,
-				applyResponseMessages,
+				applySendResponse,
 			}),
 		);
 
@@ -383,7 +404,7 @@ describe("submitChatTurn", () => {
 				mcp_server_ids: ["mcp-1"],
 			}),
 		);
-		expect(applyResponseMessages).toHaveBeenCalledWith([inserted]);
+		expect(applySendResponse).toHaveBeenCalledWith([inserted]);
 		expect(store.getSnapshot().chatStatus).toBe("running");
 	});
 

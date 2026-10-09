@@ -3,6 +3,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	createChatStore,
 	selectIsAwaitingFirstStreamChunk,
+	selectQueuedMessages,
+	selectRetryState,
+	selectStreamError,
+	selectStreamState,
 	visibleMessages,
 } from "./chatStore";
 
@@ -1045,6 +1049,8 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 			makeMessage(2, "assistant", "answer"),
 		]);
 		store.setChatStatus("running");
+		// The answer is still streaming when the edit starts.
+		store.applyMessagePart({ type: "text", text: "partial" });
 		store.setPendingEdit({
 			messageID: 1,
 			placeholder: makeMessage(1, "user", "edited question"),
@@ -1122,6 +1128,68 @@ describe("pending edit", () => {
 		]);
 
 		expect(shown(store)).toEqual(["1:m1", "2:m2", "5:edited"]);
+	});
+
+	// The queue, live output, error and retry of the turn being replaced.
+	const replacedTurn = (store: ReturnType<typeof createChatStore>) => {
+		const state = store.getSnapshot();
+		return {
+			queue: selectQueuedMessages(state).map((message) => message.id),
+			streaming: selectStreamState(state) !== null,
+			error: selectStreamError(state)?.message,
+			retrying: selectRetryState(state) !== null,
+		};
+	};
+	const storeWithTurn = () => {
+		const store = storeWith(1, 2, 3, 4);
+		store.applyAuthoritativeQueuedMessages([makeQueuedMessage(10, "q10")]);
+		store.applyMessagePart({ type: "text", text: "partial" });
+		store.setStreamError({ kind: "generic", message: "failed" });
+		store.setRetryState({ attempt: 1, error: "retrying", kind: "generic" });
+		return store;
+	};
+
+	it("hides the replaced turn while pending and shows it as the stream left it when the edit is dropped", () => {
+		const store = storeWithTurn();
+		store.setPendingEdit({ messageID: 3 });
+
+		expect(replacedTurn(store)).toEqual({
+			queue: [],
+			streaming: false,
+			error: undefined,
+			retrying: false,
+		});
+
+		store.applyAuthoritativeQueuedMessages([
+			makeQueuedMessage(10, "q10"),
+			makeQueuedMessage(11, "q11"),
+		]);
+		store.setPendingEdit(null);
+
+		expect(replacedTurn(store)).toEqual({
+			queue: [10, 11],
+			streaming: true,
+			error: "failed",
+			retrying: true,
+		});
+	});
+
+	it("discards the replaced turn when the history no longer holds the edited message", () => {
+		const store = storeWithTurn();
+		store.setPendingEdit({ messageID: 3 });
+
+		store.replaceMessages([
+			makeMessage(1, "user", "m1"),
+			makeMessage(2, "assistant", "m2"),
+			makeMessage(5, "user", "edited"),
+		]);
+
+		expect(replacedTurn(store)).toEqual({
+			queue: [],
+			streaming: false,
+			error: undefined,
+			retrying: false,
+		});
 	});
 });
 

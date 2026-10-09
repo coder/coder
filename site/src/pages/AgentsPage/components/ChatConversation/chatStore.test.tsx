@@ -4202,17 +4202,23 @@ describe("useChatStore", () => {
 		});
 	});
 
-	describe("applyResponseMessages", () => {
+	describe("send and edit responses", () => {
 		const chatID = "chat-response";
 		const question = buildMessage(chatID, 1, "user", "question");
 		const answer = buildMessage(chatID, 2, "assistant", "answer");
+		const queued: TypesGen.ChatQueuedMessage = {
+			id: 10,
+			chat_id: chatID,
+			created_at: "2025-01-01T00:00:00Z",
+			content: [{ type: "text", text: "queued" }],
+		};
 		const renderChat = () => {
 			const queryClient = createCacheClient();
 			queryClient.setQueryData(chatMessagesKey(chatID), {
 				pages: [
 					{
 						messages: [answer, question],
-						queued_messages: [],
+						queued_messages: [queued],
 						has_more: false,
 						history_version: 5,
 					},
@@ -4225,7 +4231,7 @@ describe("useChatStore", () => {
 					const page = queryClient.getQueryData<{
 						pages: TypesGen.ChatMessagesResponse[];
 					}>(chatMessagesKey(chatID))?.pages[0];
-					const { store, applyResponseMessages } = useChatStore({
+					const { store, applySendResponse, applyEditResponse } = useChatStore({
 						chatID,
 						chatMessages: page?.messages.toReversed(),
 						chatRecord: buildChat(chatID),
@@ -4236,12 +4242,23 @@ describe("useChatStore", () => {
 						clearChatErrorReason: vi.fn(),
 					});
 					return {
-						applyResponseMessages,
+						store,
+						applySendResponse,
+						applyEditResponse,
 						orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+						queuedIDs: useChatSelector(store, selectQueuedMessages).map(
+							(message) => message.id,
+						),
 					};
 				},
 				{ wrapper: createWrapper(queryClient) },
 			);
+			const cachedQueueIDs = () =>
+				queryClient
+					.getQueryData<{
+						pages: TypesGen.ChatMessagesResponse[];
+					}>(chatMessagesKey(chatID))
+					?.pages[0]?.queued_messages.map((message) => message.id);
 			const cachedIDs = () =>
 				queryClient
 					.getQueryData<{
@@ -4266,7 +4283,7 @@ describe("useChatStore", () => {
 					]);
 				});
 			};
-			return { result, sockets, cachedIDs, streamEdit };
+			return { result, sockets, cachedIDs, cachedQueueIDs, streamEdit };
 		};
 
 		it("applies a send response that is ahead of the stream", async () => {
@@ -4276,7 +4293,7 @@ describe("useChatStore", () => {
 			});
 
 			act(() => {
-				result.current.applyResponseMessages([
+				result.current.applySendResponse([
 					buildMessage(chatID, 3, "user", "sent"),
 				]);
 			});
@@ -4305,28 +4322,33 @@ describe("useChatStore", () => {
 			});
 
 			act(() => {
-				result.current.applyResponseMessages([sent]);
+				result.current.applySendResponse([sent]);
 			});
 
 			expect(result.current.orderedMessageIDs).toEqual([1, 2, 4]);
 			expect(cachedIDs()).toEqual([4, 2, 1]);
 		});
 
-		it("applies an edit response from the edited message", async () => {
-			const { result, cachedIDs } = renderChat();
+		it("applies an edit response from the edited message and empties the queue", async () => {
+			const { result, cachedIDs, cachedQueueIDs } = renderChat();
 			await waitFor(() => {
-				expect(watchChat).toHaveBeenCalled();
+				expect(result.current.queuedIDs).toEqual([10]);
+			});
+			act(() => {
+				result.current.store.setPendingEdit({ messageID: 1 });
 			});
 
 			act(() => {
-				result.current.applyResponseMessages(
+				result.current.applyEditResponse(
 					[buildMessage(chatID, 3, "user", "edited")],
 					1,
 				);
 			});
 
 			expect(result.current.orderedMessageIDs).toEqual([3]);
+			expect(result.current.queuedIDs).toEqual([]);
 			expect(cachedIDs()).toEqual([3]);
+			expect(cachedQueueIDs()).toEqual([]);
 		});
 
 		it("drops an edit response that a later edit replaced", async () => {
@@ -4345,7 +4367,7 @@ describe("useChatStore", () => {
 			});
 
 			act(() => {
-				result.current.applyResponseMessages([edited], 1);
+				result.current.applyEditResponse([edited], 1);
 			});
 
 			expect(result.current.orderedMessageIDs).toEqual([4]);

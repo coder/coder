@@ -170,9 +170,10 @@ export const useChatStore = (
 	getCacheQueuedMessages: () =>
 		| readonly TypesGen.ChatQueuedMessage[]
 		| undefined;
-	applyResponseMessages: (
+	applySendResponse: (messages: readonly TypesGen.ChatMessage[]) => void;
+	applyEditResponse: (
 		messages: readonly TypesGen.ChatMessage[],
-		fromID?: number,
+		editedMessageID: number,
 	) => void;
 } => {
 	const {
@@ -864,24 +865,29 @@ export const useChatStore = (
 		},
 		getCacheQueuedMessages: () =>
 			readQueuedMessagesFromCache(queryClient, chatID),
-		// Applies a send or edit response ahead of the stream, which later
-		// delivers the same messages or removes them. An edit passes the edited
-		// message's ID as fromID, since it replaces the history from there.
-		applyResponseMessages: (messages, fromID) => {
+		// The send and edit responses are applied ahead of the stream, which
+		// later delivers the same messages or removes them. After the user
+		// leaves the chat, only its cache takes a response.
+		applySendResponse: (messages) => {
 			if (!isAheadOfCachedMessages(queryClient, chatID, messages)) {
 				return;
 			}
-			// After the user leaves the chat, only its cache takes the response.
-			const inStore = store.getActiveChatID() === chatID;
-			if (fromID === undefined) {
-				if (inStore) {
-					store.upsertDurableMessages(messages);
-				}
-				upsertCacheMessages(messages);
-			} else if (inStore) {
-				replaceHistory(messages, fromID);
+			if (store.getActiveChatID() === chatID) {
+				store.upsertDurableMessages(messages);
+			}
+			upsertCacheMessages(messages);
+		},
+		// An edit replaces the history from the edited message and empties the
+		// queue.
+		applyEditResponse: (messages, editedMessageID) => {
+			if (!isAheadOfCachedMessages(queryClient, chatID, messages)) {
+				return;
+			}
+			writeQueuedMessagesToCache(queryClient, chatID, []);
+			if (store.getActiveChatID() === chatID) {
+				replaceHistory(messages, editedMessageID);
 			} else {
-				replaceCacheMessages(messages, fromID);
+				replaceCacheMessages(messages, editedMessageID);
 			}
 		},
 	};

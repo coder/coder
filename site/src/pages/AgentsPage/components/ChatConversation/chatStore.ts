@@ -111,9 +111,11 @@ export const isActiveChatStatus = (
 
 /**
  * An edit whose result has not reached the store yet. The transcript shows
- * the placeholder in place of the edited message and hides every later
- * message, which stay in the store so that a failed edit shows them again.
- * Replacing the messages without the edited one ends it.
+ * the placeholder in place of the edited message and hides the turn it
+ * replaces: the later messages, the queue, and the live output, error and
+ * retry. They stay in the store, so a failed edit shows them as the stream
+ * left them. Replacing the messages without the edited one lands the edit
+ * and discards that turn, as the server did.
  */
 type PendingEdit = {
 	messageID: number;
@@ -291,15 +293,24 @@ export const createChatStore = (): ChatStore => {
 			) {
 				return current;
 			}
-			return {
+			const next = {
 				...current,
 				messagesByID: nextMessagesByID,
 				orderedMessageIDs: nextOrderedMessageIDs,
-				pendingEdit:
-					current.pendingEdit &&
-					nextMessagesByID.has(current.pendingEdit.messageID)
-						? current.pendingEdit
-						: null,
+			};
+			if (
+				!current.pendingEdit ||
+				nextMessagesByID.has(current.pendingEdit.messageID)
+			) {
+				return next;
+			}
+			return {
+				...next,
+				pendingEdit: null,
+				queuedMessages: [],
+				streamState: null,
+				streamError: null,
+				retryState: null,
 			};
 		});
 	};
@@ -766,16 +777,22 @@ export const createChatStore = (): ChatStore => {
 export const selectMessagesByID = (state: ChatStoreState) => state.messagesByID;
 export const selectOrderedMessageIDs = (state: ChatStoreState) =>
 	state.orderedMessageIDs;
-export const selectStreamState = (state: ChatStoreState) => state.streamState;
+// The stream, queue, error and retry selectors leave out the turn a pending
+// edit replaces.
+export const selectStreamState = (state: ChatStoreState) =>
+	state.pendingEdit ? null : state.streamState;
 export const selectHasStreamState = (state: ChatStoreState) =>
-	state.streamState !== null;
+	selectStreamState(state) !== null;
 export const selectChatStatus = (state: ChatStoreState) => state.chatStatus;
-export const selectStreamError = (state: ChatStoreState) => state.streamError;
+export const selectStreamError = (state: ChatStoreState) =>
+	state.pendingEdit ? null : state.streamError;
+const noQueuedMessages: readonly TypesGen.ChatQueuedMessage[] = [];
 export const selectQueuedMessages = (state: ChatStoreState) =>
-	state.queuedMessages;
+	state.pendingEdit ? noQueuedMessages : state.queuedMessages;
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 	state.subagentStatusOverrides;
-export const selectRetryState = (state: ChatStoreState) => state.retryState;
+export const selectRetryState = (state: ChatStoreState) =>
+	state.pendingEdit ? null : state.retryState;
 export const selectReconnectState = (state: ChatStoreState) =>
 	state.reconnectState;
 export const selectPendingEdit = (state: ChatStoreState) => state.pendingEdit;
@@ -835,7 +852,10 @@ export const selectIsAwaitingFirstStreamChunk = (
 	// data yet, the chat is running, and the conversation is
 	// waiting for an assistant response (any non-assistant latest
 	// message).
-	if (state.streamState !== null || !latestMessageNeedsAssistantResponse) {
+	if (
+		selectStreamState(state) !== null ||
+		!latestMessageNeedsAssistantResponse
+	) {
 		return false;
 	}
 	return state.chatStatus === "running";

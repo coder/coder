@@ -398,7 +398,8 @@ const AgentChatPage: React.FC = () => {
 		acceptServerChatStatus,
 		setCacheQueuedMessages,
 		getCacheQueuedMessages,
-		applyResponseMessages,
+		applySendResponse,
+		applyEditResponse,
 	} = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
@@ -675,7 +676,8 @@ const AgentChatPage: React.FC = () => {
 			void invalidateChatEntity(queryClient, chatId);
 		},
 		scrollToEnd,
-		applyResponseMessages,
+		applySendResponse,
+		applyEditResponse,
 		getCacheQueuedMessages,
 		setCacheQueuedMessages,
 		fetchQueueConvergence: (chatId: string) =>
