@@ -22,6 +22,7 @@ import {
 import { Loader } from "#/components/Loader/Loader";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Table,
 	TableBody,
@@ -35,11 +36,17 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { formatDate } from "#/utils/time";
 import type { SkillFormValues } from "../utils/skills";
 import { SectionHeader } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import { SkillEditor } from "./SkillEditor";
+import { TextPreviewDialog } from "./TextPreviewDialog";
 
 export type SkillsCopy = {
 	/** Singular noun in sentence case, for example "Personal skill". */
@@ -75,6 +82,16 @@ export type SkillEditorState =
 			onClose: () => void;
 	  };
 
+export type SkillViewState = {
+	name: string;
+	content?: string;
+	loadError?: unknown;
+	isLoading: boolean;
+	isRetrying: boolean;
+	onRetry: () => void;
+	onClose: () => void;
+};
+
 export type SkillDeleteState = {
 	skill: SkillMetadata;
 	error?: SkillErrorDisplay;
@@ -94,12 +111,16 @@ export type SkillsTableViewProps = {
 	onRetry: () => void;
 	onCreate: () => void;
 	onEdit: (name: string) => void;
+	onView: (name: string) => void;
 	onDelete: (skill: SkillMetadata) => void;
 	onDownload: (skill: SkillMetadata) => void;
 	onExportAll: () => void;
+	onToggleEnabled: (skill: SkillMetadata, enabled: boolean) => void;
 	downloadingSkillName?: string;
+	togglingSkill?: { name: string; enabled: boolean };
 	isExportingAll: boolean;
 	editorState?: SkillEditorState;
+	viewState?: SkillViewState;
 	deleteState?: SkillDeleteState;
 };
 
@@ -119,18 +140,33 @@ const formatUpdatedAt = (value: string) => {
 	});
 };
 
-const EditSkillDialog: React.FC<{
-	copy: SkillsCopy;
-	state: Extract<SkillEditorState, { mode: "edit" }>;
-}> = ({ copy, state }) => {
-	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
+type SkillLoadDialogProps = {
+	noun: string;
+	purpose: "editing" | "viewing";
+	isLoading: boolean;
+	loadError?: unknown;
+	isRetrying: boolean;
+	onRetry: () => void;
+	onClose: () => void;
+};
+
+const SkillLoadDialog: React.FC<SkillLoadDialogProps> = ({
+	noun,
+	purpose,
+	isLoading,
+	loadError,
+	isRetrying,
+	onRetry,
+	onClose,
+}) => {
+	const lowerNoun = noun.toLocaleLowerCase("en-US");
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
-			state.onClose();
+			onClose();
 		}
 	};
 
-	if (state.isLoading) {
+	if (isLoading) {
 		return (
 			<Dialog open onOpenChange={handleOpenChange}>
 				<DialogContent>
@@ -146,36 +182,53 @@ const EditSkillDialog: React.FC<{
 		);
 	}
 
-	if (state.loadError || !state.initialValues) {
+	return (
+		<Dialog open onOpenChange={handleOpenChange}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Unable to load {lowerNoun}</DialogTitle>
+					<DialogDescription>
+						The skill could not be loaded for {purpose}.
+					</DialogDescription>
+				</DialogHeader>
+				{loadError ? (
+					<ErrorAlert error={loadError} showDebugDetail={false} />
+				) : (
+					<Alert severity="error">
+						<AlertDescription>
+							The saved content could not be parsed as SKILL.md.
+						</AlertDescription>
+					</Alert>
+				)}
+				<DialogFooter>
+					<Button variant="outline" onClick={onClose}>
+						Close
+					</Button>
+					<Button onClick={onRetry} disabled={isRetrying}>
+						{isRetrying && <Spinner className="size-4" loading />}
+						Retry
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+};
+
+const EditSkillDialog: React.FC<{
+	copy: SkillsCopy;
+	state: Extract<SkillEditorState, { mode: "edit" }>;
+}> = ({ copy, state }) => {
+	if (state.isLoading || state.loadError || !state.initialValues) {
 		return (
-			<Dialog open onOpenChange={handleOpenChange}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Unable to load {lowerNoun}</DialogTitle>
-						<DialogDescription>
-							The skill could not be loaded for editing.
-						</DialogDescription>
-					</DialogHeader>
-					{state.loadError ? (
-						<ErrorAlert error={state.loadError} showDebugDetail={false} />
-					) : (
-						<Alert severity="error">
-							<AlertDescription>
-								The saved content could not be parsed as SKILL.md.
-							</AlertDescription>
-						</Alert>
-					)}
-					<DialogFooter>
-						<Button variant="outline" onClick={state.onClose}>
-							Close
-						</Button>
-						<Button onClick={state.onRetry} disabled={state.isRetrying}>
-							{state.isRetrying && <Spinner className="size-4" loading />}
-							Retry
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<SkillLoadDialog
+				noun={copy.noun}
+				purpose="editing"
+				isLoading={state.isLoading}
+				loadError={state.loadError}
+				isRetrying={state.isRetrying}
+				onRetry={state.onRetry}
+				onClose={state.onClose}
+			/>
 		);
 	}
 
@@ -189,8 +242,39 @@ const EditSkillDialog: React.FC<{
 			existingNames={state.existingNames}
 			submitError={state.submitError}
 			isSubmitting={state.isSubmitting}
-			onOpenChange={handleOpenChange}
+			onOpenChange={(open) => {
+				if (!open) {
+					state.onClose();
+				}
+			}}
 			onSubmit={state.onSubmit}
+		/>
+	);
+};
+
+const ViewSkillDialog: React.FC<{
+	noun: string;
+	state: SkillViewState;
+}> = ({ noun, state }) => {
+	if (state.content === undefined) {
+		return (
+			<SkillLoadDialog
+				noun={noun}
+				purpose="viewing"
+				isLoading={state.isLoading}
+				loadError={state.loadError}
+				isRetrying={state.isRetrying}
+				onRetry={state.onRetry}
+				onClose={state.onClose}
+			/>
+		);
+	}
+
+	return (
+		<TextPreviewDialog
+			content={state.content}
+			fileName={state.name}
+			onClose={state.onClose}
 		/>
 	);
 };
@@ -227,6 +311,47 @@ const DeleteSkillDialog: React.FC<{ state: SkillDeleteState }> = ({
 	);
 };
 
+type SkillEnabledSwitchProps = {
+	skill: SkillMetadata;
+	checked: boolean;
+	isBlocked: boolean;
+	readOnlyReason?: string;
+	onToggleEnabled: (skill: SkillMetadata, enabled: boolean) => void;
+};
+
+const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
+	skill,
+	checked,
+	isBlocked,
+	readOnlyReason,
+	onToggleEnabled,
+}) => {
+	// aria-disabled instead of disabled keeps the switch focusable, so
+	// keyboard users can still reach it and read why it cannot change.
+	const toggle = (
+		<Switch
+			checked={checked}
+			aria-label={`Enable ${skill.name}`}
+			aria-disabled={isBlocked || undefined}
+			className="aria-disabled:cursor-not-allowed aria-disabled:data-[state=checked]:bg-surface-tertiary aria-disabled:data-[state=unchecked]:bg-surface-tertiary"
+			onCheckedChange={(enabled) => {
+				if (!isBlocked) {
+					onToggleEnabled(skill, enabled);
+				}
+			}}
+		/>
+	);
+	if (!readOnlyReason) {
+		return toggle;
+	}
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>{toggle}</TooltipTrigger>
+			<TooltipContent side="bottom">{readOnlyReason}</TooltipContent>
+		</Tooltip>
+	);
+};
+
 export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	skills,
 	copy,
@@ -238,16 +363,23 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	onRetry,
 	onCreate,
 	onEdit,
+	onView,
 	onDelete,
 	onDownload,
 	onExportAll,
+	onToggleEnabled,
 	downloadingSkillName,
+	togglingSkill,
 	isExportingAll,
 	editorState,
+	viewState,
 	deleteState,
 }) => {
 	const pluralNoun = `${copy.noun.toLocaleLowerCase("en-US")}s`;
 	const isAtLimit = skills.length >= limit;
+	const readOnlyReason = canEdit
+		? undefined
+		: `You do not have permission to change ${pluralNoun}.`;
 	const addSkillAction = canEdit && (
 		<Button
 			variant="outline"
@@ -296,6 +428,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 					<TableRow>
 						<TableHead className="whitespace-nowrap">Name</TableHead>
 						<TableHead className="w-full">Description</TableHead>
+						<TableHead className="whitespace-nowrap">Enabled</TableHead>
 						<TableHead className="whitespace-nowrap">Updated</TableHead>
 						<TableHead className="w-14">
 							<span className="sr-only">Actions</span>
@@ -311,6 +444,9 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 								</TableCell>
 								<TableCell className="w-full max-w-0">
 									<Skeleton variant="text" />
+								</TableCell>
+								<TableCell>
+									<Skeleton className="h-5 w-9" />
 								</TableCell>
 								<TableCell>
 									<Skeleton variant="text" className="w-44" />
@@ -356,6 +492,19 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 										</span>
 									)}
 								</TableCell>
+								<TableCell>
+									<SkillEnabledSwitch
+										skill={skill}
+										checked={
+											togglingSkill?.name === skill.name
+												? togglingSkill.enabled
+												: skill.enabled
+										}
+										isBlocked={!canEdit || togglingSkill?.name === skill.name}
+										readOnlyReason={readOnlyReason}
+										onToggleEnabled={onToggleEnabled}
+									/>
+								</TableCell>
 								<TableCell className="whitespace-nowrap">
 									{formatUpdatedAt(skill.updated_at)}
 								</TableCell>
@@ -381,7 +530,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 											>
 												Download
 											</DropdownMenuItem>
-											{canEdit && (
+											{canEdit ? (
 												<>
 													<DropdownMenuItem onClick={() => onEdit(skill.name)}>
 														Edit
@@ -394,6 +543,10 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 														Delete&hellip;
 													</DropdownMenuItem>
 												</>
+											) : (
+												<DropdownMenuItem onClick={() => onView(skill.name)}>
+													View
+												</DropdownMenuItem>
 											)}
 										</DropdownMenuContent>
 									</DropdownMenu>
@@ -425,6 +578,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 			{editorState?.mode === "edit" && (
 				<EditSkillDialog copy={copy} state={editorState} />
 			)}
+			{viewState && <ViewSkillDialog noun={copy.noun} state={viewState} />}
 			{deleteState && <DeleteSkillDialog state={deleteState} />}
 		</div>
 	);

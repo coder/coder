@@ -22,6 +22,7 @@ const MockReleaseNotesSkill = {
 	id: "skill-write-release-notes",
 	name: "write-release-notes",
 	description: "Draft concise release notes from a change list.",
+	enabled: false,
 	created_at: "2026-05-01T12:00:00.000Z",
 	updated_at: "2026-05-04T09:15:00.000Z",
 };
@@ -74,9 +75,11 @@ const baseArgs: SkillsTableViewProps = {
 	onRetry: fn(),
 	onCreate: fn(),
 	onEdit: fn(),
+	onView: fn(),
 	onDelete: fn(),
 	onDownload: fn(),
 	onExportAll: fn(),
+	onToggleEnabled: fn(),
 	isExportingAll: false,
 };
 
@@ -128,9 +131,26 @@ export const DownloadingSkill: Story = {
 	},
 };
 
+export const TogglingSkill: Story = {
+	args: {
+		togglingSkill: { name: "write-release-notes", enabled: true },
+	},
+};
+
 export const ReadOnly: Story = {
 	args: {
 		canEdit: false,
+	},
+};
+
+export const ReadOnlyRowMenu: Story = {
+	args: ReadOnly.args,
+	// Opens the row menu so the screenshot captures the View item.
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /review-sql/ });
+		await userEvent.click(
+			within(row).getByRole("button", { name: "Open menu" }),
+		);
 	},
 };
 
@@ -138,6 +158,21 @@ export const ReadOnlyEmpty: Story = {
 	args: {
 		canEdit: false,
 		skills: [],
+	},
+};
+
+export const ViewDialogOpen: Story = {
+	args: {
+		canEdit: false,
+		viewState: {
+			name: "review-sql",
+			content:
+				"---\nname: review-sql\ndescription: Review SQL changes for query and index risks.\n---\nCheck query plans, missing indexes, and transaction boundaries.\n",
+			isLoading: false,
+			isRetrying: false,
+			onRetry: fn(),
+			onClose: fn(),
+		},
 	},
 };
 
