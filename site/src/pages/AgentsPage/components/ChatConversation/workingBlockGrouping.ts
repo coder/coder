@@ -109,12 +109,13 @@ type MemberRow = {
 	content: RowContent;
 	endsWithAnswer: boolean;
 	searches: number;
+	showsWork: boolean;
 };
 
 /**
- * A row ending in an answer joins only when it also did work, and then closes
- * the block. A live row with no output yet is the turn working on its next
- * step.
+ * A row ending in an answer joins only when it also did work, even a search
+ * without citations, and then closes the block. A live row with no output yet
+ * is the turn working on its next step.
  */
 const getMemberRow = (
 	row: TimelineRow,
@@ -151,7 +152,7 @@ const getMemberRow = (
 		visibleBlocks.filter((block) => block.type === "sources").length;
 	if (visibleBlocks.length === 0) {
 		return row.type === "live"
-			? { content, endsWithAnswer: false, searches }
+			? { content, endsWithAnswer: false, searches, showsWork: false }
 			: undefined;
 	}
 
@@ -170,11 +171,16 @@ const getMemberRow = (
 
 	const { work, answer } = splitRowBlocks(visibleBlocks, visibleTools);
 	if (answer.length === 0) {
-		return { content, endsWithAnswer: false, searches };
+		return { content, endsWithAnswer: false, searches, showsWork: true };
 	}
 
-	return work.length > 0
-		? { content, endsWithAnswer: true, searches }
+	return work.length > 0 || searches > 0
+		? {
+				content,
+				endsWithAnswer: true,
+				searches,
+				showsWork: work.length > 0,
+			}
 		: undefined;
 };
 
@@ -235,10 +241,11 @@ export const groupWorkingBlocks = (
 		}
 
 		if (!current) {
-			// The stream opens empty before every step. That row extends a
-			// block that is already working but never starts one, so a turn's
-			// first moments keep the plain thinking indicator.
-			if (member.content.visibleBlocks.length === 0) {
+			// The stream opens empty before every step, and a search without
+			// citations renders nothing. Such rows extend a block that is
+			// already working but never start one, so a turn's first moments
+			// keep the plain thinking indicator and no block expands to nothing.
+			if (!member.showsWork) {
 				continue;
 			}
 

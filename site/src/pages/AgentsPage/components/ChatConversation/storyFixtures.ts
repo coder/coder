@@ -248,6 +248,39 @@ export const MockWebSearchAnswerMessages: TypesGen.ChatMessage[] = [
 ];
 
 /**
+ * MockWorkingMessages whose final answer searched the web from 14s to 15s and
+ * cited nothing.
+ */
+export const MockUncitedSearchAnswerMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 5),
+	{
+		...MockChatMessage,
+		id: 6,
+		role: "assistant",
+		created_at: workingFixtureTime(16),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				args: { query: "coder release notes" },
+				provider_executed: true,
+				created_at: workingFixtureTime(14),
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				result: {},
+				provider_executed: true,
+				created_at: workingFixtureTime(15),
+			},
+			{ type: "text", text: "No release notes mention the workspace." },
+		],
+	},
+];
+
+/**
  * A turn without tools whose answer narrates, then searches the web from 1s to
  * 3s before writing its text, with no reasoning.
  */

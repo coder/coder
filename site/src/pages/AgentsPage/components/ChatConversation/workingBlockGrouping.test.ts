@@ -59,11 +59,15 @@ const searchCall = (
 	provider_executed: true,
 	created_at: createdAt,
 });
-const searchResult = (id: string): TypesGen.ChatMessagePart => ({
+const searchResult = (
+	id: string,
+	createdAt?: string,
+): TypesGen.ChatMessagePart => ({
 	type: "tool-result",
 	tool_call_id: id,
 	tool_name: "web_search",
 	provider_executed: true,
+	created_at: createdAt,
 });
 const call = (
 	id: string,
@@ -564,6 +568,50 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks).toHaveLength(1);
 			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id, "live"]);
 			expect(blocks[0]).toMatchObject({ isLive: true, endsWithAnswer: true });
+		});
+
+		it("folds an answer's search without citations into the block it ends", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const parts = [
+				searchCall("s", at(3)),
+				searchResult("s", at(4)),
+				text("Nothing new."),
+			];
+			const answer = message("assistant", parts);
+			const live = groupLive([prompt, ...steps], parts);
+			const persisted = group([prompt, ...steps, answer]);
+
+			expect(rowIds(live.rows, live.blocks[0].rowIndices)).toEqual([
+				steps[0].id,
+				"live",
+			]);
+			expect(live.blocks).toMatchObject([
+				{ stepCount: 2, endsWithAnswer: true, isLive: true },
+			]);
+			expect(rowIds(persisted.rows, persisted.blocks[0].rowIndices)).toEqual([
+				steps[0].id,
+				answer.id,
+			]);
+			expect(persisted.blocks).toMatchObject([
+				{
+					stepCount: 2,
+					endsWithAnswer: true,
+					endedAt: WORKING_FIXTURE_START + 4000,
+				},
+			]);
+		});
+
+		it("starts no block from a search without citations alone", () => {
+			const prompt = user("Go");
+			const parts = [searchCall("s", at(1)), searchResult("s"), text("Hi.")];
+
+			for (const index of parts.keys()) {
+				expect(groupLive([prompt], parts.slice(0, index + 1)).blocks).toEqual(
+					[],
+				);
+			}
+			expect(group([prompt, message("assistant", parts)]).blocks).toEqual([]);
 		});
 
 		it("unfolds a tool-less live turn's reasoning once its answer starts", () => {
