@@ -79,10 +79,7 @@ const getEmptyMessage = (
 	if (workspaceSkillsEnabled) {
 		sources.push("workspace");
 	}
-	const sourceList = new Intl.ListFormat("en-US", {
-		type: "disjunction",
-	}).format(sources);
-	return `No ${sourceList} skills found.`;
+	return `No ${new Intl.ListFormat("en-US", { type: "disjunction" }).format(sources)} skills found.`;
 };
 
 const SkillCommandItem = ({

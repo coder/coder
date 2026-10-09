@@ -696,12 +696,20 @@ const ChatMessageInput = ({
 		: [];
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
-	// Lists stay undefined while unknown: triggers stay qualified and
-	// built-in commands stay hidden until every list resolves, matching
-	// the submit intercept.
+	// Lists stay undefined while loading: triggers stay qualified and
+	// built-in commands stay hidden until every list resolves. A failed list
+	// counts as empty, matching the submit intercept.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
-		{ source: "personal", skills: personalSkills },
-		{ source: "org", skills: loadedOrganizationSkills },
+		{
+			source: "personal",
+			skills: personalSkills ?? (skillsQuery.isError ? [] : undefined),
+		},
+		{
+			source: "org",
+			skills:
+				loadedOrganizationSkills ??
+				(organizationSkillsQuery.isError ? [] : undefined),
+		},
 		{ source: "workspace", skills: loadedWorkspaceSkills },
 	];
 	const availableSlashCommands = (slashCommands ?? []).filter(

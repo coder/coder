@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import { skillsKey } from "#/api/queries/skills";
 import type {
 	AgentChatSendShortcut,
@@ -277,17 +278,23 @@ describe("ChatMessageInput", () => {
 			organization,
 		}: {
 			personal: SkillMetadata[];
-			organization: SkillMetadata[];
+			organization?: SkillMetadata[];
 		}) => {
 			const queryClient = createTestQueryClient();
 			queryClient.setQueryData(
 				skillsKey({ type: "user", user: "me" }),
 				personal,
 			);
-			queryClient.setQueryData(
-				skillsKey({ type: "organization", organizationId }),
-				organization,
-			);
+			if (organization) {
+				queryClient.setQueryData(
+					skillsKey({ type: "organization", organizationId }),
+					organization,
+				);
+			} else {
+				vi.spyOn(API.experimental, "getOrganizationSkills").mockRejectedValue(
+					new Error("Failed to load organization skills."),
+				);
+			}
 			const inputRef = createRef<ChatMessageInputRef>();
 			renderWithQueryClient(
 				<ChatMessageInput
@@ -355,6 +362,14 @@ describe("ChatMessageInput", () => {
 			await screen.findByRole("option", { name: /compactor/ });
 			await user.keyboard("{Enter}");
 			expect(inputRef.current?.getValue()).toBe("/compactor");
+		});
+
+		it("offers built-in commands when the organization list fails", async () => {
+			const inputRef = renderWithSkills({ personal: [mockCompactorSkill] });
+			const user = await pasteTrigger("/comp");
+			await screen.findByText(/Could not load organization skills/);
+			await user.keyboard("{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/compact");
 		});
 	});
 });
