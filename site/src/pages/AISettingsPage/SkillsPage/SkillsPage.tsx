@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { organizationsPermissions } from "#/api/queries/organizations";
@@ -13,11 +14,16 @@ import {
 	orgSearchParam,
 	selectOrganization,
 } from "../MCPServersPage/organizationParam";
+import { OrganizationSkillSharingDialog } from "./OrganizationSkillSharingDialog";
 
 const SkillsPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const [searchParams, setSearchParams] = useSearchParams();
+	const [sharingSkill, setSharingSkill] = useState<{
+		organizationId: string;
+		name: string;
+	}>();
 	const organizationPermissionsQuery = useQuery({
 		...organizationsPermissions(
 			organizations.map((organization) => organization.id),
@@ -86,6 +92,15 @@ const SkillsPage: React.FC = () => {
 								archiveName: `${organization.name}-skills.zip`,
 							}}
 							canEdit={canEdit}
+							onManagePermissions={
+								organizationPermissions?.shareOrganizationSkill
+									? (skill) =>
+											setSharingSkill({
+												organizationId: organization.id,
+												name: skill.name,
+											})
+									: undefined
+							}
 							toolbar={
 								<OrganizationPicker
 									id="skills-organization"
@@ -102,6 +117,13 @@ const SkillsPage: React.FC = () => {
 									showLabel={false}
 								/>
 							}
+						/>
+					)}
+					{sharingSkill && (
+						<OrganizationSkillSharingDialog
+							organizationId={sharingSkill.organizationId}
+							skillName={sharingSkill.name}
+							onClose={() => setSharingSkill(undefined)}
 						/>
 					)}
 				</RequirePermission>

@@ -185,6 +185,13 @@ export const organizationPermissionChecks = (organizationId: string) =>
 			},
 			action: "delete",
 		},
+		shareOrganizationSkill: {
+			object: {
+				resource_type: "organization_skill",
+				organization_id: organizationId,
+			},
+			action: "share",
+		},
 		viewChatModelConfigs: {
 			object: {
 				resource_type: "chat_model_config",

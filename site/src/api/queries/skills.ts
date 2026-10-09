@@ -84,6 +84,53 @@ export const skill = (owner: SkillOwner, name: string) => ({
 	queryFn: (): Promise<TypesGen.Skill> => skillsAPI(owner).get(name),
 });
 
+export const organizationSkillACLKey = (organizationId: string, name: string) =>
+	[...skillKey({ type: "organization", organizationId }, name), "acl"] as const;
+
+export const organizationSkillACL = (organizationId: string, name: string) => ({
+	queryKey: organizationSkillACLKey(organizationId, name),
+	queryFn: (): Promise<TypesGen.OrganizationSkillACL> =>
+		API.experimental.getOrganizationSkillACL(organizationId, name),
+});
+
+export const organizationSkillACLAvailable = (
+	organizationId: string,
+	name: string,
+	options: TypesGen.UsersRequest,
+) => ({
+	queryKey: [
+		...organizationSkillACLKey(organizationId, name),
+		"available",
+		options,
+	] as const,
+	queryFn: (): Promise<TypesGen.ACLAvailable> =>
+		API.experimental.getOrganizationSkillACLAvailable(
+			organizationId,
+			name,
+			options,
+		),
+});
+
+type UpdateOrganizationSkillACLArgs = {
+	organizationId: string;
+	name: string;
+	req: TypesGen.UpdateOrganizationSkillACLRequest;
+};
+
+export const updateOrganizationSkillACL = (queryClient: QueryClient) => ({
+	mutationFn: ({ organizationId, name, req }: UpdateOrganizationSkillACLArgs) =>
+		API.experimental.updateOrganizationSkillACL(organizationId, name, req),
+	onSuccess: async (
+		_data: unknown,
+		{ organizationId, name }: UpdateOrganizationSkillACLArgs,
+	) => {
+		await queryClient.invalidateQueries({
+			queryKey: organizationSkillACLKey(organizationId, name),
+			exact: true,
+		});
+	},
+});
+
 export const createSkill = (queryClient: QueryClient, owner: SkillOwner) => ({
 	mutationFn: (req: TypesGen.CreateSkillRequest) =>
 		skillsAPI(owner).create(req),

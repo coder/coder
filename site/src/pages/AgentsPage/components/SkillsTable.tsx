@@ -104,6 +104,7 @@ type SkillsTableProps = {
 	copy: SkillsCopy;
 	canEdit: boolean;
 	toolbar?: React.ReactNode;
+	onManagePermissions?: (skill: SkillMetadata) => void;
 };
 
 export const SkillsTable: React.FC<SkillsTableProps> = ({
@@ -111,6 +112,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	copy,
 	canEdit,
 	toolbar,
+	onManagePermissions,
 }) => {
 	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
 	const queryClient = useQueryClient();
@@ -400,6 +402,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			onDownload={(skill) => {
 				downloadMutation.mutate(skill.name);
 			}}
+			onManagePermissions={onManagePermissions}
 			onExportAll={() => {
 				exportAllMutation.mutate();
 			}}

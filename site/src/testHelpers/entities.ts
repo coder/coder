@@ -3382,6 +3382,19 @@ export const MockMCPServerConfigACLAvailable: TypesGen.ACLAvailable = {
 	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
 };
 
+export const MockOrganizationSkillACL: TypesGen.OrganizationSkillACL = {
+	users: [{ ...MockUserMember, role: "read" }],
+	groups: [
+		{ ...MockGroup, role: "read" },
+		{ ...MockEveryoneGroup, role: "read" },
+	],
+};
+
+export const MockOrganizationSkillACLAvailable: TypesGen.ACLAvailable = {
+	users: [MockUserOwner, MockUserMember],
+	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
+};
+
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
 		{ ...MockEveryoneGroup, role: "use" },
@@ -3539,6 +3552,7 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	createOrganizationSkill: true,
 	updateOrganizationSkill: true,
 	deleteOrganizationSkill: true,
+	shareOrganizationSkill: true,
 	viewChatModelConfigs: true,
 	createChatModelConfigs: true,
 	editChatModelConfigs: true,
@@ -3572,6 +3586,7 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	createOrganizationSkill: false,
 	updateOrganizationSkill: false,
 	deleteOrganizationSkill: false,
+	shareOrganizationSkill: false,
 	viewChatModelConfigs: false,
 	createChatModelConfigs: false,
 	editChatModelConfigs: false,
