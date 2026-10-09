@@ -2171,13 +2171,18 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		otherUser, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+		otherUser, _ := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, []rbac.RoleIdentifier{rbac.RoleOwner()}, func(r *codersdk.CreateUserRequestWithOrgs) {
+			// Mixed case to verify "me" matching is case-insensitive.
+			r.Username = "Other-User"
+		})
+		thirdUser, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		// Add a non-matching workspace
-		coderdtest.CreateWorkspace(t, otherUser, template.ID)
+		// Workspaces owned by other users
+		otherWorkspace := coderdtest.CreateWorkspace(t, otherUser, template.ID)
+		_ = coderdtest.CreateWorkspace(t, thirdUser, template.ID)
 
 		workspaces := []codersdk.Workspace{
 			coderdtest.CreateWorkspace(t, client, template.ID),
@@ -2199,6 +2204,43 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		for _, found := range res.Workspaces {
 			require.Equal(t, found.OwnerName, sdkUser.Username)
 		}
+
+		otherSDKUser, err := otherUser.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		expected := append(slices.Clone(workspaces), otherWorkspace)
+
+		// multiple owners, repeated key
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("owner:%s owner:%s", sdkUser.Username, otherSDKUser.Username),
+		})
+		require.NoError(t, err)
+		expectIDs(t, expected, res.Workspaces)
+
+		// multiple owners, comma separated with "me"
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("owner:me,%s", otherSDKUser.Username),
+		})
+		require.NoError(t, err)
+		expectIDs(t, expected, res.Workspaces)
+
+		// "me" alone
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Owner: codersdk.Me,
+		})
+		require.NoError(t, err)
+		expectIDs(t, workspaces, res.Workspaces)
+
+		// "me" with a token that cannot read users
+		token, err := otherUser.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+			Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderWorkspacesAccess},
+		})
+		require.NoError(t, err)
+		scopedClient := codersdk.New(client.URL, codersdk.WithSessionToken(token.Key))
+		res, err = scopedClient.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Owner: codersdk.Me,
+		})
+		require.NoError(t, err)
+		expectIDs(t, []codersdk.Workspace{otherWorkspace}, res.Workspaces)
 	})
 	t.Run("IDs", func(t *testing.T) {
 		t.Parallel()

@@ -38,16 +38,16 @@ func TestSearchWorkspace(t *testing.T) {
 			Name:  "Owner/Name",
 			Query: "Foo/Bar",
 			Expected: database.GetWorkspacesParams{
-				OwnerUsername: "foo",
-				Name:          "bar",
+				OwnerUsernames: []string{"foo"},
+				Name:           "bar",
 			},
 		},
 		{
 			Name:  "Owner/NameWithSpaces",
 			Query: "     Foo/Bar     ",
 			Expected: database.GetWorkspacesParams{
-				OwnerUsername: "foo",
-				Name:          "bar",
+				OwnerUsernames: []string{"foo"},
+				Name:           "bar",
 			},
 		},
 		{
@@ -69,27 +69,27 @@ func TestSearchWorkspace(t *testing.T) {
 			Name:  "OnlyParams",
 			Query: "name:workspace-name template:docker OWNER:Alice",
 			Expected: database.GetWorkspacesParams{
-				Name:          "workspace-name",
-				TemplateNames: []string{"docker"},
-				OwnerUsername: "alice",
+				Name:           "workspace-name",
+				TemplateNames:  []string{"docker"},
+				OwnerUsernames: []string{"alice"},
 			},
 		},
 		{
 			Name:  "QuotedParam",
 			Query: `name:workspace-name template:"docker template" owner:alice`,
 			Expected: database.GetWorkspacesParams{
-				Name:          "workspace-name",
-				TemplateNames: []string{"docker template"},
-				OwnerUsername: "alice",
+				Name:           "workspace-name",
+				TemplateNames:  []string{"docker template"},
+				OwnerUsernames: []string{"alice"},
 			},
 		},
 		{
 			Name:  "QuotedKey",
 			Query: `"name":baz "template":foo "owner":bar`,
 			Expected: database.GetWorkspacesParams{
-				Name:          "baz",
-				TemplateNames: []string{"foo"},
-				OwnerUsername: "bar",
+				Name:           "baz",
+				TemplateNames:  []string{"foo"},
+				OwnerUsernames: []string{"bar"},
 			},
 		},
 		{
@@ -104,6 +104,20 @@ func TestSearchWorkspace(t *testing.T) {
 			Query: "template:docker,k8s",
 			Expected: database.GetWorkspacesParams{
 				TemplateNames: []string{"docker", "k8s"},
+			},
+		},
+		{
+			Name:  "MultipleOwners",
+			Query: "owner:alice owner:Bob",
+			Expected: database.GetWorkspacesParams{
+				OwnerUsernames: []string{"alice", "bob"},
+			},
+		},
+		{
+			Name:  "MultipleOwnersCSV",
+			Query: "owner:alice,me",
+			Expected: database.GetWorkspacesParams{
+				OwnerUsernames: []string{"alice", "me"},
 			},
 		},
 		{
@@ -153,8 +167,8 @@ func TestSearchWorkspace(t *testing.T) {
 			Name:  "QuotedOwner/Name",
 			Query: `"foo"/"bar"`,
 			Expected: database.GetWorkspacesParams{
-				Name:          "bar",
-				OwnerUsername: "foo",
+				Name:           "bar",
+				OwnerUsernames: []string{"foo"},
 			},
 		},
 		{
@@ -595,6 +609,10 @@ func TestSearchWorkspace(t *testing.T) {
 				if len(c.Expected.Statuses) == 0 && len(values.Statuses) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.Statuses = values.Statuses
+				}
+				if len(c.Expected.OwnerUsernames) == 0 && len(values.OwnerUsernames) == 0 {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.OwnerUsernames = values.OwnerUsernames
 				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")
