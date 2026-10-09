@@ -89,16 +89,7 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 		};
 	}, [fetchStats, stats]);
 
-	const lastAggregated = useMemo(() => {
-		if (!stats) {
-			return;
-		}
-		if (!fetchStats) {
-			// Storybook!
-			return "just now";
-		}
-		return dayjs().to(dayjs(stats.collected_at));
-	}, [timeUntilRefresh, stats, fetchStats]);
+	const lastAggregated = formatLastAggregated(stats, Boolean(fetchStats));
 
 	const healthErrors = health ? getHealthErrors(health) : [];
 	const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
@@ -520,6 +511,19 @@ const HealthIssue: React.FC<React.PropsWithChildren> = ({ children }) => {
 			{children}
 		</div>
 	);
+};
+
+const formatLastAggregated = (
+	stats: DeploymentStats | undefined,
+	isLive: boolean,
+): string | undefined => {
+	if (!stats) {
+		return undefined;
+	}
+	if (!isLive) {
+		return "just now";
+	}
+	return dayjs().to(dayjs(stats.collected_at));
 };
 
 const getHealthErrors = (health: HealthcheckReport) => {

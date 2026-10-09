@@ -41,6 +41,33 @@ describe("groupSessionApps", () => {
 });
 
 describe("DeploymentBannerView", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("updates the last aggregated time as the refresh countdown ticks", () => {
+		vi.useFakeTimers();
+		const now = new Date("2023-03-06T19:13:35.000Z");
+		vi.setSystemTime(now);
+		const stats = {
+			...MockDeploymentStats,
+			collected_at: new Date(now.getTime() - 40_000).toISOString(),
+			next_update_at: new Date(now.getTime() + 60_000).toISOString(),
+		};
+		render(<DeploymentBannerView stats={stats} fetchStats={vi.fn()} />);
+
+		expect(
+			screen.getByRole("button", { name: "a few seconds ago" }),
+		).toBeInTheDocument();
+
+		act(() => {
+			vi.advanceTimersByTime(10_000);
+		});
+
+		expect(
+			screen.getByRole("button", { name: "a minute ago" }),
+		).toBeInTheDocument();
+	});
 	it("exposes stat tooltips to keyboard and screen reader users", async () => {
 		const user = userEvent.setup();
 		render(<DeploymentBannerView stats={MockDeploymentStats} />);
