@@ -352,7 +352,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 								required
 								onChange={onChangeTrimmed(form)}
 								autoComplete="username"
-								placeholder="jane-doe"
+								placeholder="your-username"
 								autoFocus
 							/>
 
@@ -363,7 +363,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 								})}
 								label="Name"
 								autoComplete="name"
-								placeholder={form.values.username || "Jane Doe"}
+								placeholder={form.values.username || "Enter your full name"}
 							/>
 
 							{!isServiceAccount && (
@@ -373,7 +373,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 									required
 									autoComplete="email"
 									type="email"
-									placeholder="jane@example.com"
+									placeholder="you@example.com"
 								/>
 							)}
 
