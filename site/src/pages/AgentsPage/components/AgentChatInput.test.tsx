@@ -7,7 +7,7 @@ import {
 	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRef } from "react";
+import { createRef, StrictMode } from "react";
 import { toast } from "sonner";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
@@ -16,6 +16,7 @@ import {
 	MockChatQueuedMessage,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import { createMockFile } from "#/testHelpers/files";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
@@ -461,6 +462,106 @@ describe("ChatComposer", () => {
 		expect(onSend).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		{ isMobile: false, rejects: false, completesWhileLoading: false },
+		{ isMobile: false, rejects: true, completesWhileLoading: false },
+		{ isMobile: false, rejects: false, completesWhileLoading: true },
+		{ isMobile: false, rejects: true, completesWhileLoading: true },
+		{ isMobile: true, rejects: false, completesWhileLoading: true },
+		{ isMobile: true, rejects: true, completesWhileLoading: true },
+	])(
+		"restores typing only on desktop after submission completes (mobile: $isMobile, rejects: $rejects, completes while loading: $completesWhileLoading)",
+		async ({ isMobile, rejects, completesWhileLoading }) => {
+			stubViewport(isMobile);
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			const completion = createDeferred<undefined>();
+			const onSend = vi.fn(() => completion.promise);
+			const composer = (isLoading: boolean) => (
+				<>
+					<ChatComposer
+						{...inputProps}
+						bindings={{
+							...inputProps.bindings,
+							inputRef,
+							onSend,
+							isLoading,
+							initialValue: "Draft",
+						}}
+					/>
+					<input aria-label="Another input" />
+				</>
+			);
+			const { rerender } = renderInput(composer(false));
+
+			await user.click(screen.getByRole("button", { name: "Send" }));
+			expect(onSend).toHaveBeenCalledExactlyOnceWith("Draft");
+			rerender(<AppProviders>{composer(true)}</AppProviders>);
+			const anotherInput = screen.getByRole("textbox", {
+				name: "Another input",
+			});
+			await user.click(anotherInput);
+
+			if (!completesWhileLoading) {
+				await act(async () => {
+					rerender(<AppProviders>{composer(false)}</AppProviders>);
+				});
+				await user.keyboard("waiting");
+				expect(anotherInput).toHaveValue("waiting");
+			}
+
+			await act(async () => {
+				if (rejects) {
+					completion.reject(new Error("Send failed"));
+				} else {
+					completion.resolve(undefined);
+				}
+			});
+
+			if (completesWhileLoading) {
+				await user.keyboard("waiting");
+				expect(anotherInput).toHaveValue("waiting");
+				await act(async () => {
+					rerender(<AppProviders>{composer(false)}</AppProviders>);
+				});
+			}
+
+			await user.paste(" next");
+			await waitFor(() => {
+				expect(inputRef.current?.getValue()).toBe(
+					isMobile ? "Draft" : "Draft next",
+				);
+			});
+			expect(anotherInput).toHaveValue(isMobile ? "waiting next" : "waiting");
+		},
+	);
+
+	it("does not move typing focus when loading ends without a submission", async () => {
+		stubViewport(false);
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+		const composer = (isLoading: boolean) => (
+			<>
+				<ChatComposer
+					{...inputProps}
+					bindings={{ ...inputProps.bindings, inputRef, onSend, isLoading }}
+				/>
+				<input aria-label="Another input" />
+			</>
+		);
+		const { rerender } = renderInput(composer(false));
+		rerender(<AppProviders>{composer(true)}</AppProviders>);
+		const anotherInput = screen.getByRole("textbox", { name: "Another input" });
+		await user.click(anotherInput);
+		rerender(<AppProviders>{composer(false)}</AppProviders>);
+
+		await user.keyboard("Continue elsewhere");
+		expect(anotherInput).toHaveValue("Continue elsewhere");
+		expect(inputRef.current?.getValue()).toBe("");
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
 	it.each([false, true])(
 		"cycles prompt history and restores the draft without interrupting (streaming: %s)",
 		async (isStreaming) => {
@@ -615,10 +716,12 @@ describe("ChatComposer", () => {
 			},
 		};
 		const { rerender } = renderInput(
-			<ChatComposer
-				{...props}
-				bindings={{ ...props.bindings, remountKey: 0 }}
-			/>,
+			<StrictMode>
+				<ChatComposer
+					{...props}
+					bindings={{ ...props.bindings, remountKey: 0 }}
+				/>
+			</StrictMode>,
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -629,14 +732,16 @@ describe("ChatComposer", () => {
 
 		rerender(
 			<AppProviders>
-				<ChatComposer
-					{...props}
-					bindings={{
-						...props.bindings,
-						remountKey: 1,
-						initialValue: "Replacement draft",
-					}}
-				/>
+				<StrictMode>
+					<ChatComposer
+						{...props}
+						bindings={{
+							...props.bindings,
+							remountKey: 1,
+							initialValue: "Replacement draft",
+						}}
+					/>
+				</StrictMode>
 			</AppProviders>,
 		);
 		await waitFor(() =>
@@ -646,6 +751,41 @@ describe("ChatComposer", () => {
 		await user.keyboard("{ArrowDown}{Escape}");
 		expect(onInterrupt).toHaveBeenCalledExactlyOnceWith();
 		await user.click(screen.getByRole("button", { name: "Queue" }));
+		expect(onSend).toHaveBeenCalledExactlyOnceWith("Replacement draft");
+
+		const freshDraft = " ";
+		rerender(
+			<AppProviders>
+				<StrictMode>
+					<ChatComposer
+						{...props}
+						bindings={{
+							...props.bindings,
+							remountKey: 2,
+							initialValue: freshDraft,
+							userPromptHistory: ["New latest prompt", "New older prompt"],
+						}}
+					/>
+				</StrictMode>
+			</AppProviders>,
+		);
+		await waitFor(() => expect(inputRef.current?.getValue()).toBe(freshDraft));
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{ArrowDown}");
+		expect(inputRef.current?.getValue()).toBe(freshDraft);
+		await user.keyboard("{ArrowUp}");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("New latest prompt"),
+		);
+		await user.keyboard("{ArrowUp}");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("New older prompt"),
+		);
+		await user.keyboard("{ArrowDown}{ArrowDown}");
+		await waitFor(() => expect(inputRef.current?.getValue()).toBe(freshDraft));
+		await user.keyboard("{ArrowUp}{Escape}");
+		await waitFor(() => expect(inputRef.current?.getValue()).toBe(freshDraft));
+		expect(onInterrupt).toHaveBeenCalledExactlyOnceWith();
 		expect(onSend).toHaveBeenCalledExactlyOnceWith("Replacement draft");
 	});
 

@@ -126,6 +126,16 @@ describe("ChatPageInput", () => {
 	});
 
 	it("rehydrates edited workspace file references only from the bound workspace", async () => {
+		const selection = window.getSelection();
+		if (selection) {
+			const getRangeAt = selection.getRangeAt.bind(selection);
+			vi.spyOn(selection, "getRangeAt").mockImplementation((index) =>
+				Object.assign(getRangeAt(index), {
+					getBoundingClientRect: () => new DOMRect(0, 0, 1, 16),
+				}),
+			);
+		}
+
 		const user = userEvent.setup();
 		const onSend = vi.fn();
 

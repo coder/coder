@@ -23,13 +23,14 @@ type WorkspaceUploadsProps = {
 
 /** Draft inputs and callbacks for AgentComposerProvider. */
 export type AgentComposerBindings = {
-	onSend: (message: string) => void;
+	onSend: (message: string) => Promise<void> | void;
 	isDisabled: boolean;
 	isReadOnly?: boolean;
 	isLoading: boolean;
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	initialValue: string;
 	initialEditorState?: string;
+	/** Increment to replace the editor; do not reuse a previous generation. */
 	remountKey?: number;
 	onContentChange: (
 		content: string,

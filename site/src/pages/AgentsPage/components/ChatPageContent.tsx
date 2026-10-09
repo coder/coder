@@ -745,86 +745,84 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const inputElement = (
 		<ChatComposer
 			bindings={{
-				onSend: (message) => {
-					void (async () => {
-						const hasActiveUploads =
-							attachments.some((file) =>
-								isUploadInProgress(uploadStates.get(file)),
-							) || visibleWorkspaceUploads.some(isWorkspaceUploadInProgress);
-						if (hasActiveUploads) {
-							toast.warning("Wait for file uploads to finish before sending.");
-							return;
+				onSend: async (message) => {
+					const hasActiveUploads =
+						attachments.some((file) =>
+							isUploadInProgress(uploadStates.get(file)),
+						) || visibleWorkspaceUploads.some(isWorkspaceUploadInProgress);
+					if (hasActiveUploads) {
+						toast.warning("Wait for file uploads to finish before sending.");
+						return;
+					}
+					// Collect uploaded attachment metadata for the optimistic
+					// transcript builder while keeping the server payload
+					// shape unchanged downstream.
+					const pendingAttachments: PendingAttachment[] = [];
+					let skippedErrors = 0;
+					for (const file of attachments) {
+						const state = uploadStates.get(file);
+						if (state?.status === "error") {
+							skippedErrors++;
+							continue;
 						}
-						// Collect uploaded attachment metadata for the optimistic
-						// transcript builder while keeping the server payload
-						// shape unchanged downstream.
-						const pendingAttachments: PendingAttachment[] = [];
-						let skippedErrors = 0;
-						for (const file of attachments) {
-							const state = uploadStates.get(file);
-							if (state?.status === "error") {
-								skippedErrors++;
-								continue;
-							}
-							if (state?.status === "uploaded" && state.fileId) {
-								pendingAttachments.push({
-									fileId: state.fileId,
-									mediaType: file.type || "application/octet-stream",
-								});
-							}
-						}
-						const pendingWorkspaceUploads: PendingWorkspaceUpload[] = [];
-						let skippedWorkspaceErrors = 0;
-						for (const upload of visibleWorkspaceUploads) {
-							if (upload.status === "error") {
-								skippedWorkspaceErrors++;
-								continue;
-							}
-							if (upload.status === "uploaded" && upload.response) {
-								pendingWorkspaceUploads.push({
-									path: upload.response.path,
-									name: upload.response.name,
-									size: upload.response.size,
-									mediaType: upload.response.media_type,
-									workspaceId: upload.response.workspace_id,
-								});
-							}
-						}
-						if (skippedErrors > 0) {
-							toast.warning(
-								`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-							);
-						}
-						if (skippedWorkspaceErrors > 0) {
-							toast.warning(
-								`${skippedWorkspaceErrors} workspace file${skippedWorkspaceErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-							);
-						}
-						const attachmentsArg =
-							pendingAttachments.length > 0 ? pendingAttachments : undefined;
-						const workspaceUploadsArg =
-							pendingWorkspaceUploads.length > 0
-								? pendingWorkspaceUploads
-								: undefined;
-						try {
-							await onSend({
-								message,
-								attachments: attachmentsArg,
-								workspaceUploads: workspaceUploadsArg,
+						if (state?.status === "uploaded" && state.fileId) {
+							pendingAttachments.push({
+								fileId: state.fileId,
+								mediaType: file.type || "application/octet-stream",
 							});
-						} catch {
-							// Attachments preserved for retry on failure.
-							return;
 						}
-						if (isEditing) {
-							editAttachments.resetAttachments();
-							resetEditWorkspaceUploads();
-							setPreservedWorkspaceUploads([]);
-						} else {
-							composeAttachments.resetAttachments();
-							composeWorkspaceUploads.reset();
+					}
+					const pendingWorkspaceUploads: PendingWorkspaceUpload[] = [];
+					let skippedWorkspaceErrors = 0;
+					for (const upload of visibleWorkspaceUploads) {
+						if (upload.status === "error") {
+							skippedWorkspaceErrors++;
+							continue;
 						}
-					})();
+						if (upload.status === "uploaded" && upload.response) {
+							pendingWorkspaceUploads.push({
+								path: upload.response.path,
+								name: upload.response.name,
+								size: upload.response.size,
+								mediaType: upload.response.media_type,
+								workspaceId: upload.response.workspace_id,
+							});
+						}
+					}
+					if (skippedErrors > 0) {
+						toast.warning(
+							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+						);
+					}
+					if (skippedWorkspaceErrors > 0) {
+						toast.warning(
+							`${skippedWorkspaceErrors} workspace file${skippedWorkspaceErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+						);
+					}
+					const attachmentsArg =
+						pendingAttachments.length > 0 ? pendingAttachments : undefined;
+					const workspaceUploadsArg =
+						pendingWorkspaceUploads.length > 0
+							? pendingWorkspaceUploads
+							: undefined;
+					try {
+						await onSend({
+							message,
+							attachments: attachmentsArg,
+							workspaceUploads: workspaceUploadsArg,
+						});
+					} catch {
+						// Attachments preserved for retry on failure.
+						return;
+					}
+					if (isEditing) {
+						editAttachments.resetAttachments();
+						resetEditWorkspaceUploads();
+						setPreservedWorkspaceUploads([]);
+					} else {
+						composeAttachments.resetAttachments();
+						composeWorkspaceUploads.reset();
+					}
 				},
 				attachments,
 				onAttach: handleAttach,

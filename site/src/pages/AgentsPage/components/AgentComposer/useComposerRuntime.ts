@@ -115,11 +115,19 @@ export function useComposerRuntime(bindings: AgentComposerBindings) {
 			return;
 		}
 
-		onSend(text);
+		const completion = onSend(text);
 		editor.resetPromptCycle();
 
-		if (!isMobileViewport()) {
-			editorRef.current?.focus();
+		const restoreFocus = () => {
+			if (!isMobileViewport()) {
+				editorRef.current?.focus();
+			}
+		};
+
+		if (completion) {
+			void completion.then(restoreFocus, restoreFocus);
+		} else {
+			restoreFocus();
 		}
 	};
 

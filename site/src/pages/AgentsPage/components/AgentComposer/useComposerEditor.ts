@@ -7,6 +7,7 @@ import type { ChatMessageInputRef } from "../ChatMessageInput/ChatMessageInput";
 import type { AgentComposerBindings } from "./context";
 
 type PromptCycle = {
+	editorKey: AgentComposerBindings["remountKey"];
 	history: readonly string[];
 	index: number;
 	savedDraft: string;
@@ -37,19 +38,18 @@ export function useComposerEditor(
 		countInvisibleCharacters(initialValue),
 	);
 
-	const [promptCycle, setPromptCycle] = useState<PromptCycle | null>(null);
-	const currentCycleValueRef = useRef<string | null>(null);
-
-	const prevIsLoadingRef = useRef(isLoading);
+	const [historySession, setHistorySession] = useState<PromptCycle | null>(
+		null,
+	);
+	const promptCycle =
+		historySession?.editorKey === remountKey ? historySession : null;
+	const currentCycleValueRef = useRef<{
+		editorKey: AgentComposerBindings["remountKey"];
+		value: string;
+	} | null>(null);
 
 	const speech = useSpeechRecognition();
 	const [preRecordingValue, setPreRecordingValue] = useState("");
-
-	useEffect(() => {
-		// Lexical remounts independently of the provider, ending the history session.
-		setPromptCycle(null);
-		currentCycleValueRef.current = null;
-	}, [remountKey]);
 
 	useEffect(() => {
 		if (!speech.isRecording) {
@@ -87,17 +87,8 @@ export function useComposerEditor(
 		[editorRef],
 	);
 
-	useEffect(() => {
-		const wasLoading = prevIsLoadingRef.current;
-		prevIsLoadingRef.current = isLoading;
-
-		if (wasLoading && !isLoading && !isMobileViewport()) {
-			editorRef.current?.focus();
-		}
-	}, [isLoading, editorRef]);
-
 	const resetPromptCycle = () => {
-		setPromptCycle(null);
+		setHistorySession(null);
 		currentCycleValueRef.current = null;
 	};
 
@@ -109,7 +100,7 @@ export function useComposerEditor(
 		}
 
 		// Editor callbacks may run before React commits the next history index.
-		currentCycleValueRef.current = text;
+		currentCycleValueRef.current = { editorKey: remountKey, value: text };
 		editor.setValue(text);
 		editor.focus();
 	};
@@ -119,7 +110,14 @@ export function useComposerEditor(
 		serializedEditorState,
 		hasRefs,
 	) => {
-		if (promptCycle !== null && content !== currentCycleValueRef.current) {
+		const expected = currentCycleValueRef.current;
+
+		if (
+			promptCycle !== null &&
+			(expected === null ||
+				expected.editorKey !== remountKey ||
+				content !== expected.value)
+		) {
 			resetPromptCycle();
 		}
 
@@ -172,7 +170,8 @@ export function useComposerEditor(
 			}
 
 			e.preventDefault();
-			setPromptCycle({
+			setHistorySession({
+				editorKey: remountKey,
 				history: cycleHistory,
 				index: 0,
 				savedDraft: editorRef.current?.getValue() ?? "",
@@ -198,7 +197,7 @@ export function useComposerEditor(
 			return;
 		}
 
-		setPromptCycle({ ...promptCycle, index: nextIndex });
+		setHistorySession({ ...promptCycle, index: nextIndex });
 		applyCycleValue(nextPrompt);
 	};
 
