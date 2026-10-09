@@ -311,6 +311,21 @@ func (mr *MockAgentConnMockRecorder) LS(ctx, path, req any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LS", reflect.TypeOf((*MockAgentConn)(nil).LS), ctx, path, req)
 }
 
+// ListACPHarnesses mocks base method.
+func (m *MockAgentConn) ListACPHarnesses(ctx context.Context) ([]workspacesdk.ACPHarness, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListACPHarnesses", ctx)
+	ret0, _ := ret[0].([]workspacesdk.ACPHarness)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListACPHarnesses indicates an expected call of ListACPHarnesses.
+func (mr *MockAgentConnMockRecorder) ListACPHarnesses(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListACPHarnesses", reflect.TypeOf((*MockAgentConn)(nil).ListACPHarnesses), ctx)
+}
+
 // ListContainers mocks base method.
 func (m *MockAgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
 	m.ctrl.T.Helper()

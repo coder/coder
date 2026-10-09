@@ -45,6 +45,8 @@ type ManagerOptions struct {
 	// It is ignored when the resolver already has an MCP provider
 	// (e.g. a test injecting one via Resolver).
 	MCPCatalog func() []MCPServerStatus
+	// ACPResources supplies the cached workspace-local harness catalog.
+	ACPResources func() []Resource
 	// Debounce overrides the watcher's debounce window.
 	Debounce time.Duration
 }
@@ -146,6 +148,10 @@ func NewManager(opts ManagerOptions) *Manager {
 		closedCh:     make(chan struct{}),
 		runDoneCh:    make(chan struct{}),
 		runStartedCh: make(chan struct{}),
+	}
+
+	if resolver.ACPResources == nil {
+		resolver.ACPResources = opts.ACPResources
 	}
 
 	// Surface the shared MCP engine's catalog as KindMCPServer
