@@ -6,6 +6,25 @@ import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
 export type ToolStatus = "completed" | "error" | "running";
 
+/**
+ * Scrolls a log viewport to its newest line if the reader was at the end
+ * before the new lines landed. Returns the scrollHeight for the next call.
+ * It sets scrollTop directly: scrollIntoView also scrolls the chat transcript.
+ */
+export const followLogEnd = (
+	viewport: Pick<Element, "scrollTop" | "clientHeight" | "scrollHeight"> | null,
+	previousScrollHeight: number,
+): number => {
+	if (!viewport) {
+		return 0;
+	}
+	// 8px matches the message scroller's end threshold.
+	if (viewport.scrollTop + viewport.clientHeight >= previousScrollHeight - 8) {
+		viewport.scrollTop = viewport.scrollHeight;
+	}
+	return viewport.scrollHeight;
+};
+
 export type EditFilesFileEntry = {
 	path: string;
 	edits: Array<{ search: string; replace: string }>;

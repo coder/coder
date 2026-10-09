@@ -46,6 +46,8 @@ function useMessageScrollerCommands({
     spacerHeightRef,
     spacerRef,
     viewportRef,
+    // LOCAL CHANGE
+    followSuppressedRef,
   } = refs
 
   const setAutoScrolling = React.useCallback(
@@ -136,6 +138,7 @@ function useMessageScrollerCommands({
         return false
       }
 
+      followSuppressedRef.current = false // LOCAL CHANGE
       setTailSpacerHeight(0)
       streamingTurnRef.current = null
       modeRef.current = "free-scrolling"
@@ -155,6 +158,7 @@ function useMessageScrollerCommands({
         return false
       }
 
+      followSuppressedRef.current = false // LOCAL CHANGE
       setTailSpacerHeight(0)
       streamingTurnRef.current = null
       modeRef.current = autoScrollRef.current
@@ -259,6 +263,7 @@ function useMessageScrollerCommands({
   // defaultScrollPosition does not override it.
   const scrollToMessage = React.useCallback(
     (messageId: string, options?: MessageScrollerScrollOptions) => {
+      followSuppressedRef.current = false // LOCAL CHANGE
       const element = messageElementsRef.current.get(messageId)
 
       if (!element) {

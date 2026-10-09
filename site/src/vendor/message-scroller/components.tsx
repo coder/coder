@@ -23,6 +23,21 @@ const MessageScrollerContext =
   React.createContext<MessageScrollerContextValue | null>(null)
 const MessageScrollerItemContext =
   React.createContext<MessageScrollerRegisterMessage | null>(null)
+// LOCAL CHANGE: a no-op outside a Viewport, so tool rows also render
+// standalone.
+const MessageScrollerUserLayoutIntentContext = React.createContext<
+  (target: Element) => void
+>(() => {})
+
+// LOCAL CHANGE
+/**
+ * Returns the callback for a user's expand or collapse. Pass the toggled
+ * element, because a toggle above the anchored turn releases the anchor. It
+ * stops following new output, so do not use it for other layout changes.
+ */
+function useMessageScrollerUserLayoutIntent() {
+  return React.useContext(MessageScrollerUserLayoutIntentContext)
+}
 
 function useMessageScrollerContext() {
   const context = React.useContext(MessageScrollerContext)
@@ -125,12 +140,39 @@ function MessageScroller({ children, ...props }: MessageScrollerProps) {
   )
 }
 
+// LOCAL CHANGE
+const TOWARD_END_KEYS = new Set(["ArrowDown", "End", "PageDown", " "])
+
+// LOCAL CHANGE: an overlay scrollbar takes no width, so a strip this wide at
+// the right edge stands in for its track.
+const OVERLAY_SCROLLBAR_WIDTH = 16
+
+// LOCAL CHANGE: a scrollbar press targets the viewport itself, past
+// clientWidth for a classic scrollbar. The press counts even if the thumb
+// does not move, and so does a press on blank space in the overlay strip.
+function isScrollbarPress(event: React.PointerEvent<HTMLDivElement>) {
+  const viewport = event.currentTarget
+  const { clientHeight, clientWidth, offsetWidth, scrollHeight } = viewport
+  const trackStart =
+    clientWidth < offsetWidth
+      ? clientWidth
+      : offsetWidth - OVERLAY_SCROLLBAR_WIDTH
+
+  return (
+    event.target === viewport &&
+    scrollHeight > clientHeight &&
+    event.nativeEvent.offsetX >= trackStart
+  )
+}
+
 function MessageScrollerViewport({
   "aria-label": ariaLabel,
   children,
   onKeyDown,
+  onPointerDown, // LOCAL CHANGE
   onScroll,
   onTouchMove,
+  onTouchStart, // LOCAL CHANGE
   onWheel,
   preserveScrollOnPrepend = true,
   ref,
@@ -141,11 +183,17 @@ function MessageScrollerViewport({
   const {
     handleResize,
     preserveScrollOnPrependRef,
+    resetBrowserScrollAnchor, // LOCAL CHANGE
     setViewportElement,
+    stateStore, // LOCAL CHANGE
     syncAfterScroll,
+    syncAfterScrollbarPress, // LOCAL CHANGE
+    // LOCAL CHANGE
+    userLayoutIntent,
     userScrollIntent,
     viewportRef,
   } = useMessageScrollerContext()
+  const touchStartYRef = React.useRef(-Infinity) // LOCAL CHANGE
 
   preserveScrollOnPrependRef.current = preserveScrollOnPrepend
 
@@ -162,19 +210,72 @@ function MessageScrollerViewport({
     onScroll?.(event)
   }
 
+  // LOCAL CHANGE: a scrollbar drag fires no wheel, touch, or key event. A
+  // press at the end may start a drag up, so it syncs only once released.
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (
+      isScrollbarPress(event) &&
+      userScrollIntent() &&
+      !stateStore.getSnapshot().end
+    ) {
+      const viewport = event.currentTarget
+      const pressScrollTop = viewport.scrollTop
+      // A touch that turns into a pan ends with pointercancel, not pointerup,
+      // and a release outside the window may never arrive. Drop the release
+      // then, so a later click cannot trigger it.
+      const press = new AbortController()
+      const drop = () => press.abort()
+
+      viewport.addEventListener(
+        "pointerup",
+        () => syncAfterScrollbarPress(pressScrollTop),
+        { once: true, signal: press.signal }
+      )
+      viewport.addEventListener("pointercancel", drop, { signal: press.signal })
+      viewport.addEventListener("pointerdown", drop, { signal: press.signal })
+    }
+
+    onPointerDown?.(event)
+  }
+
   function handleWheel(event: React.WheelEvent<HTMLDivElement>) {
-    userScrollIntent()
+    // LOCAL CHANGE
+    if (userScrollIntent() && event.deltaY > 0) {
+      syncAfterScroll()
+    }
     onWheel?.(event)
   }
 
+  function handleTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    // LOCAL CHANGE
+    touchStartYRef.current = event.touches[0]?.clientY ?? -Infinity
+    onTouchStart?.(event)
+  }
+
   function handleTouchMove(event: React.TouchEvent<HTMLDivElement>) {
-    userScrollIntent()
+    // LOCAL CHANGE: a finger moving up pans toward the end, so at the end it
+    // fires no scroll event, as a wheel down does.
+    const touchY = event.touches[0]?.clientY
+    if (userScrollIntent() && touchY < touchStartYRef.current) {
+      syncAfterScroll()
+    }
     onTouchMove?.(event)
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (USER_SCROLL_KEYS.has(event.key)) {
-      userScrollIntent()
+    // LOCAL CHANGE: Space on a button activates it instead of scrolling.
+    const activatesButton =
+      event.key === " " && event.target instanceof HTMLButtonElement
+
+    if (USER_SCROLL_KEYS.has(event.key) && !activatesButton) {
+      // LOCAL CHANGE
+      if (
+        userScrollIntent() &&
+        TOWARD_END_KEYS.has(event.key) &&
+        !(event.key === " " && event.shiftKey)
+      ) {
+        syncAfterScroll()
+      }
     }
 
     onKeyDown?.(event)
@@ -193,6 +294,9 @@ function MessageScrollerViewport({
     let frame = 0
 
     const observer = new ResizeObserver(() => {
+      // LOCAL CHANGE: not in the rAF, so output before the next frame cannot
+      // scroll a clamped view back down. A scroll resizes nothing.
+      resetBrowserScrollAnchor()
       window.cancelAnimationFrame(frame)
       frame = window.requestAnimationFrame(handleResize)
     })
@@ -203,22 +307,27 @@ function MessageScrollerViewport({
       window.cancelAnimationFrame(frame)
       observer.disconnect()
     }
-  }, [handleResize, viewportRef])
+  }, [handleResize, resetBrowserScrollAnchor, viewportRef]) // LOCAL CHANGE
 
   return (
-    <div
-      ref={setViewportRef}
-      role={role ?? "region"}
-      aria-label={ariaLabel ?? "Messages"}
-      tabIndex={tabIndex ?? 0}
-      onKeyDown={handleKeyDown}
-      onScroll={handleScroll}
-      onTouchMove={handleTouchMove}
-      onWheel={handleWheel}
-      {...props}
-    >
-      {children}
-    </div>
+    // LOCAL CHANGE: wraps the upstream div.
+    <MessageScrollerUserLayoutIntentContext.Provider value={userLayoutIntent}>
+      <div
+        ref={setViewportRef}
+        role={role ?? "region"}
+        aria-label={ariaLabel ?? "Messages"}
+        tabIndex={tabIndex ?? 0}
+        onKeyDown={handleKeyDown}
+        onPointerDown={handlePointerDown} // LOCAL CHANGE
+        onScroll={handleScroll}
+        onTouchMove={handleTouchMove}
+        onTouchStart={handleTouchStart} // LOCAL CHANGE
+        onWheel={handleWheel}
+        {...props}
+      >
+        {children}
+      </div>
+    </MessageScrollerUserLayoutIntentContext.Provider>
   )
 }
 
@@ -233,6 +342,7 @@ function MessageScrollerContent({
   const {
     handleContentChange,
     handleResize,
+    resetBrowserScrollAnchor, // LOCAL CHANGE
     setContentElement,
     setSpacerElement,
   } = useMessageScrollerContext()
@@ -282,6 +392,7 @@ function MessageScrollerContent({
     let frame = 0
 
     const observer = new ResizeObserver(() => {
+      resetBrowserScrollAnchor() // LOCAL CHANGE: as in MessageScrollerViewport.
       window.cancelAnimationFrame(frame)
       frame = window.requestAnimationFrame(handleResize)
     })
@@ -292,7 +403,7 @@ function MessageScrollerContent({
       window.cancelAnimationFrame(frame)
       observer.disconnect()
     }
-  }, [handleResize])
+  }, [handleResize, resetBrowserScrollAnchor]) // LOCAL CHANGE
 
   return (
     <div
@@ -428,6 +539,8 @@ export {
   MessageScrollerProvider,
   MessageScrollerViewport,
   useMessageScroller,
+  // LOCAL CHANGE
+  useMessageScrollerUserLayoutIntent,
   useMessageScrollerScrollable,
   useMessageScrollerVisibility,
 }

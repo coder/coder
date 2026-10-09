@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceById } from "#/api/queries/workspaces";
@@ -9,7 +9,7 @@ import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import { LogNotice } from "./LogNotice";
-import type { ToolStatus } from "./utils";
+import { followLogEnd, type ToolStatus } from "./utils";
 
 type WorkspaceBuildLogSectionProps = {
 	status: ToolStatus;
@@ -99,6 +99,16 @@ export const WorkspaceBuildLogSection: React.FC<
 		return () => clearTimeout(timer);
 	}, [effectiveBuildId, hasLogs]);
 
+	// WorkspaceBuildLogs' scrollIntoView would also scroll the chat transcript.
+	const viewportRef = useRef<HTMLDivElement>(null);
+	const scrollHeightRef = useRef(0);
+	useLayoutEffect(() => {
+		scrollHeightRef.current = followLogEnd(
+			viewportRef.current,
+			scrollHeightRef.current,
+		);
+	}, [logs]);
+
 	const fetchFailed = !isRunning && completedLogsQuery.isError;
 
 	if (!effectiveBuildId) {
@@ -137,6 +147,7 @@ export const WorkspaceBuildLogSection: React.FC<
 		<ScrollArea
 			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 			viewportClassName="max-h-64"
+			viewportRef={viewportRef}
 			viewportTabIndex={0}
 			viewportAriaLabel="Workspace build log"
 			scrollBarClassName="w-1.5"
@@ -144,6 +155,7 @@ export const WorkspaceBuildLogSection: React.FC<
 			<WorkspaceBuildLogs
 				logs={logs}
 				sticky
+				disableAutoscroll
 				className="border-0 rounded-none"
 			/>
 		</ScrollArea>
