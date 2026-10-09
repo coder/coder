@@ -45,6 +45,7 @@ const aiSettingsRoutes: [RouterRoute, ...RouterRoute[]] = [
 	{ path: "/ai/settings/mcp-servers/add", useStoryElement: true },
 	{ path: "/ai/settings/templates", useStoryElement: true },
 	{ path: "/ai/settings/instructions", useStoryElement: true },
+	{ path: "/ai/settings/skills", useStoryElement: true },
 	{ path: "/ai/settings/lifecycle", useStoryElement: true },
 ];
 
@@ -407,6 +408,24 @@ export const InstructionsForOrganizationAdmin: Story = {
 	},
 	parameters: {
 		reactRouter: atLocation("/ai/settings/instructions"),
+	},
+};
+
+export const SkillsActive: Story = {
+	parameters: {
+		reactRouter: atLocation("/ai/settings/skills"),
+	},
+};
+
+export const SkillsForOrganizationAuditor: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			viewAnyOrganizationSkills: true,
+		},
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/skills"),
 	},
 };
 

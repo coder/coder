@@ -6,7 +6,7 @@ export type SkillOwner =
 	| { type: "user"; user: string }
 	| { type: "organization"; organizationId: string };
 
-const skillsKey = (owner: SkillOwner) =>
+export const skillsKey = (owner: SkillOwner) =>
 	owner.type === "user"
 		? (["user-skills", owner.user] as const)
 		: (["organization-skills", owner.organizationId] as const);

@@ -105,12 +105,14 @@ type SkillsTableProps = {
 	owner: SkillOwner;
 	copy: SkillsCopy;
 	canEdit: boolean;
+	toolbar?: React.ReactNode;
 };
 
 export const SkillsTable: React.FC<SkillsTableProps> = ({
 	owner,
 	copy,
 	canEdit,
+	toolbar,
 }) => {
 	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
 	const queryClient = useQueryClient();
@@ -376,6 +378,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			copy={copy}
 			limit={SKILLS_MAX_PER_OWNER}
 			canEdit={canEdit}
+			toolbar={toolbar}
 			error={skillsQuery.error}
 			isLoading={skillsQuery.isLoading}
 			isRetrying={skillsQuery.isFetching}

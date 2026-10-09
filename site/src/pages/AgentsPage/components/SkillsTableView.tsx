@@ -106,6 +106,7 @@ export type SkillsTableViewProps = {
 	copy: SkillsCopy;
 	limit: number;
 	canEdit: boolean;
+	toolbar?: React.ReactNode;
 	error: unknown;
 	isLoading: boolean;
 	isRetrying: boolean;
@@ -411,6 +412,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	copy,
 	limit,
 	canEdit,
+	toolbar,
 	error,
 	isLoading,
 	isRetrying,
@@ -492,6 +494,8 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				description={copy.description}
 				action={headerActions}
 			/>
+
+			{toolbar}
 
 			{canEdit && isAtLimit && (
 				<Alert severity="warning">
