@@ -1294,7 +1294,130 @@ func TestProvision_LockFileCached(t *testing.T) {
 	buildLog, last := readProvisionLog(t, buildSess)
 	require.NotNil(t, last.GetInit())
 	require.Empty(t, last.GetInit().Error)
-	require.Contains(t, buildLog, "Reusing previous version from the dependency lock file")
+	// Every provider is pinned and already in the plugin cache, so init is
+	// replaced by linking the cached packages.
+	require.Contains(t, buildLog, "Reusing cached providers from the dependency lock file")
+	require.NotContains(t, buildLog, "Reusing previous version from the dependency lock file")
+
+	// Plan must work against the linked providers without a real init.
+	err = sendPlan(buildSess, proto.WorkspaceTransition_START)
+	require.NoError(t, err)
+	planLog, last := readProvisionLog(t, buildSess)
+	require.NotNil(t, last.GetPlan())
+	require.Empty(t, last.GetPlan().Error)
+	require.NotContains(t, planLog, "running terraform init")
+}
+
+// TestProvision_SkipInitRequiresModules covers a configuration whose lock
+// file pins a cached provider but which also calls a module that was never
+// installed. Linking providers is not enough there, so init runs normally.
+func TestProvision_SkipInitRequiresModules(t *testing.T) {
+	t.Parallel()
+
+	source := testutil.CreateTar(t, map[string]string{
+		"main.tf": `terraform {
+			required_providers {
+			  coder = {
+				source  = "coder/coder"
+				version = "0.6.20"
+			  }
+			}
+		}`,
+	})
+
+	ctx, api := setupProvisioner(t, nil)
+
+	importSess := configure(ctx, t, api, &proto.Config{})
+	importResp := sendInitAndGetResp(t, importSess, source)
+	require.Empty(t, importResp.Error)
+	lockFile := readTarFile(t, importResp.ModuleFiles, ".terraform.lock.hcl")
+
+	// Same lock file, but the configuration now references a local module
+	// directory. Because the module archive shipped with the lock file has
+	// no module manifest, modulesReady sees a module call without an
+	// installed module and init runs normally.
+	withModule := testutil.CreateTar(t, map[string]string{
+		"main.tf": `terraform {
+			required_providers {
+			  coder = {
+				source  = "coder/coder"
+				version = "0.6.20"
+			  }
+			}
+		}
+		module "local" {
+		  source = "./local"
+		}`,
+		"local/main.tf":       `output "value" { value = "ok" }`,
+		".terraform.lock.hcl": string(lockFile),
+	})
+	buildSess := configure(ctx, t, api, &proto.Config{})
+	var buildLog strings.Builder
+	buildResp := sendInitAndGetResp(t, buildSess, withModule, func(log string) {
+		_, _ = buildLog.WriteString(log)
+	})
+	require.Empty(t, buildResp.Error)
+	require.NotContains(t, buildLog.String(), "Reusing cached providers from the dependency lock file")
+	require.Contains(t, buildLog.String(), "Reusing previous version from the dependency lock file")
+}
+
+// TestProvision_SkipInitFallsBack covers a lock file that pins only some of
+// the providers the configuration needs. Init links what is cached, plan
+// fails because the rest is missing, and Plan falls back to a real init
+// before retrying.
+func TestProvision_SkipInitFallsBack(t *testing.T) {
+	t.Parallel()
+
+	source := testutil.CreateTar(t, map[string]string{
+		"main.tf": `terraform {
+			required_providers {
+			  coder = {
+				source  = "coder/coder"
+				version = "0.6.20"
+			  }
+			}
+		}`,
+	})
+
+	ctx, api := setupProvisioner(t, nil)
+
+	importSess := configure(ctx, t, api, &proto.Config{})
+	importResp := sendInitAndGetResp(t, importSess, source)
+	require.Empty(t, importResp.Error)
+	lockFile := readTarFile(t, importResp.ModuleFiles, ".terraform.lock.hcl")
+
+	// The stale lock file knows nothing about the null provider.
+	withNull := testutil.CreateTar(t, map[string]string{
+		"main.tf": `terraform {
+			required_providers {
+			  coder = {
+				source  = "coder/coder"
+				version = "0.6.20"
+			  }
+			  null = {
+				source  = "hashicorp/null"
+				version = "3.2.2"
+			  }
+			}
+		}
+		resource "null_resource" "a" {}`,
+		".terraform.lock.hcl": string(lockFile),
+	})
+	buildSess := configure(ctx, t, api, &proto.Config{})
+	var initLog strings.Builder
+	buildResp := sendInitAndGetResp(t, buildSess, withNull, func(log string) {
+		_, _ = initLog.WriteString(log)
+	})
+	require.Empty(t, buildResp.Error)
+	require.Contains(t, initLog.String(), "Reusing cached providers from the dependency lock file")
+
+	err := sendPlan(buildSess, proto.WorkspaceTransition_START)
+	require.NoError(t, err)
+	planLog, last := readProvisionLog(t, buildSess)
+	require.NotNil(t, last.GetPlan())
+	require.Empty(t, last.GetPlan().Error)
+	require.Contains(t, planLog, "Cached providers were not sufficient, running terraform init")
+	require.Contains(t, planLog, "Reusing previous version from the dependency lock file")
 }
 
 func readTarFile(t *testing.T, archive []byte, name string) []byte {
