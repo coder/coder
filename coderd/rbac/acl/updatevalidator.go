@@ -11,24 +11,29 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type UpdateValidator[Role codersdk.WorkspaceRole | codersdk.TemplateRole | codersdk.ChatRole | codersdk.MCPServerConfigRole] interface {
+// Role is the set of ACL role types Validate accepts.
+type Role interface {
+	codersdk.WorkspaceRole | codersdk.TemplateRole | codersdk.ChatRole | codersdk.MCPServerConfigRole | codersdk.OrganizationSkillRole
+}
+
+type UpdateValidator[R Role] interface {
 	// Users should return a map from user UUIDs (as strings) to the role they
 	// are being assigned. Additionally, it should return a string that will be
 	// used as the field name for the ValidationErrors returned from Validate.
-	Users() (map[string]Role, string)
+	Users() (map[string]R, string)
 	// Groups should return a map from group UUIDs (as strings) to the role they
 	// are being assigned. Additionally, it should return a string that will be
 	// used as the field name for the ValidationErrors returned from Validate.
-	Groups() (map[string]Role, string)
+	Groups() (map[string]R, string)
 	// ValidateRole should return an error that will be used in the
 	// ValidationError if the role is invalid for the corresponding resource type.
-	ValidateRole(role Role) error
+	ValidateRole(role R) error
 }
 
-func Validate[Role codersdk.WorkspaceRole | codersdk.TemplateRole | codersdk.ChatRole | codersdk.MCPServerConfigRole](
+func Validate[R Role](
 	ctx context.Context,
 	db database.Store,
-	v UpdateValidator[Role],
+	v UpdateValidator[R],
 ) []codersdk.ValidationError {
 	// nolint:gocritic // Validate requires full read access to users and groups
 	ctx = dbauthz.AsSystemRestricted(ctx)
