@@ -61,6 +61,7 @@ const meta = {
 	title: "pages/AISettingsPage/AgentHoursPage/AgentHoursPageView",
 	component: AgentHoursPageView,
 	args: {
+		isLicensed: true,
 		canEditDeploymentConfig: true,
 		licenseHours: 1000,
 		organizationAllotments: [
@@ -106,7 +107,7 @@ export const NoAllotments: Story = {
 		organizationAgentHours: (
 			<OrganizationAgentHoursView
 				{...mockOrganizationSectionProps}
-				groupAllotments={{ groups: [] }}
+				groupAllotments={{ organization_allotment_bps: null, groups: [] }}
 			/>
 		),
 	},
@@ -136,10 +137,17 @@ export const OrganizationWithoutAllotment: Story = {
 		organizationAgentHours: (
 			<OrganizationAgentHoursView
 				{...mockOrganizationSectionProps}
-				groupAllotments={{ groups: mockGroupAllotments.groups }}
+				groupAllotments={{
+					organization_allotment_bps: null,
+					groups: mockGroupAllotments.groups,
+				}}
 			/>
 		),
 	},
+};
+
+export const Unlicensed: Story = {
+	args: { isLicensed: false },
 };
 
 export const GroupManager: Story = {
@@ -206,6 +214,30 @@ export const EditAllotmentDialog: Story = {
 	},
 };
 
+export const NegativeAllotment: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: `Edit allotment for ${MockOrganization2.display_name}`,
+			}),
+		);
+		const input = screen.getByRole("textbox", { name: "Allotment" });
+		await userEvent.clear(input);
+		await userEvent.type(input, "-1");
+		await userEvent.click(screen.getByRole("button", { name: "Save" }));
+	},
+};
+
+export const RemoveAllotmentDialog: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: `Remove allotment for ${MockOrganization2.display_name}`,
+			}),
+		);
+	},
+};
+
 export const AllotmentDialogServerError: Story = {
 	args: {
 		onSaveOrganizationAllotment: fn(() =>
@@ -224,8 +256,17 @@ export const AllotmentDialogServerError: Story = {
 		await userEvent.click(
 			within(section).getByRole("button", { name: "Add allotment" }),
 		);
+		await userEvent.click(
+			screen.getByRole("combobox", { name: "Organization" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: MockOrganization3.display_name,
+			}),
+		);
+		// The closing list keeps the rest of the dialog hidden until it unmounts.
 		await userEvent.type(
-			screen.getByRole("textbox", { name: "Allotment" }),
+			await screen.findByRole("textbox", { name: "Allotment" }),
 			"10",
 		);
 		await userEvent.click(screen.getByRole("button", { name: "Save" }));

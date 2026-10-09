@@ -45,7 +45,7 @@ type AgentHoursGroupAllotments struct {
 	// OrganizationAllotmentBps is the organization's own share of the
 	// deployment's Agent Hours. It is null when the organization has no
 	// allotment and draws from the shared pool.
-	OrganizationAllotmentBps *int32                     `json:"organization_allotment_bps,omitempty"`
+	OrganizationAllotmentBps *int32                     `json:"organization_allotment_bps"`
 	Groups                   []AgentHoursGroupAllotment `json:"groups"`
 }
 

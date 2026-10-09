@@ -174,6 +174,14 @@ export const useResourceTypeFilterMenu = ({
 			label = "Experiment Rule";
 		}
 
+		if (type === "agent_hours_organization_allotment") {
+			label = "Agent Hours Organization Allotment";
+		}
+
+		if (type === "agent_hours_group_allotment") {
+			label = "Agent Hours Group Allotment";
+		}
+
 		return {
 			value: type,
 			label,

@@ -19,7 +19,8 @@ type OrganizationAgentHoursViewProps = {
 export const OrganizationAgentHoursView: React.FC<
 	OrganizationAgentHoursViewProps
 > = ({ licenseHours, groupAllotments, groups, error, onSave, onRemove }) => {
-	const organizationBps = groupAllotments?.organization_allotment_bps;
+	const organizationBps =
+		groupAllotments?.organization_allotment_bps ?? undefined;
 	const organizationHours =
 		organizationBps === undefined
 			? undefined

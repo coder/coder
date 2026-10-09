@@ -1,10 +1,11 @@
-import { PlusIcon } from "lucide-react";
+import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
 import { AgentHoursAllotmentMaxBps } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	Table,
@@ -51,6 +52,7 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 	onRemove,
 }) => {
 	const [dialog, setDialog] = useState<DialogState>();
+	const [entryToRemove, setEntryToRemove] = useState<AllotmentEntry>();
 	const entityLabel = entity === "group" ? "Group" : "Organization";
 
 	if (allotments === undefined) {
@@ -64,6 +66,7 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 	const allottedBps = allotments.reduce((sum, entry) => sum + entry.bps, 0);
 	const unallottedBps = Math.max(AgentHoursAllotmentMaxBps - allottedBps, 0);
 	const allottedHours = allotmentHours(allottedBps, poolHours);
+	const unallottedHours = allotmentHours(unallottedBps, poolHours);
 	const addBlockedReason =
 		unallottedBps === 0
 			? `All of ${poolLabel} are allotted.`
@@ -72,6 +75,7 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 				: undefined;
 
 	const handleRemove = (entry: AllotmentEntry) => {
+		setEntryToRemove(undefined);
 		toast.promise(onRemove(entry.id), {
 			loading: `Removing allotment for ${entry.name}...`,
 			success: `Removed allotment for ${entry.name}.`,
@@ -94,11 +98,12 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 				<p className="m-0 text-sm text-content-secondary">
 					<span className="font-medium text-content-primary">
 						{formatAllotmentPercent(allottedBps)} allotted
+						{allottedHours !== undefined && ` (${formatHours(allottedHours)})`}
 					</span>
 					, {formatAllotmentPercent(unallottedBps)} unallotted
-					{allottedHours !== undefined &&
-						poolHours !== undefined &&
-						` (${formatHours(allottedHours)} of ${formatHours(poolHours)})`}
+					{unallottedHours !== undefined &&
+						` (${formatHours(unallottedHours)})`}
+					{poolHours !== undefined && ` of ${formatHours(poolHours)}`}
 				</p>
 			</div>
 
@@ -131,7 +136,7 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 								entry={entry}
 								poolHours={poolHours}
 								onEdit={() => setDialog({ mode: "edit", entry })}
-								onRemove={() => handleRemove(entry)}
+								onRemove={() => setEntryToRemove(entry)}
 							/>
 						))
 					)}
@@ -169,6 +174,25 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 					onSubmit={onSave}
 				/>
 			)}
+
+			<ConfirmDialog
+				type="delete"
+				title="Remove allotment"
+				confirmText="Remove"
+				description={
+					<>
+						Remove the allotment for <strong>{entryToRemove?.name}</strong>? Its
+						share returns to the unallotted pool.
+					</>
+				}
+				open={entryToRemove !== undefined}
+				onClose={() => setEntryToRemove(undefined)}
+				onConfirm={() => {
+					if (entryToRemove) {
+						handleRemove(entryToRemove);
+					}
+				}}
+			/>
 		</div>
 	);
 };
@@ -195,22 +219,22 @@ const AllotmentRow: React.FC<AllotmentRowProps> = ({
 			<TableCell>{formatAllotmentPercent(entry.bps)}</TableCell>
 			{hours !== undefined && <TableCell>{formatHours(hours)}</TableCell>}
 			<TableCell>
-				<div className="flex justify-end gap-2">
+				<div className="flex flex-wrap justify-end gap-2">
 					<Button
 						variant="outline"
-						size="sm"
+						size="icon"
 						aria-label={`Edit allotment for ${entry.name}`}
 						onClick={onEdit}
 					>
-						Edit
+						<PencilIcon className="size-icon-sm" />
 					</Button>
 					<Button
-						variant="subtle"
-						size="sm"
+						variant="outline"
+						size="icon"
 						aria-label={`Remove allotment for ${entry.name}`}
 						onClick={onRemove}
 					>
-						Remove
+						<TrashIcon className="size-icon-sm" />
 					</Button>
 				</div>
 			</TableCell>

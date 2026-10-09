@@ -111,7 +111,8 @@ func TestAgentHoursOrganizationAllotments(t *testing.T) {
 
 		// 10000 only fits once the organization's own 6000 is excluded.
 		_, err = client.UpsertAgentHoursOrganizationAllotment(ctx, other.ID, allotmentReq(10000))
-		requireAgentHoursStatus(t, err, http.StatusConflict)
+		sdkErr = requireAgentHoursStatus(t, err, http.StatusConflict)
+		require.Equal(t, "Only 0% is unallotted, so this allotment can be at most 40%.", sdkErr.Detail)
 		require.NoError(t, client.DeleteAgentHoursOrganizationAllotment(ctx, owner.OrganizationID))
 		_, err = client.UpsertAgentHoursOrganizationAllotment(ctx, other.ID, allotmentReq(10000))
 		require.NoError(t, err)
@@ -170,6 +171,12 @@ func TestAgentHoursOrganizationAllotments(t *testing.T) {
 		_, err = client.UpsertAgentHoursOrganizationAllotment(ctx, owner.OrganizationID, allotmentReq(10000))
 		require.NoError(t, err)
 		_, err = client.UpsertAgentHoursOrganizationAllotment(ctx, other.ID, allotmentReq(100))
+		requireAgentHoursStatus(t, err, http.StatusNotFound)
+
+		// The Everyone group outlives its soft-deleted organization.
+		_, err = client.UpsertAgentHoursGroupAllotment(ctx, other.ID, allotmentReq(100))
+		requireAgentHoursStatus(t, err, http.StatusNotFound)
+		err = client.DeleteAgentHoursGroupAllotment(ctx, other.ID)
 		requireAgentHoursStatus(t, err, http.StatusNotFound)
 	})
 
@@ -346,14 +353,14 @@ func TestAgentHoursAllotmentsAudit(t *testing.T) {
 	for _, tc := range []struct {
 		resourceType database.ResourceType
 		resourceID   uuid.UUID
-		write        func() error
+		write        func(bps int32) error
 		remove       func() error
 	}{
 		{
 			resourceType: database.ResourceTypeAgentHoursOrganizationAllotment,
 			resourceID:   owner.OrganizationID,
-			write: func() error {
-				_, err := client.UpsertAgentHoursOrganizationAllotment(ctx, owner.OrganizationID, allotmentReq(2550))
+			write: func(bps int32) error {
+				_, err := client.UpsertAgentHoursOrganizationAllotment(ctx, owner.OrganizationID, allotmentReq(bps))
 				return err
 			},
 			remove: func() error { return client.DeleteAgentHoursOrganizationAllotment(ctx, owner.OrganizationID) },
@@ -361,30 +368,31 @@ func TestAgentHoursAllotmentsAudit(t *testing.T) {
 		{
 			resourceType: database.ResourceTypeAgentHoursGroupAllotment,
 			resourceID:   group.ID,
-			write: func() error {
-				_, err := client.UpsertAgentHoursGroupAllotment(ctx, group.ID, allotmentReq(2550))
+			write: func(bps int32) error {
+				_, err := client.UpsertAgentHoursGroupAllotment(ctx, group.ID, allotmentReq(bps))
 				return err
 			},
 			remove: func() error { return client.DeleteAgentHoursGroupAllotment(ctx, group.ID) },
 		},
 	} {
 		auditor.ResetLogs()
-		require.NoError(t, tc.write())
+		require.NoError(t, tc.write(2550))
+		require.NoError(t, tc.write(3000))
+		// Re-setting the same value changes nothing, so it is not audited.
+		require.NoError(t, tc.write(3000))
 		require.NoError(t, tc.remove())
-		for _, want := range []struct {
-			action database.AuditAction
-			status int32
-		}{
-			{action: database.AuditActionWrite, status: http.StatusOK},
-			{action: database.AuditActionDelete, status: http.StatusNoContent},
-		} {
-			require.True(t, auditor.Contains(t, database.AuditLog{
-				Action:         want.action,
-				ResourceType:   tc.resourceType,
-				ResourceID:     tc.resourceID,
-				OrganizationID: owner.OrganizationID,
-				StatusCode:     want.status,
-			}), "%s %s", tc.resourceType, want.action)
+
+		var actions []database.AuditAction
+		for _, entry := range auditor.AuditLogs() {
+			require.Equal(t, tc.resourceType, entry.ResourceType)
+			require.Equal(t, tc.resourceID, entry.ResourceID)
+			require.Equal(t, owner.OrganizationID, entry.OrganizationID)
+			actions = append(actions, entry.Action)
 		}
+		require.Equal(t, []database.AuditAction{
+			database.AuditActionCreate,
+			database.AuditActionWrite,
+			database.AuditActionDelete,
+		}, actions, tc.resourceType)
 	}
 }

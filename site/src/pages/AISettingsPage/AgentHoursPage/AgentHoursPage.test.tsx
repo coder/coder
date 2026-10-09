@@ -11,6 +11,7 @@ import {
 	MockNoPermissions,
 	MockOrganization,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import AgentHoursPage from "./AgentHoursPage";
@@ -48,9 +49,11 @@ const renderPage = () => {
 		[MockOrganization.id]: true,
 	});
 	vi.spyOn(API, "getGroupsByOrganization").mockResolvedValue([MockGroup]);
-	vi.spyOn(API, "getAgentHoursOrganizationAllotments").mockResolvedValue([
-		{ ...MockAgentHoursOrganizationAllotment, allotment_bps: 6000 },
-	]);
+	const getOrganizationAllotments = vi
+		.spyOn(API, "getAgentHoursOrganizationAllotments")
+		.mockResolvedValue([
+			{ ...MockAgentHoursOrganizationAllotment, allotment_bps: 6000 },
+		]);
 	const getGroupAllotments = vi
 		.spyOn(API, "getAgentHoursGroupAllotments")
 		.mockResolvedValue({
@@ -62,7 +65,7 @@ const renderPage = () => {
 		{ initialEntries: ["/ai/settings/agent-hours"] },
 	);
 	renderWithRouter(router);
-	return { getGroupAllotments };
+	return { getOrganizationAllotments, getGroupAllotments };
 };
 
 const saveAllotment = async (
@@ -111,6 +114,8 @@ it("saves and removes organization allotments", async () => {
 			name: `Remove allotment for ${MockOrganization.display_name}`,
 		}),
 	);
+	expect(remove).not.toHaveBeenCalled();
+	await user.click(screen.getByRole("button", { name: "Remove" }));
 	await waitFor(() => expect(remove).toHaveBeenCalledWith(MockOrganization.id));
 });
 
@@ -138,5 +143,28 @@ it("saves and removes group allotments", async () => {
 			name: `Remove allotment for ${MockGroup.display_name}`,
 		}),
 	);
+	await user.click(screen.getByRole("button", { name: "Remove" }));
 	await waitFor(() => expect(remove).toHaveBeenCalledWith(MockGroup.id));
+});
+
+it("refreshes the allotments after a rejected save", async () => {
+	const user = userEvent.setup();
+	vi.spyOn(API, "upsertAgentHoursOrganizationAllotment").mockRejectedValue(
+		mockApiError({
+			message: "Agent Hours allotments cannot exceed 100% in total.",
+		}),
+	);
+	const { getOrganizationAllotments } = renderPage();
+	const region = screen.getByRole("region", {
+		name: "Organization allotments",
+	});
+	await waitFor(() =>
+		expect(getOrganizationAllotments).toHaveBeenCalledTimes(1),
+	);
+
+	// A conflict means another change landed, so the totals are stale.
+	await saveAllotment(user, region, MockOrganization.display_name, "80");
+	await waitFor(() =>
+		expect(getOrganizationAllotments).toHaveBeenCalledTimes(2),
+	);
 });

@@ -2,6 +2,7 @@ import type {
 	AgentHoursOrganizationAllotment,
 	Organization,
 } from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import {
@@ -16,6 +17,8 @@ import { docs } from "#/utils/docs";
 import { AllotmentPanel } from "./AllotmentPanel";
 
 type AgentHoursPageViewProps = {
+	/** False when the license does not include Agent Hours. */
+	isLicensed: boolean;
 	canEditDeploymentConfig: boolean;
 	/** Licensed Agent Hours, undefined when unlimited. */
 	licenseHours: number | undefined;
@@ -41,6 +44,7 @@ type AgentHoursPageViewProps = {
 };
 
 export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
+	isLicensed,
 	canEditDeploymentConfig,
 	licenseHours,
 	organizationAllotments,
@@ -71,7 +75,16 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			{canEditDeploymentConfig && (
+			{!isLicensed && (
+				<Alert severity="info">
+					<AlertTitle>Your license does not include Agent Hours</AlertTitle>
+					<AlertDescription>
+						Allotments need a Premium license that grants Agent Hours.
+					</AlertDescription>
+				</Alert>
+			)}
+
+			{isLicensed && canEditDeploymentConfig && (
 				<SettingsSection
 					title="Organization allotments"
 					description={
@@ -109,11 +122,13 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 				</SettingsSection>
 			)}
 
-			{isOrganizationAccessLoading && <Loader label="Loading organizations" />}
-			{organizationAccessError != null && (
+			{isLicensed && isOrganizationAccessLoading && (
+				<Loader label="Loading organizations" />
+			)}
+			{isLicensed && organizationAccessError != null && (
 				<ErrorAlert error={organizationAccessError} />
 			)}
-			{organization && (
+			{isLicensed && organization && (
 				<OrganizationSettingsSection
 					title="Group allotments"
 					description="Shares of this organization's Agent Hours."

@@ -33,7 +33,7 @@ A deployment with a single organization can allot to groups without giving the o
 Coder shows hour figures for groups only when their organization has an allotment and the license grants a fixed number of Agent Hours.
 
 Coder rejects any change that would push a tier above 100%, including concurrent changes from several administrators.
-The API returns `409 Conflict` and names the share that is still unallotted.
+The API returns `409 Conflict` with the share that is still unallotted and the largest value `allotment_bps` can take.
 
 ## Manage allotments
 
@@ -42,7 +42,7 @@ The API returns `409 Conflict` and names the share that is still unallotted.
 1. To allot to a group, choose the organization under **Group allotments**, select **Add allotment**, choose the group, and enter a percentage.
 
 The gauge above each table shows how much of the pool is allotted.
-Select **Edit** to change an allotment or **Remove** to delete it.
+Use the edit button in a row to change an allotment, or the remove button to delete it after you confirm.
 Coder records every change in the [audit log](../../../admin/security/audit-logs.md).
 
 ## Permissions
@@ -61,7 +61,7 @@ They can read it, because it's the base of their group allotments.
 
 - **Unlimited Agent Hours**: you can still set allotments, and each tier is still capped at 100%.
   Coder shows percentages only.
-- **No Agent Hours**: when the license doesn't include Agent Hours, the **Agent Hours** page is hidden and the allotment API returns `403 Forbidden`.
+- **No Agent Hours**: when the license doesn't include Agent Hours, the **Agent Hours** page is hidden from navigation and the allotment API returns `403 Forbidden`.
 - **Renewal or resizing**: allotments are stored as percentages and stay in place.
   Hour figures update to match the new license.
 

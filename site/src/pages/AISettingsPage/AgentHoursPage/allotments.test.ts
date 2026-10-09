@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	allotmentHours,
 	formatAllotmentPercent,
+	formatHours,
 	parseAllotmentPercent,
 } from "./allotments";
 
@@ -12,16 +13,15 @@ describe("parseAllotmentPercent", () => {
 		["0.29", 29],
 		["0.01", 1],
 		[" 100 ", 10000],
+		[".5", 50],
+		["5.", 500],
 	])("parses %j as %d basis points", (input, bps) => {
 		expect(parseAllotmentPercent(input)).toBe(bps);
 	});
 
-	it.each(["", "abc", "-5", "1.234", "1e2", ".5", "5."])(
-		"rejects %j",
-		(input) => {
-			expect(parseAllotmentPercent(input)).toBeUndefined();
-		},
-	);
+	it.each(["", ".", "abc", "-5", "1.234", "1e2"])("rejects %j", (input) => {
+		expect(parseAllotmentPercent(input)).toBeUndefined();
+	});
 });
 
 describe("formatAllotmentPercent", () => {
@@ -41,5 +41,12 @@ describe("allotmentHours", () => {
 
 	it("has no hours for an unknown pool", () => {
 		expect(allotmentHours(2500, undefined)).toBeUndefined();
+	});
+});
+
+describe("formatHours", () => {
+	it("keeps the hours of the smallest share of a small pool", () => {
+		// 0.01% of 600 hours.
+		expect(formatHours(0.06)).toBe("0.06 hours");
 	});
 });

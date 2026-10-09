@@ -9,11 +9,14 @@ export const formatAllotmentPercent = (bps: number): string =>
  * are combined as integers so values like "0.29" do not drift to 28.
  */
 export const parseAllotmentPercent = (input: string): number | undefined => {
-	const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(input.trim());
+	const match = /^(\d*)(?:\.(\d{0,2}))?$/.exec(input.trim());
 	if (!match) {
 		return undefined;
 	}
 	const [, whole, fraction = ""] = match;
+	if (whole === "" && fraction === "") {
+		return undefined;
+	}
 	return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
 };
 
@@ -26,4 +29,4 @@ export const allotmentHours = (
 		: (poolHours * bps) / AgentHoursAllotmentMaxBps;
 
 export const formatHours = (hours: number): string =>
-	`${hours.toLocaleString("en-US", { maximumFractionDigits: 1 })} hours`;
+	`${hours.toLocaleString("en-US", { maximumFractionDigits: 2 })} hours`;

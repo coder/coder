@@ -21,13 +21,22 @@ const renderDialog = (
 	return { onClose };
 };
 
+const selectEngineering = async (user: ReturnType<typeof userEvent.setup>) => {
+	await user.click(screen.getByRole("combobox", { name: "Organization" }));
+	await user.click(await screen.findByRole("option", { name: "Engineering" }));
+};
+
 describe("AllotmentDialog", () => {
-	it("submits the percentage as basis points", async () => {
+	it("requires a chosen target and submits the percentage as basis points", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn(async () => undefined);
 		const { onClose } = renderDialog(onSubmit);
 
 		await user.type(screen.getByRole("textbox", { name: "Allotment" }), "12.5");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		expect(onSubmit).not.toHaveBeenCalled();
+
+		await selectEngineering(user);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith("org-1", 1250);
@@ -39,6 +48,7 @@ describe("AllotmentDialog", () => {
 		const onSubmit = vi.fn(async () => undefined);
 		const { onClose } = renderDialog(onSubmit);
 
+		await selectEngineering(user);
 		await user.type(
 			screen.getByRole("textbox", { name: "Allotment" }),
 			"40.01",
@@ -61,6 +71,7 @@ describe("AllotmentDialog", () => {
 			.mockResolvedValueOnce(undefined);
 		const { onClose } = renderDialog(onSubmit);
 
+		await selectEngineering(user);
 		await user.type(screen.getByRole("textbox", { name: "Allotment" }), "30");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 		await user.click(screen.getByRole("button", { name: "Save" }));

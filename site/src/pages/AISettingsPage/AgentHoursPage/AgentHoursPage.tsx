@@ -57,6 +57,9 @@ const AgentHoursPage: React.FC = () => {
 	return (
 		<RequirePermission
 			isFeatureVisible={
+				// Owners learn why the page is empty instead of being told they
+				// lack permission.
+				(!feature.enabled && permissions.editDeploymentConfig) ||
 				isAccessPending ||
 				canViewAgentHours(
 					entitlements,
@@ -68,6 +71,7 @@ const AgentHoursPage: React.FC = () => {
 			<title>{pageTitle("Agent Hours", "AI Settings")}</title>
 
 			<AgentHoursPageView
+				isLicensed={feature.enabled}
 				canEditDeploymentConfig={permissions.editDeploymentConfig}
 				licenseHours={licenseHours}
 				organizationAllotments={organizationAllotmentsQuery.data}

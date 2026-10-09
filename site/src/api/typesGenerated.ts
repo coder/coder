@@ -1610,7 +1610,7 @@ export interface AgentHoursGroupAllotments {
 	 * deployment's Agent Hours. It is null when the organization has no
 	 * allotment and draws from the shared pool.
 	 */
-	readonly organization_allotment_bps?: number;
+	readonly organization_allotment_bps: number | null;
 	readonly groups: readonly AgentHoursGroupAllotment[];
 }
 

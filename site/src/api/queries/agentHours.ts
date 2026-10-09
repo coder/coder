@@ -28,7 +28,8 @@ type OrganizationAllotmentChange = {
 };
 
 // An organization's own share is also part of its group allotments response,
-// so organization-tier changes invalidate both views.
+// so organization-tier changes invalidate both views. Failed writes refresh
+// too: a 409 means another change made the cached totals stale.
 const invalidateOrganizationAllotment = (
 	queryClient: QueryClient,
 	organizationId: string,
@@ -49,8 +50,11 @@ export const upsertAgentHoursOrganizationAllotment = (
 		API.upsertAgentHoursOrganizationAllotment(organizationId, {
 			allotment_bps: allotmentBps,
 		}),
-	onSuccess: (_: unknown, { organizationId }: OrganizationAllotmentChange) =>
-		invalidateOrganizationAllotment(queryClient, organizationId),
+	onSettled: (
+		_: unknown,
+		__: unknown,
+		{ organizationId }: OrganizationAllotmentChange,
+	) => invalidateOrganizationAllotment(queryClient, organizationId),
 });
 
 export const deleteAgentHoursOrganizationAllotment = (
@@ -58,7 +62,7 @@ export const deleteAgentHoursOrganizationAllotment = (
 ) => ({
 	mutationFn: (organizationId: string) =>
 		API.deleteAgentHoursOrganizationAllotment(organizationId),
-	onSuccess: (_: unknown, organizationId: string) =>
+	onSettled: (_: unknown, __: unknown, organizationId: string) =>
 		invalidateOrganizationAllotment(queryClient, organizationId),
 });
 
@@ -75,7 +79,7 @@ export const upsertAgentHoursGroupAllotment = (
 		API.upsertAgentHoursGroupAllotment(groupId, {
 			allotment_bps: allotmentBps,
 		}),
-	onSuccess: () =>
+	onSettled: () =>
 		queryClient.invalidateQueries({
 			queryKey: agentHoursGroupAllotmentsKey(organizationId),
 		}),
@@ -86,7 +90,7 @@ export const deleteAgentHoursGroupAllotment = (
 	organizationId: string,
 ) => ({
 	mutationFn: (groupId: string) => API.deleteAgentHoursGroupAllotment(groupId),
-	onSuccess: () =>
+	onSettled: () =>
 		queryClient.invalidateQueries({
 			queryKey: agentHoursGroupAllotmentsKey(organizationId),
 		}),

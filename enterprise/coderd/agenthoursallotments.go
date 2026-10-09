@@ -25,22 +25,32 @@ import (
 // agentHoursOvergrantError reports that an allotment would push its tier
 // past AgentHoursAllotmentMaxBps.
 type agentHoursOvergrantError struct {
-	availableBps int64
+	// availableBps is the largest allotment the target can hold: the
+	// unallotted share plus the target's current allotment.
+	availableBps  int64
+	unallottedBps int64
 }
 
 func (e agentHoursOvergrantError) Error() string {
-	return fmt.Sprintf("allotment exceeds the %d unallotted basis points", e.availableBps)
+	return fmt.Sprintf("allotment exceeds the %d available basis points", e.availableBps)
 }
 
 // checkAgentHoursAllotment returns an agentHoursOvergrantError when adding
 // requestedBps to othersBps, the tier's total without the target's own row,
 // exceeds the cap.
-func checkAgentHoursAllotment(othersBps int64, requestedBps int32) error {
+func checkAgentHoursAllotment(othersBps int64, currentBps, requestedBps int32) error {
 	available := max(codersdk.AgentHoursAllotmentMaxBps-othersBps, 0)
 	if int64(requestedBps) > available {
-		return agentHoursOvergrantError{availableBps: available}
+		return agentHoursOvergrantError{
+			availableBps:  available,
+			unallottedBps: max(available-int64(currentBps), 0),
+		}
 	}
 	return nil
+}
+
+func formatAgentHoursBps(bps int64) string {
+	return strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
 }
 
 func validAgentHoursAllotment(ctx context.Context, rw http.ResponseWriter, bps int32) bool {
@@ -57,6 +67,14 @@ func validAgentHoursAllotment(ctx context.Context, rw http.ResponseWriter, bps i
 	return false
 }
 
+func overgrantDetail(e agentHoursOvergrantError) string {
+	if e.availableBps == e.unallottedBps {
+		return fmt.Sprintf("Only %s is unallotted.", formatAgentHoursBps(e.unallottedBps))
+	}
+	return fmt.Sprintf("Only %s is unallotted, so this allotment can be at most %s.",
+		formatAgentHoursBps(e.unallottedBps), formatAgentHoursBps(e.availableBps))
+}
+
 // writeAgentHoursAllotmentTxError writes the response for an error returned
 // by an allotment upsert transaction.
 func (api *API) writeAgentHoursAllotmentTxError(ctx context.Context, rw http.ResponseWriter, err error) {
@@ -64,7 +82,7 @@ func (api *API) writeAgentHoursAllotmentTxError(ctx context.Context, rw http.Res
 	if errors.As(err, &overgrant) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "Agent Hours allotments cannot exceed 100% in total.",
-			Detail:  fmt.Sprintf("Only %s%% is unallotted.", strconv.FormatFloat(float64(overgrant.availableBps)/100, 'f', -1, 64)),
+			Detail:  overgrantDetail(overgrant),
 			Validations: []codersdk.ValidationError{{
 				Field:  "allotment_bps",
 				Detail: fmt.Sprintf("Must not exceed %d.", overgrant.availableBps),
@@ -146,8 +164,11 @@ func (api *API) upsertAgentHoursOrganizationAllotment(rw http.ResponseWriter, r 
 		return
 	}
 
-	old := database.AgentHoursOrganizationAllotment{OrganizationID: org.ID}
-	var updated database.AgentHoursOrganizationAllotment
+	var (
+		old     database.AgentHoursOrganizationAllotment
+		hadRow  bool
+		updated database.AgentHoursOrganizationAllotment
+	)
 	err := api.Database.InTx(func(tx database.Store) error {
 		// The lock is its own statement so the total read below sees rows
 		// committed by writers that held the lock before us.
@@ -168,11 +189,16 @@ func (api *API) upsertAgentHoursOrganizationAllotment(rw http.ResponseWriter, r 
 					CreatedAt:      row.CreatedAt,
 					UpdatedAt:      row.UpdatedAt,
 				}
+				hadRow = true
 				continue
 			}
 			others += int64(row.AllotmentBps)
 		}
-		if err := checkAgentHoursAllotment(others, req.AllotmentBps); err != nil {
+		if hadRow && old.AllotmentBps == req.AllotmentBps {
+			updated = old
+			return nil
+		}
+		if err := checkAgentHoursAllotment(others, old.AllotmentBps, req.AllotmentBps); err != nil {
 			return err
 		}
 		updated, err = tx.UpsertAgentHoursOrganizationAllotment(ctx, database.UpsertAgentHoursOrganizationAllotmentParams{
@@ -188,8 +214,16 @@ func (api *API) upsertAgentHoursOrganizationAllotment(rw http.ResponseWriter, r 
 		api.writeAgentHoursAllotmentTxError(ctx, rw, err)
 		return
 	}
-	aReq.Old = old.Auditable(org.Name)
-	aReq.New = updated.Auditable(org.Name)
+	// An unchanged allotment leaves Old and New unset, which skips the audit
+	// entry.
+	switch {
+	case !hadRow:
+		aReq.Action = database.AuditActionCreate
+		aReq.New = updated.Auditable(org.Name)
+	case old.AllotmentBps != updated.AllotmentBps:
+		aReq.Old = old.Auditable(org.Name)
+		aReq.New = updated.Auditable(org.Name)
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.AgentHoursOrganizationAllotment(updated, org))
 }
@@ -279,6 +313,22 @@ func (api *API) agentHoursGroupAllotments(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// groupOrganizationActive writes a 404 and returns false when the group's
+// organization is soft-deleted, matching the organization tier.
+func (api *API) groupOrganizationActive(ctx context.Context, rw http.ResponseWriter, group database.Group) bool {
+	//nolint:gocritic // The caller is already authorized to update the group; group managers may not be able to read its organization.
+	org, err := api.Database.GetOrganizationByID(dbauthz.AsSystemRestricted(ctx), group.OrganizationID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return false
+	}
+	if org.Deleted {
+		httpapi.ResourceNotFound(rw)
+		return false
+	}
+	return true
+}
+
 // @Summary Upsert Agent Hours group allotment
 // @ID upsert-agent-hours-group-allotment
 // @Security CoderSessionToken
@@ -310,6 +360,9 @@ func (api *API) upsertAgentHoursGroupAllotment(rw http.ResponseWriter, r *http.R
 		httpapi.Forbidden(rw)
 		return
 	}
+	if !api.groupOrganizationActive(ctx, rw, group) {
+		return
+	}
 
 	var req codersdk.UpsertAgentHoursAllotmentRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -319,8 +372,11 @@ func (api *API) upsertAgentHoursGroupAllotment(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	old := database.AgentHoursGroupAllotment{GroupID: group.ID}
-	var updated database.AgentHoursGroupAllotment
+	var (
+		old     database.AgentHoursGroupAllotment
+		hadRow  bool
+		updated database.AgentHoursGroupAllotment
+	)
 	err := api.Database.InTx(func(tx database.Store) error {
 		// The lock is its own statement so the total read below sees rows
 		// committed by writers that held the lock before us.
@@ -341,11 +397,16 @@ func (api *API) upsertAgentHoursGroupAllotment(rw http.ResponseWriter, r *http.R
 					CreatedAt:    row.CreatedAt,
 					UpdatedAt:    row.UpdatedAt,
 				}
+				hadRow = true
 				continue
 			}
 			others += int64(row.AllotmentBps)
 		}
-		if err := checkAgentHoursAllotment(others, req.AllotmentBps); err != nil {
+		if hadRow && old.AllotmentBps == req.AllotmentBps {
+			updated = old
+			return nil
+		}
+		if err := checkAgentHoursAllotment(others, old.AllotmentBps, req.AllotmentBps); err != nil {
 			return err
 		}
 		updated, err = tx.UpsertAgentHoursGroupAllotment(ctx, database.UpsertAgentHoursGroupAllotmentParams{
@@ -361,8 +422,14 @@ func (api *API) upsertAgentHoursGroupAllotment(rw http.ResponseWriter, r *http.R
 		api.writeAgentHoursAllotmentTxError(ctx, rw, err)
 		return
 	}
-	aReq.Old = old.Auditable(group.Name)
-	aReq.New = updated.Auditable(group.Name)
+	switch {
+	case !hadRow:
+		aReq.Action = database.AuditActionCreate
+		aReq.New = updated.Auditable(group.Name)
+	case old.AllotmentBps != updated.AllotmentBps:
+		aReq.Old = old.Auditable(group.Name)
+		aReq.New = updated.Auditable(group.Name)
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.AgentHoursGroupAllotment(updated, group))
 }
@@ -391,6 +458,9 @@ func (api *API) deleteAgentHoursGroupAllotment(rw http.ResponseWriter, r *http.R
 
 	if !api.Authorize(r, policy.ActionUpdate, group) {
 		httpapi.Forbidden(rw)
+		return
+	}
+	if !api.groupOrganizationActive(ctx, rw, group) {
 		return
 	}
 

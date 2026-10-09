@@ -55,6 +55,9 @@ const validatePercent = (
 	if (value.trim() === "") {
 		return { error: "Enter a percentage." };
 	}
+	if (Number(value) < 0) {
+		return { error: "Enter a percentage above 0." };
+	}
 	const bps = parseAllotmentPercent(value);
 	if (bps === undefined) {
 		return { error: "Enter a number with at most two decimals." };
@@ -82,9 +85,7 @@ export const AllotmentDialog: React.FC<AllotmentDialogProps> = ({
 }) => {
 	const targetId = useId();
 	const percentId = useId();
-	const [selectedId, setSelectedId] = useState(
-		target?.id ?? candidates[0]?.id ?? "",
-	);
+	const [selectedId, setSelectedId] = useState(target?.id ?? "");
 	const [percent, setPercent] = useState(
 		target ? String(target.bps / 100) : "",
 	);
@@ -94,6 +95,10 @@ export const AllotmentDialog: React.FC<AllotmentDialogProps> = ({
 
 	const validation = validatePercent(percent, availableBps);
 	const validationError = showValidation ? validation.error : undefined;
+	const targetError =
+		showValidation && selectedId === ""
+			? `Select ${entity === "group" ? "a group" : "an organization"}.`
+			: undefined;
 	const availableHours = allotmentHours(availableBps, poolHours);
 	const entityLabel = entity === "group" ? "Group" : "Organization";
 
@@ -141,12 +146,20 @@ export const AllotmentDialog: React.FC<AllotmentDialogProps> = ({
 					</DialogDescription>
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="flex flex-col gap-5">
-					{submitError != null && <ErrorAlert error={submitError} />}
+					{submitError != null && (
+						<ErrorAlert error={submitError} showDebugDetail={false} />
+					)}
 					{!target && (
 						<div className="flex flex-col gap-2">
 							<Label htmlFor={targetId}>{entityLabel}</Label>
 							<Select value={selectedId} onValueChange={setSelectedId}>
-								<SelectTrigger id={targetId}>
+								<SelectTrigger
+									id={targetId}
+									aria-invalid={targetError !== undefined}
+									aria-describedby={
+										targetError ? `${targetId}-error` : undefined
+									}
+								>
 									<SelectValue
 										placeholder={`Select ${entity === "group" ? "a group" : "an organization"}`}
 									/>
@@ -159,6 +172,14 @@ export const AllotmentDialog: React.FC<AllotmentDialogProps> = ({
 									))}
 								</SelectContent>
 							</Select>
+							{targetError && (
+								<p
+									id={`${targetId}-error`}
+									className="m-0 text-sm text-content-destructive"
+								>
+									{targetError}
+								</p>
+							)}
 						</div>
 					)}
 					<div className="flex flex-col gap-2">
