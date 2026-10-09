@@ -22,7 +22,7 @@ const mockSession: AIBridgeSessionThreadsResponse = {
 		cache_read_input_tokens: 980,
 		cache_write_input_tokens: 120,
 		metadata: {},
-		cost_micros: 0,
+		cost_micros: 1_250_000,
 		has_unpriced_usage: false,
 	},
 	network_calls: { total: 4, blocked: 2 },

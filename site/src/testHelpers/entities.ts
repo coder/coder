@@ -5502,8 +5502,15 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		cache_read_input_tokens: 900,
 		cache_write_input_tokens: 140,
 		metadata: {},
-		cost_micros: 0,
+		cost_micros: 15_325,
 		has_unpriced_usage: false,
+	},
+	priced_model: {
+		model: "claude-opus-4-6",
+		input_price: 5_000_000,
+		output_price: 25_000_000,
+		cache_read_price: 500_000,
+		cache_write_price: 6_250_000,
 	},
 	attribution: {
 		workspace_id: "workspace-1",
