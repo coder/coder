@@ -9,6 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// MCPEndpoint is the remote MCP HTTP endpoint path.
+const MCPEndpoint = "/api/experimental/mcp/http"
+
 // MCPServerOAuth2ConnectURL returns the URL the user should visit to
 // start the OAuth2 flow for an MCP server. The frontend opens this
 // in a new window/popup.

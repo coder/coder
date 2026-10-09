@@ -36,8 +36,11 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
 	return (
 		<button
 			className={cn(
-				"text-sm text-content-primary py-2 px-4 text-left bg-transparent hover:divide-surface-tertiary opacity-75 hover:opacity-100 cursor-pointer border-0",
-				isActive && "opacity-100 bg-surface-tertiary",
+				"text-sm text-content-secondary font-medium py-2 pl-3.5 pr-4 text-left bg-transparent cursor-pointer",
+				"border-0 border-l-2 border-solid border-l-transparent",
+				"hover:bg-surface-secondary transition ease-in-out duration-150",
+				isActive &&
+					"font-semibold text-content-primary bg-surface-tertiary hover:bg-surface-tertiary border-l-content-primary",
 				className,
 			)}
 			{...buttonProps}

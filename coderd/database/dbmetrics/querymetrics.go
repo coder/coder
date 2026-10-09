@@ -2024,6 +2024,14 @@ func (m queryMetricsStore) GetChatSystemPromptConfig(ctx context.Context) (datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatTurnStartID(ctx context.Context, arg database.GetChatTurnStartIDParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatTurnStartID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatTurnStartID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTurnStartID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatUserModelOverride(ctx context.Context, arg database.GetChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatUserModelOverride(ctx, arg)
