@@ -707,7 +707,6 @@ export const WithTwoMCPServers: Story = {
 	},
 };
 
-/** Another user's chat keeps only the pills, without editor or controls. */
 export const ReadOnlyNotice: Story = {
 	args: {
 		...mcpDefaults,

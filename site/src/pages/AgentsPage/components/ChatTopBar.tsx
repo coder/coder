@@ -341,7 +341,6 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
 				{!isEmbedded && isReadOnlyViewer && (
-					// Matches the icon buttons' box and glyph size so it reads as a peer.
 					<span className="inline-flex size-7 items-center justify-center text-content-secondary">
 						<LockIcon
 							className="size-icon-sm p-0.5"

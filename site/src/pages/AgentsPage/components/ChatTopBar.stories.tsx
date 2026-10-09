@@ -114,7 +114,7 @@ export const SharedChat: Story = {
 	},
 };
 
-/** Viewers of another user's chat get a lock instead of the share and shared icons, even when they may share it. */
+/** The share permission must not bring back the share button for viewers. */
 export const SharedChatViewer: Story = {
 	args: {
 		chat: {
