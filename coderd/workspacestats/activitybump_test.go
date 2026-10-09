@@ -30,6 +30,12 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 		"UTC",              // Baseline
 	}
 
+	databases := make(map[string]database.Store, len(timezones))
+	for _, tz := range timezones {
+		db, _ := dbtestutil.NewDB(t, dbtestutil.WithTimezone(tz))
+		databases[tz] = db
+	}
+
 	for _, tt := range []struct {
 		name                          string
 		transition                    database.WorkspaceTransition
@@ -165,12 +171,12 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				}
 
 				var (
-					now   = dbtime.Now()
-					ctx   = testutil.Context(t, testutil.WaitLong)
-					log   = testutil.Logger(t)
-					db, _ = dbtestutil.NewDB(t, dbtestutil.WithTimezone(tz))
-					org   = dbgen.Organization(t, db, database.Organization{})
-					user  = dbgen.User(t, db, database.User{
+					now  = dbtime.Now()
+					ctx  = testutil.Context(t, testutil.WaitLong)
+					log  = testutil.Logger(t)
+					db   = databases[tz]
+					org  = dbgen.Organization(t, db, database.Organization{})
+					user = dbgen.User(t, db, database.User{
 						Status: database.UserStatusActive,
 					})
 					_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
@@ -237,8 +243,8 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				}
 				err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 					ID:                buildID,
-					CreatedAt:         dbtime.Now(),
-					UpdatedAt:         dbtime.Now(),
+					CreatedAt:         now.Add(-time.Minute),
+					UpdatedAt:         now.Add(-time.Minute),
 					BuildNumber:       buildNumber,
 					InitiatorID:       user.ID,
 					Reason:            database.BuildReasonInitiator,
@@ -260,11 +266,6 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				require.Equal(t, maxDeadline.UTC(), bld.MaxDeadline.UTC(), "unexpected max deadline before bump")
 				require.Equal(t, tt.workspaceTTL, time.Duration(ws.Ttl.Int64), "unexpected workspace TTL before bump")
 
-				// Wait a bit before bumping as dbtime is rounded to the nearest millisecond.
-				// This should also hopefully be enough for Windows time resolution to register
-				// a tick (win32 max timer resolution is apparently between 0.5 and 15.6ms)
-				<-time.After(testutil.IntervalFast)
-
 				// Bump duration is measured from the time of the bump, so we measure from here.
 				start := dbtime.Now()
 				workspacestats.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, nextAutostart(start), workspacestats.ActivityBumpReasonWorkspaceStats)
@@ -282,7 +283,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				}
 				assert.NotEqual(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should have bumped updated_at")
 				if tt.maxDeadlineOffset != nil {
-					assert.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.MaxDeadline.UTC(), "new deadline must equal original max deadline")
+					assert.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.Deadline.UTC(), "new deadline must equal original max deadline")
 					return
 				}
 

@@ -25,6 +25,7 @@ import (
 //nolint:paralleltest, tparallel
 func TestRoleSyncTable(t *testing.T) {
 	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
 
 	userClaims := jwt.MapClaims{
 		"roles": []string{
@@ -229,7 +230,6 @@ func TestRoleSyncTable(t *testing.T) {
 		// this is still fast without being in parallel.
 		//nolint:paralleltest, tparallel
 		t.Run(tc.Name, func(t *testing.T) {
-			db, _ := dbtestutil.NewDB(t)
 			manager := runtimeconfig.NewManager()
 			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{
 				IgnoreErrors: true,
@@ -263,7 +263,6 @@ func TestRoleSyncTable(t *testing.T) {
 	// debug a single test case.
 	//nolint:paralleltest, tparallel // This should run after all the individual tests
 	t.Run("AllTogether", func(t *testing.T) {
-		db, _ := dbtestutil.NewDB(t)
 		manager := runtimeconfig.NewManager()
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{
 			IgnoreErrors: true,
