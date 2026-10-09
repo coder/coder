@@ -95,6 +95,22 @@ describe("applyMessagePartToStreamState", () => {
 		expect(result).toBeNull();
 	});
 
+	it.each([
+		{ partType: "text", blockType: "response" },
+		{ partType: "reasoning", blockType: "thinking" },
+	] as const)(
+		"keeps whitespace-only $partType deltas between paragraphs",
+		({ partType, blockType }) => {
+			let state: StreamState | null = null;
+			for (const text of ["writing.", "\n\n", "Like this"]) {
+				state = applyMessagePartToStreamState(state, { type: partType, text });
+			}
+			expect(state?.blocks).toEqual([
+				{ type: blockType, text: "writing.\n\nLike this" },
+			]);
+		},
+	);
+
 	it("returns prev for workspace file reference parts", () => {
 		const prev = createEmptyStreamState();
 		const result = applyMessagePartToStreamState(prev, {

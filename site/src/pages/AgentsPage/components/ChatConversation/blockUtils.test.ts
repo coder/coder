@@ -41,11 +41,24 @@ describe("asNonEmptyString", () => {
 // ---------------------------------------------------------------------------
 
 describe("appendTextBlock", () => {
-	it("returns the same blocks when text is empty or whitespace", () => {
+	it("returns the same blocks for empty text", () => {
 		const blocks: RenderBlock[] = [{ type: "response", text: "hello" }];
 		expect(appendTextBlock(blocks, "response", "")).toBe(blocks);
-		expect(appendTextBlock(blocks, "response", "   ")).toBe(blocks);
+		expect(appendTextBlock(blocks, "thinking", "")).toBe(blocks);
+	});
+
+	it("does not start a block with whitespace-only text", () => {
+		const blocks: RenderBlock[] = [{ type: "response", text: "hello" }];
 		expect(appendTextBlock(blocks, "thinking", "\n\t")).toBe(blocks);
+		const empty: RenderBlock[] = [];
+		expect(appendTextBlock(empty, "response", "   ")).toBe(empty);
+	});
+
+	it("appends whitespace-only text to a matching block", () => {
+		const blocks: RenderBlock[] = [{ type: "response", text: "writing." }];
+		expect(appendTextBlock(blocks, "response", "\n\n")).toEqual([
+			{ type: "response", text: "writing.\n\n" },
+		]);
 	});
 
 	it("appends a new response block to an empty list", () => {

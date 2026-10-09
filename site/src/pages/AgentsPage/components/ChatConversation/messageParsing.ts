@@ -19,9 +19,12 @@ import type {
 	StreamState,
 } from "./types";
 
-/** Concatenate text chunks, skipping whitespace-only values. */
+/**
+ * Concatenate text chunks. Whitespace-only text extends the text but never
+ * starts it, matching appendTextBlock.
+ */
 const appendText = (current: string, next: string): string => {
-	if (!next.trim()) {
+	if (!current && !next.trim()) {
 		return current;
 	}
 	return `${current}${next}`;
@@ -355,7 +358,8 @@ export const getEditableUserMessagePayload = (
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
 } => {
 	// Concatenate text parts verbatim to match the server-side string_agg in
-	// GetChatUserPromptsByChatID; parseMessageContent/appendText is for streaming and drops whitespace-only chunks.
+	// GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
+	// whitespace-only chunks.
 	const text = (message.content ?? [])
 		.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
 		.map((part) => part.text)
