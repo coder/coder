@@ -14006,8 +14006,8 @@ func (tab *chatTab) sortedIDs() []int64 {
 
 // connect opens the stream with the tab's newest message ID and history
 // version, and applies events through the first status event, which every
-// initial sync sends. That sync's preview_reset follows the status, so the
-// next applyUntil applies its history version.
+// initial sync sends. When that sync changes the history, its preview_reset
+// follows the status, so the next applyUntil applies its history version.
 func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent) {
 	t.Helper()
 	afterID := slices.Max(append(tab.sortedIDs(), 0))

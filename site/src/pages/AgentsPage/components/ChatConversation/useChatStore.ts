@@ -803,7 +803,8 @@ export const useChatStore = (
 			connect() {
 				// The server sends only history changed after the history
 				// version. Without one, it skips messages at or below the
-				// latest message ID instead.
+				// latest message ID, but resends the whole history of a chat
+				// with a deleted message.
 				const socket = watchChat(
 					chatID,
 					lastMessageIdRef.current,
