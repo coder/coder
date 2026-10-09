@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"net/url"
 	"strconv"
 	"sync/atomic"
@@ -50,6 +51,42 @@ func TestServerTailnet_AgentConn_OK(t *testing.T) {
 	defer release()
 
 	assert.True(t, conn.AwaitReachable(ctx))
+}
+
+// TestServerTailnet_ChatAgentConn checks that chatd's connections reuse an
+// idle API connection until released, and other connections do not.
+func TestServerTailnet_ChatAgentConn(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	agents, serverTailnet := setupServerTailnetAgent(t, 1)
+	agentID := agents[0].id
+	reused := func(conn workspacesdk.AgentConn) bool {
+		var reused atomic.Bool
+		traceCtx := httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+			GotConn: func(info httptrace.GotConnInfo) {
+				if info.Reused {
+					reused.Store(true)
+				}
+			},
+		})
+		_, err := conn.ListeningPorts(traceCtx)
+		require.NoError(t, err)
+		return reused.Load()
+	}
+
+	conn, release, err := serverTailnet.AgentConn(ctx, agentID)
+	require.NoError(t, err)
+	require.False(t, reused(conn))
+	require.False(t, reused(conn), "AgentConn keeps no idle API connection")
+	release()
+
+	conn, release, err = coderd.ServerTailnetChatAgentConn(serverTailnet, ctx, agentID)
+	require.NoError(t, err)
+	require.False(t, reused(conn))
+	require.True(t, reused(conn), "chatd's connection reuses the idle API connection")
+	release()
+	require.False(t, reused(conn), "release closes the idle API connection")
 }
 
 func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {

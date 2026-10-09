@@ -270,6 +270,29 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 }
 
 func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	return s.acquireAgentConn(ctx, agentID, 0)
+}
+
+// chatAPIIdleConnTimeout is how long a chatd connection keeps an idle
+// connection to the workspace agent's HTTP API server. On dogfood, 99.96% of
+// gaps between workspace tool calls in a chat turn are shorter.
+const chatAPIIdleConnTimeout = 5 * time.Minute
+
+// chatAgentConn is AgentConn for chatd, which holds a connection for a whole
+// chat turn: the connection keeps an idle API connection between requests,
+// and release closes it.
+func (s *ServerTailnet) chatAgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	conn, release, err := s.acquireAgentConn(ctx, agentID, chatAPIIdleConnTimeout)
+	if err != nil {
+		return nil, nil, err
+	}
+	return conn, func() {
+		_ = conn.Close() // Closes the idle API connection; CloseFunc keeps the tailnet open.
+		release()
+	}, nil
+}
+
+func (s *ServerTailnet) acquireAgentConn(ctx context.Context, agentID uuid.UUID, apiIdleConnTimeout time.Duration) (workspacesdk.AgentConn, func(), error) {
 	var (
 		conn workspacesdk.AgentConn
 		ret  func()
@@ -283,9 +306,10 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	ret = s.coordCtrl.acquireTicket(agentID)
 
 	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
-		AgentID:   agentID,
-		CloseFunc: func() error { return workspacesdk.ErrSkipClose },
-		Logger:    s.logger,
+		AgentID:            agentID,
+		CloseFunc:          func() error { return workspacesdk.ErrSkipClose },
+		Logger:             s.logger,
+		APIIdleConnTimeout: apiIdleConnTimeout,
 	})
 
 	// Since we now have an open conn, be careful to close it if we error
