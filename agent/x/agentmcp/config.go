@@ -11,13 +11,17 @@ import (
 )
 
 // PluginScope identifies the Agent Plugin an mcp.json file belongs to.
-// Name must be unique per reload; Root and DataDir must be absolute.
-// Only a change to mcp.json itself triggers a reparse, so the plugin's
-// files must be in place before its mcp.json is passed in.
+// Name must be unique per reload; Root and DataDir must be absolute
+// unless LoadError is set. Only a change to mcp.json itself triggers a
+// reparse, so the plugin's files must be in place before its mcp.json
+// is passed in.
 type PluginScope struct {
 	Name    string
 	Root    string
 	DataDir string
+	// LoadError, when set, is reported for an existing mcp.json instead
+	// of loading it.
+	LoadError string
 }
 
 // ConfigSource names one MCP config file to load. A nil Plugin marks a
@@ -78,6 +82,12 @@ func ParseSource(src ConfigSource) ([]ServerConfig, map[string]error, error) {
 	if src.Plugin == nil {
 		servers, err := parseLegacyConfig(src.Path)
 		return servers, nil, err
+	}
+	if src.Plugin.LoadError != "" {
+		if _, err := os.Stat(src.Path); err != nil {
+			return nil, nil, err
+		}
+		return nil, nil, xerrors.New(src.Plugin.LoadError)
 	}
 	if !filepath.IsAbs(src.Plugin.Root) || !filepath.IsAbs(src.Plugin.DataDir) {
 		return nil, nil, xerrors.Errorf("mcp config %q: plugin root %q and data dir %q must be absolute", src.Path, src.Plugin.Root, src.Plugin.DataDir)

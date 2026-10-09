@@ -105,7 +105,7 @@ func findStatus(t *testing.T, catalog []ServerStatus, name, plugin string) Serve
 	return ServerStatus{}
 }
 
-func TestReload_LegacyInvalidEntrySkipsFile(t *testing.T) {
+func TestReloadCurrent_LegacyInvalidEntrySkipsFile(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -121,14 +121,14 @@ func TestReload_LegacyInvalidEntrySkipsFile(t *testing.T) {
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
-	require.NoError(t, m.Reload(ctx, []string{path}))
+	require.NoError(t, reloadWith(ctx, m, LegacySources([]string{path})))
 	assert.Empty(t, m.connectedTools())
 	assert.Empty(t, m.Catalog())
 }
 
-// TestReload_LegacyDuplicateNames: a legacy file with an invalid entry
+// TestReloadCurrent_LegacyDuplicateNames: a legacy file with an invalid entry
 // is skipped whole, so it claims no name.
-func TestReload_LegacyDuplicateNames(t *testing.T) {
+func TestReloadCurrent_LegacyDuplicateNames(t *testing.T) {
 	t.Parallel()
 
 	marked := func(file string) mcpServerEntry {
@@ -158,7 +158,7 @@ func TestReload_LegacyDuplicateNames(t *testing.T) {
 
 			m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 			t.Cleanup(func() { _ = m.Close() })
-			require.NoError(t, m.Reload(ctx, []string{first, second}))
+			require.NoError(t, reloadWith(ctx, m, LegacySources([]string{first, second})))
 
 			catalog := m.Catalog()
 			if tc.wantFile == "" {
@@ -176,7 +176,7 @@ func TestReload_LegacyDuplicateNames(t *testing.T) {
 	}
 }
 
-func TestReloadSources_PluginPerEntryIsolation(t *testing.T) {
+func TestReloadCurrent_PluginPerEntryIsolation(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -192,7 +192,7 @@ func TestReloadSources_PluginPerEntryIsolation(t *testing.T) {
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{src}))
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{src}))
 
 	tools := m.connectedTools()
 	require.Len(t, tools, 1)
@@ -210,7 +210,7 @@ func TestReloadSources_PluginPerEntryIsolation(t *testing.T) {
 	assert.Contains(t, escape.Err, "bare name or a ./-relative path")
 }
 
-func TestReloadSources_InvalidPluginFileDisablesOnlyThatPlugin(t *testing.T) {
+func TestReloadCurrent_InvalidPluginFileDisablesOnlyThatPlugin(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -227,7 +227,7 @@ func TestReloadSources_InvalidPluginFileDisablesOnlyThatPlugin(t *testing.T) {
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{badSrc, okSrc}))
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{badSrc, okSrc}))
 
 	tools := m.connectedTools()
 	require.Len(t, tools, 1)
@@ -241,7 +241,36 @@ func TestReloadSources_InvalidPluginFileDisablesOnlyThatPlugin(t *testing.T) {
 	assert.Contains(t, badFile.Err, "top level must contain exactly $schema and mcpServers")
 }
 
-func TestReloadSources_PluginNameCollision(t *testing.T) {
+func TestReloadCurrent_PluginLoadErrorReportedForExistingMCPConfig(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	withConfig := newPluginScope(t, "with-config")
+	withConfigSrc := writePluginMCP(t, withConfig, map[string]any{"srv": fakePluginServerEntry(nil)})
+	withConfigSrc.Plugin.DataDir = ""
+	withConfigSrc.Plugin.LoadError = "home directory unavailable"
+
+	without := newPluginScope(t, "without-config")
+	withoutSrc := ConfigSource{
+		Path:   filepath.Join(without.Root, "mcp.json"),
+		Plugin: &PluginScope{Name: without.Name, Root: without.Root, LoadError: "home directory unavailable"},
+	}
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{withConfigSrc, withoutSrc}))
+
+	require.Empty(t, m.connectedTools())
+	catalog := m.Catalog()
+	require.Len(t, catalog, 1, "a plugin without mcp.json reports nothing")
+	st := findStatus(t, catalog, "mcp.json", "with-config")
+	assert.False(t, st.Connected)
+	assert.Equal(t, "mcp.json not loaded: home directory unavailable", st.Err)
+	assert.False(t, m.SnapshotChanged([]ConfigSource{withConfigSrc, withoutSrc}))
+}
+
+func TestReloadCurrent_PluginNameCollision(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -267,7 +296,7 @@ func TestReloadSources_PluginNameCollision(t *testing.T) {
 	t.Cleanup(func() { _ = m.Close() })
 
 	// The legacy source is listed last and still claims its name first.
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{
 		firstSrc, secondSrc, {Path: legacyPath},
 	}))
 
@@ -298,6 +327,67 @@ func TestReloadSources_PluginNameCollision(t *testing.T) {
 	assert.Equal(t, "first", otherCfg.Plugin.Name)
 }
 
+func TestReloadCurrent_PluginReorderChangesCollisionWinner(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	first := newPluginScope(t, "first")
+	installFakeServer(t, first.Root)
+	firstSrc := writePluginMCP(t, first, map[string]any{"other": fakePluginServerEntry(nil)})
+	second := newPluginScope(t, "second")
+	installFakeServer(t, second.Root)
+	secondSrc := writePluginMCP(t, second, map[string]any{"other": fakePluginServerEntry(nil)})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{firstSrc, secondSrc}))
+	reordered := []ConfigSource{secondSrc, firstSrc}
+	require.True(t, m.SnapshotChanged(reordered))
+	require.NoError(t, reloadWith(ctx, m, reordered))
+
+	assert.True(t, findStatus(t, m.Catalog(), "other", "second").Connected)
+	m.mu.RLock()
+	otherCfg := m.servers["other"].config
+	m.mu.RUnlock()
+	require.NotNil(t, otherCfg.Plugin)
+	assert.Equal(t, "second", otherCfg.Plugin.Name)
+}
+
+func TestReloadCurrent_LegacyNameMatchesPluginServerID(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	_, entry := fakeMCPServerConfig(t, "tools/srv")
+	legacyPath := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{"tools/srv": entry})
+
+	scope := newPluginScope(t, "tools")
+	installFakeServer(t, scope.Root)
+	src := writePluginMCP(t, scope, map[string]any{
+		"srv":  fakePluginServerEntry(nil),
+		"keep": fakePluginServerEntry(nil),
+	})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{src, {Path: legacyPath}}))
+
+	catalog := m.Catalog()
+	require.Len(t, catalog, 3)
+	assert.True(t, findStatus(t, catalog, "tools/srv", "").Connected)
+	assert.True(t, findStatus(t, catalog, "keep", "tools").Connected)
+	pluginSrv := findStatus(t, catalog, "srv", "tools")
+	assert.False(t, pluginSrv.Connected)
+	assert.Equal(t, `server ID "tools/srv" is already used by a legacy server in `+legacyPath, pluginSrv.Err)
+
+	m.mu.RLock()
+	_, started := m.servers["srv"]
+	m.mu.RUnlock()
+	assert.False(t, started, "the plugin server must not run")
+}
+
 func TestSnapshotChanged_PluginScope(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -309,7 +399,7 @@ func TestSnapshotChanged_PluginScope(t *testing.T) {
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{src}))
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{src}))
 	assert.False(t, m.SnapshotChanged([]ConfigSource{src}), "same path and scope")
 
 	sameValues := scope
@@ -329,25 +419,25 @@ func TestSnapshotChanged_PluginScope(t *testing.T) {
 	assert.True(t, m.SnapshotChanged([]ConfigSource{{Path: src.Path}}),
 		"the same file read as a legacy source must reload")
 
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{{Path: src.Path, Plugin: &renamed}}))
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{{Path: src.Path, Plugin: &renamed}}))
 	assert.False(t, m.SnapshotChanged([]ConfigSource{{Path: src.Path, Plugin: &renamed}}))
 	assert.True(t, m.SnapshotChanged([]ConfigSource{src}))
 
 	// One path under two scopes: the first source wins everywhere.
 	twice := []ConfigSource{src, {Path: src.Path, Plugin: &renamed}}
-	require.NoError(t, m.ReloadSources(ctx, twice))
+	require.NoError(t, reloadWith(ctx, m, twice))
 	assert.False(t, m.SnapshotChanged(twice))
 
 	inPlace := scope
 	inPlace.Name = "in-place"
 	inPlaceSrc := ConfigSource{Path: src.Path, Plugin: &inPlace}
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{inPlaceSrc}))
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{inPlaceSrc}))
 	inPlace.Name = "edited"
 	assert.True(t, m.SnapshotChanged([]ConfigSource{inPlaceSrc}),
 		"a scope edited in place after the reload must reload")
 }
 
-func TestReloadSources_CatalogOrdersSharedNameByPlugin(t *testing.T) {
+func TestReloadCurrent_CatalogOrdersSharedNameByPlugin(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -361,7 +451,7 @@ func TestReloadSources_CatalogOrdersSharedNameByPlugin(t *testing.T) {
 
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{zetaSrc, alphaSrc}))
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{zetaSrc, alphaSrc}))
 
 	var plugins []string
 	for _, st := range m.Catalog() {
@@ -371,9 +461,9 @@ func TestReloadSources_CatalogOrdersSharedNameByPlugin(t *testing.T) {
 	assert.True(t, findStatus(t, m.Catalog(), "other", "zeta").Connected, "the plugin listed first claims the name")
 }
 
-// TestReloadSources_PluginStdioLaunch inspects the launched process's
+// TestReloadCurrent_PluginStdioLaunch inspects the launched process's
 // env and cwd through the fake server's env tool.
-func TestReloadSources_PluginStdioLaunch(t *testing.T) {
+func TestReloadCurrent_PluginStdioLaunch(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -408,7 +498,7 @@ func TestReloadSources_PluginStdioLaunch(t *testing.T) {
 		}, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{src}))
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{src}))
 	require.Len(t, m.connectedTools(), 1)
 	assert.True(t, updateEnvCalled, "plugin servers receive the enriched agent environment")
 
@@ -445,7 +535,7 @@ func TestReloadSources_PluginStdioLaunch(t *testing.T) {
 	assert.Equal(t, filepath.Join(scope.Root, "work"), report.Cwd)
 }
 
-func TestReloadSources_PluginWithoutMCPConfig(t *testing.T) {
+func TestReloadCurrent_PluginWithoutMCPConfig(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -454,13 +544,13 @@ func TestReloadSources_PluginWithoutMCPConfig(t *testing.T) {
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{
 		{Path: filepath.Join(scope.Root, "mcp.json"), Plugin: &scope},
 	}))
 	assert.Empty(t, m.Catalog())
 }
 
-func TestReloadSources_RejectedEntryOmitsURL(t *testing.T) {
+func TestReloadCurrent_RejectedEntryOmitsURL(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -472,12 +562,12 @@ func TestReloadSources_RejectedEntryOmitsURL(t *testing.T) {
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{src}))
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{src}))
 	leak := findStatus(t, m.Catalog(), "leak", "tools")
 	assert.Equal(t, `server "leak": url must not contain userinfo`, leak.Err)
 }
 
-func TestReloadSources_PluginDataSubdirCwd(t *testing.T) {
+func TestReloadCurrent_PluginDataSubdirCwd(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -491,7 +581,7 @@ func TestReloadSources_PluginDataSubdirCwd(t *testing.T) {
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{src}))
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{src}))
 	srv := findStatus(t, m.Catalog(), "srv", "tools")
 	require.True(t, srv.Connected, "err: %s", srv.Err)
 	info, err := os.Stat(filepath.Join(scope.DataDir, "cache"))
@@ -499,7 +589,7 @@ func TestReloadSources_PluginDataSubdirCwd(t *testing.T) {
 	assert.True(t, info.IsDir())
 }
 
-func TestReloadSources_PluginDataDirCreateFails(t *testing.T) {
+func TestReloadCurrent_PluginDataDirCreateFails(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -514,7 +604,7 @@ func TestReloadSources_PluginDataDirCreateFails(t *testing.T) {
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, nil, nil)
 	t.Cleanup(func() { _ = m.Close() })
 
-	require.NoError(t, m.ReloadSources(ctx, []ConfigSource{src}))
+	require.NoError(t, reloadWith(ctx, m, []ConfigSource{src}))
 	srv := findStatus(t, m.Catalog(), "srv", "tools")
 	assert.False(t, srv.Connected)
 	assert.Equal(t, "failed to connect", srv.Err)
