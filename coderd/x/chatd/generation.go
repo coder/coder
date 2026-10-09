@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -159,9 +160,9 @@ func compactionStillOverLimitError(source compactionTriggerSource, otherOverLimi
 	message := "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation."
 	switch {
 	case otherOverLimit:
-		message = "Conversation compaction could not reduce the history below your compaction threshold or the organization override's compaction threshold. Start a new conversation, or raise your compaction threshold in settings and ask an administrator to raise the organization override's compaction threshold or choose an override model with a larger context window."
+		message = fmt.Sprintf("Conversation compaction could not reduce the history below your compaction threshold or %d%% of the organization override's context window. Start a new conversation, or raise your compaction threshold in settings and ask an administrator to choose an override model with a larger context window.", compactionOverrideWindowPercent)
 	case source == compactionTriggerSourceOrganization:
-		message = "Conversation compaction could not reduce the history below the organization override's compaction threshold. Start a new conversation, or ask an administrator to raise the organization override's compaction threshold or choose an override model with a larger context window."
+		message = fmt.Sprintf("Conversation compaction could not reduce the history below %d%% of the organization override's context window. Start a new conversation, or ask an administrator to choose an override model with a larger context window.", compactionOverrideWindowPercent)
 	}
 	return chaterror.WithClassification(
 		xerrors.Errorf("%s trigger at %d%% of %d tokens: %w", source, thresholdPercent, contextLimit, errCompactionStillOverLimit),

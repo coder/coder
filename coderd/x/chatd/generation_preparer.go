@@ -847,10 +847,10 @@ func (server *Server) prepareGeneration(
 	var otherTrigger compactionTrigger
 	if resolvedCompactionOverride.Set {
 		overrideTrigger := compactionTrigger{
-			thresholdPercent: resolvedCompactionOverride.Config.CompressionThreshold,
+			thresholdPercent: compactionOverrideWindowPercent,
 			contextLimit:     resolvedCompactionOverride.Config.ContextLimit,
 		}
-		// With its own trigger disabled, nothing bounds the history by the
+		// With an unknown window, nothing bounds the history by the
 		// override's window, so the chat model summarizes instead.
 		if overrideTrigger.enabled() {
 			compactionOverride = &resolvedCompactionOverride
@@ -958,6 +958,10 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 	}
 	return fantasy.Usage{}
 }
+
+// compactionOverrideWindowPercent leaves room in the override's window for
+// the summary prompt and the summary.
+const compactionOverrideWindowPercent = int32(80)
 
 type compactionTrigger struct {
 	thresholdPercent int32

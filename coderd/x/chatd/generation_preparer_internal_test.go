@@ -911,6 +911,9 @@ func TestBindingCompactionTriggerSource(t *testing.T) {
 	trigger := func(threshold int32, limit int64) compactionTrigger {
 		return compactionTrigger{thresholdPercent: threshold, contextLimit: limit}
 	}
+	override := func(limit int64) compactionTrigger {
+		return trigger(compactionOverrideWindowPercent, limit)
+	}
 
 	cases := []struct {
 		name     string
@@ -921,56 +924,50 @@ func TestBindingCompactionTriggerSource(t *testing.T) {
 		{
 			name:     "lower override point wins",
 			chat:     trigger(70, 200_000),
-			override: trigger(70, 32_000),
+			override: override(32_000),
 			want:     compactionTriggerSourceOrganization,
 		},
 		{
 			name:     "lower chat point wins over higher override point",
-			chat:     trigger(70, 100_000),
-			override: trigger(95, 80_000),
+			chat:     trigger(70, 80_000),
+			override: override(80_000),
 			want:     compactionTriggerSourceChat,
 		},
 		{
 			name:     "tie prefers the chat trigger",
-			chat:     trigger(70, 100_000),
-			override: trigger(70, 100_000),
+			chat:     trigger(80, 100_000),
+			override: override(100_000),
 			want:     compactionTriggerSourceChat,
 		},
 		{
 			name:     "chat trigger disabled by threshold 100 yields override",
 			chat:     trigger(100, 200_000),
-			override: trigger(70, 32_000),
+			override: override(32_000),
 			want:     compactionTriggerSourceOrganization,
 		},
 		{
 			name:     "chat trigger disabled by zero limit yields override",
 			chat:     trigger(70, 0),
-			override: trigger(70, 32_000),
+			override: override(32_000),
 			want:     compactionTriggerSourceOrganization,
-		},
-		{
-			name:     "override disabled by threshold 100 yields chat",
-			chat:     trigger(70, 200_000),
-			override: trigger(100, 32_000),
-			want:     compactionTriggerSourceChat,
 		},
 		{
 			name:     "override disabled by zero limit yields chat",
 			chat:     trigger(70, 200_000),
-			override: trigger(70, 0),
+			override: override(0),
 			want:     compactionTriggerSourceChat,
 		},
 		{
 			name:     "both disabled yields chat",
 			chat:     trigger(100, 200_000),
-			override: trigger(100, 32_000),
+			override: override(0),
 			want:     compactionTriggerSourceChat,
 		},
 		{
-			name:     "threshold zero fires immediately and wins",
-			chat:     trigger(70, 200_000),
-			override: trigger(0, 32_000),
-			want:     compactionTriggerSourceOrganization,
+			name:     "chat threshold zero fires immediately and wins",
+			chat:     trigger(0, 200_000),
+			override: override(32_000),
+			want:     compactionTriggerSourceChat,
 		},
 	}
 	for _, tc := range cases {
