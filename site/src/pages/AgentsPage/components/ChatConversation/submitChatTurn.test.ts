@@ -258,16 +258,15 @@ describe("submitChatTurn", () => {
 			store.setActiveChatID("chat-1");
 			store.upsertDurableMessages([question, answer]);
 			const response = createDeferred<EditChatMessageResponse>();
-			const submitted = submitChatTurn(
-				buildParams({
-					store,
-					message: "new text",
-					editedMessageID: 5,
-					chatMessages: [question, answer],
-					editMessage: vi.fn().mockReturnValue(response.promise),
-				}),
-			);
-			return { store, response, submitted };
+			const params = buildParams({
+				store,
+				message: "new text",
+				editedMessageID: 5,
+				chatMessages: [question, answer],
+				editMessage: vi.fn().mockReturnValue(response.promise),
+			});
+			const submitted = submitChatTurn(params);
+			return { store, params, response, submitted };
 		};
 
 		it("shows the edited text in place of the edited message and hides the rest", async () => {
@@ -286,15 +285,19 @@ describe("submitChatTurn", () => {
 			expect(shown(store)).toEqual(["7:new text"]);
 		});
 
-		it("shows every stored message again when the edit fails", async () => {
-			const { store, response, submitted } = startEdit();
+		it("shows every stored message again and reports the error when the edit fails", async () => {
+			const { store, params, response, submitted } = startEdit();
 			// The turn the edit would replace commits a message meanwhile.
 			store.upsertDurableMessage({ ...answer, id: 8 });
 
-			response.reject(new Error("edit rejected"));
+			const error = new Error("edit rejected");
+			response.reject(error);
 			await expect(submitted).rejects.toThrow("edit rejected");
 
 			expect(shown(store)).toEqual(["5:old", "6:old answer", "8:old answer"]);
+			expect(params.onRequestError).toHaveBeenCalledWith(error);
+			expect(params.acceptServerChatStatus).toHaveBeenCalled();
+			expect(params.invalidateChat).toHaveBeenCalledWith("chat-1");
 		});
 	});
 
