@@ -63,3 +63,18 @@ RETURNING *;
 DELETE FROM skills
 WHERE organization_id = @organization_id::uuid AND name = @name
 RETURNING *;
+
+-- name: GetOrganizationSkillByIDForUpdate :one
+SELECT *
+FROM skills
+WHERE id = @id::uuid AND organization_id IS NOT NULL
+FOR UPDATE;
+
+-- name: UpdateOrganizationSkillACLByID :one
+UPDATE skills
+SET
+    group_acl  = @group_acl,
+    user_acl   = @user_acl,
+    updated_at = now()
+WHERE id = @id::uuid AND organization_id IS NOT NULL
+RETURNING *;

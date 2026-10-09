@@ -7134,6 +7134,25 @@ func (s *MethodTestSuite) TestOrganizationSkills() {
 		dbm.EXPECT().DeleteOrganizationSkillByOrganizationIDAndName(gomock.Any(), arg).Return(skill, nil).AnyTimes()
 		check.Args(arg).Asserts(skill, policy.ActionDelete).Returns(skill)
 	}))
+	s.Run("GetOrganizationSkillByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		skill := orgSkill(uuid.New(), "test")
+		dbm.EXPECT().GetOrganizationSkillByIDForUpdate(gomock.Any(), skill.ID).Return(skill, nil).AnyTimes()
+		check.Args(skill.ID).Asserts(skill, policy.ActionRead).Returns(skill)
+	}))
+	s.Run("UpdateOrganizationSkillACLByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		skill := orgSkill(uuid.New(), "test")
+		arg := database.UpdateOrganizationSkillACLByIDParams{
+			ID:       skill.ID,
+			GroupACL: database.ChatACL{},
+			UserACL:  database.ChatACL{uuid.NewString(): {Permissions: []policy.Action{policy.ActionRead}}},
+		}
+		updated := skill
+		updated.GroupACL = arg.GroupACL
+		updated.UserACL = arg.UserACL
+		dbm.EXPECT().GetOrganizationSkillByIDForUpdate(gomock.Any(), skill.ID).Return(skill, nil).AnyTimes()
+		dbm.EXPECT().UpdateOrganizationSkillACLByID(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(skill, policy.ActionShare).Returns(updated)
+	}))
 }
 
 func (s *MethodTestSuite) TestUsageEvents() {

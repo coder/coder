@@ -29425,6 +29425,33 @@ func (q *sqlQuerier) DeleteUserSkillByUserIDAndName(ctx context.Context, arg Del
 	return i, err
 }
 
+const getOrganizationSkillByIDForUpdate = `-- name: GetOrganizationSkillByIDForUpdate :one
+SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+FROM skills
+WHERE id = $1::uuid AND organization_id IS NOT NULL
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetOrganizationSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationSkillByIDForUpdate, id)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
 const getOrganizationSkillByOrganizationIDAndName = `-- name: GetOrganizationSkillByOrganizationIDAndName :one
 SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
 FROM skills
@@ -29669,6 +29696,42 @@ func (q *sqlQuerier) ListUserSkillMetadataByUserID(ctx context.Context, userID u
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateOrganizationSkillACLByID = `-- name: UpdateOrganizationSkillACLByID :one
+UPDATE skills
+SET
+    group_acl  = $1,
+    user_acl   = $2,
+    updated_at = now()
+WHERE id = $3::uuid AND organization_id IS NOT NULL
+RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
+`
+
+type UpdateOrganizationSkillACLByIDParams struct {
+	GroupACL ChatACL   `db:"group_acl" json:"group_acl"`
+	UserACL  ChatACL   `db:"user_acl" json:"user_acl"`
+	ID       uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateOrganizationSkillACLByID(ctx context.Context, arg UpdateOrganizationSkillACLByIDParams) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, updateOrganizationSkillACLByID, arg.GroupACL, arg.UserACL, arg.ID)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ProjectID,
+		&i.Enabled,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
 }
 
 const updateOrganizationSkillByOrganizationIDAndName = `-- name: UpdateOrganizationSkillByOrganizationIDAndName :one

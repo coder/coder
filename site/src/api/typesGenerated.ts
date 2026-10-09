@@ -8096,6 +8096,37 @@ export interface OrganizationProvisionerJobsOptions {
 	readonly Initiator: string;
 }
 
+// From codersdk/skills.go
+/**
+ * OrganizationSkillACL is the resolved access control list of an
+ * organization skill.
+ */
+export interface OrganizationSkillACL {
+	readonly users: readonly OrganizationSkillUser[];
+	readonly groups: readonly OrganizationSkillGroup[];
+}
+
+// From codersdk/skills.go
+/**
+ * OrganizationSkillGroup is a group entry in an organization skill ACL.
+ */
+export interface OrganizationSkillGroup extends Group {
+	readonly role: OrganizationSkillRole;
+}
+
+// From codersdk/skills.go
+export type OrganizationSkillRole = "" | "read";
+
+export const OrganizationSkillRoles: OrganizationSkillRole[] = ["", "read"];
+
+// From codersdk/skills.go
+/**
+ * OrganizationSkillUser is a user entry in an organization skill ACL.
+ */
+export interface OrganizationSkillUser extends MinimalUser {
+	readonly role: OrganizationSkillRole;
+}
+
 // From codersdk/idpsync.go
 export interface OrganizationSyncSettings {
 	/**
@@ -11083,6 +11114,17 @@ export interface UpdateOrganizationRequest {
 	 * member roles.
 	 */
 	readonly default_org_member_roles?: string[];
+}
+
+// From codersdk/skills.go
+/**
+ * UpdateOrganizationSkillACLRequest is a sparse update of an organization
+ * skill ACL: only the listed principals change, and
+ * OrganizationSkillRoleDeleted removes an entry.
+ */
+export interface UpdateOrganizationSkillACLRequest {
+	readonly user_roles?: Record<string, OrganizationSkillRole>;
+	readonly group_roles?: Record<string, OrganizationSkillRole>;
 }
 
 // From codersdk/users.go
