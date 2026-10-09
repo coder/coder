@@ -730,14 +730,12 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								helpers={getFieldHelpers("accessKey")}
 								onBlur={() => handleCredentialBlur("accessKey")}
 								onFocus={() => handleCredentialFocus("accessKey")}
-								autoComplete="new-password"
 							/>
 							<CredentialField
 								label="Access key secret"
 								helpers={getFieldHelpers("accessKeySecret")}
 								onBlur={() => handleCredentialBlur("accessKeySecret")}
 								onFocus={() => handleCredentialFocus("accessKeySecret")}
-								autoComplete="new-password"
 							/>
 						</div>
 						<p className="text-xs text-content-secondary m-0">
