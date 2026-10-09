@@ -65,18 +65,23 @@ describe("ChatStatusLine", () => {
 		).toBe("");
 	});
 
-	it("opens a menu linking every PR when the chat has several", async () => {
+	it("counts several PRs per state and opens a menu linking every PR", async () => {
 		const user = userEvent.setup();
 		render(
 			<ChatStatusLine
-				chat={chat({ diff_statuses: [pr(12), pr(13, "merged")] })}
+				chat={chat({
+					diff_statuses: [pr(12, "merged"), pr(13), pr(14, "merged")],
+				})}
 			/>,
 		);
-		await user.click(screen.getByRole("button", { name: "2 pull requests" }));
+		await user.click(
+			screen.getByRole("button", { name: "1 open, 2 merged pull requests" }),
+		);
 		const links = await screen.findAllByRole("menuitem");
 		expect(links.map((link) => link.getAttribute("href"))).toEqual([
 			"https://github.com/coder/coder/pull/12",
 			"https://github.com/coder/coder/pull/13",
+			"https://github.com/coder/coder/pull/14",
 		]);
 	});
 });
