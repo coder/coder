@@ -3329,6 +3329,37 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getChatProjectInstructions = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProjectInstructions> => {
+		const response = await this.axios.get<TypesGen.ChatProjectInstructions>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/instructions`,
+		);
+		return response.data;
+	};
+
+	updateChatProjectInstructions = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.UpdateChatProjectInstructionsRequest,
+	): Promise<TypesGen.ChatProjectInstructions> => {
+		const response = await this.axios.put<TypesGen.ChatProjectInstructions>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/instructions`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatProjectInstructions = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/instructions`,
+		);
+	};
+
 	getChat = async (
 		chatId: string,
 		signal?: AbortSignal,

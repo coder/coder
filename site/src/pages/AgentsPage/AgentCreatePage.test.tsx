@@ -31,6 +31,7 @@ import {
 	MockDefaultOrganization,
 	MockFailedWorkspaceBuild,
 	MockOrganization2,
+	MockUnsetChatProjectInstructions,
 	MockUserMember,
 	MockUserPreferenceSettings,
 	MockWorkspaceBuildLogs,
@@ -216,9 +217,12 @@ beforeAll(() => {
 	});
 });
 
-// Project pages list the project's chats below the composer.
+// Project pages list the project's chats and details below the composer.
 beforeEach(() => {
 	vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+	vi.spyOn(API.experimental, "getChatProjectInstructions").mockResolvedValue(
+		MockUnsetChatProjectInstructions,
+	);
 });
 
 afterEach(() => {
