@@ -1874,7 +1874,12 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// load. Suppress them whenever any cursor is set so polling callers do
 	// not receive the snapshot on every page fetch.
 	var queuedMessages []database.ChatQueuedMessage
+	var historyVersion int64
 	if beforeID == 0 && afterID == 0 {
+		// Only the newest page reports a history version, since a cursored page
+		// can leave out newer messages. chat was read before the messages, so a
+		// change committed in between is resent by the stream, not lost.
+		historyVersion = chat.HistoryVersion
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1890,6 +1895,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
 		HasMore:        hasMore,
 		TurnStartID:    turnStartID,
+		HistoryVersion: historyVersion,
 	})
 }
 
@@ -3533,7 +3539,8 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param after_id query int false "Skip snapshot messages with id at or before this cursor"
+// @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when history_version is non-zero"
+// @Param history_version query int false "Send only history changed after this history_version, taken from the messages page or the last preview_reset event"
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
@@ -3546,10 +3553,10 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var afterMessageID int64
+	var cursor chatd.StreamCursor
 	if v := r.URL.Query().Get("after_id"); v != "" {
 		var err error
-		afterMessageID, err = strconv.ParseInt(v, 10, 64)
+		cursor.AfterMessageID, err = strconv.ParseInt(v, 10, 64)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid after_id parameter.",
@@ -3558,10 +3565,31 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if v := r.URL.Query().Get("history_version"); v != "" {
+		var err error
+		cursor.HistoryVersion, err = strconv.ParseInt(v, 10, 64)
+		if err != nil || cursor.HistoryVersion < 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid history_version parameter.",
+				Detail:  "history_version must be a non-negative integer.",
+			})
+			return
+		}
+		// Valid versions come from this chat, whose version never decreases; a
+		// higher one would make the stream skip history the client lacks.
+		if cursor.HistoryVersion > chat.HistoryVersion {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid history_version parameter.",
+				Detail: fmt.Sprintf("history_version %d is above the chat's history_version %d. Send the history_version of the chat's newest messages page or its last preview_reset event.",
+					cursor.HistoryVersion, chat.HistoryVersion),
+			})
+			return
+		}
+	}
 
 	// Subscribe before accepting the WebSocket so that failures
 	// can still be reported as normal HTTP errors.
-	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, afterMessageID)
+	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, cursor)
 	// Defensive against future SubscribeAuthorized failure modes.
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

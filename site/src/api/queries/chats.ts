@@ -1275,6 +1275,43 @@ const replaceMessagesHistory = (
 	};
 };
 
+// Replaces the cached messages with IDs at or above fromID. Emptied pages
+// are dropped except the first, which receives the new messages. The last
+// remaining page inherits has_more from the original last page, because
+// has_more describes the history below the last page.
+const replaceMessagesFrom = (
+	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
+	fromID: number,
+	messages: readonly TypesGen.ChatMessage[],
+): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
+	if (!currentData?.pages?.length) {
+		return currentData;
+	}
+
+	const pages: TypesGen.ChatMessagesResponse[] = [];
+	const pageParams: unknown[] = [];
+	currentData.pages.forEach((page, index) => {
+		const kept = page.messages.filter((message) => message.id < fromID);
+		if (index > 0 && kept.length === 0) {
+			return;
+		}
+		pages.push({ ...page, messages: kept });
+		pageParams.push(currentData.pageParams[index]);
+	});
+	const lastIndex = pages.length - 1;
+	pages[lastIndex] = {
+		...pages[lastIndex],
+		has_more: currentData.pages[currentData.pages.length - 1].has_more,
+	};
+
+	return (
+		upsertMessagesAcrossPages(
+			{ ...currentData, pages, pageParams },
+			messages,
+		) ?? currentData
+	);
+};
+
 export const upsertChatMessages = (
 	queryClient: QueryClient,
 	chatId: string,
@@ -1292,6 +1329,17 @@ export const replaceChatMessagesHistory = (
 ) => {
 	return patchChatMessages(queryClient, chatId, (currentData) =>
 		replaceMessagesHistory(currentData, messages),
+	);
+};
+
+export const replaceChatMessagesFrom = (
+	queryClient: QueryClient,
+	chatId: string,
+	fromID: number,
+	messages: readonly TypesGen.ChatMessage[],
+) => {
+	return patchChatMessages(queryClient, chatId, (currentData) =>
+		replaceMessagesFrom(currentData, fromID, messages),
 	);
 };
 

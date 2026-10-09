@@ -3668,6 +3668,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "has_more": true,
+  "history_version": 0,
   "messages": [
     {
       "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
@@ -3828,12 +3829,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                              | Required | Restrictions | Description                                                                                                                                                                            |
-|-------------------|-------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `has_more`        | boolean                                                           | false    |              |                                                                                                                                                                                        |
-| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                        |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                        |
-| `turn_start_id`   | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message. |
+| Name              | Type                                                              | Required | Restrictions | Description                                                                                                                                                                                                                                                                                        |
+|-------------------|-------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `has_more`        | boolean                                                           | false    |              |                                                                                                                                                                                                                                                                                                    |
+| `history_version` | integer                                                           | false    |              | History version is the chat's history_version, read before the messages in this page. The page can hold changes made after that version; a stream opened with it resends them. Pass it as the stream's history_version parameter. It is set only on pages requested without before_id or after_id. |
+| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                                                                                    |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                                                                                                                    |
+| `turn_start_id`   | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message.                                                                                                             |
 
 ## codersdk.ChatModel
 
@@ -5302,6 +5304,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retryable": true,
     "status_code": 0
   },
+  "history_reset": {
+    "from_message_id": 0
+  },
   "message": {
     "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
@@ -5448,6 +5453,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "role": "system",
     "seq": 0
   },
+  "preview_reset": {
+    "history_version": 0
+  },
   "queued_messages": [
     {
       "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
@@ -5537,17 +5545,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                   | Required | Restrictions | Description |
-|-------------------|------------------------------------------------------------------------|----------|--------------|-------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |             |
-| `chat_id`         | string                                                                 | false    |              |             |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |             |
-| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |             |
-| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |             |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |             |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |             |
-| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |             |
-| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |             |
+| Name              | Type                                                                   | Required | Restrictions | Description                                                                                     |
+|-------------------|------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------|
+| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                 |
+| `chat_id`         | string                                                                 | false    |              |                                                                                                 |
+| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                 |
+| `history_reset`   | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a non-zero history_version. |
+| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                 |
+| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                 |
+| `preview_reset`   | [codersdk.ChatStreamPreviewReset](#codersdkchatstreampreviewreset)     | false    |              | Preview reset is set on preview_reset events of streams opened with a non-zero history_version. |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |                                                                                                 |
+| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                 |
+| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                 |
+| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                 |
 
 ## codersdk.ChatStreamEventType
 
@@ -5562,6 +5572,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                                                                                                                   |
 |----------------------------------------------------------------------------------------------------------------------------|
 | `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
+
+## codersdk.ChatStreamHistoryReset
+
+```json
+{
+  "from_message_id": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                              |
+|-------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `from_message_id` | integer | false    |              | From message ID is the lowest message ID the reset replaces. The client keeps its messages with lower IDs and replaces the rest with the message events that follow. A history_reset without from_message_id replaces the whole history. |
 
 ## codersdk.ChatStreamMessagePart
 
@@ -5642,6 +5666,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `part`               | [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
 | `role`               | [codersdk.ChatMessageRole](#codersdkchatmessagerole) | false    |              |             |
 | `seq`                | integer                                              | false    |              |             |
+
+## codersdk.ChatStreamPreviewReset
+
+```json
+{
+  "history_version": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                      |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `history_version` | integer | false    |              | History version is the chat's history_version for the message events sent before this preview_reset. Every sync that changes the history ends with a preview_reset, so a client reconnects with the history_version of the last one it received. |
 
 ## codersdk.ChatStreamRetry
 

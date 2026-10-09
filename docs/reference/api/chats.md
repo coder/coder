@@ -2881,6 +2881,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
 ```json
 {
   "has_more": true,
+  "history_version": 0,
   "messages": [
     {
       "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
@@ -4076,10 +4077,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 ### Parameters
 
-| Name       | In    | Type         | Required | Description                                             |
-|------------|-------|--------------|----------|---------------------------------------------------------|
-| `chat`     | path  | string(uuid) | true     | Chat ID                                                 |
-| `after_id` | query | integer      | false    | Skip snapshot messages with id at or before this cursor |
+| Name              | In    | Type         | Required | Description                                                                                                        |
+|-------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------|
+| `chat`            | path  | string(uuid) | true     | Chat ID                                                                                                            |
+| `after_id`        | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when history_version is non-zero                  |
+| `history_version` | query | integer      | false    | Send only history changed after this history_version, taken from the messages page or the last preview_reset event |
 
 ### Example responses
 
@@ -4105,6 +4107,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "provider": "string",
       "retryable": true,
       "status_code": 0
+    },
+    "history_reset": {
+      "from_message_id": 0
     },
     "message": {
       "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
@@ -4252,6 +4257,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "role": "system",
       "seq": 0
     },
+    "preview_reset": {
+      "history_version": 0
+    },
     "queued_messages": [
       {
         "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
@@ -4366,6 +4374,8 @@ Status Code **200**
 | `»» provider`                      | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
 | `»» retryable`                     | boolean                                                                          | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                                                                                                                                                               |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
+| `» history_reset`                  | [codersdk.ChatStreamHistoryReset](schemas.md#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a non-zero history_version.                                                                                                                                                                                                                                                                                                            |
+| `»» from_message_id`               | integer                                                                          | false    |              | From message ID is the lowest message ID the reset replaces. The client keeps its messages with lower IDs and replaces the rest with the message events that follow. A history_reset without from_message_id replaces the whole history.                                                                                                                                                                   |
 | `» message`                        | [codersdk.ChatMessage](schemas.md#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» automation_id`                 | string(uuid)                                                                     | false    |              | Automation ID is the chat automation that delivered this message, if any. The automation may since have been deleted.                                                                                                                                                                                                                                                                                      |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4436,6 +4446,8 @@ Status Code **200**
 | `»» part`                          | [codersdk.ChatMessagePart](schemas.md#codersdkchatmessagepart)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» role`                          | [codersdk.ChatMessageRole](schemas.md#codersdkchatmessagerole)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» seq`                           | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» preview_reset`                  | [codersdk.ChatStreamPreviewReset](schemas.md#codersdkchatstreampreviewreset)     | false    |              | Preview reset is set on preview_reset events of streams opened with a non-zero history_version.                                                                                                                                                                                                                                                                                                            |
+| `»» history_version`               | integer                                                                          | false    |              | History version is the chat's history_version for the message events sent before this preview_reset. Every sync that changes the history ends with a preview_reset, so a client reconnects with the history_version of the last one it received.                                                                                                                                                           |
 | `» queued_messages`                | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» automation_id`                 | string(uuid)                                                                     | false    |              | Automation ID is the chat automation that queued this message, if any. The automation may since have been deleted.                                                                                                                                                                                                                                                                                         |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |

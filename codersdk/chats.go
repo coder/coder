@@ -969,6 +969,12 @@ type ChatMessagesResponse struct {
 	// containing the page's oldest message. Omitted for after_id-only polls
 	// and when no prompt is at or before that message.
 	TurnStartID *int64 `json:"turn_start_id,omitempty"`
+	// HistoryVersion is the chat's history_version, read before the messages
+	// in this page. The page can hold changes made after that version; a
+	// stream opened with it resends them. Pass it as the stream's
+	// history_version parameter. It is set only on pages requested without
+	// before_id or after_id.
+	HistoryVersion int64 `json:"history_version,omitempty"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by
@@ -2196,6 +2202,31 @@ type ChatStreamEvent struct {
 	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
+	// HistoryReset is set on history_reset events of streams opened with a
+	// non-zero history_version.
+	HistoryReset *ChatStreamHistoryReset `json:"history_reset,omitempty"`
+	// PreviewReset is set on preview_reset events of streams opened with a
+	// non-zero history_version.
+	PreviewReset *ChatStreamPreviewReset `json:"preview_reset,omitempty"`
+}
+
+// ChatStreamHistoryReset describes which messages a history_reset replaces.
+type ChatStreamHistoryReset struct {
+	// FromMessageID is the lowest message ID the reset replaces. The client
+	// keeps its messages with lower IDs and replaces the rest with the
+	// message events that follow. A history_reset without from_message_id
+	// replaces the whole history.
+	FromMessageID int64 `json:"from_message_id"`
+}
+
+// ChatStreamPreviewReset reports the history version a stream has
+// synchronized.
+type ChatStreamPreviewReset struct {
+	// HistoryVersion is the chat's history_version for the message events
+	// sent before this preview_reset. Every sync that changes the history
+	// ends with a preview_reset, so a client reconnects with the
+	// history_version of the last one it received.
+	HistoryVersion int64 `json:"history_version"`
 }
 
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.
@@ -3130,6 +3161,12 @@ type StreamChatOptions struct {
 	// that only need live message_part events and can skip the
 	// full message history.
 	AfterID *int64
+	// HistoryVersion is the history version of the caller's messages, from
+	// ChatMessagesResponse or ChatStreamPreviewReset. When it is non-zero, the
+	// server ignores AfterID and history resets carry
+	// ChatStreamEvent.HistoryReset. When it is nil or zero, every connection
+	// to a chat with a deleted message resends the whole history.
+	HistoryVersion *int64
 }
 
 // StreamChat streams chat updates in real time.
@@ -3139,8 +3176,17 @@ type StreamChatOptions struct {
 // websocket connection when done.
 func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEvent, io.Closer, error) {
 	path := fmt.Sprintf("/api/v2/chats/%s/stream", chatID)
-	if opts != nil && opts.AfterID != nil {
-		path += fmt.Sprintf("?after_id=%d", *opts.AfterID)
+	if opts != nil {
+		query := url.Values{}
+		if opts.AfterID != nil {
+			query.Set("after_id", strconv.FormatInt(*opts.AfterID, 10))
+		}
+		if opts.HistoryVersion != nil {
+			query.Set("history_version", strconv.FormatInt(*opts.HistoryVersion, 10))
+		}
+		if len(query) > 0 {
+			path += "?" + query.Encode()
+		}
 	}
 
 	conn, err := c.Dial(

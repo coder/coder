@@ -3153,6 +3153,14 @@ export interface ChatMessagesResponse {
 	 * and when no prompt is at or before that message.
 	 */
 	readonly turn_start_id?: number;
+	/**
+	 * HistoryVersion is the chat's history_version, read before the messages
+	 * in this page. The page can hold changes made after that version; a
+	 * stream opened with it resends them. Pass it as the stream's
+	 * history_version parameter. It is set only on pages requested without
+	 * before_id or after_id.
+	 */
+	readonly history_version?: number;
 }
 
 // From codersdk/chats.go
@@ -3798,6 +3806,16 @@ export interface ChatStreamEvent {
 	readonly retry?: ChatStreamRetry;
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
+	/**
+	 * HistoryReset is set on history_reset events of streams opened with a
+	 * non-zero history_version.
+	 */
+	readonly history_reset?: ChatStreamHistoryReset;
+	/**
+	 * PreviewReset is set on preview_reset events of streams opened with a
+	 * non-zero history_version.
+	 */
+	readonly preview_reset?: ChatStreamPreviewReset;
 }
 
 // From codersdk/chats.go
@@ -3826,6 +3844,20 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 
 // From codersdk/chats.go
 /**
+ * ChatStreamHistoryReset describes which messages a history_reset replaces.
+ */
+export interface ChatStreamHistoryReset {
+	/**
+	 * FromMessageID is the lowest message ID the reset replaces. The client
+	 * keeps its messages with lower IDs and replaces the rest with the
+	 * message events that follow. A history_reset without from_message_id
+	 * replaces the whole history.
+	 */
+	readonly from_message_id: number;
+}
+
+// From codersdk/chats.go
+/**
  * ChatStreamMessagePart is a streamed message part update.
  */
 export interface ChatStreamMessagePart {
@@ -3834,6 +3866,21 @@ export interface ChatStreamMessagePart {
 	readonly history_version?: number;
 	readonly generation_attempt?: number;
 	readonly seq?: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatStreamPreviewReset reports the history version a stream has
+ * synchronized.
+ */
+export interface ChatStreamPreviewReset {
+	/**
+	 * HistoryVersion is the chat's history_version for the message events
+	 * sent before this preview_reset. Every sync that changes the history
+	 * ends with a preview_reset, so a client reconnects with the
+	 * history_version of the last one it received.
+	 */
+	readonly history_version: number;
 }
 
 // From codersdk/chats.go
@@ -9805,6 +9852,14 @@ export interface StreamChatOptions {
 	 * full message history.
 	 */
 	readonly AfterID: number | null;
+	/**
+	 * HistoryVersion is the history version of the caller's messages, from
+	 * ChatMessagesResponse or ChatStreamPreviewReset. When it is non-zero, the
+	 * server ignores AfterID and history resets carry
+	 * ChatStreamEvent.HistoryReset. When it is nil or zero, every connection
+	 * to a chat with a deleted message resends the whole history.
+	 */
+	readonly HistoryVersion: number | null;
 }
 
 // From codersdk/client.go

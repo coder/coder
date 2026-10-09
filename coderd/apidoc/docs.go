@@ -4333,8 +4333,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Skip snapshot messages with id at or before this cursor",
+                        "description": "Skip snapshot messages with id at or before this cursor. Ignored when history_version is non-zero",
                         "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Send only history changed after this history_version, taken from the messages page or the last preview_reset event",
+                        "name": "history_version",
                         "in": "query"
                     }
                 ],
@@ -22285,6 +22291,10 @@ const docTemplate = `{
                 "has_more": {
                     "type": "boolean"
                 },
+                "history_version": {
+                    "description": "HistoryVersion is the chat's history_version, read before the messages\nin this page. The page can hold changes made after that version; a\nstream opened with it resends them. Pass it as the stream's\nhistory_version parameter. It is set only on pages requested without\nbefore_id or after_id.",
+                    "type": "integer"
+                },
                 "messages": {
                     "type": "array",
                     "items": {
@@ -23142,11 +23152,27 @@ const docTemplate = `{
                 "error": {
                     "$ref": "#/definitions/codersdk.ChatError"
                 },
+                "history_reset": {
+                    "description": "HistoryReset is set on history_reset events of streams opened with a\nnon-zero history_version.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatStreamHistoryReset"
+                        }
+                    ]
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },
                 "message_part": {
                     "$ref": "#/definitions/codersdk.ChatStreamMessagePart"
+                },
+                "preview_reset": {
+                    "description": "PreviewReset is set on preview_reset events of streams opened with a\nnon-zero history_version.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatStreamPreviewReset"
+                        }
+                    ]
                 },
                 "queued_messages": {
                     "type": "array",
@@ -23190,6 +23216,15 @@ const docTemplate = `{
                 "ChatStreamEventTypeHistoryReset"
             ]
         },
+        "codersdk.ChatStreamHistoryReset": {
+            "type": "object",
+            "properties": {
+                "from_message_id": {
+                    "description": "FromMessageID is the lowest message ID the reset replaces. The client\nkeeps its messages with lower IDs and replaces the rest with the\nmessage events that follow. A history_reset without from_message_id\nreplaces the whole history.",
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.ChatStreamMessagePart": {
             "type": "object",
             "properties": {
@@ -23206,6 +23241,15 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatMessageRole"
                 },
                 "seq": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ChatStreamPreviewReset": {
+            "type": "object",
+            "properties": {
+                "history_version": {
+                    "description": "HistoryVersion is the chat's history_version for the message events\nsent before this preview_reset. Every sync that changes the history\nends with a preview_reset, so a client reconnects with the\nhistory_version of the last one it received.",
                     "type": "integer"
                 }
             }

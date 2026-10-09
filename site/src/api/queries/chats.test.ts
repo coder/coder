@@ -112,6 +112,7 @@ import {
 	removeChatFromChatsByWorkspace,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
+	replaceChatMessagesFrom,
 	replaceChatMessagesHistory,
 	resetUnloadedChatEntity,
 	setChatGroupRole,
@@ -5393,6 +5394,70 @@ describe("message upsert fan-out and history replacement", () => {
 		]);
 
 		expect(readMessagePages(queryClient)).toBe(before);
+	});
+
+	it("replaceChatMessagesFrom keeps the messages below the reset and older pages", () => {
+		const queryClient = createTestQueryClient();
+		seedMessagePages(queryClient, {
+			pages: [
+				{
+					messages: [mockChatMessage(60), mockChatMessage(55)],
+					queued_messages: [],
+					has_more: true,
+				},
+				{
+					messages: [mockChatMessage(50), mockChatMessage(45)],
+					queued_messages: [],
+					has_more: true,
+				},
+				{
+					messages: [mockChatMessage(40)],
+					queued_messages: [],
+					has_more: true,
+				},
+			],
+			pageParams: [undefined, 55, 45],
+		});
+
+		replaceChatMessagesFrom(queryClient, "chat-1", 48, [mockChatMessage(61)]);
+
+		const after = readMessagePages(queryClient);
+		expect(after?.pages.map((page) => page.messages.map((m) => m.id))).toEqual([
+			[61],
+			[45],
+			[40],
+		]);
+		expect(after?.pageParams).toEqual([undefined, 55, 45]);
+		expect(after?.pages.at(-1)?.has_more).toBe(true);
+	});
+
+	it("replaceChatMessagesFrom below every loaded message still pages older history", () => {
+		const queryClient = createTestQueryClient();
+		seedMessagePages(queryClient, {
+			pages: [
+				{
+					messages: [mockChatMessage(60), mockChatMessage(55)],
+					queued_messages: [],
+					has_more: true,
+				},
+				{
+					messages: [mockChatMessage(50)],
+					queued_messages: [],
+					has_more: true,
+				},
+			],
+			pageParams: [undefined, 55],
+		});
+
+		replaceChatMessagesFrom(queryClient, "chat-1", 20, [mockChatMessage(61)]);
+
+		const after = readMessagePages(queryClient);
+		expect(after?.pages.map((page) => page.messages.map((m) => m.id))).toEqual([
+			[61],
+		]);
+		expect(after?.pageParams).toEqual([undefined]);
+		// Messages below 20 were never loaded, so the page still has more.
+		expect(after?.pages[0]?.has_more).toBe(true);
 	});
 
 	it("replaceChatMessagesHistory is a no-op on an absent cache and creates no entry", () => {
