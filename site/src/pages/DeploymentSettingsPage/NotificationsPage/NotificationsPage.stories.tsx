@@ -65,7 +65,9 @@ export const LoadingDispatchMethods: Story = {
 export const Events: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const docsLinks = canvas.getAllByRole("link", { name: /View docs/ });
+		const docsLinks = canvas.getAllByRole("link", {
+			name: /View (webhook |SMTP )?docs/,
+		});
 		await expect(docsLinks).toHaveLength(3);
 		await expect(docsLinks[0]).toHaveAttribute(
 			"href",

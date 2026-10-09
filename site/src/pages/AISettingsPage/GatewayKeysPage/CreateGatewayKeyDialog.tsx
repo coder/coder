@@ -90,8 +90,7 @@ export const CreateGatewayKeyDialog: React.FC<CreateGatewayKeyDialogProps> = ({
 					<div className="flex flex-col gap-5">
 						<Alert severity="warning">
 							<AlertDescription>
-								Copy this key now. For security reasons it cannot be shown
-								again.
+								Copy this key now. You won't be able to see it again.
 							</AlertDescription>
 						</Alert>
 						<CodeExample

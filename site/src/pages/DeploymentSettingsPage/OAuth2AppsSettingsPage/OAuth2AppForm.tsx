@@ -12,7 +12,7 @@ import {
 	OAuth2RedirectURIMaxBytes,
 	OAuth2RedirectURIsMaxCount,
 } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -419,18 +419,25 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 						scope.
 					</div>
 					{narrowsSelfRegisteredScopes && (
-						<Alert severity="warning">
-							A self-registered client that requests every advertised scope
-							fails new authorizations with invalid_scope once its allowlist is
-							narrower than that list. Existing tokens keep their scopes.{" "}
-							<Link
-								href={docs("/admin/integrations/oauth2-provider#scopes")}
-								target="_blank"
-								rel="noreferrer"
-							>
-								Learn more
-								<span className="sr-only"> (link opens in new tab)</span>
-							</Link>
+						<Alert
+							severity="warning"
+							actions={
+								<Link
+									href={docs("/admin/integrations/oauth2-provider#scopes")}
+									target="_blank"
+									rel="noreferrer"
+								>
+									Learn more
+									<span className="sr-only"> (link opens in new tab)</span>
+								</Link>
+							}
+						>
+							<AlertTitle>This change can block new authorizations</AlertTitle>
+							<AlertDescription>
+								Self-registered applications often request every available
+								scope. If this one does, new authorizations will fail once this
+								list is narrower. Existing tokens keep their scopes.
+							</AlertDescription>
 						</Alert>
 					)}
 					<MultiSelectCombobox

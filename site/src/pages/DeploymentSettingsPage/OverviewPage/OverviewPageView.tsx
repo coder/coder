@@ -1,9 +1,10 @@
+import { Fragment } from "react";
 import type {
 	DAUsResponse,
 	Experiment,
 	SerpentOption,
 } from "#/api/typesGenerated";
-import { Alert, AlertTitle } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
@@ -47,25 +48,30 @@ export const OverviewPageView: React.FC<OverviewPageViewProps> = ({
 					}))}
 				/>
 				{invalidExperiments.length > 0 && (
-					<Alert severity="warning">
-						<AlertTitle>Invalid experiments in use:</AlertTitle>
-						<ul>
-							{invalidExperiments.map((it) => (
-								<li key={it}>
-									<pre>{it}</pre>
-								</li>
+					<Alert
+						severity="warning"
+						actions={
+							<Link
+								href={docs("/reference/cli/server#--experiments")}
+								target="_blank"
+								rel="noreferrer"
+							>
+								View experiments docs
+								<span className="sr-only"> (opens in new tab)</span>
+							</Link>
+						}
+					>
+						<AlertTitle>Some experiments aren't recognized</AlertTitle>
+						<AlertDescription>
+							These experiments have no effect:{" "}
+							{invalidExperiments.map((it, index) => (
+								<Fragment key={it}>
+									{index > 0 && ", "}
+									<code>{it}</code>
+								</Fragment>
 							))}
-						</ul>
-						It is recommended that you remove these experiments from your
-						configuration as they have no effect. See{" "}
-						<Link
-							href={docs("/reference/cli/server#--experiments")}
-							target="_blank"
-							rel="noreferrer"
-						>
-							the documentation
-						</Link>{" "}
-						for more details.
+							. Remove them from your server configuration.
+						</AlertDescription>
 					</Alert>
 				)}
 				<OptionsTable

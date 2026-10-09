@@ -177,7 +177,7 @@ export const InaccessibleRequestedOrganization: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("alert")).toHaveTextContent(
-			"requested organization is not available",
+			"You don't have access to that organization, or it doesn't exist.",
 		);
 		await expect(
 			canvas.getByText("Organization override controls"),

@@ -41,17 +41,25 @@ export const AIGovernanceSettingsPageView: React.FC<
 				{featureAIBridgeEntitled ? (
 					<>
 						{!featureAIBridgeEnabled && (
-							<Alert className="mb-12" severity="warning" prominent>
-								<AlertTitle>
-									AI Gateway is included in your license, but not set up yet.
-								</AlertTitle>
+							<Alert
+								className="mb-12"
+								severity="info"
+								actions={
+									<Link
+										href={docs("/ai-coder/ai-gateway")}
+										target="_blank"
+										rel="noreferrer"
+									>
+										View setup guide
+										<span className="sr-only"> (opens in new tab)</span>
+									</Link>
+								}
+							>
+								<AlertTitle>AI Gateway isn't set up yet</AlertTitle>
 								<AlertDescription>
-									You have access to AI Governance, but it still needs to be
-									setup. Check out the{" "}
-									<Link href={docs("/ai-coder/ai-gateway")} target="_blank">
-										AI Gateway
-									</Link>{" "}
-									documentation to get started.
+									Your license includes it, but it isn't turned on for this
+									deployment. Follow the setup guide to start monitoring AI
+									requests.
 								</AlertDescription>
 							</Alert>
 						)}

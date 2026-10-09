@@ -179,8 +179,7 @@ export const EditOAuth2AppPageView: React.FC = () => {
 
 				{searchParams.has("created") && (
 					<Alert severity="info" dismissible>
-						Your OAuth2 application has been created. Generate a client secret
-						below to start using your application.
+						Generate a client secret below to start using this application.
 					</Alert>
 				)}
 
@@ -271,9 +270,9 @@ export const EditOAuth2AppPageView: React.FC = () => {
 
 						{isPublicClient ? (
 							<Alert severity="info">
-								This is a public client. It authenticates with PKCE and has no
-								client secret; its type is fixed at registration. If you need a
-								confidential client instead, register a new application.
+								This public client uses PKCE instead of a client secret. Client
+								type can't be changed, so register a new confidential
+								application if you need one.
 							</Alert>
 						) : (
 							<Table aria-label="OAuth2 client secrets">
