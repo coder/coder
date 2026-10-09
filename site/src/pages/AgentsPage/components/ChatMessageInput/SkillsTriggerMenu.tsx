@@ -13,11 +13,14 @@ import {
 	PopoverContent,
 } from "#/components/Popover/Popover";
 
-type SkillSource = "personal" | "workspace";
+type SkillSource = "personal" | "workspace" | "plugin";
 
 export type SkillMetadata = {
 	name: string;
 	description: string;
+	// Set for skills shipped inside an Agent Plugin; part of the skill's
+	// identity alongside its name.
+	pluginName?: string;
 };
 
 export type SkillMenuItem = SkillMetadata & {
@@ -43,11 +46,12 @@ export const createCommandMenuItem = (
 });
 
 export const createSkillMenuItem = (
-	source: SkillSource,
+	source: "personal" | "workspace",
 	skill: SkillMetadata,
-	// Bare personal names are ambiguous to read_skill when a workspace
-	// skill shares the name, so colliding triggers must stay qualified.
-	qualifyTrigger = source === "workspace",
+	// Workspace triggers are always qualified. Callers pass true for a
+	// personal skill whose bare name may collide with a workspace or plugin
+	// skill; read_skill rejects an ambiguous bare name.
+	qualifyTrigger = source !== "personal",
 ): SkillMenuItem => ({
 	name: skill.name,
 	description: skill.description,
@@ -55,6 +59,26 @@ export const createSkillMenuItem = (
 	triggerText: qualifyTrigger ? `/${source}/${skill.name}` : `/${skill.name}`,
 	altTriggerText: `/${source}/${skill.name}`,
 });
+
+// createPinnedSkillMenuItem builds the menu item for a skill the agent
+// pushed: a plugin skill when it carries a plugin name, otherwise a
+// workspace skill. Plugin triggers are always qualified.
+export const createPinnedSkillMenuItem = (
+	skill: SkillMetadata,
+): SkillMenuItem => {
+	if (!skill.pluginName) {
+		return createSkillMenuItem("workspace", skill);
+	}
+	const trigger = `/plugin/${skill.pluginName}/${skill.name}`;
+	return {
+		name: skill.name,
+		description: skill.description,
+		pluginName: skill.pluginName,
+		source: "plugin",
+		triggerText: trigger,
+		altTriggerText: trigger,
+	};
+};
 
 type SkillsTriggerMenuProps = {
 	open: boolean;
@@ -141,8 +165,17 @@ const SkillCommandItem = ({
 			onSelect={handleSelect}
 		>
 			<div className="min-w-0 space-y-1">
-				<div className="truncate font-mono text-content-primary text-xs">
-					{skill.triggerText}
+				<div className="flex min-w-0 items-baseline gap-2">
+					<div className="min-w-0 truncate font-mono text-content-primary text-xs">
+						{skill.triggerText}
+					</div>
+					{skill.source === "plugin" && skill.pluginName && (
+						// shrink-[999] makes the label give up its width before the
+						// trigger, so the alias stays readable.
+						<span className="min-w-0 shrink-[999] truncate text-content-secondary text-xs">
+							plugin: {skill.pluginName}
+						</span>
+					)}
 				</div>
 				{skill.description.trim() && (
 					<div className="line-clamp-2 text-content-secondary text-xs leading-snug">
