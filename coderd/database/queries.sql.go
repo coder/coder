@@ -11324,9 +11324,6 @@ type GetChatTurnStartIDParams struct {
 	MessageID int64     `db:"message_id" json:"message_id"`
 }
 
-// Returns the newest live user prompt at or before the message, which is
-// the prompt that starts the message's turn. Backed by
-// idx_chat_messages_user_prompts.
 func (q *sqlQuerier) GetChatTurnStartID(ctx context.Context, arg GetChatTurnStartIDParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getChatTurnStartID, arg.ChatID, arg.MessageID)
 	var id int64

@@ -18548,7 +18548,6 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 func TestGetChatMessages_TurnStartID(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db := newChatClientWithDatabase(t)
 	user := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModel(t, client)
@@ -18589,6 +18588,7 @@ func TestGetChatMessages_TurnStartID(t *testing.T) {
 	afterDeletedPrompt := insert(roleAssistant, both)
 	lastPrompt := insert(roleUser, both)
 	lastStep := insert(roleAssistant, both)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), deletedPrompt))
 
 	tests := []struct {

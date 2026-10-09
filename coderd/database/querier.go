@@ -598,9 +598,6 @@ type sqlcQuerier interface {
 	// non-empty custom prompt implied opting out before the explicit toggle
 	// existed.
 	GetChatSystemPromptConfig(ctx context.Context) (GetChatSystemPromptConfigRow, error)
-	// Returns the newest live user prompt at or before the message, which is
-	// the prompt that starts the message's turn. Backed by
-	// idx_chat_messages_user_prompts.
 	GetChatTurnStartID(ctx context.Context, arg GetChatTurnStartIDParams) (int64, error)
 	GetChatUserModelOverride(ctx context.Context, arg GetChatUserModelOverrideParams) (ChatUserModelOverride, error)
 	GetChatUserModelOverrides(ctx context.Context, arg GetChatUserModelOverridesParams) ([]ChatUserModelOverride, error)
