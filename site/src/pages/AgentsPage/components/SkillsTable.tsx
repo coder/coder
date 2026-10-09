@@ -8,6 +8,7 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	createSkill,
 	deleteSkill,
+	organizationSkills,
 	type SkillOwner,
 	skill,
 	updateSkill,
@@ -23,10 +24,9 @@ import type { SkillErrorDisplay } from "./SkillEditor";
 import {
 	type SkillDeleteState,
 	type SkillEditorState,
+	type SkillsCopy,
 	SkillsTableView,
 } from "./SkillsTableView";
-
-const personalSkillOwner: SkillOwner = { type: "user", user: "me" };
 
 const emptySkillFormValues: SkillFormValues = {
 	name: "",
@@ -40,9 +40,10 @@ type DialogState =
 	| { type: "delete"; skill: SkillMetadata; submittedName?: string }
 	| null;
 
-const personalSkillError = (
+const skillError = (
 	error: unknown,
 	fallback: string,
+	lowerNoun: string,
 ): SkillErrorDisplay | undefined => {
 	if (!error) {
 		return undefined;
@@ -53,9 +54,9 @@ const personalSkillError = (
 	if (status === 400) {
 		statusFallback = "Skill content is invalid.";
 	} else if (status === 403) {
-		statusFallback = "You do not have permission to manage personal skills.";
+		statusFallback = `You do not have permission to manage ${lowerNoun}s.`;
 	} else if (status === 404) {
-		statusFallback = "That personal skill was not found.";
+		statusFallback = `That ${lowerNoun} was not found.`;
 	} else if (status === 409) {
 		statusFallback = "A skill with that name already exists.";
 	}
@@ -66,7 +67,7 @@ const personalSkillError = (
 	};
 };
 
-const downloadPersonalSkillFile = async (
+const downloadSkillFile = async (
 	name: string,
 	fetchContent: (name: string) => Promise<string>,
 ): Promise<void> => {
@@ -77,9 +78,10 @@ const downloadPersonalSkillFile = async (
 	);
 };
 
-const exportPersonalSkillsArchive = async (
+const exportSkillsArchive = async (
 	skills: readonly SkillMetadata[],
 	fetchContent: (name: string) => Promise<string>,
+	archiveName: string,
 ): Promise<void> => {
 	const contents = await Promise.all(
 		skills.map(async (skill) => ({
@@ -92,24 +94,39 @@ const exportPersonalSkillsArchive = async (
 		zip.file(`${name}/SKILL.md`, content);
 	}
 	const archive = await zip.generateAsync({ type: "blob" });
-	saveAs(archive, "personal-skills.zip");
+	saveAs(archive, archiveName);
 };
 
-const AgentSettingsPersonalSkillsPage: React.FC = () => {
+type SkillsTableProps = {
+	owner: SkillOwner;
+	copy: SkillsCopy;
+	canEdit: boolean;
+};
+
+export const SkillsTable: React.FC<SkillsTableProps> = ({
+	owner,
+	copy,
+	canEdit,
+}) => {
+	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
 	const queryClient = useQueryClient();
 	const [dialogState, setDialogState] = useState<DialogState>(null);
-	const skillsQuery = useQuery(userSkills());
+	const skillsQuery = useQuery(
+		owner.type === "user"
+			? userSkills(owner.user)
+			: organizationSkills(owner.organizationId),
+	);
 	const skills = skillsQuery.data ?? [];
 	const existingNames = skills.map((skill) =>
 		skill.name.toLocaleLowerCase("en-US"),
 	);
 	const editName = dialogState?.type === "edit" ? dialogState.name : "";
 	const editSkillQuery = useQuery({
-		...skill(personalSkillOwner, editName),
+		...skill(owner, editName),
 		enabled: Boolean(editName),
 	});
 
-	const createMutationOptions = createSkill(queryClient, personalSkillOwner);
+	const createMutationOptions = createSkill(queryClient, owner);
 	const createMutation = useMutation({
 		...createMutationOptions,
 		onSuccess: async (_skill, variables) => {
@@ -120,11 +137,11 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 					? null
 					: current,
 			);
-			toast.success("Personal skill created.");
+			toast.success(`${copy.noun} created.`);
 		},
 	});
 
-	const updateMutationOptions = updateSkill(queryClient, personalSkillOwner);
+	const updateMutationOptions = updateSkill(queryClient, owner);
 	const updateMutation = useMutation({
 		...updateMutationOptions,
 		onSuccess: async (skill, variables) => {
@@ -136,7 +153,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 					? null
 					: current,
 			);
-			toast.success("Personal skill saved.");
+			toast.success(`${copy.noun} saved.`);
 		},
 		onError: (error, variables) => {
 			if (isAxiosError(error) && error.response?.status === 404) {
@@ -153,7 +170,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 		},
 	});
 
-	const deleteMutationOptions = deleteSkill(queryClient, personalSkillOwner);
+	const deleteMutationOptions = deleteSkill(queryClient, owner);
 	const deleteMutation = useMutation({
 		...deleteMutationOptions,
 		onSuccess: async (data, variables) => {
@@ -165,7 +182,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 					? null
 					: current,
 			);
-			toast.success("Personal skill deleted.");
+			toast.success(`${copy.noun} deleted.`);
 		},
 		onError: (error, variables) => {
 			if (isAxiosError(error) && error.response?.status === 404) {
@@ -182,27 +199,22 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 	});
 
 	const fetchSkillContent = (name: string): Promise<string> =>
-		queryClient
-			.fetchQuery(skill(personalSkillOwner, name))
-			.then((skill) => skill.content);
+		queryClient.fetchQuery(skill(owner, name)).then((skill) => skill.content);
 
 	const downloadMutation = useMutation({
-		mutationFn: (name: string) =>
-			downloadPersonalSkillFile(name, fetchSkillContent),
+		mutationFn: (name: string) => downloadSkillFile(name, fetchSkillContent),
 		onError: (error) => {
-			toast.error(
-				getErrorMessage(error, "Failed to download personal skill."),
-				{
-					description: getErrorDetail(error),
-				},
-			);
+			toast.error(getErrorMessage(error, `Failed to download ${lowerNoun}.`), {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
 	const exportAllMutation = useMutation({
-		mutationFn: () => exportPersonalSkillsArchive(skills, fetchSkillContent),
+		mutationFn: () =>
+			exportSkillsArchive(skills, fetchSkillContent, copy.archiveName),
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to export personal skills."), {
+			toast.error(getErrorMessage(error, `Failed to export ${lowerNoun}s.`), {
 				description: getErrorDetail(error),
 			});
 		},
@@ -235,9 +247,10 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 			existingNames,
 			submitError:
 				createMutation.variables?.content === dialogState.submittedContent
-					? personalSkillError(
+					? skillError(
 							createMutation.error,
-							"Failed to create personal skill.",
+							`Failed to create ${lowerNoun}.`,
+							lowerNoun,
 						)
 					: undefined,
 			isSubmitting: createMutation.isPending,
@@ -262,9 +275,10 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 			submitError:
 				updateMutation.variables?.name === dialogState.name &&
 				updateMutation.variables.req.content === dialogState.submittedContent
-					? personalSkillError(
+					? skillError(
 							updateMutation.error,
-							"Failed to save personal skill.",
+							`Failed to save ${lowerNoun}.`,
+							lowerNoun,
 						)
 					: undefined,
 			isSubmitting: updateMutation.isPending,
@@ -293,9 +307,10 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 			error:
 				deleteMutation.variables === dialogState.skill.name &&
 				dialogState.submittedName === dialogState.skill.name
-					? personalSkillError(
+					? skillError(
 							deleteMutation.error,
-							"Failed to delete personal skill.",
+							`Failed to delete ${lowerNoun}.`,
+							lowerNoun,
 						)
 					: undefined,
 			isDeleting:
@@ -317,6 +332,9 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 	return (
 		<SkillsTableView
 			skills={skills}
+			copy={copy}
+			limit={SKILLS_MAX_PER_OWNER}
+			canEdit={canEdit}
 			error={skillsQuery.error}
 			isLoading={skillsQuery.isLoading}
 			isRetrying={skillsQuery.isFetching}
@@ -351,5 +369,3 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 		/>
 	);
 };
-
-export default AgentSettingsPersonalSkillsPage;

@@ -76,6 +76,9 @@ const skillList = (owner: SkillOwner) => ({
 
 export const userSkills = (user = "me") => skillList({ type: "user", user });
 
+export const organizationSkills = (organizationId: string) =>
+	skillList({ type: "organization", organizationId });
+
 export const skill = (owner: SkillOwner, name: string) => ({
 	queryKey: skillKey(owner, name),
 	queryFn: (): Promise<TypesGen.Skill> => skillsAPI(owner).get(name),
