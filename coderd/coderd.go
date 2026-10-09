@@ -953,7 +953,7 @@ func New(options *Options) *API {
 				Experiments:                    experiments,
 				ExperimentEvaluator:            api.ExperimentEvaluator,
 				Authorizer:                     options.Authorizer,
-				AgentConn:                      api.agentProvider.AgentConn,
+				AgentConn:                      stn.chatAgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
 				StartWorkspace:                 api.chatStartWorkspace,

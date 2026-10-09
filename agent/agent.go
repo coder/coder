@@ -1879,6 +1879,7 @@ func (a *agent) createTailnet(
 			BaseContext:       func(net.Listener) context.Context { return ctx },
 			Handler:           apiHandler,
 			ReadTimeout:       20 * time.Second,
+			IdleTimeout:       workspacesdk.AgentHTTPAPIServerIdleTimeout, // Falls back to ReadTimeout when unset.
 			ReadHeaderTimeout: 20 * time.Second,
 			WriteTimeout:      20 * time.Second,
 			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("http_api_server"), slog.LevelInfo),
