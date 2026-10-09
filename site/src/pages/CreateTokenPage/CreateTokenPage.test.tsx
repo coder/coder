@@ -7,7 +7,7 @@ import {
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
 import CreateTokenPage from "./CreateTokenPage";
-import { NANO_DAY, NANO_HOUR } from "./utils";
+import { NANO_DAY } from "./utils";
 
 describe("TokenPage", () => {
 	const originalExecCommand = document.execCommand;
@@ -18,7 +18,7 @@ describe("TokenPage", () => {
 		vi.restoreAllMocks();
 	});
 
-	const createToken = async (maxTokenLifetime = 90 * 24 * NANO_HOUR) => {
+	const createToken = async (maxTokenLifetime = 90 * NANO_DAY) => {
 		vi.spyOn(API, "getTokenConfig").mockResolvedValue({
 			max_token_lifetime: maxTokenLifetime,
 		});
