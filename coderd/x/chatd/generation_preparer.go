@@ -556,16 +556,18 @@ func (server *Server) prepareGeneration(
 	}
 	goalBehaviorTurn := chatGoalsEnabled && isRootChat && !isPlanModeTurn && !isExploreSubagent
 	canCompleteGoal := goalBehaviorTurn && activeGoal != nil
-	// complete_goal transitions the goal before its tool result is
-	// committed, so the turn's next preparation no longer offers it and
-	// a history scan keyed on the offered set would miss the stop marker
-	// and invoke the model again. Keep it recognized only while the
-	// transition belongs to the current turn; on later turns the
-	// recognition is dropped so a same-name dynamic tool can neither
-	// impersonate the built-in stop marker nor stay suppressed forever.
+	// complete_goal and block_goal transition the goal before their tool
+	// results are committed, so the turn's next preparation no longer
+	// offers them and a history scan keyed on the offered set would miss
+	// the stop marker and invoke the model again. Keep them recognized
+	// only while the transition belongs to the current turn; on later
+	// turns the recognition is dropped so a same-name dynamic tool can
+	// neither impersonate the built-in stop marker nor stay suppressed
+	// forever.
 	goalStopAfterRecognized := canCompleteGoal ||
 		(goalBehaviorTurn && currentGoal != nil &&
-			currentGoal.Status == database.ChatGoalStatusComplete &&
+			(currentGoal.Status == database.ChatGoalStatusBlocked ||
+				currentGoal.Status == database.ChatGoalStatusComplete) &&
 			goalTransitionInCurrentTurn(currentGoal, input.Messages))
 
 	prompt = buildSystemPrompt(
@@ -648,7 +650,7 @@ func (server *Server) prepareGeneration(
 					HistoryVersion: chat.HistoryVersion,
 				}
 			}
-			tools = append(tools, chattool.CompleteGoal(server.db, chattool.GoalToolOptions{
+			goalToolOptions := chattool.GoalToolOptions{
 				ChatID:     chat.ID,
 				RootChatID: rootChatID,
 				IsRootChat: true,
@@ -656,7 +658,11 @@ func (server *Server) prepareGeneration(
 				OnGoalUpdated: func(_ context.Context, updatedChat database.Chat, _ database.ChatGoal) {
 					server.publishChatGoalChange(updatedChat)
 				},
-			}))
+			}
+			tools = append(tools,
+				chattool.CompleteGoal(server.db, goalToolOptions),
+				chattool.BlockGoal(server.db, goalToolOptions),
+			)
 		}
 	}
 	if isPlanModeTurn && isRootChat {
@@ -763,7 +769,10 @@ func (server *Server) prepareGeneration(
 
 	var reservedGoalToolNames map[string]bool
 	if goalStopAfterRecognized {
-		reservedGoalToolNames = map[string]bool{chattool.CompleteGoalToolName: true}
+		reservedGoalToolNames = map[string]bool{
+			chattool.CompleteGoalToolName: true,
+			chattool.BlockGoalToolName:    true,
+		}
 	}
 	var dynamicToolNames map[string]bool
 	if server.disableCallerSuppliedTools {
@@ -1041,8 +1050,9 @@ func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, threshold
 }
 
 // exclusiveGenerationToolNames lists tools that must be a batch's only
-// call. complete_goal is exclusive so a mixed batch cannot commit the
-// goal and then park the chat in requires_action for a stale action.
+// call. The goal mutation tools are exclusive so a mixed batch cannot
+// mutate the goal and then park the chat in requires_action for a
+// stale action.
 //
 //nolint:revive // hasAdvisor and goalToolsRegistered are domain capabilities of the turn, not control coupling.
 func exclusiveGenerationToolNames(hasAdvisor bool, goalToolsRegistered bool) map[string]bool {
@@ -1052,6 +1062,7 @@ func exclusiveGenerationToolNames(hasAdvisor bool, goalToolsRegistered bool) map
 	}
 	if goalToolsRegistered {
 		names[chattool.CompleteGoalToolName] = true
+		names[chattool.BlockGoalToolName] = true
 	}
 	if len(names) == 0 {
 		return nil
