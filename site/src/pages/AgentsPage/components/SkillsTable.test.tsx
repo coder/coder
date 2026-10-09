@@ -21,15 +21,15 @@ const copy: SkillsCopy = {
 	archiveName: "organization-skills.zip",
 };
 
-const reviewSkill = { ...MockSkill, name: "review-sql", enabled: true };
+const mockReviewSkill = { ...MockSkill, name: "review-sql", enabled: true };
 
 const renderTable = (canEdit: boolean) => {
 	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([
-		reviewSkill,
+		mockReviewSkill,
 	]);
 	const updateSkill = vi
 		.spyOn(API.experimental, "updateOrganizationSkill")
-		.mockResolvedValue({ ...reviewSkill, enabled: false, content: "" });
+		.mockResolvedValue({ ...mockReviewSkill, enabled: false, content: "" });
 	renderComponent(
 		<QueryClientProvider client={createTestQueryClient()}>
 			<SkillsTable

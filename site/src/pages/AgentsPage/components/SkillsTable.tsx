@@ -162,7 +162,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 		},
 		onError: (error, variables) => {
 			if (isAxiosError(error) && error.response?.status === 404) {
-				toast.info("That skill was deleted while you were editing it.");
+				toast.info(`That ${lowerNoun} was deleted while you were editing it.`);
 				setDialogState((current) =>
 					current?.type === "edit" &&
 					current.name === variables.name &&
@@ -176,7 +176,10 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	});
 
 	const toggleMutation = useMutation({
-		...updateMutationOptions,
+		mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) =>
+			updateMutationOptions.mutationFn({ name, req: { enabled } }),
+		onSuccess: (skill, { name, enabled }) =>
+			updateMutationOptions.onSuccess(skill, { name, req: { enabled } }),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, `Failed to update ${lowerNoun}.`), {
 				description: getErrorDetail(error),
@@ -238,10 +241,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 		? downloadMutation.variables
 		: undefined;
 	const togglingSkill = toggleMutation.isPending
-		? {
-				name: toggleMutation.variables.name,
-				enabled: Boolean(toggleMutation.variables.req.enabled),
-			}
+		? toggleMutation.variables
 		: undefined;
 
 	let editInitialValues: SkillFormValues | undefined;
@@ -401,7 +401,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 				exportAllMutation.mutate();
 			}}
 			onToggleEnabled={(skill, enabled) => {
-				toggleMutation.mutate({ name: skill.name, req: { enabled } });
+				toggleMutation.mutate({ name: skill.name, enabled });
 			}}
 			downloadingSkillName={downloadingSkillName}
 			togglingSkill={togglingSkill}

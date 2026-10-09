@@ -2,11 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockSkill } from "#/testHelpers/skills";
 import { SKILLS_MAX_PER_OWNER } from "../utils/skills";
-import {
-	type SkillsCopy,
-	SkillsTableView,
-	type SkillsTableViewProps,
-} from "./SkillsTableView";
+import { SkillsTableView, type SkillsTableViewProps } from "./SkillsTableView";
 
 const MockReviewSQLSkill = {
 	...MockSkill,
@@ -52,21 +48,19 @@ const MockDebugHTTPSkill = {
 
 const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
-const personalSkillsCopy: SkillsCopy = {
-	noun: "Personal skill",
-	title: "Personal skills",
-	description:
-		"Reusable instructions your agents can pick when they need specialized guidance.",
-	emptyDescription:
-		"Create a personal skill to save reusable agent guidance for your workflows.",
-	editorDescription:
-		"Personal skills are available to your agents and stored as a single SKILL.md file with frontmatter.",
-	archiveName: "personal-skills.zip",
-};
-
 const baseArgs: SkillsTableViewProps = {
 	skills: MockPersonalSkills,
-	copy: personalSkillsCopy,
+	copy: {
+		noun: "Personal skill",
+		title: "Personal skills",
+		description:
+			"Reusable instructions your agents can pick when they need specialized guidance.",
+		emptyDescription:
+			"Create a personal skill to save reusable agent guidance for your workflows.",
+		editorDescription:
+			"Personal skills are available to your agents and stored as a single SKILL.md file with frontmatter.",
+		archiveName: "personal-skills.zip",
+	},
 	limit: SKILLS_MAX_PER_OWNER,
 	canEdit: true,
 	error: undefined,
@@ -145,7 +139,6 @@ export const ReadOnly: Story = {
 
 export const ReadOnlyRowMenu: Story = {
 	args: ReadOnly.args,
-	// Opens the row menu so the screenshot captures the View item.
 	play: async ({ canvasElement }) => {
 		const row = within(canvasElement).getByRole("row", { name: /review-sql/ });
 		await userEvent.click(

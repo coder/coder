@@ -214,10 +214,12 @@ const SkillLoadDialog: React.FC<SkillLoadDialogProps> = ({
 	);
 };
 
-const EditSkillDialog: React.FC<{
+type EditSkillDialogProps = {
 	copy: SkillsCopy;
 	state: Extract<SkillEditorState, { mode: "edit" }>;
-}> = ({ copy, state }) => {
+};
+
+const EditSkillDialog: React.FC<EditSkillDialogProps> = ({ copy, state }) => {
 	if (state.isLoading || state.loadError || !state.initialValues) {
 		return (
 			<SkillLoadDialog
@@ -252,10 +254,12 @@ const EditSkillDialog: React.FC<{
 	);
 };
 
-const ViewSkillDialog: React.FC<{
+type ViewSkillDialogProps = {
 	noun: string;
 	state: SkillViewState;
-}> = ({ noun, state }) => {
+};
+
+const ViewSkillDialog: React.FC<ViewSkillDialogProps> = ({ noun, state }) => {
 	if (state.content === undefined) {
 		return (
 			<SkillLoadDialog
@@ -326,14 +330,13 @@ const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
 	readOnlyReason,
 	onToggleEnabled,
 }) => {
-	// aria-disabled instead of disabled keeps the switch focusable, so
-	// keyboard users can still reach it and read why it cannot change.
+	// aria-disabled instead of disabled keeps a read-only switch focusable, so
+	// keyboard users can reach the tooltip that explains why.
 	const toggle = (
 		<Switch
 			checked={checked}
 			aria-label={`Enable ${skill.name}`}
 			aria-disabled={isBlocked || undefined}
-			className="aria-disabled:cursor-not-allowed aria-disabled:data-[state=checked]:bg-surface-tertiary aria-disabled:data-[state=unchecked]:bg-surface-tertiary"
 			onCheckedChange={(enabled) => {
 				if (!isBlocked) {
 					onToggleEnabled(skill, enabled);
@@ -474,7 +477,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						<TableEmpty
 							message={`No ${pluralNoun} yet`}
 							description={canEdit ? copy.emptyDescription : undefined}
-							cta={addSkillAction || undefined}
+							cta={addSkillAction}
 						/>
 					) : (
 						skills.map((skill) => (

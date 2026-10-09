@@ -73,6 +73,14 @@ describe("user skill queries", () => {
 		);
 	});
 
+	it("leaves an unloaded list cache unset after a create", () => {
+		const queryClient = createTestQueryClient();
+
+		createSkill(queryClient, me).onSuccess(makeSkill("alpha"));
+
+		expect(queryClient.getQueryData(userSkills().queryKey)).toBeUndefined();
+	});
+
 	it("updates list and detail caches for an updated skill", () => {
 		const queryClient = createTestQueryClient();
 		const alpha = makeSkill("alpha");

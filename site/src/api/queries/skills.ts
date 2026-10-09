@@ -62,10 +62,10 @@ const sortSkillMetadata = (
 	skills.toSorted((a, b) => a.name.localeCompare(b.name, "en-US"));
 
 const upsertSkillMetadata = (
-	skills: TypesGen.SkillMetadata[] | undefined,
+	skills: TypesGen.SkillMetadata[],
 	skill: TypesGen.SkillMetadata,
 ): TypesGen.SkillMetadata[] => {
-	const withoutSkill = skills?.filter(({ name }) => name !== skill.name) ?? [];
+	const withoutSkill = skills.filter(({ name }) => name !== skill.name);
 	return sortSkillMetadata([...withoutSkill, skill]);
 };
 
@@ -90,7 +90,8 @@ export const createSkill = (queryClient: QueryClient, owner: SkillOwner) => ({
 	onSuccess: (skill: TypesGen.Skill) => {
 		queryClient.setQueryData<TypesGen.SkillMetadata[]>(
 			skillsKey(owner),
-			(skills) => upsertSkillMetadata(skills, toSkillMetadata(skill)),
+			(skills) =>
+				skills ? upsertSkillMetadata(skills, toSkillMetadata(skill)) : skills,
 		);
 		queryClient.setQueryData(skillKey(owner, skill.name), skill);
 	},

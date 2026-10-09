@@ -37,7 +37,6 @@ export type SkillErrorDisplay = {
 type SkillEditorProps = {
 	open: boolean;
 	mode: "create" | "edit";
-	/** Singular noun in sentence case, for example "Personal skill". */
 	noun: string;
 	description: string;
 	initialValues: SkillFormValues;
