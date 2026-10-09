@@ -1105,6 +1105,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 
 // @Summary Get previous template version by organization, template, and name
 // @ID get-previous-template-version-by-organization-template-and-name
+// @Description Returns 204 with no body when the version has no previous version.
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates

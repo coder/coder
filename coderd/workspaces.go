@@ -2165,7 +2165,8 @@ func (api *API) watchWorkspaceSSE(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Success 200 {object} codersdk.ServerSentEvent
+// @Description Upgrades to a WebSocket. The server sends each event as a separate message.
+// @Success 101 {object} codersdk.ServerSentEvent
 // @Router /api/v2/workspaces/{workspace}/watch-ws [get]
 func (api *API) watchWorkspaceWS(rw http.ResponseWriter, r *http.Request) {
 	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger, api.wsWatcher))
