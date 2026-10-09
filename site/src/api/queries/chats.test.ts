@@ -5041,7 +5041,11 @@ describe("chatMessagesForInfiniteScroll", () => {
 			.mockImplementation(async (_chatId, opts) => historyPage(history, opts));
 
 	const query = chatMessagesForInfiniteScroll("chat-1");
-	const loadNewestPage = () => query.queryFn({ pageParam: undefined });
+	const loadNewestPage = () =>
+		query.queryFn({
+			pageParam: undefined,
+			signal: new AbortController().signal,
+		});
 
 	it.each([
 		{ name: "the page starts at its turn prompt", turnStartId: 51 },
@@ -5052,10 +5056,11 @@ describe("chatMessagesForInfiniteScroll", () => {
 		const page = await loadNewestPage();
 
 		expect(getChatMessages).toHaveBeenCalledTimes(1);
-		expect(getChatMessages).toHaveBeenCalledWith("chat-1", {
-			before_id: undefined,
-			limit: 50,
-		});
+		expect(getChatMessages).toHaveBeenCalledWith(
+			"chat-1",
+			{ before_id: undefined, limit: 50 },
+			expect.any(AbortSignal),
+		);
 		expect(page.messages.map((m) => m.id)).toEqual(
 			Array.from({ length: 50 }, (_, i) => 100 - i),
 		);
@@ -5084,11 +5089,11 @@ describe("chatMessagesForInfiniteScroll", () => {
 		const page = await loadNewestPage();
 
 		expect(getChatMessages).toHaveBeenCalledTimes(6);
-		expect(getChatMessages).toHaveBeenLastCalledWith("chat-1", {
-			after_id: 0,
-			before_id: 1151,
-			limit: 150,
-		});
+		expect(getChatMessages).toHaveBeenLastCalledWith(
+			"chat-1",
+			{ after_id: 0, before_id: 1151, limit: 150 },
+			expect.any(AbortSignal),
+		);
 		expect(page.messages).toHaveLength(1000);
 		expect(query.getNextPageParam(page)).toBe(1001);
 	});
@@ -5126,6 +5131,32 @@ describe("chatMessagesForInfiniteScroll", () => {
 		expect(getChatMessages).toHaveBeenCalledTimes(3);
 		expect(page.messages).toHaveLength(250);
 		expect(query.getNextPageParam(page)).toBe(51);
+	});
+
+	it("aborts the page and fill requests when the query is cancelled", async () => {
+		const fillStarted = createDeferred<undefined>();
+		const getChatMessages = vi
+			.mocked(API.experimental.getChatMessages)
+			.mockReset()
+			.mockResolvedValueOnce(
+				historyPage({ newestId: 300, turnStartId: 10 }, { limit: 50 }),
+			)
+			.mockImplementationOnce(
+				(_chatId, _opts, signal) =>
+					new Promise((_resolve, reject) => {
+						signal?.addEventListener("abort", () => reject(signal.reason));
+						fillStarted.resolve(undefined);
+					}),
+			);
+		const queryClient = createTestQueryClient();
+
+		void queryClient.fetchInfiniteQuery(query);
+		await fillStarted.promise;
+		await cancelChatMessages(queryClient, "chat-1");
+
+		expect(
+			getChatMessages.mock.calls.map(([, , signal]) => signal?.aborted),
+		).toEqual([true, true]);
 	});
 });
 
