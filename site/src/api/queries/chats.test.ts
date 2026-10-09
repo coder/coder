@@ -143,6 +143,7 @@ vi.mock("#/api/api", () => ({
 			createChat: vi.fn(),
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
+			getChatMessages: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
 			getChatCost: vi.fn(),
 			getChatDiffContents: vi.fn(),
@@ -2361,7 +2362,7 @@ describe("mutation invalidation scope", () => {
 		).not.toBe(true);
 	});
 
-	it("deleteChatQueuedMessage invalidates only chat detail and messages", async () => {
+	it("deleteChatQueuedMessage invalidates only chat detail", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
@@ -2369,15 +2370,14 @@ describe("mutation invalidation scope", () => {
 		const mutation = deleteChatQueuedMessage(queryClient, chatId);
 		await mutation.onSuccess();
 
-		// These two should be invalidated (exact match).
 		expect(
 			queryClient.getQueryState(chatEntityKey(chatId))?.isInvalidated,
 			"chatEntityKey should be invalidated",
 		).toBe(true);
 		expect(
 			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"chatMessagesKey should be invalidated",
-		).toBe(true);
+			"the stream delivers the queue, so messages should NOT be invalidated",
+		).not.toBe(true);
 
 		// Unrelated queries should NOT be touched.
 		for (const { label, key } of unrelatedKeys(chatId)) {
@@ -5609,6 +5609,35 @@ describe("message upsert fan-out and history replacement", () => {
 		await refetch;
 
 		expect(cachedMessageIDs(queryClient)).toEqual([[3, 1]]);
+	});
+});
+
+describe("chatMessagesForInfiniteScroll", () => {
+	it("does not refetch the messages when the chat page mounts again", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.getChatMessages).mockResolvedValue({
+			messages: [{ ...MockChatMessage, id: 1 }],
+			queued_messages: [],
+			has_more: false,
+			history_version: 1,
+		});
+		const mount = () =>
+			new InfiniteQueryObserver(
+				queryClient,
+				chatMessagesForInfiniteScroll("chat-1"),
+			).subscribe(() => {});
+
+		const unmount = mount();
+		await vi.waitFor(() => {
+			expect(queryClient.getQueryState(chatMessagesKey("chat-1"))?.status).toBe(
+				"success",
+			);
+		});
+		unmount();
+		mount();
+		await Promise.resolve();
+
+		expect(API.experimental.getChatMessages).toHaveBeenCalledTimes(1);
 	});
 });
 

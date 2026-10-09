@@ -395,11 +395,10 @@ export const useChatStore = (
 		if (!chatMessagesData) {
 			return;
 		}
-		// Allow re-hydration from REST as long as the WebSocket hasn't
-		// delivered a queue_update yet (which would be fresher). This
-		// ensures that when the user navigates back to a chat whose
-		// queued messages were drained server-side while they were
-		// away, the REST refetch corrects the stale cached state.
+		// Hydrate the queue from the messages page until the stream delivers
+		// a queue_update, which is fresher. A cached page can be stale when
+		// the chat page mounts again, and the stream's first sync sends the
+		// current queue.
 		if (
 			queuedMessagesHydratedChatIDRef.current === chatID &&
 			wsQueueUpdateReceivedRef.current

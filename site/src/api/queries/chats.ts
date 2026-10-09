@@ -1682,6 +1682,10 @@ const fetchMessagesPage = async (
 
 export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
+	// The chat stream keeps the cached pages current, and when the chat page
+	// mounts again it resends what changed since the page's history_version.
+	// A refetch would reload every loaded page and race the stream.
+	staleTime: Number.POSITIVE_INFINITY,
 	initialPageParam: undefined as number | undefined,
 	queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
 		fetchMessagesPage(chatId, pageParam),
@@ -2612,11 +2616,9 @@ export const compactChat = (queryClient: QueryClient, chatId: string) => ({
 export const clearChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.experimental.clearChat(chatId),
 	onSuccess: () => {
+		// The stream delivers the boundary messages, so only the chat itself
+		// is refetched.
 		void invalidateChatEntity(queryClient, chatId);
-		// The clear commits its boundary rows synchronously with no
-		// worker turn, so the transcript must be refetched here rather
-		// than relying on streamed message events.
-		void invalidateChatMessages(queryClient, chatId);
 	},
 });
 
@@ -2660,8 +2662,9 @@ export const deleteChatQueuedMessage = (
 	mutationFn: (queuedMessageId: number) =>
 		API.experimental.deleteChatQueuedMessage(chatId, queuedMessageId),
 	onSuccess: async () => {
+		// The stream delivers the new queue, so only the chat itself is
+		// refetched.
 		await invalidateChatEntity(queryClient, chatId);
-		await invalidateChatMessages(queryClient, chatId);
 	},
 });
 
