@@ -1,7 +1,7 @@
 import { humanDuration } from "#/utils/time";
 
 // Number of nanoseconds in 1 hour
-const NANO_HOUR = 3600000000000;
+const NANO_HOUR = 3_600_000_000_000;
 export const NANO_DAY = 24 * NANO_HOUR;
 
 export type CreateTokenData = {
