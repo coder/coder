@@ -82,6 +82,10 @@ import {
 	excludeDurableCallResults,
 } from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
+import {
+	ACPContext,
+	buildACPSessionDescriptors,
+} from "./ChatElements/tools/ACPContext";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
@@ -224,6 +228,10 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
+	const acpSessions = buildACPSessionDescriptors([
+		...parsedMessages.flatMap(({ parsed }) => parsed.tools),
+		...streamTools,
+	]);
 	const { experiments } = useDashboard();
 	const automationNamesQuery = useQuery(
 		chatAutomationNameMap(organizationId, {
@@ -236,57 +244,61 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
-		<Profiler id="AgentChat" onRender={onRenderProfiler}>
-			<ChatMessageScroller
-				hasMoreMessages={hasMoreMessages}
-				isFetchingMoreMessages={isFetchingMoreMessages}
-				isHydratingMessages={isHydratingMessages}
-				hasFetchMoreError={hasFetchMoreError}
-				hasTranscriptRows={parsedMessages.length > 0}
-				onFetchMoreMessages={onFetchMoreMessages}
-			>
-				{/* VNC sessions for completed agents may already be
+		<ACPContext value={acpSessions}>
+			<Profiler id="AgentChat" onRender={onRenderProfiler}>
+				<ChatMessageScroller
+					hasMoreMessages={hasMoreMessages}
+					isFetchingMoreMessages={isFetchingMoreMessages}
+					isHydratingMessages={isHydratingMessages}
+					hasFetchMoreError={hasFetchMoreError}
+					hasTranscriptRows={parsedMessages.length > 0}
+					onFetchMoreMessages={onFetchMoreMessages}
+				>
+					{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
 					   via showDesktopPreviews={false} to avoid a perpetual
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
-				<ConversationTimeline
-					hasMoreMessages={hasMoreMessages}
-					chatStatus={chatStatus}
-					organizationId={organizationId}
-					parsedMessages={parsedMessages}
-					automationNames={automationNames}
-					chatFiles={chatFiles}
-					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-					streamState={liveStreamState}
-					streamTools={streamTools}
-					liveStatus={liveStatus}
-					subagentStatusOverrides={subagentStatusOverrides}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					onEditUserMessage={onEditUserMessage}
-					editingMessageId={editingMessageId}
-					onImplementPlan={onImplementPlan}
-					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-					isChatCompleted={isChatCompleted}
-					hasActiveStream={hasStream}
-					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-					urlTransform={urlTransform}
-					mcpServers={mcpServers}
-					showDesktopPreviews={false}
-				/>
-				<TerminalStatusRow liveStatus={liveStatus} />
-			</ChatMessageScroller>
-			{/* The empty state sits outside the scroller content, which holds
+					<ConversationTimeline
+						hasMoreMessages={hasMoreMessages}
+						chatStatus={chatStatus}
+						organizationId={organizationId}
+						parsedMessages={parsedMessages}
+						automationNames={automationNames}
+						chatFiles={chatFiles}
+						initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+						streamState={liveStreamState}
+						streamTools={streamTools}
+						liveStatus={liveStatus}
+						subagentStatusOverrides={subagentStatusOverrides}
+						subagentTitles={subagentTitles}
+						subagentVariants={subagentVariants}
+						onEditUserMessage={onEditUserMessage}
+						editingMessageId={editingMessageId}
+						onImplementPlan={onImplementPlan}
+						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+						isChatCompleted={isChatCompleted}
+						hasActiveStream={hasStream}
+						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+						urlTransform={urlTransform}
+						mcpServers={mcpServers}
+						showDesktopPreviews={false}
+					/>
+					<TerminalStatusRow liveStatus={liveStatus} />
+				</ChatMessageScroller>
+				{/* The empty state sits outside the scroller content, which holds
 			    transcript rows only. */}
-			<div className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}>
-				<LiveStreamTailContent
-					isTranscriptEmpty={parsedMessages.length === 0}
-					liveStatus={liveStatus}
-				/>
-				{footer}
-			</div>
-		</Profiler>
+				<div
+					className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}
+				>
+					<LiveStreamTailContent
+						isTranscriptEmpty={parsedMessages.length === 0}
+						liveStatus={liveStatus}
+					/>
+					{footer}
+				</div>
+			</Profiler>
+		</ACPContext>
 	);
 };
 

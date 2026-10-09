@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import { MockACPWaitingResult, MockACPWaitResult } from "#/testHelpers/acp";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
+import { ACPToolNames } from "../ChatElements/tools/acpToolNames";
 import {
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
@@ -1279,4 +1281,52 @@ describe("compiler cache guard simulation", () => {
 		}
 		expect(subFieldMisses).toBe(1);
 	});
+});
+
+it("replaces an ACP wait's live preview with its user-visible transcript", () => {
+	let state = applyMessagePartToStreamState(null, {
+		type: "tool-call",
+		tool_call_id: "wait",
+		tool_name: ACPToolNames.WaitAgent,
+		args: { session_id: "session" },
+	});
+	for (const [index, preview] of [
+		MockACPWaitingResult,
+		MockACPWaitResult,
+	].entries()) {
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_call_id: "wait",
+			tool_name: ACPToolNames.WaitAgent,
+			result_reset: index > 0,
+			result_delta: JSON.stringify({ messages: preview.messages }),
+		});
+		expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+			expect.objectContaining({
+				name: ACPToolNames.WaitAgent,
+				status: "running",
+				result: { messages: preview.messages },
+			}),
+		]);
+	}
+	state = applyMessagePartToStreamState(state, {
+		type: "tool-result",
+		tool_call_id: "wait",
+		tool_name: ACPToolNames.WaitAgent,
+		result_reset: true,
+		result_delta: JSON.stringify({ messages: [] }),
+	});
+	expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+		expect.objectContaining({ status: "running", result: { messages: [] } }),
+	]);
+	const result = MockACPWaitResult;
+	state = applyMessagePartToStreamState(state, {
+		type: "tool-result",
+		tool_call_id: "wait",
+		tool_name: ACPToolNames.WaitAgent,
+		result: JSON.stringify(result),
+	});
+	expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+		expect.objectContaining({ status: "completed", result }),
+	]);
 });

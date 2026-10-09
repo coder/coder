@@ -106,6 +106,40 @@ export const MockChatContextDirty: ChatContext = {
 	resources: MockChatContextResources,
 };
 
+export const MockChatContextACPHarnesses: ChatContext = {
+	dirty: false,
+	resources: [
+		{
+			source: "claude-code",
+			source_path: "/home/coder/.coder/acp",
+			kind: "acp_harness",
+			size_bytes: 120,
+			status: "ok",
+		},
+		{
+			source: "codex",
+			source_path: "/home/coder/.coder/acp",
+			kind: "acp_harness",
+			size_bytes: 96,
+			status: "ok",
+		},
+	],
+};
+
+export const MockChatContextACPHarnessIssue: ChatContext = {
+	dirty: false,
+	resources: [
+		...(MockChatContextACPHarnesses.resources ?? []),
+		{
+			source: "broken",
+			kind: "acp_harness",
+			size_bytes: 0,
+			status: "invalid",
+			error: "cannot start harness",
+		},
+	],
+};
+
 export const MockMCPServerConfig: MCPServerConfig = {
 	id: "mcp-1",
 	organization_id: "00000000-0000-4000-8000-000000000001",
