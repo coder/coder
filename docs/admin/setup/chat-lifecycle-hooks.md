@@ -68,8 +68,8 @@ Handle the events your policy needs, using the data Coder sends with each one:
 | `user_prompt_submit` | A user submits a prompt, or `spawn_agent` submits a subagent prompt | `prompt` and `parts`                                                   |
 | `pre_tool_use`       | Before a non-provider-executed tool runs                            | `tool_use_id`, `tool_name`, and `tool_input`                           |
 | `post_tool_use`      | After a non-provider-executed tool returns                          | `tool_use_id`, `tool_name`, and either `tool_response` or `tool_error` |
-| `pre_compact`        | Before Coder compacts chat context                                  | No event-specific fields                                               |
-| `post_compact`       | After Coder compacts chat context                                   | No event-specific fields                                               |
+| `pre_compact`        | Before Coder compacts chat context                                  | `source` (`automatic`, `manual`, or `agent`)                           |
+| `post_compact`       | After Coder compacts chat context                                   | `source` (`automatic`, `manual`, or `agent`)                           |
 | `stop`               | The model stops a turn                                              | No event-specific fields                                               |
 
 Provider-executed tools don't produce `pre_tool_use` or `post_tool_use` events because the provider executes them outside Coder's tool runtime.

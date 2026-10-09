@@ -22147,6 +22147,14 @@ const docTemplate = `{
                 "result_reset": {
                     "type": "boolean"
                 },
+                "severity": {
+                    "description": "Severity marks a text part written by the server as a status\nnotice. Absent on ordinary text.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatMessageSeverity"
+                        }
+                    ]
+                },
                 "skill_description": {
                     "description": "SkillDescription is the short description from the skill's\nSKILL.md frontmatter.",
                     "type": "string"
@@ -22250,6 +22258,15 @@ const docTemplate = `{
                 "ChatMessageRoleUser",
                 "ChatMessageRoleAssistant",
                 "ChatMessageRoleTool"
+            ]
+        },
+        "codersdk.ChatMessageSeverity": {
+            "type": "string",
+            "enum": [
+                "warning"
+            ],
+            "x-enum-varnames": [
+                "ChatMessageSeverityWarning"
             ]
         },
         "codersdk.ChatMessageUsage": {

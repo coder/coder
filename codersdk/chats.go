@@ -441,6 +441,11 @@ const (
 	ChatMessagePartTypeHookNotice ChatMessagePartType = "hook-notice"
 )
 
+// ChatMessageSeverity is the severity of a server-written notice.
+type ChatMessageSeverity string
+
+const ChatMessageSeverityWarning ChatMessageSeverity = "warning"
+
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
 func AllChatMessagePartTypes() []ChatMessagePartType {
 	return []ChatMessagePartType{
@@ -524,6 +529,9 @@ type ChatMessagePart struct {
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
 	// HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.
 	HookRewritten bool `json:"hook_rewritten,omitempty" variants:"tool-call?"`
+	// Severity marks a text part written by the server as a status
+	// notice. Absent on ordinary text.
+	Severity ChatMessageSeverity `json:"severity,omitempty" variants:"text?"`
 	// CreatedAt is the timestamp this part carries. The semantics
 	// depend on the part type: for tool-call and tool-result parts
 	// it is the time the call was emitted or the result was

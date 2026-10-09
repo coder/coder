@@ -2928,6 +2928,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           ],
           "result_delta": "string",
           "result_reset": true,
+          "severity": "warning",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3011,6 +3012,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           ],
           "result_delta": "string",
           "result_reset": true,
+          "severity": "warning",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3168,6 +3170,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         ],
         "result_delta": "string",
         "result_reset": true,
+        "severity": "warning",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -3250,6 +3253,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           ],
           "result_delta": "string",
           "result_reset": true,
+          "severity": "warning",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3333,6 +3337,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         ],
         "result_delta": "string",
         "result_reset": true,
+        "severity": "warning",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -3475,6 +3480,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         ],
         "result_delta": "string",
         "result_reset": true,
+        "severity": "warning",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -3557,6 +3563,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           ],
           "result_delta": "string",
           "result_reset": true,
+          "severity": "warning",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -4152,6 +4159,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           ],
           "result_delta": "string",
           "result_reset": true,
+          "severity": "warning",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -4232,6 +4240,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         ],
         "result_delta": "string",
         "result_reset": true,
+        "severity": "warning",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -4299,6 +4308,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             ],
             "result_delta": "string",
             "result_reset": true,
+            "severity": "warning",
             "skill_description": "string",
             "skill_dir": "string",
             "skill_name": "string",
@@ -4399,6 +4409,7 @@ Status Code **200**
 | `»»» result`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_reset`                 | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» severity`                     | [codersdk.ChatMessageSeverity](schemas.md#codersdkchatmessageseverity)           | false    |              | Severity marks a text part written by the server as a status notice. Absent on ordinary text.                                                                                                                                                                                                                                                                                                              |
 | `»»» skill_description`            | string                                                                           | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
 | `»»» skill_dir`                    | string                                                                           | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
 | `»»» skill_name`                   | string                                                                           | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
@@ -4458,12 +4469,13 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value(s)                                                                                                                                                                                                                                                                                            |
-|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                            |
-| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
-| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                               |
-| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                    |
+| Property   | Value(s)                                                                                                                                                                                                                                                                                            |
+|------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`     | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                            |
+| `severity` | `warning`                                                                                                                                                                                                                                                                                           |
+| `type`     | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| `role`     | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                               |
+| `status`   | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

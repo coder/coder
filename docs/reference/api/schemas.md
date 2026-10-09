@@ -3442,6 +3442,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
+      "severity": "warning",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3540,6 +3541,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "result_delta": "string",
   "result_reset": true,
+  "severity": "warning",
   "skill_description": "string",
   "skill_dir": "string",
   "skill_name": "string",
@@ -3592,6 +3594,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `severity`                     | [codersdk.ChatMessageSeverity](#codersdkchatmessageseverity) | false    |              | Severity marks a text part written by the server as a status notice. Absent on ordinary text.                                                                                                                                                                                                                                                                                                              |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
 | `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
 | `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
@@ -3636,6 +3639,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                              |
 |---------------------------------------|
 | `assistant`, `system`, `tool`, `user` |
+
+## codersdk.ChatMessageSeverity
+
+```json
+"warning"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)  |
+|-----------|
+| `warning` |
 
 ## codersdk.ChatMessageUsage
 
@@ -3715,6 +3732,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
+          "severity": "warning",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3798,6 +3816,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
+          "severity": "warning",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -5181,6 +5200,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
+      "severity": "warning",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -5348,6 +5368,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
+        "severity": "warning",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -5428,6 +5449,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "result_delta": "string",
       "result_reset": true,
+      "severity": "warning",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -5495,6 +5517,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
+          "severity": "warning",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -5611,6 +5634,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "result_delta": "string",
     "result_reset": true,
+    "severity": "warning",
     "skill_description": "string",
     "skill_dir": "string",
     "skill_name": "string",
@@ -6546,6 +6570,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
+        "severity": "warning",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -6628,6 +6653,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ],
           "result_delta": "string",
           "result_reset": true,
+          "severity": "warning",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -6711,6 +6737,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ],
         "result_delta": "string",
         "result_reset": true,
+        "severity": "warning",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -9642,6 +9669,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ],
         "result_delta": "string",
         "result_reset": true,
+        "severity": "warning",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -9724,6 +9752,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           ],
           "result_delta": "string",
           "result_reset": true,
+          "severity": "warning",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",

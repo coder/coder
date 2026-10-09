@@ -91,11 +91,18 @@ type PostToolUseData struct {
 	ToolError    string          `json:"tool_error,omitempty"`
 }
 
-// PreCompactData is empty; Meta identifies the chat being compacted.
-type PreCompactData struct{}
+// PreCompactData reports what triggered the compaction. Source is
+// "automatic" (context usage threshold), "manual" (a user request), or
+// "agent" (the compact_context tool).
+type PreCompactData struct {
+	Source string `json:"source"`
+}
 
-// PostCompactData is empty; Meta identifies the compacted chat.
-type PostCompactData struct{}
+// PostCompactData reports what triggered the compaction. Source takes
+// the same values as PreCompactData.Source.
+type PostCompactData struct {
+	Source string `json:"source"`
+}
 
 // StopData is empty; Meta identifies the chat that stopped.
 type StopData struct{}
