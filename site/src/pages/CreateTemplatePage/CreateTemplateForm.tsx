@@ -484,12 +484,23 @@ const fillNameAndDisplayWithFilename = async (
 
 const ProvisionerWarning: React.FC = () => {
 	return (
-		<Alert severity="warning" className="mb-4" prominent>
-			This organization does not have any provisioners. Before you create a
-			template, you&apos;ll need to configure a provisioner.{" "}
-			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>
-				See our documentation.
-			</Link>
+		<Alert
+			severity="error"
+			className="mb-4"
+			prominent
+			actions={
+				<Link
+					href={docs("/admin/provisioners#organization-scoped-provisioners")}
+					target="_blank"
+					rel="noreferrer"
+				>
+					View provisioner docs
+					<span className="sr-only"> (opens in new tab)</span>
+				</Link>
+			}
+		>
+			This organization has no provisioners, so you can&apos;t create a template
+			yet. Set up a provisioner first.
 		</Alert>
 	);
 };
