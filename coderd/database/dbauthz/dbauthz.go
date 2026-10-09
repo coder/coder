@@ -1875,11 +1875,11 @@ func (q *querier) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]database
 }
 
 // Project chats can belong to sharees, so update is checked on all chats.
-func (q *querier) ArchiveChatsOfDeletedChatProject(ctx context.Context, chatIDs []uuid.UUID) error {
+func (q *querier) ArchiveChatsOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return err
 	}
-	return q.db.ArchiveChatsOfDeletedChatProject(ctx, chatIDs)
+	return q.db.ArchiveChatsOfDeletedChatProject(ctx, projectID)
 }
 
 func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
@@ -2315,13 +2315,6 @@ func (q *querier) DeleteChatDebugDataByChatID(ctx context.Context, arg database.
 	return q.db.DeleteChatDebugDataByChatID(ctx, arg)
 }
 
-func (q *querier) DeleteChatFamiliesByRootIDs(ctx context.Context, rootIDs []uuid.UUID) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
-		return 0, err
-	}
-	return q.db.DeleteChatFamiliesByRootIDs(ctx, rootIDs)
-}
-
 func (q *querier) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg database.DeleteChatMCPServersByChatIDExcludingSlugsParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -2402,11 +2395,11 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 }
 
 // Project chats can belong to sharees, so update is checked on all chats.
-func (q *querier) DeleteChatQueuedMessagesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) error {
+func (q *querier) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return err
 	}
-	return q.db.DeleteChatQueuedMessagesByChatIDs(ctx, chatIDs)
+	return q.db.DeleteChatQueuedMessagesOfDeletedChatProject(ctx, projectID)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -3801,8 +3794,13 @@ func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID)
 	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForUpdate)(ctx, id)
 }
 
+// The project delete must see every family member, so a caller that cannot
+// read every chat fails instead of getting a partial list.
 func (q *querier) GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectChatFamilies)(ctx, projectID)
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatProjectChatFamilies(ctx, projectID)
 }
 
 func (q *querier) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
@@ -7189,8 +7187,10 @@ func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatH
 	return q.db.IsChatHeartbeatStale(ctx, arg)
 }
 
+// Callers check a chat they already authorized, so this requires reading
+// every chat instead of fetching it again.
 func (q *querier) IsChatInDeletedProject(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	if _, err := q.GetChatByID(ctx, chatID); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return false, err
 	}
 	return q.db.IsChatInDeletedProject(ctx, chatID)
@@ -7431,13 +7431,6 @@ func (q *querier) LockChatProjectRootChats(ctx context.Context, projectID uuid.U
 		return err
 	}
 	return q.db.LockChatProjectRootChats(ctx, projectID)
-}
-
-func (q *querier) LockDeletedChatProjectRootChats(ctx context.Context, limitCount int32) ([]uuid.UUID, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.LockDeletedChatProjectRootChats(ctx, limitCount)
 }
 
 func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {

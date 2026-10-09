@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -42,22 +43,22 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 				})
 				return
 			}
-			// Chats of a deleted project linger until dbpurge removes them.
-			inDeletedProject, err := db.IsChatInDeletedProject(ctx, chat.ID)
-			if httpapi.Is404Error(err) {
-				httpapi.ResourceNotFound(rw)
-				return
-			}
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching chat.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			if inDeletedProject {
-				httpapi.ResourceNotFound(rw)
-				return
+			// Chats of a deleted project stay archived until chat retention
+			// removes them. Only project chats and sub-chats can be in one.
+			if chat.ProjectID.Valid || chat.RootChatID.Valid || chat.ParentChatID.Valid {
+				//nolint:gocritic // The chat was authorized by the fetch above.
+				inDeletedProject, err := db.IsChatInDeletedProject(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				if err != nil {
+					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+						Message: "Internal error fetching chat.",
+						Detail:  err.Error(),
+					})
+					return
+				}
+				if inDeletedProject {
+					httpapi.ResourceNotFound(rw)
+					return
+				}
 			}
 
 			ctx = context.WithValue(ctx, chatParamContextKey{}, chat)

@@ -8479,6 +8479,18 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 }
 
 const archiveChatsOfDeletedChatProject = `-- name: ArchiveChatsOfDeletedChatProject :exec
+WITH family AS (
+    SELECT chats.id
+    FROM chats
+    JOIN chat_projects ON chat_projects.id = chats.project_id
+    WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
+    UNION ALL
+    SELECT child.id
+    FROM chats child
+    JOIN chats root ON root.id = child.root_chat_id
+    JOIN chat_projects ON chat_projects.id = root.project_id
+    WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
+)
 UPDATE chats
 SET
     archived = true,
@@ -8491,15 +8503,18 @@ SET
     retry_state = NULL,
     snapshot_version = snapshot_version + 1,
     updated_at = now()
-WHERE id = ANY($1::uuid[])
+WHERE id IN (SELECT id FROM family)
 `
 
-// Forces chats into an archived idle state with no lease, so readers that
-// skip archived chats skip them, workers stop at their next renewal and do
-// not reacquire them, and no sub-chat can join their families. Callers
-// clear the queue first, because archived waiting chats have none.
-func (q *sqlQuerier) ArchiveChatsOfDeletedChatProject(ctx context.Context, chatIds []uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, archiveChatsOfDeletedChatProject, pq.Array(chatIds))
+// Execution-state transition outside chatstate: moves every family member
+// of a deleted project from any state to StateXW, or StateXE0 from error,
+// and publishes nothing. Clearing the runner makes heartbeat renewal stop
+// matching, so workers stop; archived roots refuse new sub-chats. Run it
+// before clearing the queue, so a send waiting on a chat lock reads the
+// archived state and is refused. Keep the SET list in sync with
+// UpdateChatExecutionState.
+func (q *sqlQuerier) ArchiveChatsOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, archiveChatsOfDeletedChatProject, projectID)
 	return err
 }
 
@@ -8516,29 +8531,36 @@ func (q *sqlQuerier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uui
 	return column_1, err
 }
 
-const deleteChatFamiliesByRootIDs = `-- name: DeleteChatFamiliesByRootIDs :execrows
-DELETE FROM chats
-WHERE id IN (
-    SELECT unnest($1::uuid[])
+const deleteChatProjectByID = `-- name: DeleteChatProjectByID :exec
+DELETE FROM chat_projects
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatProjectByID, id)
+	return err
+}
+
+const deleteChatQueuedMessagesOfDeletedChatProject = `-- name: DeleteChatQueuedMessagesOfDeletedChatProject :exec
+DELETE FROM chat_queued_messages
+WHERE chat_id IN (
+    SELECT chats.id
+    FROM chats
+    JOIN chat_projects ON chat_projects.id = chats.project_id
+    WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
     UNION ALL
-    SELECT chats.id FROM chats WHERE chats.root_chat_id = ANY($1::uuid[])
+    SELECT child.id
+    FROM chats child
+    JOIN chats root ON root.id = child.root_chat_id
+    JOIN chat_projects ON chat_projects.id = root.project_id
+    WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
 )
 `
 
-func (q *sqlQuerier) DeleteChatFamiliesByRootIDs(ctx context.Context, rootIds []uuid.UUID) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteChatFamiliesByRootIDs, pq.Array(rootIds))
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const deleteChatQueuedMessagesByChatIDs = `-- name: DeleteChatQueuedMessagesByChatIDs :exec
-DELETE FROM chat_queued_messages WHERE chat_id = ANY($1::uuid[])
-`
-
-func (q *sqlQuerier) DeleteChatQueuedMessagesByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesByChatIDs, pq.Array(chatIds))
+// Lives here rather than with the other queue queries because it is a step
+// of the project delete; see UpdateChatProjectDeletedByID.
+func (q *sqlQuerier) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesOfDeletedChatProject, projectID)
 	return err
 }
 
@@ -8594,8 +8616,9 @@ WHERE id = $1::uuid AND NOT deleted
 FOR SHARE
 `
 
-// Root chat creation holds this until commit, so a concurrent project
-// delete either waits for the new chat or is seen by the creation.
+// Root chat creation in a project must hold this until its insert commits,
+// so a concurrent project delete either archives the new chat or makes
+// this return no rows.
 func (q *sqlQuerier) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error) {
 	row := q.db.QueryRowContext(ctx, getChatProjectByIDForShare, id)
 	var i ChatProject
@@ -8717,6 +8740,48 @@ func (q *sqlQuerier) GetChatProjectChatFamilies(ctx context.Context, projectID u
 			&i.TitleUpdatedAt,
 			&i.AutomationID,
 			&i.ManageAutomationsEnabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatProjectsByOwnerID = `-- name: GetChatProjectsByOwnerID :many
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
+FROM chat_projects
+WHERE owner_id = $1::uuid AND NOT deleted
+ORDER BY lower(name), id
+`
+
+func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatProject, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectsByOwnerID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProject
+	for rows.Next() {
+		var i ChatProject
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Description,
+			&i.Icon,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.Deleted,
 		); err != nil {
 			return nil, err
 		}
@@ -8910,46 +8975,12 @@ ORDER BY id
 FOR UPDATE
 `
 
-// Waits for sub-chat creations under the roots, which hold the root
-// FOR SHARE, so a later statement sees every committed child.
+// Sub-chat creation holds its root FOR SHARE, so this waits for it. At
+// READ COMMITTED, the default isolation, a later statement then sees every
+// child committed during the wait.
 func (q *sqlQuerier) LockChatProjectRootChats(ctx context.Context, projectID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, lockChatProjectRootChats, projectID)
 	return err
-}
-
-const lockDeletedChatProjectRootChats = `-- name: LockDeletedChatProjectRootChats :many
-SELECT chats.id
-FROM chats
-JOIN chat_projects ON chat_projects.id = chats.project_id
-WHERE chat_projects.deleted AND chats.parent_chat_id IS NULL
-ORDER BY chats.id
-LIMIT $1
-FOR UPDATE OF chats
-`
-
-// Locking the roots first makes the family delete, a separate statement,
-// see sub-chats that committed while this one waited.
-func (q *sqlQuerier) LockDeletedChatProjectRootChats(ctx context.Context, limitCount int32) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, lockDeletedChatProjectRootChats, limitCount)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const updateChatProjectACLByID = `-- name: UpdateChatProjectACLByID :exec
@@ -9019,8 +9050,18 @@ SET deleted = true, updated_at = now()
 WHERE id = $1::uuid AND NOT deleted
 `
 
-// Irreversible: dbpurge deletes the project's chat families on its next
-// tick, regardless of chat retention.
+// Irreversible. Only chatd.DeleteChatProjectWithoutEvents may call this,
+// in one READ COMMITTED transaction, in this order:
+//  1. GetChatProjectByIDForUpdate, which waits for root chat creations
+//     holding GetChatProjectByIDForShare;
+//  2. UpdateChatProjectDeletedByID;
+//  3. LockChatProjectRootChats;
+//  4. ArchiveChatsOfDeletedChatProject;
+//  5. DeleteChatQueuedMessagesOfDeletedChatProject.
+//
+// Calling it alone leaves the project's chats running and acquirable.
+// The archived chats are then removed by chat retention like any other
+// archived chat, and dbpurge deletes the project row once none are left.
 func (q *sqlQuerier) UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, updateChatProjectDeletedByID, id)
 	return err
