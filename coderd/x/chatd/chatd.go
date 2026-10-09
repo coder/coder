@@ -3864,6 +3864,9 @@ func (p *Server) fetchPersonalSkillMetadata(
 
 	personalSkills := make([]skillspkg.Skill, 0, len(rows))
 	for _, row := range rows {
+		if !row.Enabled {
+			continue
+		}
 		personalSkills = append(personalSkills, skillspkg.Skill{
 			Name:        row.Name,
 			Description: row.Description,
@@ -3895,6 +3898,9 @@ func (p *Server) loadPersonalSkillBody(
 			slog.Error(err),
 		)
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("load personal skill body: %w", err)
+	}
+	if !row.Enabled {
+		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 	}
 
 	parsed, err := skillspkg.ParsePersonalSkillMarkdown([]byte(row.Content))

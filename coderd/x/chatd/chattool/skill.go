@@ -308,10 +308,13 @@ const DefaultSkillMetaFile = "SKILL.md"
 // ReadSkillOptions configures the read_skill and read_skill_file
 // tools.
 type ReadSkillOptions struct {
-	GetWorkspaceConn      func(context.Context) (workspacesdk.AgentConn, error)
-	GetSkills             func() []SkillMeta
-	ResolveAlias          func(string) (skillspkg.ResolvedSkill, error)
-	LoadPersonalSkillBody func(context.Context, string) (skillspkg.ParsedSkill, error)
+	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+	GetSkills        func() []SkillMeta
+	ResolveAlias     func(string) (skillspkg.ResolvedSkill, error)
+	// LoadStoredSkillBody loads the current body of a personal or
+	// organization skill. It returns skillspkg.ErrSkillNotFound when the
+	// skill is gone, disabled, or no longer readable by the chat owner.
+	LoadStoredSkillBody func(context.Context, skillspkg.Skill) (skillspkg.ParsedSkill, error)
 }
 
 // ReadSkillArgs are the parameters accepted by read_skill.
@@ -342,19 +345,19 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 			}
 
 			switch resolved.Source {
-			case skillspkg.SourcePersonal:
-				if options.LoadPersonalSkillBody == nil {
+			case skillspkg.SourcePersonal, skillspkg.SourceOrganization:
+				if options.LoadStoredSkillBody == nil {
 					return fantasy.NewTextErrorResponse(
-						"personal skill loader is not configured",
+						"stored skill loader is not configured",
 					), nil
 				}
-				content, err := options.LoadPersonalSkillBody(ctx, resolved.Name)
+				content, err := options.LoadStoredSkillBody(ctx, resolved.Skill)
 				if err != nil {
 					if xerrors.Is(err, skillspkg.ErrSkillNotFound) {
 						return skillNotFoundResponse(args.Name), nil
 					}
 					return fantasy.NewTextErrorResponse(
-						fmt.Sprintf("failed to load personal skill %q", args.Name),
+						fmt.Sprintf("failed to load %s skill %q", resolved.Source, args.Name),
 					), nil
 				}
 				return toolResponse(map[string]any{
@@ -412,13 +415,11 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 			if err != nil {
 				return skillResolveErrorResponse(args.Name, err), nil
 			}
-			if resolved.Source == skillspkg.SourcePersonal {
-				return fantasy.NewTextErrorResponse(
-					"read_skill_file is not supported for personal skills (no supporting files)",
-				), nil
-			}
 			if resolved.Source != skillspkg.SourceWorkspace {
-				return skillNotFoundResponse(args.Name), nil
+				return fantasy.NewTextErrorResponse(fmt.Sprintf(
+					"read_skill_file is not supported for %s skills (no supporting files)",
+					resolved.Source,
+				)), nil
 			}
 
 			skill, ok := findSkill(options.GetSkills, resolved.Name)

@@ -297,6 +297,7 @@ func TestMergeSkills(t *testing.T) {
 
 				_, err := skills.Lookup(resolved, "shared-skill")
 				require.ErrorIs(t, err, skills.ErrSkillAmbiguous)
+				require.Equal(t, 1, strings.Count(err.Error(), skills.ErrSkillAmbiguous.Error()))
 				for _, alias := range tc.wantAliases {
 					require.ErrorContains(t, err, alias)
 				}

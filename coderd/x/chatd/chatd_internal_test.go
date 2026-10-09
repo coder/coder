@@ -2057,6 +2057,11 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 					UserID:      uuid.NullUUID{UUID: userID, Valid: true},
 					Name:        "personal-review",
 					Description: "Personal review process",
+					Enabled:     true,
+				}, {
+					UserID:      uuid.NullUUID{UUID: userID, Valid: true},
+					Name:        "personal-disabled",
+					Description: "Disabled process",
 				}}, nil
 			},
 		)
@@ -2113,6 +2118,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 					UserID:  uuid.NullUUID{UUID: userID, Valid: true},
 					Name:    "personal-review",
 					Content: "---\nname: personal-review\ndescription: Personal review process\n---\n\nUpdated instructions.\n",
+					Enabled: true,
 				}, nil
 			},
 		)
@@ -2146,6 +2152,24 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 		)
 
 		_, err := server.loadPersonalSkillBody(context.Background(), userID, "missing-skill")
+		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
+	})
+
+	t.Run("DisabledSkill", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		userID := uuid.New()
+
+		db.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), gomock.Any()).Return(database.Skill{
+			UserID:  uuid.NullUUID{UUID: userID, Valid: true},
+			Name:    "disabled-skill",
+			Content: "---\nname: disabled-skill\ndescription: Disabled\n---\n\nInstructions.\n",
+		}, nil)
+
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "disabled-skill")
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
 	})
 
@@ -2203,6 +2227,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 					UserID:  uuid.NullUUID{UUID: userID, Valid: true},
 					Name:    "broken-skill",
 					Content: "---\nname: broken-skill\ndescription: Broken\n---\n\n   \n",
+					Enabled: true,
 				}, nil
 			},
 		)

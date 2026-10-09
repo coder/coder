@@ -627,8 +627,8 @@ func (server *Server) prepareGeneration(
 			return workspaceSkills
 		},
 		ResolveAlias: resolveSkillAlias,
-		LoadPersonalSkillBody: func(ctx context.Context, name string) (skillspkg.ParsedSkill, error) {
-			return server.loadPersonalSkillBody(ctx, chat.OwnerID, name)
+		LoadStoredSkillBody: func(ctx context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
+			return server.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name)
 		},
 	}
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {

@@ -83,52 +83,52 @@ type ResolvedSkill struct {
 func ParsePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
 	if len(raw) > MaxPersonalSkillSizeBytes {
 		return ParsedSkill{}, xerrors.Errorf(
-			"%w: got %d bytes, maximum is %d bytes",
-			ErrSkillTooLarge,
+			"got %d bytes, maximum is %d bytes: %w",
 			len(raw),
 			MaxPersonalSkillSizeBytes,
+			ErrSkillTooLarge,
 		)
 	}
 
 	name, description, body, err := workspacesdk.ParseSkillFrontmatter(string(raw))
 	if err != nil {
 		if xerrors.Is(err, workspacesdk.ErrFrontmatterNameRequired) {
-			return ParsedSkill{}, xerrors.Errorf("%w: frontmatter must contain a 'name' field", ErrInvalidSkillName)
+			return ParsedSkill{}, xerrors.Errorf("frontmatter must contain a 'name' field: %w", ErrInvalidSkillName)
 		}
 		return ParsedSkill{}, xerrors.Errorf("parse skill frontmatter: %w", err)
 	}
 	if !workspacesdk.SkillNamePattern.MatchString(name) {
 		return ParsedSkill{}, xerrors.Errorf(
-			"%w: %q must match %s",
-			ErrInvalidSkillName,
+			"%q must match %s: %w",
 			name,
 			workspacesdk.SkillNameRegex,
+			ErrInvalidSkillName,
 		)
 	}
 	nameBytes := len(name)
 	if nameBytes > MaxPersonalSkillNameBytes {
 		return ParsedSkill{}, xerrors.Errorf(
-			"%w: %q is %d bytes, maximum is %d bytes",
-			ErrInvalidSkillName,
+			"%q is %d bytes, maximum is %d bytes: %w",
 			name,
 			nameBytes,
 			MaxPersonalSkillNameBytes,
+			ErrInvalidSkillName,
 		)
 	}
 	descriptionBytes := len(description)
 	if descriptionBytes > MaxPersonalSkillDescriptionBytes {
 		return ParsedSkill{}, xerrors.Errorf(
-			"%w: got %d bytes, maximum is %d bytes",
-			ErrSkillDescriptionTooLarge,
+			"got %d bytes, maximum is %d bytes: %w",
 			descriptionBytes,
 			MaxPersonalSkillDescriptionBytes,
+			ErrSkillDescriptionTooLarge,
 		)
 	}
 	if strings.TrimSpace(body) == "" {
 		return ParsedSkill{}, xerrors.Errorf(
-			"%w: skill %q has no content after frontmatter",
-			ErrSkillBodyRequired,
+			"skill %q has no content after frontmatter: %w",
 			name,
+			ErrSkillBodyRequired,
 		)
 	}
 
@@ -203,15 +203,15 @@ func Lookup(resolved []ResolvedSkill, lookup string) (ResolvedSkill, error) {
 	}
 	switch len(matches) {
 	case 0:
-		return ResolvedSkill{}, xerrors.Errorf("%w: %q", ErrSkillNotFound, lookup)
+		return ResolvedSkill{}, xerrors.Errorf("%q: %w", lookup, ErrSkillNotFound)
 	case 1:
 		return bareNameMatch, nil
 	default:
 		return ResolvedSkill{}, xerrors.Errorf(
-			"%w: %q matches %s",
-			ErrSkillAmbiguous,
+			"%q matches %s: %w",
 			lookup,
 			strings.Join(matches, ", "),
+			ErrSkillAmbiguous,
 		)
 	}
 }
