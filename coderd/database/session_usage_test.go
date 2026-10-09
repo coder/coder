@@ -140,10 +140,8 @@ func TestSessionUsageRollup(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, sessionUsageMins(ctx, t, sqlDB, start, user, template))
 
-	// Live insights report the raw app names without half-hour caps.
-	live, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
-		StartTime: start.Add(30 * time.Second), EndTime: start.Add(30 * time.Minute),
-	})
+	// Live insights count distinct minutes per family, with no 30-minute cap.
+	live, err := db.GetTemplateInsightsByTemplate(ctx, templateInsightsByTemplateParams(t, start.Add(30*time.Second), start.Add(30*time.Minute)))
 	require.NoError(t, err)
 	require.Len(t, live, 0, "no connected report occurs in this partial request window")
 }

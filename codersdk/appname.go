@@ -27,10 +27,25 @@ const (
 	AppFamilySSH             AppFamilyName = "ssh"
 	AppFamilyReconnectingPTY AppFamilyName = "reconnecting_pty"
 	AppFamilyPortForwarding  AppFamilyName = "port_forwarding"
-	// AppFamilySFTP only comes from history the sftp_mins column recorded.
-	AppFamilySFTP    AppFamilyName = "sftp"
-	AppFamilyUnknown AppFamilyName = "unknown"
+	AppFamilySFTP            AppFamilyName = "sftp"
+	AppFamilyUnknown         AppFamilyName = "unknown"
 )
+
+// appFamilyDisplayNames names each family.
+var appFamilyDisplayNames = map[AppFamilyName]string{
+	AppFamilyVSCode:          "Visual Studio Code",
+	AppFamilyJetBrains:       "JetBrains",
+	AppFamilySSH:             "SSH",
+	AppFamilyReconnectingPTY: "Web Terminal",
+	AppFamilyPortForwarding:  "Port Forwarding",
+	AppFamilySFTP:            "SFTP",
+	AppFamilyUnknown:         "Unknown",
+}
+
+// DisplayName returns the family's human-readable name.
+func (f AppFamilyName) DisplayName() string {
+	return appFamilyDisplayNames[f]
+}
 
 // AppNameOverflow sums the app names past the per-report cap.
 const AppNameOverflow = "overflow"
@@ -90,7 +105,8 @@ var sessionApps = map[string]sessionApp{
 	"dataspell":      {AppFamilyJetBrains, "DataSpell", "/icon/dataspell.svg"},
 	"mps":            {AppFamilyJetBrains, "MPS", ""},
 	"android_studio": {AppFamilyJetBrains, "Android Studio", "/icon/android-studio.svg"},
-	// No agent reports sftp; the family covers the sftp_mins history.
+	// Coder's own clients don't report sftp, but other clients can. The
+	// family also holds usage from the old sftp_mins column.
 	"sftp": {AppFamilySFTP, "SFTP", "/icon/terminal.svg"},
 	// Zed speaks SSH, so it counts toward the SSH total.
 	"zed":              {AppFamilySSH, "Zed", "/icon/zed.svg"},
