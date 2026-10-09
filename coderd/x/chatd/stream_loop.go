@@ -54,8 +54,8 @@ type streamLocalState struct {
 	// openedWithHistoryVersion reports whether the client opened the stream
 	// with a non-zero history version. Only then may history_reset carry
 	// from_message_id, which older clients would read as a full reset, and
-	// preview_reset carry the history version, which an after_id stream does
-	// not deliver in full.
+	// preview_reset carry the history version, which on an after_id stream
+	// would claim messages the stream skipped.
 	openedWithHistoryVersion bool
 }
 
