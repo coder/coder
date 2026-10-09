@@ -3729,3 +3729,31 @@ export const SendRejectedByHookDispatchFailure: Story = {
 		await canvas.findByText("Dispatch 0f2c1f3e timed out after 1.5s.");
 	},
 };
+
+/** Goals are root-chat only: a child chat's composer must not offer the
+ *  Pursue goal toggle even with the experiment enabled. */
+export const ChildChatHidesGoalControls: Story = {
+	parameters: {
+		experiments: ["chat-goals"],
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				parent_chat_id: "parent-chat-1",
+				title: "Child chat",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "More options" }),
+		);
+		// The snapshot captures the open menu without a Pursue goal item.
+		await within(document.body).findByRole("menuitemcheckbox", {
+			name: "Plan first",
+		});
+	},
+};

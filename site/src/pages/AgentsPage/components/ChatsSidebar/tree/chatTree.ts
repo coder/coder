@@ -74,6 +74,21 @@ export const buildChatTree = (chats: readonly Chat[]): ChatTree => {
 	};
 };
 
+// The active goal objective shown in place of the title. Goals are
+// root-chat-only, so child chats never replace their title even when
+// search renders them at the top level.
+export const activeGoalObjective = (chat: Chat): string | undefined =>
+	!getParentChatID(chat) && chat.goal?.status === "active"
+		? asNonEmptyString(chat.goal.objective)
+		: undefined;
+
+const chatMatchesSearch = (chat: Chat, search: string): boolean => {
+	if (chat.title.toLowerCase().includes(search)) {
+		return true;
+	}
+	return activeGoalObjective(chat)?.toLowerCase().includes(search) ?? false;
+};
+
 export const collectVisibleChatIDs = ({
 	chats,
 	search,
@@ -95,7 +110,7 @@ export const collectVisibleChatIDs = ({
 
 	const allChats = chats.flatMap((chat) => [chat, ...(chat.children ?? [])]);
 	const matchedChatIDs = allChats
-		.filter((chat) => chat.title.toLowerCase().includes(search))
+		.filter((chat) => chatMatchesSearch(chat, search))
 		.map((chat) => chat.id);
 	if (matchedChatIDs.length === 0) {
 		return new Set<string>();

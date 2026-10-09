@@ -150,6 +150,7 @@ export function useConversationEditingState(deps: {
 		message,
 		attachments,
 		workspaceUploads,
+		goalMutation,
 	}: SendChatMessageOptions) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
@@ -157,6 +158,7 @@ export function useConversationEditingState(deps: {
 			message,
 			attachments,
 			workspaceUploads,
+			goalMutation,
 			editedMessageID,
 		});
 

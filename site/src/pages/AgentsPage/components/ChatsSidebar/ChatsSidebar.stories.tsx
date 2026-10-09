@@ -16,7 +16,11 @@ import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatDiffStatus,
+	MockChatGoal,
+} from "#/testHelpers/chatEntities";
 import {
 	MockChatProject,
 	MockUserOwner,
@@ -67,6 +71,17 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...MockChat,
 	id: "chat-default",
 	last_model_config_id: defaultModelConfigs[0].id,
+	created_at: oneWeekAgo,
+	updated_at: oneWeekAgo,
+	...overrides,
+});
+
+const buildGoal = (
+	overrides: Partial<TypesGen.ChatGoal> = {},
+): TypesGen.ChatGoal => ({
+	...MockChatGoal,
+	root_chat_id: "chat-default",
+	objective: "Migrate coder/coder away from MUI",
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	...overrides,
@@ -352,6 +367,29 @@ export const ChatStreamingOverridesTurnSummary: Story = {
 				last_turn_summary: "Added Docker and Terraform validation",
 			}),
 		],
+	},
+};
+
+export const ActiveGoalChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-goal-chat",
+				title: "Generic chat title",
+				status: "running",
+				goal: buildGoal({ root_chat_id: "active-goal-chat" }),
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText("Migrate coder/coder away from MUI"),
+		).toBeInTheDocument();
+		await expect(canvas.getByText("GPT-4o streaming…")).toBeInTheDocument();
+		await expect(canvas.getByLabelText("Active goal")).toBeInTheDocument();
+		expect(canvas.queryByText("Generic chat title")).not.toBeInTheDocument();
 	},
 };
 
