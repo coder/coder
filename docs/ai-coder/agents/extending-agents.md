@@ -161,8 +161,10 @@ Personal skills are user-owned skills that are available to all of your chats.
 They are not tied to a specific workspace.
 Manage them from the **Agents** page, under **Settings** > **Skills**, in the **Personal skills** section.
 
-Personal skills use the same `SKILL.md` format as workspace skills: YAML frontmatter with a kebab-case `name`, an optional `description`, and a markdown body.
-This keeps content portable between personal skills and workspace skills.
+Personal skills use the same `SKILL.md` format as workspace skills: YAML
+frontmatter with a kebab-case `name`, an optional `description`, and a
+markdown body. This keeps content portable between personal skills and
+workspace skills.
 
 ```md
 ---
@@ -219,20 +221,21 @@ To change who can use a skill:
 
 Each entry grants the **Use** role.
 Only current members of the organization can use a shared skill.
-Site owners, organization admins, and organization auditors can use every organization skill, whatever its permissions.
+Removing someone from the organization also removes them from the list of every skill, so adding them back later doesn't restore those entries.
+Site owners, organization admins, and auditors can read every skill in the organization, so they can use every organization skill that's turned on, whether or not the list includes them.
 Without a Premium license, you can't create [groups](../../admin/users/groups-roles.md#groups), so the only group is **Everyone**.
 In that case, share a skill either with everyone or with individual members.
 
 The organization skill API lives under `/api/experimental/organizations/{organization}/skills`.
 It is experimental and might change.
 
-### Find the organization skills shared with you
+### Find the organization skills you can use
 
 To check which organization skills you can use, open the **Agents** page and go to **Settings** > **Skills**.
-The **From your organizations** section lists, for each of your organizations, the skills that are turned on and shared with you.
-For site owners, organization admins, and organization auditors, it lists every organization skill that is turned on.
-Select **View** on a skill to read its `SKILL.md`.
-An organization that shares no skills with you doesn't appear in this section.
+The **From your organizations** section lists, for each organization, the skills that are turned on and that you can use.
+For site owners, organization admins, and auditors, it lists every organization skill that is turned on.
+To read a skill's `SKILL.md`, open its row menu and select **View**.
+An organization with no such skills doesn't appear in this section.
 
 This section is read-only.
 Ask an organization admin to change an organization skill.
@@ -240,16 +243,15 @@ Ask an organization admin to change an organization skill.
 ## How chats load stored skills
 
 Personal and organization skills are stored in Coder, not in the workspace.
-At each step, a chat loads the personal skills of the chat owner that are turned on, and the organization skills of the chat's organization that are turned on and shared with the chat owner.
-Site owners, organization admins, and organization auditors can read every skill in the organization, so their chats load every organization skill that is turned on, whatever its permissions.
+At each step, a chat loads the personal skills of the chat owner that are turned on, and the organization skills of the chat's organization that are turned on and that the chat owner can use.
 Workspace skills come from the chat's pinned context snapshot.
 
 Because stored skills are read again at each step, a change takes effect on the chat's next step.
 For example, when an administrator turns off an organization skill or removes someone's access, the chat stops listing that skill on its next step.
 
 The `/` menu in the chat composer lists skills in 3 groups: **Personal skills**, **Organization skills**, and **Workspace skills**.
-The **Organization skills** group shows the skills of the chat's organization that are turned on and shared with you.
-For site owners, organization admins, and organization auditors, the group lists every organization skill that is turned on.
+The **Organization skills** group shows the skills of the chat's organization that are turned on and that you can use.
+For site owners, organization admins, and auditors, the group lists every organization skill that is turned on.
 
 ### Turn a skill on or off
 

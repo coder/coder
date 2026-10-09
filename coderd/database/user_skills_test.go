@@ -243,6 +243,31 @@ func TestSkillOwners(t *testing.T) {
 		require.True(t, database.IsUniqueViolation(err, database.UniqueSkillsProjectIDNameIndex), err)
 	})
 
+	t.Run("MemberRemovalDropsDirectGrants", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		org, otherOrg := newOrg(), newOrg()
+		removed, kept := newUser(), newUser()
+		for _, o := range []uuid.UUID{org, otherOrg} {
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: o, UserID: removed})
+			grants := fmt.Sprintf(`{%q: {"permissions": ["read"]}, %q: {"permissions": ["read"]}}`, removed, kept)
+			require.NoError(t, insertSkill(ctx, sqlDB, skillRow{owners: owners{org: valid(o)}, userACL: grants}))
+		}
+
+		require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{OrganizationID: org, UserID: removed}))
+
+		hasGrant := func(org, user uuid.UUID) bool {
+			t.Helper()
+			var has bool
+			err := sqlDB.QueryRowContext(ctx, "SELECT user_acl ? $2 FROM skills WHERE organization_id = $1", org, user.String()).Scan(&has)
+			require.NoError(t, err)
+			return has
+		}
+		require.False(t, hasGrant(org, removed))
+		require.True(t, hasGrant(org, kept))
+		require.True(t, hasGrant(otherOrg, removed))
+	})
+
 	t.Run("OwnerDeletionRemovesOnlyOwnRows", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)

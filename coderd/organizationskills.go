@@ -53,7 +53,7 @@ func (api *API) postOrganizationSkill(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceOrganizationSkill.InOrg(organization.ID)) {
-		httpapi.Forbidden(rw)
+		writeOrganizationSkillForbidden(ctx, rw, "create organization skills")
 		return
 	}
 
@@ -78,7 +78,7 @@ func (api *API) postOrganizationSkill(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case httpapi.IsUnauthorizedError(err):
-			httpapi.Forbidden(rw)
+			writeOrganizationSkillForbidden(ctx, rw, "create organization skills")
 		case database.IsCheckViolation(err, skillsPerOrganizationLimitConstraint):
 			writeOrganizationSkillLimitReached(ctx, rw)
 		case database.IsUniqueViolation(err, database.UniqueSkillsOrganizationIDNameIndex):
@@ -159,6 +159,7 @@ func (api *API) patchOrganizationSkill(rw http.ResponseWriter, r *http.Request) 
 		})
 	)
 	defer commitAudit()
+	aReq.Old = database.AuditableOrganizationSkill{Skill: oldSkill}
 
 	update, ok := readSkillUpdate(ctx, rw, r, oldSkill.Name)
 	if !ok {
@@ -175,7 +176,7 @@ func (api *API) patchOrganizationSkill(rw http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		switch {
 		case httpapi.IsUnauthorizedError(err):
-			httpapi.Forbidden(rw)
+			writeOrganizationSkillForbidden(ctx, rw, "update this organization skill")
 		case httpapi.Is404Error(err):
 			httpapi.ResourceNotFound(rw)
 		default:
@@ -183,7 +184,6 @@ func (api *API) patchOrganizationSkill(rw http.ResponseWriter, r *http.Request) 
 		}
 		return
 	}
-	aReq.Old = database.AuditableOrganizationSkill{Skill: oldSkill}
 	aReq.New = database.AuditableOrganizationSkill{Skill: skill}
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Skill(skill))
@@ -212,6 +212,7 @@ func (api *API) deleteOrganizationSkill(rw http.ResponseWriter, r *http.Request)
 		})
 	)
 	defer commitAudit()
+	aReq.Old = database.AuditableOrganizationSkill{Skill: skill}
 
 	deleted, err := api.Database.DeleteOrganizationSkillByOrganizationIDAndName(ctx, database.DeleteOrganizationSkillByOrganizationIDAndNameParams{
 		OrganizationID: skill.OrganizationID.UUID,
@@ -220,7 +221,7 @@ func (api *API) deleteOrganizationSkill(rw http.ResponseWriter, r *http.Request)
 	if err != nil {
 		switch {
 		case httpapi.IsUnauthorizedError(err):
-			httpapi.Forbidden(rw)
+			writeOrganizationSkillForbidden(ctx, rw, "delete this organization skill")
 		case httpapi.Is404Error(err):
 			httpapi.ResourceNotFound(rw)
 		default:
@@ -231,6 +232,14 @@ func (api *API) deleteOrganizationSkill(rw http.ResponseWriter, r *http.Request)
 	aReq.Old = database.AuditableOrganizationSkill{Skill: deleted}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// writeOrganizationSkillForbidden replaces httpapi.Forbidden, whose detail
+// says the caller cannot view content these callers may be able to read.
+func writeOrganizationSkillForbidden(ctx context.Context, rw http.ResponseWriter, action string) {
+	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		Message: fmt.Sprintf("You don't have permission to %s.", action),
+	})
 }
 
 func writeOrganizationSkillLimitReached(ctx context.Context, rw http.ResponseWriter) {

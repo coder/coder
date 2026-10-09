@@ -149,7 +149,8 @@ func TestOrganizationSkillAccess(t *testing.T) {
 		_, err = member.CreateOrganizationSkill(ctx, orgID, codersdk.CreateSkillRequest{
 			Content: userSkillMarkdown("member-created", "Denied", "Body."),
 		})
-		requireSDKErrorStatus(t, err, http.StatusForbidden)
+		sdkErr := requireSDKErrorStatus(t, err, http.StatusForbidden)
+		assert.Equal(t, "You don't have permission to create organization skills.", sdkErr.Message)
 		_, err = member.UpdateOrganizationSkill(ctx, orgID, everyone.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
 		requireSDKErrorStatus(t, err, http.StatusForbidden)
 		err = member.DeleteOrganizationSkill(ctx, orgID, everyone.Name)
@@ -194,9 +195,11 @@ func TestOrganizationSkillAccess(t *testing.T) {
 		_, err := auditor.OrganizationSkillByName(ctx, orgID, userShared.Name)
 		require.NoError(t, err)
 		_, err = auditor.UpdateOrganizationSkill(ctx, orgID, userShared.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
-		requireSDKErrorStatus(t, err, http.StatusForbidden)
+		sdkErr := requireSDKErrorStatus(t, err, http.StatusForbidden)
+		assert.Equal(t, "You don't have permission to update this organization skill.", sdkErr.Message)
 		err = auditor.DeleteOrganizationSkill(ctx, orgID, userShared.Name)
-		requireSDKErrorStatus(t, err, http.StatusForbidden)
+		sdkErr = requireSDKErrorStatus(t, err, http.StatusForbidden)
+		assert.Equal(t, "You don't have permission to delete this organization skill.", sdkErr.Message)
 	})
 
 	t.Run("OtherOrganizationMember", func(t *testing.T) {
@@ -296,6 +299,8 @@ func TestOrganizationSkillAudit(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, ownerClient)
 	orgID := firstUser.OrganizationID
 	client := codersdk.NewExperimentalClient(ownerClient)
+	memberRawClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, orgID)
+	member := codersdk.NewExperimentalClient(memberRawClient)
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	auditor.ResetLogs()
 
@@ -303,18 +308,28 @@ func TestOrganizationSkillAudit(t *testing.T) {
 		Content: userSkillMarkdown("audited-skill", "Audit", "Body."),
 	})
 	require.NoError(t, err)
+	_, err = member.UpdateOrganizationSkill(ctx, orgID, skill.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
+	requireSDKErrorStatus(t, err, http.StatusForbidden)
+	err = member.DeleteOrganizationSkill(ctx, orgID, skill.Name)
+	requireSDKErrorStatus(t, err, http.StatusForbidden)
 	_, err = client.UpdateOrganizationSkill(ctx, orgID, skill.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
 	require.NoError(t, err)
 	require.NoError(t, client.DeleteOrganizationSkill(ctx, orgID, skill.Name))
 
 	logs := auditor.AuditLogs()
-	require.Len(t, logs, 3)
-	for i, action := range []database.AuditAction{
-		database.AuditActionCreate,
-		database.AuditActionWrite,
-		database.AuditActionDelete,
+	require.Len(t, logs, 5)
+	for i, want := range []struct {
+		action database.AuditAction
+		status int32
+	}{
+		{database.AuditActionCreate, http.StatusCreated},
+		{database.AuditActionWrite, http.StatusForbidden},
+		{database.AuditActionDelete, http.StatusForbidden},
+		{database.AuditActionWrite, http.StatusOK},
+		{database.AuditActionDelete, http.StatusNoContent},
 	} {
-		assert.Equal(t, action, logs[i].Action)
+		assert.Equal(t, want.action, logs[i].Action)
+		assert.Equal(t, want.status, logs[i].StatusCode)
 		assert.Equal(t, database.ResourceTypeOrganizationSkill, logs[i].ResourceType)
 		assert.Equal(t, skill.ID, logs[i].ResourceID)
 		assert.Equal(t, skill.Name, logs[i].ResourceTarget)

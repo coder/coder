@@ -1,5 +1,8 @@
 DELETE FROM skills WHERE user_id IS NULL;
 
+DROP TRIGGER trigger_delete_skill_user_acl_on_org_member_delete ON organization_members;
+DROP FUNCTION delete_skill_user_acl_on_org_member_delete();
+
 DROP TRIGGER trigger_upsert_skills ON skills;
 CREATE TRIGGER trigger_upsert_skills
     BEFORE INSERT OR UPDATE ON skills
