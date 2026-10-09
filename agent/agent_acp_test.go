@@ -1,10 +1,12 @@
 package agent_test
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 
@@ -37,9 +39,15 @@ func TestAgent_ACPInterface(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	_, err := conn.ListACPHarnesses(ctx)
 	require.NoError(t, err)
+	tool := uuid.New()
+	// Even a supplied tool-call header must bypass response recording for ACP.
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderToolCallIDHeader: {tool.String()}})
 	var catalog []workspacesdk.ACPHarness
 	require.Eventually(t, func() bool { catalog, err = conn.ListACPHarnesses(ctx); return err == nil && len(catalog) == 1 }, testutil.WaitLong, testutil.IntervalFast)
 	require.Equal(t, "broken", catalog[0].Slug)
+	listed, err := conn.ListACPSessions(ctx)
+	require.NoError(t, err)
+	require.Empty(t, listed)
 	require.Eventually(t, func() bool {
 		for _, push := range client.ContextStatePushes() {
 			for _, resource := range push.Resources {

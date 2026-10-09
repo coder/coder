@@ -2,18 +2,56 @@ package agentacp
 
 import (
 	"context"
+	"encoding/json"
 
 	acp "github.com/coder/acp-go-sdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-type client struct{}
+type client struct{ session *session }
 
-func (*client) RequestPermission(context.Context, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+func (*client) RequestPermission(ctx context.Context, req acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+	if ctx.Err() == nil {
+		for _, kind := range []acp.PermissionOptionKind{acp.PermissionOptionKindAllowAlways, acp.PermissionOptionKindAllowOnce} {
+			for _, option := range req.Options {
+				if option.Kind == kind {
+					return acp.RequestPermissionResponse{Outcome: acp.RequestPermissionOutcome{Selected: &acp.RequestPermissionOutcomeSelected{OptionId: option.OptionId}}}, nil
+				}
+			}
+		}
+	}
 	//nolint:misspell // ACP names this protocol variant Cancelled.
 	return acp.RequestPermissionResponse{Outcome: acp.RequestPermissionOutcome{Cancelled: &acp.RequestPermissionOutcomeCancelled{}}}, nil
 }
 
-func (*client) SessionUpdate(context.Context, acp.SessionNotification) error { return nil }
+func (c *client) SessionUpdate(_ context.Context, req acp.SessionNotification) error {
+	s := c.session
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || (s.info.ID.SessionID != "" && s.info.ID.SessionID != string(req.SessionId)) {
+		return nil
+	}
+	// The submitted message is recorded locally; live adapter echoes are
+	// redundant. Replayed user messages are needed to reconstruct history.
+	if req.Update.UserMessageChunk != nil && !s.replaying {
+		return nil
+	}
+	raw, err := json.Marshal(req.Update)
+	if err != nil {
+		return err
+	}
+	s.appendLocked(workspacesdk.ACPEventKindUpdate, "", raw)
+	if chunk := req.Update.AgentMessageChunk; chunk != nil && chunk.Content.Text != nil {
+		s.assistant = append(s.assistant, assistantText{seq: s.info.Cursor.Seq, text: chunk.Content.Text.Text})
+	}
+	if req.Update.UserMessageChunk != nil {
+		s.lastUser = s.info.Cursor.Seq
+	}
+	return nil
+}
 
 func (*client) ReadTextFile(context.Context, acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {
 	return acp.ReadTextFileResponse{}, acp.NewMethodNotFound("fs/read_text_file")
