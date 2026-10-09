@@ -4375,6 +4375,55 @@ describe("useChatStore", () => {
 		});
 	});
 
+	it("sets reconnectState on a disconnect during a pending edit of a failed turn", async () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const chatID = "chat-disconnect-pending-edit";
+		const messages = [
+			buildMessage(chatID, 1, "user", "question"),
+			buildMessage(chatID, 2, "assistant", "answer"),
+		];
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
+					chatID,
+					chatMessages: messages,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages,
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					store,
+					reconnectState: useChatSelector(store, selectReconnectState),
+				};
+			},
+			{ wrapper: createWrapper(createTestQueryClient()) },
+		);
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalled();
+		});
+
+		act(() => {
+			result.current.store.setStreamError({
+				kind: "generic",
+				message: "turn failed",
+			});
+			result.current.store.setChatStatus("running");
+			result.current.store.setPendingEdit({ messageID: 1 });
+			sockets[0].emitError();
+		});
+
+		await waitFor(() => {
+			expect(result.current.reconnectState).not.toBeNull();
+		});
+	});
+
 	it("sets reconnectState on WebSocket disconnect and clears it after reconnect", async () => {
 		immediateAnimationFrame();
 		vi.spyOn(Math, "random").mockReturnValue(0.5);

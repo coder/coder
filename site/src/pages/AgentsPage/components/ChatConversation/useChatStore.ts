@@ -35,6 +35,9 @@ import {
 	chatQueuedMessagesEqualByID,
 	createChatStore,
 	isActiveChatStatus,
+	selectRetryState,
+	selectStreamError,
+	selectStreamState,
 } from "./chatStore";
 import type { RetryState } from "./types";
 
@@ -140,9 +143,9 @@ const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 });
 
 const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
-	state.streamError === null &&
-	(state.streamState !== null ||
-		state.retryState !== null ||
+	selectStreamError(state) === null &&
+	(selectStreamState(state) !== null ||
+		selectRetryState(state) !== null ||
 		isActiveChatStatus(state.chatStatus));
 
 type UseChatStoreOptions = {
