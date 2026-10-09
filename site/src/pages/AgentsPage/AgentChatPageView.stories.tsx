@@ -86,43 +86,14 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	...overrides,
 });
 
-type StoryEditingState = React.ComponentProps<
-	typeof AgentChatPageView
->["editing"] & {
-	editorInitialValue: React.ComponentProps<
-		typeof ChatPageInput
-	>["bindings"]["initialValue"];
-	initialEditorState: React.ComponentProps<
-		typeof ChatPageInput
-	>["bindings"]["initialEditorState"];
-	remountKey: React.ComponentProps<
-		typeof ChatPageInput
-	>["bindings"]["remountKey"];
-	editingFileBlocks: React.ComponentProps<
-		typeof ChatPageInput
-	>["editingFileBlocks"];
-	handleCancelHistoryEdit: React.ComponentProps<
-		typeof ChatPageInput
-	>["bindings"]["onCancelHistoryEdit"];
-	handleSendFromInput: React.ComponentProps<typeof ChatPageInput>["onSend"];
-	handleContentChange: React.ComponentProps<
-		typeof ChatPageInput
-	>["bindings"]["onContentChange"];
-};
-
 const buildEditing = (
-	overrides: Partial<StoryEditingState> = {},
-): StoryEditingState => ({
+	overrides: Partial<
+		React.ComponentProps<typeof AgentChatPageView>["editing"]
+	> = {},
+): React.ComponentProps<typeof AgentChatPageView>["editing"] => ({
 	chatInputRef: { current: null },
-	editorInitialValue: "",
-	initialEditorState: undefined,
-	remountKey: 0,
 	editingMessageId: null,
-	editingFileBlocks: [],
 	handleEditUserMessage: fn(),
-	handleCancelHistoryEdit: fn(),
-	handleSendFromInput: fn(),
-	handleContentChange: fn(),
 	...overrides,
 });
 
@@ -188,7 +159,9 @@ type StoryProps = Omit<
 		bindings?: Partial<React.ComponentProps<typeof ChatPageInput>["bindings"]>;
 		model?: Partial<React.ComponentProps<typeof ChatPageInput>["model"]>;
 		setup?: Partial<React.ComponentProps<typeof ChatPageInput>["setup"]>;
-		editing?: Partial<StoryEditingState>;
+		editing?: Partial<
+			React.ComponentProps<typeof AgentChatPageView>["editing"]
+		>;
 		chat?: Partial<TypesGen.Chat>;
 	};
 
@@ -205,6 +178,8 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		chat: buildChat(chat),
 		persistedError: undefined,
 		models: [],
+		onSend: fn(),
+		editingFileBlocks: [],
 		showSidebarPanel: false,
 		onSetShowSidebarPanel: fn(),
 		debugLoggingEnabled: false,
@@ -232,16 +207,15 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 	};
 	const bindings = {
 		inputRef: props.editing.chatInputRef,
-		initialValue: props.editing.editorInitialValue,
-		initialEditorState: props.editing.initialEditorState,
-		remountKey: props.editing.remountKey,
-		onContentChange: props.editing.handleContentChange,
+		initialValue: "",
+		remountKey: 0,
+		onContentChange: fn(),
 		isDisabled: false,
 		isLoading: false,
 		hasModelOptions: true,
 		onInterrupt: fn(),
 		isEditingHistoryMessage: props.editing.editingMessageId !== null,
-		onCancelHistoryEdit: props.editing.handleCancelHistoryEdit,
+		onCancelHistoryEdit: fn(),
 		isReadOnly: !props.chat.archived && currentUser.id !== props.chat.owner_id,
 		...overrides.bindings,
 	};
@@ -267,29 +241,7 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 
 	return (
 		<AgentChatPageView
-			chat={props.chat}
-			persistedError={props.persistedError}
-			workspace={props.workspace}
-			workspaceAgent={props.workspaceAgent}
-			store={props.store}
-			initialMessages={props.initialMessages}
-			editing={props.editing}
-			modelCatalogError={props.modelCatalogError}
-			unavailableModelNotice={props.unavailableModelNotice}
-			showSidebarPanel={props.showSidebarPanel}
-			onSetShowSidebarPanel={props.onSetShowSidebarPanel}
-			debugLoggingEnabled={props.debugLoggingEnabled}
-			gitWatcher={props.gitWatcher}
-			onImplementPlan={props.onImplementPlan}
-			onSendAskUserQuestionResponse={props.onSendAskUserQuestionResponse}
-			hasMoreMessages={props.hasMoreMessages}
-			isFetchingMoreMessages={props.isFetchingMoreMessages}
-			isHydratingMessages={props.isHydratingMessages}
-			hasFetchMoreError={props.hasFetchMoreError}
-			onFetchMoreMessages={props.onFetchMoreMessages}
-			urlTransform={props.urlTransform}
-			mcpServers={props.mcpServers}
-			desktopChatId={props.desktopChatId}
+			{...props}
 			canSubmitChatTurn={
 				overrides.canSubmitChatTurn ??
 				(!bindings.isDisabled && !bindings.isLoading)
@@ -297,9 +249,7 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 			composer={
 				overrides.composer ?? (
 					<ChatPageInput
-						chat={props.chat}
-						store={props.store}
-						models={props.models}
+						{...props}
 						bindings={bindings}
 						model={{
 							selectedModel: defaultModelID,
@@ -317,27 +267,12 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 							unsupportedProviderNames: [],
 							...overrides.setup,
 						}}
-						modelSelectorHelp={props.modelSelectorHelp}
-						onPlanModeToggle={props.onPlanModeToggle}
-						onManageAutomationsToggle={props.onManageAutomationsToggle}
-						onWorkspaceChange={props.onWorkspaceChange}
-						isWorkspaceLoading={props.isWorkspaceLoading}
-						mcpServers={props.mcpServers}
-						selectedMCPServerIds={props.selectedMCPServerIds}
-						onMCPSelectionChange={props.onMCPSelectionChange}
-						onMCPAuthComplete={props.onMCPAuthComplete}
 						linkedWorkspace={{
 							workspace: props.workspace,
 							agent: props.workspaceAgent,
 							attachedWorkspace,
 							...overrides.linkedWorkspace,
 						}}
-						onSend={overrides.onSend ?? props.editing.handleSendFromInput}
-						onDeleteQueuedMessage={props.onDeleteQueuedMessage}
-						onPromoteQueuedMessage={props.onPromoteQueuedMessage}
-						editingFileBlocks={
-							overrides.editingFileBlocks ?? props.editing.editingFileBlocks
-						}
 					/>
 				)
 			}
@@ -1030,10 +965,8 @@ export const EditingMessage: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			store={buildStoreWithMessages(editingMessages)}
-			editing={{
-				editingMessageId: 3,
-				editorInitialValue: "Now tell me a joke",
-			}}
+			editing={{ editingMessageId: 3 }}
+			bindings={{ initialValue: "Now tell me a joke" }}
 		/>
 	),
 };

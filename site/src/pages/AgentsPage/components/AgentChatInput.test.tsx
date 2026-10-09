@@ -130,9 +130,8 @@ const mockNotionMCP: TypesGen.MCPServerConfig = {
 const mockMCPServers = [mockSentryMCP, mockLinearMCP, mockGitHubMCP];
 const mockSelectedMCPServerIds = mockMCPServers.map((server) => server.id);
 
-const renderInput = (children: React.ReactNode) => {
-	return render(<AppProviders>{children}</AppProviders>);
-};
+const renderInput = (children: React.ReactNode) =>
+	render(children, { wrapper: AppProviders });
 
 beforeAll(() => {
 	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
@@ -329,12 +328,10 @@ describe("ChatComposer", () => {
 		await waitFor(() => expect(handle?.getValue()).toBe("Preserved draft"));
 
 		rerender(
-			<AppProviders>
-				<ChatComposer
-					{...props}
-					bindings={{ ...props.bindings, isEditingHistoryMessage: true }}
-				/>
-			</AppProviders>,
+			<ChatComposer
+				{...props}
+				bindings={{ ...props.bindings, isEditingHistoryMessage: true }}
+			/>,
 		);
 
 		expect(inputRef.current).toBe(handle);
@@ -342,11 +339,7 @@ describe("ChatComposer", () => {
 		await user.click(screen.getByRole("button", { name: "Save Edit" }));
 		expect(onSend).toHaveBeenCalledExactlyOnceWith("Preserved draft");
 
-		rerender(
-			<AppProviders>
-				<ChatComposer {...props} />
-			</AppProviders>,
-		);
+		rerender(<ChatComposer {...props} />);
 		await user.click(screen.getByRole("button", { name: "Send" }));
 		expect(onSend).toHaveBeenCalledTimes(2);
 		expect(onSend).toHaveBeenLastCalledWith("Preserved draft");
@@ -359,11 +352,7 @@ describe("ChatComposer", () => {
 
 		expect(column).toHaveClass("max-w-3xl");
 
-		rerender(
-			<AppProviders>
-				<ChatComposer {...inputProps} fillWidth />
-			</AppProviders>,
-		);
+		rerender(<ChatComposer {...inputProps} fillWidth />);
 
 		expect(screen.getByTestId("chat-composer").parentElement).toHaveClass(
 			"max-w-full",
@@ -459,7 +448,7 @@ describe("ChatComposer", () => {
 
 			await user.click(screen.getByRole("button", { name: "Send" }));
 			expect(onSend).toHaveBeenCalledExactlyOnceWith("Draft");
-			rerender(<AppProviders>{composer(true)}</AppProviders>);
+			rerender(composer(true));
 			const anotherInput = screen.getByRole("textbox", {
 				name: "Another input",
 			});
@@ -467,7 +456,7 @@ describe("ChatComposer", () => {
 
 			if (!completesWhileLoading) {
 				await act(async () => {
-					rerender(<AppProviders>{composer(false)}</AppProviders>);
+					rerender(composer(false));
 				});
 				await user.keyboard("waiting");
 				expect(anotherInput).toHaveValue("waiting");
@@ -485,7 +474,7 @@ describe("ChatComposer", () => {
 				await user.keyboard("waiting");
 				expect(anotherInput).toHaveValue("waiting");
 				await act(async () => {
-					rerender(<AppProviders>{composer(false)}</AppProviders>);
+					rerender(composer(false));
 				});
 			}
 
@@ -514,10 +503,10 @@ describe("ChatComposer", () => {
 			</>
 		);
 		const { rerender } = renderInput(composer(false));
-		rerender(<AppProviders>{composer(true)}</AppProviders>);
+		rerender(composer(true));
 		const anotherInput = screen.getByRole("textbox", { name: "Another input" });
 		await user.click(anotherInput);
-		rerender(<AppProviders>{composer(false)}</AppProviders>);
+		rerender(composer(false));
 
 		await user.keyboard("Continue elsewhere");
 		expect(anotherInput).toHaveValue("Continue elsewhere");
@@ -639,12 +628,10 @@ describe("ChatComposer", () => {
 		);
 
 		rerender(
-			<AppProviders>
-				<ChatComposer
-					{...props}
-					bindings={{ ...props.bindings, userPromptHistory: ["New prompt"] }}
-				/>
-			</AppProviders>,
+			<ChatComposer
+				{...props}
+				bindings={{ ...props.bindings, userPromptHistory: ["New prompt"] }}
+			/>,
 		);
 		await user.keyboard("{ArrowUp}");
 		await waitFor(() =>
@@ -691,18 +678,16 @@ describe("ChatComposer", () => {
 		);
 
 		rerender(
-			<AppProviders>
-				<StrictMode>
-					<ChatComposer
-						{...props}
-						bindings={{
-							...props.bindings,
-							remountKey: 1,
-							initialValue: "Replacement draft",
-						}}
-					/>
-				</StrictMode>
-			</AppProviders>,
+			<StrictMode>
+				<ChatComposer
+					{...props}
+					bindings={{
+						...props.bindings,
+						remountKey: 1,
+						initialValue: "Replacement draft",
+					}}
+				/>
+			</StrictMode>,
 		);
 		await waitFor(() =>
 			expect(inputRef.current?.getValue()).toBe("Replacement draft"),
@@ -715,19 +700,17 @@ describe("ChatComposer", () => {
 
 		const freshDraft = " ";
 		rerender(
-			<AppProviders>
-				<StrictMode>
-					<ChatComposer
-						{...props}
-						bindings={{
-							...props.bindings,
-							remountKey: 2,
-							initialValue: freshDraft,
-							userPromptHistory: ["New latest prompt", "New older prompt"],
-						}}
-					/>
-				</StrictMode>
-			</AppProviders>,
+			<StrictMode>
+				<ChatComposer
+					{...props}
+					bindings={{
+						...props.bindings,
+						remountKey: 2,
+						initialValue: freshDraft,
+						userPromptHistory: ["New latest prompt", "New older prompt"],
+					}}
+				/>
+			</StrictMode>,
 		);
 		await waitFor(() => expect(inputRef.current?.getValue()).toBe(freshDraft));
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -815,17 +798,15 @@ describe("ChatComposer", () => {
 		await waitFor(() => expect(handle?.getContentParts()).toEqual([]));
 
 		rerender(
-			<AppProviders>
-				<ChatComposer
-					{...props}
-					bindings={{
-						...props.bindings,
-						remountKey: 1,
-						initialValue: "Plain-text fallback",
-						initialEditorState: serializedState,
-					}}
-				/>
-			</AppProviders>,
+			<ChatComposer
+				{...props}
+				bindings={{
+					...props.bindings,
+					remountKey: 1,
+					initialValue: "Plain-text fallback",
+					initialEditorState: serializedState,
+				}}
+			/>,
 		);
 		await waitFor(() => {
 			expect(handle?.getContentParts()).toEqual([

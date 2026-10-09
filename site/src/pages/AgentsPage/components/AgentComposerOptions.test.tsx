@@ -1,54 +1,33 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { QueryClient } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
-import { preferenceSettingsKey } from "#/api/queries/users";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
-import { MockPersonalModelOptions } from "#/testHelpers/chatModels";
-import {
-	MockUserPreferenceSettings,
-	MockWorkspace,
-} from "#/testHelpers/entities";
+import { MockWorkspace } from "#/testHelpers/entities";
 import { belowMdViewportMediaQuery } from "#/utils/mobile";
 import { AgentComposer, AgentComposerProvider } from "./AgentComposer";
 import { AgentComposerOptions } from "./AgentComposerOptions";
 
-const modelOptions = MockPersonalModelOptions;
 const workspace = { ...MockWorkspace, name: "my-workspace" };
-
-const modelProps = {
-	selectedModel: modelOptions[0].id,
-	onModelChange: vi.fn(),
-	modelOptions,
-	modelSelectorPlaceholder: "Select model",
-	isModelCatalogLoading: false,
-} satisfies React.ComponentProps<typeof AgentComposerOptions.Model>;
-
-const optionsProps = {
-	planning: { enabled: false, onChange: vi.fn() },
-} satisfies Omit<
-	React.ComponentProps<typeof AgentComposerOptions.Provider>,
-	"children"
->;
 
 const Options = (
 	props: Partial<
 		Omit<React.ComponentProps<typeof AgentComposerOptions.Provider>, "children">
 	>,
 ) => (
-	<AgentComposerOptions.Provider {...optionsProps} {...props}>
+	<AgentComposerOptions.Provider
+		planning={{ enabled: false, onChange: vi.fn() }}
+		{...props}
+	>
 		<AgentComposerOptions.Frame>
 			<AgentComposerOptions.Menu />
-			<AgentComposerOptions.Model {...modelProps} />
-			<AgentComposerOptions.PlanningBadge />
-			<AgentComposerOptions.Badges />
+			<AgentComposerOptions.Badges
+				leadingBadges={props.planning?.enabled ? [{ kind: "planning" }] : []}
+			/>
 		</AgentComposerOptions.Frame>
 	</AgentComposerOptions.Provider>
 );
-
-const workspaceOptions = [workspace];
 
 const renderOptions = (
 	children: React.ReactNode,
@@ -56,26 +35,21 @@ const renderOptions = (
 		React.ComponentProps<typeof AgentComposerProvider>["bindings"]
 	> = {},
 ) => {
-	const queryClient = new QueryClient({
-		defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
-	});
-	queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
 	return render(
-		<AppProviders queryClient={queryClient}>
-			<AgentComposerProvider
-				bindings={{
-					onSend: vi.fn(),
-					isDisabled: false,
-					isLoading: false,
-					initialValue: "",
-					onContentChange: vi.fn(),
-					hasModelOptions: true,
-					...bindings,
-				}}
-			>
-				{children}
-			</AgentComposerProvider>
-		</AppProviders>,
+		<AgentComposerProvider
+			bindings={{
+				onSend: vi.fn(),
+				isDisabled: false,
+				isLoading: false,
+				initialValue: "",
+				onContentChange: vi.fn(),
+				hasModelOptions: true,
+				...bindings,
+			}}
+		>
+			{children}
+		</AgentComposerProvider>,
+		{ wrapper: AppProviders },
 	);
 };
 
@@ -121,7 +95,7 @@ describe("AgentComposerOptions", () => {
 				<Options
 					organizationId={workspace.organization_id}
 					workspaceSelection={{
-						options: workspaceOptions,
+						options: [workspace],
 						selectedId: null,
 						onChange: onWorkspaceChange,
 					}}
@@ -201,7 +175,7 @@ describe("AgentComposerOptions", () => {
 			const [planModeEnabled, setPlanModeEnabled] = useState(false);
 
 			return (
-				<AgentComposerOptions.Provider
+				<Options
 					planning={{
 						enabled: planModeEnabled,
 						onChange: (enabled) => {
@@ -209,14 +183,7 @@ describe("AgentComposerOptions", () => {
 							onPlanModeToggle(enabled);
 						},
 					}}
-				>
-					<AgentComposerOptions.Frame>
-						<AgentComposerOptions.Menu />
-						<AgentComposerOptions.Badges
-							leadingBadges={planModeEnabled ? [{ kind: "planning" }] : []}
-						/>
-					</AgentComposerOptions.Frame>
-				</AgentComposerOptions.Provider>
+				/>
 			);
 		};
 		renderOptions(<ControlledOptions />);

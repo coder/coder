@@ -29,12 +29,7 @@ import {
 	withProxyProvider,
 	withToaster,
 } from "#/testHelpers/storybook";
-import type { AgentComposerBindings } from "./AgentComposer";
-import type { AgentComposerSetup } from "./AgentComposerLayout";
-import type {
-	AgentComposerOptions,
-	AttachedWorkspaceInfo,
-} from "./AgentComposerOptions";
+import type { AttachedWorkspaceInfo } from "./AgentComposerOptions";
 import { ChatComposer } from "./AgentComposers";
 import type { UploadState } from "./AttachmentPreview";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
@@ -58,7 +53,7 @@ const defaultBindings = {
 	isDisabled: false,
 	isLoading: false,
 	hasModelOptions: true,
-} satisfies AgentComposerBindings;
+} satisfies React.ComponentProps<typeof ChatComposer>["bindings"];
 
 const defaultModel = {
 	onModelChange: fn(),
@@ -66,18 +61,15 @@ const defaultModel = {
 	modelOptions: [...defaultModelOptions],
 	modelSelectorPlaceholder: "Select model",
 	isModelCatalogLoading: false,
-} satisfies React.ComponentProps<typeof AgentComposerOptions.Model>;
+} satisfies React.ComponentProps<typeof ChatComposer>["model"];
 
 const defaultTools = {
 	planning: { enabled: false, onChange: fn() },
-} satisfies Omit<
-	React.ComponentProps<typeof AgentComposerOptions.Provider>,
-	"children"
->;
+} satisfies React.ComponentProps<typeof ChatComposer>["tools"];
 
 const defaultSetup = {
 	canConfigureAgentSetup: false,
-} satisfies AgentComposerSetup;
+} satisfies React.ComponentProps<typeof ChatComposer>["setup"];
 
 const meta: Meta<typeof ChatComposer> = {
 	title: "pages/AgentsPage/AgentChatInput",
@@ -128,12 +120,7 @@ export const PromptHistoryCycling: Story = {
 };
 
 export const PromptHistoryCyclingExitsOnTyping: Story = {
-	args: {
-		bindings: {
-			...defaultBindings,
-			userPromptHistory: promptHistory,
-		},
-	},
+	args: PromptHistoryCycling.args,
 	play: async ({ canvasElement }) => {
 		const editor = getEditor(canvasElement);
 		await userEvent.click(editor);
@@ -213,13 +200,7 @@ export const SendsAndClearsInput: Story = {
 };
 
 export const EnterSendsByDefault: Story = {
-	args: {
-		bindings: {
-			...defaultBindings,
-			onSend: fn(),
-			initialValue: "Run focused tests",
-		},
-	},
+	args: SendsAndClearsInput.args,
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const editor = canvas.getByTestId("chat-message-input");
@@ -248,13 +229,7 @@ export const ModifierEnterSendsWhenRequired: Story = {
 			},
 		],
 	},
-	args: {
-		bindings: {
-			...defaultBindings,
-			onSend: fn(),
-			initialValue: "Run focused tests",
-		},
-	},
+	args: SendsAndClearsInput.args,
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const editor = canvas.getByTestId("chat-message-input");
@@ -371,12 +346,8 @@ export const StreamingInterruptPending: Story = {
 	args: {
 		bindings: {
 			...defaultBindings,
-			isStreaming: true,
-			onInterrupt: fn(),
+			...Streaming.args?.bindings,
 			isInterruptPending: true,
-			initialValue: "",
-			onAttach: fn(),
-			onRemoveAttachment: fn(),
 		},
 	},
 };
@@ -640,14 +611,7 @@ export const LargePasteCreatesAttachmentPreview: Story = {
 };
 
 export const CtrlShiftVBypassesAttachmentCollapse: Story = {
-	args: {
-		bindings: {
-			...defaultBindings,
-			attachments: [],
-			onAttach: fn(),
-			onRemoveAttachment: fn(),
-		},
-	},
+	args: LargePasteCreatesAttachmentPreview.args,
 	parameters: {
 		pixel: { exclude: true },
 	},
@@ -1026,16 +990,7 @@ export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
 };
 
 export const MCPIgnoresUnsolicitedOAuthComplete: Story = {
-	args: {
-		tools: {
-			...mcpDefaults,
-			mcp: {
-				...mcpDefaults.mcp,
-				servers: [linearMCP, githubMCP],
-				selectedServerIds: [linearMCP.id],
-			},
-		},
-	},
+	args: MCPAutoEnablesAfterOAuthCompletes.args,
 	play: async ({ args }) => {
 		dispatchMCPOAuthComplete(githubMCP.id, window);
 
@@ -1268,7 +1223,7 @@ const narrowPlanningModelOptions = [
 
 export const PlanningIndicatorNarrow: Story = {
 	args: {
-		tools: { ...defaultTools, planning: { enabled: true, onChange: fn() } },
+		...PlanningIndicator.args,
 		context: { usage: narrowPlanningContextUsage },
 		model: {
 			...defaultModel,
@@ -1286,9 +1241,7 @@ export const PlanningIndicatorNarrow: Story = {
 };
 
 export const DisablePlanModeFromBadge: Story = {
-	args: {
-		tools: { ...defaultTools, planning: { enabled: true, onChange: fn() } },
-	},
+	args: PlanningIndicator.args,
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		const dismiss = canvas.getByRole("button", {
@@ -1301,9 +1254,7 @@ export const DisablePlanModeFromBadge: Story = {
 };
 
 export const PlanFirstCheckedState: Story = {
-	args: {
-		tools: { ...defaultTools, planning: { enabled: true, onChange: fn() } },
-	},
+	args: PlanningIndicator.args,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
@@ -1656,12 +1607,8 @@ export const StreamingWithDraftMobile: Story = {
 	args: {
 		bindings: {
 			...defaultBindings,
-			isStreaming: true,
-			onInterrupt: fn(),
-			isInterruptPending: false,
+			...Streaming.args?.bindings,
 			initialValue: "Also update the docs",
-			onAttach: fn(),
-			onRemoveAttachment: fn(),
 		},
 		context: { usage: baseContextUsage },
 	},
@@ -1798,12 +1745,8 @@ export const ShortModelNameHasNoDeadSpace: Story = {
 			],
 		},
 		tools: {
-			...mcpDefaults,
-			mcp: {
-				...mcpDefaults.mcp,
-				servers: [sentryMCP, linearMCP, githubMCPConnected],
-				selectedServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
-			},
+			...defaultTools,
+			...WithMCPServers.args?.tools,
 			linkedWorkspace: {
 				workspace: MockWorkspace,
 				agent: MockWorkspaceAgent,
@@ -1860,18 +1803,7 @@ export const LongLabelsExpandWithoutMCPs: Story = {
  */
 export const ModelExpandsWhileBadgesOverflow: Story = {
 	args: {
-		model: {
-			...defaultModel,
-			selectedModel: "model-long",
-			modelOptions: [
-				{
-					id: "model-long",
-					provider: "anthropic",
-					model: "claude-sonnet-4-5",
-					displayName: "Claude Sonnet 4.5",
-				},
-			],
-		},
+		model: LongLabelsExpandWithoutMCPs.args?.model,
 		tools: {
 			...mcpDefaults,
 			mcp: {
