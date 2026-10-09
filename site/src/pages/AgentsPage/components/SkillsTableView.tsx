@@ -116,6 +116,10 @@ export type SkillsTableViewProps = {
 	onView: (name: string) => void;
 	onDelete: (skill: SkillMetadata) => void;
 	onDownload: (skill: SkillMetadata) => void;
+	onManagePermissions?: (
+		skill: SkillMetadata,
+		onCloseAutoFocus: (event: Event) => void,
+	) => void;
 	onExportAll: () => void;
 	onToggleEnabled: (skill: SkillMetadata, enabled: boolean) => void;
 	downloadingSkillName?: string;
@@ -422,6 +426,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	onView,
 	onDelete,
 	onDownload,
+	onManagePermissions,
 	onExportAll,
 	onToggleEnabled,
 	downloadingSkillName,
@@ -627,6 +632,15 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 											>
 												Download
 											</DropdownMenuItem>
+											{onManagePermissions && (
+												<DropdownMenuItem
+													onClick={() =>
+														onManagePermissions(skill, restoreDialogFocus)
+													}
+												>
+													Manage permissions
+												</DropdownMenuItem>
+											)}
 											{canEdit ? (
 												<>
 													<DropdownMenuItem onClick={() => onEdit(skill.name)}>

@@ -1,14 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { spyOn, within } from "storybook/test";
+import { screen, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { skillsKey } from "#/api/queries/skills";
 import {
 	MockDefaultOrganization,
+	MockGroup,
 	MockNoOrganizationPermissions,
 	MockOrganization2,
 	MockOrganizationPermissions,
+	MockOrganizationSkillACL,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -29,6 +31,14 @@ const mockDisabledSkill = {
 };
 
 const mockOrganizationSkills = [...MockSkills, mockDisabledSkill];
+
+const openFirstRowMenu = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	const [menuButton] = await canvas.findAllByRole("button", {
+		name: "Open menu",
+	});
+	await userEvent.click(menuButton);
+};
 
 const meta = {
 	title: "pages/AISettingsPage/SkillsPage",
@@ -87,6 +97,38 @@ export const OrganizationAuditor: Story = {
 				data: mockOrganizationSkills,
 			},
 		],
+	},
+};
+
+export const OrganizationAdminRowMenu: Story = {
+	parameters: OrganizationAdmin.parameters,
+	play: async ({ canvasElement }) => {
+		await openFirstRowMenu(canvasElement);
+	},
+};
+
+export const OrganizationAuditorRowMenu: Story = {
+	parameters: OrganizationAuditor.parameters,
+	play: async ({ canvasElement }) => {
+		await openFirstRowMenu(canvasElement);
+	},
+};
+
+export const ManagePermissions: Story = {
+	parameters: OrganizationAdmin.parameters,
+	beforeEach: () => {
+		spyOn(API.experimental, "getOrganizationSkillACL").mockResolvedValue(
+			MockOrganizationSkillACL,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await openFirstRowMenu(canvasElement);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Manage permissions" }),
+		);
+		await screen.findByRole("button", {
+			name: `Remove ${MockGroup.display_name}`,
+		});
 	},
 };
 
