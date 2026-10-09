@@ -9,7 +9,6 @@ import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	getAgentBrowserApp,
 	isWorkspaceAppEmbeddable,
@@ -19,9 +18,9 @@ import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import { findWorkspaceAgent } from "#/utils/workspace";
-import {
-	AgentChatInput,
-	type ChatMessageInputRef,
+import type {
+	AttachedWorkspaceInfo,
+	ChatMessageInputRef,
 } from "./components/AgentChatInput";
 import {
 	ChatConversationSkeleton,
@@ -36,8 +35,7 @@ import {
 
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
-import type { SendChatMessageOptions } from "./components/ChatPageContent";
-import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
+import { ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
 import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
@@ -78,22 +76,11 @@ type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 type EditingState = {
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
-	editorInitialValue: string;
-	initialEditorState: string | undefined;
-	remountKey: number;
 	editingMessageId: number | null;
-	editingFileBlocks: readonly ChatMessagePart[];
 	handleEditUserMessage: (
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
-	) => void;
-	handleCancelHistoryEdit: () => void;
-	handleSendFromInput: (options: SendChatMessageOptions) => void;
-	handleContentChange: (
-		content: string,
-		serializedEditorState: string,
-		hasFileReferences: boolean,
 	) => void;
 };
 
@@ -111,31 +98,13 @@ type AgentChatPageViewProps = {
 	// Editing state.
 	editing: EditingState;
 
-	// Model/input configuration.
-	effectiveSelectedModel: string;
-	setSelectedModel: (model: string) => void;
-	modelOptions: readonly ModelSelectorOption[];
-	models: readonly TypesGen.ChatModel[] | undefined;
-	modelSelectorPlaceholder: string;
-	modelSelectorHelp?: React.ReactNode;
+	renderComposer: (presentation: {
+		attachedWorkspace?: AttachedWorkspaceInfo;
+		folder?: string;
+	}) => React.ReactNode;
+	canSubmitChatTurn: boolean;
 	modelCatalogError?: unknown;
 	unavailableModelNotice?: string;
-	reasoningEffort?: string;
-	onReasoningEffortChange: (value: string) => void;
-	canConfigureAgentSetup: boolean;
-	providerCount?: number;
-	modelCount?: number;
-	unsupportedProviderNames: readonly string[];
-	aiGatewayDisabled?: boolean;
-	hasModelOptions: boolean;
-	isModelCatalogLoading: boolean;
-	onPlanModeToggle: (enabled: boolean) => void;
-	onManageAutomationsToggle?: (enabled: boolean) => void;
-	isInputDisabled: boolean;
-	isSubmissionPending: boolean;
-	isInterruptPending: boolean;
-	onWorkspaceChange?: (workspaceId: string | null) => void;
-	isWorkspaceLoading: boolean;
 
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
@@ -155,11 +124,6 @@ type AgentChatPageViewProps = {
 	// Workspace action handlers.
 	sshCommand: string | undefined;
 
-	// Chat action handlers.
-	handleInterrupt: () => void;
-	handleDeleteQueuedMessage: (id: number) => Promise<void>;
-	handlePromoteQueuedMessage: (id: number) => Promise<void>;
-
 	onImplementPlan: () => Promise<void> | void;
 	onSendAskUserQuestionResponse: (message: string) => Promise<void> | void;
 
@@ -174,9 +138,6 @@ type AgentChatPageViewProps = {
 
 	// MCP server state.
 	mcpServers: readonly TypesGen.MCPServerConfig[];
-	selectedMCPServerIds: readonly string[];
-	onMCPSelectionChange: (ids: string[]) => void;
-	onMCPAuthComplete: (serverId: string) => void;
 
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
@@ -275,38 +236,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	store,
 	initialMessages,
 	editing,
-	effectiveSelectedModel,
-	setSelectedModel,
-	modelOptions,
-	models,
-	modelSelectorPlaceholder,
-	modelSelectorHelp,
+	renderComposer,
+	canSubmitChatTurn,
 	modelCatalogError,
 	unavailableModelNotice,
-	reasoningEffort,
-	onReasoningEffortChange,
-	canConfigureAgentSetup,
-	providerCount,
-	modelCount,
-	unsupportedProviderNames,
-	aiGatewayDisabled,
-	hasModelOptions,
-	isModelCatalogLoading,
-	onPlanModeToggle,
-	onManageAutomationsToggle,
-	isInputDisabled,
-	isSubmissionPending,
-	isInterruptPending,
-	onWorkspaceChange,
-	isWorkspaceLoading,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	debugLoggingEnabled,
 	gitWatcher,
-	sshCommand,
-	handleInterrupt,
-	handleDeleteQueuedMessage,
-	handlePromoteQueuedMessage,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
 	hasMoreMessages,
@@ -316,9 +253,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	onFetchMoreMessages,
 	urlTransform,
 	mcpServers,
-	selectedMCPServerIds,
-	onMCPSelectionChange,
-	onMCPAuthComplete,
 	desktopChatId,
 }) => {
 	const queryClient = useQueryClient();
@@ -331,8 +265,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
-
-	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
@@ -796,8 +728,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		};
 	});
 
-	const isEditing = editing.editingMessageId !== null;
-
 	const chatOwnerUsername = chat.owner_username?.trim();
 	const chatOwnerLabel =
 		chat.owner_name?.trim() ||
@@ -936,54 +866,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							/>
 							{!isArchived && (
 								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
-									<ChatPageInput
-										chat={chat}
-										store={store}
-										models={models}
-										onSend={editing.handleSendFromInput}
-										onDeleteQueuedMessage={handleDeleteQueuedMessage}
-										onPromoteQueuedMessage={handlePromoteQueuedMessage}
-										onInterrupt={handleInterrupt}
-										isInputDisabled={isInputDisabled}
-										isReadOnly={isOtherUserReadOnly}
-										isSendPending={isSubmissionPending}
-										isInterruptPending={isInterruptPending}
-										hasModelOptions={hasModelOptions}
-										canConfigureAgentSetup={canConfigureAgentSetup}
-										providerCount={providerCount}
-										modelCount={modelCount}
-										unsupportedProviderNames={unsupportedProviderNames}
-										aiGatewayDisabled={aiGatewayDisabled}
-										selectedModel={effectiveSelectedModel}
-										onModelChange={setSelectedModel}
-										modelOptions={modelOptions}
-										modelSelectorPlaceholder={modelSelectorPlaceholder}
-										modelSelectorHelp={modelSelectorHelp}
-										reasoningEffort={reasoningEffort}
-										onReasoningEffortChange={onReasoningEffortChange}
-										onPlanModeToggle={onPlanModeToggle}
-										onManageAutomationsToggle={onManageAutomationsToggle}
-										isModelCatalogLoading={isModelCatalogLoading}
-										onWorkspaceChange={onWorkspaceChange}
-										isWorkspaceLoading={isWorkspaceLoading}
-										inputRef={editing.chatInputRef}
-										initialValue={editing.editorInitialValue}
-										initialEditorState={editing.initialEditorState}
-										remountKey={editing.remountKey}
-										onContentChange={editing.handleContentChange}
-										isEditing={isEditing}
-										onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-										editingFileBlocks={editing.editingFileBlocks}
-										mcpServers={mcpServers}
-										selectedMCPServerIds={selectedMCPServerIds}
-										onMCPSelectionChange={onMCPSelectionChange}
-										onMCPAuthComplete={onMCPAuthComplete}
-										workspace={workspace}
-										workspaceAgent={workspaceAgent}
-										sshCommand={sshCommand}
-										attachedWorkspace={attachedWorkspace}
-										folder={preferredFolder}
-									/>
+									{renderComposer({
+										attachedWorkspace,
+										folder: preferredFolder,
+									})}
 								</div>
 							)}
 						</div>
@@ -1029,46 +915,13 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 };
 
 type AgentChatPageLoadingViewProps = {
-	inputRef: React.RefObject<ChatMessageInputRef | null>;
-	initialValue: string;
-	initialEditorState: string | undefined;
-	remountKey: number;
-	onContentChange: (
-		content: string,
-		serializedEditorState: string,
-		hasFileReferences: boolean,
-	) => void;
-	isInputDisabled: boolean;
-	effectiveSelectedModel: string;
-	setSelectedModel: (model: string) => void;
-	modelOptions: readonly ModelSelectorOption[];
-	modelSelectorPlaceholder: string;
-	hasModelOptions: boolean;
-	isModelCatalogLoading: boolean;
-	planModeEnabled: boolean;
-	onPlanModeToggle: (enabled: boolean) => void;
+	composer: React.ReactNode;
 	showRightPanel: boolean;
 };
 
 export const AgentChatPageLoadingView: React.FC<
 	AgentChatPageLoadingViewProps
-> = ({
-	inputRef,
-	initialValue,
-	initialEditorState,
-	remountKey,
-	onContentChange,
-	isInputDisabled,
-	effectiveSelectedModel,
-	setSelectedModel,
-	modelOptions,
-	modelSelectorPlaceholder,
-	hasModelOptions,
-	isModelCatalogLoading,
-	planModeEnabled,
-	onPlanModeToggle,
-	showRightPanel,
-}) => {
+> = ({ composer, showRightPanel }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	return (
 		<div
@@ -1097,25 +950,7 @@ export const AgentChatPageLoadingView: React.FC<
 					</div>
 				</div>
 				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
-					<AgentChatInput
-						onSend={() => {}}
-						inputRef={inputRef}
-						initialValue={initialValue}
-						initialEditorState={initialEditorState}
-						remountKey={remountKey}
-						onContentChange={onContentChange}
-						isDisabled={isInputDisabled}
-						isLoading={false}
-						selectedModel={effectiveSelectedModel}
-						onModelChange={setSelectedModel}
-						modelOptions={modelOptions}
-						modelSelectorPlaceholder={modelSelectorPlaceholder}
-						planModeEnabled={planModeEnabled}
-						onPlanModeToggle={onPlanModeToggle}
-						isModelCatalogLoading={isModelCatalogLoading}
-						hasModelOptions={hasModelOptions}
-						canConfigureAgentSetup={false}
-					/>
+					{composer}
 				</div>{" "}
 			</div>
 			{showRightPanel && (

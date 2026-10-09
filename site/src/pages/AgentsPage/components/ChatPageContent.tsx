@@ -41,12 +41,12 @@ import {
 } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
-	AgentChatInput,
 	type AttachedWorkspaceInfo,
 	type ChatMessageInputRef,
 	isUploadInProgress,
 	type UploadState,
 } from "./AgentChatInput";
+import { ChatComposer } from "./AgentComposers";
 import type { ChatAutomationNames } from "./ChatConversation/AutomationLabel";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
@@ -743,158 +743,173 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	};
 
 	const inputElement = (
-		<AgentChatInput
-			onSend={(message) => {
-				void (async () => {
-					const hasActiveUploads =
-						attachments.some((file) =>
-							isUploadInProgress(uploadStates.get(file)),
-						) || visibleWorkspaceUploads.some(isWorkspaceUploadInProgress);
-					if (hasActiveUploads) {
-						toast.warning("Wait for file uploads to finish before sending.");
-						return;
-					}
-					// Collect uploaded attachment metadata for the optimistic
-					// transcript builder while keeping the server payload
-					// shape unchanged downstream.
-					const pendingAttachments: PendingAttachment[] = [];
-					let skippedErrors = 0;
-					for (const file of attachments) {
-						const state = uploadStates.get(file);
-						if (state?.status === "error") {
-							skippedErrors++;
-							continue;
+		<ChatComposer
+			bindings={{
+				onSend: (message) => {
+					void (async () => {
+						const hasActiveUploads =
+							attachments.some((file) =>
+								isUploadInProgress(uploadStates.get(file)),
+							) || visibleWorkspaceUploads.some(isWorkspaceUploadInProgress);
+						if (hasActiveUploads) {
+							toast.warning("Wait for file uploads to finish before sending.");
+							return;
 						}
-						if (state?.status === "uploaded" && state.fileId) {
-							pendingAttachments.push({
-								fileId: state.fileId,
-								mediaType: file.type || "application/octet-stream",
+						// Collect uploaded attachment metadata for the optimistic
+						// transcript builder while keeping the server payload
+						// shape unchanged downstream.
+						const pendingAttachments: PendingAttachment[] = [];
+						let skippedErrors = 0;
+						for (const file of attachments) {
+							const state = uploadStates.get(file);
+							if (state?.status === "error") {
+								skippedErrors++;
+								continue;
+							}
+							if (state?.status === "uploaded" && state.fileId) {
+								pendingAttachments.push({
+									fileId: state.fileId,
+									mediaType: file.type || "application/octet-stream",
+								});
+							}
+						}
+						const pendingWorkspaceUploads: PendingWorkspaceUpload[] = [];
+						let skippedWorkspaceErrors = 0;
+						for (const upload of visibleWorkspaceUploads) {
+							if (upload.status === "error") {
+								skippedWorkspaceErrors++;
+								continue;
+							}
+							if (upload.status === "uploaded" && upload.response) {
+								pendingWorkspaceUploads.push({
+									path: upload.response.path,
+									name: upload.response.name,
+									size: upload.response.size,
+									mediaType: upload.response.media_type,
+									workspaceId: upload.response.workspace_id,
+								});
+							}
+						}
+						if (skippedErrors > 0) {
+							toast.warning(
+								`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+							);
+						}
+						if (skippedWorkspaceErrors > 0) {
+							toast.warning(
+								`${skippedWorkspaceErrors} workspace file${skippedWorkspaceErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+							);
+						}
+						const attachmentsArg =
+							pendingAttachments.length > 0 ? pendingAttachments : undefined;
+						const workspaceUploadsArg =
+							pendingWorkspaceUploads.length > 0
+								? pendingWorkspaceUploads
+								: undefined;
+						try {
+							await onSend({
+								message,
+								attachments: attachmentsArg,
+								workspaceUploads: workspaceUploadsArg,
 							});
+						} catch {
+							// Attachments preserved for retry on failure.
+							return;
 						}
-					}
-					const pendingWorkspaceUploads: PendingWorkspaceUpload[] = [];
-					let skippedWorkspaceErrors = 0;
-					for (const upload of visibleWorkspaceUploads) {
-						if (upload.status === "error") {
-							skippedWorkspaceErrors++;
-							continue;
+						if (isEditing) {
+							editAttachments.resetAttachments();
+							resetEditWorkspaceUploads();
+							setPreservedWorkspaceUploads([]);
+						} else {
+							composeAttachments.resetAttachments();
+							composeWorkspaceUploads.reset();
 						}
-						if (upload.status === "uploaded" && upload.response) {
-							pendingWorkspaceUploads.push({
-								path: upload.response.path,
-								name: upload.response.name,
-								size: upload.response.size,
-								mediaType: upload.response.media_type,
-								workspaceId: upload.response.workspace_id,
-							});
-						}
-					}
-					if (skippedErrors > 0) {
-						toast.warning(
-							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-						);
-					}
-					if (skippedWorkspaceErrors > 0) {
-						toast.warning(
-							`${skippedWorkspaceErrors} workspace file${skippedWorkspaceErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-						);
-					}
-					const attachmentsArg =
-						pendingAttachments.length > 0 ? pendingAttachments : undefined;
-					const workspaceUploadsArg =
-						pendingWorkspaceUploads.length > 0
-							? pendingWorkspaceUploads
-							: undefined;
-					try {
-						await onSend({
-							message,
-							attachments: attachmentsArg,
-							workspaceUploads: workspaceUploadsArg,
-						});
-					} catch {
-						// Attachments preserved for retry on failure.
-						return;
-					}
-					if (isEditing) {
-						editAttachments.resetAttachments();
-						resetEditWorkspaceUploads();
-						setPreservedWorkspaceUploads([]);
-					} else {
-						composeAttachments.resetAttachments();
-						composeWorkspaceUploads.reset();
-					}
-				})();
+					})();
+				},
+				attachments,
+				onAttach: handleAttach,
+				onRemoveAttachment: handleRemoveAttachment,
+				uploadStates,
+				previewUrls,
+				textContents,
+				workspaceUploads: {
+					uploads: visibleWorkspaceUploads,
+					onAttach: canUploadWorkspaceFiles
+						? modeWorkspaceUploads.attach
+						: undefined,
+					onRemove: handleRemoveWorkspaceUpload,
+				},
+				inputRef,
+				initialValue,
+				initialEditorState,
+				remountKey,
+				onContentChange,
+				queuedMessages,
+				onPromoteQueuedMessage,
+				isEditingHistoryMessage: isEditing,
+				onCancelHistoryEdit,
+				userPromptHistory,
+				isDisabled: isInputDisabled,
+				isReadOnly,
+				isLoading: isSendPending,
+				isStreaming,
+				onInterrupt,
+				isInterruptPending: isInterruptPending || chatStatus === "interrupting",
+				hasModelOptions,
 			}}
-			attachments={attachments}
-			onAttach={handleAttach}
-			onRemoveAttachment={handleRemoveAttachment}
-			uploadStates={uploadStates}
-			previewUrls={previewUrls}
-			textContents={textContents}
-			workspaceUploads={{
-				uploads: visibleWorkspaceUploads,
-				onAttach: canUploadWorkspaceFiles
-					? modeWorkspaceUploads.attach
-					: undefined,
-				onRemove: handleRemoveWorkspaceUpload,
+			queue={{
+				messages: queuedMessages,
+				automationNames,
+				onDelete: onDeleteQueuedMessage,
+				onPromote: onPromoteQueuedMessage,
 			}}
-			inputRef={inputRef}
-			initialValue={initialValue}
-			initialEditorState={initialEditorState}
-			remountKey={remountKey}
-			onContentChange={onContentChange}
-			queuedMessages={queuedMessages}
-			automationNames={automationNames}
-			onDeleteQueuedMessage={onDeleteQueuedMessage}
-			onPromoteQueuedMessage={onPromoteQueuedMessage}
-			isEditingHistoryMessage={isEditing}
-			onCancelHistoryEdit={onCancelHistoryEdit}
-			userPromptHistory={userPromptHistory}
-			isDisabled={isInputDisabled}
-			isReadOnly={isReadOnly}
-			isLoading={isSendPending}
-			isStreaming={isStreaming}
-			onInterrupt={onInterrupt}
-			isInterruptPending={isInterruptPending || chatStatus === "interrupting"}
-			contextUsage={latestContextUsage}
-			onRefreshContext={handleRefreshContext}
-			isRefreshingContext={refreshContextMutation.isPending}
-			hasModelOptions={hasModelOptions}
-			selectedModel={selectedModel}
-			onModelChange={onModelChange}
-			modelOptions={modelOptions}
-			modelSelectorPlaceholder={modelSelectorPlaceholder}
-			reasoningEffort={reasoningEffort}
-			onReasoningEffortChange={onReasoningEffortChange}
-			planModeEnabled={planModeEnabled}
-			onPlanModeToggle={onPlanModeToggle}
-			manageAutomationsEnabled={chat.manage_automations_enabled}
-			onManageAutomationsToggle={onManageAutomationsToggle}
-			isModelCatalogLoading={isModelCatalogLoading}
-			workspaceOptions={workspaceOptions}
-			chatOrganizationId={organizationId}
-			selectedWorkspaceId={selectedWorkspaceId}
-			onWorkspaceChange={onWorkspaceChange}
-			isWorkspaceLoading={workspacesQuery.isLoading || isWorkspaceLoading}
-			mcpServers={mcpServers}
-			selectedMCPServerIds={selectedMCPServerIds}
-			onMCPSelectionChange={onMCPSelectionChange}
-			onMCPAuthComplete={onMCPAuthComplete}
-			workspaceSkills={workspaceSkills}
-			workspace={workspace}
-			workspaceAgent={workspaceAgent}
-			chatId={chatId}
-			sshCommand={sshCommand}
-			attachedWorkspace={attachedWorkspace}
-			folder={folder}
-			canConfigureAgentSetup={canConfigureAgentSetup}
-			providerCount={providerCount}
-			modelCount={modelCount}
-			unsupportedProviderNames={unsupportedProviderNames}
-			aiGatewayDisabled={aiGatewayDisabled}
-			// Commands act on the whole chat, so they only make sense
-			// for new sends: hide them while editing a history message.
-			slashCommands={isEditing ? undefined : CHAT_SLASH_COMMANDS}
+			context={{
+				usage: latestContextUsage,
+				onRefreshContext: handleRefreshContext,
+				isRefreshingContext: refreshContextMutation.isPending,
+			}}
+			options={{
+				isDisabled: isInputDisabled,
+				selectedModel,
+				onModelChange,
+				modelOptions,
+				modelSelectorPlaceholder,
+				reasoningEffort,
+				onReasoningEffortChange,
+				planModeEnabled,
+				onPlanModeToggle,
+				manageAutomationsEnabled: chat.manage_automations_enabled,
+				onManageAutomationsToggle,
+				isModelCatalogLoading,
+				workspaceOptions,
+				chatOrganizationId: organizationId,
+				selectedWorkspaceId,
+				onWorkspaceChange,
+				isWorkspaceLoading: workspacesQuery.isLoading || isWorkspaceLoading,
+				mcpServers,
+				selectedMCPServerIds,
+				onMCPSelectionChange,
+				onMCPAuthComplete,
+				workspace,
+				workspaceAgent,
+				chatId,
+				sshCommand,
+				attachedWorkspace,
+				folder,
+			}}
+			setup={{
+				canConfigureAgentSetup,
+				providerCount,
+				modelCount,
+				unsupportedProviderNames,
+				aiGatewayDisabled,
+			}}
+			editor={{
+				workspaceSkills,
+				hasWorkspace: Boolean(attachedWorkspace?.id ?? workspace?.id),
+				// Commands act on the whole chat, not an edited history message.
+				slashCommands: isEditing ? undefined : CHAT_SLASH_COMMANDS,
+			}}
 		/>
 	);
 

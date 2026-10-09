@@ -55,6 +55,7 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { LoadingChatComposer } from "./components/AgentComposers";
 import { useAutomationsEnabled } from "./components/Automations/automationsFlag";
 import {
 	type ChatDetailError,
@@ -73,7 +74,10 @@ import { submitChatTurn } from "./components/ChatConversation/submitChatTurn";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
-import { workspaceSkillsFromChat } from "./components/ChatPageContent";
+import {
+	ChatPageInput,
+	workspaceSkillsFromChat,
+} from "./components/ChatPageContent";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
 import {
@@ -720,22 +724,32 @@ const AgentChatPage: React.FC = () => {
 			chatMessagesQuery.isLoading ||
 			isWaitingForPreferences ? (
 				<AgentChatPageLoadingView
-					inputRef={editing.chatInputRef}
-					initialValue={editing.editorInitialValue}
-					initialEditorState={editing.initialEditorState}
-					remountKey={editing.remountKey}
-					onContentChange={editing.handleLoadingDraftChange}
-					// The loading view drops sends, so keep the composer disabled
-					// until the transcript can mount.
-					isInputDisabled={isInputDisabled || preferencesQuery.isLoading}
-					effectiveSelectedModel={effectiveSelectedModel}
-					setSelectedModel={setSelectedModel}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					hasModelOptions={hasModelOptions}
-					isModelCatalogLoading={isModelDataPending}
-					planModeEnabled={planModeEnabled}
-					onPlanModeToggle={handlePlanModeToggle}
+					composer={
+						<LoadingChatComposer
+							bindings={{
+								onSend: () => {},
+								inputRef: editing.chatInputRef,
+								initialValue: editing.editorInitialValue,
+								initialEditorState: editing.initialEditorState,
+								remountKey: editing.remountKey,
+								onContentChange: editing.handleLoadingDraftChange,
+								// Keep sends disabled until the transcript can mount.
+								isDisabled: isInputDisabled || preferencesQuery.isLoading,
+								isLoading: false,
+								hasModelOptions,
+							}}
+							options={{
+								isDisabled: isInputDisabled || preferencesQuery.isLoading,
+								selectedModel: effectiveSelectedModel,
+								onModelChange: setSelectedModel,
+								modelOptions,
+								modelSelectorPlaceholder,
+								isModelCatalogLoading: isModelDataPending,
+								planModeEnabled,
+								onPlanModeToggle: handlePlanModeToggle,
+							}}
+						/>
+					}
 					showRightPanel={showSidebarPanel}
 				/>
 			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
@@ -769,59 +783,88 @@ const AgentChatPage: React.FC = () => {
 					workspaceAgent={workspaceAgent}
 					store={store}
 					initialMessages={chatMessagesList ?? []}
-					editing={{ ...editing, handleEditUserMessage }}
-					effectiveSelectedModel={effectiveSelectedModel}
-					setSelectedModel={setSelectedModel}
-					modelOptions={modelOptions}
-					models={modelCatalog?.models}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					modelSelectorHelp={modelSelectorHelp}
+					editing={{
+						chatInputRef: editing.chatInputRef,
+						editingMessageId: editing.editingMessageId,
+						handleEditUserMessage,
+					}}
+					renderComposer={({ attachedWorkspace, folder }) => (
+						<ChatPageInput
+							chat={chat}
+							store={store}
+							models={modelCatalog?.models}
+							onSend={editing.handleSendFromInput}
+							onDeleteQueuedMessage={handleDeleteQueuedMessage}
+							onPromoteQueuedMessage={handlePromoteQueuedMessage}
+							onInterrupt={handleInterrupt}
+							isInputDisabled={isInputDisabled}
+							isReadOnly={!chat.archived && currentUser.id !== chat.owner_id}
+							isSendPending={isSubmissionPending}
+							isInterruptPending={isInterruptPending}
+							hasModelOptions={hasModelOptions}
+							canConfigureAgentSetup={permissions.editDeploymentConfig}
+							providerCount={providerCount}
+							modelCount={modelCount}
+							unsupportedProviderNames={unsupportedProviderNames}
+							aiGatewayDisabled={aiGatewayDisabled}
+							selectedModel={effectiveSelectedModel}
+							onModelChange={setSelectedModel}
+							modelOptions={modelOptions}
+							modelSelectorPlaceholder={modelSelectorPlaceholder}
+							modelSelectorHelp={modelSelectorHelp}
+							reasoningEffort={effectiveReasoningEffort}
+							onReasoningEffortChange={(value) => {
+								setSelectedReasoningEffort(value);
+								if (editing.editingMessageId !== null) {
+									isEditReasoningEffortDirtyRef.current = true;
+								}
+							}}
+							onPlanModeToggle={handlePlanModeToggle}
+							onManageAutomationsToggle={
+								canToggleManageAutomations({
+									chat,
+									viewerId: currentUser.id,
+									automationsExperimentEnabled,
+								})
+									? (enabled) =>
+											updateChatManageAutomationsMutate({
+												chatId: agentId,
+												enabled,
+											})
+									: undefined
+							}
+							isModelCatalogLoading={isModelDataPending}
+							onWorkspaceChange={
+								canUpdateChatWorkspace ? handleWorkspaceChange : undefined
+							}
+							isWorkspaceLoading={isUpdateChatWorkspacePending}
+							inputRef={editing.chatInputRef}
+							initialValue={editing.editorInitialValue}
+							initialEditorState={editing.initialEditorState}
+							remountKey={editing.remountKey}
+							onContentChange={editing.handleContentChange}
+							isEditing={editing.editingMessageId !== null}
+							onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+							editingFileBlocks={editing.editingFileBlocks}
+							mcpServers={mcpServers}
+							selectedMCPServerIds={effectiveMCPServerIds}
+							onMCPSelectionChange={handleMCPSelectionChange}
+							onMCPAuthComplete={handleMCPAuthComplete}
+							workspace={workspace}
+							workspaceAgent={workspaceAgent}
+							sshCommand={sshCommand}
+							attachedWorkspace={attachedWorkspace}
+							folder={folder}
+						/>
+					)}
+					canSubmitChatTurn={!isInputDisabled && !isSubmissionPending}
 					modelCatalogError={modelsQuery.error}
 					unavailableModelNotice={unavailableModelNotice}
-					reasoningEffort={effectiveReasoningEffort}
-					onReasoningEffortChange={(value) => {
-						setSelectedReasoningEffort(value);
-						if (editing.editingMessageId !== null) {
-							isEditReasoningEffortDirtyRef.current = true;
-						}
-					}}
-					canConfigureAgentSetup={permissions.editDeploymentConfig}
-					providerCount={providerCount}
-					modelCount={modelCount}
-					unsupportedProviderNames={unsupportedProviderNames}
-					aiGatewayDisabled={aiGatewayDisabled}
-					hasModelOptions={hasModelOptions}
-					isModelCatalogLoading={isModelDataPending}
-					onPlanModeToggle={handlePlanModeToggle}
-					onManageAutomationsToggle={
-						chat &&
-						canToggleManageAutomations({
-							chat,
-							viewerId: currentUser.id,
-							automationsExperimentEnabled,
-						})
-							? (enabled) =>
-									updateChatManageAutomationsMutate({
-										chatId: agentId,
-										enabled,
-									})
-							: undefined
-					}
-					isInputDisabled={isInputDisabled}
-					isSubmissionPending={isSubmissionPending}
-					isInterruptPending={isInterruptPending}
-					onWorkspaceChange={
-						canUpdateChatWorkspace ? handleWorkspaceChange : undefined
-					}
-					isWorkspaceLoading={isUpdateChatWorkspacePending}
 					showSidebarPanel={showSidebarPanel}
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
 					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
 					sshCommand={sshCommand}
-					handleInterrupt={handleInterrupt}
-					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
-					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}
@@ -832,9 +875,6 @@ const AgentChatPage: React.FC = () => {
 					onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
 					desktopChatId={desktopEnabled ? agentId : undefined}
 					mcpServers={mcpServers}
-					selectedMCPServerIds={effectiveMCPServerIds}
-					onMCPSelectionChange={handleMCPSelectionChange}
-					onMCPAuthComplete={handleMCPAuthComplete}
 				/>
 			)}
 		</>

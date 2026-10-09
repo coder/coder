@@ -20,7 +20,7 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatMessagePart } from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
@@ -49,9 +49,10 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import type { ChatDetailError } from "./components/ChatConversation/chatError";
+import { LoadingChatComposer } from "./components/AgentComposers";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import { ChatPageInput } from "./components/ChatPageContent";
 import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
@@ -84,17 +85,37 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	...overrides,
 });
 
+type StoryEditingState = React.ComponentProps<
+	typeof AgentChatPageView
+>["editing"] & {
+	editorInitialValue: React.ComponentProps<
+		typeof ChatPageInput
+	>["initialValue"];
+	initialEditorState: React.ComponentProps<
+		typeof ChatPageInput
+	>["initialEditorState"];
+	remountKey: React.ComponentProps<typeof ChatPageInput>["remountKey"];
+	editingFileBlocks: React.ComponentProps<
+		typeof ChatPageInput
+	>["editingFileBlocks"];
+	handleCancelHistoryEdit: React.ComponentProps<
+		typeof ChatPageInput
+	>["onCancelHistoryEdit"];
+	handleSendFromInput: React.ComponentProps<typeof ChatPageInput>["onSend"];
+	handleContentChange: React.ComponentProps<
+		typeof ChatPageInput
+	>["onContentChange"];
+};
+
 const buildEditing = (
-	overrides: Partial<
-		React.ComponentProps<typeof AgentChatPageView>["editing"]
-	> = {},
-) => ({
+	overrides: Partial<StoryEditingState> = {},
+): StoryEditingState => ({
 	chatInputRef: { current: null },
 	editorInitialValue: "",
 	initialEditorState: undefined,
 	remountKey: 0,
-	editingMessageId: null as number | null,
-	editingFileBlocks: [] as readonly ChatMessagePart[],
+	editingMessageId: null,
+	editingFileBlocks: [],
 	handleEditUserMessage: fn(),
 	handleCancelHistoryEdit: fn(),
 	handleSendFromInput: fn(),
@@ -156,22 +177,40 @@ const collapsedSidebarRouter = reactRouterParameters({
 type StoryProps = Omit<
 	Partial<React.ComponentProps<typeof AgentChatPageView>>,
 	"editing" | "chat"
-> & {
-	editing?: Partial<React.ComponentProps<typeof AgentChatPageView>["editing"]>;
-	chat?: Partial<TypesGen.Chat>;
-};
+> &
+	Omit<Partial<React.ComponentProps<typeof ChatPageInput>>, "chat"> & {
+		editing?: Partial<StoryEditingState>;
+		chat?: Partial<TypesGen.Chat>;
+		effectiveSelectedModel?: React.ComponentProps<
+			typeof ChatPageInput
+		>["selectedModel"];
+		setSelectedModel?: React.ComponentProps<
+			typeof ChatPageInput
+		>["onModelChange"];
+		isSubmissionPending?: React.ComponentProps<
+			typeof ChatPageInput
+		>["isSendPending"];
+		handleInterrupt?: React.ComponentProps<typeof ChatPageInput>["onInterrupt"];
+		handleDeleteQueuedMessage?: React.ComponentProps<
+			typeof ChatPageInput
+		>["onDeleteQueuedMessage"];
+		handlePromoteQueuedMessage?: React.ComponentProps<
+			typeof ChatPageInput
+		>["onPromoteQueuedMessage"];
+	};
 
 const StoryAgentChatPageView: React.FC<StoryProps> = ({
 	editing,
 	chat,
 	...overrides
 }) => {
+	const { user: currentUser } = useAuthenticated();
 	const [defaultStore] = useState(() => createChatStore());
 	const store = overrides.store ?? defaultStore;
 
 	const props = {
 		chat: buildChat(chat),
-		persistedError: undefined as ChatDetailError | undefined,
+		persistedError: undefined,
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -185,7 +224,7 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		onSetShowSidebarPanel: fn(),
 		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
-		sshCommand: undefined as string | undefined,
+		sshCommand: undefined,
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
@@ -194,12 +233,8 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		isHydratingMessages: false,
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(async () => {}),
-		mcpServers: [] as React.ComponentProps<
-			typeof AgentChatPageView
-		>["mcpServers"],
-		selectedMCPServerIds: [] as React.ComponentProps<
-			typeof AgentChatPageView
-		>["selectedMCPServerIds"],
+		mcpServers: [],
+		selectedMCPServerIds: [],
 		onMCPSelectionChange: fn(),
 		onMCPAuthComplete: fn(),
 		canConfigureAgentSetup: true,
@@ -218,8 +253,178 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		store,
 		editing: buildEditing(editing),
 	};
-	return <AgentChatPageView {...props} />;
+	return (
+		<AgentChatPageView
+			chat={props.chat}
+			persistedError={props.persistedError}
+			workspace={props.workspace}
+			workspaceAgent={props.workspaceAgent}
+			store={props.store}
+			initialMessages={props.initialMessages}
+			editing={props.editing}
+			modelCatalogError={props.modelCatalogError}
+			unavailableModelNotice={props.unavailableModelNotice}
+			showSidebarPanel={props.showSidebarPanel}
+			onSetShowSidebarPanel={props.onSetShowSidebarPanel}
+			debugLoggingEnabled={props.debugLoggingEnabled}
+			gitWatcher={props.gitWatcher}
+			sshCommand={props.sshCommand}
+			onImplementPlan={props.onImplementPlan}
+			onSendAskUserQuestionResponse={props.onSendAskUserQuestionResponse}
+			hasMoreMessages={props.hasMoreMessages}
+			isFetchingMoreMessages={props.isFetchingMoreMessages}
+			isHydratingMessages={props.isHydratingMessages}
+			hasFetchMoreError={props.hasFetchMoreError}
+			onFetchMoreMessages={props.onFetchMoreMessages}
+			urlTransform={props.urlTransform}
+			mcpServers={props.mcpServers}
+			desktopChatId={props.desktopChatId}
+			canSubmitChatTurn={
+				overrides.canSubmitChatTurn ??
+				(!props.isInputDisabled && !props.isSubmissionPending)
+			}
+			renderComposer={
+				overrides.renderComposer ??
+				(({ attachedWorkspace, folder }) => (
+					<ChatPageInput
+						chat={props.chat}
+						store={props.store}
+						models={props.models}
+						isInputDisabled={props.isInputDisabled}
+						isInterruptPending={props.isInterruptPending}
+						hasModelOptions={props.hasModelOptions}
+						canConfigureAgentSetup={props.canConfigureAgentSetup}
+						providerCount={props.providerCount}
+						modelCount={props.modelCount}
+						unsupportedProviderNames={props.unsupportedProviderNames}
+						aiGatewayDisabled={props.aiGatewayDisabled}
+						modelOptions={props.modelOptions}
+						modelSelectorPlaceholder={props.modelSelectorPlaceholder}
+						modelSelectorHelp={props.modelSelectorHelp}
+						reasoningEffort={props.reasoningEffort}
+						onReasoningEffortChange={props.onReasoningEffortChange}
+						onPlanModeToggle={props.onPlanModeToggle}
+						onManageAutomationsToggle={props.onManageAutomationsToggle}
+						isModelCatalogLoading={props.isModelCatalogLoading}
+						onWorkspaceChange={props.onWorkspaceChange}
+						isWorkspaceLoading={props.isWorkspaceLoading}
+						mcpServers={props.mcpServers}
+						selectedMCPServerIds={props.selectedMCPServerIds}
+						onMCPSelectionChange={props.onMCPSelectionChange}
+						onMCPAuthComplete={props.onMCPAuthComplete}
+						workspace={props.workspace}
+						workspaceAgent={props.workspaceAgent}
+						sshCommand={props.sshCommand}
+						onSend={overrides.onSend ?? props.editing.handleSendFromInput}
+						onDeleteQueuedMessage={
+							overrides.onDeleteQueuedMessage ?? props.handleDeleteQueuedMessage
+						}
+						onPromoteQueuedMessage={
+							overrides.onPromoteQueuedMessage ??
+							props.handlePromoteQueuedMessage
+						}
+						onInterrupt={overrides.onInterrupt ?? props.handleInterrupt}
+						isReadOnly={
+							!props.chat.archived && currentUser.id !== props.chat.owner_id
+						}
+						isSendPending={overrides.isSendPending ?? props.isSubmissionPending}
+						selectedModel={
+							overrides.selectedModel ?? props.effectiveSelectedModel
+						}
+						onModelChange={overrides.onModelChange ?? props.setSelectedModel}
+						inputRef={overrides.inputRef ?? props.editing.chatInputRef}
+						initialValue={
+							overrides.initialValue ?? props.editing.editorInitialValue
+						}
+						initialEditorState={
+							overrides.initialEditorState ?? props.editing.initialEditorState
+						}
+						remountKey={overrides.remountKey ?? props.editing.remountKey}
+						onContentChange={
+							overrides.onContentChange ?? props.editing.handleContentChange
+						}
+						isEditing={
+							overrides.isEditing ?? props.editing.editingMessageId !== null
+						}
+						onCancelHistoryEdit={
+							overrides.onCancelHistoryEdit ??
+							props.editing.handleCancelHistoryEdit
+						}
+						editingFileBlocks={
+							overrides.editingFileBlocks ?? props.editing.editingFileBlocks
+						}
+						attachedWorkspace={attachedWorkspace}
+						folder={folder}
+					/>
+				))
+			}
+		/>
+	);
 };
+
+type StoryLoadingProps = Pick<
+	React.ComponentProps<typeof LoadingChatComposer>["bindings"],
+	| "inputRef"
+	| "initialValue"
+	| "initialEditorState"
+	| "remountKey"
+	| "onContentChange"
+	| "hasModelOptions"
+> &
+	Pick<
+		React.ComponentProps<typeof LoadingChatComposer>["options"],
+		| "modelOptions"
+		| "modelSelectorPlaceholder"
+		| "onPlanModeToggle"
+		| "planModeEnabled"
+		| "isModelCatalogLoading"
+	> & {
+		showRightPanel: boolean;
+		isInputDisabled: boolean;
+		effectiveSelectedModel: React.ComponentProps<
+			typeof LoadingChatComposer
+		>["options"]["selectedModel"];
+		setSelectedModel: React.ComponentProps<
+			typeof LoadingChatComposer
+		>["options"]["onModelChange"];
+	};
+
+const StoryAgentChatPageLoadingView: React.FC<StoryLoadingProps> = ({
+	showRightPanel,
+	isInputDisabled,
+	effectiveSelectedModel,
+	setSelectedModel,
+	...inputProps
+}) => (
+	<AgentChatPageLoadingView
+		showRightPanel={showRightPanel}
+		composer={
+			<LoadingChatComposer
+				bindings={{
+					onSend: () => {},
+					inputRef: inputProps.inputRef,
+					initialValue: inputProps.initialValue,
+					initialEditorState: inputProps.initialEditorState,
+					remountKey: inputProps.remountKey,
+					onContentChange: inputProps.onContentChange,
+					isDisabled: isInputDisabled,
+					isLoading: false,
+					hasModelOptions: inputProps.hasModelOptions,
+				}}
+				options={{
+					isDisabled: isInputDisabled,
+					selectedModel: effectiveSelectedModel,
+					onModelChange: setSelectedModel,
+					modelOptions: inputProps.modelOptions,
+					modelSelectorPlaceholder: inputProps.modelSelectorPlaceholder,
+					isModelCatalogLoading: inputProps.isModelCatalogLoading,
+					planModeEnabled: inputProps.planModeEnabled,
+					onPlanModeToggle: inputProps.onPlanModeToggle,
+				}}
+			/>
+		}
+	/>
+);
 
 // ---------------------------------------------------------------------------
 // Meta
@@ -750,7 +955,7 @@ export const WorkspaceNoAgent: Story = {
 /** Default loading state with skeleton placeholders. */
 export const Loading: Story = {
 	render: () => (
-		<AgentChatPageLoadingView
+		<StoryAgentChatPageLoadingView
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -773,7 +978,7 @@ export const Loading: Story = {
 /** Loading state with the model selector populated. */
 export const LoadingWithModelOptions: Story = {
 	render: () => (
-		<AgentChatPageLoadingView
+		<StoryAgentChatPageLoadingView
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -795,7 +1000,7 @@ export const LoadingWithModelOptions: Story = {
 /** Loading state with the right panel pre-opened. */
 export const LoadingWithRightPanel: Story = {
 	render: () => (
-		<AgentChatPageLoadingView
+		<StoryAgentChatPageLoadingView
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}
@@ -819,7 +1024,7 @@ export const LoadingWithRightPanel: Story = {
 export const LoadingSidebarCollapsed: Story = {
 	parameters: { reactRouter: collapsedSidebarRouter },
 	render: () => (
-		<AgentChatPageLoadingView
+		<StoryAgentChatPageLoadingView
 			inputRef={{ current: null }}
 			initialValue=""
 			initialEditorState={undefined}

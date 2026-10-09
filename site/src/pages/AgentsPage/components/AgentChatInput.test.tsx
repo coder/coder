@@ -1,4 +1,5 @@
 import {
+	act,
 	fireEvent,
 	render,
 	screen,
@@ -17,6 +18,7 @@ import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
+import { AgentComposer, useAgentComposer } from "./AgentComposer";
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({ organizations: [] }),
@@ -130,6 +132,40 @@ afterEach(() => {
 });
 
 describe("AgentChatInput", () => {
+	it("shares submission with a sibling outside the visual frame", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+		const SubmitDraft = () => {
+			const { actions } = useAgentComposer();
+			return (
+				<button type="button" onClick={actions.submit}>
+					Submit draft
+				</button>
+			);
+		};
+		renderInput(
+			<AgentComposer.Provider
+				bindings={{
+					onSend,
+					isDisabled: false,
+					isLoading: false,
+					hasModelOptions: true,
+					initialValue: "",
+					onContentChange: vi.fn(),
+				}}
+			>
+				<AgentComposer.Frame>
+					<AgentComposer.Editor hasWorkspace={false} />
+				</AgentComposer.Frame>
+				<SubmitDraft />
+			</AgentComposer.Provider>,
+		);
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("Shared draft");
+		await user.click(screen.getByRole("button", { name: "Submit draft" }));
+		expect(onSend).toHaveBeenCalledExactlyOnceWith("Shared draft");
+	});
+
 	it("fills its container when the page column sets the width", () => {
 		localStorage.removeItem("agents.chat-full-width");
 		const { rerender } = renderInput(<AgentChatInput {...inputProps} />);
@@ -180,6 +216,145 @@ describe("AgentChatInput", () => {
 		});
 		await user.keyboard("{Enter}");
 		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it.each([false, true])(
+		"cycles prompt history and restores the draft without interrupting (streaming: %s)",
+		async (isStreaming) => {
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			const onSend = vi.fn();
+			const onInterrupt = vi.fn();
+			const draft = "   ";
+			renderInput(
+				<AgentChatInput
+					{...inputProps}
+					inputRef={inputRef}
+					onSend={onSend}
+					onInterrupt={onInterrupt}
+					isStreaming={isStreaming}
+					initialValue={draft}
+					userPromptHistory={["Latest prompt", "Older prompt"]}
+				/>,
+			);
+
+			await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+			await waitFor(() => expect(inputRef.current?.getValue()).toBe(draft));
+			await user.keyboard("{ArrowUp}");
+			await waitFor(() =>
+				expect(inputRef.current?.getValue()).toBe("Latest prompt"),
+			);
+			await user.keyboard("{ArrowUp}");
+			await waitFor(() =>
+				expect(inputRef.current?.getValue()).toBe("Older prompt"),
+			);
+			await user.keyboard("{ArrowUp}");
+			expect(inputRef.current?.getValue()).toBe("Older prompt");
+			await user.keyboard("{ArrowDown}");
+			await waitFor(() =>
+				expect(inputRef.current?.getValue()).toBe("Latest prompt"),
+			);
+			await user.keyboard("{ArrowDown}");
+			await waitFor(() => expect(inputRef.current?.getValue()).toBe(draft));
+
+			await user.keyboard("{ArrowUp}");
+			await waitFor(() =>
+				expect(inputRef.current?.getValue()).toBe("Latest prompt"),
+			);
+			await user.keyboard("{Escape}");
+			await waitFor(() => expect(inputRef.current?.getValue()).toBe(draft));
+			expect(onInterrupt).not.toHaveBeenCalled();
+			expect(onSend).not.toHaveBeenCalled();
+
+			await user.keyboard("{Escape}");
+			expect(onInterrupt).toHaveBeenCalledTimes(isStreaming ? 1 : 0);
+		},
+	);
+
+	it("does not replace a non-empty draft with prompt history", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				inputRef={inputRef}
+				onSend={onSend}
+				initialValue="Unfinished draft"
+				userPromptHistory={["Latest prompt"]}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{ArrowUp}{ArrowDown}");
+		expect(inputRef.current?.getValue()).toBe("Unfinished draft");
+		await user.click(screen.getByRole("button", { name: "Send" }));
+		expect(onSend).toHaveBeenCalledWith("Unfinished draft");
+	});
+
+	it("keeps the retained input ref live after restoring file references on remount", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+		const onContentChange =
+			vi.fn<React.ComponentProps<typeof AgentChatInput>["onContentChange"]>();
+		const props = { ...inputProps, inputRef, onSend, onContentChange };
+		const { rerender } = renderInput(
+			<AgentChatInput {...props} remountKey={0} />,
+		);
+		const handle = inputRef.current;
+		const reference = {
+			fileName: "src/main.ts",
+			startLine: 2,
+			endLine: 4,
+			content: "export const answer = 42;",
+		};
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("Review this: ");
+		act(() => handle?.addFileReference(reference));
+		await waitFor(() => {
+			expect(handle?.getContentParts()).toEqual([
+				{ type: "text", text: "Review this: " },
+				{ type: "file-reference", reference },
+			]);
+			expect(onContentChange).toHaveBeenLastCalledWith(
+				expect.any(String),
+				expect.any(String),
+				true,
+			);
+		});
+		const serializedState = onContentChange.mock.lastCall?.[1];
+		if (!serializedState) throw new Error("Expected serialized editor state");
+		act(() => handle?.clear());
+		await waitFor(() => expect(handle?.getContentParts()).toEqual([]));
+
+		rerender(
+			<AppProviders>
+				<AgentChatInput
+					{...props}
+					remountKey={1}
+					initialValue="Plain-text fallback"
+					initialEditorState={serializedState}
+				/>
+			</AppProviders>,
+		);
+		await waitFor(() => {
+			expect(handle?.getContentParts()).toEqual([
+				{ type: "text", text: "Review this: " },
+				{ type: "file-reference", reference },
+			]);
+		});
+
+		act(() => handle?.setValue("Replacement draft"));
+		await waitFor(() => expect(handle?.getValue()).toBe("Replacement draft"));
+		act(() => handle?.focus());
+		await user.paste(" after remount");
+		await waitFor(() =>
+			expect(handle?.getValue()).toBe("Replacement draft after remount"),
+		);
+		await user.click(screen.getByRole("button", { name: "Send" }));
+		expect(onSend).toHaveBeenCalledWith("Replacement draft after remount");
 	});
 
 	it("attaches supported dropped files and reports unsupported ones", () => {
@@ -455,10 +630,13 @@ describe("AgentChatInput", () => {
 		const user = userEvent.setup();
 		const stop = vi.fn();
 		const cancel = vi.fn();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+		const onInterrupt = vi.fn();
 		mockedUseSpeechRecognition.mockReturnValue({
 			isSupported: true,
 			isRecording: true,
-			transcript: "",
+			transcript: "Transcribed draft",
 			error: null,
 			start: vi.fn(),
 			stop,
@@ -467,11 +645,12 @@ describe("AgentChatInput", () => {
 
 		renderInput(
 			<AgentChatInput
-				onSend={vi.fn()}
+				inputRef={inputRef}
+				onSend={onSend}
 				isDisabled={false}
 				isLoading={false}
 				isStreaming
-				onInterrupt={vi.fn()}
+				onInterrupt={onInterrupt}
 				selectedModel={modelOptions[0].id}
 				onModelChange={vi.fn()}
 				modelOptions={modelOptions}
@@ -486,11 +665,15 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("Transcribed draft"),
+		);
 		await user.click(
 			screen.getByRole("button", { name: "Accept voice input" }),
 		);
 		expect(stop).toHaveBeenCalledTimes(1);
+		expect(onSend).not.toHaveBeenCalled();
+		expect(onInterrupt).not.toHaveBeenCalled();
 		await user.click(
 			screen.getByRole("button", { name: "Cancel voice input" }),
 		);
