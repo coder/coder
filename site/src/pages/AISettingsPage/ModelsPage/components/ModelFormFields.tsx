@@ -32,6 +32,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import {
+	disabledControlClassName,
 	GeneralModelConfigFields,
 	ModelConfigFields,
 	PricingEstimateFields,
@@ -285,7 +286,10 @@ export const ModelFormFields: React.FC<{
 							<InputGroupInput
 								id={contextLimitField.id}
 								name={contextLimitField.name}
-								className="min-w-0 placeholder:text-content-disabled"
+								className={cn(
+									"min-w-0 placeholder:text-content-disabled",
+									disabledControlClassName,
+								)}
 								placeholder="200000"
 								value={contextLimitField.value}
 								onChange={contextLimitField.onChange}
@@ -395,6 +399,7 @@ export const ModelFormFields: React.FC<{
 								<InputGroupInput
 									id={compressionThresholdField.id}
 									name={compressionThresholdField.name}
+									className={disabledControlClassName}
 									placeholder="70"
 									value={compressionThresholdField.value}
 									onChange={compressionThresholdField.onChange}

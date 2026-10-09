@@ -59,11 +59,20 @@ const booleanFieldOptions = [
 const unsetSelectValue = "__unset__";
 
 /**
+ * Disabled controls in this form (read-only users, or while saving) render
+ * their text, placeholder, and icons in content-disabled at full opacity
+ * with a faded border, instead of the primitives' mix of opacity-50 and
+ * content-secondary, so every disabled field looks the same.
+ */
+export const disabledControlClassName =
+	"disabled:opacity-100 disabled:text-content-disabled disabled:placeholder:text-content-disabled disabled:border-border/50 disabled:[&_svg]:text-content-disabled";
+
+/**
  * Class names for an InputGroup with a unit suffix such as "tokens". By
- * default a disabled InputGroup and its addon each apply opacity-50, which
- * dims the suffix below content-disabled. These keep the group and addon
- * opaque, fade the border to match a disabled Input, and color the suffix
- * content-disabled. The input keeps its own disabled opacity.
+ * default a disabled InputGroup and its addon each apply opacity-50. These
+ * keep them opaque, fade the border like disabledControlClassName, and color
+ * the suffix content-disabled. Pair with disabledControlClassName on the
+ * input.
  */
 export const unitInputGroupClassName =
 	"has-[input:disabled]:opacity-100 has-[input:disabled]:border-border/50";
@@ -201,7 +210,7 @@ const InputField: React.FC<
 		>
 			<InputGroupInput
 				id={fieldKey}
-				className="min-w-0"
+				className={cn("min-w-0", disabledControlClassName)}
 				placeholder={placeholder}
 				{...fieldProps}
 				disabled={disabled}
@@ -215,7 +224,11 @@ const InputField: React.FC<
 	) : (
 		<Input
 			id={fieldKey}
-			className={cn("min-w-0", fieldError && "border-content-destructive")}
+			className={cn(
+				"min-w-0",
+				disabledControlClassName,
+				fieldError && "border-content-destructive",
+			)}
 			placeholder={placeholder}
 			{...fieldProps}
 			disabled={disabled}
@@ -277,6 +290,7 @@ const SelectField: React.FC<
 					id={fieldKey}
 					className={cn(
 						"min-w-0 shadow-none",
+						disabledControlClassName,
 						fieldError && "border-content-destructive",
 					)}
 					aria-invalid={Boolean(fieldError)}
@@ -361,7 +375,7 @@ const SegmentedField: React.FC<
 								isActive
 									? "rounded bg-surface-tertiary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",
-								disabled && "pointer-events-none opacity-60",
+								disabled && "pointer-events-none text-content-disabled",
 							)}
 							onClick={() => void form.setFieldValue(fieldKey, opt.value)}
 						>
@@ -412,6 +426,7 @@ const JSONField: React.FC<
 				rows={1}
 				className={cn(
 					"min-h-0 resize-y font-mono text-xs leading-tight",
+					disabledControlClassName,
 					showError && "border-content-destructive",
 				)}
 				placeholder={placeholder}
