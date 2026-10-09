@@ -61,8 +61,8 @@ func TestSearchWorkspace(t *testing.T) {
 			Name:  "Name+Param",
 			Query: "workspace-name TEMPLATE:docker",
 			Expected: database.GetWorkspacesParams{
-				Name:         "workspace-name",
-				TemplateName: "docker",
+				Name:          "workspace-name",
+				TemplateNames: []string{"docker"},
 			},
 		},
 		{
@@ -70,7 +70,7 @@ func TestSearchWorkspace(t *testing.T) {
 			Query: "name:workspace-name template:docker OWNER:Alice",
 			Expected: database.GetWorkspacesParams{
 				Name:          "workspace-name",
-				TemplateName:  "docker",
+				TemplateNames: []string{"docker"},
 				OwnerUsername: "alice",
 			},
 		},
@@ -79,7 +79,7 @@ func TestSearchWorkspace(t *testing.T) {
 			Query: `name:workspace-name template:"docker template" owner:alice`,
 			Expected: database.GetWorkspacesParams{
 				Name:          "workspace-name",
-				TemplateName:  "docker template",
+				TemplateNames: []string{"docker template"},
 				OwnerUsername: "alice",
 			},
 		},
@@ -88,8 +88,22 @@ func TestSearchWorkspace(t *testing.T) {
 			Query: `"name":baz "template":foo "owner":bar`,
 			Expected: database.GetWorkspacesParams{
 				Name:          "baz",
-				TemplateName:  "foo",
+				TemplateNames: []string{"foo"},
 				OwnerUsername: "bar",
+			},
+		},
+		{
+			Name:  "MultipleTemplates",
+			Query: "template:docker template:K8s",
+			Expected: database.GetWorkspacesParams{
+				TemplateNames: []string{"docker", "k8s"},
+			},
+		},
+		{
+			Name:  "MultipleTemplatesCSV",
+			Query: "template:docker,k8s",
+			Expected: database.GetWorkspacesParams{
+				TemplateNames: []string{"docker", "k8s"},
 			},
 		},
 		{
@@ -532,21 +546,25 @@ func TestSearchWorkspace(t *testing.T) {
 				}
 				assert.Contains(t, s.String(), c.ExpectedErrorContains)
 			} else {
-				if len(c.Expected.WorkspaceIds) == len(values.WorkspaceIds) {
+				if len(c.Expected.WorkspaceIds) == 0 && len(values.WorkspaceIds) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.WorkspaceIds = values.WorkspaceIds
 				}
-				if len(c.Expected.HasParam) == len(values.HasParam) {
+				if len(c.Expected.HasParam) == 0 && len(values.HasParam) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.HasParam = values.HasParam
 				}
-				if len(c.Expected.HasAgentStatuses) == len(values.HasAgentStatuses) {
+				if len(c.Expected.HasAgentStatuses) == 0 && len(values.HasAgentStatuses) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.HasAgentStatuses = values.HasAgentStatuses
 				}
-				if len(c.Expected.IncludeAgentMetadata) == len(values.IncludeAgentMetadata) {
+				if len(c.Expected.IncludeAgentMetadata) == 0 && len(values.IncludeAgentMetadata) == 0 {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.IncludeAgentMetadata = values.IncludeAgentMetadata
+				}
+				if len(c.Expected.TemplateNames) == 0 && len(values.TemplateNames) == 0 {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.TemplateNames = values.TemplateNames
 				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")

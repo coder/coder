@@ -281,7 +281,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	parser := httpapi.NewQueryParamParser()
 	filter.WorkspaceIds = parser.UUIDs(values, []uuid.UUID{}, "id")
 	filter.OwnerUsername = parser.String(values, "", "owner")
-	filter.TemplateName = parser.String(values, "", "template")
+	filter.TemplateNames = parser.Strings(values, []string{}, "template")
 	filter.Name = parser.String(values, "", "name")
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
 	filter.HasAgentStatuses = parser.Strings(values, []string{}, "has-agent")

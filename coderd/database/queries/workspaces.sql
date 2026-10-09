@@ -263,12 +263,12 @@ WHERE
 			workspaces.owner_id = (SELECT id FROM users WHERE lower(users.username) = lower(@owner_username) AND deleted = false)
 		ELSE true
 	END
-	-- Filter by template_name
+	-- Filter by template_names (lowercase)
 	-- There can be more than 1 template with the same name across organizations.
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
-		WHEN @template_name :: text != '' THEN
-			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name) AND deleted = false)
+		WHEN array_length(@template_names :: text[], 1) > 0 THEN
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = ANY(@template_names) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids

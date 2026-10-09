@@ -42033,12 +42033,12 @@ WHERE
 			workspaces.owner_id = (SELECT id FROM users WHERE lower(users.username) = lower($9) AND deleted = false)
 		ELSE true
 	END
-	-- Filter by template_name
+	-- Filter by template_names (lowercase)
 	-- There can be more than 1 template with the same name across organizations.
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
-		WHEN $10 :: text != '' THEN
-			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($10) AND deleted = false)
+		WHEN array_length($10 :: text[], 1) > 0 THEN
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = ANY($10) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
@@ -42317,7 +42317,7 @@ type GetWorkspacesParams struct {
 	OrganizationID                        uuid.UUID    `db:"organization_id" json:"organization_id"`
 	HasParam                              []string     `db:"has_param" json:"has_param"`
 	OwnerUsername                         string       `db:"owner_username" json:"owner_username"`
-	TemplateName                          string       `db:"template_name" json:"template_name"`
+	TemplateNames                         []string     `db:"template_names" json:"template_names"`
 	TemplateIDs                           []uuid.UUID  `db:"template_ids" json:"template_ids"`
 	WorkspaceIds                          []uuid.UUID  `db:"workspace_ids" json:"workspace_ids"`
 	Name                                  string       `db:"name" json:"name"`
@@ -42397,7 +42397,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.OrganizationID,
 		pq.Array(arg.HasParam),
 		arg.OwnerUsername,
-		arg.TemplateName,
+		pq.Array(arg.TemplateNames),
 		pq.Array(arg.TemplateIDs),
 		pq.Array(arg.WorkspaceIds),
 		arg.Name,
