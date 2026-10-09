@@ -7,11 +7,18 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -268,4 +275,115 @@ func TestSkillOwners(t *testing.T) {
 		require.Equal(t, 1, countSkills(ctx, "project_id", project))
 		require.Equal(t, 0, countSkills(ctx, "project_id", deletedProject))
 	})
+}
+
+func TestOrganizationSkillAuthorization(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	newUser := func(siteRoles []string, orgID uuid.UUID, orgRoles ...string) uuid.UUID {
+		user := dbgen.User(t, db, database.User{RBACRoles: siteRoles})
+		if orgID != uuid.Nil {
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: orgID, Roles: orgRoles})
+		}
+		return user.ID
+	}
+	var (
+		siteOwner      = newUser([]string{rbac.RoleOwner().String()}, uuid.Nil)
+		orgAdmin       = newUser(nil, org.ID, rbac.RoleOrgAdmin())
+		orgAuditor     = newUser(nil, org.ID, rbac.RoleOrgAuditor())
+		member         = newUser(nil, org.ID)
+		groupMember    = newUser(nil, org.ID)
+		grantedMember  = newUser(nil, org.ID)
+		grantedOutside = newUser(nil, uuid.Nil)
+		otherOrgMember = newUser(nil, otherOrg.ID)
+	)
+	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: groupMember, GroupID: group.ID})
+
+	read := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+	orgSkill := func(groupACL, userACL database.ChatACL) database.Skill {
+		return dbgen.OrganizationSkill(t, db, database.Skill{
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+			GroupACL:       groupACL,
+			UserACL:        userACL,
+		})
+	}
+	everyoneSkill := orgSkill(database.ChatACL{org.ID.String(): read}, nil)
+	groupSkill := orgSkill(database.ChatACL{group.ID.String(): read}, nil)
+	userSkill := orgSkill(nil, database.ChatACL{grantedMember.String(): read, grantedOutside.String(): read})
+	privateSkill := orgSkill(nil, nil)
+	dbgen.OrganizationSkill(t, db, database.Skill{
+		OrganizationID: uuid.NullUUID{UUID: otherOrg.ID, Valid: true},
+		GroupACL:       database.ChatACL{otherOrg.ID.String(): read},
+	})
+
+	as := func(userID uuid.UUID) context.Context {
+		subject, _, err := httpmw.UserRBACSubject(ctx, db, userID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		return dbauthz.As(ctx, subject)
+	}
+	all := []uuid.UUID{everyoneSkill.ID, groupSkill.ID, userSkill.ID, privateSkill.ID}
+	for name, tc := range map[string]struct {
+		user uuid.UUID
+		want []uuid.UUID
+	}{
+		"SiteOwner":      {siteOwner, all},
+		"OrgAdmin":       {orgAdmin, all},
+		"OrgAuditor":     {orgAuditor, all},
+		"Member":         {member, []uuid.UUID{everyoneSkill.ID}},
+		"GroupMember":    {groupMember, []uuid.UUID{everyoneSkill.ID, groupSkill.ID}},
+		"GrantedMember":  {grantedMember, []uuid.UUID{everyoneSkill.ID, userSkill.ID}},
+		"GrantedOutside": {grantedOutside, nil},
+		"OtherOrgMember": {otherOrgMember, nil},
+	} {
+		rows, err := authzDB.ListOrganizationSkillMetadataByOrganizationID(as(tc.user), org.ID)
+		require.NoError(t, err, name)
+		got := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			got = append(got, row.ID)
+		}
+		require.ElementsMatch(t, tc.want, got, name)
+	}
+
+	getSkill := func(userID uuid.UUID, skill database.Skill) error {
+		_, err := authzDB.GetOrganizationSkillByOrganizationIDAndName(as(userID), database.GetOrganizationSkillByOrganizationIDAndNameParams{
+			OrganizationID: org.ID,
+			Name:           skill.Name,
+		})
+		return err
+	}
+	require.NoError(t, getSkill(grantedMember, userSkill))
+	require.True(t, dbauthz.IsNotAuthorizedError(getSkill(member, privateSkill)))
+	require.True(t, dbauthz.IsNotAuthorizedError(getSkill(grantedOutside, userSkill)))
+	require.True(t, dbauthz.IsNotAuthorizedError(getSkill(otherOrgMember, everyoneSkill)))
+
+	// A read grant never allows writes.
+	writeAs := func(userID uuid.UUID, skill database.Skill) []error {
+		actor := as(userID)
+		_, insertErr := authzDB.InsertOrganizationSkill(actor, database.InsertOrganizationSkillParams{
+			ID: uuid.New(), OrganizationID: org.ID, Name: "skill-" + uuid.NewString(), Description: "d", Content: "c",
+		})
+		_, updateErr := authzDB.UpdateOrganizationSkillByOrganizationIDAndName(actor, database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
+			OrganizationID: org.ID, Name: skill.Name, Enabled: sql.NullBool{Bool: false, Valid: true},
+		})
+		_, deleteErr := authzDB.DeleteOrganizationSkillByOrganizationIDAndName(actor, database.DeleteOrganizationSkillByOrganizationIDAndNameParams{
+			OrganizationID: org.ID, Name: skill.Name,
+		})
+		return []error{insertErr, updateErr, deleteErr}
+	}
+	for _, err := range writeAs(grantedMember, userSkill) {
+		require.True(t, dbauthz.IsNotAuthorizedError(err), err)
+	}
+	for _, err := range writeAs(orgAdmin, groupSkill) {
+		require.NoError(t, err)
+	}
 }

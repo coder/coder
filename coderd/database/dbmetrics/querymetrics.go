@@ -896,6 +896,14 @@ func (m queryMetricsStore) DeleteOrganizationMember(ctx context.Context, arg dat
 	return r0
 }
 
+func (m queryMetricsStore) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.DeleteOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOrganizationSkillByOrganizationIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOrganizationSkillByOrganizationIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOrganizationSkillByOrganizationIDAndName").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteProvisionerKey(ctx, id)
@@ -2864,6 +2872,14 @@ func (m queryMetricsStore) GetOrganizationResourceCountByID(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.GetOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationSkillByOrganizationIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationSkillByOrganizationIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationSkillByOrganizationIDAndName").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOrganizations(ctx context.Context, arg database.GetOrganizationsParams) ([]database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOrganizations(ctx, arg)
@@ -4640,6 +4656,14 @@ func (m queryMetricsStore) InsertOrganizationMember(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertOrganizationSkill(ctx context.Context, arg database.InsertOrganizationSkillParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertOrganizationSkill(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertOrganizationSkill").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertOrganizationSkill").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertPreset(ctx, arg)
@@ -5093,6 +5117,14 @@ func (m queryMetricsStore) ListOrganizationAISpendUsers(ctx context.Context, arg
 	r0, r1 := m.s.ListOrganizationAISpendUsers(ctx, arg)
 	m.queryLatencies.WithLabelValues("ListOrganizationAISpendUsers").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListOrganizationAISpendUsers").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListOrganizationSkillMetadataByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ListOrganizationSkillMetadataByOrganizationIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListOrganizationSkillMetadataByOrganizationID(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("ListOrganizationSkillMetadataByOrganizationID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListOrganizationSkillMetadataByOrganizationID").Inc()
 	return r0, r1
 }
 
@@ -5887,6 +5919,14 @@ func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, ar
 	m.queryLatencies.WithLabelValues("UpdateOrganizationDeletedByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationDeletedByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.UpdateOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOrganizationSkillByOrganizationIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOrganizationSkillByOrganizationIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationSkillByOrganizationIDAndName").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg database.UpdateOrganizationWorkspaceSharingSettingsParams) (database.Organization, error) {
@@ -7182,5 +7222,13 @@ func (m queryMetricsStore) GetAuthorizedMCPServerConfigs(ctx context.Context, or
 	r0, r1 := m.s.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedMCPServerConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedMCPServerConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedOrganizationSkillMetadata(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.ListOrganizationSkillMetadataByOrganizationIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedOrganizationSkillMetadata(ctx, organizationID, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedOrganizationSkillMetadata").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedOrganizationSkillMetadata").Inc()
 	return r0, r1
 }

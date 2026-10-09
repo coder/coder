@@ -87,6 +87,21 @@ func MCPServerConfigConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
+// OrganizationSkillConverter compiles organization skill authorization into
+// a filter over the skills table.
+func OrganizationSkillConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		sqltypes.StringVarMatcher("skills.organization_id :: text", []string{"input", "object", "org_owner"}),
+		sqltypes.AlwaysFalse(userOwnerMatcher()),
+	)
+	matcher.RegisterMatcher(
+		ACLMappingMatcher(matcher, "skills.group_acl", []string{"input", "object", "acl_group_list"}).UsingSubfield("permissions"),
+		ACLMappingMatcher(matcher, "skills.user_acl", []string{"input", "object", "acl_user_list"}).UsingSubfield("permissions"),
+	)
+	return matcher
+}
+
 func chatBaseConverter() *sqltypes.VariableConverter {
 	return sqltypes.NewVariableConverter().RegisterMatcher(
 		chatResourceIDMatcher(),
