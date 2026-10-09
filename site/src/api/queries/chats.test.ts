@@ -5207,6 +5207,26 @@ describe("message upsert fan-out and history replacement", () => {
 		expect(cachedMessageIDs(queryClient)).toEqual([[4, 3, 2], [1]]);
 	});
 
+	it("drops an older page when a history reset replaced the pages while it loaded", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.getChatMessages).mockReset();
+		seedMessagePages(queryClient, {
+			pages: [messagesPage([3, 2], true)],
+			pageParams: [undefined],
+		});
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockReturnValue(
+			olderPage.promise,
+		);
+
+		const load = loadOlderChatMessages(queryClient, "chat-1");
+		replaceChatMessagesHistory(queryClient, "chat-1", [mockChatMessage(5)]);
+		olderPage.resolve(messagesPage([1]));
+		await load;
+
+		expect(cachedMessageIDs(queryClient)).toEqual([[5]]);
+	});
+
 	it("does not request an older page when there is none", async () => {
 		const queryClient = createTestQueryClient();
 		vi.mocked(API.experimental.getChatMessages).mockReset();

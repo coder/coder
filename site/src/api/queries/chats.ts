@@ -1643,8 +1643,8 @@ export const loadOlderChatMessages = async (
 	}
 	const page = await queryFn({ pageParam: beforeID });
 	patchChatMessages(queryClient, chatId, (current) =>
-		// Drop the page if the cache no longer ends where it was requested,
-		// for example after the cache was removed.
+		// Drop the page if another load appended first or a history reset
+		// replaced the pages; appending it would duplicate or misplace messages.
 		current && nextPageParam(current) === beforeID
 			? {
 					pages: [...current.pages, page],
