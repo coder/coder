@@ -62,7 +62,7 @@ const buildParams = (
 		modelOptions: [pickerModel],
 		effectiveReasoningEffort: undefined,
 		mcpServerIds: ["mcp-1"],
-		editMessage: vi.fn().mockResolvedValue({ message: MockChatMessage }),
+		editMessage: vi.fn().mockResolvedValue(undefined),
 		sendMessage: vi.fn().mockResolvedValue({ queued: false }),
 		onRequestError: vi.fn(),
 		invalidateChat: vi.fn(),
@@ -204,7 +204,7 @@ describe("submitChatTurn", () => {
 			model_config_id: "stale-model",
 			content: [{ type: "text", text: "old" }],
 		};
-		const editMessage = vi.fn().mockResolvedValue({ message: MockChatMessage });
+		const editMessage = vi.fn().mockResolvedValue(undefined);
 		const scrollToEnd = vi.fn();
 		const sendMessage = vi.fn();
 
@@ -327,7 +327,7 @@ describe("submitChatTurn", () => {
 			id: 5,
 			model_config_id: pickerModel.id,
 		};
-		const editMessage = vi.fn().mockResolvedValue({ message: MockChatMessage });
+		const editMessage = vi.fn().mockResolvedValue(undefined);
 		await submitChatTurn(
 			buildParams({
 				message: "new text",

@@ -57,7 +57,7 @@ export type SubmitChatTurnParams = {
 	editMessage: (args: {
 		messageId: number;
 		req: TypesGen.EditChatMessageRequest;
-	}) => Promise<TypesGen.EditChatMessageResponse>;
+	}) => Promise<unknown>;
 	sendMessage: (
 		req: CreateChatMessageRequestWithClearablePlanMode,
 	) => Promise<TypesGen.CreateChatMessageResponse>;
