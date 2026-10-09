@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -23,23 +24,25 @@ type testEnv struct {
 
 func (e testEnv) HomeDir() (string, error) { return e.home, nil }
 
-func newTestManager(t *testing.T) (manager *Manager, configsDirectory string) {
+func newTestManager(t *testing.T, mode fakeHarnessMode) (manager *Manager, directory, configsDirectory string) {
 	t.Helper()
-	home := t.TempDir()
+	home, dir := t.TempDir(), t.TempDir()
 	m := NewManager(context.Background(), Options{
 		Logger:     slogtest.Make(t, nil),
 		Clock:      quartz.NewMock(t),
+		Execer:     agentexec.DefaultExecer,
 		Filesystem: afero.NewOsFs(),
 		EnvInfo:    testEnv{home: home},
+		WorkingDir: func() string { return dir },
 	})
 	t.Cleanup(func() { require.NoError(t, m.Close()) })
 	configDir := filepath.Join(home, ".coder", "acp")
 	require.NoError(t, os.MkdirAll(configDir, 0o700))
-	writeConfig(t, filepath.Join(configDir, "fake.json"), map[string]any{"command": "false"})
+	writeConfig(t, filepath.Join(configDir, "fake.json"), map[string]any{"command": fakeCommand(t, mode)})
 	require.NoError(t, m.Reload(testutil.Context(t, testutil.WaitLong)))
 	require.Len(t, m.Catalog(), 1)
 	require.Empty(t, m.Catalog()[0].Error)
-	return m, configDir
+	return m, dir, configDir
 }
 
 func writeConfig(t *testing.T, path string, value any) {

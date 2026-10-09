@@ -8,6 +8,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -16,6 +17,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	acp "github.com/coder/acp-go-sdk"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -44,10 +47,17 @@ func (m *Manager) catalogLocked() []workspacesdk.ACPHarness {
 	if out == nil {
 		out = []workspacesdk.ACPHarness{}
 	}
+	for i := range out {
+		out[i] = cloneHarness(out[i])
+	}
 	return out
 }
 
-// Reload discovers and validates immediate harness configuration files.
+// Reload discovers immediate configuration files and probes changed harnesses.
+// Failed probes retry on each reload; successful probes stay cached until their
+// configuration, directory, or environment changes. It never prompts a harness.
+// Periodic discovery calls this independently of workspace readiness and context
+// resolution reads only the cached results.
 func (m *Manager) Reload(ctx context.Context) error {
 	m.mu.Lock()
 	if m.closed {
@@ -76,6 +86,26 @@ func (m *Manager) discover(ctx context.Context) error {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
+	// Keep the cache key and all probes on the same snapshot, even if a
+	// manifest update changes the callback's output during discovery.
+	env := m.envInfo.Environ()
+	if m.updateEnv != nil {
+		env, err = m.updateEnv(env)
+		if err != nil {
+			return xerrors.Errorf("prepare ACP environment: %w", err)
+		}
+	}
+	env = normalizeEnv(env)
+	m.mu.Lock()
+	previous := m.configs
+	previousDirectory := m.discoveryDir
+	sameEnvironment := slices.Equal(m.catalogEnv, env)
+	cached := make(map[string]workspacesdk.ACPHarness)
+	for _, h := range m.catalog {
+		cached[h.Slug] = h
+	}
+	m.mu.Unlock()
+	directory := m.workingDir()
 	configs := make(map[string]harnessConfig)
 	hashes := make(map[string][32]byte)
 	catalog := []workspacesdk.ACPHarness{}
@@ -90,7 +120,7 @@ func (m *Manager) discover(ctx context.Context) error {
 		if slug == "" {
 			continue
 		}
-		h := workspacesdk.ACPHarness{Slug: slug, DisplayName: slug}
+		h := workspacesdk.ACPHarness{Slug: slug, DisplayName: slug, ConfigOptions: []workspacesdk.ACPConfigOption{}}
 		raw, readErr := afero.ReadFile(m.fs, filepath.Join(configDir, entry.Name()))
 		hashes[slug] = sha256.Sum256(raw)
 		var file configFile
@@ -118,13 +148,20 @@ func (m *Manager) discover(ctx context.Context) error {
 		cfg := harnessConfig{slug: slug, displayName: h.DisplayName, command: file.Command, hash: sha256.Sum256(canonical)}
 		configs[slug] = cfg
 		hashes[slug] = cfg.hash
+		if old, ok := previous[slug]; ok && old == cfg && previousDirectory == directory && sameEnvironment && cached[slug].Error == "" {
+			h = cached[slug]
+		} else {
+			h = m.probe(ctx, cfg, directory, env)
+		}
 		catalog = append(catalog, h)
 	}
 	slices.SortFunc(catalog, func(a, b workspacesdk.ACPHarness) int { return strings.Compare(a.Slug, b.Slug) })
 	m.mu.Lock()
-	changed := !slices.Equal(m.catalog, catalog) || !maps.Equal(m.configs, configs) || !maps.Equal(m.configHashes, hashes) || m.configDir != configDir
+	changed := !reflect.DeepEqual(m.catalog, catalog) || !maps.Equal(m.configs, configs) || !maps.Equal(m.configHashes, hashes) || m.configDir != configDir || m.discoveryDir != directory
 	m.configs, m.catalog, m.configHashes = configs, catalog, hashes
 	m.configDir = configDir
+	m.discoveryDir = directory
+	m.catalogEnv = env
 	callback := m.onChange
 	m.mu.Unlock()
 	if changed && callback != nil {
@@ -133,7 +170,71 @@ func (m *Manager) discover(ctx context.Context) error {
 	return nil
 }
 
-// RunDiscovery starts filesystem discovery once and returns immediately.
+// normalizeEnv copies and deduplicates the environment, then sorts it so cache
+// comparisons do not depend on the callback's output order.
+func normalizeEnv(env []string) []string {
+	merged := make(map[string]string, len(env))
+	for _, entry := range env {
+		if name, value, ok := strings.Cut(entry, "="); ok {
+			merged[name] = value
+		}
+	}
+	updated := make([]string, 0, len(merged))
+	for _, name := range slices.Sorted(maps.Keys(merged)) {
+		updated = append(updated, name+"="+merged[name])
+	}
+	return updated
+}
+
+func (m *Manager) probe(ctx context.Context, cfg harnessConfig, directory string, env []string) workspacesdk.ACPHarness {
+	h := workspacesdk.ACPHarness{Slug: cfg.slug, DisplayName: cfg.displayName, ConfigOptions: []workspacesdk.ACPConfigOption{}}
+	if err := m.validate(directory); err != nil {
+		h.Error = err.Error()
+		return h
+	}
+	ctx, cancel := timeout(ctx, m.clock, setupTimeout)
+	defer cancel()
+	p, err := launch(ctx, cfg, directory, &discoveryClient{}, launchOptions{
+		execer:  m.execer,
+		envInfo: m.envInfo,
+		env:     env,
+	})
+	if err != nil {
+		h.Error = "cannot start harness"
+		m.logger.Warn(ctx, h.Error, slog.F("harness", cfg.slug), slog.Error(err))
+		return h
+	}
+	defer func() {
+		// Drain stderr before logging. Raw diagnostics may contain launch
+		// credentials, so keep them out of the catalog and workspace context.
+		p.close()
+		diagnostic := p.stderr.String()
+		if h.Error != "" {
+			m.logger.Warn(ctx, h.Error, slog.F("harness", cfg.slug), slog.Error(err), slog.F("stderr", diagnostic))
+		} else if diagnostic != "" {
+			m.logger.Debug(ctx, "acp harness diagnostics", slog.F("harness", cfg.slug), slog.F("stderr", diagnostic))
+		}
+	}()
+	init, err := p.conn.Initialize(ctx, acp.InitializeRequest{ProtocolVersion: acp.ProtocolVersionNumber, ClientInfo: &acp.Implementation{Name: "coder-agent", Version: buildinfo.Version()}})
+	if err != nil {
+		h.Error = "cannot initialize harness; see workspace agent logs for details"
+		return h
+	}
+	if init.ProtocolVersion != acp.ProtocolVersionNumber {
+		h.Error = "unsupported ACP protocol version"
+		return h
+	}
+	h = harnessInfo(cfg, init)
+	created, err := p.conn.NewSession(ctx, acp.NewSessionRequest{Cwd: directory, McpServers: []acp.McpServer{}})
+	if err != nil {
+		h.Error = "cannot create harness session; see workspace agent logs for details"
+		return h
+	}
+	h.ConfigOptions = configOptions(created.ConfigOptions)
+	return h
+}
+
+// RunDiscovery starts discovery once and returns without waiting for probes.
 // It scans immediately and polls for configuration changes every 30 seconds.
 func (m *Manager) RunDiscovery() {
 	m.runOnce.Do(func() { m.run(m.pollDiscovery) })
