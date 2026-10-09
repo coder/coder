@@ -110,8 +110,9 @@ const writeHistoryVersionToCache = (
 
 // Message IDs within a chat follow commit order, because every insert holds
 // the chat row lock, and the only deletion, an edit, inserts a newer message.
-// So a response with no message newer than the newest cached one describes
-// history the cache has already moved past.
+// This tab has at most one send or edit in flight (isSubmissionPending), so
+// a cached ID newer than every message of a response came from the stream,
+// which delivered the response's messages with it.
 const isAheadOfCachedMessages = (
 	queryClient: QueryClient,
 	chatID: string,
@@ -189,9 +190,7 @@ export const useChatStore = (
 	const queryClient = useQueryClient();
 	const [store] = useState(createChatStore);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
-	// Tracks whether the WebSocket has delivered a queue_update for the
-	// current chat. Until it has, the store takes the queue from the cached
-	// page, which the stream's first queue_update then corrects.
+	// Whether the stream has delivered a queue_update for the current chat.
 	const wsQueueUpdateReceivedRef = useRef(false);
 	// Tracks whether the WebSocket has delivered a status event for
 	// the current chat. Once true, the WS is the authoritative

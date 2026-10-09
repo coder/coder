@@ -117,8 +117,9 @@ type PendingEdit = {
 
 // The turn an edit starts. While the edit is pending the selectors show it
 // instead of the stored turn, which stays as the stream leaves it so that a
-// failed edit shows it again. The queue array is shared because a selector
-// must return the same value on every call for useSyncExternalStore.
+// failed edit shows it again; when the edit commits, replaceMessages stores
+// it. The queue array is shared because a selector must return the same
+// value on every call for useSyncExternalStore.
 const editTurnStart = {
 	chatStatus: "running",
 	queuedMessages: [],
@@ -130,6 +131,8 @@ const editTurnStart = {
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
 	orderedMessageIDs: readonly number[];
+	// While set, the selectors show editTurnStart in place of the stored
+	// turn's fields; read through them to get what the transcript shows.
 	pendingEdit: PendingEdit | null;
 	streamState: StreamState | null;
 	chatStatus: TypesGen.ChatStatus | null;
