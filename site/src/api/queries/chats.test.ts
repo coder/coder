@@ -1901,7 +1901,7 @@ describe("mutation invalidation scope", () => {
 		).toEqual([4, 3, 2, 1]);
 	});
 
-	it("editChatMessage leaves the messages cache to the chat page", async () => {
+	it("editChatMessage does not write its response to the messages cache", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {

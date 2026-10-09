@@ -2475,8 +2475,8 @@ type EditChatMessageMutationArgs = {
 	req: TypesGen.EditChatMessageRequest;
 };
 
-// The chat page applies the edit's messages, after checking that the stream
-// has not already moved past them.
+// useChatStore's applyEditResponse writes the edit's messages, unless the
+// stream has moved past them.
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),

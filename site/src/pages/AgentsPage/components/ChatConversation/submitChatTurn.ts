@@ -406,8 +406,9 @@ export async function submitChatTurn(
 		// instead, the WebSocket event overrides this optimistic value.
 		store.setChatStatus("running");
 	}
-	// Apply the full batch because a queued send can insert a promoted
-	// head below the highest cached ID, which a reconnect would skip.
+	// Apply every inserted message, not only response.message: a send can also
+	// insert cancellations and a promoted queue head, whose lower IDs an
+	// after_id reconnect would skip.
 	const insertedMessages =
 		response.messages ?? (response.message ? [response.message] : []);
 	if (insertedMessages.length > 0) {
