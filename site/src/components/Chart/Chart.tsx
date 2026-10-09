@@ -176,7 +176,6 @@ type ChartTooltipContentProps = React.ComponentProps<
 	indicator?: "line" | "dot" | "dashed";
 	nameKey?: string;
 	labelKey?: string;
-	ref?: React.Ref<HTMLDivElement>;
 };
 
 export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
@@ -193,10 +192,9 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 	label,
 	labelFormatter,
 	labelClassName,
-	ref,
 }) => {
 	const { config, setAnnouncement } = useChart();
-	const contentRef = useRef<HTMLDivElement | null>(null);
+	const contentRef = useRef<HTMLDivElement>(null);
 	const isActive = Boolean(active && payload?.length);
 
 	// Mirror the rendered tooltip text into the container's live region. React
@@ -255,14 +253,7 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 
 	return (
 		<div
-			ref={(node) => {
-				contentRef.current = node;
-				if (typeof ref === "function") {
-					ref(node);
-				} else if (ref) {
-					ref.current = node;
-				}
-			}}
+			ref={contentRef}
 			className={cn(
 				"grid min-w-32 items-start gap-1 rounded-lg border border-solid border-border bg-surface-primary px-3 py-2 text-xs shadow-xl",
 				className,
