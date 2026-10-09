@@ -40,14 +40,17 @@ type ReferenceLookup func(
 // resolver must return promptly when ctx is canceled.
 //
 // This lets callers use information outside the graph, such as Terraform plan
-// configuration, when graph metadata alone is insufficient. Terraform may
-// omit direct value edges during transitive reduction when another path reaches
-// the same node. Resolvers must restore those value dependencies for every
-// visited source where they can be omitted, while removing ordering-only
-// dependencies. This includes dependencies into a module expansion node and
-// dependencies from the expansion node. For example, expansion-node edges to
-// for_each and depends_on references have the same graph shape, although only
-// the for_each collection can contribute to an input expressed as each.value.
+// configuration and parsed template or module HCL, when graph metadata alone
+// is insufficient. Plan configuration omits local expressions, so restoring
+// dependencies from local nodes requires their HCL expression provenance.
+// Terraform may omit direct value edges during transitive reduction when
+// another path reaches the same node. Resolvers must restore those value
+// dependencies for every visited source where they can be omitted, while
+// removing ordering-only dependencies. This includes dependencies into a
+// module expansion node and dependencies from the expansion node. For example,
+// expansion-node edges to for_each and depends_on references have the same
+// graph shape, although only the for_each collection can contribute to an input
+// expressed as each.value.
 type DependencyResolver func(
 	ctx context.Context,
 	lookup ReferenceLookup,

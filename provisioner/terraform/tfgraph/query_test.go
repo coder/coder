@@ -561,6 +561,75 @@ func TestQueryMatchesCapturedTerraformGraphs(t *testing.T) {
 		}
 	})
 
+	t.Run("HCLDependenciesRestoreReducedLocalPath", func(t *testing.T) {
+		t.Parallel()
+
+		// Terraform plan configuration omits locals. Parsed HCL shows that
+		// local.both references both agents, while Terraform's reduced graph
+		// retains only its edge to agent_b.
+		sourceGraph := graphFromFile(
+			t, "testdata/reduced-local-value-edge.tfplan.dot",
+		)
+		startNodes := sourceGraph.NodesForConfigurationAddress(
+			"terraform_data.script",
+		)
+		require.Len(t, startNodes, 1)
+		boundaryAddresses := func(t *testing.T, graph *tfgraph.Graph) []string {
+			t.Helper()
+
+			query, err := tfgraph.NewQuery(graph)
+			require.NoError(t, err)
+			boundaries, err := query.ReachableBoundaryNodes(
+				t.Context(), startNodes,
+				func(node tfgraph.Node) bool {
+					return node.Address() == "terraform_data.agent_a" ||
+						node.Address() == "terraform_data.agent_b"
+				},
+			)
+			require.NoError(t, err)
+			return nodeAddresses(t, graph, boundaries)
+		}
+
+		t.Run("WithoutResolver", func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(
+				t, []string{"terraform_data.agent_b"},
+				boundaryAddresses(t, sourceGraph),
+			)
+		})
+
+		t.Run("WithRestoredLocalReferences", func(t *testing.T) {
+			t.Parallel()
+
+			resolver := func(
+				_ context.Context,
+				lookup tfgraph.ReferenceLookup,
+				source tfgraph.Node,
+				graphDependencies []tfgraph.NodeID,
+			) ([]tfgraph.NodeID, error) {
+				if source.ConfigurationAddress() != "local.both" {
+					return graphDependencies, nil
+				}
+				return lookup("", []string{
+					"terraform_data.agent_a.id",
+					"terraform_data.agent_b.id",
+				})
+			}
+			resolvedGraph, err := sourceGraph.WithResolvedDependencies(resolver)
+			require.NoError(t, err)
+
+			require.Equal(
+				t,
+				[]string{
+					"terraform_data.agent_a",
+					"terraform_data.agent_b",
+				},
+				boundaryAddresses(t, resolvedGraph),
+			)
+		})
+	})
+
 	t.Run("PlanGraphSkipsModuleCloseCompletionOnlyEdges", func(t *testing.T) {
 		t.Parallel()
 
