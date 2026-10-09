@@ -55,12 +55,16 @@ type DiffStats = {
 	deletions: number;
 };
 
+type PrTab = {
+	prNumber: number;
+	chatId: string;
+	/** Diff status of the chat, which is what the PR number came from. */
+	diffStatus: ChatDiffStatus;
+};
+
 type GitPanelProps = {
 	/** PR tab data. Omitted if no PR is associated. */
-	prTab?: {
-		prNumber: number;
-		chatId: string;
-	};
+	prTab?: PrTab;
 	/** Repository data from git watcher. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/** Callback to send a refresh to the git watcher. Returns false when disconnected. */
@@ -436,7 +440,6 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
 						diffStyle={diffStyle}
-						diffStatus={remoteDiffStats}
 					/>
 				) : (
 					<LocalRepoContent
@@ -584,13 +587,12 @@ const GitViewSwitcher: React.FC<GitViewSwitcherProps> = ({
 // ---------------------------------------------------------------
 
 const RemoteContent: React.FC<{
-	prTab?: { prNumber: number; chatId: string };
+	prTab?: PrTab;
 	hasGitContext: boolean;
 	isGitStatusLoading: boolean;
 	isExpanded: boolean;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
-	diffStatus?: ChatDiffStatus;
 }> = ({
 	prTab,
 	hasGitContext,
@@ -598,7 +600,6 @@ const RemoteContent: React.FC<{
 	isExpanded,
 	chatInputRef,
 	diffStyle,
-	diffStatus,
 }) => {
 	if (!prTab) {
 		return (
@@ -634,7 +635,7 @@ const RemoteContent: React.FC<{
 			isExpanded={isExpanded}
 			chatInputRef={chatInputRef}
 			diffStyle={diffStyle}
-			diffStatus={diffStatus}
+			diffStatus={prTab.diffStatus}
 		/>
 	);
 };
