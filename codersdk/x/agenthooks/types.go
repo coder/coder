@@ -69,10 +69,14 @@ type SessionStartData struct {
 }
 
 // UserPromptSubmitData includes concatenated text and persisted parts.
-// Inspect Parts when structure matters.
+// Inspect Parts when structure matters. GoalObjective carries the chat
+// goal objective admitted with the prompt when the submission also sets
+// a goal; it feeds every subsequent generation's instructions, so
+// prompt policy must observe it even when it differs from the message.
 type UserPromptSubmitData struct {
-	Prompt string          `json:"prompt"`
-	Parts  json.RawMessage `json:"parts,omitempty"`
+	Prompt        string          `json:"prompt"`
+	Parts         json.RawMessage `json:"parts,omitempty"`
+	GoalObjective string          `json:"goal_objective,omitempty"`
 }
 
 // PreToolUseData describes a tool call before execution.
