@@ -36,6 +36,9 @@ import {
 	ModelConfigFields,
 	PricingEstimateFields,
 	ReasoningEffortConfigFields,
+	unitInputAddonClassName,
+	unitInputGroupClassName,
+	unitSuffixClassName,
 } from "#/modules/aiModels/ModelConfigFields";
 import { ModelIdentifierField } from "#/modules/aiModels/ModelIdentifierField";
 import type {
@@ -275,6 +278,7 @@ export const ModelFormFields: React.FC<{
 						)}
 						<InputGroup
 							className={cn(
+								unitInputGroupClassName,
 								contextLimitField.error && "border-border-destructive",
 							)}
 						>
@@ -289,8 +293,11 @@ export const ModelFormFields: React.FC<{
 								disabled={isSaving || isReadOnly}
 								aria-invalid={contextLimitField.error}
 							/>
-							<InputGroupAddon align="inline-end">
-								<span className="text-xs text-content-disabled">Tokens</span>
+							<InputGroupAddon
+								align="inline-end"
+								className={unitInputAddonClassName}
+							>
+								<span className={unitSuffixClassName}>Tokens</span>
 							</InputGroupAddon>
 						</InputGroup>
 					</div>
@@ -380,6 +387,7 @@ export const ModelFormFields: React.FC<{
 							</Label>
 							<InputGroup
 								className={cn(
+									unitInputGroupClassName,
 									compressionThresholdField.error &&
 										"border-border-destructive",
 								)}
@@ -394,8 +402,11 @@ export const ModelFormFields: React.FC<{
 									disabled={isSaving || isReadOnly}
 									aria-invalid={compressionThresholdField.error}
 								/>
-								<InputGroupAddon align="inline-end">
-									<span className="text-xs text-content-secondary">%</span>
+								<InputGroupAddon
+									align="inline-end"
+									className={unitInputAddonClassName}
+								>
+									<span className={unitSuffixClassName}>%</span>
 								</InputGroupAddon>
 							</InputGroup>
 							{compressionThresholdField.error && (

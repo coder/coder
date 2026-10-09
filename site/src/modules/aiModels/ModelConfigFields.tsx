@@ -58,6 +58,22 @@ const booleanFieldOptions = [
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
 
+/**
+ * Class names for an InputGroup with a unit suffix such as "tokens". By
+ * default a disabled InputGroup and its addon each apply opacity-50, which
+ * dims the suffix below content-disabled. These keep the group and addon
+ * opaque, fade the border to match a disabled Input, and color the suffix
+ * content-disabled. The input keeps its own disabled opacity.
+ */
+export const unitInputGroupClassName =
+	"has-[input:disabled]:opacity-100 has-[input:disabled]:border-border/50";
+/** See unitInputGroupClassName. */
+export const unitInputAddonClassName =
+	"group-has-[input:disabled]/input-group:opacity-100";
+/** See unitInputGroupClassName. */
+export const unitSuffixClassName =
+	"text-xs text-content-secondary group-has-[input:disabled]/input-group:text-content-disabled";
+
 const isReasoningEffortField = (jsonName: string): boolean =>
 	jsonName === "reasoning_effort.default" ||
 	jsonName === "reasoning_effort.max";
@@ -177,7 +193,12 @@ const InputField: React.FC<
 	const fieldProps = form.getFieldProps(fieldKey);
 
 	const inputEl = suffix ? (
-		<InputGroup className={cn(fieldError && "border-border-destructive")}>
+		<InputGroup
+			className={cn(
+				unitInputGroupClassName,
+				fieldError && "border-border-destructive",
+			)}
+		>
 			<InputGroupInput
 				id={fieldKey}
 				className="min-w-0"
@@ -187,8 +208,8 @@ const InputField: React.FC<
 				aria-invalid={Boolean(fieldError)}
 				aria-describedby={fieldError ? errorId : undefined}
 			/>
-			<InputGroupAddon align="inline-end">
-				<span className="text-xs text-content-secondary">{suffix}</span>
+			<InputGroupAddon align="inline-end" className={unitInputAddonClassName}>
+				<span className={unitSuffixClassName}>{suffix}</span>
 			</InputGroupAddon>
 		</InputGroup>
 	) : (
