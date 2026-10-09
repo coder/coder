@@ -45,6 +45,9 @@ type ManagerOptions struct {
 	// It is ignored when the resolver already has an MCP provider
 	// (e.g. a test injecting one via Resolver).
 	MCPCatalog func() []MCPServerStatus
+	// MCPReconnect, when non-nil, runs at the start of Resync to
+	// reconnect MCP servers that failed or stopped responding.
+	MCPReconnect func(context.Context) error
 	// Debounce overrides the watcher's debounce window.
 	Debounce time.Duration
 }
@@ -68,6 +71,7 @@ type Manager struct {
 	allowedRoots []string
 	resolver     *Resolver
 	debounce     time.Duration
+	mcpReconnect func(context.Context) error
 
 	mu      sync.Mutex
 	sources []Source
@@ -139,6 +143,7 @@ func NewManager(opts ManagerOptions) *Manager {
 		allowedRoots: append([]string(nil), opts.AllowedRoots...),
 		resolver:     resolver,
 		debounce:     debounce,
+		mcpReconnect: opts.MCPReconnect,
 		sources:      make([]Source, 0),
 		sourceIndex:  make(map[string]int),
 		subscribers:  make(map[chan struct{}]struct{}),
@@ -438,6 +443,12 @@ func (m *Manager) SubscribeChanges() (<-chan struct{}, func()) {
 func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return m.Snapshot(), ctxErr
+	}
+
+	if m.mcpReconnect != nil {
+		if err := m.mcpReconnect(ctx); err != nil {
+			m.logger.Warn(ctx, "failed to reconnect MCP servers", slog.Error(err))
+		}
 	}
 
 	m.mu.Lock()

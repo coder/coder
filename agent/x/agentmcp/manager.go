@@ -198,6 +198,20 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 	return m.waitReload(ctx, ch, 0)
 }
 
+// Reconnect re-runs the last reload even when the config is unchanged,
+// so servers that failed to connect are retried.
+func (m *Manager) Reconnect(ctx context.Context) error {
+	m.mu.Lock()
+	paths := slices.Clone(m.lastPaths)
+	// An empty snapshot makes Reload treat the config as changed.
+	m.snapshot = make(map[string]fileSnapshot)
+	m.mu.Unlock()
+	if len(paths) == 0 {
+		return nil
+	}
+	return m.Reload(ctx, paths)
+}
+
 // SetOnReload registers a callback fired (outside the cache lock) after
 // a reload changes the per-server catalog. The agent wires this to the
 // agentcontext manager's Trigger so discovery re-resolves and re-pushes
