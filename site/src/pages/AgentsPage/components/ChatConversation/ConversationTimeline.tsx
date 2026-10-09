@@ -242,6 +242,15 @@ const ChatMessageItem = memo<{
 		const isWorkSection = section === "work";
 		const rowBlocks = parsed?.blocks ?? liveBlocks;
 		const rowTools = parsed?.tools ?? liveTools;
+		const blocks =
+			section === undefined
+				? rowBlocks
+				: splitRowBlocks(rowBlocks, rowTools)[section];
+		// An answer whose only work was a search without citations folds
+		// nothing, and an empty row would still add a gap inside the block.
+		if (isWorkSection && blocks.length === 0 && rowTools.length === 0) {
+			return null;
+		}
 		const outputLiveStatus = isWorkSection ? undefined : liveStatus;
 
 		return (
@@ -280,11 +289,7 @@ const ChatMessageItem = memo<{
 								<AssistantOutput
 									organizationId={organizationId}
 									keyPrefix={renderKey}
-									blocks={
-										section === undefined
-											? rowBlocks
-											: splitRowBlocks(rowBlocks, rowTools)[section]
-									}
+									blocks={blocks}
 									// Folded tools would otherwise render again as block-less tools.
 									tools={section === "answer" ? [] : rowTools}
 									isStreaming={outputLiveStatus?.phase === "streaming"}

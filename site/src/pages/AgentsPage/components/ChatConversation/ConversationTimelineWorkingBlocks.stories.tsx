@@ -14,6 +14,7 @@ import {
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
 	MockQuestionCallMessage,
+	MockUncitedSearchAnswerMessages,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
@@ -102,6 +103,21 @@ export const SearchOnlyAnswerFolds: Story = {
 			MockWebSearchAnswerMessages[0],
 			...MockWebSearchAnswerMessages.slice(5),
 		]),
+	},
+};
+
+export const UncitedSearchAnswerFoldsExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUncitedSearchAnswerMessages,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 14s (3 steps)",
+			}),
+		);
 	},
 };
 
