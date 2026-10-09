@@ -244,9 +244,8 @@ func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:      created.Chat,
-		Messages:  created.InitialMessages,
-		Workspace: server.newTurnWorkspaceContext(),
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Close)

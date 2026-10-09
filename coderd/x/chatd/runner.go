@@ -51,7 +51,7 @@ type runner struct {
 	turnSpan      *runnerTurnSpan
 	sessionStart  sessionStartTracker
 	stopNudges    stopNudgeTracker
-	workspace     *turnWorkspaceContext
+	agentConns    agentConnCache
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
@@ -62,7 +62,6 @@ func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts 
 		opts:       opts,
 		tasks:      make(map[taskInstanceID]*taskRecord),
 		localLocks: newLocalLockSet(),
-		workspace:  mgr.server.newTurnWorkspaceContext(),
 		debugTurn:  newRunnerDebugTurn(opts.Logger),
 		turnSpan:   newRunnerTurnSpan(mgr.server.stages, rec.takenOver),
 	}
@@ -79,7 +78,7 @@ func (r *runner) run() {
 		case <-r.ctx.Done():
 			r.cancelActiveTask()
 			r.waitForTasks()
-			r.workspace.close()
+			r.agentConns.drop()
 			r.closeDebugTurn()
 			r.turnSpan.End(nil)
 			return
@@ -212,7 +211,7 @@ func (r *runner) spawnTask(kind taskKind, state runnerStateUpdate) {
 		TurnSpan:                 r.turnSpan,
 		SessionStart:             &r.sessionStart,
 		StopNudges:               &r.stopNudges,
-		Workspace:                r.workspace,
+		AgentConns:               &r.agentConns,
 	}
 	go r.runTask(taskCtx, kind, key, input, done)
 }

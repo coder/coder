@@ -1091,7 +1091,7 @@ The runner maintains the following local state:
 - a list of goroutines it has spawned to perform side effects, each identified by a unique ID, together with cancellation handles and go channels that the goroutines use to notify they have finished.
 - the ID of the currently active goroutine, if there is one.
 
-TODO: document the runner-owned workspace context (cached agent, connection, and home directory; released on runner exit).
+TODO: document the runner's workspace agent connection cache. The runner keeps one workspace agent connection and that workspace agent's home directory, keyed by workspace agent ID. Each step still resolves its workspace agent from its own chat snapshot and borrows the connection only when the IDs match. A step that finds the workspace agent changed or disconnected drops the connection; the cache releases it after the last borrowing step closes, and releases any remaining connection when the runner exits.
 
 ### Event processing
 
