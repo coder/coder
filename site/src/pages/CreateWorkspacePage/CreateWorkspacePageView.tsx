@@ -62,7 +62,7 @@ type CreateWorkspacePageViewProps = {
 	mode: CreateWorkspaceMode;
 	parameters: PreviewParameter[];
 	permissions: CreateWorkspacePermissions;
-	presets: TypesGen.Preset[];
+	presets: readonly TypesGen.Preset[];
 	template: TypesGen.Template;
 	urlPreset?: TypesGen.Preset;
 	urlPresetError?: string;
