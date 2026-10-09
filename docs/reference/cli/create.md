@@ -40,7 +40,7 @@ Specify a template name.
 | Type        | <code>string</code>                  |
 | Environment | <code>$CODER_TEMPLATE_VERSION</code> |
 
-Specify a template version name.
+Specify a template version name or ID.
 
 ### --preset
 

@@ -22,7 +22,7 @@ coder stop [flags] <workspace>
 |------|---------------------|
 | Type | <code>string</code> |
 
-Stop with a named version of the workspace template. Defaults to the workspace's current version.
+Stop with a version of the workspace template, by name or ID. Defaults to the workspace's current version.
 
 ### -y, --yes
 

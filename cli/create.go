@@ -222,7 +222,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			}
 
 			if len(templateVersion) > 0 {
-				versionID, err := resolveTemplateVersionID(inv.Context(), client, template.ID, templateVersion)
+				versionID, err := resolveTemplateVersionID(inv.Context(), client, template.ID, template.Name, templateVersion)
 				if err != nil {
 					return err
 				}
@@ -424,7 +424,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 		serpent.Option{
 			Flag:        "template-version",
 			Env:         "CODER_TEMPLATE_VERSION",
-			Description: "Specify a template version name.",
+			Description: "Specify a template version name or ID.",
 			Value:       serpent.StringOf(&templateVersion),
 		},
 		serpent.Option{

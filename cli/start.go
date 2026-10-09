@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,7 +41,7 @@ func (r *RootCmd) start() *serpent.Command {
 			},
 			{
 				Flag:        "template-version",
-				Description: "Start with a named version of the workspace template.",
+				Description: "Start with a version of the workspace template, by name or ID.",
 				Value:       serpent.StringOf(&templateVersion),
 			},
 			cliui.SkipPromptOption(),
@@ -58,7 +59,7 @@ func (r *RootCmd) start() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			versionID, err := resolveTemplateVersionID(inv.Context(), client, workspace.TemplateID, templateVersion)
+			versionID, err := resolveTemplateVersionID(inv.Context(), client, workspace.TemplateID, workspace.TemplateName, templateVersion)
 			if err != nil {
 				return err
 			}
@@ -248,15 +249,46 @@ func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace 
 	return build, nil
 }
 
-// resolveTemplateVersionID looks up a template version by name. An empty name
-// returns uuid.Nil so callers can fall back to their default version.
-func resolveTemplateVersionID(ctx context.Context, client *codersdk.Client, templateID uuid.UUID, name string) (uuid.UUID, error) {
-	if name == "" {
+// resolveTemplateVersionID looks up a template version of the given template
+// by name or ID. Names take precedence, so a version named like a UUID is
+// matched by name. An empty input returns uuid.Nil so callers can fall back to
+// their default version.
+func resolveTemplateVersionID(ctx context.Context, client *codersdk.Client, templateID uuid.UUID, templateName, nameOrID string) (uuid.UUID, error) {
+	if nameOrID == "" {
 		return uuid.Nil, nil
 	}
-	version, err := client.TemplateVersionByName(ctx, templateID, name)
+	notFound := xerrors.Errorf("template version %q not found for template %q", nameOrID, templateName)
+	if nameOrID == "." || nameOrID == ".." {
+		return uuid.Nil, notFound
+	}
+	// Escaping keeps the input from adding path segments or a query.
+	// "." and ".." are rejected above.
+	version, err := client.TemplateVersionByName(ctx, templateID, url.PathEscape(nameOrID))
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("get template version by name: %w", err)
+		if !isNotFoundError(err) {
+			return uuid.Nil, xerrors.Errorf("get template version by name: %w", err)
+		}
+		id, parseErr := uuid.Parse(nameOrID)
+		if parseErr != nil {
+			return uuid.Nil, notFound
+		}
+		version, err = client.TemplateVersion(ctx, id)
+		if err != nil {
+			if isNotFoundError(err) {
+				return uuid.Nil, notFound
+			}
+			return uuid.Nil, xerrors.Errorf("get template version by ID: %w", err)
+		}
+	}
+	// The ID lookup can return any template's version, so check ownership
+	// for it and for anything the name route returns.
+	if version.TemplateID == nil || *version.TemplateID != templateID {
+		return uuid.Nil, xerrors.Errorf("template version %q does not belong to template %q", nameOrID, templateName)
 	}
 	return version.ID, nil
+}
+
+func isNotFoundError(err error) bool {
+	sdkErr, ok := codersdk.AsError(err)
+	return ok && sdkErr.StatusCode() == http.StatusNotFound
 }
