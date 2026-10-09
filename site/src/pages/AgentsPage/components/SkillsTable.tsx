@@ -22,6 +22,7 @@ import {
 	SKILLS_MAX_PER_OWNER,
 	type SkillFormValues,
 } from "../utils/skills";
+import type { SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import {
 	type SkillDeleteState,
@@ -106,6 +107,8 @@ type SkillsTableProps = {
 	owner: SkillOwner;
 	copy: SkillsCopy;
 	canEdit: boolean;
+	enabledOnly?: boolean;
+	headerLevel?: SectionHeaderLevel;
 	toolbar?: React.ReactNode;
 	onManagePermissions?: SkillsTableViewProps["onManagePermissions"];
 };
@@ -114,6 +117,8 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	owner,
 	copy,
 	canEdit,
+	enabledOnly = false,
+	headerLevel,
 	toolbar,
 	onManagePermissions,
 }) => {
@@ -125,7 +130,9 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			? userSkills(owner.user)
 			: organizationSkills(owner.organizationId),
 	);
-	const skills = skillsQuery.data ?? [];
+	const skills = (skillsQuery.data ?? []).filter(
+		(skill) => !enabledOnly || skill.enabled,
+	);
 	const existingNames = skills.map((skill) =>
 		skill.name.toLocaleLowerCase("en-US"),
 	);
@@ -381,6 +388,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			copy={copy}
 			limit={SKILLS_MAX_PER_OWNER}
 			canEdit={canEdit}
+			headerLevel={headerLevel}
 			toolbar={toolbar}
 			error={skillsQuery.error}
 			isLoading={skillsQuery.isLoading}

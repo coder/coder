@@ -44,7 +44,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { formatDate } from "#/utils/time";
 import type { SkillFormValues } from "../utils/skills";
-import { SectionHeader } from "./SectionHeader";
+import { SectionHeader, type SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import { SkillEditor } from "./SkillEditor";
 import { TextPreviewDialog } from "./TextPreviewDialog";
@@ -106,6 +106,7 @@ export type SkillsTableViewProps = {
 	copy: SkillsCopy;
 	limit: number;
 	canEdit: boolean;
+	headerLevel?: SectionHeaderLevel;
 	toolbar?: React.ReactNode;
 	error: unknown;
 	isLoading: boolean;
@@ -416,6 +417,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	copy,
 	limit,
 	canEdit,
+	headerLevel,
 	toolbar,
 	error,
 	isLoading,
@@ -498,6 +500,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				label={copy.title}
 				description={copy.description}
 				action={headerActions}
+				level={headerLevel}
 			/>
 
 			{toolbar}
