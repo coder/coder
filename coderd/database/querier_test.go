@@ -4923,7 +4923,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 	log7 := agentLog(10*time.Minute, database.ConnectionLogMethodSSH, "an_unregistered_ide")
 	log8 := agentLog(5*time.Minute, database.ConnectionLogMethodReconnectingPTY, "")
 	log9 := agentLog(4*time.Minute, database.ConnectionLogMethodSSH, "goland")
-	// A client identity reported over the web terminal.
+	// An app name reported over the web terminal.
 	log10 := agentLog(3*time.Minute, database.ConnectionLogMethodReconnectingPTY, "cursor")
 
 	testCases := []struct {
@@ -4995,7 +4995,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log5.ID},
 		},
 		{
-			// Matches the client identity over any agent method.
+			// Matches the app name over any agent method.
 			name: "AppNames",
 			params: database.GetConnectionLogsOffsetParams{
 				AppNames: []string{"vscode", "cursor"},
@@ -5003,7 +5003,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log2.ID, log4.ID, log6.ID, log10.ID},
 		},
 		{
-			// A workspace app slug is a destination, not a client identity.
+			// A workspace app slug is a destination, not the connecting app.
 			name: "AppNamesDoNotMatchDestination",
 			params: database.GetConnectionLogsOffsetParams{
 				AppNames: []string{"code-server"},
@@ -5027,7 +5027,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log6.ID},
 		},
 		{
-			// An absent or unregistered identity is never excluded.
+			// An absent or unregistered app name is never excluded.
 			name: "MethodAndExcludedAppNames",
 			params: database.GetConnectionLogsOffsetParams{
 				ConnectionMethod: string(database.ConnectionLogMethodSSH),
@@ -5462,7 +5462,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 
 	// A later report for the same connection, such as its disconnect, cannot
 	// change how the connection was established or who opened it.
-	t.Run("ConnectionIdentityIsWriteOnce", func(t *testing.T) {
+	t.Run("ConnectionOriginIsWriteOnce", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ws := createWorkspace(t, db)
@@ -5491,7 +5491,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionStatus: database.ConnectionStatusDisconnected,
 			DisconnectReason: sql.NullString{String: "bye", Valid: true},
 		})
-		// An overlapping report with no identity does not clear it either.
+		// An overlapping report with no app name does not clear it either.
 		row := report(database.UpsertConnectionLogParams{})
 
 		require.Equal(t, database.ConnectionLogMethodSSH, row.ConnectionMethod)

@@ -166,8 +166,18 @@ func TestConnectionLog(t *testing.T) {
 				expectedIPRaw = "127.0.0.1"
 			}
 			expectedIP := database.ParseIP(expectedIPRaw)
+			// Only disconnects carry a status code.
+			var expectedCode sql.NullInt32
+			if *tt.action == agentproto.Connection_DISCONNECT {
+				expectedCode = sql.NullInt32{Int32: tt.status, Valid: true}
+			}
 
-			require.True(t, connLogger.Contains(t, database.UpsertConnectionLogParams{
+			// Compare every field, since Contains skips fields left unset.
+			logs := connLogger.ConnectionLogs()
+			require.Len(t, logs, 1)
+			require.Equal(t, database.UpsertConnectionLogParams{
+				// The ID is generated per report.
+				ID:               logs[0].ID,
 				Time:             dbtime.Time(tt.time).In(time.UTC),
 				OrganizationID:   workspace.OrganizationID,
 				WorkspaceOwnerID: workspace.OwnerID,
@@ -180,10 +190,7 @@ func TestConnectionLog(t *testing.T) {
 				},
 				ConnectionStatus: agentProtoConnectionActionToConnectionLog(t, *tt.action),
 
-				Code: sql.NullInt32{
-					Int32: tt.status,
-					Valid: *tt.action == agentproto.Connection_DISCONNECT,
-				},
+				Code:             expectedCode,
 				IP:               expectedIP,
 				ConnectionMethod: tt.method,
 				AppNameOrPort:    sql.NullString{String: tt.appName, Valid: tt.appName != ""},
@@ -199,11 +206,7 @@ func TestConnectionLog(t *testing.T) {
 					String: tt.clientSessionID,
 					Valid:  tt.clientSessionID != "",
 				},
-			}))
-			// Contains skips fields left unset, so check the app is absent.
-			logs := connLogger.ConnectionLogs()
-			require.Len(t, logs, 1)
-			require.Equal(t, sql.NullString{String: tt.appName, Valid: tt.appName != ""}, logs[0].AppNameOrPort)
+			}, logs[0])
 		})
 	}
 }

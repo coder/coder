@@ -67,8 +67,8 @@ func TestMigration000614ConnectionLogsMethodInSingleTxn(t *testing.T) {
 	require.Equal(t, sql.NullString{String: "vscode", Valid: true}, appName)
 }
 
-// The up migration splits each connection type into a method and a client
-// identity, and the down migration folds identities back into types.
+// The up migration splits each connection type into a method and an app name,
+// and the down migration folds app names back into types.
 func TestMigration000614ConnectionLogsMethod(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -127,7 +127,7 @@ func TestMigration000614ConnectionLogsMethod(t *testing.T) {
 		require.Equal(t, want, read(selectConnectionLog000614, old), old.kind)
 	}
 
-	// Identities only newer servers write. The down migration folds them into
+	// App names only newer servers write. The down migration folds them into
 	// types with its snapshot of the app registry.
 	folded := map[row]row{
 		{"ssh", app("cursor")}:              {"vscode", sql.NullString{}},

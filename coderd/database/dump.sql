@@ -2603,7 +2603,7 @@ COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH events. For web co
 
 COMMENT ON COLUMN connection_logs.user_id IS 'Null for SSH events. For web connections, this is the ID of the user that made the request.';
 
-COMMENT ON COLUMN connection_logs.app_name_or_port IS 'Client identity for SSH and reconnecting PTY; destination slug or port for workspace apps and port forwarding. Null when absent.';
+COMMENT ON COLUMN connection_logs.app_name_or_port IS 'Self-reported name of the connecting application for SSH and reconnecting PTY; destination slug or port for workspace apps and port forwarding. Null when absent.';
 
 COMMENT ON COLUMN connection_logs.connection_id IS 'The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.';
 

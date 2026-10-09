@@ -23,4 +23,4 @@ ALTER TABLE connection_logs RENAME COLUMN slug_or_port TO app_name_or_port;
 DROP TYPE connection_type;
 
 COMMENT ON COLUMN connection_logs.connection_method IS 'How the connection was established.';
-COMMENT ON COLUMN connection_logs.app_name_or_port IS 'Client identity for SSH and reconnecting PTY; destination slug or port for workspace apps and port forwarding. Null when absent.';
+COMMENT ON COLUMN connection_logs.app_name_or_port IS 'Self-reported name of the connecting application for SSH and reconnecting PTY; destination slug or port for workspace apps and port forwarding. Null when absent.';

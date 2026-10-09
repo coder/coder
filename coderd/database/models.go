@@ -5811,7 +5811,7 @@ type ConnectionLog struct {
 	UserAgent sql.NullString `db:"user_agent" json:"user_agent"`
 	// Null for SSH events. For web connections, this is the ID of the user that made the request.
 	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
-	// Client identity for SSH and reconnecting PTY; destination slug or port for workspace apps and port forwarding. Null when absent.
+	// Self-reported name of the connecting application for SSH and reconnecting PTY; destination slug or port for workspace apps and port forwarding. Null when absent.
 	AppNameOrPort sql.NullString `db:"app_name_or_port" json:"app_name_or_port"`
 	// The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.
 	ConnectionID uuid.NullUUID `db:"connection_id" json:"connection_id"`

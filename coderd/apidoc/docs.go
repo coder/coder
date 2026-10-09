@@ -23424,11 +23424,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "app_display_name": {
-                    "description": "AppDisplayName is the registry display name for a known client identity,\nor its normalized identifier when unregistered.",
+                    "description": "AppDisplayName is the registry display name for AppName, or AppName\nitself when the app is unregistered.",
                     "type": "string"
                 },
                 "app_name": {
-                    "description": "AppName identifies the originating client, when known. Web destinations\nare reported separately in WebInfo.",
+                    "description": "AppName is the name of the connecting application, when known. The\nclient reports it, so it is a normalized label and not a guarantee.\nWorkspace app slugs and forwarded ports are reported in WebInfo.",
                     "type": "string"
                 },
                 "connect_time": {

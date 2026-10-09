@@ -4126,13 +4126,14 @@ export interface ConnectionLog {
 	readonly type: string;
 	readonly connection_method: ConnectionLogMethod;
 	/**
-	 * AppName identifies the originating client, when known. Web destinations
-	 * are reported separately in WebInfo.
+	 * AppName is the name of the connecting application, when known. The
+	 * client reports it, so it is a normalized label and not a guarantee.
+	 * Workspace app slugs and forwarded ports are reported in WebInfo.
 	 */
 	readonly app_name?: string;
 	/**
-	 * AppDisplayName is the registry display name for a known client identity,
-	 * or its normalized identifier when unregistered.
+	 * AppDisplayName is the registry display name for AppName, or AppName
+	 * itself when the app is unregistered.
 	 */
 	readonly app_display_name?: string;
 	/**

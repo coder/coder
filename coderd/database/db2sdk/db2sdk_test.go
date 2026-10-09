@@ -1323,7 +1323,7 @@ func TestConnectionLogType(t *testing.T) {
 		{"VSCodeFamily", database.ConnectionLogMethodSSH, "cursor", "vscode"},
 		{"JetBrainsFamily", database.ConnectionLogMethodSSH, "goland", "jetbrains"},
 		{"Normalized", database.ConnectionLogMethodSSH, "Code-Server", "vscode"},
-		// Every other SSH identity, including an absent one, is plain SSH.
+		// Every other SSH app name, including an absent one, is plain SSH.
 		{"Absent", database.ConnectionLogMethodSSH, "", "ssh"},
 		{"SSHFamily", database.ConnectionLogMethodSSH, "zed", "ssh"},
 		{"Unregistered", database.ConnectionLogMethodSSH, "an_unregistered_ide", "ssh"},
