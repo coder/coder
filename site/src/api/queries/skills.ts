@@ -162,6 +162,48 @@ export const updateSkill = (queryClient: QueryClient, owner: SkillOwner) => ({
 	},
 });
 
+type ToggleSkillEnabledArgs = {
+	name: string;
+	enabled: boolean;
+};
+
+const toggleSkillEnabledKey = (owner: SkillOwner) =>
+	[...skillsKey(owner), "toggle-enabled"] as const;
+
+export const toggleSkillEnabled = (
+	queryClient: QueryClient,
+	owner: SkillOwner,
+) => {
+	const update = updateSkill(queryClient, owner);
+	return {
+		mutationKey: toggleSkillEnabledKey(owner),
+		mutationFn: ({ name, enabled }: ToggleSkillEnabledArgs) =>
+			update.mutationFn({ name, req: { enabled } }),
+		onSuccess: (
+			skill: TypesGen.Skill,
+			{ name, enabled }: ToggleSkillEnabledArgs,
+		) => update.onSuccess(skill, { name, req: { enabled } }),
+	};
+};
+
+/**
+ * Reads the mutation cache, which marks every toggle pending as soon as it
+ * starts; rendered mutation state lags a click and tracks only the latest.
+ */
+export const isSkillTogglePending = (
+	queryClient: QueryClient,
+	owner: SkillOwner,
+	name: string,
+) =>
+	queryClient.isMutating({
+		mutationKey: toggleSkillEnabledKey(owner),
+		predicate: ({ state: { variables } }) =>
+			typeof variables === "object" &&
+			variables !== null &&
+			"name" in variables &&
+			variables.name === name,
+	}) > 0;
+
 export const deleteSkill = (queryClient: QueryClient, owner: SkillOwner) => ({
 	mutationFn: (name: string) => skillsAPI(owner).delete(name),
 	onSuccess: (_data: unknown, name: string) => {

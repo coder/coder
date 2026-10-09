@@ -1,16 +1,18 @@
 import { isAxiosError } from "axios";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	createSkill,
 	deleteSkill,
+	isSkillTogglePending,
 	organizationSkills,
 	type SkillOwner,
 	skill,
+	toggleSkillEnabled,
 	updateSkill,
 	userSkills,
 } from "#/api/queries/skills";
@@ -187,17 +189,8 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 		},
 	});
 
-	// Tracks every in-flight toggle: the rendered pending state lags a click
-	// and only reflects the latest toggle, so it cannot block repeats alone.
-	const pendingToggleNamesRef = useRef(new Set<string>());
 	const toggleMutation = useMutation({
-		mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) =>
-			updateMutationOptions.mutationFn({ name, req: { enabled } }),
-		onSettled: (_skill, _error, { name }) => {
-			pendingToggleNamesRef.current.delete(name);
-		},
-		onSuccess: (skill, { name, enabled }) =>
-			updateMutationOptions.onSuccess(skill, { name, req: { enabled } }),
+		...toggleSkillEnabled(queryClient, owner),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, `Failed to update ${lowerNoun}.`), {
 				description: getErrorDetail(error),
@@ -422,10 +415,9 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 				exportAllMutation.mutate();
 			}}
 			onToggleEnabled={(skill, enabled) => {
-				if (pendingToggleNamesRef.current.has(skill.name)) {
+				if (isSkillTogglePending(queryClient, owner, skill.name)) {
 					return;
 				}
-				pendingToggleNamesRef.current.add(skill.name);
 				toggleMutation.mutate({ name: skill.name, enabled });
 			}}
 			downloadingSkillName={downloadingSkillName}
