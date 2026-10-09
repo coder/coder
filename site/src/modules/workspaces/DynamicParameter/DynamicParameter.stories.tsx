@@ -102,6 +102,31 @@ export const Dropdown: Story = {
 	},
 };
 
+export const DropdownEmptyStringOption: Story = {
+	args: {
+		value: "",
+		parameter: {
+			...MockPreviewParameter,
+			form_type: "dropdown",
+			type: "string",
+			options: [
+				{
+					name: "Jupyter Lab",
+					value: { valid: true, value: "lab" },
+					description: "",
+					icon: "",
+				},
+				{
+					name: "None",
+					value: { valid: true, value: "" },
+					description: "",
+					icon: "",
+				},
+			],
+		},
+	},
+};
+
 export const MultiSelect: Story = {
 	args: {
 		parameter: {
