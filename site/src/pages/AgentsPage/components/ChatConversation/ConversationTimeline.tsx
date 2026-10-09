@@ -285,8 +285,7 @@ const ChatMessageItem = memo<{
 											? rowBlocks
 											: splitRowBlocks(rowBlocks, rowTools)[section]
 									}
-									// The answer section takes no tools, or it would repeat the
-									// folded ones as block-less tools.
+									// Folded tools would otherwise render again as block-less tools.
 									tools={section === "answer" ? [] : rowTools}
 									isStreaming={outputLiveStatus?.phase === "streaming"}
 									liveStatus={outputLiveStatus}

@@ -11,6 +11,7 @@ import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import {
 	type GroupWorkingBlocksOptions,
 	groupWorkingBlocks,
+	splitRowBlocks,
 	type WorkingBlock,
 } from "./workingBlockGrouping";
 
@@ -731,5 +732,58 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks[0].isLive).toBe(false);
 			expect(blocks[1].isLive).toBe(true);
 		});
+	});
+});
+
+describe("splitRowBlocks", () => {
+	const answerOf = (content: TypesGen.ChatMessagePart[]) => {
+		const [{ parsed }] = parseMessagesWithMergedTools([
+			message("assistant", content),
+		]);
+		return splitRowBlocks(parsed.blocks, parsed.tools).answer;
+	};
+
+	it("folds narration that precedes the answer's last reasoning", () => {
+		expect(
+			answerOf([
+				reasoning("Plan"),
+				text("Looking it up."),
+				source("https://example.com", "Example"),
+				reasoning("Compare"),
+				text("Done."),
+			]),
+		).toEqual([{ type: "response", text: "Done." }]);
+	});
+
+	it("keeps answer text on both sides of a citation", () => {
+		expect(
+			answerOf([
+				reasoning("Plan"),
+				text("Go 1.27 is out. Rust"),
+				source("https://go.example.com", "Go"),
+				text(" 1.98 is out."),
+			]),
+		).toEqual([
+			{ type: "response", text: "Go 1.27 is out. Rust" },
+			{ type: "response", text: " 1.98 is out." },
+		]);
+	});
+
+	it("ignores hidden tools when splitting the answer", () => {
+		const hiddenCall = (id: string): TypesGen.ChatMessagePart => ({
+			type: "tool-call",
+			tool_call_id: id,
+			tool_name: "execute",
+			args: { command: "" },
+		});
+
+		expect(
+			answerOf([
+				reasoning("Plan"),
+				hiddenCall("before"),
+				text("Done."),
+				hiddenCall("after"),
+			]),
+		).toEqual([{ type: "response", text: "Done." }]);
 	});
 });

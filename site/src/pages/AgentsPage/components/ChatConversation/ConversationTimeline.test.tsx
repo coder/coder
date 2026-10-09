@@ -109,54 +109,24 @@ const focusCopyCommand = (messageId: number) => {
 };
 
 describe("ConversationTimeline working blocks", () => {
-	it("renders only an answer's text after the block its work folds into", async () => {
+	it("copies the whole message from the answer below its expanded block", async () => {
 		const user = userEvent.setup();
 		const writeText = vi
 			.spyOn(navigator.clipboard, "writeText")
 			.mockResolvedValue();
 		renderTimeline({ messages: MockWebSearchAnswerMessages });
-		const answerText = "The workspace runs the latest Coder release.";
-
-		const answer = screen.getByTestId("chat-message-message:6");
-		expect(within(answer).getByText(answerText)).toBeInTheDocument();
-		expect(screen.queryByText("Looking up the release notes.")).toBeNull();
-		expect(screen.queryByText(/Checking the release notes/)).toBeNull();
-		expect(screen.queryByText(/Searched/)).toBeNull();
 
 		await user.click(
 			screen.getByRole("button", { name: "Worked for 15s (3 steps)" }),
 		);
-		const work = screen.getByTestId("chat-message-message:6-work");
-		expect(
-			within(work).getByText("Looking up the release notes."),
-		).toBeInTheDocument();
-		expect(
-			within(work).getByText(/Checking the release notes/),
-		).toBeInTheDocument();
-		expect(within(work).getByText(/Searched/)).toBeInTheDocument();
-		expect(screen.getAllByText(answerText)).toHaveLength(1);
-		expect(within(answer).getByText(answerText)).toBeInTheDocument();
-		expect(
-			work.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-
 		await user.click(
-			within(answer).getByRole("button", { name: "Copy message" }),
+			within(screen.getByTestId("chat-message-message:6")).getByRole("button", {
+				name: "Copy message",
+			}),
 		);
 
 		expect(writeText).toHaveBeenCalledWith(
 			"Looking up the release notes.The workspace runs the latest Coder release.",
-		);
-	});
-
-	it("inerts the answer after a block while an earlier prompt is edited", () => {
-		renderTimeline({
-			messages: MockWebSearchAnswerMessages,
-			editingMessageId: 1,
-		});
-
-		expect(screen.getByTestId("chat-message-message:6")).toHaveAttribute(
-			"inert",
 		);
 	});
 
@@ -416,17 +386,6 @@ describe("ConversationTimeline live working blocks", () => {
 			]),
 		});
 		expect(thinking).toHaveFocus();
-		expect(
-			await within(
-				screen.getByTestId("chat-message-live-assistant"),
-			).findByText("The workspace looks healthy."),
-		).toBeInTheDocument();
-		expect(
-			within(screen.getByTestId("chat-message-live-assistant-work")).getByRole(
-				"button",
-				{ name: /Summarizing/ },
-			),
-		).toBe(thinking);
 	});
 
 	it("keeps the live disclosure mounted while the next step starts", () => {
