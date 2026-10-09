@@ -1,7 +1,9 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -22,10 +24,14 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogjson"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -45,11 +51,167 @@ func TestServerTailnet_AgentConn_OK(t *testing.T) {
 	agents, serverTailnet := setupServerTailnetAgent(t, 1)
 	a := agents[0]
 
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(serverTailnet))
+
 	conn, release, err := serverTailnet.AgentConn(ctx, a.id)
 	require.NoError(t, err)
 	defer release()
 
 	assert.True(t, conn.AwaitReachable(ctx))
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, testutil.PromHistogramSampleCount(t, metrics, "coder_servertailnet_await_reachable_seconds"))
+	// A reachable agent must not be counted under any reason.
+	for _, mf := range metrics {
+		assert.NotEqual(t, "coder_servertailnet_agent_unreachable_total", mf.GetName())
+	}
+}
+
+func TestServerTailnet_AgentConn_Unreachable(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	// No agent is registered with the coordinator, so the ServerTailnet never
+	// receives a node for this ID and the wait ends when the deadline passes.
+	_, serverTailnet := setupServerTailnetAgent(t, 0)
+	agentID := uuid.New()
+
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(serverTailnet))
+
+	var logs bytes.Buffer
+	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+	ctx = loggermw.WithRequestLogger(ctx, requestLogger)
+
+	dialCtx, dialCancel := context.WithTimeout(ctx, testutil.IntervalSlow)
+	defer dialCancel()
+	_, _, err := serverTailnet.AgentConn(dialCtx, agentID)
+	var unreachable *workspaceapps.AgentUnreachableError
+	require.ErrorAs(t, err, &unreachable)
+
+	requestLogger.WriteLog(ctx, http.StatusBadGateway)
+	var entry struct {
+		Level  string         `json:"level"`
+		Fields map[string]any `json:"fields"`
+	}
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+	assert.Equal(t, "WARN", entry.Level)
+	assert.Equal(t, agentID.String(), entry.Fields["agent_id"])
+	assert.Equal(t, false, entry.Fields["peer_node_received"])
+	assert.Contains(t, entry.Fields, "unreachable_after")
+	assert.NotContains(t, entry.Fields, "peer_last_handshake")
+	assert.Contains(t, entry.Fields, "server_preferred_derp")
+	assert.NotContains(t, entry.Fields, "peer_tx_bytes")
+	assert.NotContains(t, entry.Fields, "peer_rx_bytes")
+
+	// A second failure reads diagnostics again, so the first read released
+	// the slot.
+	dialCtx, dialCancel = context.WithTimeout(ctx, testutil.IntervalSlow)
+	defer dialCancel()
+	_, _, err = serverTailnet.AgentConn(dialCtx, uuid.New())
+	require.ErrorAs(t, err, &unreachable)
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	assert.True(t, testutil.PromCounterHasValue(t, metrics, 2, "coder_servertailnet_agent_unreachable_total", "no_node"))
+	assert.EqualValues(t, 0, testutil.PromHistogramSampleCount(t, metrics, "coder_servertailnet_await_reachable_seconds"))
+}
+
+func TestServerTailnet_AgentConn_NotCounted(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		dialCtx func(ctx context.Context) (context.Context, context.CancelFunc)
+	}{
+		{
+			// The caller gave up on the dial on purpose, as chatd does when
+			// the workspace has a newer agent.
+			name: "Abandoned",
+			dialCtx: func(ctx context.Context) (context.Context, context.CancelFunc) {
+				dialCtx, dialCancel := context.WithCancelCause(ctx)
+				dialCancel(workspacesdk.ErrDialAbandoned)
+				return dialCtx, func() {}
+			},
+		},
+		{
+			// The caller is polling an agent that may still be booting, as
+			// the chat tools do after they create or start a workspace.
+			name: "ReadinessProbeTimeout",
+			dialCtx: func(ctx context.Context) (context.Context, context.CancelFunc) {
+				return context.WithTimeoutCause(ctx, testutil.IntervalSlow, workspacesdk.ErrReadinessProbeTimeout)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+			defer cancel()
+
+			_, serverTailnet := setupServerTailnetAgent(t, 0)
+			agentID := uuid.New()
+
+			registry := prometheus.NewRegistry()
+			require.NoError(t, registry.Register(serverTailnet))
+
+			var logs bytes.Buffer
+			logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+			requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+			ctx = loggermw.WithRequestLogger(ctx, requestLogger)
+
+			dialCtx, dialCancel := tt.dialCtx(ctx)
+			defer dialCancel()
+			_, _, err := serverTailnet.AgentConn(dialCtx, agentID)
+			require.Error(t, err)
+			var unreachable *workspaceapps.AgentUnreachableError
+			require.NotErrorAs(t, err, &unreachable)
+
+			requestLogger.WriteLog(ctx, http.StatusBadGateway)
+			var entry struct {
+				Fields map[string]any `json:"fields"`
+			}
+			require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+			assert.NotContains(t, entry.Fields, "agent_id")
+			assert.NotContains(t, entry.Fields, "reason")
+
+			metrics, err := registry.Gather()
+			require.NoError(t, err)
+			for _, m := range metrics {
+				assert.NotEqual(t, "coder_servertailnet_agent_unreachable_total", m.GetName())
+			}
+		})
+	}
+}
+
+func TestServerTailnet_DERPConnects(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	agents, serverTailnet := setupServerTailnetAgent(t, 1, tailnettest.DisableSTUN, tailnettest.DERPIsEmbedded)
+	a := agents[0]
+
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(serverTailnet))
+
+	conn, release, err := serverTailnet.AgentConn(ctx, a.id)
+	require.NoError(t, err)
+	defer release()
+	require.True(t, conn.AwaitReachable(ctx))
+
+	// One connection to the embedded relay after startup.
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	assert.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_derp_connects_total"))
 }
 
 func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {
@@ -97,6 +259,124 @@ func TestServerTailnet_ReverseProxy_ProxyEnv(t *testing.T) {
 	defer res.Body.Close()
 
 	assert.Equal(t, http.StatusOK, res.StatusCode)
+}
+
+func TestServerTailnet_ReverseProxy_Unreachable(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	// No agent is registered with the coordinator, so the dial never gets a
+	// pong. The request ends first, as when a load balancer gives up on a
+	// hung request, and the transport keeps dialing without it.
+	_, serverTailnet := setupServerTailnetAgent(t, 0)
+	agentID := uuid.New()
+
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(serverTailnet))
+
+	var logs bytes.Buffer
+	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+
+	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
+	require.NoError(t, err)
+
+	rp := serverTailnet.ReverseProxy(u, u, agentID, appurl.ApplicationURL{}, "")
+
+	reqCtx, reqCancel := context.WithTimeout(loggermw.WithRequestLogger(ctx, requestLogger), testutil.IntervalSlow)
+	defer reqCancel()
+	rw := httptest.NewRecorder()
+	req := httptest.NewRequest(
+		http.MethodGet,
+		u.String(),
+		nil,
+	).WithContext(reqCtx)
+
+	rp.ServeHTTP(rw, req)
+	res := rw.Result()
+	defer res.Body.Close()
+
+	require.Equal(t, http.StatusBadGateway, res.StatusCode)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "agent is unreachable")
+
+	requestLogger.WriteLog(ctx, res.StatusCode)
+	var entry struct {
+		Level  string         `json:"level"`
+		Fields map[string]any `json:"fields"`
+	}
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+	assert.Equal(t, "WARN", entry.Level)
+	assert.Equal(t, agentID.String(), entry.Fields["agent_id"])
+	assert.Equal(t, "await_reachable", entry.Fields["dial_phase"])
+	assert.Equal(t, false, entry.Fields["peer_node_received"])
+	assert.Contains(t, entry.Fields, "unreachable_after")
+	assert.NotContains(t, entry.Fields, "peer_last_handshake")
+	assert.Contains(t, entry.Fields, "server_preferred_derp")
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	assert.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_agent_unreachable_total", "no_node"))
+}
+
+func TestServerTailnet_ReverseProxy_TCPDialFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	// The agent answers pings, so the tunnel is up, but nothing listens on
+	// the target port. The failure is above WireGuard and must not count as
+	// an unreachable agent.
+	agents, serverTailnet := setupServerTailnetAgent(t, 1)
+	a := agents[0]
+
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(serverTailnet))
+
+	var logs bytes.Buffer
+	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+
+	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", testutil.RandomPort(t)))
+	require.NoError(t, err)
+
+	rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
+
+	rw := httptest.NewRecorder()
+	req := httptest.NewRequest(
+		http.MethodGet,
+		u.String(),
+		nil,
+	).WithContext(loggermw.WithRequestLogger(ctx, requestLogger))
+
+	rp.ServeHTTP(rw, req)
+	res := rw.Result()
+	defer res.Body.Close()
+
+	require.Equal(t, http.StatusBadGateway, res.StatusCode)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), "agent is unreachable")
+
+	requestLogger.WriteLog(ctx, res.StatusCode)
+	var entry struct {
+		Fields map[string]any `json:"fields"`
+	}
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+	assert.Equal(t, a.id.String(), entry.Fields["agent_id"])
+	assert.Equal(t, "tcp_dial", entry.Fields["dial_phase"])
+	assert.Contains(t, entry.Fields, "tcp_dial_after")
+	assert.NotContains(t, entry.Fields, "unreachable_after")
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	for _, m := range metrics {
+		assert.NotEqual(t, "coder_servertailnet_agent_unreachable_total", m.GetName())
+	}
 }
 
 func TestServerTailnet_ReverseProxy(t *testing.T) {
