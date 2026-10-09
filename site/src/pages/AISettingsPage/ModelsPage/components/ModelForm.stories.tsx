@@ -210,10 +210,10 @@ export const AddHidesDisabledProviders: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("combobox", { name: /provider/i }));
-		// Exact accessible-name matches guard the aria-hidden icon fix: a
-		// regressed icon would turn an option's name into "OpenAI OpenAI".
-		await screen.findByRole("option", { name: "OpenAI" });
-		await screen.findByRole("option", { name: "Anthropic" });
+		// Anchored accessible-name matches guard the aria-hidden icon fix: a
+		// regressed icon would turn an option's name into "OpenAI OpenAI openai".
+		await screen.findByRole("option", { name: /^OpenAI\s*openai$/ });
+		await screen.findByRole("option", { name: /^Anthropic\s*anthropic$/ });
 		await expect(screen.getAllByRole("option")).toHaveLength(2);
 		await expect(
 			screen.queryByRole("option", { name: /Secondary/ }),

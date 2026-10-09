@@ -38,6 +38,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 }) => {
 	const clickableProps = useClickableTableRow({ onClick });
 	const displayName = model.display_name || model.model;
+	const providerType = providerTypeByID.get(model.ai_provider_id) ?? "";
 	// Models whose provider is missing or disabled cannot be used, so the
 	// status cell surfaces that regardless of the persisted enabled flag.
 	const providerNotice = !hasProvider
@@ -62,9 +63,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 							!model.enabled && "opacity-50",
 						)}
 					>
-						<ProviderIcon
-							provider={providerTypeByID.get(model.ai_provider_id) ?? ""}
-						/>
+						<ProviderIcon provider={providerType} />
 					</Avatar>
 					<div className="flex min-w-0 items-center gap-2">
 						<span
@@ -110,17 +109,27 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 			</TableCell>
 			<TableCell className="min-w-0">
 				{hasProvider ? (
-					<span
-						className={cn(
-							"block truncate text-sm font-medium leading-6",
-							model.enabled
-								? "text-content-secondary"
-								: "text-content-disabled",
+					<div className="flex min-w-0 items-baseline gap-2">
+						<span
+							className={cn(
+								"truncate text-sm font-medium leading-6",
+								model.enabled
+									? "text-content-secondary"
+									: "text-content-disabled",
+							)}
+							title={providerLabel}
+						>
+							{providerLabel}
+						</span>
+						{providerType && (
+							<span
+								className="shrink-0 font-mono text-xs text-content-secondary"
+								title={providerType}
+							>
+								{providerType}
+							</span>
 						)}
-						title={providerLabel}
-					>
-						{providerLabel}
-					</span>
+					</div>
 				) : (
 					<span className="truncate text-sm font-medium leading-6 text-content-secondary">
 						Unset

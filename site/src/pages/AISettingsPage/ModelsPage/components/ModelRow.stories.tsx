@@ -44,6 +44,15 @@ export const WithProvider: Story = {
 	},
 };
 
+// An unmapped provider type falls back to the generic icon, so the raw type
+// text is what distinguishes it from other providers.
+export const UnmappedProviderType: Story = {
+	args: {
+		providerLabel: "Internal Gateway",
+		providerTypeByID: new Map([["prov-openai", "openai-compat"]]),
+	},
+};
+
 // A missing (soft-deleted) provider shows "Unset" plus the "Unavailable"
 // notice even though the persisted model.enabled flag is true.
 export const WithoutProviderForcesDisabled: Story = {

@@ -59,6 +59,9 @@ export const ModelFormProviderSelect: React.FC<{
 							<span className="flex items-center gap-2">
 								<ProviderIcon provider={ps.provider} />
 								{ps.label}
+								<span className="font-mono text-xs text-content-secondary">
+									{ps.provider}
+								</span>
 							</span>
 						</SelectItem>
 					))}
