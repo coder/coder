@@ -11,5 +11,16 @@ Create an AI Gateway key
 ## Usage
 
 ```console
-coder ai-gateway keys create <name>
+coder ai-gateway keys create [flags] <name>
 ```
+
+## Options
+
+### -o, --output
+
+|         |                         |
+|---------|-------------------------|
+| Type    | <code>text\|json</code> |
+| Default | <code>text</code>       |
+
+Output format.
