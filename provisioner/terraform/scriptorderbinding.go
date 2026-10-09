@@ -41,6 +41,9 @@ type scriptOrderConversionResult struct {
 	scripts        map[string]scriptorder.Script
 	scriptRecords  map[string]scriptOrderScriptRecord
 	runtimeTargets map[string]scriptOrderRuntimeTarget
+	// protoScripts holds every selected script that was bound to a runtime,
+	// by resource address, so dependencies can be attached after Finalize.
+	protoScripts map[string]*proto.Script
 }
 
 type scriptOrderScriptRecord struct {
@@ -70,6 +73,7 @@ type scriptOrderRuntimeBinding struct {
 	scripts        map[string]scriptorder.Script
 	scriptRecords  map[string]scriptOrderScriptRecord
 	runtimeTargets map[string]scriptOrderRuntimeTarget
+	protoScripts   map[string]*proto.Script
 
 	selectedDevcontainers     map[string]struct{}
 	devcontainerRecords       map[string]scriptOrderDevcontainerRecord
@@ -165,6 +169,7 @@ func newScriptOrderRuntimeBinding(
 		scripts:        scripts,
 		scriptRecords:  records,
 		runtimeTargets: map[string]scriptOrderRuntimeTarget{},
+		protoScripts:   map[string]*proto.Script{},
 
 		selectedDevcontainers:     map[string]struct{}{},
 		devcontainerRecords:       map[string]scriptOrderDevcontainerRecord{},
@@ -460,10 +465,12 @@ func (b *scriptOrderRuntimeBinding) handleSelectedScript(
 	target := b.runtimeTargets[facts.RuntimeAddress]
 	if target.workspaceAgent != nil {
 		target.workspaceAgent.Scripts = append(target.workspaceAgent.Scripts, script)
+		b.protoScripts[resource.Address] = script
 		return true
 	}
 	if target.devcontainer != nil {
 		target.devcontainer.Scripts = append(target.devcontainer.Scripts, script)
+		b.protoScripts[resource.Address] = script
 		return true
 	}
 	facts.RuntimeError = fmt.Sprintf(
@@ -496,5 +503,6 @@ func (b *scriptOrderRuntimeBinding) result() *scriptOrderConversionResult {
 		scripts:        b.scripts,
 		scriptRecords:  b.scriptRecords,
 		runtimeTargets: b.runtimeTargets,
+		protoScripts:   b.protoScripts,
 	}
 }

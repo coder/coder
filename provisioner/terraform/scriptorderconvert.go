@@ -42,6 +42,11 @@ func convertStateWithScriptOrder(
 	if err != nil {
 		return nil, err
 	}
+	if err := attachScriptOrderDependencies(
+		order, conversion.scriptOrder.protoScripts,
+	); err != nil {
+		return nil, xerrors.Errorf("attach script order dependencies: %w", err)
+	}
 	if len(order.Graphs) > 0 {
 		result.order = &order
 	}
