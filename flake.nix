@@ -195,28 +195,28 @@
             releases = {
               x86_64-linux = {
                 platform = "linux_amd64";
-                hash = "sha256-DRcBHwxGZFObFksESQPQTilshsE8ufKAQAdsZc+zmFo=";
+                hash = "sha256-K8L8//AzJlyeAsoDUfAXlOsSL2KpsqSaMpS55J6qteQ=";
               };
               aarch64-linux = {
                 platform = "linux_arm64";
-                hash = "sha256-wEC9HjEitCkPcPdCiNjFpU3dQlSj5Sop58xmZlP1Cgo=";
+                hash = "sha256-YaULAEhe5IEM8gWB7wgPxU001mbhdcWNmhBQHGXBzN4=";
               };
               aarch64-darwin = {
                 platform = "darwin_arm64";
-                hash = "sha256-fAoLMciqVBNRNpvPe2KnKJ+8Id5+V3ZprrptQvTmzEE=";
+                hash = "sha256-7N72XiQZPWJ/J8ObrtoxKV8IyTjYo9R2T0QvuRbUt9w=";
               };
               x86_64-darwin = {
                 platform = "darwin_amd64";
-                hash = "sha256-J19Q7Rcq8vI+FaLOfjJRqsixe3aPLmLs64HDU80Qar8=";
+                hash = "sha256-mAkVjkgc8tOoQz5ZF585e47bUXI5dxG9mPa7Mu3K9Ts=";
               };
             };
             target = releases.${system} or null;
           in
           if target != null then
-            pkgs.runCommand "terraform-1.16.2" {
+            pkgs.runCommand "terraform-1.16.5" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.16.2/terraform_1.16.2_${target.platform}.zip";
+                url = "https://releases.hashicorp.com/terraform/1.16.5/terraform_1.16.5_${target.platform}.zip";
                 hash = target.hash;
               };
             } ''
