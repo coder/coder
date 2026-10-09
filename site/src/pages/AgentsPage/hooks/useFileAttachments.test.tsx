@@ -20,7 +20,7 @@ const uploadedFileIds = (
 	result: ReturnType<typeof useFileAttachments>,
 ): string[] =>
 	[...result.uploadStates.values()].flatMap((state) =>
-		state.status === "uploaded" && state.fileId ? [state.fileId] : [],
+		state.status === "uploaded" ? [state.fileId] : [],
 	);
 
 const renderAttachments = (initialProps: { orgId: string | undefined }) =>

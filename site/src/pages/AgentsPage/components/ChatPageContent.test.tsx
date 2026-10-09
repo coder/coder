@@ -41,39 +41,43 @@ const renderChatPageInput = (
 			onSend={vi.fn()}
 			onDeleteQueuedMessage={vi.fn()}
 			onPromoteQueuedMessage={vi.fn()}
-			onInterrupt={vi.fn()}
-			isInputDisabled={false}
-			isSendPending={false}
-			isInterruptPending={false}
-			hasModelOptions
-			selectedModel="model-config-1"
-			onModelChange={vi.fn()}
-			modelOptions={[
-				{
-					id: "model-config-1",
-					provider: "openai",
-					model: "gpt-4o",
-					displayName: "GPT-4o",
-				},
-			]}
-			modelSelectorPlaceholder="Select model"
-			canConfigureAgentSetup={false}
-			isEditing={false}
-			onCancelHistoryEdit={vi.fn()}
-			isReadOnly={false}
-			onReasoningEffortChange={vi.fn()}
-			unsupportedProviderNames={[]}
+			bindings={{
+				onInterrupt: vi.fn(),
+				isDisabled: false,
+				isLoading: false,
+				isInterruptPending: false,
+				hasModelOptions: true,
+				isEditingHistoryMessage: false,
+				onCancelHistoryEdit: vi.fn(),
+				inputRef: { current: null },
+				initialValue: "",
+				remountKey: 0,
+				onContentChange: vi.fn(),
+			}}
+			model={{
+				selectedModel: "model-config-1",
+				onModelChange: vi.fn(),
+				modelOptions: [
+					{
+						id: "model-config-1",
+						provider: "openai",
+						model: "gpt-4o",
+						displayName: "GPT-4o",
+					},
+				],
+				modelSelectorPlaceholder: "Select model",
+				onReasoningEffortChange: vi.fn(),
+				isModelCatalogLoading: false,
+			}}
+			setup={{ canConfigureAgentSetup: false, unsupportedProviderNames: [] }}
 			onPlanModeToggle={vi.fn()}
-			isModelCatalogLoading={false}
-			inputRef={{ current: null }}
-			initialValue=""
-			remountKey={0}
-			onContentChange={vi.fn()}
 			editingFileBlocks={[]}
-			mcpServers={[]}
-			selectedMCPServerIds={[]}
-			onMCPSelectionChange={vi.fn()}
-			onMCPAuthComplete={vi.fn()}
+			mcp={{
+				servers: [],
+				selectedServerIds: [],
+				onSelectionChange: vi.fn(),
+				onAuthComplete: vi.fn(),
+			}}
 			isWorkspaceLoading={false}
 			{...overrides}
 		/>,
@@ -113,19 +117,63 @@ const mockChatAutomationsResponse = () => {
 };
 
 describe("ChatPageInput", () => {
+	it.each([undefined, true])(
+		"toggles automations with the SDK enabled value %s",
+		async (enabled) => {
+			const user = userEvent.setup();
+			const onManageAutomationsToggle = vi.fn();
+			renderChatPageInput(createChatStore(), {
+				chat: {
+					...MockChat,
+					id: "",
+					organization_id: "",
+					manage_automations_enabled: enabled,
+				},
+				onManageAutomationsToggle,
+			});
+
+			await user.click(
+				await screen.findByRole("button", { name: "More options" }),
+			);
+			await user.click(
+				screen.getByRole("menuitemcheckbox", { name: "Manage automations" }),
+			);
+			expect(onManageAutomationsToggle).toHaveBeenCalledWith(!enabled);
+		},
+	);
+
 	it("routes Stop to onInterrupt while the chat requires action", async () => {
 		const user = userEvent.setup();
 		const onInterrupt = vi.fn();
 		const store = createChatStore();
 		store.setChatStatus("requires_action");
 
-		renderChatPageInput(store, { onInterrupt });
+		renderChatPageInput(store, {
+			bindings: {
+				onInterrupt,
+				isDisabled: false,
+				isLoading: false,
+				hasModelOptions: true,
+				initialValue: "",
+				onContentChange: vi.fn(),
+			},
+		});
 
 		await user.click(await screen.findByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
 	});
 
 	it("rehydrates edited workspace file references only from the bound workspace", async () => {
+		const selection = window.getSelection();
+		if (selection) {
+			const getRangeAt = selection.getRangeAt.bind(selection);
+			vi.spyOn(selection, "getRangeAt").mockImplementation((index) =>
+				Object.assign(getRangeAt(index), {
+					getBoundingClientRect: () => new DOMRect(0, 0, 1, 16),
+				}),
+			);
+		}
+
 		const user = userEvent.setup();
 		const onSend = vi.fn();
 
@@ -137,8 +185,14 @@ describe("ChatPageInput", () => {
 				workspace_id: "ws-1",
 			},
 			onSend,
-			isEditing: true,
-			initialValue: "edited",
+			bindings: {
+				isEditingHistoryMessage: true,
+				initialValue: "edited",
+				isDisabled: false,
+				isLoading: false,
+				hasModelOptions: true,
+				onContentChange: vi.fn(),
+			},
 			editingFileBlocks: [
 				workspaceFileReference("current.csv", "ws-1"),
 				workspaceFileReference("other.csv", "ws-2"),

@@ -27,7 +27,7 @@ import {
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
 } from "../../utils/fetchTextAttachment";
-import { ImageThumbnail } from "../AgentChatInput";
+import { ImageThumbnail } from "../AttachmentPreview";
 import { useFileProbes } from "./FileProbeContext";
 import type { RenderBlock } from "./types";
 

@@ -20,7 +20,6 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
@@ -49,9 +48,10 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import type { ChatDetailError } from "./components/ChatConversation/chatError";
+import { LoadingChatComposer } from "./components/AgentComposers";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import { ChatPageInput } from "./components/ChatPageContent";
 import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
@@ -88,17 +88,10 @@ const buildEditing = (
 	overrides: Partial<
 		React.ComponentProps<typeof AgentChatPageView>["editing"]
 	> = {},
-) => ({
+): React.ComponentProps<typeof AgentChatPageView>["editing"] => ({
 	chatInputRef: { current: null },
-	editorInitialValue: "",
-	initialEditorState: undefined,
-	remountKey: 0,
-	editingMessageId: null as number | null,
-	editingFileBlocks: [] as readonly ChatMessagePart[],
+	editingMessageId: null,
 	handleEditUserMessage: fn(),
-	handleCancelHistoryEdit: fn(),
-	handleSendFromInput: fn(),
-	handleContentChange: fn(),
 	...overrides,
 });
 
@@ -156,10 +149,19 @@ const collapsedSidebarRouter = reactRouterParameters({
 type StoryProps = Omit<
 	Partial<React.ComponentProps<typeof AgentChatPageView>>,
 	"editing" | "chat"
-> & {
-	editing?: Partial<React.ComponentProps<typeof AgentChatPageView>["editing"]>;
-	chat?: Partial<TypesGen.Chat>;
-};
+> &
+	Omit<
+		Partial<React.ComponentProps<typeof ChatPageInput>>,
+		"chat" | "bindings" | "model" | "setup"
+	> & {
+		bindings?: Partial<React.ComponentProps<typeof ChatPageInput>["bindings"]>;
+		model?: Partial<React.ComponentProps<typeof ChatPageInput>["model"]>;
+		setup?: Partial<React.ComponentProps<typeof ChatPageInput>["setup"]>;
+		editing?: Partial<
+			React.ComponentProps<typeof AgentChatPageView>["editing"]
+		>;
+		chat?: Partial<TypesGen.Chat>;
+	};
 
 const StoryAgentChatPageView: React.FC<StoryProps> = ({
 	editing,
@@ -171,43 +173,28 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 
 	const props = {
 		chat: buildChat(chat),
-		persistedError: undefined as ChatDetailError | undefined,
-		effectiveSelectedModel: defaultModelID,
-		setSelectedModel: fn(),
-		modelOptions: defaultModelOptions,
+		persistedError: undefined,
 		models: [],
-		modelSelectorPlaceholder: "Select a model",
-		hasModelOptions: true,
-		isInputDisabled: false,
-		isSubmissionPending: false,
-		isInterruptPending: false,
+		onSend: fn(),
+		editingFileBlocks: [],
 		showSidebarPanel: false,
 		onSetShowSidebarPanel: fn(),
 		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
-		sshCommand: undefined as string | undefined,
-		handleInterrupt: fn(),
-		handleDeleteQueuedMessage: fn(),
-		handlePromoteQueuedMessage: fn(),
+		onDeleteQueuedMessage: fn(),
+		onPromoteQueuedMessage: fn(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(async () => {}),
-		mcpServers: [] as React.ComponentProps<
-			typeof AgentChatPageView
-		>["mcpServers"],
-		selectedMCPServerIds: [] as React.ComponentProps<
-			typeof AgentChatPageView
-		>["selectedMCPServerIds"],
-		onMCPSelectionChange: fn(),
-		onMCPAuthComplete: fn(),
-		canConfigureAgentSetup: true,
-		providerCount: 1,
-		modelCount: 1,
-		unsupportedProviderNames: [],
-		onReasoningEffortChange: fn(),
-		isModelCatalogLoading: false,
+		mcpServers: [],
+		mcp: {
+			servers: [],
+			selectedServerIds: [],
+			onSelectionChange: fn(),
+			onAuthComplete: fn(),
+		},
 		onPlanModeToggle: fn(),
 		isWorkspaceLoading: false,
 		onImplementPlan: fn(),
@@ -218,8 +205,77 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		store,
 		editing: buildEditing(editing),
 	};
-	return <AgentChatPageView {...props} />;
+	const bindings = {
+		inputRef: props.editing.chatInputRef,
+		initialValue: "",
+		remountKey: 0,
+		onContentChange: fn(),
+		isDisabled: false,
+		isLoading: false,
+		hasModelOptions: true,
+		onInterrupt: fn(),
+		isEditingHistoryMessage: props.editing.editingMessageId !== null,
+		onCancelHistoryEdit: fn(),
+		...overrides.bindings,
+	};
+
+	return (
+		<AgentChatPageView
+			{...props}
+			canSubmitChatTurn={
+				overrides.canSubmitChatTurn ??
+				(!bindings.isDisabled && !bindings.isLoading)
+			}
+			composer={
+				overrides.composer ?? (
+					<ChatPageInput
+						{...props}
+						bindings={bindings}
+						model={{
+							selectedModel: defaultModelID,
+							onModelChange: fn(),
+							modelOptions: defaultModelOptions,
+							modelSelectorPlaceholder: "Select a model",
+							isModelCatalogLoading: false,
+							onReasoningEffortChange: fn(),
+							...overrides.model,
+						}}
+						setup={{
+							canConfigureAgentSetup: true,
+							providerCount: 1,
+							modelCount: 1,
+							unsupportedProviderNames: [],
+							...overrides.setup,
+						}}
+						linkedWorkspace={{
+							workspace: props.workspace,
+							agent: props.workspaceAgent,
+							...overrides.linkedWorkspace,
+						}}
+					/>
+				)
+			}
+		/>
+	);
 };
+
+const loadingComposerProps = {
+	bindings: {
+		inputRef: { current: null },
+		initialValue: "",
+		remountKey: 0,
+		onContentChange: fn(),
+		isDisabled: true,
+	},
+	model: {
+		selectedModel: defaultModelID,
+		onModelChange: fn(),
+		modelOptions: defaultModelOptions,
+		modelSelectorPlaceholder: "Select a model",
+		isModelCatalogLoading: false,
+	},
+	tools: { planning: { enabled: false, onChange: fn() } },
+} satisfies React.ComponentProps<typeof LoadingChatComposer>;
 
 // ---------------------------------------------------------------------------
 // Meta
@@ -314,7 +370,10 @@ export const CachedModelsWithRefetchError: Story = {
 /** Archived agent hides the composer and shows the read-only banner. */
 export const Archived: Story = {
 	render: () => (
-		<StoryAgentChatPageView chat={{ archived: true }} isInputDisabled />
+		<StoryAgentChatPageView
+			chat={{ archived: true }}
+			bindings={{ isDisabled: true }}
+		/>
 	),
 };
 
@@ -326,7 +385,7 @@ export const OtherUserChatReadOnly: Story = {
 				owner_username: "OtherUser",
 				owner_name: "Other User",
 			}}
-			isInputDisabled
+			bindings={{ isDisabled: true }}
 		/>
 	),
 };
@@ -339,7 +398,7 @@ export const OtherUserChatUsernameFallback: Story = {
 				owner_username: "OtherUser",
 				owner_name: undefined,
 			}}
-			isInputDisabled
+			bindings={{ isDisabled: true }}
 		/>
 	),
 };
@@ -352,7 +411,7 @@ export const OtherUserChatOwnerFallback: Story = {
 				owner_username: undefined,
 				owner_name: undefined,
 			}}
-			isInputDisabled
+			bindings={{ isDisabled: true }}
 		/>
 	),
 };
@@ -367,7 +426,7 @@ export const ArchivedOtherUserChat: Story = {
 				owner_username: "OtherUser",
 				owner_name: undefined,
 			}}
-			isInputDisabled
+			bindings={{ isDisabled: true }}
 		/>
 	),
 };
@@ -461,12 +520,12 @@ export const WithError: Story = {
 
 /** Send is blocked while input stays editable for drafts. */
 export const InputDisabled: Story = {
-	render: () => <StoryAgentChatPageView isInputDisabled />,
+	render: () => <StoryAgentChatPageView bindings={{ isDisabled: true }} />,
 };
 
 /** Shows a sending/pending state for the input. */
 export const SubmissionPending: Story = {
-	render: () => <StoryAgentChatPageView isSubmissionPending />,
+	render: () => <StoryAgentChatPageView bindings={{ isLoading: true }} />,
 };
 
 /** Right sidebar panel is open with diff status data. */
@@ -601,9 +660,8 @@ export const SidebarCollapsed: Story = {
 export const NoModelOptions: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			hasModelOptions={false}
-			modelOptions={[]}
-			isInputDisabled
+			bindings={{ hasModelOptions: false, isDisabled: true }}
+			model={{ modelOptions: [] }}
 		/>
 	),
 };
@@ -611,13 +669,10 @@ export const NoModelOptions: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canConfigureAgentSetup
 			chat={{ organization_id: MockDefaultOrganization.id }}
-			providerCount={0}
-			modelCount={0}
-			hasModelOptions={false}
-			modelOptions={[]}
-			isInputDisabled
+			setup={{ providerCount: 0, modelCount: 0 }}
+			bindings={{ hasModelOptions: false, isDisabled: true }}
+			model={{ modelOptions: [] }}
 		/>
 	),
 };
@@ -625,36 +680,24 @@ export const MissingProviderAndModelSetup: Story = {
 export const MissingModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canConfigureAgentSetup
 			chat={{ organization_id: MockDefaultOrganization.id }}
-			providerCount={1}
-			modelCount={0}
-			hasModelOptions={false}
-			modelOptions={[]}
-			isInputDisabled
+			setup={{ modelCount: 0 }}
+			bindings={{ hasModelOptions: false, isDisabled: true }}
+			model={{ modelOptions: [] }}
 		/>
 	),
 };
 
 export const MissingProviderSetup: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			canConfigureAgentSetup
-			providerCount={0}
-			modelCount={1}
-		/>
-	),
+	render: () => <StoryAgentChatPageView setup={{ providerCount: 0 }} />,
 };
 
 export const MemberNoModelsAvailable: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canConfigureAgentSetup={false}
-			providerCount={0}
-			modelCount={0}
-			hasModelOptions={false}
-			modelOptions={[]}
-			isInputDisabled
+			setup={{ canConfigureAgentSetup: false, providerCount: 0, modelCount: 0 }}
+			bindings={{ hasModelOptions: false, isDisabled: true }}
+			model={{ modelOptions: [] }}
 		/>
 	),
 };
@@ -664,7 +707,7 @@ export const WithWorkspace: Story = {
 		<StoryAgentChatPageView
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
+			linkedWorkspace={{ sshCommand: "ssh coder.workspace" }}
 		/>
 	),
 };
@@ -751,21 +794,8 @@ export const WorkspaceNoAgent: Story = {
 export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			inputRef={{ current: null }}
-			initialValue=""
-			initialEditorState={undefined}
-			remountKey={0}
-			onContentChange={fn()}
-			isInputDisabled
-			effectiveSelectedModel={defaultModelID}
-			setSelectedModel={fn()}
-			modelOptions={defaultModelOptions}
-			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
-			isModelCatalogLoading={false}
-			planModeEnabled={false}
-			onPlanModeToggle={fn()}
 			showRightPanel={false}
+			composer={<LoadingChatComposer {...loadingComposerProps} />}
 		/>
 	),
 };
@@ -774,21 +804,13 @@ export const Loading: Story = {
 export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			inputRef={{ current: null }}
-			initialValue=""
-			initialEditorState={undefined}
-			remountKey={0}
-			onContentChange={fn()}
-			isInputDisabled={false}
-			effectiveSelectedModel={defaultModelID}
-			setSelectedModel={fn()}
-			modelOptions={defaultModelOptions}
-			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
-			isModelCatalogLoading={false}
-			planModeEnabled={false}
-			onPlanModeToggle={fn()}
 			showRightPanel={false}
+			composer={
+				<LoadingChatComposer
+					{...loadingComposerProps}
+					bindings={{ ...loadingComposerProps.bindings, isDisabled: false }}
+				/>
+			}
 		/>
 	),
 };
@@ -796,21 +818,8 @@ export const LoadingWithModelOptions: Story = {
 export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
-			inputRef={{ current: null }}
-			initialValue=""
-			initialEditorState={undefined}
-			remountKey={0}
-			onContentChange={fn()}
-			isInputDisabled
-			effectiveSelectedModel={defaultModelID}
-			setSelectedModel={fn()}
-			modelOptions={defaultModelOptions}
-			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
-			isModelCatalogLoading={false}
-			planModeEnabled={false}
-			onPlanModeToggle={fn()}
 			showRightPanel
+			composer={<LoadingChatComposer {...loadingComposerProps} />}
 		/>
 	),
 };
@@ -820,21 +829,8 @@ export const LoadingSidebarCollapsed: Story = {
 	parameters: { reactRouter: collapsedSidebarRouter },
 	render: () => (
 		<AgentChatPageLoadingView
-			inputRef={{ current: null }}
-			initialValue=""
-			initialEditorState={undefined}
-			remountKey={0}
-			onContentChange={fn()}
-			isInputDisabled
-			effectiveSelectedModel={defaultModelID}
-			setSelectedModel={fn()}
-			modelOptions={defaultModelOptions}
-			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
-			isModelCatalogLoading={false}
-			planModeEnabled={false}
-			onPlanModeToggle={fn()}
 			showRightPanel={false}
+			composer={<LoadingChatComposer {...loadingComposerProps} />}
 		/>
 	),
 };
@@ -918,7 +914,7 @@ export const OtherUserChatHidesInlineActions: Story = {
 				owner_username: "OtherUser",
 				owner_name: "Other User",
 			}}
-			isInputDisabled
+			bindings={{ isDisabled: true }}
 			onImplementPlan={fn()}
 			store={buildStoreWithMessages(otherUserActionMessages)}
 		/>
@@ -948,10 +944,8 @@ export const EditingMessage: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			store={buildStoreWithMessages(editingMessages)}
-			editing={{
-				editingMessageId: 3,
-				editorInitialValue: "Now tell me a joke",
-			}}
+			editing={{ editingMessageId: 3 }}
+			bindings={{ initialValue: "Now tell me a joke" }}
 		/>
 	),
 };
@@ -1499,7 +1493,7 @@ export const RestoresPersistedSidebarTab: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
+			linkedWorkspace={{ sshCommand: "ssh coder.workspace" }}
 		/>
 	),
 };
@@ -1520,7 +1514,7 @@ export const PersistsSidebarTabClick: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
+			linkedWorkspace={{ sshCommand: "ssh coder.workspace" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1617,7 +1611,7 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={mockAgentWithBrowserApp}
-			sshCommand="ssh coder.workspace"
+			linkedWorkspace={{ sshCommand: "ssh coder.workspace" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1638,7 +1632,7 @@ export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
 				...MockWorkspaceAgent,
 				apps: [{ ...mockAgentBrowserApp, health: "disabled" }],
 			}}
-			sshCommand="ssh coder.workspace"
+			linkedWorkspace={{ sshCommand: "ssh coder.workspace" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1660,7 +1654,7 @@ export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 				...MockWorkspaceAgent,
 				apps: [{ ...mockAgentBrowserApp, health: "unhealthy" }],
 			}}
-			sshCommand="ssh coder.workspace"
+			linkedWorkspace={{ sshCommand: "ssh coder.workspace" }}
 		/>
 	),
 };
@@ -1692,7 +1686,7 @@ export const NoBrowserTabForAppOnNonBoundAgent: Story = {
 				},
 			}}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
+			linkedWorkspace={{ sshCommand: "ssh coder.workspace" }}
 		/>
 	),
 };
@@ -1709,7 +1703,7 @@ export const PreservesUnavailableBrowserTab: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
+			linkedWorkspace={{ sshCommand: "ssh coder.workspace" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1733,7 +1727,7 @@ const renderWithSingletonSupport = () => (
 		workspace={MockWorkspace}
 		workspaceAgent={mockAgentWithBrowserApp}
 		desktopChatId={AGENT_ID}
-		sshCommand="ssh coder.workspace"
+		linkedWorkspace={{ sshCommand: "ssh coder.workspace" }}
 	/>
 );
 
@@ -1879,12 +1873,12 @@ export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
 		<StoryAgentChatPageView
 			showSidebarPanel
 			chat={{ archived: true }}
-			isInputDisabled
+			bindings={{ isDisabled: true }}
 			debugLoggingEnabled
 			workspace={MockWorkspace}
 			workspaceAgent={mockAgentWithBrowserApp}
 			desktopChatId={AGENT_ID}
-			sshCommand="ssh coder.workspace"
+			linkedWorkspace={{ sshCommand: "ssh coder.workspace" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1919,7 +1913,7 @@ export const HidesUnsupportedSingletonPanels: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
+			linkedWorkspace={{ sshCommand: "ssh coder.workspace" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1962,10 +1956,10 @@ export const DoesNotPersistForArchivedChat: Story = {
 		<StoryAgentChatPageView
 			showSidebarPanel
 			chat={{ archived: true }}
-			isInputDisabled
+			bindings={{ isDisabled: true }}
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
+			linkedWorkspace={{ sshCommand: "ssh coder.workspace" }}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1994,7 +1988,7 @@ export const ArchivedWithSharing: Story = {
 				archived: true,
 				organization_id: MockDefaultOrganization.id,
 			}}
-			isInputDisabled
+			bindings={{ isDisabled: true }}
 		/>
 	),
 	parameters: {

@@ -12,7 +12,7 @@ import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
-import type { ChatMessageInputRef } from "../AgentChatInput";
+import type { ChatMessageInputRef } from "../ChatMessageInput/ChatMessageInput";
 import { GitPanel } from "./GitPanel";
 
 vi.mock("../DiffViewer/LocalDiffPanel", () => ({
@@ -96,6 +96,7 @@ function mockComposer(value = ""): ChatMessageInputRef {
 		setValue: vi.fn(),
 		clear: vi.fn(),
 		focus: vi.fn(),
+		focusWhenEditable: vi.fn(),
 		addFileReference: vi.fn(),
 		getContentParts: vi.fn(() => []),
 	};

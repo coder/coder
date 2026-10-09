@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
-import { isMobileViewport } from "#/utils/mobile";
-import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import type { ChatMessageInputRef } from "../components/ChatMessageInput/ChatMessageInput";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import {
 	draftInputStorageKeyPrefix,
@@ -133,9 +132,6 @@ export function useConversationEditingState(deps: {
 	// Clears all input and editing state after a successful send.
 	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
 		chatInputRef.current?.clear();
-		if (!isMobileViewport()) {
-			chatInputRef.current?.focus();
-		}
 		inputValueRef.current = "";
 		serializedEditorStateRef.current = undefined;
 		localStorage.removeItem(draftStorageKey);

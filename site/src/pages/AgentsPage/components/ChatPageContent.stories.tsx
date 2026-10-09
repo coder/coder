@@ -112,40 +112,44 @@ const StoryChatPageInput: React.FC<{
 			onSend={fn()}
 			onDeleteQueuedMessage={fn()}
 			onPromoteQueuedMessage={fn()}
-			onInterrupt={onInterrupt ?? fn()}
-			isInputDisabled={false}
-			isSendPending={false}
-			isInterruptPending={false}
-			hasModelOptions
-			selectedModel="model-config-1"
-			onModelChange={fn()}
-			modelOptions={[
-				{
-					id: "model-config-1",
-					provider: "openai",
-					model: "gpt-4o",
-					displayName: "GPT-4o",
-					contextLimit,
-				},
-			]}
-			modelSelectorPlaceholder="Select model"
-			canConfigureAgentSetup={false}
-			isEditing={false}
-			onCancelHistoryEdit={fn()}
-			isReadOnly={false}
-			onReasoningEffortChange={fn()}
-			unsupportedProviderNames={[]}
+			bindings={{
+				onInterrupt: onInterrupt ?? fn(),
+				isDisabled: false,
+				isLoading: false,
+				isInterruptPending: false,
+				hasModelOptions: true,
+				isEditingHistoryMessage: false,
+				onCancelHistoryEdit: fn(),
+				inputRef: { current: null },
+				initialValue: "",
+				remountKey: 0,
+				onContentChange: fn(),
+			}}
+			model={{
+				selectedModel: "model-config-1",
+				onModelChange: fn(),
+				modelOptions: [
+					{
+						id: "model-config-1",
+						provider: "openai",
+						model: "gpt-4o",
+						displayName: "GPT-4o",
+						contextLimit,
+					},
+				],
+				modelSelectorPlaceholder: "Select model",
+				onReasoningEffortChange: fn(),
+				isModelCatalogLoading: false,
+			}}
+			setup={{ canConfigureAgentSetup: false, unsupportedProviderNames: [] }}
 			onPlanModeToggle={fn()}
-			isModelCatalogLoading={false}
-			inputRef={{ current: null }}
-			initialValue=""
-			remountKey={0}
-			onContentChange={fn()}
 			editingFileBlocks={[]}
-			mcpServers={[]}
-			selectedMCPServerIds={[]}
-			onMCPSelectionChange={fn()}
-			onMCPAuthComplete={fn()}
+			mcp={{
+				servers: [],
+				selectedServerIds: [],
+				onSelectionChange: fn(),
+				onAuthComplete: fn(),
+			}}
 			isWorkspaceLoading={false}
 		/>
 	</div>
@@ -465,32 +469,36 @@ const CompactionChatPageInput: React.FC = () => {
 				onSend={fn()}
 				onDeleteQueuedMessage={fn()}
 				onPromoteQueuedMessage={fn()}
-				onInterrupt={fn()}
-				isInputDisabled={false}
-				isSendPending={false}
-				isInterruptPending={false}
-				hasModelOptions={false}
-				selectedModel={MockChat.last_model_config_id}
-				onModelChange={fn()}
-				modelOptions={[]}
-				modelSelectorPlaceholder="Select model"
-				canConfigureAgentSetup={false}
-				isEditing={false}
-				onCancelHistoryEdit={fn()}
-				isReadOnly={false}
-				onReasoningEffortChange={fn()}
-				unsupportedProviderNames={[]}
+				bindings={{
+					onInterrupt: fn(),
+					isDisabled: false,
+					isLoading: false,
+					isInterruptPending: false,
+					hasModelOptions: false,
+					isEditingHistoryMessage: false,
+					onCancelHistoryEdit: fn(),
+					inputRef: { current: null },
+					initialValue: "",
+					remountKey: 0,
+					onContentChange: fn(),
+				}}
+				model={{
+					selectedModel: MockChat.last_model_config_id,
+					onModelChange: fn(),
+					modelOptions: [],
+					modelSelectorPlaceholder: "Select model",
+					onReasoningEffortChange: fn(),
+					isModelCatalogLoading: false,
+				}}
+				setup={{ canConfigureAgentSetup: false, unsupportedProviderNames: [] }}
 				onPlanModeToggle={fn()}
-				isModelCatalogLoading={false}
-				inputRef={{ current: null }}
-				initialValue=""
-				remountKey={0}
-				onContentChange={fn()}
 				editingFileBlocks={[]}
-				mcpServers={[]}
-				selectedMCPServerIds={[]}
-				onMCPSelectionChange={fn()}
-				onMCPAuthComplete={fn()}
+				mcp={{
+					servers: [],
+					selectedServerIds: [],
+					onSelectionChange: fn(),
+					onAuthComplete: fn(),
+				}}
 				isWorkspaceLoading={false}
 			/>
 		</div>

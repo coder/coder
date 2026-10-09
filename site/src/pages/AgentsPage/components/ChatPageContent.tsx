@@ -20,7 +20,6 @@ import {
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
@@ -40,13 +39,13 @@ import {
 	resolveCompactionThreshold,
 } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
-import {
-	AgentChatInput,
-	type AttachedWorkspaceInfo,
-	type ChatMessageInputRef,
-	isUploadInProgress,
-	type UploadState,
-} from "./AgentChatInput";
+import type { ComposerEditorBindings } from "./AgentComposer/context";
+import type { AttachedWorkspaceInfo } from "./AgentComposerBadges";
+import type { AgentComposerSetup } from "./AgentComposerLayout";
+import type { AgentComposerModelProps } from "./AgentComposerOptions";
+import type { AgentComposerOptionsData } from "./AgentComposerOptionsContext";
+import { ChatComposer } from "./AgentComposers";
+import { isUploadInProgress, type UploadState } from "./AttachmentPreview";
 import type { ChatAutomationNames } from "./ChatConversation/AutomationLabel";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
@@ -84,6 +83,8 @@ import {
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
+import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
+
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -318,55 +319,32 @@ type ChatPageInputProps = {
 	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
-	onInterrupt: () => void;
-	isInputDisabled: boolean;
-	isReadOnly: boolean;
-	isSendPending: boolean;
-	isInterruptPending: boolean;
-	hasModelOptions: boolean;
-	selectedModel: string;
-	onModelChange: (modelID: string) => void;
-	modelOptions: readonly ModelSelectorOption[];
-	modelSelectorPlaceholder: string;
+	model: AgentComposerModelProps;
+	setup: AgentComposerSetup;
 	modelSelectorHelp?: React.ReactNode;
-	reasoningEffort?: string;
-	onReasoningEffortChange: (value: string) => void;
-	canConfigureAgentSetup: boolean;
-	providerCount?: number;
-	modelCount?: number;
-	unsupportedProviderNames: readonly string[];
-	aiGatewayDisabled?: boolean;
 	onPlanModeToggle: (enabled: boolean) => void;
 	onManageAutomationsToggle?: (enabled: boolean) => void;
-	isModelCatalogLoading: boolean;
-	// Imperative editor handle plus the one-time initial draft,
-	// owned by the conversation component.
-	inputRef: React.RefObject<ChatMessageInputRef | null>;
-	initialValue: string;
-	initialEditorState?: string;
-	remountKey: number;
-	onContentChange: (
-		content: string,
-		serializedEditorState: string,
-		hasFileReferences: boolean,
-	) => void;
-	isEditing: boolean;
-	onCancelHistoryEdit: () => void;
+	bindings: ComposerEditorBindings & {
+		isDisabled: boolean;
+		isLoading: boolean;
+		hasModelOptions: boolean;
+		isInterruptPending?: boolean;
+		isEditingHistoryMessage?: boolean;
+		onCancelHistoryEdit?: () => void;
+		onInterrupt?: () => void;
+	};
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks: readonly TypesGen.ChatMessagePart[];
-	// MCP server picker state.
-	mcpServers: readonly TypesGen.MCPServerConfig[];
-	selectedMCPServerIds: readonly string[];
-	onMCPSelectionChange: (ids: string[]) => void;
-	onMCPAuthComplete: (serverId: string) => void;
+	mcp: NonNullable<AgentComposerOptionsData["mcp"]>;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
-	workspace?: TypesGen.Workspace;
-	workspaceAgent?: TypesGen.WorkspaceAgent;
-	sshCommand?: string;
-	attachedWorkspace?: AttachedWorkspaceInfo;
-	folder?: string;
+	linkedWorkspace?: {
+		workspace?: TypesGen.Workspace;
+		agent?: TypesGen.WorkspaceAgent;
+		sshCommand?: string;
+		folder?: string;
+	};
 };
 
 export const ChatPageInput: React.FC<ChatPageInputProps> = ({
@@ -376,48 +354,40 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
-	onInterrupt,
-	isInputDisabled,
-	isReadOnly,
-	isSendPending,
-	isInterruptPending,
-	hasModelOptions,
-	selectedModel,
-	onModelChange,
-	modelOptions,
-	modelSelectorPlaceholder,
+	model,
+	setup,
+	bindings,
 	modelSelectorHelp,
-	reasoningEffort,
-	onReasoningEffortChange,
-	canConfigureAgentSetup,
-	providerCount,
-	modelCount,
-	unsupportedProviderNames,
-	aiGatewayDisabled,
 	onPlanModeToggle,
 	onManageAutomationsToggle,
-	isModelCatalogLoading,
-	inputRef,
-	initialValue,
-	initialEditorState,
-	remountKey,
-	onContentChange,
-	isEditing,
-	onCancelHistoryEdit,
 	editingFileBlocks,
-	mcpServers,
-	selectedMCPServerIds,
-	onMCPSelectionChange,
-	onMCPAuthComplete,
+	mcp,
 	onWorkspaceChange,
 	isWorkspaceLoading,
-	workspace,
-	workspaceAgent,
-	sshCommand,
-	attachedWorkspace,
-	folder,
+	linkedWorkspace,
 }) => {
+	const { selectedModel, modelOptions } = model;
+	const {
+		isEditingHistoryMessage: isEditing = false,
+		isLoading: isSendPending,
+	} = bindings;
+	const { workspace, agent: workspaceAgent } = linkedWorkspace ?? {};
 	const { user: currentUser } = useAuthenticated();
+	let attachedWorkspace: AttachedWorkspaceInfo | undefined;
+
+	if (workspace) {
+		const { effectiveType, statusLabel } = getWorkspaceStatus(
+			workspace,
+			workspaceAgent,
+		);
+		attachedWorkspace = {
+			id: workspace.id,
+			name: workspace.name,
+			route: `/@${workspace.owner_name}/${workspace.name}`,
+			statusIcon: <StatusIcon type={effectiveType} />,
+			statusLabel,
+		};
+	}
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
 	const chatContext = chat.context;
@@ -743,9 +713,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	};
 
 	const inputElement = (
-		<AgentChatInput
-			onSend={(message) => {
-				void (async () => {
+		<ChatComposer
+			bindings={{
+				...bindings,
+				isReadOnly: !chat.archived && currentUser.id !== chat.owner_id,
+				onSend: async (message) => {
 					const hasActiveUploads =
 						attachments.some((file) =>
 							isUploadInProgress(uploadStates.get(file)),
@@ -765,7 +737,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 							skippedErrors++;
 							continue;
 						}
-						if (state?.status === "uploaded" && state.fileId) {
+						if (state?.status === "uploaded") {
 							pendingAttachments.push({
 								fileId: state.fileId,
 								mediaType: file.type || "application/octet-stream",
@@ -779,7 +751,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 							skippedWorkspaceErrors++;
 							continue;
 						}
-						if (upload.status === "uploaded" && upload.response) {
+						if (upload.status === "uploaded") {
 							pendingWorkspaceUploads.push({
 								path: upload.response.path,
 								name: upload.response.name,
@@ -823,78 +795,63 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						composeAttachments.resetAttachments();
 						composeWorkspaceUploads.reset();
 					}
-				})();
+				},
+				files: {
+					attachments,
+					onAttach: handleAttach,
+					onRemoveAttachment: handleRemoveAttachment,
+					uploadStates,
+					previewUrls,
+					textContents,
+					workspaceUploads: {
+						uploads: visibleWorkspaceUploads,
+						onAttach: canUploadWorkspaceFiles
+							? modeWorkspaceUploads.attach
+							: undefined,
+						onRemove: handleRemoveWorkspaceUpload,
+					},
+				},
+				userPromptHistory,
+				isStreaming,
+				isInterruptPending:
+					bindings.isInterruptPending || chatStatus === "interrupting",
 			}}
-			attachments={attachments}
-			onAttach={handleAttach}
-			onRemoveAttachment={handleRemoveAttachment}
-			uploadStates={uploadStates}
-			previewUrls={previewUrls}
-			textContents={textContents}
-			workspaceUploads={{
-				uploads: visibleWorkspaceUploads,
-				onAttach: canUploadWorkspaceFiles
-					? modeWorkspaceUploads.attach
+			queue={{
+				messages: queuedMessages,
+				automationNames,
+				onDelete: onDeleteQueuedMessage,
+				onPromote: onPromoteQueuedMessage,
+			}}
+			context={{
+				usage: latestContextUsage,
+				onRefreshContext: handleRefreshContext,
+				isRefreshingContext: refreshContextMutation.isPending,
+			}}
+			model={model}
+			tools={{
+				organizationId,
+				planning: { enabled: planModeEnabled, onChange: onPlanModeToggle },
+				automations: onManageAutomationsToggle
+					? {
+							enabled: chat.manage_automations_enabled ?? false,
+							onChange: onManageAutomationsToggle,
+						}
 					: undefined,
-				onRemove: handleRemoveWorkspaceUpload,
+				workspaceSelection: {
+					options: workspaceOptions,
+					selectedId: selectedWorkspaceId,
+					onChange: onWorkspaceChange,
+					isLoading: workspacesQuery.isLoading || isWorkspaceLoading,
+				},
+				mcp,
+				linkedWorkspace: { ...linkedWorkspace, attachedWorkspace, chatId },
 			}}
-			inputRef={inputRef}
-			initialValue={initialValue}
-			initialEditorState={initialEditorState}
-			remountKey={remountKey}
-			onContentChange={onContentChange}
-			queuedMessages={queuedMessages}
-			automationNames={automationNames}
-			onDeleteQueuedMessage={onDeleteQueuedMessage}
-			onPromoteQueuedMessage={onPromoteQueuedMessage}
-			isEditingHistoryMessage={isEditing}
-			onCancelHistoryEdit={onCancelHistoryEdit}
-			userPromptHistory={userPromptHistory}
-			isDisabled={isInputDisabled}
-			isReadOnly={isReadOnly}
-			isLoading={isSendPending}
-			isStreaming={isStreaming}
-			onInterrupt={onInterrupt}
-			isInterruptPending={isInterruptPending || chatStatus === "interrupting"}
-			contextUsage={latestContextUsage}
-			onRefreshContext={handleRefreshContext}
-			isRefreshingContext={refreshContextMutation.isPending}
-			hasModelOptions={hasModelOptions}
-			selectedModel={selectedModel}
-			onModelChange={onModelChange}
-			modelOptions={modelOptions}
-			modelSelectorPlaceholder={modelSelectorPlaceholder}
-			reasoningEffort={reasoningEffort}
-			onReasoningEffortChange={onReasoningEffortChange}
-			planModeEnabled={planModeEnabled}
-			onPlanModeToggle={onPlanModeToggle}
-			manageAutomationsEnabled={chat.manage_automations_enabled}
-			onManageAutomationsToggle={onManageAutomationsToggle}
-			isModelCatalogLoading={isModelCatalogLoading}
-			workspaceOptions={workspaceOptions}
-			chatOrganizationId={organizationId}
-			selectedWorkspaceId={selectedWorkspaceId}
-			onWorkspaceChange={onWorkspaceChange}
-			isWorkspaceLoading={workspacesQuery.isLoading || isWorkspaceLoading}
-			mcpServers={mcpServers}
-			selectedMCPServerIds={selectedMCPServerIds}
-			onMCPSelectionChange={onMCPSelectionChange}
-			onMCPAuthComplete={onMCPAuthComplete}
-			workspaceSkills={workspaceSkills}
-			workspace={workspace}
-			workspaceAgent={workspaceAgent}
-			chatId={chatId}
-			sshCommand={sshCommand}
-			attachedWorkspace={attachedWorkspace}
-			folder={folder}
-			canConfigureAgentSetup={canConfigureAgentSetup}
-			providerCount={providerCount}
-			modelCount={modelCount}
-			unsupportedProviderNames={unsupportedProviderNames}
-			aiGatewayDisabled={aiGatewayDisabled}
-			// Commands act on the whole chat, so they only make sense
-			// for new sends: hide them while editing a history message.
-			slashCommands={isEditing ? undefined : CHAT_SLASH_COMMANDS}
+			setup={setup}
+			editor={{
+				workspaceSkills,
+				hasWorkspace: workspace !== undefined,
+				slashCommands: CHAT_SLASH_COMMANDS,
+			}}
 		/>
 	);
 

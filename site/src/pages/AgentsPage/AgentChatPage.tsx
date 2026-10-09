@@ -44,6 +44,7 @@ import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
+import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
@@ -54,7 +55,7 @@ import {
 	AgentChatPageView,
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
-import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { LoadingChatComposer } from "./components/AgentComposers";
 import { useAutomationsEnabled } from "./components/Automations/automationsFlag";
 import {
 	type ChatDetailError,
@@ -69,11 +70,18 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
-import { submitChatTurn } from "./components/ChatConversation/submitChatTurn";
+import {
+	type SubmitChatTurnParams,
+	submitChatTurn,
+} from "./components/ChatConversation/submitChatTurn";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
-import { workspaceSkillsFromChat } from "./components/ChatPageContent";
+import type { ChatMessageInputRef } from "./components/ChatMessageInput/ChatMessageInput";
+import {
+	ChatPageInput,
+	workspaceSkillsFromChat,
+} from "./components/ChatPageContent";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
 import {
@@ -104,6 +112,25 @@ import {
 import { pickReasoningEffort } from "./utils/reasoningEffort";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
+
+function restoreComposerFocus(
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>,
+) {
+	if (!isMobileViewport()) {
+		chatInputRef.current?.focusWhenEditable();
+	}
+}
+
+async function submitChatTurnAndRestoreFocus(
+	params: SubmitChatTurnParams,
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>,
+) {
+	try {
+		await submitChatTurn(params);
+	} finally {
+		restoreComposerFocus(chatInputRef);
+	}
+}
 
 const AgentChatPage: React.FC = () => {
 	const { agentId } = useParams() as { agentId: string };
@@ -312,7 +339,7 @@ const AgentChatPage: React.FC = () => {
 	const { isPending: isEditPending, mutateAsync: editMessage } = useMutation(
 		editChatMessage(queryClient, agentId),
 	);
-	const { isPending: isInterruptPending, mutateAsync: interrupt } = useMutation(
+	const { isPending: isInterruptPending, mutate: interrupt } = useMutation(
 		interruptChat(queryClient, agentId),
 	);
 	const { isPending: isCompactPending, mutateAsync: compact } = useMutation(
@@ -417,6 +444,12 @@ const AgentChatPage: React.FC = () => {
 		chatId: agentId,
 		agentStatus: workspaceAgent?.status,
 	});
+
+	// Prefer the git repository root over the agent's expanded directory
+	// for VS Code folder resolution (important for monorepos).
+	const preferredFolder =
+		Array.from(gitWatcher.repositories.keys()).sort()[0] ||
+		workspaceAgent?.expanded_directory;
 
 	// Detect completed chat tool results so sidebar data stays in sync
 	// with the server state those tools may have changed.
@@ -549,7 +582,9 @@ const AgentChatPage: React.FC = () => {
 		if (isInterruptPending) {
 			return;
 		}
-		void interrupt();
+		interrupt(undefined, {
+			onSettled: () => restoreComposerFocus(chatInputRef),
+		});
 	};
 
 	const handleWorkspaceChange = (nextWorkspaceId: string | null) => {
@@ -691,20 +726,24 @@ const AgentChatPage: React.FC = () => {
 		});
 	}
 
-	const handleSendAskUserQuestionResponse = async (message: string) => {
-		await submitChatTurn({
-			...chatTurnDeps,
-			message,
-		});
-	};
+	const handleSendAskUserQuestionResponse = (message: string) =>
+		submitChatTurnAndRestoreFocus(
+			{
+				...chatTurnDeps,
+				message,
+			},
+			chatInputRef,
+		);
 
-	const handleImplementPlan = async () => {
-		await submitChatTurn({
-			...chatTurnDeps,
-			message: "Implement the plan.",
-			clearPlanMode: true,
-		});
-	};
+	const handleImplementPlan = () =>
+		submitChatTurnAndRestoreFocus(
+			{
+				...chatTurnDeps,
+				message: "Implement the plan.",
+				clearPlanMode: true,
+			},
+			chatInputRef,
+		);
 
 	const isWaitingForPreferences =
 		preferencesQuery.isLoading &&
@@ -720,22 +759,31 @@ const AgentChatPage: React.FC = () => {
 			chatMessagesQuery.isLoading ||
 			isWaitingForPreferences ? (
 				<AgentChatPageLoadingView
-					inputRef={editing.chatInputRef}
-					initialValue={editing.editorInitialValue}
-					initialEditorState={editing.initialEditorState}
-					remountKey={editing.remountKey}
-					onContentChange={editing.handleLoadingDraftChange}
-					// The loading view drops sends, so keep the composer disabled
-					// until the transcript can mount.
-					isInputDisabled={isInputDisabled || preferencesQuery.isLoading}
-					effectiveSelectedModel={effectiveSelectedModel}
-					setSelectedModel={setSelectedModel}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					hasModelOptions={hasModelOptions}
-					isModelCatalogLoading={isModelDataPending}
-					planModeEnabled={planModeEnabled}
-					onPlanModeToggle={handlePlanModeToggle}
+					composer={
+						<LoadingChatComposer
+							bindings={{
+								inputRef: editing.chatInputRef,
+								initialValue: editing.editorInitialValue,
+								initialEditorState: editing.initialEditorState,
+								remountKey: editing.remountKey,
+								onContentChange: editing.handleLoadingDraftChange,
+								isDisabled: isInputDisabled || preferencesQuery.isLoading,
+							}}
+							model={{
+								selectedModel: effectiveSelectedModel,
+								onModelChange: setSelectedModel,
+								modelOptions,
+								modelSelectorPlaceholder,
+								isModelCatalogLoading: isModelDataPending,
+							}}
+							tools={{
+								planning: {
+									enabled: planModeEnabled,
+									onChange: handlePlanModeToggle,
+								},
+							}}
+						/>
+					}
 					showRightPanel={showSidebarPanel}
 				/>
 			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
@@ -769,59 +817,95 @@ const AgentChatPage: React.FC = () => {
 					workspaceAgent={workspaceAgent}
 					store={store}
 					initialMessages={chatMessagesList ?? []}
-					editing={{ ...editing, handleEditUserMessage }}
-					effectiveSelectedModel={effectiveSelectedModel}
-					setSelectedModel={setSelectedModel}
-					modelOptions={modelOptions}
-					models={modelCatalog?.models}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					modelSelectorHelp={modelSelectorHelp}
+					editing={{
+						chatInputRef: editing.chatInputRef,
+						editingMessageId: editing.editingMessageId,
+						handleEditUserMessage,
+					}}
+					composer={
+						<ChatPageInput
+							chat={chat}
+							store={store}
+							models={modelCatalog?.models}
+							onSend={editing.handleSendFromInput}
+							onDeleteQueuedMessage={handleDeleteQueuedMessage}
+							onPromoteQueuedMessage={handlePromoteQueuedMessage}
+							setup={{
+								canConfigureAgentSetup: permissions.editDeploymentConfig,
+								providerCount,
+								modelCount,
+								unsupportedProviderNames,
+								aiGatewayDisabled,
+							}}
+							model={{
+								selectedModel: effectiveSelectedModel,
+								onModelChange: setSelectedModel,
+								modelOptions,
+								modelSelectorPlaceholder,
+								reasoningEffort: effectiveReasoningEffort,
+								onReasoningEffortChange: (value) => {
+									setSelectedReasoningEffort(value);
+									if (editing.editingMessageId !== null) {
+										isEditReasoningEffortDirtyRef.current = true;
+									}
+								},
+								isModelCatalogLoading: isModelDataPending,
+							}}
+							modelSelectorHelp={modelSelectorHelp}
+							onPlanModeToggle={handlePlanModeToggle}
+							onManageAutomationsToggle={
+								canToggleManageAutomations({
+									chat,
+									viewerId: currentUser.id,
+									automationsExperimentEnabled,
+								})
+									? (enabled) =>
+											updateChatManageAutomationsMutate({
+												chatId: agentId,
+												enabled,
+											})
+									: undefined
+							}
+							onWorkspaceChange={
+								canUpdateChatWorkspace ? handleWorkspaceChange : undefined
+							}
+							isWorkspaceLoading={isUpdateChatWorkspacePending}
+							bindings={{
+								inputRef: editing.chatInputRef,
+								initialValue: editing.editorInitialValue,
+								initialEditorState: editing.initialEditorState,
+								remountKey: editing.remountKey,
+								onContentChange: editing.handleContentChange,
+								isEditingHistoryMessage: editing.editingMessageId !== null,
+								onCancelHistoryEdit: editing.handleCancelHistoryEdit,
+								onInterrupt: handleInterrupt,
+								isDisabled: isInputDisabled,
+								isLoading: isSubmissionPending,
+								isInterruptPending,
+								hasModelOptions,
+							}}
+							editingFileBlocks={editing.editingFileBlocks}
+							mcp={{
+								servers: mcpServers,
+								selectedServerIds: effectiveMCPServerIds,
+								onSelectionChange: handleMCPSelectionChange,
+								onAuthComplete: handleMCPAuthComplete,
+							}}
+							linkedWorkspace={{
+								workspace,
+								agent: workspaceAgent,
+								sshCommand,
+								folder: preferredFolder,
+							}}
+						/>
+					}
+					canSubmitChatTurn={!isInputDisabled && !isSubmissionPending}
 					modelCatalogError={modelsQuery.error}
 					unavailableModelNotice={unavailableModelNotice}
-					reasoningEffort={effectiveReasoningEffort}
-					onReasoningEffortChange={(value) => {
-						setSelectedReasoningEffort(value);
-						if (editing.editingMessageId !== null) {
-							isEditReasoningEffortDirtyRef.current = true;
-						}
-					}}
-					canConfigureAgentSetup={permissions.editDeploymentConfig}
-					providerCount={providerCount}
-					modelCount={modelCount}
-					unsupportedProviderNames={unsupportedProviderNames}
-					aiGatewayDisabled={aiGatewayDisabled}
-					hasModelOptions={hasModelOptions}
-					isModelCatalogLoading={isModelDataPending}
-					onPlanModeToggle={handlePlanModeToggle}
-					onManageAutomationsToggle={
-						chat &&
-						canToggleManageAutomations({
-							chat,
-							viewerId: currentUser.id,
-							automationsExperimentEnabled,
-						})
-							? (enabled) =>
-									updateChatManageAutomationsMutate({
-										chatId: agentId,
-										enabled,
-									})
-							: undefined
-					}
-					isInputDisabled={isInputDisabled}
-					isSubmissionPending={isSubmissionPending}
-					isInterruptPending={isInterruptPending}
-					onWorkspaceChange={
-						canUpdateChatWorkspace ? handleWorkspaceChange : undefined
-					}
-					isWorkspaceLoading={isUpdateChatWorkspacePending}
 					showSidebarPanel={showSidebarPanel}
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
 					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
-					sshCommand={sshCommand}
-					handleInterrupt={handleInterrupt}
-					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
-					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}
@@ -832,9 +916,6 @@ const AgentChatPage: React.FC = () => {
 					onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
 					desktopChatId={desktopEnabled ? agentId : undefined}
 					mcpServers={mcpServers}
-					selectedMCPServerIds={effectiveMCPServerIds}
-					onMCPSelectionChange={handleMCPSelectionChange}
-					onMCPAuthComplete={handleMCPAuthComplete}
 				/>
 			)}
 		</>

@@ -447,12 +447,16 @@ const ValueSyncPlugin: React.FC<{
 // Exposes the LexicalEditor instance to the parent via a callback
 // so it can be stored in a ref for imperative access.
 const InsertTextPlugin: React.FC<{
-	onEditorReady: (editor: LexicalEditor) => void;
+	onEditorReady: (editor: LexicalEditor | null) => void;
 }> = function InsertTextPlugin({ onEditorReady }) {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
 		onEditorReady(editor);
+		return mergeRegister(
+			editor.registerEditableListener(() => onEditorReady(editor)),
+			() => onEditorReady(null),
+		);
 	}, [editor, onEditorReady]);
 
 	return null;
@@ -493,7 +497,20 @@ export type ChatMessageInputRef = {
 	setValue: (text: string) => void;
 	insertText: (text: string) => void;
 	clear: () => void;
+	/**
+	 * Focus the editor at the end of its content now. Does nothing when
+	 * the editor is not initialized or not editable. A successful focus
+	 * also satisfies a pending focusWhenEditable request.
+	 */
 	focus: () => void;
+	/**
+	 * Focus the editor at the end of its content as soon as it is
+	 * initialized and editable, including after an inner remount. Use for
+	 * completion callbacks that run before React commits the state that
+	 * re-enables the editor. The request stays pending until it is
+	 * satisfied.
+	 */
+	focusWhenEditable: () => void;
 	getValue: () => string;
 	/**
 	 * Insert a file reference chip in a single Lexical update
@@ -652,6 +669,7 @@ const ChatMessageInput = ({
 	};
 
 	const editorRef = useRef<LexicalEditor | null>(null);
+	const pendingFocusRef = useRef(false);
 	// Tracks the last known text content so getValue() can return
 	// a useful value before the Lexical editor hydrates.
 	const lastKnownValueRef = useRef(initialValue);
@@ -814,8 +832,40 @@ const ChatMessageInput = ({
 		setSkillsMenuSelectedIndex(0);
 	};
 
-	const handleEditorReady = (editor: LexicalEditor) => {
+	const focusAtEndIfEditable = () => {
+		const editor = editorRef.current;
+		if (!editor?.isEditable() || !editor.getRootElement()) {
+			return;
+		}
+		pendingFocusRef.current = false;
+		editor.focus(() => {
+			// Editable listeners can run before ContentEditable commits its DOM update.
+			editor.getRootElement()?.focus({ preventScroll: true });
+			editor.update(() => {
+				const root = $getRoot();
+				const last = root.getLastChild();
+				if (!last) {
+					const paragraph = $createParagraphNode();
+					root.append(paragraph);
+					paragraph.select();
+					return;
+				}
+				last.selectEnd();
+			});
+		});
+	};
+
+	const flushPendingFocus = () => {
+		if (pendingFocusRef.current) {
+			focusAtEndIfEditable();
+		}
+	};
+
+	const handleEditorReady = (editor: LexicalEditor | null) => {
 		editorRef.current = editor;
+		if (!editor) {
+			return;
+		}
 		// Flush any queued setValue that arrived before the editor
 		// was ready (e.g. useLayoutEffect in a parent).
 		const pending = pendingReplacementRef.current;
@@ -823,6 +873,7 @@ const ChatMessageInput = ({
 			pendingReplacementRef.current = null;
 			replacePlainTextInEditor(editor, pending);
 		}
+		flushPendingFocus();
 	};
 
 	useImperativeHandle(
@@ -865,22 +916,10 @@ const ChatMessageInput = ({
 					paragraph.select();
 				});
 			},
-			focus: () => {
-				const editor = editorRef.current;
-				if (!editor) return;
-				editor.focus(() => {
-					editor.update(() => {
-						const root = $getRoot();
-						const last = root.getLastChild();
-						if (!last) {
-							const paragraph = $createParagraphNode();
-							root.append(paragraph);
-							paragraph.select();
-							return;
-						}
-						last.selectEnd();
-					});
-				});
+			focus: focusAtEndIfEditable,
+			focusWhenEditable: () => {
+				pendingFocusRef.current = true;
+				focusAtEndIfEditable();
 			},
 			getValue: () => {
 				const editor = editorRef.current;

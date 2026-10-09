@@ -297,7 +297,7 @@ describe("useWorkspaceFileUploads", () => {
 	it("uploadQueued re-uploads every entry on retry", async () => {
 		uploadMock
 			.mockRejectedValueOnce(new Error("boom"))
-			.mockResolvedValue(okResponse);
+			.mockResolvedValueOnce(okResponse);
 		const { result } = renderHook(() =>
 			useWorkspaceFileUploads(undefined, undefined),
 		);
