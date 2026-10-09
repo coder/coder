@@ -1696,7 +1696,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 1
+          # Full history and tags for the migration compatibility check.
+          fetch-depth: 0
           persist-credentials: false
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
@@ -1712,6 +1713,13 @@ jobs:
       - name: Setup and run sqlc vet
         run: |
           make sqlc-vet
+
+      # Advisory: warns when HEAD's schema breaks queries from the PR base or
+      # the previous minor release (expand/contract violations).
+      - name: Check migration compatibility
+        continue-on-error: true
+        run: |
+          make sqlc-vet-backcompat
 
   notify-slack-on-failure:
     needs:

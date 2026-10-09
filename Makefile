@@ -1736,6 +1736,15 @@ sqlc-vet: test-postgres-docker
 	sqlc vet -f coderd/database/sqlc.yaml && echo "Passed sqlc vet"
 .PHONY: sqlc-vet
 
+# Advisory expand/contract check: prepares the queries of the PR base and the
+# previous minor release against the HEAD schema. See
+# scripts/check_migration_compat.sh.
+sqlc-vet-backcompat: test-postgres-docker
+	echo "--- sqlc vet backcompat"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$$(go run scripts/migrate-ci/main.go)" \
+	./scripts/check_migration_compat.sh
+.PHONY: sqlc-vet-backcompat
+
 
 test-migrations: test-postgres-docker
 	echo "--- test migrations"
