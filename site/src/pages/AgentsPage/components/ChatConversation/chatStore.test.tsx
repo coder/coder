@@ -4181,6 +4181,10 @@ describe("useChatStore", () => {
 			["chat-b", [buildMessage("chat-b", 1, "user", "hello")]],
 		]);
 
+		const initialProps: { chatID: string; pageVersion?: number } = {
+			chatID: "chat-a",
+			pageVersion: 100,
+		};
 		const { rerender } = renderHook(
 			(props: { chatID: string; pageVersion?: number }) => {
 				const messages = messagesByChat.get(props.chatID) ?? [];
@@ -4200,13 +4204,7 @@ describe("useChatStore", () => {
 					clearChatErrorReason: vi.fn(),
 				});
 			},
-			{
-				wrapper,
-				initialProps: { chatID: "chat-a", pageVersion: 100 } as {
-					chatID: string;
-					pageVersion?: number;
-				},
-			},
+			{ wrapper, initialProps },
 		);
 		await waitFor(() => {
 			expect(watchChat).toHaveBeenLastCalledWith("chat-a", 1, 100);
