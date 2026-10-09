@@ -1,6 +1,7 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { focusManager } from "react-query";
 import { createMemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { API, withDefaultFeatures } from "#/api/api";
@@ -10,6 +11,7 @@ import {
 	MockAgentHoursOrganizationAllotment,
 	MockEntitlements,
 	MockGroup,
+	MockGroup2,
 	MockNoPermissions,
 	MockOrganization,
 	MockOrganization2,
@@ -54,6 +56,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	focusManager.setFocused(undefined);
 	access.isOwner = true;
 	access.isLicensed = true;
 });
@@ -63,7 +66,9 @@ const renderPage = ({ canUpdateGroups = true } = {}) => {
 	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
 		[MockOrganization.id]: canUpdateGroups,
 	});
-	vi.spyOn(API, "getGroupsByOrganization").mockResolvedValue([MockGroup]);
+	const getGroups = vi
+		.spyOn(API, "getGroupsByOrganization")
+		.mockResolvedValue([MockGroup]);
 	const getOrganizationAllotments = vi
 		.spyOn(API, "getAgentHoursOrganizationAllotments")
 		.mockResolvedValue([
@@ -97,7 +102,7 @@ const renderPage = ({ canUpdateGroups = true } = {}) => {
 		{ initialEntries: ["/ai/settings/agent-hours"] },
 	);
 	renderWithRouter(router);
-	return { getOrganizationAllotments, getGroupAllotments };
+	return { getOrganizationAllotments, getGroupAllotments, getGroups };
 };
 
 const saveAllotment = async (
@@ -201,6 +206,89 @@ it("refreshes every allotment view after a rejected save", async () => {
 	await waitFor(() => expect(getGroupAllotments).toHaveBeenCalledTimes(2));
 });
 
+it("offers the edited group's current share after a rejected save", async () => {
+	const user = userEvent.setup();
+	const upsert = vi
+		.spyOn(API, "upsertAgentHoursGroupAllotment")
+		.mockRejectedValueOnce(
+			mockApiError({
+				message: "Agent Hours allotments cannot exceed 100% in total.",
+			}),
+		)
+		.mockResolvedValue(MockAgentHoursGroupAllotment);
+	const { getGroupAllotments } = renderPage();
+	const region = await screen.findByRole("region", {
+		name: "Group allotments",
+	});
+	await within(region).findByRole("button", {
+		name: `Edit allotment for ${MockGroup.display_name}`,
+	});
+	// Another admin lowered this group to 10% and gave another group 60%.
+	getGroupAllotments.mockResolvedValue({
+		organization_allotment_bps: 6000,
+		groups: [
+			{ ...MockAgentHoursGroupAllotment, allotment_bps: 1000 },
+			{
+				...MockAgentHoursGroupAllotment,
+				group_id: MockGroup2.id,
+				group_name: MockGroup2.name,
+				group_display_name: MockGroup2.display_name,
+				allotment_bps: 6000,
+			},
+		],
+	});
+
+	await saveAllotment(user, region, MockGroup.display_name, "70");
+	await waitFor(() => expect(getGroupAllotments).toHaveBeenCalledTimes(2));
+
+	// Only the current 10% plus the unallotted 30% is available.
+	const input = screen.getByRole("textbox", { name: "Allotment" });
+	for (const percent of ["45", "40"]) {
+		await user.clear(input);
+		await user.type(input, percent);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+	}
+	await waitFor(() =>
+		expect(upsert.mock.calls).toEqual([
+			[MockGroup.id, { allotment_bps: 7000 }],
+			[MockGroup.id, { allotment_bps: 4000 }],
+		]),
+	);
+});
+
+it("reports a group that is no longer available on save", async () => {
+	const user = userEvent.setup();
+	server.use(
+		http.put("/api/v2/groups/:groupId/agent-hours/allotment", () =>
+			HttpResponse.json({ message: "Resource not found." }, { status: 404 }),
+		),
+	);
+	renderPage();
+	const region = await screen.findByRole("region", {
+		name: "Group allotments",
+	});
+
+	await saveAllotment(user, region, MockGroup.display_name, "70");
+	await screen.findByText(`${MockGroup.display_name} is no longer available.`);
+});
+
+it("refreshes allotments when the window regains focus", async () => {
+	const { getOrganizationAllotments, getGroupAllotments, getGroups } =
+		renderPage();
+	await waitFor(() => expect(getGroupAllotments).toHaveBeenCalledTimes(1));
+	await waitFor(() => expect(getGroups).toHaveBeenCalledTimes(1));
+
+	act(() => {
+		focusManager.setFocused(false);
+		focusManager.setFocused(true);
+	});
+	await waitFor(() =>
+		expect(getOrganizationAllotments).toHaveBeenCalledTimes(2),
+	);
+	await waitFor(() => expect(getGroupAllotments).toHaveBeenCalledTimes(2));
+	await waitFor(() => expect(getGroups).toHaveBeenCalledTimes(2));
+});
+
 it("reports an allotment that is already gone as removed", async () => {
 	const user = userEvent.setup();
 	server.use(
@@ -221,6 +309,29 @@ it("reports an allotment that is already gone as removed", async () => {
 	await user.click(screen.getByRole("button", { name: "Remove" }));
 	await screen.findByText(
 		`The allotment for ${MockGroup.display_name} was already removed.`,
+	);
+});
+
+it("reports a lost permission to remove an allotment", async () => {
+	const user = userEvent.setup();
+	server.use(
+		http.delete("/api/v2/groups/:groupId/agent-hours/allotment", () =>
+			HttpResponse.json({ message: "Forbidden." }, { status: 403 }),
+		),
+	);
+	renderPage();
+	const region = await screen.findByRole("region", {
+		name: "Group allotments",
+	});
+
+	await user.click(
+		await within(region).findByRole("button", {
+			name: `Remove allotment for ${MockGroup.display_name}`,
+		}),
+	);
+	await user.click(screen.getByRole("button", { name: "Remove" }));
+	await screen.findByText(
+		"You no longer have access to remove this allotment.",
 	);
 });
 

@@ -53,22 +53,21 @@ const AgentHoursPage: React.FC = () => {
 	const deleteMutation = useMutation(
 		deleteAgentHoursOrganizationAllotment(queryClient),
 	);
+	const canManageAllotments = canManageAgentHoursAllotments(
+		permissions,
+		allotmentOrganizationsQuery.data,
+	);
 
 	return (
 		<RequirePermission
-			isFeatureVisible={
-				isAccessPending ||
-				canManageAgentHoursAllotments(
-					permissions,
-					allotmentOrganizationsQuery.data,
-				)
-			}
+			isFeatureVisible={isAccessPending || canManageAllotments}
 		>
 			<title>{pageTitle("Agent Hours", "AI Settings")}</title>
 
 			<AgentHoursPageView
 				isLicensed={feature.enabled}
 				canEditDeploymentConfig={permissions.editDeploymentConfig}
+				canManageAllotments={canManageAllotments}
 				licenseHours={licenseHours}
 				organizationAllotments={organizationAllotmentsQuery.data}
 				organizationAllotmentsError={organizationAllotmentsQuery.error}

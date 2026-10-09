@@ -21,7 +21,11 @@ export const OrganizationAgentHours: React.FC<OrganizationAgentHoursProps> = ({
 	const groupAllotmentsQuery = useQuery(
 		agentHoursGroupAllotments(organization.id),
 	);
-	const groupsQuery = useQuery(groupsByOrganization(organization.name));
+	// Groups deleted in another tab must leave the Add candidates.
+	const groupsQuery = useQuery({
+		...groupsByOrganization(organization.name),
+		refetchOnWindowFocus: true,
+	});
 	const upsertMutation = useMutation(
 		upsertAgentHoursGroupAllotment(queryClient),
 	);

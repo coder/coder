@@ -59,6 +59,19 @@ describe("AllotmentDialog", () => {
 		expect(onClose).not.toHaveBeenCalled();
 	});
 
+	it("asks for a percentage above 0 for negative zero", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn(async () => undefined);
+		renderDialog(onSubmit);
+
+		await selectEngineering(user);
+		await user.type(screen.getByRole("textbox", { name: "Allotment" }), "-0");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await screen.findByText("Enter a percentage above 0.");
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("stays open after a server conflict so the save can be retried", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi

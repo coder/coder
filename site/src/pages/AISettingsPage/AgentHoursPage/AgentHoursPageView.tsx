@@ -20,6 +20,8 @@ type AgentHoursPageViewProps = {
 	/** False when the license does not include Agent Hours. */
 	isLicensed: boolean;
 	canEditDeploymentConfig: boolean;
+	/** False while organization access is unresolved for non-owners. */
+	canManageAllotments: boolean;
 	/** Licensed Agent Hours, undefined when unlimited. */
 	licenseHours: number | undefined;
 	organizationAllotments:
@@ -46,6 +48,7 @@ type AgentHoursPageViewProps = {
 export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 	isLicensed,
 	canEditDeploymentConfig,
+	canManageAllotments,
 	licenseHours,
 	organizationAllotments,
 	organizationAllotmentsError,
@@ -60,6 +63,8 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 	organizationAccessError,
 	organizationAgentHours,
 }) => {
+	const showLicenseNotice = !isLicensed && canManageAllotments;
+
 	return (
 		<div className="flex max-w-4xl flex-col gap-10">
 			<SettingsHeader>
@@ -75,7 +80,7 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			{!isLicensed && (
+			{showLicenseNotice && (
 				<Alert severity="info">
 					<AlertTitle>Your license does not include Agent Hours</AlertTitle>
 					<AlertDescription>
@@ -122,10 +127,10 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 				</SettingsSection>
 			)}
 
-			{isLicensed && isOrganizationAccessLoading && (
+			{!showLicenseNotice && isOrganizationAccessLoading && (
 				<Loader label="Loading organizations" />
 			)}
-			{isLicensed && organizationAccessError != null && (
+			{!showLicenseNotice && organizationAccessError != null && (
 				<ErrorAlert error={organizationAccessError} />
 			)}
 			{isLicensed && organization && (

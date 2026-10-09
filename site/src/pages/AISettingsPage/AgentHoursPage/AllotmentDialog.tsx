@@ -55,15 +55,12 @@ const validatePercent = (
 	if (value.trim() === "") {
 		return { error: "Enter a percentage." };
 	}
-	if (Number(value) < 0) {
+	if (Number(value) <= 0) {
 		return { error: "Enter a percentage above 0." };
 	}
 	const bps = parseAllotmentPercent(value);
 	if (bps === undefined) {
 		return { error: "Enter a number with at most two decimals." };
-	}
-	if (bps <= 0) {
-		return { error: "Enter a percentage above 0." };
 	}
 	if (bps > availableBps) {
 		return {

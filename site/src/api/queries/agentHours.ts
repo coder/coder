@@ -12,14 +12,18 @@ const agentHoursOrganizationAllotmentsKey = [
 const agentHoursGroupAllotmentsKey = (organizationId: string) =>
 	[...agentHoursKey, "groupAllotments", organizationId] as const;
 
+// Other admins and other tabs change allotments and delete their targets, so
+// these refetch on focus despite the global default.
 export const agentHoursOrganizationAllotments = () => ({
 	queryKey: agentHoursOrganizationAllotmentsKey,
 	queryFn: API.getAgentHoursOrganizationAllotments,
+	refetchOnWindowFocus: true,
 });
 
 export const agentHoursGroupAllotments = (organizationId: string) => ({
 	queryKey: agentHoursGroupAllotmentsKey(organizationId),
 	queryFn: () => API.getAgentHoursGroupAllotments(organizationId),
+	refetchOnWindowFocus: true,
 });
 
 type OrganizationAllotmentChange = {

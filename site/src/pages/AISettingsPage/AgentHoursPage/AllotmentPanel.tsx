@@ -93,11 +93,27 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 				success: (message) => message,
 				error: (removeError) => ({
 					message: `Failed to remove allotment for ${entry.name}.`,
-					description: getErrorDetail(removeError),
+					description:
+						getErrorStatus(removeError) === 403
+							? "You no longer have access to remove this allotment."
+							: getErrorDetail(removeError),
 				}),
 			},
 		);
 	};
+
+	// A 404 means the target was deleted or is no longer accessible, so the
+	// save can never succeed. Resolving closes the dialog.
+	const handleSave = (id: string, bps: number) =>
+		onSave(id, bps).catch((saveError: unknown) => {
+			if (getErrorStatus(saveError) !== 404) {
+				throw saveError;
+			}
+			const name =
+				[...allotments, ...candidates].find((target) => target.id === id)
+					?.name ?? `The ${entity}`;
+			toast.error(`${name} is no longer available.`);
+		});
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -177,13 +193,17 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 					entity={entity}
 					target={dialog.mode === "edit" ? dialog.entry : undefined}
 					candidates={candidates}
+					// The edited entry may have changed or disappeared since the
+					// dialog opened.
 					availableBps={
-						dialog.mode === "edit"
-							? unallottedBps + dialog.entry.bps
-							: unallottedBps
+						unallottedBps +
+						(dialog.mode === "edit"
+							? (allotments.find((entry) => entry.id === dialog.entry.id)
+									?.bps ?? 0)
+							: 0)
 					}
 					poolHours={poolHours}
-					onSubmit={onSave}
+					onSubmit={handleSave}
 				/>
 			)}
 

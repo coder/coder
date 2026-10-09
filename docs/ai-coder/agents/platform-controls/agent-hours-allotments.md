@@ -62,7 +62,9 @@ They can read it, because it's the base of their group allotments.
 - **Unlimited Agent Hours**: you can still set allotments, and each tier is still capped at 100%.
   Coder shows percentages only.
 - **No Agent Hours**: when the license doesn't include Agent Hours, the **Agent Hours** page is hidden from navigation.
-  Opening the page directly shows a notice that the license doesn't include Agent Hours, and the allotment API returns `403 Forbidden`.
+  If you could manage allotments under a license with Agent Hours, opening the page directly shows a notice that the license doesn't include Agent Hours.
+  Other users see a permission error instead.
+  The allotment API returns `403 Forbidden`.
 - **Renewal or resizing**: allotments are stored as percentages and stay in place.
   Hour figures update to match the new license.
 

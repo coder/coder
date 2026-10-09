@@ -64,6 +64,7 @@ const meta = {
 	args: {
 		isLicensed: true,
 		canEditDeploymentConfig: true,
+		canManageAllotments: true,
 		licenseHours: 1000,
 		organizationAllotments: [
 			MockAgentHoursOrganizationAllotment,
@@ -180,6 +181,30 @@ export const LongNamesAndSmallShares: Story = {
 
 export const Unlicensed: Story = {
 	args: { isLicensed: false },
+};
+
+export const UnlicensedAccessLoading: Story = {
+	args: {
+		isLicensed: false,
+		canEditDeploymentConfig: false,
+		canManageAllotments: false,
+		organization: undefined,
+		groupAllotmentOrganizations: [],
+		isOrganizationAccessLoading: true,
+	},
+};
+
+export const UnlicensedAccessError: Story = {
+	args: {
+		isLicensed: false,
+		canEditDeploymentConfig: false,
+		canManageAllotments: false,
+		organization: undefined,
+		groupAllotmentOrganizations: [],
+		organizationAccessError: mockApiError({
+			message: "Failed to load organizations.",
+		}),
+	},
 };
 
 export const GroupManager: Story = {
