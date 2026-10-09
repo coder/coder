@@ -278,8 +278,9 @@ export const groupWorkingBlocks = (
 		return Number.POSITIVE_INFINITY;
 	};
 
-	// Entries and drafts are both in ascending message ID order and draft
-	// spans never overlap, so one cursor walks the entries once.
+	// Entries and drafts are both in ascending message ID order, so one cursor
+	// walks the entries once; hidden entries between adjacent blocks stay with
+	// the earlier one.
 	let entryIndex = 0;
 	const blocks: WorkingBlock[] = [];
 
@@ -294,15 +295,14 @@ export const groupWorkingBlocks = (
 			!(draft.endsWithAnswer && rows[lastRowIndex].type === "message") &&
 			(draft.containsLiveRow || lastRowIndex >= lastMessageRowIndex);
 
-		// The span covers hidden tool-result messages up to the next row.
+		// The span covers hidden tool-result messages up to the next row and,
+		// before the first row, searches that rendered nothing since the
+		// previous row.
 		const fromId = Math.min(...memberIds);
 		const toId = messageIdAfter(lastRowIndex);
-		while (
-			entryIndex < entries.length &&
-			entries[entryIndex].message.id < fromId
-		) {
-			entryIndex++;
-		}
+		const previousRowId = Math.max(
+			...(firstRowIndex > 0 ? rowMessageIds(rows[firstRowIndex - 1]) : []),
+		);
 
 		const spanTimestamps: string[] = [];
 		// Until the step persists, one flag stands in for its searches.
@@ -313,13 +313,19 @@ export const groupWorkingBlocks = (
 			entries[entryIndex].message.id < toId
 		) {
 			const entry = entries[entryIndex];
-			spanTimestamps.push(...getPartTimestamps(entry));
+			entryIndex++;
 			// Results, not calls: a step can end with a provider call unanswered,
 			// and the next step issues that call again.
-			searches += (entry.message.content ?? []).filter(
+			const results = (entry.message.content ?? []).filter(
 				isProviderToolResult,
 			).length;
-			entryIndex++;
+			const { id } = entry.message;
+			if (id < fromId && (results === 0 || id <= previousRowId)) {
+				continue;
+			}
+
+			spanTimestamps.push(...getPartTimestamps(entry));
+			searches += results;
 		}
 
 		// Source blocks count as searches only when no provider result does:
