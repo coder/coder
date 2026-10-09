@@ -1722,18 +1722,15 @@ func TestTurnWorkspaceContext_SelectWorkspaceClearsCachedState(t *testing.T) {
 	workspaceCtx.selectWorkspace(updatedChat)
 
 	require.Equal(t, updatedChat, currentChat)
-	require.Zero(t, releaseCalls, "tool calls of the step may still use the connection")
+	require.Equal(t, 1, releaseCalls)
 
 	workspaceCtx.mu.Lock()
+	defer workspaceCtx.mu.Unlock()
 	require.Equal(t, database.WorkspaceAgent{}, workspaceCtx.agent)
 	require.False(t, workspaceCtx.agentLoaded)
 	require.Nil(t, workspaceCtx.conn)
 	require.Nil(t, workspaceCtx.releaseConn)
 	require.Equal(t, uuid.NullUUID{}, workspaceCtx.cachedWorkspaceID)
-	workspaceCtx.mu.Unlock()
-
-	workspaceCtx.close()
-	require.Equal(t, 1, releaseCalls)
 }
 
 func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferentWorkspace(t *testing.T) {
@@ -1778,21 +1775,16 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 		currentChat:      &currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
-	var released bool
 	workspaceCtx.agent = cachedAgent
 	workspaceCtx.agentLoaded = true
-	workspaceCtx.conn = agentconnmock.NewMockAgentConn(ctrl)
-	workspaceCtx.releaseConn = func() { released = true }
 	workspaceCtx.cachedWorkspaceID = uuid.NullUUID{UUID: workspaceOneID, Valid: true}
+	defer workspaceCtx.close()
 
 	chatSnapshot, agent, err := workspaceCtx.ensureWorkspaceAgent(ctx)
 	require.NoError(t, err)
 	require.Equal(t, updatedChat, chatSnapshot)
 	require.Equal(t, resolvedAgent, agent)
 	require.Equal(t, updatedChat, currentChat)
-	require.Nil(t, workspaceCtx.conn, "the connection belongs to the previous workspace's agent")
-	workspaceCtx.close()
-	require.True(t, released)
 }
 
 func TestSubscribeRejectsUnauthorizedCallerBeforeSharedFetches(t *testing.T) {
@@ -2951,15 +2943,14 @@ func TestGetWorkspaceConn_CacheHitDisconnectedRetriesDialBeforeEscalating(t *tes
 		releaseConn:       func() { releaseCalled = true },
 		cachedWorkspaceID: chat.WorkspaceID,
 	}
+	defer workspaceCtx.close()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
 	require.NoError(t, err)
 	require.Same(t, newConn, gotConn)
-	require.True(t, dialCalled, "dial called")
-	require.False(t, releaseCalled, "the old connection is released when the step closes")
-	workspaceCtx.close()
 	require.True(t, releaseCalled, "release called")
+	require.True(t, dialCalled, "dial called")
 }
 
 func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
