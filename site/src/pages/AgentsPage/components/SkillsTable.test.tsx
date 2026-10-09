@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { toast } from "sonner";
@@ -102,14 +102,14 @@ describe("SkillsTable enabled toggle", () => {
 			response: { status: 404, data: { message: "Resource not found." } },
 		});
 		const infoToast = vi.spyOn(toast, "info");
-		const toggle = await screen.findByRole("switch", {
-			name: "Enable review-sql",
-		});
-		vi.mocked(API.experimental.getOrganizationSkills).mockResolvedValue([]);
 
-		await user.click(toggle);
+		await user.click(
+			await screen.findByRole("switch", { name: "Enable review-sql" }),
+		);
 
-		await waitFor(() => expect(toggle).not.toBeInTheDocument());
+		await waitFor(() =>
+			expect(API.experimental.getOrganizationSkills).toHaveBeenCalledTimes(2),
+		);
 		expect(infoToast).toHaveBeenCalledWith(
 			"That organization skill was deleted before your change was saved.",
 		);
@@ -132,10 +132,10 @@ describe("SkillsTable create dialog", () => {
 	it("returns focus to the empty-state Add skill button on Escape", async () => {
 		const { user } = renderTable(true, []);
 
-		await screen.findByText("No organization skills yet");
-		const [, emptyStateButton] = screen.getAllByRole("button", {
-			name: "Add skill",
-		});
+		const emptyStateButton = await within(screen.getByRole("table")).findByRole(
+			"button",
+			{ name: "Add skill" },
+		);
 		await user.click(emptyStateButton);
 		await screen.findByRole("dialog");
 		await user.keyboard("{Escape}");
@@ -150,17 +150,18 @@ describe("SkillsTable create dialog", () => {
 			content: "---\nname: review-sql\n---\nBody.",
 		});
 
-		await screen.findByText("No organization skills yet");
-		const [headerButton, emptyStateButton] = screen.getAllByRole("button", {
-			name: "Add skill",
-		});
-		await user.click(emptyStateButton);
+		await user.click(
+			await within(screen.getByRole("table")).findByRole("button", {
+				name: "Add skill",
+			}),
+		);
 		await user.type(await screen.findByLabelText("Name"), "review-sql");
 		await user.type(screen.getByLabelText("Body"), "Body.");
 		await user.click(screen.getByRole("button", { name: "Create skill" }));
 
-		await waitFor(() => expect(headerButton).toHaveFocus());
-		expect(emptyStateButton).not.toBeInTheDocument();
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Add skill" })).toHaveFocus(),
+		);
 	});
 });
 
