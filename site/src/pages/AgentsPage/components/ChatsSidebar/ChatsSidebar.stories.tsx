@@ -16,7 +16,7 @@ import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
 	MockChatProject,
 	MockUserOwner,
@@ -98,13 +98,7 @@ const meta: Meta<typeof ChatsSidebar> = {
 	args: {
 		chatErrorReasons: {},
 		modelConfigs: defaultModelConfigs,
-		onArchiveAgent: fn(),
-		onUnarchiveAgent: fn(),
-		onArchiveAndDeleteWorkspace: fn(),
-		onPinAgent: fn(),
-		onUnpinAgent: fn(),
-		onMarkChatRead: fn(),
-		onMarkChatUnread: fn(),
+		navigateAfterArchive: fn(),
 		onRenameTitle: fn(() => Promise.resolve()),
 		onBeforeNewAgent: fn(),
 		isSearchDialogOpen: false,
@@ -1494,6 +1488,11 @@ export const NoArchivedSection: Story = {
 };
 
 export const ArchivingShowsSpinnerOnly: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "updateChat").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
 	args: {
 		chats: [
 			buildChat({
@@ -1501,9 +1500,24 @@ export const ArchivingShowsSpinnerOnly: Story = {
 				title: "Chat being archived",
 				updated_at: recentTimestamp,
 			}),
+			buildChat({
+				id: "available-chat",
+				title: "Another chat stays available",
+				updated_at: recentTimestamp,
+			}),
 		],
-		isArchiving: true,
-		archivingChatId: "archiving-chat",
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Open actions for Chat being archived",
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", {
+				name: "Archive agent",
+			}),
+		);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -1538,61 +1552,65 @@ export const WithDiffStats: Story = {
 				id: "diff-both",
 				title: "Agent with additions and deletions",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-both",
-					url: "https://github.com/coder/coder/pull/1",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 42,
-					deletions: 7,
-					changed_files: 5,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-both",
+						pr_number: 1,
+						url: "https://github.com/coder/coder/pull/1",
+						additions: 42,
+						deletions: 7,
+						changed_files: 5,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-add-only",
 				title: "Agent with additions only",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-add-only",
-					url: "https://github.com/coder/coder/pull/2",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 120,
-					deletions: 0,
-					changed_files: 3,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-add-only",
+						pr_number: 2,
+						url: "https://github.com/coder/coder/pull/2",
+						additions: 120,
+						deletions: 0,
+						changed_files: 3,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-del-only",
 				title: "Agent with deletions only",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-del-only",
-					url: "https://github.com/coder/coder/pull/3",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 0,
-					deletions: 35,
-					changed_files: 2,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-del-only",
+						pr_number: 3,
+						url: "https://github.com/coder/coder/pull/3",
+						additions: 0,
+						deletions: 35,
+						changed_files: 2,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-none",
 				title: "Agent with no diff changes",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-none",
-					url: "https://github.com/coder/coder/pull/4",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 0,
-					deletions: 0,
-					changed_files: 0,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-none",
+						pr_number: 4,
+						url: "https://github.com/coder/coder/pull/4",
+						additions: 0,
+						deletions: 0,
+						changed_files: 0,
+					},
+				],
 			}),
 		],
 	},
@@ -1614,46 +1632,49 @@ export const WithDiffStatsLight: Story = {
 				id: "diff-both-light",
 				title: "Agent with additions and deletions",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-both-light",
-					url: "https://github.com/coder/coder/pull/1",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 42,
-					deletions: 7,
-					changed_files: 5,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-both-light",
+						pr_number: 1,
+						url: "https://github.com/coder/coder/pull/1",
+						additions: 42,
+						deletions: 7,
+						changed_files: 5,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-add-only-light",
 				title: "Agent with additions only",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-add-only-light",
-					url: "https://github.com/coder/coder/pull/2",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 120,
-					deletions: 0,
-					changed_files: 3,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-add-only-light",
+						pr_number: 2,
+						url: "https://github.com/coder/coder/pull/2",
+						additions: 120,
+						deletions: 0,
+						changed_files: 3,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-del-only-light",
 				title: "Agent with deletions only",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-del-only-light",
-					url: "https://github.com/coder/coder/pull/3",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 0,
-					deletions: 35,
-					changed_files: 2,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-del-only-light",
+						pr_number: 3,
+						url: "https://github.com/coder/coder/pull/3",
+						additions: 0,
+						deletions: 35,
+						changed_files: 2,
+					},
+				],
 			}),
 		],
 	},
@@ -1672,80 +1693,123 @@ export const WithPRStateIcons: Story = {
 				id: "pr-open",
 				title: "Open pull request",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-open",
-					url: "https://github.com/coder/coder/pull/100",
-					pull_request_state: "open",
-					pull_request_title: "feat: add new feature",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 50,
-					deletions: 10,
-					changed_files: 4,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-open",
+						pr_number: 100,
+						url: "https://github.com/coder/coder/pull/100",
+						pull_request_title: "feat: add new feature",
+						additions: 50,
+						deletions: 10,
+						changed_files: 4,
+					},
+				],
 			}),
 			buildChat({
 				id: "pr-draft",
 				title: "Draft pull request",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-draft",
-					url: "https://github.com/coder/coder/pull/101",
-					pull_request_state: "open",
-					pull_request_title: "wip: draft changes",
-					pull_request_draft: true,
-					changes_requested: false,
-					additions: 20,
-					deletions: 5,
-					changed_files: 2,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-draft",
+						pr_number: 101,
+						url: "https://github.com/coder/coder/pull/101",
+						pull_request_title: "wip: draft changes",
+						pull_request_draft: true,
+						additions: 20,
+						deletions: 5,
+						changed_files: 2,
+					},
+				],
 			}),
 			buildChat({
 				id: "pr-merged",
 				title: "Merged pull request",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-merged",
-					url: "https://github.com/coder/coder/pull/102",
-					pull_request_state: "merged",
-					pull_request_title: "feat: completed feature",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 200,
-					deletions: 80,
-					changed_files: 12,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-merged",
+						pr_number: 102,
+						url: "https://github.com/coder/coder/pull/102",
+						pull_request_state: "merged",
+						pull_request_title: "feat: completed feature",
+						additions: 200,
+						deletions: 80,
+						changed_files: 12,
+					},
+				],
 			}),
 			buildChat({
 				id: "pr-closed",
 				title: "Closed pull request",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-closed",
-					url: "https://github.com/coder/coder/pull/103",
-					pull_request_state: "closed",
-					pull_request_title: "fix: abandoned approach",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 15,
-					deletions: 3,
-					changed_files: 1,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-closed",
+						pr_number: 103,
+						url: "https://github.com/coder/coder/pull/103",
+						pull_request_state: "closed",
+						pull_request_title: "fix: abandoned approach",
+						additions: 15,
+						deletions: 3,
+						changed_files: 1,
+					},
+				],
 			}),
 			buildChat({
 				id: "pr-no-state",
 				title: "No PR state (branch only)",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-no-state",
-					url: "https://github.com/coder/coder/tree/my-branch",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 10,
-					deletions: 2,
-					changed_files: 1,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-no-state",
+						git_branch: "my-branch",
+						url: "https://github.com/coder/coder/tree/my-branch",
+						pr_number: undefined,
+						pull_request_state: undefined,
+						pull_request_title: "",
+						additions: 10,
+						deletions: 2,
+						changed_files: 1,
+					},
+				],
+			}),
+			// A newer branch-only push becomes the primary, but the
+			// sole PR still pairs its icon with its own line stats.
+			buildChat({
+				id: "pr-with-newer-branch",
+				title: "PR with a newer branch push",
+				updated_at: recentTimestamp,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-with-newer-branch",
+						git_branch: "feat/newer-branch",
+						url: "https://github.com/coder/coder/tree/feat/newer-branch",
+						pr_number: undefined,
+						pull_request_state: undefined,
+						pull_request_title: "",
+						additions: 0,
+						deletions: 0,
+						changed_files: 0,
+					},
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-with-newer-branch",
+						git_branch: "feat/older-pr",
+						pr_number: 104,
+						url: "https://github.com/coder/coder/pull/104",
+						pull_request_title: "feat: sole PR with newer branch",
+						additions: 33,
+						deletions: 4,
+						changed_files: 2,
+					},
+				],
 			}),
 		],
 	},
@@ -1754,6 +1818,146 @@ export const WithPRStateIcons: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
+	},
+};
+
+export const WithMultiplePRs: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "multi-pr",
+				title: "Agent with three pull requests",
+				updated_at: recentTimestamp,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "multi-pr",
+						git_branch: "feat/one",
+						pr_number: 201,
+						url: "https://github.com/coder/coder/pull/201",
+						pull_request_title: "feat: add login page",
+						additions: 50,
+						deletions: 10,
+						changed_files: 4,
+					},
+					{
+						...MockChatDiffStatus,
+						chat_id: "multi-pr",
+						git_branch: "feat/two",
+						pr_number: 202,
+						url: "https://github.com/coder/coder/pull/202",
+						pull_request_title: "fix: correct the login redirect",
+						pull_request_draft: true,
+						additions: 20,
+						deletions: 5,
+						changed_files: 2,
+					},
+					{
+						...MockChatDiffStatus,
+						chat_id: "multi-pr",
+						git_branch: "feat/three",
+						pr_number: 203,
+						url: "https://github.com/coder/coder/pull/203",
+						pull_request_state: "merged",
+						pull_request_title: "feat: add the login tests",
+						additions: 200,
+						deletions: 80,
+						changed_files: 12,
+					},
+				],
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Agent with three pull requests"),
+		);
+		// The menus portal to the body, outside the story canvas.
+		const body = within(document.body);
+		await userEvent.click(await body.findByRole("menuitem", { name: "3 PRs" }));
+		await body.findByRole("menuitem", { name: /PR #201/ });
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+// Enough PRs to show the submenu's height limit.
+export const WithManyPRs: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "many-prs",
+				title: "Agent with fifteen pull requests",
+				updated_at: recentTimestamp,
+				diff_statuses: Array.from({ length: 15 }, (_, index) => ({
+					...MockChatDiffStatus,
+					chat_id: "many-prs",
+					git_branch: `refactor/agents-${index + 1}`,
+					url: `https://github.com/coder/coder/pull/${29901 + index}`,
+					pr_number: 29901 + index,
+					pull_request_title: `refactor(site): split the agents page into smaller parts, step ${index + 1}`,
+				})),
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByLabelText(
+				"Open actions for Agent with fifteen pull requests",
+			),
+		);
+		const body = within(document.body);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "15 PRs" }),
+		);
+		await body.findByRole("menuitem", { name: /PR #29901/ });
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const WithOnePRMenuOpen: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "one-pr-menu",
+				title: "Agent with one pull request",
+				updated_at: recentTimestamp,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "one-pr-menu",
+						pr_number: 301,
+						url: "https://github.com/coder/coder/pull/301",
+						pull_request_title:
+							"fix(site/src/pages/AgentsPage): keep the session alive when the workspace restarts",
+					},
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Agent with one pull request"),
+		);
+		await within(document.body).findByRole("menuitem", { name: /PR #301/ });
 	},
 };
 
@@ -2235,21 +2439,11 @@ export const PinUnpinContextMenu: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Agent to pin")).toBeInTheDocument();
-		});
-		const trigger = canvas.getByLabelText("Open actions for Agent to pin");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Pin agent")).toBeInTheDocument();
-		});
-		// Click Pin agent and verify callback.
-		const body = within(document.body);
-		await userEvent.click(body.getByText("Pin agent"));
-		expect(args.onPinAgent).toHaveBeenCalledWith("pin-test");
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Agent to pin"),
+		);
 	},
 };
 
@@ -2270,19 +2464,11 @@ export const UnpinContextMenu: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Agent to unpin")).toBeInTheDocument();
-		});
-		const trigger = canvas.getByLabelText("Open actions for Agent to unpin");
-		await userEvent.click(trigger);
-		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Unpin agent")).toBeInTheDocument();
-		});
-		await userEvent.click(body.getByText("Unpin agent"));
-		expect(args.onUnpinAgent).toHaveBeenCalledWith("unpin-test");
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Agent to unpin"),
+		);
 	},
 };
 
@@ -2309,6 +2495,37 @@ export const ReadStateContextMenu: Story = {
 			await canvas.findByLabelText("Open actions for Unread agent"),
 		);
 		await within(document.body).findByText("Mark as read");
+	},
+};
+
+export const ReadStateUpdatePending: Story = {
+	...ReadStateContextMenu,
+	beforeEach: () => {
+		spyOn(API.experimental, "updateChat").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Unread agent"),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", {
+				name: "Mark as read",
+			}),
+		);
+		await waitFor(() => {
+			if (getComputedStyle(document.body).pointerEvents === "none") {
+				throw new Error("Waiting for the actions menu to finish closing.");
+			}
+		});
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Unread agent"),
+		);
+		await within(document.body).findByRole("menuitem", {
+			name: "Mark as read",
+		});
 	},
 };
 

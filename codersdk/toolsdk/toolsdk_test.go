@@ -1135,15 +1135,23 @@ func TestTools(t *testing.T) {
 		tb, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
 		t.Run("WithoutPreset", func(t *testing.T) {
-			res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
-				User:              "me",
-				TemplateVersionID: r.TemplateVersion.ID.String(),
-				Name:              testutil.GetRandomNameHyphenated(t),
-				RichParameters:    map[string]string{},
-			})
-
-			require.NoError(t, err)
-			require.NotEmpty(t, res.ID, "expected a workspace ID")
+			for _, user := range []string{"", codersdk.Me, member.Username, member.ID.String()} {
+				t.Run(user, func(t *testing.T) {
+					res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+						User:              user,
+						TemplateVersionID: r.TemplateVersion.ID.String(),
+						Name:              testutil.GetRandomNameHyphenated(t),
+						RichParameters:    map[string]string{},
+					})
+					require.NoError(t, err)
+					require.NotEqual(t, uuid.Nil, res.ID)
+					if user == member.Username || user == member.ID.String() {
+						require.Equal(t, member.ID, res.OwnerID)
+					} else {
+						require.Equal(t, owner.UserID, res.OwnerID)
+					}
+				})
+			}
 		})
 
 		t.Run("WithPreset", func(t *testing.T) {

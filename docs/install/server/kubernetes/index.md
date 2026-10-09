@@ -217,6 +217,8 @@ This is intended to serve as a reference, and not all security requirements may 
 
    - Coder's control plane does not run as privileged.
      [We disable](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L141) `allowPrivilegeEscalation` [by default](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L141).
+   - Namespaces that enforce the Pod Security Standards `restricted` profile also require dropping all Linux capabilities, which the chart leaves unset.
+     Set `coder.securityContext.capabilities.drop: ["ALL"]` in your Helm values.
    - Workspace pods do not require any elevated privileges, with the exception of our `envbox` workspace template (used for docker-in-docker workspaces, not required).
 
 4. **Containers cannot mount host filesystems**

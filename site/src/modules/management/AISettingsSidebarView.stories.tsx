@@ -80,6 +80,7 @@ const meta: Meta<typeof AISettingsSidebarView> = {
 	],
 	args: {
 		permissions: MockPermissions,
+		canViewOrganizationInstructions: false,
 	},
 	parameters: {
 		reactRouter: atLocation("/ai/settings/coder-agents"),
@@ -395,6 +396,17 @@ export const MCPServersHiddenWithoutPermission: Story = {
 		expect(
 			canvas.queryByRole("link", { name: "MCP servers" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const InstructionsForOrganizationAdmin: Story = {
+	args: {
+		permissions: MockNoPermissions,
+		canAccessOrganizationModels: true,
+		canViewOrganizationInstructions: true,
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/instructions"),
 	},
 };
 

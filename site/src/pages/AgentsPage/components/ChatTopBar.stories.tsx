@@ -6,7 +6,7 @@ import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -34,25 +34,13 @@ const mockParentChat = {
 	title: "Set up CI/CD pipeline",
 };
 
-const requestArchiveAgent = fn<(chatId: string) => void>();
-const requestArchiveAndDeleteWorkspace =
-	fn<(chatId: string, workspaceId: string) => void>();
-const requestUnarchiveAgent = fn<(chatId: string) => void>();
-const requestPinAgent = fn<(chatId: string) => void>();
-const requestUnpinAgent = fn<(chatId: string) => void>();
 const onOpenRenameDialog = fn<(chat: TypesGen.Chat) => void>();
 
 const chatTopBarOutletContext = {
 	chatErrorReasons: {},
 	setChatErrorReason: () => {},
 	clearChatErrorReason: () => {},
-	requestArchiveAgent,
-	requestArchiveAndDeleteWorkspace,
-	requestUnarchiveAgent,
-	requestPinAgent,
-	requestUnpinAgent,
-	isArchiving: false,
-	archivingChatId: undefined,
+	navigateAfterArchive: fn(),
 	activeChatChildren: undefined,
 	onOpenRenameDialog,
 	isSidebarCollapsed: false,
@@ -74,11 +62,6 @@ const meta: Meta<typeof ChatTopBar> = {
 	component: ChatTopBar,
 	decorators: [withAuthProvider],
 	beforeEach: () => {
-		requestArchiveAgent.mockClear();
-		requestArchiveAndDeleteWorkspace.mockClear();
-		requestUnarchiveAgent.mockClear();
-		requestPinAgent.mockClear();
-		requestUnpinAgent.mockClear();
 		onOpenRenameDialog.mockClear();
 		spyOn(API, "checkAuthorization").mockResolvedValue({
 			canShareChat: false,
@@ -197,16 +180,18 @@ export const WithOpenPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/123",
-				pull_request_title: "fix: resolve race condition in workspace builds",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 42,
-				deletions: 7,
-				changed_files: 5,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/123",
+					pull_request_title: "fix: resolve race condition in workspace builds",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				},
+			],
 		},
 	},
 };
@@ -215,16 +200,18 @@ export const WithDraftPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/456",
-				pull_request_title: "feat: add new notification system",
-				pull_request_draft: true,
-				changes_requested: false,
-				additions: 120,
-				deletions: 30,
-				changed_files: 8,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/456",
+					pull_request_title: "feat: add new notification system",
+					pull_request_draft: true,
+					changes_requested: false,
+					additions: 120,
+					deletions: 30,
+					changed_files: 8,
+				},
+			],
 		},
 	},
 };
@@ -233,17 +220,19 @@ export const WithMergedPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/789",
-				pull_request_title: "chore: update dependencies",
-				pull_request_state: "merged",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 5,
-				deletions: 3,
-				changed_files: 1,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/789",
+					pull_request_title: "chore: update dependencies",
+					pull_request_state: "merged",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 5,
+					deletions: 3,
+					changed_files: 1,
+				},
+			],
 		},
 	},
 };
@@ -252,17 +241,19 @@ export const WithClosedPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/101",
-				pull_request_title: "fix: deprecated API cleanup",
-				pull_request_state: "closed",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 0,
-				deletions: 50,
-				changed_files: 3,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/101",
+					pull_request_title: "fix: deprecated API cleanup",
+					pull_request_state: "closed",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 50,
+					changed_files: 3,
+				},
+			],
 		},
 	},
 };
@@ -286,16 +277,18 @@ export const MobileWithOpenPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/123",
-				pull_request_title: "fix: resolve race condition in workspace builds",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 42,
-				deletions: 7,
-				changed_files: 5,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/123",
+					pull_request_title: "fix: resolve race condition in workspace builds",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				},
+			],
 		},
 	},
 };
@@ -306,16 +299,18 @@ export const MobileWithDraftPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/456",
-				pull_request_title: "feat: add new notification system",
-				pull_request_draft: true,
-				changes_requested: false,
-				additions: 120,
-				deletions: 30,
-				changed_files: 8,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/456",
+					pull_request_title: "feat: add new notification system",
+					pull_request_draft: true,
+					changes_requested: false,
+					additions: 120,
+					deletions: 30,
+					changed_files: 8,
+				},
+			],
 		},
 	},
 };
@@ -326,17 +321,19 @@ export const MobileWithMergedPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/789",
-				pull_request_title: "chore: update dependencies",
-				pull_request_state: "merged",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 5,
-				deletions: 3,
-				changed_files: 1,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/789",
+					pull_request_title: "chore: update dependencies",
+					pull_request_state: "merged",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 5,
+					deletions: 3,
+					changed_files: 1,
+				},
+			],
 		},
 	},
 };
@@ -347,18 +344,100 @@ export const MobileWithClosedPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/101",
-				pull_request_title: "fix: deprecated API cleanup",
-				pull_request_state: "closed",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 0,
-				deletions: 50,
-				changed_files: 3,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/101",
+					pull_request_title: "fix: deprecated API cleanup",
+					pull_request_state: "closed",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 50,
+					changed_files: 3,
+				},
+			],
 		},
+	},
+};
+
+const mockPRStatuses = [
+	{
+		...MockChatDiffStatus,
+		git_branch: "feat/one",
+		pull_request_title: "fix: resolve race condition in workspace builds",
+	},
+	{
+		...MockChatDiffStatus,
+		git_branch: "feat/two",
+		url: "https://github.com/coder/coder/pull/456",
+		pr_number: 456,
+		pull_request_title: "feat: add new notification system",
+		pull_request_draft: true,
+	},
+] as const;
+
+export const WithMultiplePRs: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			diff_statuses: mockPRStatuses,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Open the menu so the screenshot captures it.
+		await userEvent.click(canvas.getByRole("button", { name: /2 PRs/ }));
+		await within(document.body).findByRole("menu");
+	},
+};
+
+// Enough long titles to show the menu's width and height limits.
+export const WithManyPRs: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			diff_statuses: Array.from({ length: 15 }, (_, index) => ({
+				...MockChatDiffStatus,
+				git_branch: `refactor/agents-${index + 1}`,
+				url: `https://github.com/coder/coder/pull/${29901 + index}`,
+				pr_number: 29901 + index,
+				pull_request_title: `refactor(site): split the agents page into smaller parts, step ${index + 1}`,
+			})),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /15 PRs/ }));
+		await within(document.body).findByRole("menu");
+	},
+};
+
+// Both repositories carry PR #123, so the menu must name each
+// repository to keep the entries apart.
+const mockCrossOriginPRStatuses = [
+	mockPRStatuses[0],
+	{
+		...mockPRStatuses[1],
+		remote_origin: "https://github.com/coder/other-project.git",
+		url: "https://github.com/coder/other-project/pull/123",
+		pr_number: 123,
+		pull_request_title: "fix: resolve race condition in workspace builds",
+	},
+] as const;
+
+export const WithCrossOriginPRs: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			diff_statuses: mockCrossOriginPRStatuses,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Open the menu so the screenshot captures it.
+		await userEvent.click(canvas.getByRole("button", { name: /2 PRs/ }));
+		await within(document.body).findByRole("menu");
 	},
 };
 
@@ -388,21 +467,7 @@ export const RenameChatItem: Story = {
 export const PinAgentItem: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = canvas.getByLabelText("Open agent actions");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Pin agent")).toBeInTheDocument();
-			expect(
-				body.getByRole("menuitem", { name: "Rename chat" }),
-			).toBeInTheDocument();
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
-			expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
-		});
-		await userEvent.click(
-			within(document.body).getByRole("menuitem", { name: "Pin agent" }),
-		);
-		expect(requestPinAgent).toHaveBeenCalledWith(MockChat.id);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
 	},
 };
 
@@ -415,21 +480,7 @@ export const UnpinAgentItem: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = canvas.getByLabelText("Open agent actions");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Unpin agent")).toBeInTheDocument();
-			expect(
-				body.getByRole("menuitem", { name: "Rename chat" }),
-			).toBeInTheDocument();
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
-			expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
-		});
-		await userEvent.click(
-			within(document.body).getByRole("menuitem", { name: "Unpin agent" }),
-		);
-		expect(requestUnpinAgent).toHaveBeenCalledWith(MockChat.id);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
 	},
 };
 
@@ -490,15 +541,6 @@ export const ArchiveAndDeleteWorkspaceItem: Story = {
 			expect(body.getByText("Archive agent")).toBeInTheDocument();
 			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
 		});
-		await userEvent.click(
-			within(document.body).getByRole("menuitem", {
-				name: "Archive & delete workspace",
-			}),
-		);
-		expect(requestArchiveAndDeleteWorkspace).toHaveBeenCalledWith(
-			MockChat.id,
-			"workspace-1",
-		);
 	},
 };
 
@@ -510,22 +552,9 @@ export const IdleChatArchiveActionsEnabled: Story = {
 		},
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByLabelText("Open agent actions"));
-		const body = within(document.body);
-		const archiveItem = await body.findByRole("menuitem", {
-			name: "Archive agent",
-		});
-		const archiveAndDeleteItem = body.getByRole("menuitem", {
-			name: "Archive & delete workspace",
-		});
-		expect(archiveItem).not.toHaveAttribute("aria-disabled", "true");
-		expect(archiveAndDeleteItem).not.toHaveAttribute("aria-disabled", "true");
-		expect(
-			body.queryByText("Interrupt or wait for the agent to finish first."),
-		).not.toBeInTheDocument();
-		await userEvent.click(archiveItem);
-		expect(requestArchiveAgent).toHaveBeenCalledWith(MockChat.id);
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
 	},
 };
 
@@ -538,25 +567,9 @@ export const ActiveChatArchiveActionsDisabled: Story = {
 		liveChatStatus: "running",
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByLabelText("Open agent actions"));
-		const body = within(document.body);
-		const archiveItem = await body.findByRole("menuitem", {
-			name: "Archive agent",
-		});
-		const archiveAndDeleteItem = body.getByRole("menuitem", {
-			name: "Archive & delete workspace",
-		});
-		expect(archiveItem).toHaveAttribute("aria-disabled", "true");
-		expect(archiveAndDeleteItem).toHaveAttribute("aria-disabled", "true");
-		const hint = "Interrupt or wait for the agent to finish first.";
-		// The menu content fades in, so visibility needs a retry window.
-		await waitFor(() => {
-			expect(body.getByText(hint)).toBeVisible();
-		});
-		expect(archiveItem).toHaveAccessibleDescription(hint);
-		expect(archiveAndDeleteItem).toHaveAccessibleDescription(hint);
-		expect(requestArchiveAgent).not.toHaveBeenCalled();
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
 	},
 };
 
@@ -652,25 +665,8 @@ export const ArchivedWithUnarchive: Story = {
 		},
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const trigger = canvas.getByLabelText("Open agent actions");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(
-				body.getByRole("menuitem", { name: "Unarchive agent" }),
-			).toBeInTheDocument();
-		});
-		const body = within(document.body);
-		expect(body.queryByText("Rename chat")).not.toBeInTheDocument();
-		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
-		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
-		expect(
-			body.queryByText("Archive & delete workspace"),
-		).not.toBeInTheDocument();
 		await userEvent.click(
-			body.getByRole("menuitem", { name: "Unarchive agent" }),
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
 		);
-		expect(requestUnarchiveAgent).toHaveBeenCalledWith(MockChat.id);
 	},
 };

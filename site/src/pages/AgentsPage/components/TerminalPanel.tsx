@@ -98,12 +98,13 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 			signalReady();
 		}
 	};
+	const signalReadyFallback = useEffectEvent(signalReady);
 	useEffect(() => {
 		if (!shouldMountTerminal) {
 			return;
 		}
 
-		const timer = setTimeout(signalReady, READY_FALLBACK_MS);
+		const timer = setTimeout(signalReadyFallback, READY_FALLBACK_MS);
 		return () => clearTimeout(timer);
 	}, [shouldMountTerminal]);
 	const config = useQuery(deploymentConfig());

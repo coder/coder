@@ -31,6 +31,23 @@ const atLeast = (block: WorkingBlock) => (block.isPartial ? "at least " : "");
 const countLabel = (block: WorkingBlock, count: number, noun: string) =>
 	`${count} ${noun}${count === 1 ? "" : "s"}${block.isPartial ? " or more" : ""}`;
 
+const padTwo = (value: number) => value.toString().padStart(2, "0");
+
+/** Fixed-width elapsed time, e.g. "19m 05s", so the label does not jiggle. */
+export const formatLiveElapsed = (ms: number): string => {
+	const totalSeconds = Math.round(Math.max(0, ms) / 1000);
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+	if (hours > 0) {
+		return `${hours}h ${padTwo(minutes)}m`;
+	}
+	if (minutes > 0) {
+		return `${minutes}m ${padTwo(seconds)}s`;
+	}
+	return `${seconds}s`;
+};
+
 type LiveLabelProps = { block: WorkingBlock };
 
 const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
@@ -42,9 +59,11 @@ const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
 		return <ToolCall.Label>Working</ToolCall.Label>;
 	}
 
-	const elapsed = humanDurationShort(Math.max(0, now - block.startedAt));
+	const elapsed = formatLiveElapsed(now - block.startedAt);
 	return (
-		<ToolCall.Label>{`Working for ${atLeast(block)}${elapsed}`}</ToolCall.Label>
+		<ToolCall.Label className="tabular-nums">
+			{`Working for ${atLeast(block)}${elapsed}`}
+		</ToolCall.Label>
 	);
 };
 
@@ -123,7 +142,7 @@ class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 				ref={(content) => {
 					this.content = content;
 				}}
-				className="mt-1.5 flex flex-col gap-2 border-0 border-l border-solid border-border pl-3"
+				className="mt-1.5 flex flex-col gap-2 border-0 border-l border-solid border-border ml-2 pl-4"
 			>
 				{this.props.children}
 			</div>

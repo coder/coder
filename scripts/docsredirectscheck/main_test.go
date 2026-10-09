@@ -410,6 +410,118 @@ func TestCheckRedirectsShadowing(t *testing.T) {
 	}
 }
 
+func TestCheckRedirectsOrder(t *testing.T) {
+	t.Parallel()
+
+	live := liveOf("/docs/a", "/docs/b")
+
+	cases := []struct {
+		name string
+		in   string
+		want []wantProblem
+	}{
+		{
+			"a wildcard above a rule in its subtree swallows it",
+			`[
+				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
+				{"source": "/docs/retired/page", "destination": "/docs/b"}
+			]`,
+			[]wantProblem{{1, `unreachable: rule [0] (source "/docs/retired/:path*")`}},
+		},
+		{
+			"the same two rules are fine most specific first",
+			`[
+				{"source": "/docs/retired/page", "destination": "/docs/b"},
+				{"source": "/docs/retired/:path*", "destination": "/docs/a"}
+			]`,
+			nil,
+		},
+		{
+			"a regex wildcard above a rule beneath it swallows it",
+			`[
+				{"source": "/docs/retired/:path(.*)", "destination": "/docs/a"},
+				{"source": "/docs/retired/page", "destination": "/docs/b"}
+			]`,
+			[]wantProblem{{1, "unreachable: rule [0]"}},
+		},
+		{
+			"a wildcard above a nested wildcard swallows it",
+			`[
+				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
+				{"source": "/docs/retired/sub/:path*", "destination": "/docs/b"}
+			]`,
+			[]wantProblem{{1, "unreachable: rule [0]"}},
+		},
+		{
+			"a wildcard swallows a regex wildcard on the same prefix",
+			`[
+				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
+				{"source": "/docs/retired/:other(.*)", "destination": "/docs/b"}
+			]`,
+			[]wantProblem{{1, "unreachable: rule [0]"}},
+		},
+		{
+			"a regex wildcard leaves the bare prefix to an exact rule below it",
+			`[
+				{"source": "/docs/retired/:path(.*)", "destination": "/docs/a"},
+				{"source": "/docs/retired", "destination": "/docs/b"}
+			]`,
+			nil,
+		},
+		{
+			"an exact rule above a wildcard on the same prefix is deliberate",
+			`[
+				{"source": "/docs/retired", "destination": "/docs/b"},
+				{"source": "/docs/retired/:path*", "destination": "/docs/a"}
+			]`,
+			nil,
+		},
+		{
+			"sibling prefixes do not cover each other",
+			`[
+				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
+				{"source": "/docs/gone/:path*", "destination": "/docs/b"}
+			]`,
+			nil,
+		},
+		{
+			"a shared path prefix that is not a path boundary does not cover",
+			`[
+				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
+				{"source": "/docs/retired-too/page", "destination": "/docs/b"}
+			]`,
+			nil,
+		},
+		{
+			"each unreachable rule is reported once, against the first coverer",
+			`[
+				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
+				{"source": "/docs/retired/sub/:path*", "destination": "/docs/b"},
+				{"source": "/docs/retired/sub/page", "destination": "/docs/b"}
+			]`,
+			[]wantProblem{
+				{1, `rule [0] (source "/docs/retired/:path*")`},
+				{2, `rule [0] (source "/docs/retired/:path*")`},
+			},
+		},
+		{
+			"a duplicate source is reported as a duplicate, not as unreachable",
+			`[
+				{"source": "/docs/retired/:path*", "destination": "/docs/a"},
+				{"source": "/docs/retired/:other*", "destination": "/docs/b"}
+			]`,
+			[]wantProblem{{1, "duplicate of rule [0]"}},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, got := checkRedirects([]byte(tc.in), live)
+			requireProblems(t, got, tc.want...)
+		})
+	}
+}
+
 func TestCheckRedirectsDuplicatesChainsAndLoops(t *testing.T) {
 	t.Parallel()
 

@@ -1,5 +1,9 @@
+import { act, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { AppFamilyName, SessionCountApp } from "#/api/typesGenerated";
-import { groupSessionApps } from "./DeploymentBannerView";
+import { MockDeploymentStats } from "#/testHelpers/entities";
+import { render } from "#/testHelpers/renderHelpers";
+import { DeploymentBannerView, groupSessionApps } from "./DeploymentBannerView";
 
 const app = (
 	count: number,
@@ -33,5 +37,58 @@ describe("groupSessionApps", () => {
 
 	it("handles a deployment that reported no apps", () => {
 		expect(groupSessionApps()).toEqual(new Map());
+	});
+});
+
+describe("DeploymentBannerView", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("updates the last aggregated time as the refresh countdown ticks", () => {
+		vi.useFakeTimers();
+		const now = new Date("2023-03-06T19:13:35.000Z");
+		vi.setSystemTime(now);
+		const stats = {
+			...MockDeploymentStats,
+			collected_at: new Date(now.getTime() - 40_000).toISOString(),
+			next_update_at: new Date(now.getTime() + 60_000).toISOString(),
+		};
+		render(<DeploymentBannerView stats={stats} fetchStats={vi.fn()} />);
+
+		expect(
+			screen.getByRole("button", { name: "a few seconds ago" }),
+		).toBeInTheDocument();
+
+		act(() => {
+			vi.advanceTimersByTime(10_000);
+		});
+
+		expect(
+			screen.getByRole("button", { name: "a minute ago" }),
+		).toBeInTheDocument();
+	});
+	it("exposes stat tooltips to keyboard and screen reader users", async () => {
+		const user = userEvent.setup();
+		render(<DeploymentBannerView stats={MockDeploymentStats} />);
+
+		const trigger = await screen.findByRole("button", {
+			name: "Deployment status",
+		});
+		await user.tab();
+		expect(trigger).toHaveFocus();
+		await waitFor(() =>
+			expect(trigger).toHaveAccessibleDescription(
+				"Status of your Coder deployment. Only visible for admins!",
+			),
+		);
+
+		const transmission = screen.getByRole("button", { name: "Transmission" });
+		act(() => transmission.focus());
+		await waitFor(() =>
+			expect(transmission).toHaveAccessibleDescription(
+				/^Activity in the last ~\d+ minutes$/,
+			),
+		);
 	});
 });
