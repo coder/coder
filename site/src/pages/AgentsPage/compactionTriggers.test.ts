@@ -12,6 +12,7 @@ import {
 	compactionThresholdLabel,
 	isCompactionPointBeyondWindow,
 	type OrganizationCompactionTrigger,
+	organizationOverrideWindowPercent,
 	type ResolvedCompactionThreshold,
 	resolveChatCompactionThreshold,
 	resolveCompactionTriggersByOrganization,
@@ -60,66 +61,61 @@ describe("compaction triggers", () => {
 
 	// Binding cases must match TestBindingCompactionTriggerSource in
 	// coderd/x/chatd/generation_preparer_internal_test.go.
-	it("selects the lower enabled point and prefers chat on ties", () => {
-		const chat = { thresholdPercent: 80, contextLimit: 100_000 };
-
-		expect(
-			bindingCompactionTriggerSource(chat, {
-				thresholdPercent: 50,
-				contextLimit: 100_000,
-			}),
-		).toBe("organization");
-		expect(
-			bindingCompactionTriggerSource(chat, {
-				thresholdPercent: 80,
-				contextLimit: 100_000,
-			}),
-		).toBe("chat");
-		expect(
-			bindingCompactionTriggerSource(chat, {
-				thresholdPercent: 100,
-				contextLimit: 100_000,
-			}),
-		).toBe("chat");
-		expect(
-			bindingCompactionTriggerSource(chat, {
-				thresholdPercent: 80,
-				contextLimit: 0,
-			}),
-		).toBe("chat");
-		expect(
-			bindingCompactionTriggerSource(chat, {
-				thresholdPercent: 0,
-				contextLimit: 32_000,
-			}),
-		).toBe("organization");
-		expect(
-			bindingCompactionTriggerSource(
-				{ thresholdPercent: 70, contextLimit: 100_000 },
-				{ thresholdPercent: 95, contextLimit: 80_000 },
-			),
-		).toBe("chat");
+	const override = (contextLimit: number) => ({
+		thresholdPercent: organizationOverrideWindowPercent,
+		contextLimit,
 	});
-
-	it("uses the organization trigger when the chat trigger is disabled", () => {
-		expect(
-			bindingCompactionTriggerSource(
-				{ thresholdPercent: 100, contextLimit: 100_000 },
-				{ thresholdPercent: 80, contextLimit: 100_000 },
-			),
-		).toBe("organization");
-		expect(
-			bindingCompactionTriggerSource(
-				{ thresholdPercent: 80, contextLimit: 0 },
-				{ thresholdPercent: 80, contextLimit: 100_000 },
-			),
-		).toBe("organization");
-		expect(
-			bindingCompactionTriggerSource(
-				{ thresholdPercent: 100, contextLimit: 100_000 },
-				{ thresholdPercent: 100, contextLimit: 100_000 },
-			),
-		).toBe("chat");
+	it.each([
+		[
+			"lower override point wins",
+			{ thresholdPercent: 70, contextLimit: 200_000 },
+			override(32_000),
+			"organization",
+		],
+		[
+			"lower chat point wins over higher override point",
+			{ thresholdPercent: 70, contextLimit: 80_000 },
+			override(80_000),
+			"chat",
+		],
+		[
+			"tie prefers the chat trigger",
+			{ thresholdPercent: 80, contextLimit: 100_000 },
+			override(100_000),
+			"chat",
+		],
+		[
+			"chat trigger disabled by threshold 100 yields override",
+			{ thresholdPercent: 100, contextLimit: 200_000 },
+			override(32_000),
+			"organization",
+		],
+		[
+			"chat trigger disabled by zero limit yields override",
+			{ thresholdPercent: 70, contextLimit: 0 },
+			override(32_000),
+			"organization",
+		],
+		[
+			"override disabled by zero limit yields chat",
+			{ thresholdPercent: 70, contextLimit: 200_000 },
+			override(0),
+			"chat",
+		],
+		[
+			"both disabled yields chat",
+			{ thresholdPercent: 100, contextLimit: 200_000 },
+			override(0),
+			"chat",
+		],
+		[
+			"chat threshold zero fires immediately and wins",
+			{ thresholdPercent: 0, contextLimit: 200_000 },
+			override(32_000),
+			"chat",
+		],
+	] as const)("binding: %s", (_name, chat, organization, expected) => {
+		expect(bindingCompactionTriggerSource(chat, organization)).toBe(expected);
 	});
 
 	it("reports the token point of whichever trigger binds", () => {
