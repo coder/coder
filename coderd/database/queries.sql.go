@@ -42033,12 +42033,12 @@ WHERE
 			workspaces.owner_id = (SELECT id FROM users WHERE lower(users.username) = lower($9) AND deleted = false)
 		ELSE true
 	END
-	-- Filter by template_names
+	-- Filter by template_names (lowercase)
 	-- There can be more than 1 template with the same name across organizations.
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN array_length($10 :: text[], 1) > 0 THEN
-			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) IN (SELECT lower(n) FROM unnest($10 :: text[]) AS n) AND deleted = false)
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = ANY($10) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
