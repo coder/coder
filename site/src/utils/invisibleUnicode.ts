@@ -63,3 +63,32 @@ export function countInvisibleCharacters(text: string): number {
 	}
 	return count;
 }
+
+/**
+ * Normalizes prompt text the way the backend's SanitizePromptText does
+ * before storing it: unify line endings, strip invisible characters, trim
+ * trailing whitespace from each line, collapse three or more consecutive
+ * newlines to two, and trim the result. Callers can tell whether a draft
+ * would be blank or unchanged once saved.
+ */
+export function sanitizePromptText(text: string): string {
+	let visible = "";
+	for (const char of text.replace(/\r\n?/g, "\n")) {
+		if (char.length > 1 || isVisible(char.charCodeAt(0))) {
+			visible += char;
+		}
+	}
+	return visible
+		.split("\n")
+		.map((line) => line.replace(trailingGoSpace, ""))
+		.join("\n")
+		.replace(/\n{3,}/g, "\n\n")
+		.replace(leadingGoSpace, "")
+		.replace(trailingGoSpace, "");
+}
+
+// Go's unicode.IsSpace set. JavaScript's \s matches the same characters
+// except that it lacks U+0085 (next line) and adds U+FEFF, which is
+// stripped above as invisible.
+const leadingGoSpace = /^[\s\u0085]+/;
+const trailingGoSpace = /[\s\u0085]+$/;
