@@ -63,10 +63,10 @@ const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 export type RowSection = "work" | "answer";
 
 /**
- * The answer is the content after a row's last reasoning or tool call, web
- * searches included; text before it is narration. Sources fold without
- * splitting the answer, since OpenAI streams citations between the deltas of
- * one text part.
+ * The answer is the content after a row's last reasoning, tool call, or
+ * labeled narration, web searches included; text before it is narration.
+ * Sources fold without splitting the answer, since OpenAI streams citations
+ * between the deltas of one text part.
  */
 export const splitRowBlocks = (
 	blocks: readonly RenderBlock[],
@@ -78,7 +78,8 @@ export const splitRowBlocks = (
 			visible.has(block) &&
 			(block.type === "thinking" ||
 				block.type === "tool" ||
-				(block.type === "response" && block.beforeProviderTool)),
+				(block.type === "response" &&
+					(block.beforeProviderTool || block.narration))),
 	);
 	const work: RenderBlock[] = [];
 	let answer: RenderBlock[] = [];
@@ -109,6 +110,7 @@ type MemberRow = {
 	content: RowContent;
 	endsWithAnswer: boolean;
 	showsWork: boolean;
+	narrates: boolean;
 };
 
 /**
@@ -143,7 +145,7 @@ const getMemberRow = (
 	const { visibleBlocks, visibleTools } = content;
 	if (visibleBlocks.length === 0) {
 		return row.type === "live"
-			? { content, endsWithAnswer: false, showsWork: false }
+			? { content, endsWithAnswer: false, showsWork: false, narrates: false }
 			: undefined;
 	}
 
@@ -161,12 +163,15 @@ const getMemberRow = (
 	}
 
 	const { work, answer } = splitRowBlocks(visibleBlocks, visibleTools);
+	const narrates = work.some(
+		(block) => block.type === "response" && block.narration,
+	);
 	if (answer.length === 0) {
-		return { content, endsWithAnswer: false, showsWork: true };
+		return { content, endsWithAnswer: false, showsWork: true, narrates };
 	}
 
 	return work.length > 0 || searched
-		? { content, endsWithAnswer: true, showsWork: work.length > 0 }
+		? { content, endsWithAnswer: true, showsWork: work.length > 0, narrates }
 		: undefined;
 };
 
@@ -208,6 +213,7 @@ export const groupWorkingBlocks = (
 		anchorKey?: string;
 		ordinal: number;
 		containsLiveRow: boolean;
+		narrates: boolean;
 	};
 
 	const drafts: Draft[] = [];
@@ -242,6 +248,7 @@ export const groupWorkingBlocks = (
 				anchorKey,
 				ordinal,
 				containsLiveRow: false,
+				narrates: false,
 			};
 			ordinal += 1;
 			drafts.push(current);
@@ -249,6 +256,7 @@ export const groupWorkingBlocks = (
 
 		current.rowIndices.push(index);
 		current.containsLiveRow ||= row.type === "live";
+		current.narrates ||= member.narrates;
 
 		for (const tool of member.content.visibleTools) {
 			current.toolIds.add(tool.id);
@@ -335,9 +343,10 @@ export const groupWorkingBlocks = (
 		// Completed reasoning alone stays visible. The live turn folds from its
 		// first reasoning, so thinking never shows and then vanishes once a tool
 		// call arrives, and unfolds only when a turn without steps answers.
+		// Labeled narration is work wherever it sits, so its block always stays.
 		const foldsLiveTurn =
 			draft.containsLiveRow && options.isTurnActive && !draft.endsWithAnswer;
-		if (stepCount === 0 && !foldsLiveTurn) {
+		if (stepCount === 0 && !foldsLiveTurn && !draft.narrates) {
 			continue;
 		}
 

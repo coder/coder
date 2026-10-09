@@ -49,6 +49,8 @@ export type RenderBlock =
 			 * so later text starts a new block.
 			 */
 			beforeProviderTool?: boolean;
+			/** The model labeled this text as commentary on its work. */
+			narration?: boolean;
 	  }
 	| {
 			type: "thinking";

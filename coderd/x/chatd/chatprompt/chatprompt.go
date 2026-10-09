@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -651,12 +652,14 @@ func sdkPartFromContent(
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeText,
 			Text:             value.Text,
+			Narration:        IsNarration(value.ProviderMetadata),
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case *fantasy.TextContent:
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeText,
 			Text:             value.Text,
+			Narration:        IsNarration(value.ProviderMetadata),
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.ReasoningContent:
@@ -730,6 +733,17 @@ func sdkPartFromContent(
 	default:
 		return codersdk.ChatMessagePart{}
 	}
+}
+
+// IsNarration reports whether the provider labeled text as commentary on
+// the model's work rather than its answer.
+func IsNarration(metadata fantasy.ProviderMetadata) bool {
+	for _, data := range metadata {
+		if text, ok := data.(*fantasyopenai.ResponsesTextMetadata); ok && text != nil {
+			return text.Phase == "commentary"
+		}
+	}
+	return false
 }
 
 // toolResultContentToPart converts a fantasy ToolResultContent into a

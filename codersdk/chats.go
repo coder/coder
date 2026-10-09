@@ -522,6 +522,10 @@ type ChatMessagePart struct {
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
 	// HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.
 	HookRewritten bool `json:"hook_rewritten,omitempty" variants:"tool-call?"`
+	// Narration marks assistant text that the model labeled as commentary
+	// on its work rather than its answer. Only providers that label their
+	// output set it, currently the OpenAI Responses API.
+	Narration bool `json:"narration,omitempty" variants:"text?"`
 	// CreatedAt is the timestamp this part carries. The semantics
 	// depend on the part type: for tool-call and tool-result parts
 	// it is the time the call was emitted or the result was

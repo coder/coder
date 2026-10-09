@@ -22111,6 +22111,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "narration": {
+                    "description": "Narration marks assistant text that the model labeled as commentary\non its work rather than its answer. Only providers that label their\noutput set it, currently the OpenAI Responses API.",
+                    "type": "boolean"
+                },
                 "parsed_commands": {
                     "description": "ParsedCommands holds parsed programs from an execute tool call's\nshell command, one entry per simple command in source order. Each\nentry is [program] or [program, arg] where arg is the first non-flag\npositional argument. Program names are normalized to their base\nname (e.g. /usr/bin/go becomes go). Only populated when ToolName\nis \"execute\" and the command parses successfully; nil otherwise.",
                     "type": "array",
