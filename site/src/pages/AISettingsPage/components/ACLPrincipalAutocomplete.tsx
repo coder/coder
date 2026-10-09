@@ -1,36 +1,32 @@
 import { CheckIcon } from "lucide-react";
 import { useId, useState } from "react";
-import { keepPreviousData, useQuery } from "react-query";
-import { mcpServerConfigACLAvailable } from "#/api/queries/chats";
-import type { Group, ReducedUser } from "#/api/typesGenerated";
+import { keepPreviousData, type UseQueryOptions, useQuery } from "react-query";
+import type {
+	ACLAvailable,
+	Group,
+	ReducedUser,
+	UsersRequest,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { getGroupSubtitle, isGroup } from "#/modules/groups";
 import { prepareQuery } from "#/utils/filters";
 
-export type MCPServerPrincipalAutocompleteValue = ReducedUser | Group | null;
-type AutocompleteOption = Exclude<MCPServerPrincipalAutocompleteValue, null>;
+export type ACLPrincipal = ReducedUser | Group;
 
-type MCPServerPrincipalAutocompleteProps = {
-	value: MCPServerPrincipalAutocompleteValue;
-	onChange: (value: MCPServerPrincipalAutocompleteValue) => void;
-	organizationId: string;
-	serverId: string;
+type ACLPrincipalAutocompleteProps = {
+	value: ACLPrincipal | null;
+	onChange: (value: ACLPrincipal | null) => void;
+	availableQueryOptions: (
+		options: UsersRequest,
+	) => UseQueryOptions<ACLAvailable>;
 	excludedPrincipalIds: readonly string[];
-	className?: string;
 };
 
-export const MCPServerPrincipalAutocomplete: React.FC<
-	MCPServerPrincipalAutocompleteProps
-> = ({
-	value,
-	onChange,
-	organizationId,
-	serverId,
-	excludedPrincipalIds,
-	className,
-}) => {
+export const ACLPrincipalAutocomplete: React.FC<
+	ACLPrincipalAutocompleteProps
+> = ({ value, onChange, availableQueryOptions, excludedPrincipalIds }) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
 	const autocompleteId = useId();
@@ -43,15 +39,12 @@ export const MCPServerPrincipalAutocomplete: React.FC<
 	};
 
 	const aclAvailableQuery = useQuery({
-		...mcpServerConfigACLAvailable(organizationId, serverId, {
-			q: prepareQuery(inputValue),
-			limit: 25,
-		}),
+		...availableQueryOptions({ q: prepareQuery(inputValue), limit: 25 }),
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});
 
-	const options: AutocompleteOption[] = aclAvailableQuery.data
+	const options: ACLPrincipal[] = aclAvailableQuery.data
 		? [
 				...aclAvailableQuery.data.groups,
 				...aclAvailableQuery.data.users,
@@ -98,7 +91,6 @@ export const MCPServerPrincipalAutocomplete: React.FC<
 						? "Unable to load users or groups"
 						: "No users or groups found"
 				}
-				className={className}
 				id={autocompleteId}
 			/>
 			{aclAvailableQuery.error && (
