@@ -1,9 +1,11 @@
 package database
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -269,4 +271,23 @@ func requireAllowAll(t *testing.T, s rbac.Scope) {
 	require.Len(t, s.AllowIDList, 1)
 	require.Equal(t, policy.WildcardSymbol, s.AllowIDList[0].ID)
 	require.Equal(t, policy.WildcardSymbol, s.AllowIDList[0].Type)
+}
+
+func TestSkillRBACObjectProjectRowsDenied(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	skill := Skill{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+	for name, roles := range map[string]rbac.RoleIdentifiers{
+		"SiteOwner": {rbac.RoleOwner(), rbac.RoleMember()},
+		"OrgAdmin":  {rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID)},
+		"Member":    {rbac.RoleMember(), rbac.ScopedRoleAgentsAccess(orgID)},
+	} {
+		subject := rbac.Subject{ID: uuid.NewString(), Roles: roles, Scope: rbac.ScopeAll}
+		for _, action := range []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete} {
+			err := authz.Authorize(context.Background(), subject, action, skill.RBACObject())
+			require.Error(t, err, "%s %s", name, action)
+		}
+	}
 }

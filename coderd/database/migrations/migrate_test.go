@@ -373,18 +373,25 @@ func TestMigrationChain(t *testing.T) {
 	}
 
 	sqlDB := testSQLDB(t)
-	next, err := migrations.Stepper(sqlDB)
+	stepper, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
+	// Tracks the reached version so adjacent steps do not step past the
+	// version a previous step already reached.
+	var current uint
+	next := func() (uint, bool, error) {
+		version, more, err := stepper()
+		if err == nil {
+			current = version
+		}
+		return version, more, err
+	}
 
 	stepTo := func(target uint) {
 		t.Helper()
-		for {
-			version, more, err := next()
+		for current != target {
+			_, more, err := next()
 			require.NoError(t, err)
 			require.Truef(t, more, "migration %d not found", target)
-			if version == target {
-				return
-			}
 		}
 	}
 
@@ -406,6 +413,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000602RestoreAgentsAccessDefaultRole", 602, testMigration000602RestoreAgentsAccessDefaultRole},
 		{"Migration000606ChatDiffStatusOriginCredentials", 606, testMigration000606ChatDiffStatusOriginCredentials},
 		{"Migration000615RenameUserSkillsToSkills", 615, testMigration000615RenameUserSkillsToSkills},
+		{"Migration000616SkillOwners", 616, testMigration000616SkillOwners},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -1884,24 +1892,6 @@ func testMigration000615RenameUserSkillsToSkills(t *testing.T, sqlDB *sql.DB, ne
 		require.NoError(t, err)
 		require.False(t, exists)
 	}
-	schemaNames := func(table string) []string {
-		t.Helper()
-		rows, err := sqlDB.QueryContext(ctx, `
-			SELECT conname::text FROM pg_constraint WHERE conrelid = $1::regclass
-			UNION SELECT indexname::text FROM pg_indexes WHERE tablename = $1::text
-			UNION SELECT tgname::text || ':' || tgfoid::regproc::text FROM pg_trigger WHERE tgrelid = $1::regclass AND NOT tgisinternal
-			ORDER BY 1`, table)
-		require.NoError(t, err)
-		defer rows.Close()
-		var names []string
-		for rows.Next() {
-			var name string
-			require.NoError(t, rows.Scan(&name))
-			names = append(names, name)
-		}
-		require.NoError(t, rows.Err())
-		return names
-	}
 	oldNames := []string{
 		"trigger_upsert_user_skills:insert_user_skill_fail_if_user_deleted",
 		"trigger_user_skills_per_user_limit:enforce_user_skills_per_user_limit",
@@ -1913,7 +1903,7 @@ func testMigration000615RenameUserSkillsToSkills(t *testing.T, sqlDB *sql.DB, ne
 		"user_skills_user_id_fkey",
 		"user_skills_user_id_name_idx",
 	}
-	require.Equal(t, oldNames, schemaNames("user_skills"))
+	require.Equal(t, oldNames, skillsSchemaNames(ctx, t, sqlDB, "user_skills"))
 
 	userID := insertUser()
 	skillID := insertSkill(userSkillsTable, userID)
@@ -1932,7 +1922,7 @@ func testMigration000615RenameUserSkillsToSkills(t *testing.T, sqlDB *sql.DB, ne
 		"skills_user_id_name_idx",
 		"trigger_skills_per_user_limit:enforce_skills_per_user_limit",
 		"trigger_upsert_skills:insert_user_skill_fail_if_user_deleted",
-	}, schemaNames("skills"))
+	}, skillsSchemaNames(ctx, t, sqlDB, "skills"))
 	var gotUserID uuid.UUID
 	var name, description, content string
 	err = sqlDB.QueryRowContext(ctx, "SELECT user_id, name, description, content FROM skills WHERE id = $1", skillID).
@@ -1948,7 +1938,7 @@ func testMigration000615RenameUserSkillsToSkills(t *testing.T, sqlDB *sql.DB, ne
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
-	require.Equal(t, oldNames, schemaNames("user_skills"))
+	require.Equal(t, oldNames, skillsSchemaNames(ctx, t, sqlDB, "user_skills"))
 	softDeleteRemovesSkills(userSkillsTable)
 
 	upSQL, err := os.ReadFile("000615_rename_user_skills_to_skills.up.sql")
@@ -1960,6 +1950,119 @@ func testMigration000615RenameUserSkillsToSkills(t *testing.T, sqlDB *sql.DB, ne
 	require.NoError(t, err)
 	require.True(t, exists)
 	softDeleteRemovesSkills(skillsTable)
+}
+
+// skillsSchemaNames lists a table's constraints, indexes, and triggers with
+// their functions.
+func skillsSchemaNames(ctx context.Context, t *testing.T, sqlDB *sql.DB, table string) []string {
+	t.Helper()
+	rows, err := sqlDB.QueryContext(ctx, `
+		SELECT conname::text FROM pg_constraint WHERE conrelid = $1::regclass
+		UNION SELECT indexname::text FROM pg_indexes WHERE tablename = $1::text
+		UNION SELECT tgname::text || ':' || tgfoid::regproc::text FROM pg_trigger WHERE tgrelid = $1::regclass AND NOT tgisinternal
+		ORDER BY 1`, table)
+	require.NoError(t, err)
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var name string
+		require.NoError(t, rows.Scan(&name))
+		names = append(names, name)
+	}
+	require.NoError(t, rows.Err())
+	return names
+}
+
+func testMigration000616SkillOwners(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 616
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	skillShape := func() ([]string, string) {
+		t.Helper()
+		var capFunction string
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT pg_get_functiondef(tgfoid) FROM pg_trigger
+			WHERE tgrelid = 'skills'::regclass AND tgname LIKE 'trigger_skills_per_%'`).Scan(&capFunction)
+		require.NoError(t, err)
+		return skillsSchemaNames(ctx, t, sqlDB, "skills"), capFunction
+	}
+	skillExists := func(id uuid.UUID) bool {
+		t.Helper()
+		var exists bool
+		err := sqlDB.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM skills WHERE id = $1)", id).Scan(&exists)
+		require.NoError(t, err)
+		return exists
+	}
+	userNullable := func() string {
+		t.Helper()
+		var nullable string
+		err := sqlDB.QueryRowContext(ctx,
+			"SELECT is_nullable FROM information_schema.columns WHERE table_name = 'skills' AND column_name = 'user_id'",
+		).Scan(&nullable)
+		require.NoError(t, err)
+		return nullable
+	}
+
+	oldNames, oldCapFunction := skillShape()
+	require.Equal(t, "NO", userNullable())
+	userID := uuid.New()
+	_, err := sqlDB.ExecContext(ctx,
+		"INSERT INTO users (id, username, email, hashed_password, created_at, updated_at) VALUES ($1, $2, $3, '', NOW(), NOW())",
+		userID, userID.String(), userID.String()+"@test.com")
+	require.NoError(t, err)
+	personalSkillID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx,
+		"INSERT INTO skills (id, user_id, name, description, content) VALUES ($1, $2, 'personal', 'desc', 'body')",
+		personalSkillID, userID)
+	require.NoError(t, err)
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	var (
+		orgID, projectID  uuid.NullUUID
+		enabled           bool
+		groupACL, userACL string
+	)
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT organization_id, project_id, enabled, group_acl::text, user_acl::text FROM skills WHERE id = $1",
+		personalSkillID).Scan(&orgID, &projectID, &enabled, &groupACL, &userACL)
+	require.NoError(t, err)
+	require.False(t, orgID.Valid)
+	require.False(t, projectID.Valid)
+	require.True(t, enabled)
+	require.Equal(t, "{}", groupACL)
+	require.Equal(t, "{}", userACL)
+
+	org := uuid.New()
+	_, err = sqlDB.ExecContext(ctx,
+		"INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, $2, '', NOW(), NOW(), '{}')",
+		org, "org-"+org.String())
+	require.NoError(t, err)
+	orgSkillID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx,
+		"INSERT INTO skills (id, organization_id, name, description, content) VALUES ($1, $2, 'org', 'desc', 'body')",
+		orgSkillID, org)
+	require.NoError(t, err)
+
+	downSQL, err := os.ReadFile("000616_skill_owners.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	gotNames, gotCapFunction := skillShape()
+	require.Equal(t, oldNames, gotNames)
+	require.Equal(t, oldCapFunction, gotCapFunction)
+	require.Equal(t, "NO", userNullable())
+	require.True(t, skillExists(personalSkillID))
+	require.False(t, skillExists(orgSkillID))
+
+	upSQL, err := os.ReadFile("000616_skill_owners.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	require.Equal(t, "YES", userNullable())
+	require.True(t, skillExists(personalSkillID))
 }
 
 func TestMigration000504AIProvidersBackfill(t *testing.T) {
