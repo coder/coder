@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useQueryClient } from "react-query";
 import { spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { deploymentConfigQueryKey } from "#/api/queries/deployment";
@@ -8,7 +9,11 @@ import { authMethodsQueryKey, usersKey } from "#/api/queries/users";
 import type { User } from "#/api/typesGenerated";
 import { MockGroups } from "#/pages/UsersPage/storybookData/groups";
 import { MockRoles } from "#/pages/UsersPage/storybookData/roles";
-import { MockAuthMethodsAll, MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockAuthMethodsAll,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -78,6 +83,49 @@ export default meta;
 type Story = StoryObj<typeof UsersPage>;
 
 export const Loaded: Story = {};
+
+export const GroupsError: Story = {
+	parameters: {
+		queries: parameters.queries.filter((query) => query.key !== groupsQueryKey),
+	},
+	beforeEach: () => {
+		spyOn(API, "getGroups").mockRejectedValue(
+			mockApiError({ message: "Unable to load group memberships." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("button", { name: "Retry groups" });
+	},
+};
+
+export const GroupsRefetchError: Story = {
+	beforeEach: GroupsError.beforeEach,
+	decorators: [
+		function RefetchGroups(Story) {
+			const queryClient = useQueryClient();
+			return (
+				<>
+					<button
+						type="button"
+						onClick={() =>
+							void queryClient.invalidateQueries({ queryKey: groupsQueryKey })
+						}
+					>
+						Refetch groups
+					</button>
+					<Story />
+				</>
+			);
+		},
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Refetch groups" }),
+		);
+		await canvas.findByRole("button", { name: "Retry groups" });
+	},
+};
 
 export const SuspendUserSuccess: Story = {
 	play: async ({ canvasElement }) => {

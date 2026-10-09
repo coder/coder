@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -29,6 +29,11 @@ const meta: Meta<typeof UsersPageView> = {
 	component: UsersPageView,
 	args: {
 		canEditUsers: true,
+		groupsByUserId: new Map(),
+		groupsError: null,
+		isLoadingGroups: false,
+		isRetryingGroups: false,
+		onRetryGroups: fn(),
 		me: MockUserOwner.id,
 		filterProps: defaultFilterProps,
 		usersQuery: {

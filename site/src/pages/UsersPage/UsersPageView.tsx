@@ -2,6 +2,7 @@ import { UserPlusIcon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { UsersFilter } from "#/components/Filter/UsersFilter";
 import {
@@ -23,12 +24,18 @@ type UsersPageViewProps = Omit<UsersTableProps, "users" | "onAction"> & {
 	filterProps: React.ComponentProps<typeof UsersFilter>;
 	usersQuery: PaginationResult<TypesGen.GetUsersResponse>;
 	canCreateUser?: boolean;
+	groupsError: unknown;
+	isRetryingGroups: boolean;
+	onRetryGroups: () => void;
 };
 
 export const UsersPageView: React.FC<UsersPageViewProps> = ({
 	filterProps,
 	usersQuery,
 	canCreateUser,
+	groupsError,
+	isRetryingGroups,
+	onRetryGroups,
 	...props
 }) => {
 	const [action, setAction] = useState<UserAdminAction | undefined>();
@@ -52,6 +59,20 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
 					Manage user accounts and permissions.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
+
+			{Boolean(groupsError) && (
+				<div className="mb-4 flex flex-col items-start gap-2">
+					<ErrorAlert error={groupsError} className="w-full" />
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={isRetryingGroups}
+						onClick={onRetryGroups}
+					>
+						Retry groups
+					</Button>
+				</div>
+			)}
 
 			<UsersFilter {...filterProps} />
 

@@ -50,14 +50,12 @@ const UsersPage: React.FC = () => {
 		viewDeploymentConfig &&
 		deploymentValues?.config.oidc?.user_role_field !== "";
 
-	const isLoading = usersQuery.isLoading || groupsByUserIdQuery.isLoading;
-
 	return (
 		<>
 			<title>{pageTitle("Users")}</title>
 
 			<UsersPageView
-				isLoading={isLoading}
+				isLoading={usersQuery.isLoading}
 				filterProps={{
 					filter: useFilterResult,
 					error: usersQuery.error,
@@ -65,6 +63,10 @@ const UsersPage: React.FC = () => {
 				}}
 				usersQuery={usersQuery}
 				groupsByUserId={groupsByUserIdQuery.data}
+				groupsError={groupsByUserIdQuery.error}
+				isLoadingGroups={groupsByUserIdQuery.isLoading}
+				isRetryingGroups={groupsByUserIdQuery.isFetching}
+				onRetryGroups={() => void groupsByUserIdQuery.refetch()}
 				me={me.id}
 				canCreateUser={canCreateUser}
 				canEditUsers={canEditUsers}
