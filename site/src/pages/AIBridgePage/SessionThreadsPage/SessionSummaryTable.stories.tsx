@@ -21,6 +21,8 @@ export const Default: Story = {
 		providers: MockSession.providers,
 		inputTokens: MockSession.token_usage_summary.input_tokens,
 		outputTokens: MockSession.token_usage_summary.output_tokens,
+		cacheReadTokens: MockSession.token_usage_summary.cache_read_input_tokens,
+		cacheWriteTokens: MockSession.token_usage_summary.cache_write_input_tokens,
 		threadCount: MockSession.threads,
 		toolCallCount: 12,
 	},
@@ -55,6 +57,8 @@ export const LargeTokenCounts: Story = {
 		...Default.args,
 		inputTokens: 198_000,
 		outputTokens: 32_000,
+		cacheReadTokens: 1_635_778,
+		cacheWriteTokens: 130_734,
 	},
 };
 
