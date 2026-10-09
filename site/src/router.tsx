@@ -859,9 +859,10 @@ export const router = createBrowserRouter(
 							path="user-agents"
 							element={<AgentSettingsUserAgentsPage />}
 						/>
+						<Route path="skills" element={<AgentSettingsSkillsPage />} />
 						<Route
 							path="personal-skills"
-							element={<AgentSettingsSkillsPage />}
+							element={<Navigate to="/agents/settings/skills" replace />}
 						/>
 						<Route
 							path="admin"

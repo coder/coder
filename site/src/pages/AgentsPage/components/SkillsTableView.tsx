@@ -105,6 +105,7 @@ export type SkillsTableViewProps = {
 	copy: SkillsCopy;
 	limit: number;
 	canEdit: boolean;
+	headerLevel?: "page" | "section";
 	toolbar?: React.ReactNode;
 	error: unknown;
 	isLoading: boolean;
@@ -362,6 +363,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	copy,
 	limit,
 	canEdit,
+	headerLevel,
 	toolbar,
 	error,
 	isLoading,
@@ -417,6 +419,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				label={copy.title}
 				description={copy.description}
 				action={headerActions}
+				level={headerLevel}
 			/>
 
 			{toolbar}
