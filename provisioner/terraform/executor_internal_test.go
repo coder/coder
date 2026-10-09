@@ -2,9 +2,12 @@ package terraform
 
 import (
 	"encoding/json"
+	"io"
 	"os"
+	"strings"
 	"testing"
 
+	"cdr.dev/slog/v3"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 
@@ -214,5 +217,164 @@ func TestChecksumFileCRC32(t *testing.T) {
 
 		checksum := checksumFileCRC32(ctx, logger, "/nonexistent/file.hcl")
 		require.Zero(t, checksum)
+	})
+}
+
+func TestLargeLogLines(t *testing.T) {
+	t.Parallel()
+
+	// writeLines writes all lines to w from a goroutine and reports the
+	// result on the returned channel. io.Pipe writes block until the reader
+	// consumes them, which is the behavior under test: a dead reader must
+	// not wedge the writer forever.
+	writeLines := func(w io.WriteCloser, lines ...string) <-chan error {
+		ch := make(chan error, 1)
+		go func() {
+			defer w.Close()
+			for _, line := range lines {
+				if _, err := io.WriteString(w, line+"\n"); err != nil {
+					ch <- err
+					return
+				}
+			}
+			ch <- nil
+		}()
+		return ch
+	}
+
+	t.Run("log writer accepts line over 64 KiB", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		logr := &mockLogger{}
+		writer, doneLogging := logWriter(logr, proto.LogLevel_INFO)
+
+		// Exceeds the bufio.Scanner default of 64 KiB, which used to kill
+		// the reader goroutine and deadlock the paired pipe writer.
+		largeLine := strings.Repeat("x", 128*1024)
+		writeErr := writeLines(writer, "before", largeLine, "after")
+
+		select {
+		case err := <-writeErr:
+			require.NoError(t, err)
+		case <-ctx.Done():
+			t.Fatal("timed out writing; provisioner would hang")
+		}
+		select {
+		case <-doneLogging:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for log processing")
+		}
+
+		outputs := make([]string, 0, len(logr.logs))
+		for _, log := range logr.logs {
+			outputs = append(outputs, log.Output)
+		}
+		require.Equal(t, []string{"before", largeLine, "after"}, outputs)
+	})
+
+	t.Run("resource replace log writer accepts line over 64 KiB", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		logr := &mockLogger{}
+		writer, doneLogging := resourceReplaceLogWriter(logr)
+
+		replacing := strings.Repeat("y", 128*1024) + " # forces replacement"
+		writeErr := writeLines(writer, "before", replacing, "after")
+
+		select {
+		case err := <-writeErr:
+			require.NoError(t, err)
+		case <-ctx.Done():
+			t.Fatal("timed out writing; provisioner would hang")
+		}
+		select {
+		case <-doneLogging:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for log processing")
+		}
+
+		require.Len(t, logr.logs, 3)
+		require.Equal(t, proto.LogLevel_INFO, logr.logs[0].Level)
+		require.Equal(t, "before", logr.logs[0].Output)
+		require.Equal(t, proto.LogLevel_WARN, logr.logs[1].Level)
+		require.Equal(t, replacing, logr.logs[1].Output)
+		require.Equal(t, proto.LogLevel_INFO, logr.logs[2].Level)
+		require.Equal(t, "after", logr.logs[2].Output)
+	})
+
+	t.Run("provision log writer accepts line over 64 KiB", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		logr := &mockLogger{}
+		e := &executor{logger: slog.Make()}
+		writer, doneLogging := e.provisionLogWriter(logr)
+
+		largeLine := strings.Repeat("z", 128*1024)
+		before := `{"@level":"info","@message":"before"}`
+		after := `{"@level":"warn","@message":"after"}`
+		writeErr := writeLines(writer, before, largeLine, after)
+
+		select {
+		case err := <-writeErr:
+			require.NoError(t, err)
+		case <-ctx.Done():
+			t.Fatal("timed out writing; provisioner would hang")
+		}
+		select {
+		case <-doneLogging:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for log processing")
+		}
+
+		outputs := make([]string, 0, len(logr.logs))
+		for _, log := range logr.logs {
+			outputs = append(outputs, log.Output)
+		}
+		require.Equal(t, []string{"before", largeLine, "after"}, outputs)
+	})
+
+	t.Run("line over max buffer is discarded with a warning", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		logr := &mockLogger{}
+		writer, doneLogging := logWriter(logr, proto.LogLevel_INFO)
+
+		// Exceeds even maxScannerBufferSize: the line must be discarded
+		// with a warning and scanning must continue with the next line.
+		largeLine := strings.Repeat("x", 5*1024*1024)
+		writeErr := writeLines(writer, "before", largeLine, "after")
+
+		select {
+		case err := <-writeErr:
+			require.NoError(t, err)
+		case <-ctx.Done():
+			t.Fatal("timed out writing; provisioner would hang")
+		}
+		select {
+		case <-doneLogging:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for log processing")
+		}
+
+		outputs := make([]string, 0, len(logr.logs))
+		for _, log := range logr.logs {
+			outputs = append(outputs, log.Output)
+		}
+		require.Contains(t, outputs, "before")
+		require.Contains(t, outputs, "after")
+		require.NotContains(t, outputs, largeLine)
+
+		warned := false
+		for _, log := range logr.logs {
+			if log.Level == proto.LogLevel_WARN && strings.Contains(log.Output, "too long") {
+				warned = true
+				break
+			}
+		}
+		require.True(t, warned, "expected a WARN log about the oversized line")
 	})
 }
