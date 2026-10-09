@@ -657,7 +657,12 @@ func TestWorkspace(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		admin, err := owner.User(ctx, codersdk.Me)
 		require.NoError(t, err)
-		actor := dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin))
+		subject := coderdtest.AuthzUserSubject(admin)
+		// actor returns a fresh context per use: the subtests are parallel, so a
+		// deadline shared with the setup would expire while they wait to run.
+		actor := func(t *testing.T) context.Context {
+			return dbauthz.As(testutil.Context(t, testutil.WaitLong), subject)
+		}
 
 		// privateTemplate returns a template nobody has access to through ACLs
 		// (including the everyone group).
@@ -665,15 +670,15 @@ func TestWorkspace(t *testing.T) {
 			v := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
 			coderdtest.AwaitTemplateVersionJobCompleted(t, owner, v.ID)
 			tpl := coderdtest.CreateTemplate(t, owner, first.OrganizationID, v.ID)
-			require.NoError(t, api.Database.UpdateTemplateACLByID(actor, database.UpdateTemplateACLByIDParams{
+			require.NoError(t, api.Database.UpdateTemplateACLByID(actor(t), database.UpdateTemplateACLByIDParams{
 				ID:       tpl.ID,
 				GroupACL: database.TemplateACL{},
 				UserACL:  database.TemplateACL{},
 			}))
 			return tpl
 		}
-		createAs := func(c *codersdk.Client, user codersdk.User, tpl codersdk.Template) error {
-			_, err := c.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+		createAs := func(t *testing.T, c *codersdk.Client, user codersdk.User, tpl codersdk.Template) error {
+			_, err := c.CreateUserWorkspace(testutil.Context(t, testutil.WaitLong), user.ID.String(), codersdk.CreateWorkspaceRequest{
 				TemplateID: tpl.ID,
 				Name:       testutil.GetRandomNameHyphenated(t),
 			})
@@ -681,8 +686,8 @@ func TestWorkspace(t *testing.T) {
 		}
 		// createViaOrgRoute uses the deprecated
 		// /organizations/{org}/members/{user}/workspaces route.
-		createViaOrgRoute := func(user codersdk.User, tpl codersdk.Template) error {
-			res, err := owner.Request(ctx, http.MethodPost,
+		createViaOrgRoute := func(t *testing.T, user codersdk.User, tpl codersdk.Template) error {
+			res, err := owner.Request(testutil.Context(t, testutil.WaitLong), http.MethodPost,
 				fmt.Sprintf("/api/v2/organizations/%s/members/%s/workspaces", first.OrganizationID, user.ID),
 				codersdk.CreateWorkspaceRequest{TemplateID: tpl.ID, Name: testutil.GetRandomNameHyphenated(t)})
 			if err != nil {
@@ -694,7 +699,7 @@ func TestWorkspace(t *testing.T) {
 			}
 			return nil
 		}
-		requireForbidden := func(err error, msg string) {
+		requireForbidden := func(t *testing.T, err error, msg string) {
 			t.Helper()
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
@@ -705,14 +710,14 @@ func TestWorkspace(t *testing.T) {
 		// custom organization role with the given permissions.
 		memberWithRole := func(t *testing.T, role string, perms ...database.CustomRolePermission) codersdk.User {
 			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
-			_, err := api.Database.InsertCustomRole(actor, database.InsertCustomRoleParams{
+			_, err := api.Database.InsertCustomRole(actor(t), database.InsertCustomRoleParams{
 				Name:           role,
 				DisplayName:    role,
 				OrganizationID: uuid.NullUUID{UUID: first.OrganizationID, Valid: true},
 				OrgPermissions: perms,
 			})
 			require.NoError(t, err)
-			_, err = api.Database.UpdateMemberRoles(actor, database.UpdateMemberRolesParams{
+			_, err = api.Database.UpdateMemberRoles(actor(t), database.UpdateMemberRolesParams{
 				GrantedRoles: []string{role},
 				UserID:       member.ID,
 				OrgID:        first.OrganizationID,
@@ -721,7 +726,7 @@ func TestWorkspace(t *testing.T) {
 			return member
 		}
 		setStatus := func(t *testing.T, user codersdk.User, status database.UserStatus) {
-			_, err := api.Database.UpdateUserStatus(actor, database.UpdateUserStatusParams{
+			_, err := api.Database.UpdateUserStatus(actor(t), database.UpdateUserStatusParams{
 				ID:        user.ID,
 				Status:    status,
 				UpdatedAt: dbtime.Now(),
@@ -735,7 +740,7 @@ func TestWorkspace(t *testing.T) {
 		t.Run("Happy", func(t *testing.T) {
 			t.Parallel()
 			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
-			require.NoError(t, createAs(owner, member, template))
+			require.NoError(t, createAs(t, owner, member, template))
 		})
 		t.Run("Suspended", func(t *testing.T) {
 			t.Parallel()
@@ -743,8 +748,8 @@ func TestWorkspace(t *testing.T) {
 			_, err := owner.UpdateUserStatus(testutil.Context(t, testutil.WaitLong), member.ID.String(), codersdk.UserStatusSuspended)
 			require.NoError(t, err)
 			msg := fmt.Sprintf("User %q is not active.", member.Username)
-			requireForbidden(createAs(owner, member, template), msg)
-			requireForbidden(createViaOrgRoute(member, template), msg)
+			requireForbidden(t, createAs(t, owner, member, template), msg)
+			requireForbidden(t, createViaOrgRoute(t, member, template), msg)
 		})
 		t.Run("Dormant", func(t *testing.T) {
 			t.Parallel()
@@ -752,12 +757,12 @@ func TestWorkspace(t *testing.T) {
 			// create workspaces for them.
 			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
 			setStatus(t, member, database.UserStatusDormant)
-			requireForbidden(createAs(owner, member, template), fmt.Sprintf("User %q is not active.", member.Username))
+			requireForbidden(t, createAs(t, owner, member, template), fmt.Sprintf("User %q is not active.", member.Username))
 		})
 		t.Run("OrgRoute", func(t *testing.T) {
 			t.Parallel()
 			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
-			require.NoError(t, createViaOrgRoute(member, template))
+			require.NoError(t, createViaOrgRoute(t, member, template))
 		})
 		t.Run("NotInOrganization", func(t *testing.T) {
 			t.Parallel()
@@ -765,14 +770,14 @@ func TestWorkspace(t *testing.T) {
 			// admin cannot create a workspace for a user outside of it.
 			other := dbgen.Organization(t, api.Database, database.Organization{})
 			_, outsider := coderdtest.CreateAnotherUser(t, owner, other.ID)
-			requireForbidden(createAs(owner, outsider, template),
+			requireForbidden(t, createAs(t, owner, outsider, template),
 				fmt.Sprintf("User %q is not allowed to create workspaces in this organization.", outsider.Username))
 		})
 		t.Run("NoTemplateAccess", func(t *testing.T) {
 			t.Parallel()
 			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
 			tpl := privateTemplate(t)
-			requireForbidden(createAs(owner, member, tpl),
+			requireForbidden(t, createAs(t, owner, member, tpl),
 				fmt.Sprintf("User %q is not allowed to use template %q.", member.Username, tpl.Name))
 		})
 		t.Run("OrgCustomRole", func(t *testing.T) {
@@ -789,12 +794,12 @@ func TestWorkspace(t *testing.T) {
 					t.Parallel()
 					tpl := privateTemplate(t)
 					member := memberWithRole(t, "tpl-"+tc.name, tc.perms...)
-					err := createAs(owner, member, tpl)
+					err := createAs(t, owner, member, tpl)
 					if !tc.deny {
 						require.NoError(t, err)
 						return
 					}
-					requireForbidden(err, fmt.Sprintf("User %q is not allowed to use template %q.", member.Username, tpl.Name))
+					requireForbidden(t, err, fmt.Sprintf("User %q is not allowed to use template %q.", member.Username, tpl.Name))
 				})
 			}
 		})
@@ -803,8 +808,8 @@ func TestWorkspace(t *testing.T) {
 			tpl := privateTemplate(t)
 			member := memberWithRole(t, "tpl-user-scoped", tplRead, tplUse, wsCreate)
 
-			tokenClient := func(scopes ...codersdk.APIKeyScope) *codersdk.Client {
-				key, err := owner.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{Scopes: scopes})
+			tokenClient := func(t *testing.T, scopes ...codersdk.APIKeyScope) *codersdk.Client {
+				key, err := owner.CreateToken(testutil.Context(t, testutil.WaitLong), codersdk.Me, codersdk.CreateTokenRequest{Scopes: scopes})
 				require.NoError(t, err)
 				c := codersdk.New(owner.URL)
 				c.SetSessionToken(key.Key)
@@ -813,16 +818,16 @@ func TestWorkspace(t *testing.T) {
 			// An admin token limited to what creating a workspace needs still
 			// works: the owner is evaluated with their own full permissions,
 			// not the caller's token scope.
-			allowed := tokenClient(
+			allowed := tokenClient(t,
 				codersdk.APIKeyScopeWorkspaceCreate, codersdk.APIKeyScopeTemplateRead, codersdk.APIKeyScopeTemplateUse,
 				codersdk.APIKeyScopeUserRead, codersdk.APIKeyScopeWorkspaceRead, codersdk.APIKeyScopeWorkspaceStart,
 			)
-			require.NoError(t, createAs(allowed, member, tpl))
+			require.NoError(t, createAs(t, allowed, member, tpl))
 
 			// A token without workspace:create is rejected as before.
-			insufficient := tokenClient(codersdk.APIKeyScopeTemplateRead, codersdk.APIKeyScopeTemplateUse,
+			insufficient := tokenClient(t, codersdk.APIKeyScopeTemplateRead, codersdk.APIKeyScopeTemplateUse,
 				codersdk.APIKeyScopeUserRead)
-			requireForbidden(createAs(insufficient, member, tpl), "Unauthorized to create workspace.")
+			requireForbidden(t, createAs(t, insufficient, member, tpl), "Unauthorized to create workspace.")
 		})
 	})
 
