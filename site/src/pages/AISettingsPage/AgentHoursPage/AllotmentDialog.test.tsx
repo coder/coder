@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { mockApiError } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
@@ -49,24 +49,24 @@ describe("AllotmentDialog", () => {
 		expect(onClose).not.toHaveBeenCalled();
 	});
 
-	it("keeps the dialog open with the server's conflict message", async () => {
+	it("stays open after a server conflict so the save can be retried", async () => {
 		const user = userEvent.setup();
-		const onSubmit = vi.fn(() =>
-			Promise.reject(
+		const onSubmit = vi
+			.fn<(targetId: string, bps: number) => Promise<unknown>>()
+			.mockRejectedValueOnce(
 				mockApiError({
 					message: "Agent Hours allotments cannot exceed 100% in total.",
-					detail: "Only 10% is unallotted.",
 				}),
-			),
-		);
+			)
+			.mockResolvedValueOnce(undefined);
 		const { onClose } = renderDialog(onSubmit);
 
 		await user.type(screen.getByRole("textbox", { name: "Allotment" }), "30");
 		await user.click(screen.getByRole("button", { name: "Save" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		await screen.findByText(
-			"Agent Hours allotments cannot exceed 100% in total.",
-		);
-		expect(onClose).not.toHaveBeenCalled();
+		await waitFor(() => expect(onClose).toHaveBeenCalled());
+		expect(onSubmit).toHaveBeenCalledTimes(2);
+		expect(onClose).toHaveBeenCalledTimes(1);
 	});
 });
