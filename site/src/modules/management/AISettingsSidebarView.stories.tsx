@@ -45,6 +45,7 @@ const aiSettingsRoutes: [RouterRoute, ...RouterRoute[]] = [
 	{ path: "/ai/settings/mcp-servers/add", useStoryElement: true },
 	{ path: "/ai/settings/templates", useStoryElement: true },
 	{ path: "/ai/settings/instructions", useStoryElement: true },
+	{ path: "/ai/settings/skills", useStoryElement: true },
 	{ path: "/ai/settings/lifecycle", useStoryElement: true },
 ];
 
@@ -395,6 +396,24 @@ export const MCPServersHiddenWithoutPermission: Story = {
 		expect(
 			canvas.queryByRole("link", { name: "MCP servers" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const SkillsActive: Story = {
+	parameters: {
+		reactRouter: atLocation("/ai/settings/skills"),
+	},
+};
+
+export const SkillsForOrganizationAuditor: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			viewAnyOrganizationSkills: true,
+		},
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/skills"),
 	},
 };
 

@@ -110,6 +110,10 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 		"/ai/settings/mcp-servers/add",
 		organizationName,
 	);
+	const skillsPath = organizationScopedPath(
+		"/ai/settings/skills",
+		organizationName,
+	);
 
 	return (
 		<BaseSidebar>
@@ -148,6 +152,9 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 						<SubNavItem href="/ai/settings/instructions">
 							Instructions
 						</SubNavItem>
+						{permissions.viewAnyOrganizationSkills && (
+							<SubNavItem href={skillsPath}>Skills</SubNavItem>
+						)}
 						<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
 					</SubNavGroup>
 				)}
@@ -177,6 +184,12 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 						<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
 					</SubNavGroup>
 				)}
+				{!permissions.editDeploymentConfig &&
+					permissions.viewAnyOrganizationSkills && (
+						<SubNavGroup>
+							<SubNavItem href={skillsPath}>Skills</SubNavItem>
+						</SubNavGroup>
+					)}
 			</div>
 		</BaseSidebar>
 	);
