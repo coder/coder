@@ -2,6 +2,10 @@
 title: Envbuilder releases and known issues
 ---
 
+> [!WARNING]
+> Envbuilder is in maintenance mode and no new features are planned. For new
+> deployments, we recommend the [Dev Containers Integration](../integration.md).
+
 ## Release channels
 
 Envbuilder provides two release channels:

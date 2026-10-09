@@ -38,6 +38,10 @@ For user documentation, see the
 
 ## Envbuilder
 
+> [!WARNING]
+> Envbuilder is in maintenance mode and no new features are planned. For new
+> deployments, we recommend the [Dev Containers Integration](./integration.md).
+
 Envbuilder transforms the workspace image itself from a `devcontainer.json`,
 rather than running containers inside the workspace. It does not require
 a Docker daemon.

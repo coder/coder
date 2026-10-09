@@ -2,6 +2,10 @@
 title: Envbuilder security and caching
 ---
 
+> [!WARNING]
+> Envbuilder is in maintenance mode and no new features are planned. For new
+> deployments, we recommend the [Dev Containers Integration](../integration.md).
+
 Ensure Envbuilder can only pull pre-approved images and artifacts by configuring
 it with your existing HTTP proxies, firewalls, and artifact managers.
 
