@@ -75,7 +75,7 @@ const meta: Meta<typeof WorkspaceSharingPageView> = {
 	args: {
 		workspace: MockWorkspace,
 		workspaceACL: emptyACL,
-		canUpdatePermissions: true,
+		canShareWorkspace: true,
 		error: undefined,
 		onAddUser: () => Promise.resolve(),
 		isAddingUser: false,
@@ -122,7 +122,7 @@ export const WithUsersAndGroups: Story = {
 export const ReadOnly: Story = {
 	args: {
 		workspaceACL: aclWithUsersAndGroups,
-		canUpdatePermissions: false,
+		canShareWorkspace: false,
 	},
 };
 
