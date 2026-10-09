@@ -542,7 +542,7 @@ This returns more data than list_workspaces to reduce token usage.`,
 
 type CreateWorkspaceArgs struct {
 	Name                    string            `json:"name"`
-	RichParameters          map[string]string `json:"rich_parameters"`
+	RichParameters          map[string]string `json:"rich_parameters,omitempty"`
 	TemplateID              string            `json:"template_id,omitempty"`
 	TemplateVersionID       string            `json:"template_version_id,omitempty"`
 	TemplateVersionPresetID string            `json:"template_version_preset_id,omitempty"`
@@ -612,7 +612,7 @@ be ready before trying to use or connect to the workspace.
 					"additionalProperties": map[string]any{"type": "string"},
 				},
 			},
-			Required: []string{"name", "rich_parameters"},
+			Required: []string{"name"},
 		},
 	},
 	MCPAnnotations: mcpMutationAnnotations,
