@@ -3,7 +3,6 @@ import type React from "react";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useAgentComposer } from "./AgentComposer";
-import { AgentComposerOptions } from "./AgentComposerOptions";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 
@@ -71,22 +70,6 @@ export const AgentComposerSetupNotice = ({
 				aiGatewayDisabled={aiGatewayDisabled}
 			/>
 		</div>
-	);
-};
-
-export const AgentComposerOptionsControl = (
-	props: Omit<
-		React.ComponentProps<typeof AgentComposerOptions>,
-		"onAttachClick"
-	>,
-) => {
-	const { state, actions } = useAgentComposer();
-
-	return (
-		<AgentComposerOptions
-			{...props}
-			onAttachClick={state.canAttachFiles ? actions.openFilePicker : undefined}
-		/>
 	);
 };
 

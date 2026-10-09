@@ -1,18 +1,29 @@
 import type React from "react";
-import { AgentComposer, type AgentComposerBindings } from "./AgentComposer";
+import {
+	AgentComposer,
+	type AgentComposerBindings,
+	AgentComposerProvider,
+} from "./AgentComposer";
 import {
 	AgentComposerContainer,
 	AgentComposerContextIndicator,
-	AgentComposerOptionsControl,
 	type AgentComposerSetup,
 	AgentComposerSetupNotice,
 	needsAgentSetup,
 } from "./AgentComposerLayout";
+import { AgentComposerOptions } from "./AgentComposerOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
 type AgentComposerConfiguration = {
-	bindings: AgentComposerBindings;
-	options: React.ComponentProps<typeof AgentComposerOptionsControl>;
+	bindings: Omit<
+		AgentComposerBindings,
+		"queuedMessages" | "onPromoteQueuedMessage"
+	>;
+	model: React.ComponentProps<typeof AgentComposerOptions.Model>;
+	tools: Omit<
+		React.ComponentProps<typeof AgentComposerOptions.Provider>,
+		"children"
+	>;
 	setup: AgentComposerSetup;
 	editor?: Omit<
 		React.ComponentProps<typeof AgentComposer.Editor>,
@@ -26,7 +37,8 @@ type AgentComposerConfiguration = {
 /** Composes a new chat using its organization's controlled settings. */
 export const NewAgentComposer = ({
 	bindings,
-	options,
+	model,
+	tools,
 	setup,
 	editor,
 	fillWidth,
@@ -34,32 +46,40 @@ export const NewAgentComposer = ({
 	const showSetupNotice = needsAgentSetup(setup);
 
 	return (
-		<AgentComposer.Provider bindings={bindings}>
-			<AgentComposerContainer fillWidth={fillWidth}>
-				{showSetupNotice && (
-					<AgentComposerSetupNotice
-						{...setup}
-						organizationId={options.chatOrganizationId}
-					/>
-				)}
-				<AgentComposer.Frame showSetupNotice={showSetupNotice}>
-					<AgentComposer.Warning />
-					<AgentComposer.Attachments />
-					<AgentComposer.Editor hasWorkspace={false} {...editor} />
-					<AgentComposer.InvisibleCharacterWarning />
-					<AgentComposer.Toolbar>
-						<AgentComposerOptionsControl
-							{...options}
-							showAgentSetupNotice={showSetupNotice}
+		<AgentComposerProvider bindings={bindings}>
+			<AgentComposerOptions.Provider {...tools}>
+				<AgentComposerContainer fillWidth={fillWidth}>
+					{showSetupNotice && (
+						<AgentComposerSetupNotice
+							{...setup}
+							organizationId={tools.chatOrganizationId}
 						/>
-						<div className="flex shrink-0 items-center gap-2">
-							<AgentComposer.VoiceInput />
-							<AgentComposer.PrimaryAction />
-						</div>
-					</AgentComposer.Toolbar>
-				</AgentComposer.Frame>
-			</AgentComposerContainer>
-		</AgentComposer.Provider>
+					)}
+					<AgentComposer.Frame showSetupNotice={showSetupNotice}>
+						<AgentComposer.Warning />
+						<AgentComposer.Attachments />
+						<AgentComposer.Editor hasWorkspace={false} {...editor} />
+						<AgentComposer.InvisibleCharacterWarning />
+						<AgentComposer.Toolbar>
+							<AgentComposerOptions.Frame>
+								<AgentComposerOptions.Menu
+									showAgentSetupNotice={showSetupNotice}
+								/>
+								<AgentComposerOptions.Model {...model} />
+								<AgentComposerOptions.PlanningBadge />
+								<AgentComposerOptions.Badges />
+							</AgentComposerOptions.Frame>
+							<div className="flex shrink-0 items-center gap-2">
+								<AgentComposer.VoiceInput />
+								<AgentComposer.Submit />
+								<AgentComposer.Stop />
+								<AgentComposer.InterruptStatus />
+							</div>
+						</AgentComposer.Toolbar>
+					</AgentComposer.Frame>
+				</AgentComposerContainer>
+			</AgentComposerOptions.Provider>
+		</AgentComposerProvider>
 	);
 };
 
@@ -71,7 +91,8 @@ type ChatComposerProps = AgentComposerConfiguration & {
 /** Composes an existing chat without taking ownership of its turn controller. */
 export const ChatComposer = ({
 	bindings,
-	options,
+	model,
+	tools,
 	setup,
 	editor,
 	fillWidth,
@@ -81,62 +102,117 @@ export const ChatComposer = ({
 	const showSetupNotice = needsAgentSetup(setup);
 
 	return (
-		<AgentComposer.Provider bindings={bindings}>
-			<AgentComposerContainer
-				fillWidth={fillWidth}
-				isEditing={bindings.isEditingHistoryMessage}
-			>
-				{queue && queue.messages.length > 0 && (
-					<QueuedMessagesList {...queue} className="mb-2" />
-				)}
-				{showSetupNotice && (
-					<AgentComposerSetupNotice
-						{...setup}
-						organizationId={options.chatOrganizationId}
-					/>
-				)}
-				<AgentComposer.Frame showSetupNotice={showSetupNotice}>
-					<AgentComposer.Warning />
-					{bindings.isEditingHistoryMessage && <AgentComposer.EditBanner />}
-					<AgentComposer.Attachments />
-					<AgentComposer.Editor hasWorkspace={false} {...editor} />
-					<AgentComposer.InvisibleCharacterWarning />
-					<AgentComposer.Toolbar>
-						<AgentComposerOptionsControl
-							{...options}
-							showAgentSetupNotice={showSetupNotice}
-							hasContextUsage={context !== undefined}
+		<AgentComposerProvider
+			bindings={{
+				...bindings,
+				queuedMessages: queue?.messages,
+				onPromoteQueuedMessage: queue?.onPromote,
+			}}
+		>
+			<AgentComposerOptions.Provider {...tools}>
+				<AgentComposerContainer
+					fillWidth={fillWidth}
+					isEditing={bindings.isEditingHistoryMessage}
+				>
+					{queue && queue.messages.length > 0 && (
+						<QueuedMessagesList {...queue} className="mb-2" />
+					)}
+					{showSetupNotice && (
+						<AgentComposerSetupNotice
+							{...setup}
+							organizationId={tools.chatOrganizationId}
 						/>
-						<div className="flex shrink-0 items-center gap-2">
-							<AgentComposer.VoiceInput />
-							{context && <AgentComposerContextIndicator {...context} />}
-							<AgentComposer.PrimaryAction />
-						</div>
-					</AgentComposer.Toolbar>
-				</AgentComposer.Frame>
-			</AgentComposerContainer>
-		</AgentComposer.Provider>
+					)}
+					<AgentComposer.Frame showSetupNotice={showSetupNotice}>
+						<AgentComposer.Warning />
+						{bindings.isEditingHistoryMessage && <AgentComposer.EditBanner />}
+						<AgentComposer.Attachments />
+						<AgentComposer.Editor hasWorkspace={false} {...editor} />
+						<AgentComposer.InvisibleCharacterWarning />
+						<AgentComposer.Toolbar>
+							<AgentComposerOptions.Frame>
+								<AgentComposerOptions.Menu
+									showAgentSetupNotice={showSetupNotice}
+								/>
+								<AgentComposerOptions.Model {...model} />
+								{context ? (
+									<AgentComposerOptions.Badges
+										leadingBadges={
+											tools.planModeEnabled ? [{ kind: "planning" }] : []
+										}
+									/>
+								) : (
+									<>
+										<AgentComposerOptions.PlanningBadge />
+										<AgentComposerOptions.Badges />
+									</>
+								)}
+							</AgentComposerOptions.Frame>
+							<div className="flex shrink-0 items-center gap-2">
+								<AgentComposer.VoiceInput />
+								{context && <AgentComposerContextIndicator {...context} />}
+								{bindings.isEditingHistoryMessage ? (
+									<HistoryEditComposerActions />
+								) : (
+									<ChatComposerActions />
+								)}
+							</div>
+						</AgentComposer.Toolbar>
+					</AgentComposer.Frame>
+				</AgentComposerContainer>
+			</AgentComposerOptions.Provider>
+		</AgentComposerProvider>
 	);
 };
+
+function ChatComposerActions() {
+	return (
+		<>
+			<AgentComposer.Submit />
+			<AgentComposer.Stop />
+			<AgentComposer.InterruptStatus />
+		</>
+	);
+}
+
+function HistoryEditComposerActions() {
+	return (
+		<>
+			<AgentComposer.SaveEdit />
+			<AgentComposer.Stop />
+			<AgentComposer.InterruptStatus />
+		</>
+	);
+}
 
 /** Keeps the loading editor's draft handoff separate from loaded-chat behavior. */
 export const LoadingChatComposer = ({
 	bindings,
-	options,
-}: Pick<AgentComposerConfiguration, "bindings" | "options">) => (
-	<AgentComposer.Provider bindings={bindings}>
-		<AgentComposerContainer>
-			<AgentComposer.Frame>
-				<AgentComposer.Editor hasWorkspace={false} />
-				<AgentComposer.InvisibleCharacterWarning />
-				<AgentComposer.Toolbar>
-					<AgentComposerOptionsControl {...options} />
-					<div className="flex shrink-0 items-center gap-2">
-						<AgentComposer.VoiceInput />
-						<AgentComposer.PrimaryAction />
-					</div>
-				</AgentComposer.Toolbar>
-			</AgentComposer.Frame>
-		</AgentComposerContainer>
-	</AgentComposer.Provider>
+	model,
+	tools,
+}: Pick<AgentComposerConfiguration, "bindings" | "model" | "tools">) => (
+	<AgentComposerProvider bindings={bindings}>
+		<AgentComposerOptions.Provider {...tools}>
+			<AgentComposerContainer>
+				<AgentComposer.Frame>
+					<AgentComposer.Editor hasWorkspace={false} />
+					<AgentComposer.InvisibleCharacterWarning />
+					<AgentComposer.Toolbar>
+						<AgentComposerOptions.Frame>
+							<AgentComposerOptions.Menu />
+							<AgentComposerOptions.Model {...model} />
+							<AgentComposerOptions.PlanningBadge />
+							<AgentComposerOptions.Badges />
+						</AgentComposerOptions.Frame>
+						<div className="flex shrink-0 items-center gap-2">
+							<AgentComposer.VoiceInput />
+							<AgentComposer.Submit />
+							<AgentComposer.Stop />
+							<AgentComposer.InterruptStatus />
+						</div>
+					</AgentComposer.Toolbar>
+				</AgentComposer.Frame>
+			</AgentComposerContainer>
+		</AgentComposerOptions.Provider>
+	</AgentComposerProvider>
 );

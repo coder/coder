@@ -55,11 +55,6 @@ export type AgentComposerBindings = {
 	previewUrls?: Map<File, string>;
 	textContents?: Map<File, string>;
 	workspaceUploads?: WorkspaceUploadsProps;
-	onTextPreview?: (
-		content: string,
-		fileName: string,
-		mediaType: string,
-	) => void;
 };
 
 export type ComposerContextValue = {
@@ -103,6 +98,8 @@ export type ComposerContextValue = {
 		drop: (event: React.DragEvent) => void;
 	};
 	meta: {
+		attachEditor: React.RefCallback<ChatMessageInputRef>;
+		attachFileInput: React.RefCallback<HTMLInputElement>;
 		warningId: string;
 		composerElement: HTMLDivElement | null;
 		setComposerElement: React.Dispatch<
@@ -112,8 +109,7 @@ export type ComposerContextValue = {
 		initialEditorState?: string;
 		remountKey?: number;
 		sendShortcut: ReturnType<typeof getAgentChatSendShortcut>;
-		sendButtonLabel: string;
-		sendButtonTooltip: string;
+		sendShortcutLabel?: string;
 		sendButtonKeyShortcuts?: string;
 		attachments: readonly File[];
 		onRemoveAttachment?: AgentComposerBindings["onRemoveAttachment"];
@@ -125,10 +121,6 @@ export type ComposerContextValue = {
 };
 
 export const ComposerContext = createContext<ComposerContextValue | null>(null);
-export const ComposerRefsContext = createContext<{
-	editorRef: React.RefObject<ChatMessageInputRef | null>;
-	fileInputRef: React.RefObject<HTMLInputElement | null>;
-} | null>(null);
 
 /** Reads composer state and actions; must be called inside AgentComposer.Provider. */
 export function useAgentComposer() {

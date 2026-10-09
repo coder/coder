@@ -18,10 +18,7 @@ import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import { findWorkspaceAgent } from "#/utils/workspace";
-import type {
-	AttachedWorkspaceInfo,
-	ChatMessageInputRef,
-} from "./components/AgentChatInput";
+import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
@@ -46,7 +43,6 @@ import { DesktopPanel } from "./components/RightPanel/DesktopPanel";
 import { PortPreviewPanel } from "./components/RightPanel/PortPreviewPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTabControl";
-import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
@@ -98,10 +94,7 @@ type AgentChatPageViewProps = {
 	// Editing state.
 	editing: EditingState;
 
-	renderComposer: (presentation: {
-		attachedWorkspace?: AttachedWorkspaceInfo;
-		folder?: string;
-	}) => React.ReactNode;
+	composer: React.ReactNode;
 	canSubmitChatTurn: boolean;
 	modelCatalogError?: unknown;
 	unavailableModelNotice?: string;
@@ -120,9 +113,6 @@ type AgentChatPageViewProps = {
 
 		refresh: () => boolean;
 	};
-
-	// Workspace action handlers.
-	sshCommand: string | undefined;
 
 	onImplementPlan: () => Promise<void> | void;
 	onSendAskUserQuestionResponse: (message: string) => Promise<void> | void;
@@ -236,7 +226,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	store,
 	initialMessages,
 	editing,
-	renderComposer,
+	composer,
 	canSubmitChatTurn,
 	modelCatalogError,
 	unavailableModelNotice,
@@ -339,34 +329,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	}, [agentId, isArchived, visibleSingletonTabs]);
 
 	const shouldShowSidebar = showSidebarPanel;
-
-	// Prefer the git repository root over the agent's expanded directory
-	// for VS Code folder resolution (important for monorepos).
-	const preferredFolder = (() => {
-		const repoRoots = Array.from(gitWatcher?.repositories.keys() ?? []).sort();
-		return repoRoots[0] || workspaceAgent?.expanded_directory;
-	})();
-
-	const workspaceRoute = workspace
-		? `/@${workspace.owner_name}/${workspace.name}`
-		: undefined;
-
-	const attachedWorkspace = (() => {
-		if (!workspace || !workspaceRoute) return undefined;
-
-		const { effectiveType, statusLabel } = getWorkspaceStatus(
-			workspace,
-			workspaceAgent,
-		);
-		const statusIcon = <StatusIcon type={effectiveType} />;
-		return {
-			id: workspace.id,
-			name: workspace.name,
-			route: workspaceRoute,
-			statusIcon,
-			statusLabel,
-		};
-	})();
 
 	// The desktop panel owns the stopped and starting states, so it only
 	// needs a workspace to render; the agent arrives once the build runs.
@@ -866,10 +828,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							/>
 							{!isArchived && (
 								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
-									{renderComposer({
-										attachedWorkspace,
-										folder: preferredFolder,
-									})}
+									{composer}
 								</div>
 							)}
 						</div>

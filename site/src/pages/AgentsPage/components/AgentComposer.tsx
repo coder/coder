@@ -8,7 +8,6 @@ import {
 	XIcon,
 } from "lucide-react";
 import type React from "react";
-import { use, useRef } from "react";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -20,50 +19,28 @@ import {
 import { chatAttachmentAcceptAttribute } from "../utils/chatAttachments";
 import type { ChatSlashCommand } from "../utils/slashCommands";
 import {
-	type AgentComposerBindings,
 	ComposerContext,
-	ComposerRefsContext,
+	type ComposerContextValue,
 	useAgentComposer,
 } from "./AgentComposer/context";
 import { Frame } from "./AgentComposer/Frame";
-import { ComposerFilePreviews } from "./AgentComposer/useComposerFiles";
-import { useComposerRuntime } from "./AgentComposer/useComposerRuntime";
 import { AttachmentPreview } from "./AttachmentPreview";
-import {
-	ChatMessageInput,
-	type ChatMessageInputRef,
-} from "./ChatMessageInput/ChatMessageInput";
+import { ChatMessageInput } from "./ChatMessageInput/ChatMessageInput";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
 
+export { AgentComposerProvider } from "./AgentComposer/AgentComposerProvider";
 export {
 	type AgentComposerBindings,
+	type ComposerContextValue,
 	useAgentComposer,
 } from "./AgentComposer/context";
 
 function Provider({
-	bindings,
 	children,
-}: {
-	bindings: AgentComposerBindings;
-	children: React.ReactNode;
-}) {
-	const editorRef = useRef<ChatMessageInputRef>(null);
-	const fileInputRef = useRef<HTMLInputElement>(null);
-	const { context, previews } = useComposerRuntime(
-		bindings,
-		editorRef,
-		fileInputRef,
-	);
-
-	return (
-		<ComposerContext value={context}>
-			<ComposerRefsContext value={{ editorRef, fileInputRef }}>
-				{children}
-			</ComposerRefsContext>
-			<ComposerFilePreviews {...previews} />
-		</ComposerContext>
-	);
+	...value
+}: ComposerContextValue & { children: React.ReactNode }) {
+	return <ComposerContext value={value}>{children}</ComposerContext>;
 }
 
 function Editor({
@@ -78,17 +55,11 @@ function Editor({
 	hasWorkspace: boolean;
 }) {
 	const { state, actions, meta } = useAgentComposer();
-	const refs = use(ComposerRefsContext);
-
-	if (!refs) {
-		throw new Error("Editor must be used inside AgentComposer.Provider");
-	}
-
-	const { editorRef } = refs;
+	const { attachEditor } = meta;
 
 	return (
 		<ChatMessageInput
-			ref={editorRef}
+			ref={attachEditor}
 			onFilePaste={state.canAttachFiles ? actions.filePaste : undefined}
 			acceptFilePasteWhileDisabled={state.isLoading && !state.isReadOnly}
 			onPaste={actions.resetPromptCycle}
@@ -114,13 +85,7 @@ function Editor({
 
 function Attachments() {
 	const { state, actions, meta } = useAgentComposer();
-	const refs = use(ComposerRefsContext);
-
-	if (!refs) {
-		throw new Error("Attachments must be used inside AgentComposer.Provider");
-	}
-
-	const { fileInputRef } = refs;
+	const { attachFileInput } = meta;
 
 	return (
 		<>
@@ -145,7 +110,7 @@ function Attachments() {
 			{/* Allow all workspace upload types so routeFiles can explain refusals on iOS. */}
 			{state.canAttachFiles && (
 				<input
-					ref={fileInputRef}
+					ref={attachFileInput}
 					type="file"
 					data-testid="chat-attachment-file-input"
 					multiple
@@ -205,70 +170,97 @@ function VoiceInput() {
 	);
 }
 
-function PrimaryAction() {
+function Submit() {
+	const { state } = useAgentComposer();
+
+	return <SubmitButton label={state.isStreaming ? "Queue" : "Send"} />;
+}
+
+function SaveEdit() {
+	return <SubmitButton label="Save Edit" />;
+}
+
+function SubmitButton({ label }: { label: string }) {
 	const { state, actions, meta } = useAgentComposer();
+	const tooltip = meta.sendShortcutLabel
+		? `${label}: ${meta.sendShortcutLabel}`
+		: label;
+
+	if (!state.showSendButton) {
+		return null;
+	}
 
 	return (
-		<>
-			{state.showSendButton && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							size="icon"
-							variant="default"
-							className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
-							onClick={
-								state.speechRecording ? actions.acceptRecording : actions.submit
-							}
-							disabled={state.speechRecording ? false : !state.canSend}
-							aria-keyshortcuts={meta.sendButtonKeyShortcuts}
-						>
-							{state.isLoading && !state.isInterruptPending ? (
-								<Spinner size="sm" loading aria-hidden="true" />
-							) : state.speechRecording ? (
-								<CheckIcon />
-							) : (
-								<ArrowUpIcon />
-							)}
-							<span className="sr-only">
-								{state.speechRecording
-									? "Accept voice input"
-									: meta.sendButtonLabel}
-							</span>
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent side="top">
-						{state.speechRecording
-							? "Accept voice input"
-							: meta.sendButtonTooltip}
-					</TooltipContent>
-				</Tooltip>
-			)}
-			{state.showStopButton && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							size="icon"
-							variant="default"
-							className="size-7 rounded-full transition-colors [&>svg]:size-3! [&>svg]:p-0"
-							onClick={actions.interrupt}
-							disabled={state.isInterruptPending}
-						>
-							<SquareIcon className="fill-current" />
-							<span className="sr-only">Stop</span>
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent side="top">
-						{state.isInterruptPending ? "Interrupting…" : "Stop"}
-					</TooltipContent>
-				</Tooltip>
-			)}
-			{state.isInterruptPending && state.isStreaming && (
-				<span role="status" className="sr-only">
-					Interrupting. Waiting for the agent to stop.
-				</span>
-			)}
-		</>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					size="icon"
+					variant="default"
+					className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
+					onClick={
+						state.speechRecording ? actions.acceptRecording : actions.submit
+					}
+					disabled={state.speechRecording ? false : !state.canSend}
+					aria-keyshortcuts={meta.sendButtonKeyShortcuts}
+				>
+					{state.isLoading && !state.isInterruptPending ? (
+						<Spinner size="sm" loading aria-hidden="true" />
+					) : state.speechRecording ? (
+						<CheckIcon />
+					) : (
+						<ArrowUpIcon />
+					)}
+					<span className="sr-only">
+						{state.speechRecording ? "Accept voice input" : label}
+					</span>
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent side="top">
+				{state.speechRecording ? "Accept voice input" : tooltip}
+			</TooltipContent>
+		</Tooltip>
+	);
+}
+
+function Stop() {
+	const { state, actions } = useAgentComposer();
+
+	if (!state.showStopButton) {
+		return null;
+	}
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					size="icon"
+					variant="default"
+					className="size-7 rounded-full transition-colors [&>svg]:size-3! [&>svg]:p-0"
+					onClick={actions.interrupt}
+					disabled={state.isInterruptPending}
+				>
+					<SquareIcon className="fill-current" />
+					<span className="sr-only">Stop</span>
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent side="top">
+				{state.isInterruptPending ? "Interrupting…" : "Stop"}
+			</TooltipContent>
+		</Tooltip>
+	);
+}
+
+function InterruptStatus() {
+	const { state } = useAgentComposer();
+
+	if (!state.isInterruptPending || !state.isStreaming) {
+		return null;
+	}
+
+	return (
+		<span role="status" className="sr-only">
+			Interrupting. Waiting for the agent to stop.
+		</span>
 	);
 }
 
@@ -319,10 +311,6 @@ function Warning() {
 function EditBanner() {
 	const { state, actions } = useAgentComposer();
 
-	if (!state.isEditingHistoryMessage) {
-		return null;
-	}
-
 	return (
 		<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
 			<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
@@ -353,7 +341,10 @@ export const AgentComposer = {
 	Attachments,
 	Toolbar,
 	VoiceInput,
-	PrimaryAction,
+	Submit,
+	SaveEdit,
+	Stop,
+	InterruptStatus,
 	InvisibleCharacterWarning,
 	Warning,
 	EditBanner,

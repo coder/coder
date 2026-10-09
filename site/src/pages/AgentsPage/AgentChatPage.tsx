@@ -80,6 +80,7 @@ import {
 } from "./components/ChatPageContent";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
+import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import {
 	type SendChatTurnOptions,
 	useConversationEditingState,
@@ -422,6 +423,31 @@ const AgentChatPage: React.FC = () => {
 		agentStatus: workspaceAgent?.status,
 	});
 
+	// Prefer the git repository root over the agent's expanded directory
+	// for VS Code folder resolution (important for monorepos).
+	const preferredFolder =
+		Array.from(gitWatcher.repositories.keys()).sort()[0] ||
+		workspaceAgent?.expanded_directory;
+
+	const attachedWorkspace = (() => {
+		if (!workspace) {
+			return undefined;
+		}
+
+		const { effectiveType, statusLabel } = getWorkspaceStatus(
+			workspace,
+			workspaceAgent,
+		);
+
+		return {
+			id: workspace.id,
+			name: workspace.name,
+			route: `/@${workspace.owner_name}/${workspace.name}`,
+			statusIcon: <StatusIcon type={effectiveType} />,
+			statusLabel,
+		};
+	})();
+
 	// Detect completed chat tool results so sidebar data stays in sync
 	// with the server state those tools may have changed.
 	useChatToolInvalidations({
@@ -738,13 +764,14 @@ const AgentChatPage: React.FC = () => {
 								isLoading: false,
 								hasModelOptions,
 							}}
-							options={{
-								isDisabled: isInputDisabled || preferencesQuery.isLoading,
+							model={{
 								selectedModel: effectiveSelectedModel,
 								onModelChange: setSelectedModel,
 								modelOptions,
 								modelSelectorPlaceholder,
 								isModelCatalogLoading: isModelDataPending,
+							}}
+							tools={{
 								planModeEnabled,
 								onPlanModeToggle: handlePlanModeToggle,
 							}}
@@ -788,7 +815,7 @@ const AgentChatPage: React.FC = () => {
 						editingMessageId: editing.editingMessageId,
 						handleEditUserMessage,
 					}}
-					renderComposer={({ attachedWorkspace, folder }) => (
+					composer={
 						<ChatPageInput
 							chat={chat}
 							store={store}
@@ -854,9 +881,9 @@ const AgentChatPage: React.FC = () => {
 							workspaceAgent={workspaceAgent}
 							sshCommand={sshCommand}
 							attachedWorkspace={attachedWorkspace}
-							folder={folder}
+							folder={preferredFolder}
 						/>
-					)}
+					}
 					canSubmitChatTurn={!isInputDisabled && !isSubmissionPending}
 					modelCatalogError={modelsQuery.error}
 					unavailableModelNotice={unavailableModelNotice}
@@ -864,7 +891,6 @@ const AgentChatPage: React.FC = () => {
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
 					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
-					sshCommand={sshCommand}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}

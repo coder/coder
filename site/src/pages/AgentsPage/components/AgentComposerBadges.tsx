@@ -55,7 +55,8 @@ type BadgeActions = {
 	isDisabled: boolean;
 };
 
-type WorkspacePillBadge = {
+/** Workspace badge data paired with the linked workspace's interactive pill. */
+export type WorkspacePillBadge = {
 	badge: ToolBadgeData;
 	props: Omit<
 		React.ComponentProps<typeof WorkspacePill>,
@@ -129,6 +130,7 @@ export const AgentComposerBadges = ({
 						)}
 						aria-label={`${overflowCount} more item${overflowCount !== 1 ? "s" : ""}`}
 						aria-hidden={overflowCount === 0}
+						tabIndex={overflowCount === 0 ? -1 : undefined}
 					>
 						+{overflowCount}
 					</button>
@@ -231,7 +233,7 @@ const BadgeDismissButton = ({
 	</button>
 );
 
-/** Planning badge outside the measured row when there is no context indicator. */
+/** Planning badge composed separately from the measured row. */
 export const AgentComposerPlanningBadge = ({
 	onRemove,
 	isDisabled,

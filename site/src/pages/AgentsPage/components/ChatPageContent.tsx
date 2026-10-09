@@ -844,8 +844,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 				initialEditorState,
 				remountKey,
 				onContentChange,
-				queuedMessages,
-				onPromoteQueuedMessage,
 				isEditingHistoryMessage: isEditing,
 				onCancelHistoryEdit,
 				userPromptHistory,
@@ -868,19 +866,20 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 				onRefreshContext: handleRefreshContext,
 				isRefreshingContext: refreshContextMutation.isPending,
 			}}
-			options={{
-				isDisabled: isInputDisabled,
+			model={{
 				selectedModel,
 				onModelChange,
 				modelOptions,
 				modelSelectorPlaceholder,
 				reasoningEffort,
 				onReasoningEffortChange,
+				isModelCatalogLoading,
+			}}
+			tools={{
 				planModeEnabled,
 				onPlanModeToggle,
 				manageAutomationsEnabled: chat.manage_automations_enabled,
 				onManageAutomationsToggle,
-				isModelCatalogLoading,
 				workspaceOptions,
 				chatOrganizationId: organizationId,
 				selectedWorkspaceId,

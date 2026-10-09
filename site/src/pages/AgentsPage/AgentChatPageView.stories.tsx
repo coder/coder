@@ -53,6 +53,7 @@ import { LoadingChatComposer } from "./components/AgentComposers";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 import { ChatPageInput } from "./components/ChatPageContent";
+import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
@@ -253,6 +254,29 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		store,
 		editing: buildEditing(editing),
 	};
+	const preferredFolder =
+		Array.from(props.gitWatcher.repositories.keys()).sort()[0] ||
+		props.workspaceAgent?.expanded_directory;
+	const attachedWorkspace = (() => {
+		const { workspace, workspaceAgent } = props;
+		if (!workspace) {
+			return undefined;
+		}
+
+		const { effectiveType, statusLabel } = getWorkspaceStatus(
+			workspace,
+			workspaceAgent,
+		);
+
+		return {
+			id: workspace.id,
+			name: workspace.name,
+			route: `/@${workspace.owner_name}/${workspace.name}`,
+			statusIcon: <StatusIcon type={effectiveType} />,
+			statusLabel,
+		};
+	})();
+
 	return (
 		<AgentChatPageView
 			chat={props.chat}
@@ -268,7 +292,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 			onSetShowSidebarPanel={props.onSetShowSidebarPanel}
 			debugLoggingEnabled={props.debugLoggingEnabled}
 			gitWatcher={props.gitWatcher}
-			sshCommand={props.sshCommand}
 			onImplementPlan={props.onImplementPlan}
 			onSendAskUserQuestionResponse={props.onSendAskUserQuestionResponse}
 			hasMoreMessages={props.hasMoreMessages}
@@ -283,9 +306,8 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 				overrides.canSubmitChatTurn ??
 				(!props.isInputDisabled && !props.isSubmissionPending)
 			}
-			renderComposer={
-				overrides.renderComposer ??
-				(({ attachedWorkspace, folder }) => (
+			composer={
+				overrides.composer ?? (
 					<ChatPageInput
 						chat={props.chat}
 						store={props.store}
@@ -354,9 +376,9 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 							overrides.editingFileBlocks ?? props.editing.editingFileBlocks
 						}
 						attachedWorkspace={attachedWorkspace}
-						folder={folder}
+						folder={preferredFolder}
 					/>
-				))
+				)
 			}
 		/>
 	);
@@ -372,21 +394,21 @@ type StoryLoadingProps = Pick<
 	| "hasModelOptions"
 > &
 	Pick<
-		React.ComponentProps<typeof LoadingChatComposer>["options"],
-		| "modelOptions"
-		| "modelSelectorPlaceholder"
-		| "onPlanModeToggle"
-		| "planModeEnabled"
-		| "isModelCatalogLoading"
+		React.ComponentProps<typeof LoadingChatComposer>["model"],
+		"modelOptions" | "modelSelectorPlaceholder" | "isModelCatalogLoading"
+	> &
+	Pick<
+		React.ComponentProps<typeof LoadingChatComposer>["tools"],
+		"onPlanModeToggle" | "planModeEnabled"
 	> & {
 		showRightPanel: boolean;
 		isInputDisabled: boolean;
 		effectiveSelectedModel: React.ComponentProps<
 			typeof LoadingChatComposer
-		>["options"]["selectedModel"];
+		>["model"]["selectedModel"];
 		setSelectedModel: React.ComponentProps<
 			typeof LoadingChatComposer
-		>["options"]["onModelChange"];
+		>["model"]["onModelChange"];
 	};
 
 const StoryAgentChatPageLoadingView: React.FC<StoryLoadingProps> = ({
@@ -411,13 +433,14 @@ const StoryAgentChatPageLoadingView: React.FC<StoryLoadingProps> = ({
 					isLoading: false,
 					hasModelOptions: inputProps.hasModelOptions,
 				}}
-				options={{
-					isDisabled: isInputDisabled,
+				model={{
 					selectedModel: effectiveSelectedModel,
 					onModelChange: setSelectedModel,
 					modelOptions: inputProps.modelOptions,
 					modelSelectorPlaceholder: inputProps.modelSelectorPlaceholder,
 					isModelCatalogLoading: inputProps.isModelCatalogLoading,
+				}}
+				tools={{
 					planModeEnabled: inputProps.planModeEnabled,
 					onPlanModeToggle: inputProps.onPlanModeToggle,
 				}}

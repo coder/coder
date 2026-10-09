@@ -1,5 +1,5 @@
 import type React from "react";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { preferenceSettings } from "#/api/queries/users";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
@@ -14,11 +14,7 @@ import { useComposerEditor } from "./useComposerEditor";
 import { useComposerFiles } from "./useComposerFiles";
 
 /** Coordinates submission and exposes the public state/actions/meta contract. */
-export function useComposerRuntime(
-	bindings: AgentComposerBindings,
-	editorRef: React.RefObject<ChatMessageInputRef | null>,
-	fileInputRef: React.RefObject<HTMLInputElement | null>,
-) {
+export function useComposerRuntime(bindings: AgentComposerBindings) {
 	const {
 		onSend,
 		isDisabled,
@@ -35,6 +31,17 @@ export function useComposerRuntime(
 		attachments = [],
 		workspaceUploads,
 	} = bindings;
+
+	const editorRef = useRef<ChatMessageInputRef>(null);
+	const fileInputRef = useRef<HTMLInputElement>(null);
+	const [attachEditor] = useState(
+		() => (editor: ChatMessageInputRef | null) => {
+			editorRef.current = editor;
+		},
+	);
+	const [attachFileInput] = useState(() => (input: HTMLInputElement | null) => {
+		fileInputRef.current = input;
+	});
 
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
@@ -78,11 +85,6 @@ export function useComposerRuntime(
 	const showSendButton =
 		!isStreaming || (draftOccupiesSlot && !editingHoldsStop);
 
-	const sendButtonLabel = isEditingHistoryMessage
-		? "Save Edit"
-		: isStreaming
-			? "Queue"
-			: "Send";
 	const sendShortcutLabel = isMobile
 		? undefined
 		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
@@ -93,9 +95,6 @@ export function useComposerRuntime(
 		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
 			? "Control+Enter Meta+Enter"
 			: "Enter";
-	const sendButtonTooltip = sendShortcutLabel
-		? `${sendButtonLabel}: ${sendShortcutLabel}`
-		: sendButtonLabel;
 
 	const submit = () => {
 		const text = editorRef.current?.getValue()?.trim() ?? "";
@@ -169,6 +168,8 @@ export function useComposerRuntime(
 			composerKeyDown,
 		},
 		meta: {
+			attachEditor,
+			attachFileInput,
 			warningId,
 			composerElement,
 			setComposerElement,
@@ -176,8 +177,7 @@ export function useComposerRuntime(
 			initialEditorState: bindings.initialEditorState,
 			remountKey: bindings.remountKey,
 			sendShortcut,
-			sendButtonLabel,
-			sendButtonTooltip,
+			sendShortcutLabel,
 			sendButtonKeyShortcuts,
 			attachments,
 			onRemoveAttachment: bindings.onRemoveAttachment,

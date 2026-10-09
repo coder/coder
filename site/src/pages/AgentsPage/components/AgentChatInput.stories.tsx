@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MonitorDotIcon } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { type default as React, useEffect, useRef } from "react";
 import {
 	expect,
 	fn,
@@ -29,13 +29,16 @@ import {
 	withProxyProvider,
 	withToaster,
 } from "#/testHelpers/storybook";
-import {
-	AgentChatInput,
-	type AgentContextUsage,
-	type AttachedWorkspaceInfo,
-	type UploadState,
-} from "./AgentChatInput";
+import type { AgentComposerBindings } from "./AgentComposer";
+import type { AgentComposerSetup } from "./AgentComposerLayout";
+import type {
+	AgentComposerOptions,
+	AttachedWorkspaceInfo,
+} from "./AgentComposerOptions";
+import { ChatComposer } from "./AgentComposers";
+import type { UploadState } from "./AttachmentPreview";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
+import type { AgentContextUsage } from "./ContextUsageIndicator";
 
 const defaultModelID = "model-config-1";
 
@@ -48,9 +51,38 @@ const defaultModelOptions = [
 	},
 ] as const;
 
-const meta: Meta<typeof AgentChatInput> = {
+const defaultBindings = {
+	onSend: fn(),
+	onContentChange: fn(),
+	initialValue: "",
+	isDisabled: false,
+	isLoading: false,
+	hasModelOptions: true,
+} satisfies AgentComposerBindings;
+
+const defaultModel = {
+	onModelChange: fn(),
+	selectedModel: defaultModelOptions[0].id,
+	modelOptions: [...defaultModelOptions],
+	modelSelectorPlaceholder: "Select model",
+	isModelCatalogLoading: false,
+} satisfies React.ComponentProps<typeof AgentComposerOptions.Model>;
+
+const defaultTools = {
+	planModeEnabled: false,
+	onPlanModeToggle: fn(),
+} satisfies Omit<
+	React.ComponentProps<typeof AgentComposerOptions.Provider>,
+	"children"
+>;
+
+const defaultSetup = {
+	canConfigureAgentSetup: false,
+} satisfies AgentComposerSetup;
+
+const meta: Meta<typeof ChatComposer> = {
 	title: "pages/AgentsPage/AgentChatInput",
-	component: AgentChatInput,
+	component: ChatComposer,
 	decorators: [withDashboardProvider, withProxyProvider()],
 	parameters: {
 		queries: [
@@ -61,24 +93,15 @@ const meta: Meta<typeof AgentChatInput> = {
 		],
 	},
 	args: {
-		onSend: fn(),
-		onContentChange: fn(),
-		onModelChange: fn(),
-		initialValue: "",
-		isDisabled: false,
-		isLoading: false,
-		selectedModel: defaultModelOptions[0].id,
-		modelOptions: [...defaultModelOptions],
-		modelSelectorPlaceholder: "Select model",
-		hasModelOptions: true,
-		planModeEnabled: false,
-		onPlanModeToggle: fn(),
-		isModelCatalogLoading: false,
+		bindings: defaultBindings,
+		model: defaultModel,
+		tools: defaultTools,
+		setup: defaultSetup,
 	},
 };
 
 export default meta;
-type Story = StoryObj<typeof AgentChatInput>;
+type Story = StoryObj<typeof ChatComposer>;
 
 const promptHistory = [
 	"Most recent prompt",
@@ -93,7 +116,10 @@ export const Default: Story = {};
 
 export const PromptHistoryCycling: Story = {
 	args: {
-		userPromptHistory: promptHistory,
+		bindings: {
+			...defaultBindings,
+			userPromptHistory: promptHistory,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const editor = getEditor(canvasElement);
@@ -104,7 +130,10 @@ export const PromptHistoryCycling: Story = {
 
 export const PromptHistoryCyclingExitsOnTyping: Story = {
 	args: {
-		userPromptHistory: promptHistory,
+		bindings: {
+			...defaultBindings,
+			userPromptHistory: promptHistory,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const editor = getEditor(canvasElement);
@@ -116,29 +145,38 @@ export const PromptHistoryCyclingExitsOnTyping: Story = {
 
 export const NoPromptHistoryUpArrowIsNoOp: Story = {
 	args: {
-		userPromptHistory: [],
+		bindings: { ...defaultBindings, userPromptHistory: [] },
 	},
 };
 
 export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
 	args: {
-		isEditingHistoryMessage: true,
-		userPromptHistory: promptHistory,
+		bindings: {
+			...defaultBindings,
+			isEditingHistoryMessage: true,
+			userPromptHistory: promptHistory,
+		},
 	},
 };
 
 export const PromptHistorySuppressedWhileReadOnly: Story = {
 	args: {
-		isDisabled: true,
-		isReadOnly: true,
-		userPromptHistory: promptHistory,
+		bindings: {
+			...defaultBindings,
+			isDisabled: true,
+			isReadOnly: true,
+			userPromptHistory: promptHistory,
+		},
 	},
 };
 
 export const PromptHistorySuppressedWhileLoading: Story = {
 	args: {
-		isLoading: true,
-		userPromptHistory: promptHistory,
+		bindings: {
+			...defaultBindings,
+			isLoading: true,
+			userPromptHistory: promptHistory,
+		},
 	},
 };
 
@@ -146,8 +184,11 @@ export const DisablesSendUntilInput: Story = {};
 
 export const SendsAndClearsInput: Story = {
 	args: {
-		onSend: fn(),
-		initialValue: "Run focused tests",
+		bindings: {
+			...defaultBindings,
+			onSend: fn(),
+			initialValue: "Run focused tests",
+		},
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -167,15 +208,18 @@ export const SendsAndClearsInput: Story = {
 		await userEvent.click(sendButton);
 
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.bindings.onSend).toHaveBeenCalledWith("Run focused tests");
 		});
 	},
 };
 
 export const EnterSendsByDefault: Story = {
 	args: {
-		onSend: fn(),
-		initialValue: "Run focused tests",
+		bindings: {
+			...defaultBindings,
+			onSend: fn(),
+			initialValue: "Run focused tests",
+		},
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -188,7 +232,7 @@ export const EnterSendsByDefault: Story = {
 		await userEvent.keyboard("{Enter}");
 
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.bindings.onSend).toHaveBeenCalledWith("Run focused tests");
 		});
 	},
 };
@@ -206,8 +250,11 @@ export const ModifierEnterSendsWhenRequired: Story = {
 		],
 	},
 	args: {
-		onSend: fn(),
-		initialValue: "Run focused tests",
+		bindings: {
+			...defaultBindings,
+			onSend: fn(),
+			initialValue: "Run focused tests",
+		},
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -218,14 +265,14 @@ export const ModifierEnterSendsWhenRequired: Story = {
 
 		await userEvent.click(editor);
 		await userEvent.keyboard("{Enter}");
-		expect(args.onSend).not.toHaveBeenCalled();
+		expect(args.bindings.onSend).not.toHaveBeenCalled();
 		await waitFor(() => {
 			expect(editor.querySelectorAll("br").length).toBeGreaterThan(0);
 		});
 
 		await userEvent.keyboard("{Control>}{Enter}{/Control}");
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.bindings.onSend).toHaveBeenCalledWith("Run focused tests");
 		});
 	},
 };
@@ -246,80 +293,104 @@ export const MobileEnterInsertsNewline: Story = {
 
 export const ReadOnlyInput: Story = {
 	args: {
-		isDisabled: true,
-		isReadOnly: true,
-		initialValue: "Should not send",
+		bindings: {
+			...defaultBindings,
+			isDisabled: true,
+			isReadOnly: true,
+			initialValue: "Should not send",
+		},
 	},
 };
 
 export const DisabledSendAllowsTyping: Story = {
 	args: {
-		isDisabled: true,
-		initialValue: "Draft while models load",
+		bindings: {
+			...defaultBindings,
+			isDisabled: true,
+			initialValue: "Draft while models load",
+		},
 	},
 };
 
 export const NoModelOptions: Story = {
 	args: {
-		isDisabled: false,
-		hasModelOptions: false,
-		initialValue: "Model required",
+		bindings: {
+			...defaultBindings,
+			isDisabled: false,
+			hasModelOptions: false,
+			initialValue: "Model required",
+		},
 	},
 };
 
 export const AIGatewayDisabledShowsSetupNotice: Story = {
 	args: {
-		// canConfigureAgentSetup: false and providerCount/modelCount left
-		// undefined simulates the model-catalog query still loading, which
-		// used to make an admin briefly see the wrong copy before this was
-		// fixed to short-circuit on aiGatewayDisabled directly.
-		canConfigureAgentSetup: false,
-		aiGatewayDisabled: true,
+		setup: {
+			...defaultSetup,
+			// Missing counts simulate a loading model catalog. The gateway
+			// disabled notice must take precedence over those missing counts.
+			aiGatewayDisabled: true,
+		},
 	},
 };
 
 export const LoadingSpinner: Story = {
 	args: {
-		isDisabled: true,
-		isLoading: true,
-		initialValue: "Sending...",
+		bindings: {
+			...defaultBindings,
+			isDisabled: true,
+			isLoading: true,
+			initialValue: "Sending...",
+		},
 	},
 };
 
 export const LoadingDisablesSend: Story = {
 	args: {
-		isDisabled: false,
-		isLoading: true,
-		initialValue: "Another message",
+		bindings: {
+			...defaultBindings,
+			isDisabled: false,
+			isLoading: true,
+			initialValue: "Another message",
+		},
 	},
 };
 
 export const Streaming: Story = {
 	args: {
-		isStreaming: true,
-		onInterrupt: fn(),
-		isInterruptPending: false,
-		initialValue: "",
-		onAttach: fn(),
-		onRemoveAttachment: fn(),
+		bindings: {
+			...defaultBindings,
+			isStreaming: true,
+			onInterrupt: fn(),
+			isInterruptPending: false,
+			initialValue: "",
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+		},
 	},
 };
 
 export const StreamingInterruptPending: Story = {
 	args: {
-		isStreaming: true,
-		onInterrupt: fn(),
-		isInterruptPending: true,
-		initialValue: "",
-		onAttach: fn(),
-		onRemoveAttachment: fn(),
+		bindings: {
+			...defaultBindings,
+			isStreaming: true,
+			onInterrupt: fn(),
+			isInterruptPending: true,
+			initialValue: "",
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+		},
 	},
 };
 
 export const StreamingInterruptPendingWithDraft: Story = {
 	args: {
-		...StreamingInterruptPending.args,
-		initialValue: "Also update the docs",
+		bindings: {
+			...defaultBindings,
+			...StreamingInterruptPending.args?.bindings,
+			initialValue: "Also update the docs",
+		},
 	},
 };
 
@@ -331,7 +402,7 @@ const longContent = Array.from(
 
 export const LongContentScrollable: Story = {
 	args: {
-		initialValue: longContent,
+		bindings: { ...defaultBindings, initialValue: longContent },
 	},
 };
 
@@ -345,18 +416,21 @@ export const WithAttachments: Story = {
 		const file2 = createMockFile("diagram.jpg", "image/jpeg");
 		const attachments = [file1, file2];
 		return {
-			attachments,
-			uploadStates: new Map<File, UploadState>([
-				[file1, { status: "uploaded", fileId: "f1" }],
-				[file2, { status: "uploaded", fileId: "f2" }],
-			]),
-			previewUrls: new Map<File, string>([
-				[file1, TINY_PNG],
-				[file2, TINY_PNG],
-			]),
-			onAttach: fn(),
-			onRemoveAttachment: fn(),
-			initialValue: "Here are the images",
+			bindings: {
+				...defaultBindings,
+				attachments,
+				uploadStates: new Map<File, UploadState>([
+					[file1, { status: "uploaded", fileId: "f1" }],
+					[file2, { status: "uploaded", fileId: "f2" }],
+				]),
+				previewUrls: new Map<File, string>([
+					[file1, TINY_PNG],
+					[file2, TINY_PNG],
+				]),
+				onAttach: fn(),
+				onRemoveAttachment: fn(),
+				initialValue: "Here are the images",
+			},
 		};
 	})(),
 };
@@ -365,14 +439,17 @@ export const WithUploadingAttachment: Story = {
 	args: (() => {
 		const file = createMockFile("uploading.png", "image/png");
 		return {
-			attachments: [file],
-			uploadStates: new Map<File, UploadState>([
-				[file, { status: "uploading" }],
-			]),
-			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
-			onAttach: fn(),
-			onRemoveAttachment: fn(),
-			initialValue: "Waiting for upload",
+			bindings: {
+				...defaultBindings,
+				attachments: [file],
+				uploadStates: new Map<File, UploadState>([
+					[file, { status: "uploading" }],
+				]),
+				previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+				onAttach: fn(),
+				onRemoveAttachment: fn(),
+				initialValue: "Waiting for upload",
+			},
 		};
 	})(),
 };
@@ -381,14 +458,17 @@ export const UploadingDisablesSend: Story = {
 	args: (() => {
 		const file = createMockFile("uploading.png", "image/png");
 		return {
-			attachments: [file],
-			uploadStates: new Map<File, UploadState>([
-				[file, { status: "uploading" }],
-			]),
-			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
-			onAttach: fn(),
-			onRemoveAttachment: fn(),
-			initialValue: "Message with uploading image",
+			bindings: {
+				...defaultBindings,
+				attachments: [file],
+				uploadStates: new Map<File, UploadState>([
+					[file, { status: "uploading" }],
+				]),
+				previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+				onAttach: fn(),
+				onRemoveAttachment: fn(),
+				initialValue: "Message with uploading image",
+			},
 		};
 	})(),
 	play: async ({ canvasElement, args }) => {
@@ -401,7 +481,7 @@ export const UploadingDisablesSend: Story = {
 		const editor = canvas.getByRole("textbox");
 		await userEvent.click(editor);
 		await userEvent.keyboard("{Enter}");
-		expect(args.onSend).not.toHaveBeenCalled();
+		expect(args.bindings.onSend).not.toHaveBeenCalled();
 	},
 };
 
@@ -409,14 +489,17 @@ export const WithAttachmentError: Story = {
 	args: (() => {
 		const file = createMockFile("broken.png", "image/png");
 		return {
-			attachments: [file],
-			uploadStates: new Map<File, UploadState>([
-				[file, { status: "error", error: "Upload failed: server error" }],
-			]),
-			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
-			onAttach: fn(),
-			onRemoveAttachment: fn(),
-			initialValue: "Upload had an error",
+			bindings: {
+				...defaultBindings,
+				attachments: [file],
+				uploadStates: new Map<File, UploadState>([
+					[file, { status: "error", error: "Upload failed: server error" }],
+				]),
+				previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+				onAttach: fn(),
+				onRemoveAttachment: fn(),
+				initialValue: "Upload had an error",
+			},
 		};
 	})(),
 };
@@ -437,10 +520,12 @@ export const WithFileReference: Story = {
 			});
 		}, []);
 
-		return <AgentChatInput {...args} inputRef={ref} />;
+		return (
+			<ChatComposer {...args} bindings={{ ...args.bindings, inputRef: ref }} />
+		);
 	},
 	args: {
-		initialValue: "Can you refactor ",
+		bindings: { ...defaultBindings, initialValue: "Can you refactor " },
 	},
 };
 
@@ -467,10 +552,12 @@ export const WithMultipleFileReferences: Story = {
 			});
 		}, []);
 
-		return <AgentChatInput {...args} inputRef={ref} />;
+		return (
+			<ChatComposer {...args} bindings={{ ...args.bindings, inputRef: ref }} />
+		);
 	},
 	args: {
-		initialValue: "Compare ",
+		bindings: { ...defaultBindings, initialValue: "Compare " },
 	},
 };
 
@@ -478,14 +565,17 @@ export const AttachmentsOnly: Story = {
 	args: (() => {
 		const file = createMockFile("photo.png", "image/png");
 		return {
-			attachments: [file],
-			uploadStates: new Map<File, UploadState>([
-				[file, { status: "uploaded", fileId: "f-only" }],
-			]),
-			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
-			onAttach: fn(),
-			onRemoveAttachment: fn(),
-			initialValue: "",
+			bindings: {
+				...defaultBindings,
+				attachments: [file],
+				uploadStates: new Map<File, UploadState>([
+					[file, { status: "uploaded", fileId: "f-only" }],
+				]),
+				previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+				onAttach: fn(),
+				onRemoveAttachment: fn(),
+				initialValue: "",
+			},
 		};
 	})(),
 };
@@ -526,9 +616,12 @@ function getPasteTarget(container: HTMLElement): HTMLElement {
 
 export const LargePasteCreatesAttachmentPreview: Story = {
 	args: {
-		attachments: [],
-		onAttach: fn(),
-		onRemoveAttachment: fn(),
+		bindings: {
+			...defaultBindings,
+			attachments: [],
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+		},
 	},
 	parameters: {
 		pixel: { exclude: true },
@@ -543,10 +636,11 @@ export const LargePasteCreatesAttachmentPreview: Story = {
 		dispatchPasteWithText(target, largePasteText);
 
 		await waitFor(() => {
-			expect(args.onAttach).toHaveBeenCalledTimes(1);
+			expect(args.bindings.onAttach).toHaveBeenCalledTimes(1);
 		});
 
-		const callArgs = (args.onAttach as ReturnType<typeof fn>).mock.calls[0];
+		const callArgs = (args.bindings.onAttach as ReturnType<typeof fn>).mock
+			.calls[0];
 		const files = callArgs[0] as File[];
 		expect(files).toHaveLength(1);
 		expect(files[0].type).toBe("text/plain");
@@ -559,9 +653,12 @@ export const LargePasteCreatesAttachmentPreview: Story = {
 
 export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 	args: {
-		attachments: [],
-		onAttach: fn(),
-		onRemoveAttachment: fn(),
+		bindings: {
+			...defaultBindings,
+			attachments: [],
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+		},
 	},
 	parameters: {
 		pixel: { exclude: true },
@@ -589,7 +686,7 @@ export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 			expect(target.textContent).toContain(LARGE_PASTE_MARKER);
 		});
 
-		expect(args.onAttach).not.toHaveBeenCalled();
+		expect(args.bindings.onAttach).not.toHaveBeenCalled();
 	},
 };
 
@@ -661,6 +758,7 @@ const mockSlackMCPAlwaysOnNeedingAuth = buildMCPServer({
 });
 
 const mcpDefaults = {
+	...defaultTools,
 	chatOrganizationId: "org-1",
 	onMCPSelectionChange: fn(),
 	onMCPAuthComplete: fn(),
@@ -693,25 +791,37 @@ const startMCPOAuthFlow = async (canvasElement: HTMLElement) => {
 /** Three selected servers collapse into a single "3 MCPs" pill. */
 export const WithMCPServers: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
-		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+			selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+		},
 	},
 };
 
 export const WithTwoMCPServers: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [linearMCP, githubMCPConnected],
-		selectedMCPServerIds: [linearMCP.id, githubMCPConnected.id],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [linearMCP, githubMCPConnected],
+			selectedMCPServerIds: [linearMCP.id, githubMCPConnected.id],
+		},
 	},
 };
 
 /** The pill lists only its active servers; Notion stays in the plus menu. */
 export const MCPGroupPopoverOpen: Story = {
 	args: {
-		...WithMCPServers.args,
-		mcpServers: [sentryMCP, linearMCP, githubMCPConnected, notionMCPConnected],
+		tools: {
+			...defaultTools,
+			...WithMCPServers.args?.tools,
+			mcpServers: [
+				sentryMCP,
+				linearMCP,
+				githubMCPConnected,
+				notionMCPConnected,
+			],
+		},
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
@@ -724,7 +834,7 @@ export const MCPGroupPopoverOpen: Story = {
 export const MCPGroupDisabled: Story = {
 	args: {
 		...WithMCPServers.args,
-		isDisabled: true,
+		bindings: { ...defaultBindings, isDisabled: true },
 	},
 	play: MCPGroupPopoverOpen.play,
 };
@@ -741,22 +851,27 @@ const mockLongNameMCP = buildMCPServer({
 /** A long server name truncates inside the popover instead of pushing its X out of view. */
 export const MCPGroupPopoverLongName: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [sentryMCP, linearMCP, mockLongNameMCP],
-		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, mockLongNameMCP.id],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [sentryMCP, linearMCP, mockLongNameMCP],
+			selectedMCPServerIds: [sentryMCP.id, linearMCP.id, mockLongNameMCP.id],
+		},
 	},
 	play: MCPGroupPopoverOpen.play,
 };
 
 export const PlusMenuAlwaysOnNeedingAuth: Story = {
 	args: {
-		...WithMCPServers.args,
-		mcpServers: [
-			sentryMCP,
-			linearMCP,
-			githubMCPConnected,
-			mockSlackMCPAlwaysOnNeedingAuth,
-		],
+		tools: {
+			...defaultTools,
+			...WithMCPServers.args?.tools,
+			mcpServers: [
+				sentryMCP,
+				linearMCP,
+				githubMCPConnected,
+				mockSlackMCPAlwaysOnNeedingAuth,
+			],
+		},
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
@@ -768,9 +883,11 @@ export const PlusMenuAlwaysOnNeedingAuth: Story = {
 /** MCP server needing OAuth — shows Auth button instead of toggle. */
 export const WithMCPNeedingAuth: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [sentryMCP, githubMCP],
-		selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [sentryMCP, githubMCP],
+			selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
+		},
 	},
 	beforeEach: () => {
 		spyOn(window, "open").mockReturnValue(null);
@@ -793,9 +910,11 @@ export const WithMCPNeedingAuth: Story = {
 
 export const MCPAutoEnablesAfterOAuthCompletes: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [linearMCP, githubMCP],
-		selectedMCPServerIds: [linearMCP.id],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [linearMCP, githubMCP],
+			selectedMCPServerIds: [linearMCP.id],
+		},
 	},
 	beforeEach: () => {
 		spyOn(window, "open").mockReturnValue(window);
@@ -810,11 +929,11 @@ export const MCPAutoEnablesAfterOAuthCompletes: Story = {
 		dispatchMCPOAuthComplete(githubMCP.id, window);
 
 		await waitFor(() => {
-			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([
+			expect(args.tools.onMCPSelectionChange).toHaveBeenCalledWith([
 				linearMCP.id,
 				githubMCP.id,
 			]);
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+			expect(args.tools.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
 		});
 	},
 };
@@ -825,9 +944,11 @@ export const MCPAutoEnablesAfterOAuthCompletes: Story = {
 // the popup: it is a real Window whose closed becomes true on removal.
 export const MCPAutoEnablesWhenPopupClosesBeforeMessage: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCP],
-		selectedMCPServerIds: [],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [githubMCP],
+			selectedMCPServerIds: [],
+		},
 	},
 	play: async ({ args, canvasElement }) => {
 		const doc = canvasElement.ownerDocument;
@@ -854,16 +975,20 @@ export const MCPAutoEnablesWhenPopupClosesBeforeMessage: Story = {
 		dispatchMCPOAuthComplete(githubMCP.id, popup);
 
 		await waitFor(() => {
-			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([githubMCP.id]);
+			expect(args.tools.onMCPSelectionChange).toHaveBeenCalledWith([
+				githubMCP.id,
+			]);
 		});
 	},
 };
 
 export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCP],
-		selectedMCPServerIds: [githubMCP.id],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [githubMCP],
+			selectedMCPServerIds: [githubMCP.id],
+		},
 	},
 	beforeEach: () => {
 		spyOn(window, "open").mockReturnValue(window);
@@ -873,33 +998,37 @@ export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
 		dispatchMCPOAuthComplete(githubMCP.id, window);
 
 		await waitFor(() => {
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+			expect(args.tools.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
 		});
-		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+		expect(args.tools.onMCPSelectionChange).not.toHaveBeenCalled();
 	},
 };
 
 export const MCPIgnoresUnsolicitedOAuthComplete: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [linearMCP, githubMCP],
-		selectedMCPServerIds: [linearMCP.id],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [linearMCP, githubMCP],
+			selectedMCPServerIds: [linearMCP.id],
+		},
 	},
 	play: async ({ args }) => {
 		dispatchMCPOAuthComplete(githubMCP.id, window);
 
 		await waitFor(() => {
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+			expect(args.tools.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
 		});
-		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+		expect(args.tools.onMCPSelectionChange).not.toHaveBeenCalled();
 	},
 };
 
 export const MCPIgnoresMismatchedServerAfterOAuthCompletes: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [linearMCP, githubMCP],
-		selectedMCPServerIds: [],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [linearMCP, githubMCP],
+			selectedMCPServerIds: [],
+		},
 	},
 	beforeEach: () => {
 		spyOn(window, "open").mockReturnValue(window);
@@ -909,41 +1038,48 @@ export const MCPIgnoresMismatchedServerAfterOAuthCompletes: Story = {
 		dispatchMCPOAuthComplete(linearMCP.id, window);
 
 		await waitFor(() => {
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(linearMCP.id);
+			expect(args.tools.onMCPAuthComplete).toHaveBeenCalledWith(linearMCP.id);
 		});
-		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+		expect(args.tools.onMCPSelectionChange).not.toHaveBeenCalled();
 	},
 };
 
 /** No MCP servers active — shows only "MCP" label with chevron. */
 export const WithMCPNoneActive: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [
-			{
-				...sentryMCP,
-				availability: "default_off",
-				auth_connected: false,
-			},
-			{
-				...linearMCP,
-				availability: "default_off",
-				auth_type: "oauth2",
-				auth_connected: false,
-			},
-		],
-		selectedMCPServerIds: [],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [
+				{
+					...sentryMCP,
+					availability: "default_off",
+					auth_connected: false,
+				},
+				{
+					...linearMCP,
+					availability: "default_off",
+					auth_type: "oauth2",
+					auth_connected: false,
+				},
+			],
+			selectedMCPServerIds: [],
+		},
 	},
 };
 
 /** Plus menu open showing attach, MCP servers, and workspace placeholder. */
 export const PlusMenuOpen: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
-		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
-		onAttach: fn(),
-		onRemoveAttachment: fn(),
+		tools: {
+			...mcpDefaults,
+			mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+			selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+		},
+		bindings: {
+			...defaultBindings,
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -953,9 +1089,11 @@ export const PlusMenuOpen: Story = {
 
 export const MCPDisconnectControls: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [linearMCP, githubMCP, notionMCPConnected],
-		selectedMCPServerIds: [linearMCP.id, notionMCPConnected.id],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [linearMCP, githubMCP, notionMCPConnected],
+			selectedMCPServerIds: [linearMCP.id, notionMCPConnected.id],
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -965,9 +1103,11 @@ export const MCPDisconnectControls: Story = {
 
 export const MCPDisconnectCancel: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCPConnected],
-		selectedMCPServerIds: [githubMCPConnected.id],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [githubMCPConnected],
+			selectedMCPServerIds: [githubMCPConnected.id],
+		},
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
@@ -992,9 +1132,11 @@ export const MCPDisconnectCancel: Story = {
 
 export const MCPDisconnectConfirm: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCPConnected],
-		selectedMCPServerIds: [githubMCPConnected.id],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [githubMCPConnected],
+			selectedMCPServerIds: [githubMCPConnected.id],
+		},
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
@@ -1022,9 +1164,11 @@ export const MCPDisconnectConfirm: Story = {
 
 export const MCPDisconnectRevocationWarning: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCPConnected],
-		selectedMCPServerIds: [githubMCPConnected.id],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [githubMCPConnected],
+			selectedMCPServerIds: [githubMCPConnected.id],
+		},
 	},
 	decorators: [withToaster],
 	beforeEach: () => {
@@ -1051,9 +1195,11 @@ export const MCPDisconnectRevocationWarning: Story = {
 
 export const MCPDisconnectError: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCPConnected],
-		selectedMCPServerIds: [githubMCPConnected.id],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [githubMCPConnected],
+			selectedMCPServerIds: [githubMCPConnected.id],
+		},
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockRejectedValue(
@@ -1078,7 +1224,7 @@ export const MCPDisconnectError: Story = {
 
 export const PlanFirstMenuItem: Story = {
 	args: {
-		onPlanModeToggle: fn(),
+		tools: { ...defaultTools, onPlanModeToggle: fn() },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1090,8 +1236,7 @@ export const PlanFirstMenuItem: Story = {
 
 export const PlanningIndicator: Story = {
 	args: {
-		planModeEnabled: true,
-		onPlanModeToggle: fn(),
+		tools: { ...defaultTools, planModeEnabled: true, onPlanModeToggle: fn() },
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
@@ -1117,11 +1262,13 @@ const narrowPlanningModelOptions = [
 
 export const PlanningIndicatorNarrow: Story = {
 	args: {
-		planModeEnabled: true,
-		onPlanModeToggle: fn(),
-		contextUsage: narrowPlanningContextUsage,
-		selectedModel: narrowPlanningModelOptions[0].id,
-		modelOptions: [...narrowPlanningModelOptions],
+		tools: { ...defaultTools, planModeEnabled: true, onPlanModeToggle: fn() },
+		context: { usage: narrowPlanningContextUsage },
+		model: {
+			...defaultModel,
+			selectedModel: narrowPlanningModelOptions[0].id,
+			modelOptions: [...narrowPlanningModelOptions],
+		},
 	},
 	decorators: [
 		(Story) => (
@@ -1134,8 +1281,7 @@ export const PlanningIndicatorNarrow: Story = {
 
 export const DisablePlanModeFromBadge: Story = {
 	args: {
-		planModeEnabled: true,
-		onPlanModeToggle: fn(),
+		tools: { ...defaultTools, planModeEnabled: true, onPlanModeToggle: fn() },
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1143,15 +1289,14 @@ export const DisablePlanModeFromBadge: Story = {
 			name: "Disable plan mode",
 		});
 		await userEvent.click(dismiss);
-		expect(args.onPlanModeToggle).toHaveBeenCalledTimes(1);
-		expect(args.onPlanModeToggle).toHaveBeenCalledWith(false);
+		expect(args.tools.onPlanModeToggle).toHaveBeenCalledTimes(1);
+		expect(args.tools.onPlanModeToggle).toHaveBeenCalledWith(false);
 	},
 };
 
 export const PlanFirstCheckedState: Story = {
 	args: {
-		planModeEnabled: true,
-		onPlanModeToggle: fn(),
+		tools: { ...defaultTools, planModeEnabled: true, onPlanModeToggle: fn() },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1163,31 +1308,37 @@ export const PlanFirstCheckedState: Story = {
 
 export const ManageAutomationsCheckedState: Story = {
 	args: {
-		onPlanModeToggle: fn(),
-		manageAutomationsEnabled: true,
-		onManageAutomationsToggle: fn(),
+		tools: {
+			...defaultTools,
+			onPlanModeToggle: fn(),
+			manageAutomationsEnabled: true,
+			onManageAutomationsToggle: fn(),
+		},
 	},
 	play: PlanFirstCheckedState.play,
 };
 
 export const DetailPageWorkspacePicker: Story = {
 	args: {
-		workspaceOptions: [
-			{
+		editor: { hasWorkspace: true },
+		tools: {
+			...defaultTools,
+			workspaceOptions: [
+				{
+					id: "ws-detail",
+					name: "agents-workspace",
+					organization_id: "org-1",
+				},
+			],
+			selectedWorkspaceId: "ws-detail",
+			onWorkspaceChange: fn(),
+			attachedWorkspace: {
 				id: "ws-detail",
 				name: "agents-workspace",
-				owner_name: "mike",
-				organization_id: "org-1",
+				route: "/@mike/agents-workspace",
+				statusIcon: <MonitorDotIcon className="size-3" />,
+				statusLabel: "Workspace running",
 			},
-		],
-		selectedWorkspaceId: "ws-detail",
-		onWorkspaceChange: fn(),
-		attachedWorkspace: {
-			id: "ws-detail",
-			name: "agents-workspace",
-			route: "/@mike/agents-workspace",
-			statusIcon: <MonitorDotIcon className="size-3" />,
-			statusLabel: "Workspace running",
 		},
 	},
 	play: async ({ args, canvasElement }) => {
@@ -1199,7 +1350,7 @@ export const DetailPageWorkspacePicker: Story = {
 		});
 		expect(removeWorkspaceButton).toBeVisible();
 		await userEvent.click(removeWorkspaceButton);
-		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
+		expect(args.tools.onWorkspaceChange).toHaveBeenCalledWith(null);
 
 		const moreOptionsButton = canvas.getByRole("button", {
 			name: "More options",
@@ -1223,12 +1374,16 @@ export const DetailPageWorkspacePicker: Story = {
 
 export const LinkedWorkspaceRemoveWhenInputDisabled: Story = {
 	args: {
-		isDisabled: true,
-		workspace: MockWorkspace,
-		workspaceAgent: MockWorkspaceAgent,
-		chatId: "chat-detail",
-		selectedWorkspaceId: MockWorkspace.id,
-		onWorkspaceChange: fn(),
+		bindings: { ...defaultBindings, isDisabled: true },
+		editor: { hasWorkspace: true },
+		tools: {
+			...defaultTools,
+			workspace: MockWorkspace,
+			workspaceAgent: MockWorkspaceAgent,
+			chatId: "chat-detail",
+			selectedWorkspaceId: MockWorkspace.id,
+			onWorkspaceChange: fn(),
+		},
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1266,26 +1421,23 @@ export const LinkedWorkspaceRemoveWhenInputDisabled: Story = {
 		}
 
 		await userEvent.click(detachWorkspaceItem);
-		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
+		expect(args.tools.onWorkspaceChange).toHaveBeenCalledWith(null);
 	},
 };
 
 export const UncheckSelectedWorkspaceFromPicker: Story = {
 	args: {
-		isDisabled: true,
-		workspace: MockWorkspace,
-		workspaceAgent: MockWorkspaceAgent,
-		chatId: "chat-detail",
-		workspaceOptions: [
-			{
-				id: MockWorkspace.id,
-				name: MockWorkspace.name,
-				owner_name: MockWorkspace.owner_name,
-				organization_id: MockWorkspace.organization_id,
-			},
-		],
-		selectedWorkspaceId: MockWorkspace.id,
-		onWorkspaceChange: fn(),
+		bindings: { ...defaultBindings, isDisabled: true },
+		editor: { hasWorkspace: true },
+		tools: {
+			...defaultTools,
+			workspace: MockWorkspace,
+			workspaceAgent: MockWorkspaceAgent,
+			chatId: "chat-detail",
+			workspaceOptions: [MockWorkspace],
+			selectedWorkspaceId: MockWorkspace.id,
+			onWorkspaceChange: fn(),
+		},
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
@@ -1317,7 +1469,7 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 		}
 		await userEvent.click(selectedWorkspaceOption);
 
-		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
+		expect(args.tools.onWorkspaceChange).toHaveBeenCalledWith(null);
 	},
 };
 
@@ -1358,29 +1510,35 @@ const mockOverflowAttachedWorkspace = {
 
 export const MCPGroupMoreThanThree: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [
-			sentryMCP,
-			linearMCP,
-			githubMCPConnected,
-			notionMCPConnected,
-			confluenceMCP,
-		],
-		selectedMCPServerIds: [
-			sentryMCP.id,
-			linearMCP.id,
-			githubMCPConnected.id,
-			notionMCPConnected.id,
-			confluenceMCP.id,
-		],
+		tools: {
+			...mcpDefaults,
+			mcpServers: [
+				sentryMCP,
+				linearMCP,
+				githubMCPConnected,
+				notionMCPConnected,
+				confluenceMCP,
+			],
+			selectedMCPServerIds: [
+				sentryMCP.id,
+				linearMCP.id,
+				githubMCPConnected.id,
+				notionMCPConnected.id,
+				confluenceMCP.id,
+			],
+		},
 	},
 };
 
 export const MCPGroupInOverflow: Story = {
 	args: {
-		...WithMCPServers.args,
-		attachedWorkspace: mockOverflowAttachedWorkspace,
-		onWorkspaceChange: fn(),
+		editor: { hasWorkspace: true },
+		tools: {
+			...defaultTools,
+			...WithMCPServers.args?.tools,
+			attachedWorkspace: mockOverflowAttachedWorkspace,
+			onWorkspaceChange: fn(),
+		},
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
@@ -1402,25 +1560,28 @@ export const MCPGroupInOverflow: Story = {
 /** A long attached workspace keeps the grouped tools in the "+N" overflow. */
 export const OverflowBadges: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [
-			sentryMCP,
-			linearMCP,
-			githubMCPConnected,
-			confluenceMCP,
-			datadogMCP,
-			pagerdutyMCP,
-		],
-		selectedMCPServerIds: [
-			sentryMCP.id,
-			linearMCP.id,
-			githubMCPConnected.id,
-			confluenceMCP.id,
-			datadogMCP.id,
-			pagerdutyMCP.id,
-		],
-		attachedWorkspace: mockOverflowAttachedWorkspace,
-		onWorkspaceChange: fn(),
+		tools: {
+			...mcpDefaults,
+			mcpServers: [
+				sentryMCP,
+				linearMCP,
+				githubMCPConnected,
+				confluenceMCP,
+				datadogMCP,
+				pagerdutyMCP,
+			],
+			selectedMCPServerIds: [
+				sentryMCP.id,
+				linearMCP.id,
+				githubMCPConnected.id,
+				confluenceMCP.id,
+				datadogMCP.id,
+				pagerdutyMCP.id,
+			],
+			attachedWorkspace: mockOverflowAttachedWorkspace,
+			onWorkspaceChange: fn(),
+		},
+		editor: { hasWorkspace: true },
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
@@ -1455,20 +1616,23 @@ const baseContextUsage: AgentContextUsage = {
 /** Shows the context-usage ring and token summary tooltip. */
 export const WithContextUsage: Story = {
 	args: {
-		contextUsage: baseContextUsage,
+		context: { usage: baseContextUsage },
 	},
 };
 
 /** Streaming on a phone with a draft. */
 export const StreamingWithDraftMobile: Story = {
 	args: {
-		isStreaming: true,
-		onInterrupt: fn(),
-		isInterruptPending: false,
-		initialValue: "Also update the docs",
-		contextUsage: baseContextUsage,
-		onAttach: fn(),
-		onRemoveAttachment: fn(),
+		bindings: {
+			...defaultBindings,
+			isStreaming: true,
+			onInterrupt: fn(),
+			isInterruptPending: false,
+			initialValue: "Also update the docs",
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+		},
+		context: { usage: baseContextUsage },
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
@@ -1479,9 +1643,11 @@ export const StreamingWithDraftMobile: Story = {
 /** Tooltip lists the chat's pinned context resources. */
 export const WithContextFiles: Story = {
 	args: {
-		contextUsage: {
-			...baseContextUsage,
-			context: MockChatContextClean,
+		context: {
+			usage: {
+				...baseContextUsage,
+				context: MockChatContextClean,
+			},
 		},
 	},
 };
@@ -1489,13 +1655,15 @@ export const WithContextFiles: Story = {
 /** Context at 95%+ shows the ring in destructive (red) tone. */
 export const ContextNearLimit: Story = {
 	args: {
-		contextUsage: {
-			usedTokens: 124_000,
-			contextLimitTokens: 128_000,
-			inputTokens: 100_000,
-			outputTokens: 20_000,
-			cacheReadTokens: 4_000,
-			compressionThreshold: 90,
+		context: {
+			usage: {
+				usedTokens: 124_000,
+				contextLimitTokens: 128_000,
+				inputTokens: 100_000,
+				outputTokens: 20_000,
+				cacheReadTokens: 4_000,
+				compressionThreshold: 90,
+			},
 		},
 	},
 };
@@ -1503,22 +1671,25 @@ export const ContextNearLimit: Story = {
 /** Long workspace name at iPhone SE width collapses into +N overflow. */
 export const LongWorkspaceNameMobile: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCPConnected],
-		selectedMCPServerIds: [githubMCPConnected.id],
-		attachedWorkspace: {
-			id: MockWorkspace.id,
-			name: "my-super-extremely-long-workspace-name-that-overflows",
-			route: `/@${MockWorkspace.owner_name}/my-super-extremely-long-workspace-name-that-overflows`,
-			statusIcon: <MonitorDotIcon className="size-3" />,
-			statusLabel: "Workspace running",
+		tools: {
+			...mcpDefaults,
+			mcpServers: [githubMCPConnected],
+			selectedMCPServerIds: [githubMCPConnected.id],
+			attachedWorkspace: {
+				id: MockWorkspace.id,
+				name: "my-super-extremely-long-workspace-name-that-overflows",
+				route: `/@${MockWorkspace.owner_name}/my-super-extremely-long-workspace-name-that-overflows`,
+				statusIcon: <MonitorDotIcon className="size-3" />,
+				statusLabel: "Workspace running",
+			},
+			workspace: {
+				...MockWorkspace,
+				name: "my-super-extremely-long-workspace-name-that-overflows",
+			},
+			workspaceAgent: MockWorkspaceAgent,
+			chatId: "test-chat-id",
 		},
-		workspace: {
-			...MockWorkspace,
-			name: "my-super-extremely-long-workspace-name-that-overflows",
-		},
-		workspaceAgent: MockWorkspaceAgent,
-		chatId: "test-chat-id",
+		editor: { hasWorkspace: true },
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
@@ -1583,21 +1754,27 @@ export const LongWorkspaceNameMobile: Story = {
  */
 export const ShortModelNameHasNoDeadSpace: Story = {
 	args: {
-		...mcpDefaults,
-		selectedModel: "model-short",
-		modelOptions: [
-			{
-				id: "model-short",
-				provider: "openai",
-				model: "fable-5",
-				displayName: "Fable 5",
-			},
-		],
-		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
-		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
-		workspace: MockWorkspace,
-		workspaceAgent: MockWorkspaceAgent,
-		chatId: "short-model-chat-id",
+		model: {
+			...defaultModel,
+			selectedModel: "model-short",
+			modelOptions: [
+				{
+					id: "model-short",
+					provider: "openai",
+					model: "fable-5",
+					displayName: "Fable 5",
+				},
+			],
+		},
+		tools: {
+			...mcpDefaults,
+			mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+			selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+			workspace: MockWorkspace,
+			workspaceAgent: MockWorkspaceAgent,
+			chatId: "short-model-chat-id",
+		},
+		editor: { hasWorkspace: true },
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
@@ -1611,22 +1788,28 @@ export const ShortModelNameHasNoDeadSpace: Story = {
  */
 export const LongLabelsExpandWithoutMCPs: Story = {
 	args: {
-		...mcpDefaults,
-		selectedModel: "model-long",
-		modelOptions: [
-			{
-				id: "model-long",
-				provider: "anthropic",
-				model: "claude-sonnet-4-5",
-				displayName: "Claude Sonnet 4.5",
-			},
-		],
-		workspace: {
-			...MockWorkspace,
-			name: "my-workspace-name-that-should-not-clamp",
+		model: {
+			...defaultModel,
+			selectedModel: "model-long",
+			modelOptions: [
+				{
+					id: "model-long",
+					provider: "anthropic",
+					model: "claude-sonnet-4-5",
+					displayName: "Claude Sonnet 4.5",
+				},
+			],
 		},
-		workspaceAgent: MockWorkspaceAgent,
-		chatId: "long-labels-chat-id",
+		tools: {
+			...mcpDefaults,
+			workspace: {
+				...MockWorkspace,
+				name: "my-workspace-name-that-should-not-clamp",
+			},
+			workspaceAgent: MockWorkspaceAgent,
+			chatId: "long-labels-chat-id",
+		},
+		editor: { hasWorkspace: true },
 	},
 	parameters: {
 		viewport: { defaultViewport: "ipad" },
@@ -1639,19 +1822,25 @@ export const LongLabelsExpandWithoutMCPs: Story = {
  */
 export const ModelExpandsWhileBadgesOverflow: Story = {
 	args: {
-		...mcpDefaults,
-		selectedModel: "model-long",
-		modelOptions: [
-			{
-				id: "model-long",
-				provider: "anthropic",
-				model: "claude-sonnet-4-5",
-				displayName: "Claude Sonnet 4.5",
-			},
-		],
-		mcpServers: [confluenceMCP, datadogMCP],
-		selectedMCPServerIds: [confluenceMCP.id, datadogMCP.id],
-		attachedWorkspace: mockOverflowAttachedWorkspace,
+		model: {
+			...defaultModel,
+			selectedModel: "model-long",
+			modelOptions: [
+				{
+					id: "model-long",
+					provider: "anthropic",
+					model: "claude-sonnet-4-5",
+					displayName: "Claude Sonnet 4.5",
+				},
+			],
+		},
+		tools: {
+			...mcpDefaults,
+			mcpServers: [confluenceMCP, datadogMCP],
+			selectedMCPServerIds: [confluenceMCP.id, datadogMCP.id],
+			attachedWorkspace: mockOverflowAttachedWorkspace,
+		},
+		editor: { hasWorkspace: true },
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
@@ -1674,17 +1863,20 @@ export const ModelExpandsWhileBadgesOverflow: Story = {
  */
 export const OverflowPopoverSuppressesStatusTooltip: Story = {
 	args: {
-		...mcpDefaults,
-		mcpServers: [githubMCPConnected],
-		selectedMCPServerIds: [githubMCPConnected.id],
-		attachedWorkspace: {
-			id: MockWorkspace.id,
-			// Wide enough to collapse into the +N popover at tablet width.
-			name: "an-extremely-long-attached-workspace-name-that-cannot-fit-inline-at-tablet-width",
-			route: `/@${MockWorkspace.owner_name}/attached`,
-			statusIcon: <MonitorDotIcon className="size-3" />,
-			statusLabel: "Workspace stopped",
+		tools: {
+			...mcpDefaults,
+			mcpServers: [githubMCPConnected],
+			selectedMCPServerIds: [githubMCPConnected.id],
+			attachedWorkspace: {
+				id: MockWorkspace.id,
+				// Wide enough to collapse into the +N popover at tablet width.
+				name: "an-extremely-long-attached-workspace-name-that-cannot-fit-inline-at-tablet-width",
+				route: `/@${MockWorkspace.owner_name}/attached`,
+				statusIcon: <MonitorDotIcon className="size-3" />,
+				statusLabel: "Workspace stopped",
+			},
 		},
+		editor: { hasWorkspace: true },
 	},
 	parameters: {
 		viewport: { defaultViewport: "ipad" },
@@ -1713,18 +1905,21 @@ export const OverflowPopoverSuppressesStatusTooltip: Story = {
 
 export const DeferredErrorChipKeepsSendEnabled: Story = {
 	args: {
-		workspaceUploads: {
-			uploads: [
-				{
-					id: "wf-err",
-					file: createMockFile("dataset.zip", "application/zip"),
-					status: "error",
-					error: "upload failed",
-				},
-			],
-			onAttach: fn(),
-			onRemove: fn(),
-			deferred: true,
+		bindings: {
+			...defaultBindings,
+			workspaceUploads: {
+				uploads: [
+					{
+						id: "wf-err",
+						file: createMockFile("dataset.zip", "application/zip"),
+						status: "error",
+						error: "upload failed",
+					},
+				],
+				onAttach: fn(),
+				onRemove: fn(),
+				deferred: true,
+			},
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -1739,17 +1934,20 @@ export const DeferredErrorChipKeepsSendEnabled: Story = {
 
 export const ErrorChipAloneKeepsSendDisabled: Story = {
 	args: {
-		workspaceUploads: {
-			uploads: [
-				{
-					id: "wf-err",
-					file: createMockFile("dataset.zip", "application/zip"),
-					status: "error",
-					error: "upload failed",
-				},
-			],
-			onAttach: fn(),
-			onRemove: fn(),
+		bindings: {
+			...defaultBindings,
+			workspaceUploads: {
+				uploads: [
+					{
+						id: "wf-err",
+						file: createMockFile("dataset.zip", "application/zip"),
+						status: "error",
+						error: "upload failed",
+					},
+				],
+				onAttach: fn(),
+				onRemove: fn(),
+			},
 		},
 	},
 	play: async ({ canvasElement }) => {

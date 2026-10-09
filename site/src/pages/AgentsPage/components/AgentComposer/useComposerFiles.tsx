@@ -35,7 +35,6 @@ export function useComposerFiles(
 		uploadStates,
 		textContents,
 		workspaceUploads,
-		onTextPreview,
 	} = bindings;
 
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -151,11 +150,7 @@ export function useComposerFiles(
 		fileName: string,
 		mediaType: string,
 	) => {
-		if (onTextPreview) {
-			onTextPreview(content, fileName, mediaType);
-		} else {
-			setPreviewText({ content, fileName, mediaType });
-		}
+		setPreviewText({ content, fileName, mediaType });
 	};
 
 	const dragOver = (e: React.DragEvent) => {

@@ -7,12 +7,16 @@ import {
 	PlusIcon,
 	ZapIcon,
 } from "lucide-react";
-import { useId, useState } from "react";
+import { createContext, use, useId, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
-import type { MCPServerConfig, Workspace } from "#/api/typesGenerated";
+import type {
+	MCPServerConfig,
+	Workspace,
+	WorkspaceAgent,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -22,19 +26,23 @@ import {
 } from "#/components/Popover/Popover";
 import { isBelowMdViewport } from "#/utils/mobile";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
+import { useAgentComposer } from "./AgentComposer";
+import type {
+	AttachedWorkspaceInfo,
+	ToolBadgeData,
+	WorkspacePillBadge,
+} from "./AgentComposerBadges";
 import { AgentComposerMCPMenu } from "./AgentComposerMCPMenu";
 import {
 	AgentComposerWorkspacePicker,
 	AgentComposerWorkspaceView,
 } from "./AgentComposerWorkspacePicker";
 
-type OptionsMenuProps = {
-	isDisabled: boolean;
-	showAgentSetupNotice: boolean;
-	onAttachClick?: () => void;
+/** Controlled tool, workspace, and MCP inputs shared across options leaves. */
+export type AgentComposerOptionsData = {
 	planModeEnabled: boolean;
 	onPlanModeToggle: (enabled: boolean) => void;
-	manageAutomationsEnabled: boolean;
+	manageAutomationsEnabled?: boolean;
 	onManageAutomationsToggle?: (enabled: boolean) => void;
 	workspaceOptions?: ReadonlyArray<
 		Pick<Workspace, "id" | "name" | "organization_id">
@@ -43,14 +51,57 @@ type OptionsMenuProps = {
 	onWorkspaceChange?: (id: string | null) => void;
 	chatOrganizationId?: string;
 	isWorkspaceLoading?: boolean;
-	mcpServers: readonly MCPServerConfig[];
+	mcpServers?: readonly MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
-	onMCPToggle: (id: string, checked: boolean) => void;
+	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (id: string) => void;
+	workspace?: Workspace;
+	workspaceAgent?: WorkspaceAgent;
+	chatId?: string;
+	sshCommand?: string;
+	attachedWorkspace?: AttachedWorkspaceInfo;
+	folder?: string;
 };
 
+/** Shared options contract for sibling tool controls. */
+type AgentComposerOptionsContextValue = {
+	state: AgentComposerOptionsData & { mcpServers: readonly MCPServerConfig[] };
+	actions: {
+		toggleMcp: (id: string, checked: boolean) => void;
+		removeWorkspace?: () => void;
+		disablePlanMode: () => void;
+	};
+	meta: {
+		badges: readonly ToolBadgeData[];
+		workspacePill?: WorkspacePillBadge;
+	};
+};
+
+export const OptionsContext =
+	createContext<AgentComposerOptionsContextValue | null>(null);
+
+/** Reads shared tool state inside AgentComposerOptions.Provider. */
+export function useAgentComposerOptions() {
+	const context = use(OptionsContext);
+
+	if (!context) {
+		throw new Error(
+			"useAgentComposerOptions must be used inside AgentComposerOptions.Provider",
+		);
+	}
+
+	return context;
+}
+
 /** Keeps OAuth and disconnect state alive independently of the menu's portaled content. */
-export const AgentComposerOptionsMenu = (props: OptionsMenuProps) => {
+export const AgentComposerOptionsMenu = ({
+	showAgentSetupNotice = false,
+}: {
+	showAgentSetupNotice?: boolean;
+}) => {
+	const options = useAgentComposerOptions();
+	const composer = useAgentComposer();
+
 	const [open, setOpen] = useState(false);
 	const [view, setView] = useState<"main" | "workspace">("main");
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
@@ -63,23 +114,24 @@ export const AgentComposerOptionsMenu = (props: OptionsMenuProps) => {
 	);
 
 	const { connectingServerId, connect } = useMCPOAuthFlow({
-		organizationId: props.chatOrganizationId,
-		onAuthComplete: props.onMCPAuthComplete,
+		organizationId: options.state.chatOrganizationId,
+		onAuthComplete: options.state.onMCPAuthComplete,
 		onFlowSuccess: (serverId) => {
 			if (
-				props.mcpServers.some((server) => server.id === serverId) &&
-				!props.selectedMCPServerIds?.includes(serverId)
+				options.state.mcpServers.some((server) => server.id === serverId) &&
+				!options.state.selectedMCPServerIds?.includes(serverId)
 			) {
-				props.onMCPToggle(serverId, true);
+				options.actions.toggleMcp(serverId, true);
 			}
 		},
 	});
 
 	const canUseWorkspacePicker =
-		Boolean(props.onWorkspaceChange) && !props.isWorkspaceLoading;
+		Boolean(options.state.onWorkspaceChange) &&
+		!options.state.isWorkspaceLoading;
 
 	const selectWorkspace = (id: string | null) => {
-		props.onWorkspaceChange?.(id);
+		options.state.onWorkspaceChange?.(id);
 		setOpen(false);
 	};
 
@@ -119,7 +171,6 @@ export const AgentComposerOptionsMenu = (props: OptionsMenuProps) => {
 					}
 				}}
 			>
-				{" "}
 				<PopoverTrigger asChild>
 					<Button
 						type="button"
@@ -127,8 +178,8 @@ export const AgentComposerOptionsMenu = (props: OptionsMenuProps) => {
 						size="icon"
 						className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
 						disabled={
-							props.isDisabled &&
-							!props.showAgentSetupNotice &&
+							composer.state.isDisabled &&
+							!showAgentSetupNotice &&
 							!canUseWorkspacePicker
 						}
 						aria-label="More options"
@@ -143,35 +194,52 @@ export const AgentComposerOptionsMenu = (props: OptionsMenuProps) => {
 				>
 					{view === "workspace" ? (
 						<AgentComposerWorkspaceView
-							workspaceOptions={props.workspaceOptions}
-							selectedWorkspaceId={props.selectedWorkspaceId}
-							chatOrganizationId={props.chatOrganizationId}
+							workspaceOptions={options.state.workspaceOptions}
+							selectedWorkspaceId={options.state.selectedWorkspaceId}
+							chatOrganizationId={options.state.chatOrganizationId}
 							onSelect={selectWorkspace}
 							onBack={() => setView("main")}
 						/>
 					) : (
 						<>
-							<ComposerMenuActions {...props} onClose={() => setOpen(false)} />
-							{props.workspaceOptions && props.onWorkspaceChange && (
-								<AgentComposerWorkspacePicker
-									workspaceOptions={props.workspaceOptions}
-									selectedWorkspaceId={props.selectedWorkspaceId}
-									chatOrganizationId={props.chatOrganizationId}
-									onSelect={selectWorkspace}
-									isMobile={isBelowMdViewport()}
-									open={workspacePickerOpen}
-									onOpenChange={setWorkspacePickerOpen}
-									disabled={!canUseWorkspacePicker}
-									onOpenMobile={() => setView("workspace")}
-								/>
-							)}
+							<ComposerMenuActions
+								isDisabled={composer.state.isDisabled}
+								onAttachClick={
+									composer.state.canAttachFiles
+										? composer.actions.openFilePicker
+										: undefined
+								}
+								planModeEnabled={options.state.planModeEnabled}
+								onPlanModeToggle={options.state.onPlanModeToggle}
+								manageAutomationsEnabled={
+									options.state.manageAutomationsEnabled
+								}
+								onManageAutomationsToggle={
+									options.state.onManageAutomationsToggle
+								}
+								onClose={() => setOpen(false)}
+							/>
+							{options.state.workspaceOptions &&
+								options.state.onWorkspaceChange && (
+									<AgentComposerWorkspacePicker
+										workspaceOptions={options.state.workspaceOptions}
+										selectedWorkspaceId={options.state.selectedWorkspaceId}
+										chatOrganizationId={options.state.chatOrganizationId}
+										onSelect={selectWorkspace}
+										isMobile={isBelowMdViewport()}
+										open={workspacePickerOpen}
+										onOpenChange={setWorkspacePickerOpen}
+										disabled={!canUseWorkspacePicker}
+										onOpenMobile={() => setView("workspace")}
+									/>
+								)}
 							<AgentComposerMCPMenu
-								servers={props.mcpServers}
-								selectedServerIds={props.selectedMCPServerIds}
+								servers={options.state.mcpServers}
+								selectedServerIds={options.state.selectedMCPServerIds}
 								connectingServerId={connectingServerId}
-								isDisabled={props.isDisabled}
+								isDisabled={composer.state.isDisabled}
 								onConnect={connect}
-								onToggle={props.onMCPToggle}
+								onToggle={options.actions.toggleMcp}
 								onDisconnect={(server) => {
 									setOpen(false);
 									setDisconnectTarget(server);
@@ -207,21 +275,23 @@ export const AgentComposerOptionsMenu = (props: OptionsMenuProps) => {
 };
 
 type MenuActionsProps = Pick<
-	OptionsMenuProps,
-	| "isDisabled"
-	| "onAttachClick"
+	AgentComposerOptionsData,
 	| "planModeEnabled"
 	| "onPlanModeToggle"
 	| "manageAutomationsEnabled"
 	| "onManageAutomationsToggle"
-> & { onClose: () => void };
+> & {
+	isDisabled: boolean;
+	onAttachClick?: () => void;
+	onClose: () => void;
+};
 
 const ComposerMenuActions = ({
 	isDisabled,
 	onAttachClick,
 	planModeEnabled,
 	onPlanModeToggle,
-	manageAutomationsEnabled,
+	manageAutomationsEnabled = false,
 	onManageAutomationsToggle,
 	onClose,
 }: MenuActionsProps) => (

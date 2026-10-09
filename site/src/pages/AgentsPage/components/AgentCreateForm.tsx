@@ -1005,8 +1005,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						placeholder:
 							"Ask Coder to build, fix bugs, or explore your project...",
 					}}
-					options={{
-						isDisabled: isComposerDisabled,
+					model={{
 						selectedModel,
 						onModelChange: handleModelChange,
 						modelOptions,
@@ -1014,6 +1013,8 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						reasoningEffort: effectiveReasoningEffort,
 						onReasoningEffortChange: handleReasoningEffortChange,
 						isModelCatalogLoading: isModelDataPending,
+					}}
+					tools={{
 						planModeEnabled,
 						onPlanModeToggle: setPlanModeEnabled,
 						manageAutomationsEnabled,
