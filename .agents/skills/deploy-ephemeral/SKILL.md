@@ -9,8 +9,9 @@ Each same-repo coder/coder pull request gets one dogfood workspace,
 `eph-pr-<number>`, built from the `coder-ephemeral` template. The workspace
 follows the PR branch on its own: it checks GitHub every 2 minutes and
 redeploys each new commit. It stays up until it is
-deleted, and each user may keep at most 5 of them. Members of the dogfood `coder` organization reach it through
-organization port shares.
+deleted. Members of the dogfood `coder` organization reach it through
+organization port shares. Each workspace costs its owner 5 dogfood quota
+credits, running or stopped, five times a regular `coder` workspace.
 
 - **Full mode** runs the branch's own Coder with `scripts/develop.sh`, seeded
   with AI providers and models that route through dogfood's AI Gateway.
@@ -113,21 +114,7 @@ While `status` is `pending`, `starting`, `stopping`, `canceling`, or
 it ends.
 
 Any other code but `404`: stop and report it. `404` means the workspace does
-not exist.
-
-Each user may keep at most 5 `eph-pr-*` workspaces, running or stopped. Count
-them before creating one:
-
-```sh
-coder list -o json | jq '[.[] | select(.name | startswith("eph-pr-"))] | length'
-```
-
-At 5 or more, do not create the workspace. List them with their PR states as
-in [Teardown](#9-teardown) item 4, offer to tear down those whose PRs are
-merged or closed, and otherwise ask the user which one to tear down. Create
-the new workspace only once the count is below 5.
-
-Create it:
+not exist. Create it:
 
 ```sh
 coder create "$ws" -O coder --template coder-ephemeral -y \
@@ -171,6 +158,20 @@ you chose, and `instance_type` only when the user asked for a type or a
   Put the changed values in `values`; the example moves a frontend
   workspace to full mode. Confirm the result with
   `api "/api/v2/workspacebuilds/$build/parameters"`.
+
+A build in this step fails when it would exceed the user's quota budget. Its
+error code is then `INSUFFICIENT_QUOTA`:
+
+```sh
+api "/api/v2/users/me/workspace/$ws" | jq -r '.latest_build.job.error_code // empty'
+api /api/v2/organizations/coder/members/me/workspace-quota | jq -c '{credits_consumed, budget}'
+```
+
+Stop there and report both numbers. List the user's `eph-pr-*` workspaces with
+their PR states as in [Teardown](#9-teardown) item 4 and offer to tear down
+those whose PRs are merged or closed. Otherwise the user frees credits by
+deleting workspaces they no longer need. Then run the skill again: it finds the
+failed workspace and starts it.
 
 ## 5. Share the ports
 
