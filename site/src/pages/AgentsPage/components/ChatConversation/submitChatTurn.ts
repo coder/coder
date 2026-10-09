@@ -28,7 +28,6 @@ import {
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	settlePromotedQueueHead,
-	submitEdit,
 } from "./chatQueueReconciliation";
 import type { ChatStore } from "./chatStore";
 
@@ -57,9 +56,8 @@ export type SubmitChatTurnParams = {
 	mcpServerIds: readonly string[];
 	editMessage: (args: {
 		messageId: number;
-		optimisticMessage?: TypesGen.ChatMessage;
 		req: TypesGen.EditChatMessageRequest;
-	}) => Promise<unknown>;
+	}) => Promise<TypesGen.EditChatMessageResponse>;
 	sendMessage: (
 		req: CreateChatMessageRequestWithClearablePlanMode,
 	) => Promise<TypesGen.CreateChatMessageResponse>;
@@ -349,23 +347,35 @@ export async function submitChatTurn(
 			store.setQueuedMessages([]);
 			store.setChatStatus("running");
 			store.clearStreamState();
+			store.setPendingEdit({
+				messageID: editedMessageID,
+				placeholder: optimisticMessage,
+			});
 		});
-		await submitEdit({
-			editMessage,
-			editArgs: {
+		let response: TypesGen.EditChatMessageResponse;
+		try {
+			response = await editMessage({
 				messageId: editedMessageID,
-				optimisticMessage,
 				req: request,
-			},
-			onError: (error) => {
+			});
+		} catch (error) {
+			store.batch(() => {
+				store.setPendingEdit(null);
 				restoreOptimisticRequestSnapshot(store, previousSnapshot);
-				onRequestError(error);
-				// Hook dispatch failures can park an idle chat in error before
-				// returning the request error.
-				acceptServerChatStatus();
-				invalidateChat(agentId);
-			},
-		});
+			});
+			onRequestError(error);
+			// Hook dispatch failures can park an idle chat in error before
+			// returning the request error.
+			acceptServerChatStatus();
+			invalidateChat(agentId);
+			throw error;
+		}
+		if (store.getActiveChatID() === agentId) {
+			store.completeEdit(
+				[editedMessageID, ...(response.deleted_message_ids ?? [])],
+				response.messages ?? [response.message],
+			);
+		}
 		scrollToEnd({ behavior: "smooth" });
 		return;
 	}

@@ -83,7 +83,7 @@ describe("reconcileEditedMessageInCache", () => {
 
 		const reconciled = reconcileEditedMessageInCache({
 			currentData,
-			optimisticMessageId: 1,
+			editedMessageId: 1,
 			responseMessages: [newNotice, replacement],
 			deletedMessageIds: [staleNotice.id, 1],
 		});

@@ -58,6 +58,7 @@ import {
 	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
+	selectPendingEdit,
 	selectQueuedMessages,
 	selectReconnectState,
 	selectRetryState,
@@ -66,6 +67,7 @@ import {
 	selectSubagentStatusOverrides,
 	useChatSelector,
 	type useChatStore,
+	visibleMessages,
 } from "./ChatConversation/chatStore";
 import {
 	LiveStreamTailContent,
@@ -87,10 +89,6 @@ import { ChatMessageScroller } from "./ChatMessageScroller";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
-
-const isChatMessage = (
-	message: TypesGen.ChatMessage | undefined,
-): message is TypesGen.ChatMessage => Boolean(message);
 
 // A resolved chat with no context (unpinned) or no resources authoritatively
 // has no workspace skills; only an unresolved chat leaves them unknown.
@@ -172,6 +170,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const pendingEdit = useChatSelector(store, selectPendingEdit);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const hasStream = useChatSelector(store, selectHasStreamState);
 	const isAwaitingFirstStreamChunk = useChatSelector(
@@ -204,19 +203,11 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		liveStreamState?.toolResults,
 	);
 
-	const messages = orderedMessageIDs
-		.map((messageID) => {
-			const message = messagesByID.get(messageID);
-			if (!message && process.env.NODE_ENV !== "production") {
-				console.warn(
-					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
-						"not found in messagesByID. This may indicate a store/cache " +
-						"desync bug.",
-				);
-			}
-			return message;
-		})
-		.filter(isChatMessage);
+	const messages = visibleMessages(
+		orderedMessageIDs,
+		messagesByID,
+		pendingEdit,
+	);
 	const pendingToolCallIDs = getPendingToolCallIDs(messages, chatStatus);
 	const parsedMessages = parseMessagesWithMergedTools(messages, {
 		pendingToolCallIDs,
@@ -438,6 +429,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const pendingEdit = useChatSelector(store, selectPendingEdit);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
@@ -451,19 +443,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	);
 	const automationNames = toChatAutomationNames(automationNamesQuery);
 
-	const messages = orderedMessageIDs
-		.map((messageID) => {
-			const message = messagesByID.get(messageID);
-			if (!message && process.env.NODE_ENV !== "production") {
-				console.warn(
-					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
-						"not found in messagesByID. This may indicate a store/cache " +
-						"desync bug.",
-				);
-			}
-			return message;
-		})
-		.filter(isChatMessage);
+	const messages = visibleMessages(
+		orderedMessageIDs,
+		messagesByID,
+		pendingEdit,
+	);
 	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
 	const { data: promptsData } = useQuery(chatPromptsQuery(chatId));
 	const userPromptHistory: readonly string[] =

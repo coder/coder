@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { createChatStore, selectIsAwaitingFirstStreamChunk } from "./chatStore";
+import {
+	createChatStore,
+	selectIsAwaitingFirstStreamChunk,
+	visibleMessages,
+} from "./chatStore";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1032,6 +1036,88 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		store.clearStreamState();
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+
+	it("returns true while an edit of an answered prompt is pending", () => {
+		const store = createChatStore();
+		store.upsertDurableMessages([
+			makeMessage(1, "user", "question"),
+			makeMessage(2, "assistant", "answer"),
+		]);
+		store.setChatStatus("running");
+		store.setPendingEdit({
+			messageID: 1,
+			placeholder: makeMessage(1, "user", "edited question"),
+		});
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+});
+
+describe("pending edit", () => {
+	const shown = (store: ReturnType<typeof createChatStore>) => {
+		const { orderedMessageIDs, messagesByID, pendingEdit } =
+			store.getSnapshot();
+		return visibleMessages(orderedMessageIDs, messagesByID, pendingEdit).map(
+			(message) => {
+				const part = message.content?.[0];
+				return `${message.id}:${part?.type === "text" ? part.text : ""}`;
+			},
+		);
+	};
+	const storeWith = (...ids: number[]) => {
+		const store = createChatStore();
+		store.upsertDurableMessages(
+			ids.map((id) => makeMessage(id, id % 2 ? "user" : "assistant", `m${id}`)),
+		);
+		return store;
+	};
+
+	it("shows the placeholder in place of the edited message and hides later messages", () => {
+		const store = storeWith(1, 2, 3, 4);
+		store.setPendingEdit({
+			messageID: 3,
+			placeholder: makeMessage(3, "user", "edited"),
+		});
+
+		expect(shown(store)).toEqual(["1:m1", "2:m2", "3:edited"]);
+	});
+
+	it("shows only the placeholder when the first message is edited", () => {
+		const store = storeWith(1, 2);
+		store.setPendingEdit({
+			messageID: 1,
+			placeholder: makeMessage(1, "user", "edited"),
+		});
+
+		expect(shown(store)).toEqual(["1:edited"]);
+	});
+
+	it("keeps messages that arrive while pending and shows them once the edit is dropped", () => {
+		const store = storeWith(1, 2, 3, 4);
+		store.setPendingEdit({
+			messageID: 3,
+			placeholder: makeMessage(3, "user", "edited"),
+		});
+		store.upsertDurableMessage(makeMessage(5, "user", "m5"));
+		expect(shown(store)).toEqual(["1:m1", "2:m2", "3:edited"]);
+
+		store.setPendingEdit(null);
+
+		expect(shown(store)).toEqual(["1:m1", "2:m2", "3:m3", "4:m4", "5:m5"]);
+	});
+
+	it("completeEdit applies the server's answer and ends the edit", () => {
+		const store = storeWith(1, 2, 3, 4);
+		store.setPendingEdit({
+			messageID: 3,
+			placeholder: makeMessage(3, "user", "edited"),
+		});
+
+		store.completeEdit([3, 4], [makeMessage(5, "user", "edited")]);
+
+		expect(store.getSnapshot().pendingEdit).toBeNull();
+		expect(shown(store)).toEqual(["1:m1", "2:m2", "5:edited"]);
 	});
 });
 

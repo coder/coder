@@ -10,7 +10,6 @@ import {
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
 	settlePromotedQueueHead,
-	submitEdit,
 } from "./chatQueueReconciliation";
 import { createChatStore } from "./chatStore";
 
@@ -393,41 +392,5 @@ describe("settlePromotedQueueHead", () => {
 
 		expect(settled).toBeUndefined();
 		expect(store.getSnapshot().queuedMessages).toEqual([]);
-	});
-});
-
-describe("submitEdit", () => {
-	const dummyArgs = {
-		messageId: 42,
-		req: { content: [{ type: "text" as const, text: "edited" }] },
-	};
-
-	it("awaits editMessage", async () => {
-		const editMessage = vi.fn().mockResolvedValue(undefined);
-
-		await submitEdit({
-			editMessage,
-			editArgs: dummyArgs,
-			onError: vi.fn(),
-		});
-
-		expect(editMessage).toHaveBeenCalledWith(dummyArgs);
-	});
-
-	it("reports and rethrows an editMessage failure", async () => {
-		const onError = vi.fn();
-		const editMessage = vi.fn().mockRejectedValue(new Error("boom"));
-
-		await expect(
-			submitEdit({
-				editMessage,
-				editArgs: dummyArgs,
-				onError,
-			}),
-		).rejects.toThrow("boom");
-
-		expect(onError).toHaveBeenCalledWith(
-			expect.objectContaining({ message: "boom" }),
-		);
 	});
 });

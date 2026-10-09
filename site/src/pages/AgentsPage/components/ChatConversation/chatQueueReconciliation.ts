@@ -182,28 +182,3 @@ export const settlePromotedQueueHead = async (
 		baselineFence,
 	);
 };
-
-export async function submitEdit({
-	editMessage,
-	editArgs,
-	onError,
-}: {
-	editMessage: (args: {
-		messageId: number;
-		optimisticMessage?: TypesGen.ChatMessage;
-		req: TypesGen.EditChatMessageRequest;
-	}) => Promise<unknown>;
-	editArgs: {
-		messageId: number;
-		optimisticMessage?: TypesGen.ChatMessage;
-		req: TypesGen.EditChatMessageRequest;
-	};
-	onError: (error: unknown) => void;
-}): Promise<void> {
-	try {
-		await editMessage(editArgs);
-	} catch (error) {
-		onError(error);
-		throw error;
-	}
-}

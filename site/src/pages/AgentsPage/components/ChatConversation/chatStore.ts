@@ -109,9 +109,20 @@ export const isActiveChatStatus = (
 	status === "requires_action" ||
 	status === "interrupting";
 
+/**
+ * An edit the server has not answered yet. The transcript shows the
+ * placeholder in place of the edited message and hides every later message,
+ * which stay in the store so that a failed edit shows them again.
+ */
+export type PendingEdit = {
+	messageID: number;
+	placeholder?: TypesGen.ChatMessage;
+};
+
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
 	orderedMessageIDs: readonly number[];
+	pendingEdit: PendingEdit | null;
 	streamState: StreamState | null;
 	chatStatus: TypesGen.ChatStatus | null;
 	streamError: ChatDetailError | null;
@@ -190,11 +201,18 @@ export type ChatStore = {
 		status: TypesGen.ChatStatus,
 	) => void;
 	resetTransientState: () => void;
+	setPendingEdit: (edit: PendingEdit | null) => void;
+	// Applies the server's answer to the pending edit and ends it.
+	completeEdit: (
+		deletedMessageIDs: readonly number[],
+		insertedMessages: readonly TypesGen.ChatMessage[],
+	) => void;
 };
 
 const createInitialState = (): ChatStoreState => ({
 	messagesByID: new Map(),
 	orderedMessageIDs: [],
+	pendingEdit: null,
 	streamState: null,
 	chatStatus: null,
 	streamError: null,
@@ -381,6 +399,14 @@ export const createChatStore = (): ChatStore => {
 				streamState: nextStreamState,
 			};
 		});
+	};
+
+	const setPendingEdit = (pendingEdit: PendingEdit | null): void => {
+		setState((current) =>
+			current.pendingEdit === pendingEdit
+				? current
+				: { ...current, pendingEdit },
+		);
 	};
 
 	return {
@@ -732,6 +758,19 @@ export const createChatStore = (): ChatStore => {
 				subagentStatusOverrides: new Map(),
 			}));
 		},
+		setPendingEdit,
+		completeEdit: (deletedMessageIDs, insertedMessages) => {
+			const deleted = new Set(deletedMessageIDs);
+			batch(() => {
+				replaceMessages(
+					[...state.messagesByID.values()].filter(
+						(message) => !deleted.has(message.id),
+					),
+				);
+				upsertDurableMessages(insertedMessages);
+				setPendingEdit(null);
+			});
+		},
 	};
 };
 
@@ -750,21 +789,57 @@ export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 export const selectRetryState = (state: ChatStoreState) => state.retryState;
 export const selectReconnectState = (state: ChatStoreState) =>
 	state.reconnectState;
+export const selectPendingEdit = (state: ChatStoreState) => state.pendingEdit;
 
-const selectLatestDurableMessage = (
+/**
+ * Returns the messages the transcript shows, oldest first. While an edit is
+ * pending, its placeholder replaces the edited message and later messages
+ * are left out.
+ */
+export const visibleMessages = (
+	orderedMessageIDs: readonly number[],
+	messagesByID: ReadonlyMap<number, TypesGen.ChatMessage>,
+	pendingEdit: PendingEdit | null,
+): TypesGen.ChatMessage[] => {
+	const messages: TypesGen.ChatMessage[] = [];
+	for (const id of orderedMessageIDs) {
+		if (pendingEdit && id >= pendingEdit.messageID) {
+			break;
+		}
+		const message = messagesByID.get(id);
+		if (message) {
+			messages.push(message);
+		} else if (process.env.NODE_ENV !== "production") {
+			console.warn(
+				`[chatStore] orderedMessageIDs contains ID ${id} not found in messagesByID. This may indicate a store/cache desync bug.`,
+			);
+		}
+	}
+	if (pendingEdit?.placeholder) {
+		messages.push(pendingEdit.placeholder);
+	}
+	return messages;
+};
+
+const selectLatestVisibleMessage = (
 	state: ChatStoreState,
 ): TypesGen.ChatMessage | undefined => {
-	const latestMessageID =
-		state.orderedMessageIDs[state.orderedMessageIDs.length - 1];
+	const { orderedMessageIDs, messagesByID, pendingEdit } = state;
+	if (pendingEdit?.placeholder) {
+		return pendingEdit.placeholder;
+	}
+	const latestMessageID = orderedMessageIDs.findLast(
+		(id) => !pendingEdit || id < pendingEdit.messageID,
+	);
 	return latestMessageID === undefined
 		? undefined
-		: state.messagesByID.get(latestMessageID);
+		: messagesByID.get(latestMessageID);
 };
 
 export const selectIsAwaitingFirstStreamChunk = (
 	state: ChatStoreState,
 ): boolean => {
-	const latestMessage = selectLatestDurableMessage(state);
+	const latestMessage = selectLatestVisibleMessage(state);
 	const latestMessageNeedsAssistantResponse =
 		latestMessage?.role !== "assistant";
 	// Show the Thinking indicator when the store has no stream

@@ -16,10 +16,7 @@ import { isWorkspaceNotFound } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
 import { authorizationKey } from "./authCheck";
-import {
-	projectEditedConversationIntoCache,
-	reconcileEditedMessageInCache,
-} from "./chatMessageEdits";
+import { reconcileEditedMessageInCache } from "./chatMessageEdits";
 import { organizationsPermissions } from "./organizations";
 import { workspaceQuotaKey } from "./workspaceQuota";
 import { invalidateWorkspaceListQueries } from "./workspaces";
@@ -2552,55 +2549,14 @@ export const createChatMessageByChatId = (queryClient: QueryClient) => ({
 
 type EditChatMessageMutationArgs = {
 	messageId: number;
-	optimisticMessage?: TypesGen.ChatMessage;
 	req: TypesGen.EditChatMessageRequest;
 };
 
-type EditChatMessageMutationContext = {
-	previousData?: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
-};
-
+// The cache is written only with the server's answer. Until then the chat
+// store hides the replaced messages, so a failed edit leaves nothing to undo.
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),
-	onMutate: async ({
-		messageId,
-		optimisticMessage,
-	}: EditChatMessageMutationArgs): Promise<EditChatMessageMutationContext> => {
-		// Cancel in-flight refetches so they don't overwrite the
-		// optimistic update before the mutation completes.
-		await cancelChatMessages(queryClient, chatId);
-
-		const previousData = queryClient.getQueryData<
-			InfiniteData<TypesGen.ChatMessagesResponse>
-		>(chatMessagesKey(chatId));
-
-		patchChatMessages(queryClient, chatId, (current) =>
-			projectEditedConversationIntoCache({
-				currentData: current,
-				editedMessageId: messageId,
-				replacementMessage: optimisticMessage,
-				queuedMessages: [],
-			}),
-		);
-
-		return { previousData };
-	},
-	onError: (
-		_error: unknown,
-		_variables: EditChatMessageMutationArgs,
-		context: EditChatMessageMutationContext | undefined,
-	) => {
-		// Restore the cache on failure so the user sees the
-		// original messages again.
-		if (context?.previousData) {
-			queryClient.setQueryData(chatMessagesKey(chatId), context.previousData);
-		}
-		// Invalidate messages as a safety net: the restored snapshot
-		// may be missing WebSocket-delivered messages that arrived
-		// during the mutation's flight time.
-		void invalidateChatMessages(queryClient, chatId);
-	},
 	onSuccess: (
 		response: TypesGen.EditChatMessageResponse,
 		variables: EditChatMessageMutationArgs,
@@ -2608,21 +2564,15 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		patchChatMessages(queryClient, chatId, (current) =>
 			reconcileEditedMessageInCache({
 				currentData: current,
-				optimisticMessageId: variables.messageId,
+				editedMessageId: variables.messageId,
 				responseMessages: response.messages ?? [response.message],
 				deletedMessageIds: response.deleted_message_ids,
 			}),
 		);
 	},
 	onSettled: () => {
-		// Refresh chat metadata (status, title, etc.). The messages
-		// query is intentionally NOT invalidated here. The per-chat
-		// WebSocket handles post-edit message delivery via
-		// FullRefresh, making REST invalidation unnecessary.
-		// Invalidating chatMessagesKey would trigger a redundant
-		// refetch that causes extra store mutations while the
-		// sticky user message is settling after the optimistic
-		// truncation.
+		// The messages are not refetched: the stream delivers the edit's
+		// history reset.
 		void invalidateChatEntity(queryClient, chatId);
 		void invalidateChatPrompts(queryClient, chatId);
 		void invalidateChatDebugRuns(queryClient, chatId);

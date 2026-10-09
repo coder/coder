@@ -84,54 +84,14 @@ const upsertFirstPageMessage = (
 	return sortMessagesDescending(Array.from(byID.values()));
 };
 
-export const projectEditedConversationIntoCache = ({
-	currentData,
-	editedMessageId,
-	replacementMessage,
-	queuedMessages,
-}: {
-	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
-	editedMessageId: number;
-	replacementMessage?: TypesGen.ChatMessage;
-	queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
-}): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
-	if (!currentData?.pages?.length) {
-		return currentData;
-	}
-
-	const truncatedPages = currentData.pages.map((page, pageIndex) => {
-		const truncatedMessages = page.messages.filter(
-			(message) => message.id < editedMessageId,
-		);
-		const nextPage = {
-			...page,
-			...(pageIndex === 0 && queuedMessages !== undefined
-				? { queued_messages: queuedMessages }
-				: {}),
-		};
-		if (pageIndex !== 0 || !replacementMessage) {
-			return { ...nextPage, messages: truncatedMessages };
-		}
-		return {
-			...nextPage,
-			messages: upsertFirstPageMessage(truncatedMessages, replacementMessage),
-		};
-	});
-
-	return {
-		...currentData,
-		pages: truncatedPages,
-	};
-};
-
 export const reconcileEditedMessageInCache = ({
 	currentData,
-	optimisticMessageId,
+	editedMessageId,
 	responseMessages,
 	deletedMessageIds,
 }: {
 	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
-	optimisticMessageId: number;
+	editedMessageId: number;
 	responseMessages: readonly TypesGen.ChatMessage[];
 	deletedMessageIds?: readonly number[];
 }): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
@@ -144,7 +104,7 @@ export const reconcileEditedMessageInCache = ({
 	const replacedPages = currentData.pages.map((page, pageIndex) => {
 		const preservedMessages = page.messages.filter(
 			(message) =>
-				message.id !== optimisticMessageId &&
+				message.id !== editedMessageId &&
 				!responseIDs.has(message.id) &&
 				!deletedIDs.has(message.id),
 		);
