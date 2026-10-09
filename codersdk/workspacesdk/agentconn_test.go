@@ -3,6 +3,7 @@ package workspacesdk_test
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -615,5 +616,34 @@ func TestAgentConn_DroppedIdleAPIConn(t *testing.T) {
 			require.True(t, ok)
 			require.EqualValues(t, 3, count.(*atomic.Int32).Load())
 		})
+	}
+}
+
+// TestAgentConn_ChunkedResponseKeepsIdleAPIConn checks that a decoded JSON
+// response leaves the API connection reusable when the body is chunked, so
+// the decoder may stop before EOF.
+func TestAgentConn_ChunkedResponseKeepsIdleAPIConn(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	clientConn, agentID := newAPIPeers(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ports": []any{}, "pad": strings.Repeat("x", 20<<10)})
+		w.(http.Flusher).Flush() // Forces a chunked body.
+	}), nil)
+	conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{
+		AgentID:            agentID,
+		CloseFunc:          func() error { return workspacesdk.ErrSkipClose },
+		APIIdleConnTimeout: time.Minute,
+	})
+	t.Cleanup(func() { _ = conn.Close() })
+
+	_, err := conn.ListeningPorts(ctx)
+	require.NoError(t, err)
+	for i := range 10 {
+		traceCtx, reused := reuseTrace(ctx)
+		_, err := conn.ListeningPorts(traceCtx)
+		require.NoError(t, err)
+		require.Truef(t, reused.Load(), "request %d reused the idle connection", i+1)
 	}
 }

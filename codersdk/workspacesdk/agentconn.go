@@ -1723,9 +1723,17 @@ func (c *agentConn) apiRequestWithHeader(ctx context.Context, method, path strin
 // the response and codersdk.ReadBodyAsJSON's proxy/SSO-oriented error
 // guidance would be misleading here.
 //
+// It reads the body to EOF: http.Transport reuses a connection only after
+// its response body was read to EOF, and the decoder can stop before the
+// end of a chunked body.
+//
 //nolint:gocritic // See doc comment.
 func decodeAgentJSON(res *http.Response, v any) error {
-	return json.NewDecoder(res.Body).Decode(v)
+	if err := json.NewDecoder(res.Body).Decode(v); err != nil {
+		return err
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 4<<10)) // The encoder's trailing newline.
+	return nil
 }
 
 // apiClient returns an HTTP client that can be used to make
