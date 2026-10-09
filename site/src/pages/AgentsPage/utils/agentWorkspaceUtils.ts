@@ -1,5 +1,9 @@
-import { isAxiosError } from "axios";
-import { getErrorMessage } from "#/api/errors";
+import type { QueryClient } from "react-query";
+import { API } from "#/api/api";
+import { getErrorMessage, isWorkspaceNotFound } from "#/api/errors";
+import { ArchiveAndDeleteError } from "#/api/queries/chats";
+import { workspaceBuildsKey } from "#/api/queries/workspaceBuilds";
+import { workspaceById } from "#/api/queries/workspaces";
 import {
 	PrebuildsSystemUserID,
 	type Workspace,
@@ -71,75 +75,6 @@ export function isWorkspaceAutoCreated(
 }
 
 /**
- * Detects whether an error indicates a missing or deleted workspace.
- *
- * The Coder backend returns 404 when a workspace does not exist or
- * the user lacks access (to avoid leaking resource existence), and
- * 410 Gone when a workspace has been soft-deleted. Both cases mean
- * the workspace is unavailable for deletion.
- *
- * In the archive-and-delete flow this is acceptable: the workspace
- * ID comes from the chat's own metadata, so if the user can see the
- * chat they almost certainly had access to the workspace. Treating
- * an auth 404 as "already gone" is a safe degradation because the
- * user cannot delete a workspace they lack access to anyway.
- */
-export function isWorkspaceNotFound(error: unknown): boolean {
-	const status = isAxiosError(error) ? error.response?.status : undefined;
-	return status === 404 || status === 410;
-}
-
-export class ArchiveAndDeleteError extends Error {
-	readonly step: "delete" | "archive";
-	declare readonly cause: unknown;
-
-	constructor(step: "delete" | "archive", cause: unknown) {
-		super(
-			step === "delete" ? "workspace delete failed" : "chat archive failed",
-			{ cause },
-		);
-		this.step = step;
-	}
-}
-
-// Archive-first, delete-second. The archive is the reversible step and
-// doubles as the eligibility check: the server rejects it with 409 while
-// any family member is active, before anything destructive happens, so a
-// chat that became active while a confirmation dialog was open can never
-// lose its workspace. 404/410 on delete mean the workspace is already
-// gone and the archive stands. There is deliberately no compensating
-// unarchive when the delete enqueue fails: the delete outcome can be
-// ambiguous client-side (a late 5xx can arrive after the build was
-// committed), so restoring the chat risks resurrecting it while its
-// workspace is being deleted. The chat stays archived and the failure
-// toast points at the archived filter, where Unarchive is one click.
-export async function archiveChatAndDeleteWorkspace(
-	chatId: string,
-	workspaceId: string,
-	doArchive: (chatId: string) => Promise<unknown>,
-	doDelete: (workspaceId: string) => Promise<WorkspaceBuild>,
-): Promise<{
-	chatId: string;
-	workspaceId: string;
-	deleteBuild: WorkspaceBuild | null;
-}> {
-	try {
-		await doArchive(chatId);
-	} catch (error) {
-		throw new ArchiveAndDeleteError("archive", error);
-	}
-	let deleteBuild: WorkspaceBuild | null = null;
-	try {
-		deleteBuild = await doDelete(workspaceId);
-	} catch (error) {
-		if (!isWorkspaceNotFound(error)) {
-			throw new ArchiveAndDeleteError("delete", error);
-		}
-	}
-	return { chatId, workspaceId, deleteBuild };
-}
-
-/**
  * Returns whether the browser should navigate to /agents after an
  * archive-and-delete mutation settles. Navigation is appropriate
  * when the user is still viewing the archived chat or one of its
@@ -180,6 +115,8 @@ export function shouldNavigateAfterArchive(
  *   without deleting because the workspace is already gone, or
  *   `"confirm"` to show the dialog.
  */
+export type ArchiveAndDeleteAction = "proceed" | "confirm" | "archive-only";
+
 export async function resolveArchiveAndDeleteAction(
 	fetchWorkspace: () => Promise<{ created_at: string }>,
 	fetchBuilds: () => Promise<
@@ -189,7 +126,7 @@ export async function resolveArchiveAndDeleteAction(
 		>[]
 	>,
 	getChatCreatedAt: () => string | undefined,
-): Promise<"proceed" | "confirm" | "archive-only"> {
+): Promise<ArchiveAndDeleteAction> {
 	let workspace: { created_at: string };
 	try {
 		workspace = await fetchWorkspace();
@@ -219,6 +156,33 @@ export async function resolveArchiveAndDeleteAction(
 		return "proceed";
 	}
 	return "confirm";
+}
+
+/**
+ * Resolves the archive-and-delete action for a chat's workspace through
+ * the query cache, so the workspace is cached for the confirmation
+ * dialog and the failure toast by the time the action is known.
+ */
+export function fetchArchiveAndDeleteAction(
+	queryClient: QueryClient,
+	workspaceId: string,
+	chatCreatedAt: string | undefined,
+) {
+	return resolveArchiveAndDeleteAction(
+		() => queryClient.fetchQuery(workspaceById(workspaceId)),
+		// Only builds 1 and 2 matter for recognising a prebuild claim. The
+		// default page is newest-first; the resolver degrades safely
+		// ("confirm") if those builds are not in the returned slice.
+		() =>
+			queryClient.fetchQuery({
+				queryKey: [
+					...workspaceBuildsKey(workspaceId),
+					"archive-and-delete-resolver",
+				],
+				queryFn: () => API.getWorkspaceBuilds(workspaceId),
+			}),
+		() => chatCreatedAt,
+	);
 }
 
 export function notifyDeleteQueueState(

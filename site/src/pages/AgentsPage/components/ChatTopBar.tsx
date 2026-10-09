@@ -10,28 +10,36 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { useQuery } from "react-query";
+import {
+	useIsMutating,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
+import { getErrorMessage } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
-import { chat as chatById } from "#/api/queries/chats";
+import {
+	archiveChat,
+	chatArchiveMutationKey,
+	chat as chatById,
+	pinChat,
+	unarchiveChat,
+	unpinChat,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parsePullRequestUrl } from "../utils/pullRequest";
+import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
+import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import {
-	ChatActionsMenuItems,
+	ChatActionsMenu,
 	canManageChat,
 	chatFamilyAllowsArchive,
-	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
@@ -126,27 +134,62 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
-		requestArchiveAgent,
-		requestUnarchiveAgent,
-		requestArchiveAndDeleteWorkspace,
-		requestPinAgent,
-		requestUnpinAgent,
+		clearChatErrorReason,
+		navigateAfterArchive,
 		onOpenRenameDialog,
-		isArchiving = false,
-		archivingChatId,
 		activeChatChildren,
 	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
+
+	const queryClient = useQueryClient();
+	const mutationKey = chatArchiveMutationKey(chat?.id ?? "");
+	const pinOptions = pinChat(queryClient);
+	const pinMutation = useMutation({
+		...pinOptions,
+		onError: (error, chatId, context) => {
+			pinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to pin agent."));
+		},
+	});
+	const unpinOptions = unpinChat(queryClient);
+	const unpinMutation = useMutation({
+		...unpinOptions,
+		onError: (error, chatId, context) => {
+			unpinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+		},
+	});
+
+	const archiveOptions = archiveChat(queryClient);
+	const archiveMutation = useMutation({
+		...archiveOptions,
+		mutationKey,
+		onSuccess: (data, chatId) => {
+			archiveOptions.onSuccess(data, chatId);
+			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
+			clearChatErrorReason?.(chatId);
+		},
+		onError: (error, chatId, context) => {
+			archiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+	const unarchiveOptions = unarchiveChat(queryClient);
+	const unarchiveMutation = useMutation({
+		...unarchiveOptions,
+		mutationKey,
+		onError: (error, chatId, context) => {
+			unarchiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+		},
+	});
 
 	const chatTitle = chat?.title;
 	const isArchived = chat?.archived ?? false;
 	const isSharedChat = chat?.shared;
 	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
 	const hasWorkspace = Boolean(chat?.workspace_id);
-	const isArchivingThisChat = Boolean(
-		isArchiving &&
-			chat &&
-			(archivingChatId === undefined || archivingChatId === chat.id),
-	);
+	const isArchivingThisChat = useIsMutating({ mutationKey }) > 0;
 	// The per-chat stream updates this before the global chat record catches up.
 	const isArchiveBlocked = chat
 		? !chatFamilyAllowsArchive(
@@ -154,15 +197,9 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 				activeChatChildren,
 			)
 		: false;
-	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
-	// Suppressed when there is no chat to act on (loading and not-found views)
-	// and when the chat has no menu actions (archived child chats and chats
-	// shared by another user).
+	// Suppressed when there is no chat to act on (loading and not-found views).
 	const showActionsMenu =
-		!isEmbedded &&
-		chat !== undefined &&
-		Boolean(chatTitle) &&
-		chatHasMenuActions(chat, { canManage });
+		!isEmbedded && chat !== undefined && Boolean(chatTitle);
 	const diffStatus = chat?.diff_status;
 
 	const prUrl = diffStatus?.url;
@@ -244,70 +281,45 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 				)}
 				{/* Actions menu sits inline with the title so it tracks the title's right edge. */}
 				{chat && showActionsMenu && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon"
-								variant="subtle"
-								className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
-								aria-label="Open agent actions"
-							>
-								<EllipsisVerticalIcon className="size-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent
-							align="start"
-							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+					<ChatActionsMenu
+						key={chat.id}
+						align="start"
+						contentClassName="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+						onArchived={navigateAfterArchive}
+						chat={chat}
+						canManage={canManage}
+						hasWorkspace={hasWorkspace}
+						isArchiving={isArchivingThisChat}
+						isArchiveBlocked={isArchiveBlocked}
+						onPinAgent={() => pinMutation.mutate(chat.id)}
+						onUnpinAgent={() => unpinMutation.mutate(chat.id)}
+						onArchiveAgent={() => {
+							if (isArchived) {
+								return;
+							}
+							archiveMutation.mutate(chat.id);
+						}}
+						onUnarchiveAgent={() => {
+							if (!isArchived) {
+								return;
+							}
+							unarchiveMutation.mutate(chat.id);
+						}}
+						onOpenRenameDialog={
+							!isArchived && onOpenRenameDialog
+								? () => onOpenRenameDialog(chat)
+								: undefined
+						}
+					>
+						<Button
+							size="icon"
+							variant="subtle"
+							className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
+							aria-label="Open agent actions"
 						>
-							<ChatActionsMenuItems
-								chat={chat}
-								canManage={canManage}
-								hasWorkspace={hasWorkspace}
-								isArchiving={isArchivingThisChat}
-								isArchiveBlocked={isArchiveBlocked}
-								onPinAgent={
-									showPinAction && !isArchived
-										? () => {
-												requestPinAgent?.(chat.id);
-											}
-										: undefined
-								}
-								onUnpinAgent={
-									showPinAction && !isArchived
-										? () => {
-												requestUnpinAgent?.(chat.id);
-											}
-										: undefined
-								}
-								onArchiveAgent={() => {
-									if (isArchived) {
-										return;
-									}
-									requestArchiveAgent?.(chat.id);
-								}}
-								onUnarchiveAgent={() => {
-									if (!isArchived) {
-										return;
-									}
-									requestUnarchiveAgent?.(chat.id);
-								}}
-								onArchiveAndDeleteWorkspace={() => {
-									const workspaceId = chat.workspace_id;
-									if (isArchived || !workspaceId) {
-										return;
-									}
-									requestArchiveAndDeleteWorkspace?.(chat.id, workspaceId);
-								}}
-								onOpenRenameDialog={
-									!isArchived && onOpenRenameDialog
-										? () => onOpenRenameDialog(chat)
-										: undefined
-								}
-								Item={DropdownMenuItem}
-								Separator={DropdownMenuSeparator}
-							/>
-						</DropdownMenuContent>
-					</DropdownMenu>
+							<EllipsisVerticalIcon className="size-4" />
+						</Button>
+					</ChatActionsMenu>
 				)}
 			</div>
 			{/* PR link. On mobile: icon + number; on desktop: icon + title.
@@ -319,7 +331,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 					target="_blank"
 					rel="noreferrer"
 					className={cn(
-						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
 						panel.showSidebarPanel && "lg:hidden",
 					)}
 				>

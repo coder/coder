@@ -15,7 +15,7 @@ Aliases:
 ## Usage
 
 ```console
-coder schedule extend <workspace-name> <duration from now>
+coder schedule extend [flags] <workspace-name> <duration from now>
 ```
 
 ## Description
@@ -28,3 +28,23 @@ Extends the workspace deadline.
 
  $ coder schedule extend my-workspace 90m
 ```
+
+## Options
+
+### -c, --column
+
+|         |                                                                           |
+|---------|---------------------------------------------------------------------------|
+| Type    | <code>[workspace\|starts at\|starts next\|stops after\|stops next]</code> |
+| Default | <code>workspace,starts at,starts next,stops after,stops next</code>       |
+
+Columns to display in table output.
+
+### -o, --output
+
+|         |                          |
+|---------|--------------------------|
+| Type    | <code>table\|json</code> |
+| Default | <code>table</code>       |
+
+Output format.

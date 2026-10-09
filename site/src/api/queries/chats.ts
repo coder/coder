@@ -11,6 +11,7 @@ import {
 	type ChatPlanModeOrClear,
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
+import { isWorkspaceNotFound } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
 import { authorizationKey } from "./authCheck";
@@ -19,12 +20,24 @@ import {
 	reconcileEditedMessageInCache,
 } from "./chatMessageEdits";
 import { organizationsPermissions } from "./organizations";
+import { workspaceQuotaKey } from "./workspaceQuota";
+import { invalidateWorkspaceListQueries } from "./workspaces";
 
 const chatCollectionsKey = ["chats", "collections"] as const;
 
 export const chatListFamilyKey = [...chatCollectionsKey, "list"] as const;
 
 export const chatSearchFamilyKey = [...chatCollectionsKey, "search"] as const;
+
+/**
+ * Chat lists scoped to one project. Kept outside chatListFamilyKey because
+ * the sidebar cache helpers assume every key in that family is a sidebar list
+ * built by chatListKey.
+ */
+export const chatProjectListFamilyKey = [
+	...chatCollectionsKey,
+	"project-list",
+] as const;
 
 const chatsByWorkspaceFamilyKey = [
 	...chatCollectionsKey,
@@ -177,16 +190,15 @@ export const updateInfiniteChatsCache = (
 	queryClient: QueryClient,
 	updater: (chats: TypesGen.Chat[]) => TypesGen.Chat[],
 ) => {
-	queryClient.setQueriesData<InfiniteChatsCacheData>(
-		{ queryKey: chatListFamilyKey },
-		(prev) => {
+	for (const queryKey of [chatListFamilyKey, chatProjectListFamilyKey]) {
+		queryClient.setQueriesData<InfiniteChatsCacheData>({ queryKey }, (prev) => {
 			if (!prev?.pages) return prev;
 			const nextPages = prev.pages.map((page) => updater(page));
 			// Only return a new reference if something actually changed.
 			const changed = nextPages.some((page, i) => page !== prev.pages[i]);
 			return changed ? { ...prev, pages: nextPages } : prev;
-		},
-	);
+		});
+	}
 };
 
 /**
@@ -241,13 +253,20 @@ export const prependToInfiniteChatsCache = (
 			return { ...prev, pages: nextPages };
 		});
 	}
+	// Growing the first page of a project list would shift its offset
+	// pagination and duplicate a row on the next page, so refetch it instead.
+	if (chat.project_id && !chat.archived && !chat.parent_chat_id) {
+		void queryClient.invalidateQueries({
+			queryKey: projectChatsKey(chat.project_id),
+		});
+	}
 };
 
 /**
  * Reads the flat list of chats from the first matching infinite query
  * in the cache. Returns undefined when no data is cached yet.
  */
-export const readInfiniteChatsCache = (
+const readInfiniteChatsCache = (
 	queryClient: QueryClient,
 ): TypesGen.Chat[] | undefined => {
 	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
@@ -256,6 +275,31 @@ export const readInfiniteChatsCache = (
 	for (const [, data] of queries) {
 		if (data?.pages) {
 			return data.pages.flat();
+		}
+	}
+	return undefined;
+};
+
+/**
+ * Finds a root chat in any cached sidebar or project chat list. A chat shown
+ * on a project page can be missing from every sidebar list, for example when
+ * the sidebar filters exclude it.
+ */
+export const findChatInListCaches = (
+	queryClient: QueryClient,
+	chatId: string,
+): TypesGen.Chat | undefined => {
+	for (const queryKey of [chatListFamilyKey, chatProjectListFamilyKey]) {
+		const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+			queryKey,
+		});
+		for (const [, data] of queries) {
+			for (const page of data?.pages ?? []) {
+				const chat = page.find((c) => c.id === chatId);
+				if (chat) {
+					return chat;
+				}
+			}
 		}
 	}
 	return undefined;
@@ -416,15 +460,25 @@ export const applyChatArchiveStateToCaches = (
 		);
 	}
 
-	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
-		queryKey: chatListFamilyKey,
-	});
+	// Project lists only hold unarchived chats.
+	const queries = [
+		...queryClient
+			.getQueriesData<InfiniteChatsCacheData>({ queryKey: chatListFamilyKey })
+			.map(
+				([queryKey, data]) =>
+					[queryKey, data, archivedFilterForChatListKey(queryKey)] as const,
+			),
+		...queryClient
+			.getQueriesData<InfiniteChatsCacheData>({
+				queryKey: chatProjectListFamilyKey,
+			})
+			.map(([queryKey, data]) => [queryKey, data, false] as const),
+	];
 
-	for (const [queryKey, data] of queries) {
+	for (const [queryKey, data, archivedFilter] of queries) {
 		if (!isInfiniteChatsCacheData(data)) {
 			continue;
 		}
-		const archivedFilter = archivedFilterForChatListKey(queryKey);
 		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
 			if (!isInfiniteChatsCacheData(prev)) {
 				return prev;
@@ -925,9 +979,10 @@ export const invalidateChatEntity = (
 	});
 
 export const invalidateChatListQueries = (queryClient: QueryClient) =>
-	queryClient.invalidateQueries({
-		queryKey: chatListFamilyKey,
-	});
+	Promise.all([
+		queryClient.invalidateQueries({ queryKey: chatListFamilyKey }),
+		queryClient.invalidateQueries({ queryKey: chatProjectListFamilyKey }),
+	]);
 
 // Event kinds that can change which chat is newest for a workspace.
 const BY_WORKSPACE_AFFECTING_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>(
@@ -1018,9 +1073,11 @@ export const invalidateChatCostTree = (
 	});
 
 export const cancelChatListQueries = (queryClient: QueryClient) =>
-	queryClient.cancelQueries({
-		queryKey: chatListFamilyKey,
-	});
+	Promise.all(
+		[chatListFamilyKey, chatProjectListFamilyKey].map((queryKey) =>
+			queryClient.cancelQueries({ queryKey }),
+		),
+	);
 
 /**
  * Cancel background chat-list refetches, leaving pagination fetches alone.
@@ -1028,10 +1085,11 @@ export const cancelChatListQueries = (queryClient: QueryClient) =>
  * refetch may overwrite them with stale data.
  */
 export const cancelChatListRefetches = (queryClient: QueryClient) =>
-	queryClient.cancelQueries({
-		queryKey: chatListFamilyKey,
-		predicate: isChatListRefetch,
-	});
+	Promise.all(
+		[chatListFamilyKey, chatProjectListFamilyKey].map((queryKey) =>
+			queryClient.cancelQueries({ queryKey, predicate: isChatListRefetch }),
+		),
+	);
 
 export const cancelChatEntity = (queryClient: QueryClient, chatId: string) =>
 	queryClient.cancelQueries({
@@ -1352,8 +1410,51 @@ export const infiniteChats = (input?: ChatListInput) => {
 				},
 				signal,
 			),
+		// Keep optimistic read-state changes in cache so rollback preserves
+		// ordering and cannot resurrect rows removed by a newer response.
+		select: (data: InfiniteChatsCacheData): InfiniteChatsCacheData =>
+			params.status === "all"
+				? data
+				: {
+						...data,
+						pages: data.pages.map((page) =>
+							page.filter(
+								(chat) => chat.has_unread === (params.status === "unread"),
+							),
+						),
+					},
 		refetchOnWindowFocus: true,
 		retry: 3,
+	});
+};
+
+export const projectChatsKey = (projectId: string) =>
+	[...chatProjectListFamilyKey, projectId] as const;
+
+/** Unarchived chats in one project, newest first. */
+export const projectChats = (projectId: string) => {
+	const limit = DEFAULT_CHAT_PAGE_LIMIT;
+
+	return infiniteQueryOptions({
+		queryKey: projectChatsKey(projectId),
+		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
+			if (lastPage.length < limit) {
+				return undefined;
+			}
+			return pages.length + 1;
+		},
+		initialPageParam: 0,
+		queryFn: ({ pageParam, signal }) =>
+			API.experimental.getChats(
+				{
+					limit,
+					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
+					q: "archived:false",
+					project_id: projectId,
+				},
+				signal,
+			),
+		refetchOnWindowFocus: true,
 	});
 };
 
@@ -1448,6 +1549,9 @@ export const chatPromptsQuery = (chatId: string) => ({
 	enabled: chatId !== "",
 });
 
+export const chatArchiveMutationKey = (chatId: string) =>
+	["chats", "archive", chatId] as const;
+
 export const archiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { archived: true }),
@@ -1457,6 +1561,12 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
+		// Project pages hide archived rows, so a failed archive restores
+		// these lists instead of waiting on a refetch that may also fail.
+		const previousProjectLists =
+			queryClient.getQueriesData<InfiniteChatsCacheData>({
+				queryKey: chatProjectListFamilyKey,
+			});
 		// Flip archived flag in the flat root list; strip the
 		// chat from any parent's embedded children (individual
 		// child archive). Reuse patchChatArchiveState so the
@@ -1474,7 +1584,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 				patchChatArchiveState(previousChat, true),
 			);
 		}
-		return { previousChat };
+		return { previousChat, previousProjectLists };
 	},
 	onError: (
 		_error: unknown,
@@ -1482,11 +1592,17 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		context:
 			| {
 					previousChat?: TypesGen.Chat;
+					previousProjectLists?: ReadonlyArray<
+						readonly [QueryKey, InfiniteChatsCacheData | undefined]
+					>;
 			  }
 			| undefined,
 	) => {
 		// Rollback: invalidate to re-fetch the correct state.
 		void invalidateChatListQueries(queryClient);
+		for (const [queryKey, data] of context?.previousProjectLists ?? []) {
+			queryClient.setQueryData(queryKey, data);
+		}
 		if (context?.previousChat) {
 			patchChatEntity(queryClient, chatId, () => context.previousChat);
 		}
@@ -1546,6 +1662,81 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		applyChatArchiveStateToCaches(queryClient, chatId, false);
 	},
 	onSettled: (_data: unknown, _error: unknown, chatId: string) => {
+		void invalidateChatListQueries(queryClient);
+		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatsByWorkspace(queryClient);
+		void invalidateChatSearches(queryClient);
+	},
+});
+
+export class ArchiveAndDeleteError extends Error {
+	readonly step: "delete" | "archive";
+	declare readonly cause: unknown;
+
+	constructor(step: "delete" | "archive", cause: unknown) {
+		super(
+			step === "delete" ? "workspace delete failed" : "chat archive failed",
+			{ cause },
+		);
+		this.step = step;
+	}
+}
+
+type ArchiveAndDeleteChatVariables = {
+	chatId: string;
+	workspaceId?: string;
+};
+
+type ArchiveAndDeleteChatResult = {
+	deleteBuild: TypesGen.WorkspaceBuild | null;
+};
+
+export const archiveAndDeleteChatKey = (chatId: string) =>
+	[...chatArchiveMutationKey(chatId), "delete-workspace"] as const;
+
+// Archiving rejects active chat families before deletion. Keep the chat archived
+// on delete errors: the delete build may have committed despite a failed response.
+export const archiveAndDeleteChat = (queryClient: QueryClient) => ({
+	mutationFn: async ({
+		chatId,
+		workspaceId,
+	}: ArchiveAndDeleteChatVariables): Promise<ArchiveAndDeleteChatResult> => {
+		try {
+			await API.experimental.updateChat(chatId, { archived: true });
+		} catch (error) {
+			throw new ArchiveAndDeleteError("archive", error);
+		}
+		if (!workspaceId) {
+			return { deleteBuild: null };
+		}
+		try {
+			return { deleteBuild: await API.deleteWorkspace(workspaceId) };
+		} catch (error) {
+			if (isWorkspaceNotFound(error)) {
+				return { deleteBuild: null };
+			}
+			throw new ArchiveAndDeleteError("delete", error);
+		}
+	},
+	onSuccess: (
+		_result: ArchiveAndDeleteChatResult,
+		{ chatId, workspaceId }: ArchiveAndDeleteChatVariables,
+	) => {
+		applyChatArchiveStateToCaches(queryClient, chatId, true);
+		removeChatFromChatsByWorkspace(queryClient, chatId);
+		if (workspaceId) {
+			void invalidateWorkspaceListQueries(queryClient);
+			void queryClient.invalidateQueries({ queryKey: workspaceQuotaKey });
+		}
+	},
+	// The archive may have committed server-side even when the request
+	// appeared to fail, and on delete failures the chat stays archived, so
+	// refetch every chat collection to converge on the server.
+	onSettled: (
+		_result: ArchiveAndDeleteChatResult | undefined,
+		_error: unknown,
+		{ chatId }: ArchiveAndDeleteChatVariables,
+	) => {
 		void invalidateChatListQueries(queryClient);
 		void invalidateChatEntity(queryClient, chatId);
 		void invalidateChatsByWorkspace(queryClient);
@@ -1702,33 +1893,13 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	},
 });
 
-/**
- * Chat lists apply their read-status filter server-side, so a read-state
- * change can move a chat out of a list entirely. The filter params are the
- * last segment of the list query key.
- */
-const chatListStatusFromKey = (
-	queryKey: QueryKey,
-): ChatListStatusFilter | "all" => {
-	const params = queryKey[chatListFamilyKey.length];
-	if (params && typeof params === "object" && "status" in params) {
-		const { status } = params;
-		if (status === "read" || status === "unread") {
-			return status;
-		}
-	}
-	return "all";
-};
-
 type ChatListSnapshot = ReadonlyArray<
 	readonly [QueryKey, InfiniteChatsCacheData]
 >;
 
 /**
- * Applies a read-state change across every cached chat list, dropping the
- * chat from lists whose read-status filter it no longer satisfies. Returns
- * the replaced cache entries so a failed mutation can restore them without
- * depending on a refetch.
+ * Patches read state without removing roots. The list selector hides roots
+ * excluded by its read filter, keeping rollback independent of a refetch.
  */
 const applyChatReadStateToLists = (
 	queryClient: QueryClient,
@@ -1744,8 +1915,6 @@ const applyChatReadStateToLists = (
 		if (!data?.pages) {
 			continue;
 		}
-		const excluded =
-			chatListStatusFromKey(queryKey) === (read ? "unread" : "read");
 		let changed = false;
 		const pages = data.pages.map((page) => {
 			let pageChanged = false;
@@ -1753,9 +1922,7 @@ const applyChatReadStateToLists = (
 			for (const chat of page) {
 				if (chat.id === chatId) {
 					pageChanged = true;
-					if (!excluded) {
-						nextPage.push({ ...chat, has_unread: !read });
-					}
+					nextPage.push({ ...chat, has_unread: !read });
 					continue;
 				}
 				// Subagent chats are nested under their root and the list
@@ -1793,10 +1960,43 @@ const applyChatReadStateToLists = (
 
 const restoreChatLists = (
 	queryClient: QueryClient,
+	chatId: string,
 	snapshot: ChatListSnapshot,
 ) => {
 	for (const [queryKey, data] of snapshot) {
-		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, data);
+		const previousRoots = data.pages.flat();
+		const originalRoot = previousRoots.find((chat) => chat.id === chatId);
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (current) => {
+			if (!current?.pages) return current;
+			let changed = false;
+			const pages = current.pages.map((page) =>
+				page.map((chat) => {
+					if (chat.id === chatId && originalRoot) {
+						changed = true;
+						return { ...chat, has_unread: originalRoot.has_unread };
+					}
+					const previousChild = previousRoots
+						.find((parent) => parent.id === chat.id)
+						?.children?.find((child) => child.id === chatId);
+					if (
+						!previousChild ||
+						!chat.children?.some((child) => child.id === chatId)
+					) {
+						return chat;
+					}
+					changed = true;
+					return {
+						...chat,
+						children: chat.children.map((child) =>
+							child.id === chatId
+								? { ...child, has_unread: previousChild.has_unread }
+								: child,
+						),
+					};
+				}),
+			);
+			return changed ? { ...current, pages } : current;
+		});
 	}
 };
 
@@ -1805,12 +2005,19 @@ type SetChatReadStateContext = {
 	readonly previousLists: ChatListSnapshot;
 };
 
+const chatReadStateMutationPrefix = ["chats", "read-state"] as const;
+
+/** Identifies pending manual read-state updates for one chat. */
+export const chatReadStateMutationKey = (chatId: string) =>
+	[...chatReadStateMutationPrefix, chatId] as const;
+
 /**
  * Moves the owner's read cursor for a chat, which drives the sidebar's
  * unread indicator. Opening a chat marks it read on its own, so this
  * only exists for explicitly marking a chat read or unread.
  */
 const setChatReadState = (queryClient: QueryClient, read: boolean) => ({
+	mutationKey: chatReadStateMutationPrefix,
 	mutationFn: (chatId: string) => API.experimental.updateChat(chatId, { read }),
 	onMutate: async (chatId: string): Promise<SetChatReadStateContext> => {
 		await cancelChatListQueries(queryClient);
@@ -1835,15 +2042,23 @@ const setChatReadState = (queryClient: QueryClient, read: boolean) => ({
 		// Restore before invalidating so a failed refetch still leaves the
 		// rejected read state off the screen.
 		if (context) {
-			restoreChatLists(queryClient, context.previousLists);
+			restoreChatLists(queryClient, chatId, context.previousLists);
 		}
-		if (context?.previousChat) {
-			patchChatEntity(queryClient, chatId, () => context.previousChat);
+		const previousChat = context?.previousChat;
+		if (previousChat) {
+			patchChatEntity(queryClient, chatId, (current) =>
+				current ? { ...current, has_unread: previousChat.has_unread } : current,
+			);
 		}
-		void invalidateChatListQueries(queryClient);
 	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await invalidateChatListQueries(queryClient);
+		// This mutation is still pending during settlement. Refetching earlier
+		// would replace another row's optimistic read state with server data.
+		if (
+			queryClient.isMutating({ mutationKey: chatReadStateMutationPrefix }) <= 1
+		) {
+			await invalidateChatListQueries(queryClient);
+		}
 		await invalidateChatEntity(queryClient, chatId);
 	},
 });
@@ -2563,26 +2778,42 @@ export const userChatPersonalModelOverrides = (
 });
 
 type UpdateUserChatPersonalModelOverrideArgs = {
+	organizationId: string;
 	context: TypesGen.ChatPersonalModelOverrideContext;
 	req: TypesGen.UpdateUserChatPersonalModelOverrideRequest;
 };
 
 export const updateUserChatPersonalModelOverride = (
 	queryClient: QueryClient,
-	organizationId: string,
 	user = "me",
 ) => ({
-	mutationFn: ({ context, req }: UpdateUserChatPersonalModelOverrideArgs) =>
+	mutationFn: ({
+		organizationId,
+		context,
+		req,
+	}: UpdateUserChatPersonalModelOverrideArgs) =>
 		API.experimental.updateUserChatPersonalModelOverride(
 			organizationId,
 			user,
 			context,
 			req,
 		),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: userChatPersonalModelOverridesKey(organizationId, user),
-		});
+	onSuccess: async (
+		_data: unknown,
+		{ organizationId, context, req }: UpdateUserChatPersonalModelOverrideArgs,
+	) => {
+		const queryKey = userChatPersonalModelOverridesKey(organizationId, user);
+		await queryClient.cancelQueries({ queryKey });
+		// Keep the confirmed save even if the subsequent refetch fails.
+		queryClient.setQueryData<TypesGen.UserChatPersonalModelOverridesResponse>(
+			queryKey,
+			(current) =>
+				current && {
+					...current,
+					[context]: { ...req, context, is_set: true },
+				},
+		);
+		await queryClient.invalidateQueries({ queryKey });
 	},
 });
 

@@ -9,6 +9,7 @@ import {
 	Streamdown,
 	type UrlTransform,
 } from "streamdown";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { MarkdownImage } from "./MarkdownImage";
@@ -93,7 +94,7 @@ const markdownFileViewerCSS = [
 	"[data-code] { padding-block: 8px !important; overflow: visible !important; }",
 	"[data-disable-line-numbers][data-file] { --diffs-grid-number-column-width: 0px !important; }",
 	"[data-disable-line-numbers] [data-column-number] { min-width: 0 !important; padding: 0 !important; }",
-	"[data-line] { min-height: 20px !important; padding-inline: 12px !important; }",
+	"[data-line] { min-height: 20px !important; padding-inline: 12px 40px !important; }",
 ].join(" ");
 
 const markdownFileViewerStyle = {
@@ -165,7 +166,7 @@ const createComponents = (
 						"align-middle relative -top-px",
 						checked
 							? "border-content-link bg-content-link text-white"
-							: "border-border-default bg-surface-primary",
+							: "border-border bg-surface-primary",
 					)}
 				>
 					{checked && (
@@ -196,7 +197,7 @@ const createComponents = (
 		// Horizontal rule: render a clean 1px solid line using theme
 		// tokens instead of the default border.
 		hr: () => (
-			<hr className="my-6 border-0 border-t border-solid border-border-default" />
+			<hr className="my-6 border-0 border-t border-solid border-border" />
 		),
 		// Table cells: streamdown defaults to text-sm (14px).
 		// Drop the explicit size so cells inherit the 13px base.
@@ -231,31 +232,40 @@ const createComponents = (
 					const viewerLang: SupportedLanguages = isMermaid
 						? "text"
 						: (lang as SupportedLanguages);
+					// MermaidDiagram's error fallback strips the margin, border
+					// and rounding from its direct child, so the frame must stay
+					// on the outermost element rather than the ScrollArea.
 					const codeBlock = (
-						<ScrollArea
-							orientation="both"
-							className="my-4 rounded-md border border-solid border-border-default bg-surface-primary"
-							scrollBarClassName="w-1.5"
-							horizontalScrollBarClassName="h-1.5"
-						>
-							<FileViewer
-								file={{
-									name: `block.${viewerLang}`,
-									lang: viewerLang,
-									contents: content,
-									cacheKey: content,
-								}}
-								options={{
-									overflow: "scroll",
-									themeType: fileViewerThemeType,
-									disableFileHeader: true,
-									disableLineNumbers: true,
-									theme: viewerTheme,
-									unsafeCSS: markdownFileViewerCSS,
-								}}
-								style={markdownFileViewerStyle}
+						<div className="group/code-block relative my-4 overflow-hidden rounded-md border border-solid border-border bg-surface-primary">
+							<ScrollArea
+								orientation="both"
+								scrollBarClassName="w-1.5"
+								horizontalScrollBarClassName="h-1.5"
+							>
+								<FileViewer
+									file={{
+										name: `block.${viewerLang}`,
+										lang: viewerLang,
+										contents: content,
+										cacheKey: content,
+									}}
+									options={{
+										overflow: "scroll",
+										themeType: fileViewerThemeType,
+										disableFileHeader: true,
+										disableLineNumbers: true,
+										theme: viewerTheme,
+										unsafeCSS: markdownFileViewerCSS,
+									}}
+									style={markdownFileViewerStyle}
+								/>
+							</ScrollArea>
+							<CopyButton
+								text={content}
+								label="Copy code"
+								className="absolute right-1.5 top-1.5 z-20 size-6 bg-surface-primary p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/code-block:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
 							/>
-						</ScrollArea>
+						</div>
 					);
 					if (isMermaid) {
 						return <MermaidDiagram source={content} fallback={codeBlock} />;

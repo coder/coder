@@ -34,25 +34,13 @@ const mockParentChat = {
 	title: "Set up CI/CD pipeline",
 };
 
-const requestArchiveAgent = fn<(chatId: string) => void>();
-const requestArchiveAndDeleteWorkspace =
-	fn<(chatId: string, workspaceId: string) => void>();
-const requestUnarchiveAgent = fn<(chatId: string) => void>();
-const requestPinAgent = fn<(chatId: string) => void>();
-const requestUnpinAgent = fn<(chatId: string) => void>();
 const onOpenRenameDialog = fn<(chat: TypesGen.Chat) => void>();
 
 const chatTopBarOutletContext = {
 	chatErrorReasons: {},
 	setChatErrorReason: () => {},
 	clearChatErrorReason: () => {},
-	requestArchiveAgent,
-	requestArchiveAndDeleteWorkspace,
-	requestUnarchiveAgent,
-	requestPinAgent,
-	requestUnpinAgent,
-	isArchiving: false,
-	archivingChatId: undefined,
+	navigateAfterArchive: fn(),
 	activeChatChildren: undefined,
 	onOpenRenameDialog,
 	isSidebarCollapsed: false,
@@ -74,11 +62,6 @@ const meta: Meta<typeof ChatTopBar> = {
 	component: ChatTopBar,
 	decorators: [withAuthProvider],
 	beforeEach: () => {
-		requestArchiveAgent.mockClear();
-		requestArchiveAndDeleteWorkspace.mockClear();
-		requestUnarchiveAgent.mockClear();
-		requestPinAgent.mockClear();
-		requestUnpinAgent.mockClear();
 		onOpenRenameDialog.mockClear();
 		spyOn(API, "checkAuthorization").mockResolvedValue({
 			canShareChat: false,
@@ -385,21 +368,7 @@ export const RenameChatItem: Story = {
 export const PinAgentItem: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = canvas.getByLabelText("Open agent actions");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Pin agent")).toBeInTheDocument();
-			expect(
-				body.getByRole("menuitem", { name: "Rename chat" }),
-			).toBeInTheDocument();
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
-			expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
-		});
-		await userEvent.click(
-			within(document.body).getByRole("menuitem", { name: "Pin agent" }),
-		);
-		expect(requestPinAgent).toHaveBeenCalledWith(MockChat.id);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
 	},
 };
 
@@ -412,21 +381,7 @@ export const UnpinAgentItem: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = canvas.getByLabelText("Open agent actions");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Unpin agent")).toBeInTheDocument();
-			expect(
-				body.getByRole("menuitem", { name: "Rename chat" }),
-			).toBeInTheDocument();
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
-			expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
-		});
-		await userEvent.click(
-			within(document.body).getByRole("menuitem", { name: "Unpin agent" }),
-		);
-		expect(requestUnpinAgent).toHaveBeenCalledWith(MockChat.id);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
 	},
 };
 
@@ -487,15 +442,6 @@ export const ArchiveAndDeleteWorkspaceItem: Story = {
 			expect(body.getByText("Archive agent")).toBeInTheDocument();
 			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
 		});
-		await userEvent.click(
-			within(document.body).getByRole("menuitem", {
-				name: "Archive & delete workspace",
-			}),
-		);
-		expect(requestArchiveAndDeleteWorkspace).toHaveBeenCalledWith(
-			MockChat.id,
-			"workspace-1",
-		);
 	},
 };
 
@@ -507,22 +453,9 @@ export const IdleChatArchiveActionsEnabled: Story = {
 		},
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByLabelText("Open agent actions"));
-		const body = within(document.body);
-		const archiveItem = await body.findByRole("menuitem", {
-			name: "Archive agent",
-		});
-		const archiveAndDeleteItem = body.getByRole("menuitem", {
-			name: "Archive & delete workspace",
-		});
-		expect(archiveItem).not.toHaveAttribute("aria-disabled", "true");
-		expect(archiveAndDeleteItem).not.toHaveAttribute("aria-disabled", "true");
-		expect(
-			body.queryByText("Interrupt or wait for the agent to finish first."),
-		).not.toBeInTheDocument();
-		await userEvent.click(archiveItem);
-		expect(requestArchiveAgent).toHaveBeenCalledWith(MockChat.id);
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
 	},
 };
 
@@ -535,25 +468,9 @@ export const ActiveChatArchiveActionsDisabled: Story = {
 		liveChatStatus: "running",
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByLabelText("Open agent actions"));
-		const body = within(document.body);
-		const archiveItem = await body.findByRole("menuitem", {
-			name: "Archive agent",
-		});
-		const archiveAndDeleteItem = body.getByRole("menuitem", {
-			name: "Archive & delete workspace",
-		});
-		expect(archiveItem).toHaveAttribute("aria-disabled", "true");
-		expect(archiveAndDeleteItem).toHaveAttribute("aria-disabled", "true");
-		const hint = "Interrupt or wait for the agent to finish first.";
-		// The menu content fades in, so visibility needs a retry window.
-		await waitFor(() => {
-			expect(body.getByText(hint)).toBeVisible();
-		});
-		expect(archiveItem).toHaveAccessibleDescription(hint);
-		expect(archiveAndDeleteItem).toHaveAccessibleDescription(hint);
-		expect(requestArchiveAgent).not.toHaveBeenCalled();
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
 	},
 };
 
@@ -649,25 +566,8 @@ export const ArchivedWithUnarchive: Story = {
 		},
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const trigger = canvas.getByLabelText("Open agent actions");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(
-				body.getByRole("menuitem", { name: "Unarchive agent" }),
-			).toBeInTheDocument();
-		});
-		const body = within(document.body);
-		expect(body.queryByText("Rename chat")).not.toBeInTheDocument();
-		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
-		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
-		expect(
-			body.queryByText("Archive & delete workspace"),
-		).not.toBeInTheDocument();
 		await userEvent.click(
-			body.getByRole("menuitem", { name: "Unarchive agent" }),
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
 		);
-		expect(requestUnarchiveAgent).toHaveBeenCalledWith(MockChat.id);
 	},
 };

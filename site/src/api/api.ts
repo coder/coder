@@ -3287,6 +3287,7 @@ class ExperimentalApiMethods {
 			limit?: number;
 			offset?: number;
 			q?: string;
+			project_id?: string;
 			automation_id?: string;
 		},
 		signal?: AbortSignal,

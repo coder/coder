@@ -1,4 +1,4 @@
-import { QueryClient, QueryObserver } from "react-query";
+import { InfiniteQueryObserver, QueryClient, QueryObserver } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { authorizationKey } from "#/api/queries/authCheck";
@@ -6,6 +6,7 @@ import {
 	organizations,
 	organizationsPermissions,
 } from "#/api/queries/organizations";
+import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatWatchEventKinds } from "#/api/typesGenerated";
 import {
@@ -23,13 +24,17 @@ import {
 	MockChatModelACLAvailable,
 	MockMCPServerConfigACL,
 	MockMCPServerConfigACLAvailable,
+	MockWorkspaceBuildDelete,
+	MockWorkspaceQuota,
 } from "#/testHelpers/entities";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
+	ArchiveAndDeleteError,
 	addChildToParentInCache,
 	applyChatArchiveStateToCaches,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
+	archiveAndDeleteChat,
 	archiveChat,
 	type ChatListInput,
 	cancelChatEntity,
@@ -58,6 +63,7 @@ import {
 	chatModelACLAvailableKey,
 	chatModelACLKey,
 	chatModelKey,
+	chatProjectListFamilyKey,
 	chatPromptsKey,
 	chatSearch,
 	chatsByWorkspace,
@@ -66,6 +72,7 @@ import {
 	deleteChatModel,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	findChatInListCaches,
 	getChatListQueryString,
 	getOpenChatPollInterval,
 	infiniteChats,
@@ -97,6 +104,7 @@ import {
 	pinChat,
 	planModeFieldsForCreateMessage,
 	prependToInfiniteChatsCache,
+	projectChatsKey,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
 	removeChatEntity,
@@ -127,6 +135,7 @@ import {
 
 vi.mock("#/api/api", () => ({
 	API: {
+		deleteWorkspace: vi.fn(),
 		experimental: {
 			updateChat: vi.fn(),
 			createChat: vi.fn(),
@@ -554,6 +563,10 @@ describe("invalidateChatListQueries", () => {
 				pageParams: [0],
 			},
 		);
+		queryClient.setQueryData(projectChatsKey("project-1"), {
+			pages: [[makeChat(chatId)]],
+			pageParams: [0],
+		});
 		// Per-chat queries that should NOT be touched.
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
@@ -570,6 +583,10 @@ describe("invalidateChatListQueries", () => {
 				chatListKey(toChatListParams({ archived: true })),
 			)?.isInvalidated,
 			"archived chat list should be invalidated",
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(projectChatsKey("project-1"))?.isInvalidated,
+			"project chat list should be invalidated",
 		).toBe(true);
 
 		// Per-chat queries should NOT be invalidated.
@@ -783,14 +800,24 @@ describe("markChatRead and markChatUnread cache updates", () => {
 			chatStatus: "unread",
 		});
 
-		await markChatRead(queryClient).onMutate(chatId);
+		const observer = new InfiniteQueryObserver(queryClient, {
+			...infiniteChats({ chatStatus: "unread" }),
+			enabled: false,
+		});
+		const unsubscribe = observer.subscribe(() => {});
+		try {
+			await markChatRead(queryClient).onMutate(chatId);
 
-		expect(
-			readInfiniteChats(queryClient, { chatStatus: "unread" })?.map(
-				(c) => c.id,
-			),
-		).toEqual([]);
-		expect(readInfiniteChats(queryClient)?.[0].has_unread).toBe(false);
+			expect(
+				observer
+					.getCurrentResult()
+					.data?.pages.flat()
+					.map((chat) => chat.id),
+			).toEqual([]);
+			expect(readInfiniteChats(queryClient)?.[0].has_unread).toBe(false);
+		} finally {
+			unsubscribe();
+		}
 	});
 
 	it("patches a nested subagent chat without dropping its root", async () => {
@@ -823,6 +850,144 @@ describe("markChatRead and markChatUnread cache updates", () => {
 		const restored = readInfiniteChats(queryClient, { chatStatus: "unread" });
 		expect(restored?.map((c) => c.id)).toEqual([chatId]);
 		expect(restored?.[0].has_unread).toBe(true);
+	});
+
+	it("rolls back only the rejected chat across current paginated and filtered lists", async () => {
+		const queryClient = createTestQueryClient();
+		const unread = { chatStatus: "unread" as const };
+		const key = chatListKey(toChatListParams(unread));
+		const chatA = makeChat("chat-a", { has_unread: true });
+		const chatB = makeChat("chat-b", { has_unread: true });
+		queryClient.setQueryData<InfiniteData>(key, {
+			pages: [[makeChat("first"), chatA, makeChat("last")], [chatB]],
+			pageParams: [0, 1],
+		});
+		seedInfiniteChats(queryClient, [chatA, chatB]);
+		queryClient.setQueryData(chatEntityKey(chatA.id), chatA);
+
+		const read = markChatRead(queryClient);
+		const context = await read.onMutate(chatA.id);
+		await read.onMutate(chatB.id);
+		queryClient.setQueryData<InfiniteData>(
+			key,
+			(current) =>
+				current && {
+					...current,
+					pages: current.pages.map((page, index) =>
+						index === 0 ? [makeChat("new"), ...page] : page,
+					),
+				},
+		);
+		queryClient.setQueryData(
+			chatEntityKey(chatA.id),
+			makeChat(chatA.id, { has_unread: false, title: "refetched title" }),
+		);
+
+		read.onError(new Error("read rejected"), chatA.id, context);
+
+		const pages = queryClient.getQueryData<InfiniteData>(key)?.pages;
+		expect(pages?.map((page) => page.map((chat) => chat.id))).toEqual([
+			["new", "first", "chat-a", "last"],
+			["chat-b"],
+		]);
+		expect(pages?.[0].find((chat) => chat.id === chatA.id)?.has_unread).toBe(
+			true,
+		);
+		expect(pages?.[1][0].has_unread).toBe(false);
+		expect(
+			readInfiniteChats(queryClient)?.map((chat) => [chat.id, chat.has_unread]),
+		).toEqual([
+			["chat-a", true],
+			["chat-b", false],
+		]);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatA.id)),
+		).toMatchObject({
+			has_unread: true,
+			title: "refetched title",
+		});
+	});
+
+	it("rolls back a child without replacing its updated parent or siblings", async () => {
+		const queryClient = createTestQueryClient();
+		const child = makeChat("child", { has_unread: false });
+		const sibling = makeChat("sibling", { has_unread: false });
+		const parent = makeChat("parent", { children: [child, sibling] });
+		seedInfiniteChats(queryClient, [parent]);
+		const mutation = markChatUnread(queryClient);
+		const context = await mutation.onMutate(child.id);
+		seedInfiniteChats(queryClient, [
+			makeChat("parent", {
+				title: "updated parent",
+				children: [
+					makeChat(child.id, { title: "updated child", has_unread: true }),
+					makeChat(sibling.id, { has_unread: true }),
+				],
+			}),
+		]);
+
+		mutation.onError(new Error("unread rejected"), child.id, context);
+
+		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
+			title: "updated parent",
+			children: [
+				{ id: child.id, title: "updated child", has_unread: false },
+				{ id: sibling.id, has_unread: true },
+			],
+		});
+
+		const missingParentContext = await mutation.onMutate(child.id);
+		seedInfiniteChats(queryClient, [makeChat("different-parent")]);
+		mutation.onError(
+			new Error("unread rejected"),
+			child.id,
+			missingParentContext,
+		);
+		expect(readInfiniteChats(queryClient)?.map((chat) => chat.id)).toEqual([
+			"different-parent",
+		]);
+	});
+
+	it("does not recreate evicted lists or pages or duplicate a refetched root", async () => {
+		const queryClient = createTestQueryClient();
+		const unread = { chatStatus: "unread" as const };
+		const key = chatListKey(toChatListParams(unread));
+		const chat = makeChat("chat-a", { has_unread: true });
+		queryClient.setQueryData<InfiniteData>(key, {
+			pages: [[makeChat("first")], [chat]],
+			pageParams: [0, 1],
+		});
+		const mutation = markChatRead(queryClient);
+		const context = await mutation.onMutate(chat.id);
+		queryClient.setQueryData<InfiniteData>(key, {
+			pages: [[chat]],
+			pageParams: [0],
+		});
+		mutation.onError(new Error("read rejected"), chat.id, context);
+		expect(queryClient.getQueryData<InfiniteData>(key)?.pages).toEqual([
+			[chat],
+		]);
+
+		queryClient.setQueryData<InfiniteData>(key, {
+			pages: [[makeChat("first")]],
+			pageParams: [0],
+		});
+		mutation.onError(new Error("read rejected"), chat.id, context);
+		expect(
+			readInfiniteChats(queryClient, unread)?.map((chat) => chat.id),
+		).toEqual(["first"]);
+
+		seedInfiniteChats(queryClient, [chat], unread);
+		queryClient.setQueryData(chatEntityKey(chat.id), chat);
+		const secondContext = await mutation.onMutate(chat.id);
+		queryClient.removeQueries({ queryKey: key, exact: true });
+		queryClient.removeQueries({
+			queryKey: chatEntityKey(chat.id),
+			exact: true,
+		});
+		mutation.onError(new Error("read rejected"), chat.id, secondContext);
+		expect(queryClient.getQueryData(key)).toBeUndefined();
+		expect(queryClient.getQueryData(chatEntityKey(chat.id))).toBeUndefined();
 	});
 });
 
@@ -1014,6 +1179,30 @@ describe("archiveChat optimistic update", () => {
 		expect(invalidateSpy).toHaveBeenCalledWith(
 			expect.objectContaining({ queryKey: chatListFamilyKey }),
 		);
+	});
+
+	it("restores project chat lists on error", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const projectKey = projectChatsKey("project-1");
+		queryClient.setQueryData(projectKey, {
+			pages: [[makeChat(chatId)]],
+			pageParams: [0],
+		});
+
+		const mutation = archiveChat(queryClient);
+		const context = await mutation.onMutate(chatId);
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectKey)?.pages[0]?.[0]
+				?.archived,
+		).toBe(true);
+
+		mutation.onError(new Error("server error"), chatId, context);
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectKey)?.pages[0]?.[0]
+				?.archived,
+		).toBe(false);
 	});
 
 	it("rolls back the individual chat cache on error", async () => {
@@ -1228,6 +1417,118 @@ describe("unarchiveChat optimistic update", () => {
 			exact: true,
 		});
 		invalidateSpy.mockRestore();
+	});
+});
+
+describe("archiveAndDeleteChat", () => {
+	const variables = { chatId: "chat-1", workspaceId: "workspace-1" };
+	const deleteBuild = MockWorkspaceBuildDelete;
+	const notFound = (status: 404 | 410) => ({
+		isAxiosError: true,
+		response: { status, data: { message: "Workspace gone" } },
+	});
+
+	it("archives first, then deletes, and returns the delete build", async () => {
+		const callOrder: string[] = [];
+		vi.mocked(API.experimental.updateChat).mockImplementation(async () => {
+			callOrder.push("archive");
+		});
+		vi.mocked(API.deleteWorkspace).mockImplementation(async () => {
+			callOrder.push("delete");
+			return deleteBuild;
+		});
+
+		await expect(
+			archiveAndDeleteChat(createTestQueryClient()).mutationFn(variables),
+		).resolves.toEqual({ deleteBuild });
+		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-1", {
+			archived: true,
+		});
+		expect(API.deleteWorkspace).toHaveBeenCalledWith("workspace-1");
+		expect(callOrder).toEqual(["archive", "delete"]);
+	});
+
+	it("archives without deleting when the workspace is already gone", async () => {
+		vi.mocked(API.experimental.updateChat).mockResolvedValue();
+		const queryClient = createTestQueryClient();
+		const mutation = archiveAndDeleteChat(queryClient);
+		const variables = { chatId: "chat-1" };
+		seedInfiniteChats(queryClient, [makeChat("chat-1"), makeChat("chat-2")]);
+
+		const result = await mutation.mutationFn(variables);
+		expect(result).toEqual({ deleteBuild: null });
+		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-1", {
+			archived: true,
+		});
+		expect(API.deleteWorkspace).not.toHaveBeenCalled();
+
+		mutation.onSuccess(result, variables);
+		mutation.onSettled(result, undefined, variables);
+		expect(readInfiniteChats(queryClient)?.map((chat) => chat.id)).toEqual([
+			"chat-2",
+		]);
+		expect(queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated).toBe(
+			true,
+		);
+	});
+
+	it("does not delete the workspace when archive fails", async () => {
+		const cause = new Error("Cannot archive an active chat.");
+		vi.mocked(API.experimental.updateChat).mockRejectedValue(cause);
+		vi.mocked(API.deleteWorkspace).mockResolvedValue(deleteBuild);
+
+		const result = archiveAndDeleteChat(createTestQueryClient()).mutationFn(
+			variables,
+		);
+		await expect(result).rejects.toBeInstanceOf(ArchiveAndDeleteError);
+		await expect(result).rejects.toMatchObject({ step: "archive", cause });
+		expect(API.deleteWorkspace).not.toHaveBeenCalled();
+	});
+
+	it.each([404, 410] as const)(
+		"keeps the archive when delete returns %i, with null deleteBuild",
+		async (status) => {
+			vi.mocked(API.experimental.updateChat).mockResolvedValue();
+			vi.mocked(API.deleteWorkspace).mockRejectedValue(notFound(status));
+
+			await expect(
+				archiveAndDeleteChat(createTestQueryClient()).mutationFn(variables),
+			).resolves.toEqual({ deleteBuild: null });
+		},
+	);
+
+	it("keeps the chat archived and rethrows when the delete enqueue fails", async () => {
+		const cause = {
+			isAxiosError: true,
+			response: { status: 500, data: { message: "Internal server error" } },
+		};
+		vi.mocked(API.experimental.updateChat).mockResolvedValue();
+		vi.mocked(API.deleteWorkspace).mockRejectedValue(cause);
+
+		const result = archiveAndDeleteChat(createTestQueryClient()).mutationFn(
+			variables,
+		);
+		await expect(result).rejects.toBeInstanceOf(ArchiveAndDeleteError);
+		await expect(result).rejects.toMatchObject({ step: "delete", cause });
+	});
+
+	it("updates chat caches and invalidates workspace quota after success", () => {
+		const queryClient = createTestQueryClient();
+		const quotaKey = getWorkspaceQuotaQueryKey("default", "owner");
+		seedInfiniteChats(queryClient, [makeChat("chat-1"), makeChat("chat-2")], {
+			archived: false,
+		});
+		queryClient.setQueryData(quotaKey, {
+			...MockWorkspaceQuota,
+			credits_consumed: 2,
+		});
+
+		archiveAndDeleteChat(queryClient).onSuccess({ deleteBuild }, variables);
+
+		expect(
+			readInfiniteChats(queryClient, { archived: false })?.map((c) => c.id),
+		).toEqual(["chat-2"]);
+		expect(queryClient.getQueryState(quotaKey)?.isInvalidated).toBe(true);
 	});
 });
 
@@ -2564,6 +2865,88 @@ describe("sidebar title race condition", () => {
 	});
 });
 
+describe("updateInfiniteChatsCache", () => {
+	it("updates project chat lists alongside the sidebar lists", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(projectChatsKey("project-1"), {
+			pages: [[makeChat(chatId, { title: "original" })]],
+			pageParams: [0],
+		});
+
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((c) => (c.id === chatId ? { ...c, title: "renamed" } : c)),
+		);
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectChatsKey("project-1"))
+				?.pages[0]?.[0]?.title,
+		).toBe("renamed");
+	});
+});
+
+describe("project chat list caches", () => {
+	const seedProjectChats = (
+		queryClient: QueryClient,
+		projectId: string,
+		chats: TypesGen.Chat[],
+	) => {
+		queryClient.setQueryData(projectChatsKey(projectId), {
+			pages: [chats],
+			pageParams: [0],
+		});
+	};
+	const readProjectChats = (queryClient: QueryClient, projectId: string) =>
+		queryClient
+			.getQueryData<InfiniteData>(projectChatsKey(projectId))
+			?.pages.flat();
+
+	it("drops a chat archived elsewhere from its project list", () => {
+		const queryClient = createTestQueryClient();
+		seedProjectChats(queryClient, "project-1", [
+			makeChat("chat-1"),
+			makeChat("chat-2"),
+		]);
+
+		applyChatArchiveStateToCaches(queryClient, "chat-1", true);
+
+		expect(
+			readProjectChats(queryClient, "project-1")?.map((c) => c.id),
+		).toEqual(["chat-2"]);
+	});
+
+	it("refetches only the new chat's project list instead of growing its first page", () => {
+		const queryClient = createTestQueryClient();
+		seedProjectChats(queryClient, "project-1", [makeChat("chat-1")]);
+		seedProjectChats(queryClient, "project-2", [makeChat("chat-2")]);
+
+		prependToInfiniteChatsCache(
+			queryClient,
+			makeChat("chat-3", { project_id: "project-1" }),
+		);
+
+		expect(
+			readProjectChats(queryClient, "project-1")?.map((c) => c.id),
+		).toEqual(["chat-1"]);
+		expect(
+			queryClient.getQueryState(projectChatsKey("project-1"))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(projectChatsKey("project-2"))?.isInvalidated,
+		).toBe(false);
+	});
+
+	it("finds a chat that is only cached in a project list", () => {
+		const queryClient = createTestQueryClient();
+		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
+		seedProjectChats(queryClient, "project-1", [
+			makeChat("chat-2", { status: "running" }),
+		]);
+
+		expect(findChatInListCaches(queryClient, "chat-2")?.status).toBe("running");
+	});
+});
+
 describe("cancelChatListRefetches", () => {
 	it("cancels a regular refetch", async () => {
 		const queryClient = createTestQueryClient();
@@ -2597,6 +2980,38 @@ describe("cancelChatListRefetches", () => {
 			(c) => c.id === chatId,
 		)?.title;
 		expect(title).toBe("original");
+	});
+
+	it("cancels a project chat list refetch", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const projectKey = projectChatsKey("project-1");
+		queryClient.setQueryData(projectKey, {
+			pages: [[makeChat(chatId, { title: "original" })]],
+			pageParams: [0],
+		});
+
+		const fetchDone = queryClient.prefetchQuery({
+			queryKey: projectKey,
+			queryFn: () =>
+				new Promise<InfiniteData>((resolve) => {
+					setTimeout(
+						() =>
+							resolve({
+								pages: [[makeChat(chatId, { title: "stale" })]],
+								pageParams: [0],
+							}),
+						50,
+					);
+				}),
+		});
+
+		await cancelChatListRefetches(queryClient);
+		await fetchDone;
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectKey)?.pages[0]?.[0]?.title,
+		).toBe("original");
 	});
 
 	it("does not cancel a fetchNextPage fetch", async () => {
@@ -4399,15 +4814,16 @@ describe("openChat", () => {
 });
 
 describe("semantic cache operations: cancellation", () => {
-	it("cancelChatListQueries cancels unconditionally across the list family", async () => {
+	it("cancelChatListQueries cancels unconditionally across the sidebar and project list families", async () => {
 		const queryClient = createTestQueryClient();
 		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
 
 		await cancelChatListQueries(queryClient);
 
-		expect(cancelSpy).toHaveBeenCalledWith({
-			queryKey: chatListFamilyKey,
-		});
+		expect(cancelSpy.mock.calls).toEqual([
+			[{ queryKey: chatListFamilyKey }],
+			[{ queryKey: chatProjectListFamilyKey }],
+		]);
 	});
 
 	it("cancelChatEntity cancels the exact detail entry unconditionally", async () => {

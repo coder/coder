@@ -51,6 +51,9 @@ type ID string
 type Unit struct {
 	id     ID
 	status Status
+	// outcome is used by conditional dependencies. It never affects status
+	// readiness, and a status change never affects it.
+	outcome Outcome
 	// ready is true if all dependencies are satisfied.
 	// It does not have an accessor method on Unit, because a unit cannot know whether it is ready.
 	// Only the Manager can calculate whether a unit is ready based on knowledge of the dependency graph.
@@ -64,6 +67,10 @@ func (u Unit) ID() ID {
 
 func (u Unit) Status() Status {
 	return u.status
+}
+
+func (u Unit) Outcome() Outcome {
+	return u.outcome
 }
 
 // Dependency represents a dependency relationship between units.
@@ -86,13 +93,23 @@ type Manager struct {
 
 	// Store vertex instances for each unit to ensure consistent references
 	units map[ID]Unit
+
+	// conditionalGraph holds outcome-based dependencies. It is kept apart from
+	// graph so that the exact-status path used by coder exp sync never sees them.
+	conditionalGraph *Graph[Requirement, ID]
+
+	// outcomeChanged is closed and replaced on every outcome or conditional
+	// edge change, which wakes every WaitForDecision caller at once.
+	outcomeChanged chan struct{}
 }
 
 // NewManager creates a new Manager instance.
 func NewManager() *Manager {
 	return &Manager{
-		graph: &Graph[Status, ID]{},
-		units: make(map[ID]Unit),
+		graph:            &Graph[Status, ID]{},
+		units:            make(map[ID]Unit),
+		conditionalGraph: &Graph[Requirement, ID]{},
+		outcomeChanged:   make(chan struct{}),
 	}
 }
 
@@ -111,9 +128,10 @@ func (m *Manager) Register(id ID) error {
 	}
 
 	m.units[id] = Unit{
-		id:     id,
-		status: StatusPending,
-		ready:  true,
+		id:      id,
+		status:  StatusPending,
+		outcome: OutcomePending,
+		ready:   true,
 	}
 
 	return nil

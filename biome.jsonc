@@ -87,12 +87,7 @@
 				"useIterableCallbackReturn": "off",
 				"noUnknownAtRules": "off", // Allow Tailwind directives
 				"noEmptyInterface": "off", // oxlint owns no-empty-interface
-				"noConsole": {
-					"level": "error",
-					"options": {
-						"allow": ["error", "info", "warn"]
-					}
-				}
+				"noConsole": "off" // oxlint owns no-console
 			},
 			"complexity": {
 				"noImportantStyles": "off", // TODO: check and fix !important styles

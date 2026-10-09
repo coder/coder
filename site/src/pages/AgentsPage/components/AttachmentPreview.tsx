@@ -41,7 +41,7 @@ export const ImageThumbnail: React.FC<{
 		src={previewUrl}
 		alt={name}
 		className={cn(
-			"size-16 rounded-md border border-border-default object-cover",
+			"size-16 rounded-md border border-border object-cover",
 			className,
 		)}
 		onError={onError}
@@ -54,14 +54,10 @@ export const AttachmentPreview: React.FC<{
 	onRemove: (attachment: number | File) => void;
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
-	onPreview?: (url: string) => void;
+	onPreview: (url: string) => void;
 	textContents?: Map<File, string>;
-	onTextPreview?: (
-		content: string,
-		fileName: string,
-		mediaType?: string,
-	) => void;
-	onInlineText?: (file: File, content?: string) => void;
+	onTextPreview: (content: string, fileName: string, mediaType: string) => void;
+	onInlineText: (file: File, content?: string) => void;
 }> = ({
 	attachments,
 	onRemove,
@@ -128,7 +124,7 @@ export const AttachmentPreview: React.FC<{
 	);
 
 	return (
-		<div className="border-b border-border-default/50">
+		<div className="border-b border-border/50">
 			<div className="flex gap-2 overflow-x-auto px-3 py-2">
 				{attachments.map((file, index) => {
 					const uploadState = uploadStates?.get(file);
@@ -150,7 +146,7 @@ export const AttachmentPreview: React.FC<{
 								<button
 									type="button"
 									className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
-									onClick={() => onPreview?.(previewUrl)}
+									onClick={() => onPreview(previewUrl)}
 								>
 									<ImageThumbnail previewUrl={previewUrl} name={file.name} />
 								</button>
@@ -165,7 +161,7 @@ export const AttachmentPreview: React.FC<{
 											textFileId,
 										);
 										if (nextContent !== undefined) {
-											onTextPreview?.(nextContent, file.name, file.type);
+											onTextPreview(nextContent, file.name, file.type);
 										}
 									}}
 								>
@@ -174,7 +170,7 @@ export const AttachmentPreview: React.FC<{
 									</span>
 								</button>
 							) : (
-								<div className="flex size-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
+								<div className="flex size-16 items-center justify-center rounded-md border border-border bg-surface-secondary text-xs text-content-secondary">
 									{file.name.split(".").pop()?.toUpperCase() || "FILE"}
 								</div>
 							)}
@@ -186,7 +182,7 @@ export const AttachmentPreview: React.FC<{
 											textContent,
 											textFileId,
 										);
-										onInlineText?.(file, nextContent);
+										onInlineText(file, nextContent);
 									}}
 									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
 									aria-label="Paste inline"

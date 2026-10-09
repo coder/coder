@@ -250,6 +250,64 @@ export const FilterComboboxContent: React.FC<FilterComboboxContentProps> = ({
 	);
 };
 
+type FilterComboboxFlyoutRootProps = {
+	/** Fired when Escape is pressed while the flyout is shown. */
+	onDismiss: () => void;
+	/** The main menu, which the flyout is placed beside. */
+	children: React.ReactElement;
+};
+
+/**
+ * Anchors `FilterComboboxFlyoutContent` to the main menu. The flyout is a
+ * nested Radix layer, so it takes Escape from the popup and forwards it here.
+ */
+export const FilterComboboxFlyoutRoot: React.FC<
+	FilterComboboxFlyoutRootProps
+> = ({ onDismiss, children }) => {
+	return (
+		<Popover
+			open
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen) {
+					onDismiss();
+				}
+			}}
+			modal={false}
+		>
+			<PopoverAnchor asChild>{children}</PopoverAnchor>
+		</Popover>
+	);
+};
+
+/**
+ * Side panel to the right of the main menu. Radix moves it to the left side
+ * when the right side has no room.
+ */
+export const FilterComboboxFlyoutContent: React.FC<
+	React.ComponentProps<typeof PopoverContent>
+> = ({ className, ...props }) => {
+	return (
+		<PopoverContent
+			disablePortal
+			side="right"
+			align="start"
+			// Flush with the main panel, like `DropdownMenuSubContent`.
+			sideOffset={0}
+			collisionPadding={0}
+			onOpenAutoFocus={(event) => event.preventDefault()}
+			onCloseAutoFocus={(event) => event.preventDefault()}
+			// Outside presses are left to the popup's layer, which unmounts this
+			// one. Focus returning to the input must not close the flyout.
+			onInteractOutside={(event) => event.preventDefault()}
+			className={cn(
+				"flex max-h-[min(20rem,var(--radix-popper-available-height))] w-max min-w-40 max-w-64 flex-col overflow-y-hidden border-border p-2",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
 type FilterComboboxListProps = React.ComponentProps<
 	typeof CommandPrimitive.List
 >;
@@ -286,7 +344,7 @@ export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 		<CommandPrimitive.Item
 			data-slot="combobox-item"
 			className={cn(
-				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-normal text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
+				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-normal text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[selected=true]:ring-2 data-[selected=true]:ring-inset data-[selected=true]:ring-content-link data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
 				className,
 			)}
 			{...props}
@@ -436,7 +494,7 @@ export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 					data-slot="combobox-chip-remove"
 					aria-label={resolvedRemoveLabel}
 					className={cn(
-						"inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0",
+						"inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 					)}
 					onMouseDown={(event) => event.preventDefault()}
 					onClick={(event) => {
