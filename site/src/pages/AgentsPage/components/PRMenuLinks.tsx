@@ -1,6 +1,7 @@
 import { ExternalLinkIcon } from "lucide-react";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
-import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
+import type { ContextMenuItem } from "#/components/ContextMenu/ContextMenu";
+import type { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
 import { originRepoLabel } from "../utils/originRepoLabel";
 import { prNumber } from "../utils/pullRequest";
 import { getPRIconConfig } from "./ChatsSidebar/tree/statusConfig";
@@ -11,9 +12,13 @@ export const prMenuContentClassName =
 
 type PRMenuLinksProps = {
 	readonly prStatuses: readonly ChatDiffStatus[];
+	readonly Item: typeof DropdownMenuItem | typeof ContextMenuItem;
 };
 
-export const PRMenuLinks: React.FC<PRMenuLinksProps> = ({ prStatuses }) => {
+export const PRMenuLinks: React.FC<PRMenuLinksProps> = ({
+	prStatuses,
+	Item,
+}) => {
 	// PR numbers repeat across repositories, so entries name the
 	// repository when the PRs span several.
 	const hasMultipleOrigins =
@@ -30,10 +35,7 @@ export const PRMenuLinks: React.FC<PRMenuLinksProps> = ({ prStatuses }) => {
 		const title = status.pull_request_title.trim();
 
 		return (
-			<DropdownMenuItem
-				key={`${status.remote_origin}/${status.git_branch}`}
-				asChild
-			>
+			<Item key={`${status.remote_origin}/${status.git_branch}`} asChild>
 				<a href={status.url} target="_blank" rel="noreferrer">
 					{config && (
 						<config.icon
@@ -51,7 +53,7 @@ export const PRMenuLinks: React.FC<PRMenuLinksProps> = ({ prStatuses }) => {
 					)}
 					<ExternalLinkIcon className="ml-auto size-3.5!" />
 				</a>
-			</DropdownMenuItem>
+			</Item>
 		);
 	});
 };

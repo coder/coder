@@ -1,13 +1,17 @@
 import { cn } from "cn";
-import type { Chat } from "#/api/typesGenerated";
-import { getChatDisplayConfig } from "./ChatsSidebar/tree/statusConfig";
+import type { Chat, ChatDiffStatus } from "#/api/typesGenerated";
+import { ChatNodePRIcon } from "./ChatsSidebar/tree/ChatNodePRIcon";
+import {
+	getChatDisplayConfig,
+	getPRIconConfig,
+} from "./ChatsSidebar/tree/statusConfig";
 
 type ChatDiffStatsProps = {
 	readonly chat: Chat;
 };
 
 export const ChatPRStateIcon: React.FC<ChatDiffStatsProps> = ({ chat }) => {
-	const { prIcon } = getChatDisplayConfig(chat);
+	const prIcon = getPRIconConfig(chat.diff_status);
 	if (!prIcon) {
 		return null;
 	}
@@ -21,13 +25,12 @@ export const ChatPRStateIcon: React.FC<ChatDiffStatsProps> = ({ chat }) => {
 	);
 };
 
-const ChatLineStats: React.FC<ChatDiffStatsProps> = ({ chat }) => {
-	const { diffStatus } = getChatDisplayConfig(chat);
-	const changedFiles = diffStatus?.changed_files ?? 0;
-	const additions = diffStatus?.additions ?? 0;
-	const deletions = diffStatus?.deletions ?? 0;
+const ChatLineStats: React.FC<{ readonly status: ChatDiffStatus }> = ({
+	status,
+}) => {
+	const { changed_files: changedFiles, additions, deletions } = status;
 	const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
-	if (!diffStatus?.url || !hasLineStats) {
+	if (!status.url || !hasLineStats) {
 		return null;
 	}
 	const filesChangedLabel = `${changedFiles} ${
@@ -45,9 +48,17 @@ const ChatLineStats: React.FC<ChatDiffStatsProps> = ({ chat }) => {
 	);
 };
 
-export const ChatDiffStats: React.FC<ChatDiffStatsProps> = ({ chat }) => (
-	<>
-		<ChatPRStateIcon chat={chat} />
-		<ChatLineStats chat={chat} />
-	</>
-);
+export const ChatDiffStats: React.FC<ChatDiffStatsProps> = ({ chat }) => {
+	const { prStatuses } = getChatDisplayConfig(chat);
+
+	// The sole PR's line stats can differ from the primary row's,
+	// which may be a newer branch-only ref with zeroed counts.
+	const solePR = prStatuses.length === 1 ? prStatuses[0] : undefined;
+
+	return (
+		<>
+			<ChatNodePRIcon prStatuses={prStatuses} />
+			{solePR && <ChatLineStats status={solePR} />}
+		</>
+	);
+};
