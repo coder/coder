@@ -1146,10 +1146,16 @@ By default the summary is generated with the chat model. Organization admins can
 
 Details that follow from the override:
 
-- Context limits: the compaction trigger uses the stricter of the chat model's and the compaction model's context limits, because the history must also fit the summarizer's window.
-  The post-compaction "still over limit" check uses that same stricter limit; otherwise a smaller compaction-model window could trigger repeated compactions instead of a terminal error.
+- Triggers: automatic compaction has two independent triggers, and whichever token point is lower binds, with ties going to the chat trigger.
+  The chat trigger is the owner's personal threshold, or the chat model's `compression_threshold`, against the chat model's context limit. A threshold of 100 disables only this trigger.
+  The organization trigger exists only while an override resolves, and fires at a fixed 80% of the override model's context limit (`compactionOverrideWindowPercent`); the override model's own `compression_threshold` is ignored. The remaining 20% is a target margin for the summary prompt and the summary, not a guarantee, because the trigger reads the previous step's prompt usage. An organization point beyond the chat model's window never fires, so a chat whose chat trigger is disabled then does not compact automatically.
+  The binding trigger's threshold and limit drive the automatic compaction gate, and every summary, automatic or manual, records them in its `chat_summarized` result as `threshold_percent` and `trigger_context_limit_tokens`; `context_limit_tokens` records the chat model's window.
+- Summary cap: the summary's output cap is bounded by the summarizer's own window (the override model's when one resolves), not by the binding trigger's limit.
+- Still over limit: the post-compaction check compares the first assistant usage after the latest summary with the binding trigger; checking any other limit could trigger repeated compactions instead of a terminal error.
+  A summary recorded under a different threshold or trigger limit than the current binding trigger is not a failed compaction, so the chat compacts again. The check skips a 0% threshold ("always compact"), which would otherwise end every compaction with the error.
+  The error names what can clear it: the owner's threshold when the chat trigger binds, an override model with a larger window when the organization trigger binds, and both when the usage also reaches the other enabled trigger.
 - Failure semantics: an unset override uses the chat model.
-  A stored config that later becomes deleted or disabled, whose provider becomes disabled, or whose required credentials become unavailable is logged and falls back to the chat model during generation preparation.
+  A stored config that later becomes deleted or disabled, whose provider becomes disabled, or whose required credentials become unavailable is logged and falls back to the chat model during generation preparation, leaving only the chat trigger.
   Failure to read the override row or load provider credentials stops preparation.
   A failure while resolving the referenced model config or provider is logged and falls back to the chat model.
   A usable override that fails at use (route or client construction, provider call failure) fails the generation visibly through the normal error path; there is no silent fallback.
@@ -1244,7 +1250,7 @@ The tool never returns a webhook secret, single-use or multi-use. Tool results s
 
 ## Manual compaction
 
-Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the model's compaction threshold, and when the threshold is exceeded it makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.
+Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the binding compaction trigger (see [Compaction model selection](#compaction-model-selection)), and when usage reaches it the worker makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.
 
 Trailing user messages the assistant has not answered yet are not summarized: they are excluded from the summarizer's input and re-committed after the triplet as model-only user rows, so the pruned prompt keeps them verbatim instead of relying on summary fidelity.
 
