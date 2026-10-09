@@ -40,8 +40,57 @@ func TestQueryConfigurationNodesForReferences(t *testing.T) {
 			expected:   []string{"module.runtime.output.agent_id"},
 		},
 		{
+			name: "PlanModuleOutputPrefix",
+			references: []string{
+				"module.runtime.agent_id",
+				"module.runtime",
+			},
+			expected: []string{"module.runtime.output.agent_id"},
+		},
+		{
+			name: "PlanKeyedModuleOutputPrefix",
+			references: []string{
+				`module.runtime["primary"].agent_id`,
+				`module.runtime["primary"]`,
+			},
+			expected: []string{"module.runtime.output.agent_id"},
+		},
+		{
+			name: "PlanNestedOutputTraversalPrefix",
+			references: []string{
+				"module.runtime.agent_id.value",
+				"module.runtime.agent_id",
+				"module.runtime",
+			},
+			expected: []string{"module.runtime.output.agent_id"},
+		},
+		{
 			name:       "WholeModule",
 			references: []string{`module.runtime`},
+			expected: []string{
+				"module.runtime.output.agent_id",
+				"module.runtime.output.token",
+			},
+		},
+		{
+			name: "ExplicitWholeModuleAndOutput",
+			references: []string{
+				"module.runtime",
+				"module.runtime.agent_id",
+				"module.runtime",
+			},
+			expected: []string{
+				"module.runtime.output.agent_id",
+				"module.runtime.output.token",
+			},
+		},
+		{
+			name: "DifferentModuleInstances",
+			references: []string{
+				`module.runtime["primary"].agent_id`,
+				`module.runtime["primary"]`,
+				`module.runtime["secondary"]`,
+			},
 			expected: []string{
 				"module.runtime.output.agent_id",
 				"module.runtime.output.token",

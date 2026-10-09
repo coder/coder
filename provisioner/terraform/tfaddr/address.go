@@ -120,11 +120,22 @@ type ConfigurationReference struct {
 	// For a module reference, moduleOutputAddress caches the Terraform graph
 	// address of its named output. It is empty for other references.
 	moduleOutputAddress string
+	// moduleOutputCallAddress is the evaluated direct child module call when
+	// the reference ends at one of its outputs. It is empty when the output has
+	// a remaining traversal or for other references.
+	moduleOutputCallAddress string
 }
 
 // ConfigurationAddress returns the reference without instance keys.
 func (r ConfigurationReference) ConfigurationAddress() string {
 	return r.address
+}
+
+// ModuleOutputCallAddress returns the evaluated direct child module call when
+// the reference ends at one of its outputs. A false result means the reference
+// has a remaining traversal or does not select a module output.
+func (r ConfigurationReference) ModuleOutputCallAddress() (string, bool) {
+	return r.moduleOutputCallAddress, r.moduleOutputCallAddress != ""
 }
 
 // ConfigurationAddresses returns possible Terraform graph configuration
@@ -279,17 +290,52 @@ func ParseConfigurationReference(raw string) (ConfigurationReference, error) {
 		partEndByteOffsets = append(partEndByteOffsets, address.Len())
 	}
 
-	var moduleOutputAddress string
+	var moduleOutputAddress, moduleOutputCallAddress string
 	if len(parts) >= 3 && parts[0] == "module" {
 		moduleOutputAddress = strings.Join(
 			[]string{parts[0], parts[1], "output", parts[2]}, ".",
 		)
+		moduleOutputCallAddress, _ = directModuleOutputCallAddress(raw, traversal)
 	}
 	return ConfigurationReference{
-		address:             address.String(),
-		partEndByteOffsets:  partEndByteOffsets,
-		moduleOutputAddress: moduleOutputAddress,
+		address:                 address.String(),
+		partEndByteOffsets:      partEndByteOffsets,
+		moduleOutputAddress:     moduleOutputAddress,
+		moduleOutputCallAddress: moduleOutputCallAddress,
 	}, nil
+}
+
+func directModuleOutputCallAddress(
+	raw string,
+	traversal hcl.Traversal,
+) (string, bool) {
+	if len(traversal) < 3 {
+		return "", false
+	}
+	rootName, ok := traversalName(traversal[0])
+	if !ok || rootName != "module" {
+		return "", false
+	}
+	if _, ok := traversal[1].(hcl.TraverseAttr); !ok {
+		return "", false
+	}
+
+	outputPosition := 2
+	if _, ok := traversal[outputPosition].(hcl.TraverseIndex); ok {
+		outputPosition++
+	}
+	if outputPosition >= len(traversal) || outputPosition+1 != len(traversal) {
+		return "", false
+	}
+	if _, ok := traversal[outputPosition].(hcl.TraverseAttr); !ok {
+		return "", false
+	}
+
+	callEnd := traversal[outputPosition-1].SourceRange().End.Byte
+	if callEnd <= 0 || callEnd > len(raw) {
+		return "", false
+	}
+	return raw[:callEnd], true
 }
 
 // InstanceKeysEqual reports whether two parsed instance keys are equal.

@@ -127,7 +127,9 @@ func newQueryWithLimits(
 // to their declaring module. An empty declaringModuleAddress identifies the
 // root module. Each reference resolves to the most specific configuration
 // address present in the graph. A whole-module reference resolves to all of the
-// module's output nodes.
+// module's output nodes. Terraform plan JSON emits a whole-module reference
+// after each module-output reference. Such implied references are ignored; an
+// additional whole-module occurrence still resolves to all outputs.
 func (q *Query) ConfigurationNodesForReferences(
 	ctx context.Context,
 	moduleAddress string,
@@ -147,26 +149,40 @@ func (q *Query) ConfigurationNodesForReferences(
 	}
 	moduleConfAddress := modulePath.ConfigurationAddress()
 
+	parsedReferences := map[string]tfaddr.ConfigurationReference{}
+	resolvedReferences := map[string]struct{}{}
+	pendingImpliedWholeModuleReferences := map[string]int{}
 	startNodes := map[NodeID]struct{}{}
-	seenReferences := map[string]struct{}{}
 	for _, rawReference := range references {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if _, duplicate := seenReferences[rawReference]; duplicate {
-			continue
+		reference, parsed := parsedReferences[rawReference]
+		if !parsed {
+			reference, err = tfaddr.ParseConfigurationReference(rawReference)
+			if err != nil {
+				return nil, xerrors.Errorf(
+					"resolve Terraform reference %q: %w", rawReference, err,
+				)
+			}
+			parsedReferences[rawReference] = reference
 		}
-		seenReferences[rawReference] = struct{}{}
-
-		reference, err := tfaddr.ParseConfigurationReference(rawReference)
-		if err != nil {
-			return nil, xerrors.Errorf(
-				"resolve Terraform reference %q: %w", rawReference, err,
-			)
+		if moduleCallAddress, ok := reference.ModuleOutputCallAddress(); ok {
+			// Terraform emits one whole-module prefix for every output
+			// occurrence, including duplicate output references.
+			pendingImpliedWholeModuleReferences[moduleCallAddress]++
 		}
 		if moduleAddress, ok := wholeModuleReferenceAddress(
 			reference, moduleConfAddress,
 		); ok {
+			if pendingImpliedWholeModuleReferences[rawReference] > 0 {
+				pendingImpliedWholeModuleReferences[rawReference]--
+				continue
+			}
+			if _, resolved := resolvedReferences[rawReference]; resolved {
+				continue
+			}
+			resolvedReferences[rawReference] = struct{}{}
 			if err := q.consumeReferenceLookups(1); err != nil {
 				return nil, err
 			}
@@ -179,6 +195,10 @@ func (q *Query) ConfigurationNodesForReferences(
 			}
 			continue
 		}
+		if _, resolved := resolvedReferences[rawReference]; resolved {
+			continue
+		}
+		resolvedReferences[rawReference] = struct{}{}
 		for address := range reference.ConfigurationAddresses(moduleConfAddress) {
 			if err := q.consumeReferenceLookups(1); err != nil {
 				return nil, err

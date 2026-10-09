@@ -33,6 +33,28 @@ func TestQueryBoundsWork(t *testing.T) {
 		require.ErrorContains(t, err, "Terraform graph reference lookups")
 	})
 
+	t.Run("ExhaustedReferenceBudgetStopsParsing", func(t *testing.T) {
+		t.Parallel()
+
+		query, err := newQueryWithLimits(sourceGraph, queryLimits{
+			referenceLookups: 1,
+			nodeVisits:       defaultQueryLimits().nodeVisits,
+			traversedEdges:   defaultQueryLimits().traversedEdges,
+		})
+		require.NoError(t, err)
+		_, err = query.ConfigurationNodesForReferences(
+			t.Context(), "", []string{"local.bridge.attribute"},
+		)
+		require.NoError(t, err)
+
+		// The exhausted budget must reject the first reference before parsing
+		// the deliberately invalid reference that follows it.
+		_, err = query.ConfigurationNodesForReferences(
+			t.Context(), "", []string{"local.bridge", "["},
+		)
+		require.ErrorContains(t, err, "Terraform graph reference lookups")
+	})
+
 	t.Run("ResolverReferenceLookupsShareBudget", func(t *testing.T) {
 		t.Parallel()
 
