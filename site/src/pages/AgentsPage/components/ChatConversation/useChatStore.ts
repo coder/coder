@@ -5,14 +5,11 @@ import {
 	useRef,
 	useState,
 } from "react";
-import {
-	type InfiniteData,
-	type QueryClient,
-	useQueryClient,
-} from "react-query";
+import { type QueryClient, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import { invalidateChatAutomations } from "#/api/queries/chatAutomations";
 import {
+	type ChatMessagesData,
 	chatMessagesKey,
 	invalidateChatPrompts,
 	invalidateChatSearches,
@@ -85,9 +82,8 @@ const readQueuedMessagesFromCache = (
 	queryClient: QueryClient,
 	chatID: string,
 ): readonly TypesGen.ChatQueuedMessage[] | undefined => {
-	return queryClient.getQueryData<
-		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-	>(chatMessagesKey(chatID))?.pages[0]?.queued_messages;
+	return queryClient.getQueryData<ChatMessagesData>(chatMessagesKey(chatID))
+		?.pages[0]?.queued_messages;
 };
 
 // The stream opens at the cached newest page's history version, which the
@@ -97,9 +93,8 @@ const readHistoryVersionFromCache = (
 	queryClient: QueryClient,
 	chatID: string,
 ): number | undefined =>
-	queryClient.getQueryData<
-		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-	>(chatMessagesKey(chatID))?.pages[0]?.history_version;
+	queryClient.getQueryData<ChatMessagesData>(chatMessagesKey(chatID))?.pages[0]
+		?.history_version;
 
 const writeHistoryVersionToCache = (
 	queryClient: QueryClient,
@@ -123,9 +118,8 @@ const isAheadOfCachedMessages = (
 	messages: readonly TypesGen.ChatMessage[],
 ): boolean => {
 	const pages =
-		queryClient.getQueryData<
-			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-		>(chatMessagesKey(chatID))?.pages ?? [];
+		queryClient.getQueryData<ChatMessagesData>(chatMessagesKey(chatID))
+			?.pages ?? [];
 	// Pages and their messages are newest first.
 	const newestCachedID = pages.find((page) => page.messages.length > 0)
 		?.messages[0]?.id;

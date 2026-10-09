@@ -1151,7 +1151,7 @@ export const patchChatEntity = (
 		updater,
 	);
 
-type ChatMessagesData = InfiniteData<TypesGen.ChatMessagesResponse>;
+export type ChatMessagesData = InfiniteData<TypesGen.ChatMessagesResponse>;
 
 // Every write to a chat's messages after the first page loads is an update of
 // the current pages. Replacing them, as a refetch does, drops stream writes
