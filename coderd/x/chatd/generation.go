@@ -78,11 +78,12 @@ type generationPrepared struct {
 	CallTemplate         fantasy.Call
 	ContextLimitFallback int64
 
-	DynamicToolNames   map[string]bool
-	StopAfterTools     map[string]struct{}
-	ExclusiveToolNames map[string]bool
-	BuiltinToolNames   map[string]bool
-	ToolNameToConfigID map[string]uuid.UUID
+	DynamicToolNames      map[string]bool
+	StopAfterTools        map[string]struct{}
+	ExclusiveToolNames    map[string]bool
+	ExclusiveToolMessages map[string]chatloop.ExclusiveToolMessages
+	BuiltinToolNames      map[string]bool
+	ToolNameToConfigID    map[string]uuid.UUID
 
 	MaxSteps   int
 	Compaction *generationCompaction
@@ -998,6 +999,9 @@ func (s *taskStarter) admitStepToolCalls(
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
+	// Hook denials are policy outcomes; ambiguous-input results are
+	// ordinary error results and count as rejected.
+	hookDeniedIDs := toolCallIDSet(preflight.Denied)
 	preflight.Denied = append(preflight.Denied, ambiguous...)
 	// Calls denied at admission persist synthetic results with the
 	// assistant step, so they never surface as unresolved calls where
@@ -1009,6 +1013,7 @@ func (s *taskStarter) admitStepToolCalls(
 			}
 		}
 	}
+	recordContextToolOutcomes(s.server.metrics, preflight.Denied, hookDeniedIDs)
 	return preflight, nil
 }
 
@@ -1105,20 +1110,21 @@ func (s *taskStarter) executeLocalTools(
 		}
 		toolCallIDs := chattool.ToolCallIDs(input.ChatID, decision.toolCallMessageID, decision.localToolCalls)
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
-			Tools:              prepared.Tools,
-			ActiveTools:        prepared.ActiveTools,
-			AllowInactiveTools: prepared.AllowInactiveTools,
-			ProviderTools:      prepared.ProviderTools,
-			ToolCalls:          allowed,
-			ObservedToolCalls:  decision.localToolCalls,
-			ExclusiveToolNames: prepared.ExclusiveToolNames,
-			BuiltinToolNames:   prepared.BuiltinToolNames,
-			ModelProvider:      provider,
-			ModelName:          modelName,
-			ContextLimit:       prepared.ContextLimitFallback,
-			ToolNameAliases:    subagentToolNameAliases,
-			UnbilledToolNames:  unbilledSubagentToolNames,
-			BillingRecorder:    billingRecorder,
+			Tools:                 prepared.Tools,
+			ActiveTools:           prepared.ActiveTools,
+			AllowInactiveTools:    prepared.AllowInactiveTools,
+			ProviderTools:         prepared.ProviderTools,
+			ToolCalls:             allowed,
+			ObservedToolCalls:     decision.localToolCalls,
+			ExclusiveToolNames:    prepared.ExclusiveToolNames,
+			ExclusiveToolMessages: prepared.ExclusiveToolMessages,
+			BuiltinToolNames:      prepared.BuiltinToolNames,
+			ModelProvider:         provider,
+			ModelName:             modelName,
+			ContextLimit:          prepared.ContextLimitFallback,
+			ToolNameAliases:       subagentToolNameAliases,
+			UnbilledToolNames:     unbilledSubagentToolNames,
+			BillingRecorder:       billingRecorder,
 			ToolCallContext: func(ctx context.Context, tc fantasy.ToolCallContent) context.Context {
 				if id, ok := toolCallIDs[tc.ToolCallID]; ok {
 					return workspacesdk.WithToolCallID(ctx, id)
@@ -1149,6 +1155,14 @@ func (s *taskStarter) executeLocalTools(
 	}
 	chathooks.RestoreToolCallOrder(outcome.Content, decision.localToolCalls)
 	step := stepDataFromPersisted(outcome)
+	_, toolResults := splitStepContent(outcome.Content)
+	// An exclusive-rejected batch holds only policy results; ambiguous
+	// partition results are ordinary errors and count as rejected.
+	var policyDeniedIDs map[string]bool
+	if exclusiveRejected {
+		policyDeniedIDs = toolCallIDSet(toolResults)
+	}
+	recordContextToolOutcomes(s.server.metrics, toolResults, policyDeniedIDs)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
 		step:               step,
@@ -1159,7 +1173,17 @@ func (s *taskStarter) executeLocalTools(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	messages, err = appendHookResultMessages(messages, postResults, prepared.ModelConfigID)
+	// A successful context tool result turns this commit into a context
+	// boundary; the effect reads the persisted, hook-rewritten call args.
+	effect, hasEffect, err := contextBoundaryEffectFromStep(decision.localToolCalls, outcome.Content)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	if hasEffect {
+		messages, err = applyContextBoundaryEffect(messages, effect, postResults, prepared.ModelConfigID)
+	} else {
+		messages, err = appendHookResultMessages(messages, postResults, prepared.ModelConfigID)
+	}
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}

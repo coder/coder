@@ -349,6 +349,9 @@ coderd_chatd_chats{state=""} 0
 # HELP coderd_chatd_compaction_total Total compaction outcomes (only recorded when compaction was triggered or failed).
 # TYPE coderd_chatd_compaction_total counter
 coderd_chatd_compaction_total{provider="",model="",result=""} 0
+# HELP coderd_chatd_context_tool_calls_total Total clear_context and compact_context calls by outcome (success, rejected by the tool, or denied by policy). Counted when the batch executes, before its step commits.
+# TYPE coderd_chatd_context_tool_calls_total counter
+coderd_chatd_context_tool_calls_total{tool="",outcome=""} 0
 # HELP coderd_chatd_find_tools_activations_total Total deferred tool activations returned by find_tools.
 # TYPE coderd_chatd_find_tools_activations_total counter
 coderd_chatd_find_tools_activations_total 0

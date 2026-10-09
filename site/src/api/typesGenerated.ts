@@ -5649,6 +5649,7 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "chat-advisor"
 	| "chat-automations"
+	| "chat-context-tools"
 	| "chat-inline-mcp-servers"
 	| "chat-projects"
 	| "chat-stage-metrics"
@@ -5731,6 +5732,7 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"chat-advisor",
 	"chat-automations",
+	"chat-context-tools",
 	"chat-inline-mcp-servers",
 	"chat-projects",
 	"chat-stage-metrics",

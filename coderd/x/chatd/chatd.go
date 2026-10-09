@@ -3799,6 +3799,9 @@ type rootChatToolsOptions struct {
 	resolvePlanPath func(context.Context) (string, string, error)
 	storeFile       chattool.StoreFileFunc
 	isPlanModeTurn  bool
+	// messages is the decision-view history of the step being prepared;
+	// the context tools read it to reject calls with nothing to clear.
+	messages []database.ChatMessage
 }
 
 func (p *Server) loadPlanModeInstructions(
@@ -3963,6 +3966,9 @@ func (p *Server) appendRootChatTools(
 			IsPlanTurn:       opts.isPlanModeTurn,
 			StoreFile:        opts.storeFile,
 		}))
+	}
+	if p.experiments.Enabled(codersdk.ExperimentChatContextTools) {
+		tools = append(tools, clearContextTool(opts.messages))
 	}
 
 	return append(tools, p.subagentTools(ctx, func() database.Chat {

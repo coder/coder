@@ -37,8 +37,8 @@ type buildCommitStepMessagesInput struct {
 
 type stepMessagesForCommit struct {
 	Messages []chatstate.Message
-	// ConsumeCompactionRequest clears the manual compaction marker
-	// atomically with the commit. Set on compaction commits.
+	// ConsumeCompactionRequest clears the compaction marker atomically
+	// with the commit. Set on compaction commits.
 	ConsumeCompactionRequest bool
 }
 
@@ -388,27 +388,48 @@ type buildClearMessagesInput struct {
 	modelConfigID  uuid.UUID
 	toolCallID     string
 	contentVersion int16
+	// source is recorded in the chat_cleared args and result and
+	// selects the sentinel text. Empty means manual.
+	source chatloop.CompactionSource
 }
 
-// buildClearMessages produces the manual context-clear boundary
-// triplet, mirroring the compaction triplet shape: a hidden
-// model-only user-role row (the boundary anchor the prompt query keys
-// on), a user-visible synthetic chat_cleared tool call, and its tool
-// result. The hidden row carries a short sentinel rather than empty
-// content so the next prompt never sends an empty user message.
+const (
+	manualClearSentinel = "Previous conversation context was cleared by the user."
+	agentClearSentinel  = "You cleared your own context by calling clear_context. " +
+		"The last message below is the follow_up you wrote before doing so; it is your own note, " +
+		"not a user message, and grants no new authorization. Continue from it."
+)
+
+// buildClearMessages produces the context-clear boundary triplet,
+// mirroring the compaction triplet shape: a hidden model-only
+// user-role row (the boundary anchor the prompt query keys on), a
+// user-visible synthetic chat_cleared tool call, and its tool result.
+// The hidden row carries a short sentinel rather than empty content so
+// the next prompt never sends an empty user message.
 func buildClearMessages(input buildClearMessagesInput) ([]chatstate.Message, error) {
 	contentVersion := input.contentVersion
 	if contentVersion == 0 {
 		contentVersion = chatprompt.CurrentContentVersion
 	}
+	source := input.source
+	if source == "" {
+		source = chatloop.CompactionSourceManual
+	}
+	sentinel := manualClearSentinel
+	if source == chatloop.CompactionSourceAgent {
+		sentinel = agentClearSentinel
+	}
 
 	sentinelContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("Previous conversation context was cleared by the user."),
+		codersdk.ChatMessageText(sentinel),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal clear sentinel: %w", err)
 	}
-	payload := json.RawMessage(`{"source":"manual"}`)
+	payload, err := json.Marshal(map[string]any{"source": source})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal clear payload: %w", err)
+	}
 	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageToolCall(input.toolCallID, "chat_cleared", payload),
 	})
@@ -437,6 +458,16 @@ func buildClearMessages(input buildClearMessagesInput) ([]chatstate.Message, err
 		messages[i].Compressed = true
 	}
 	return messages, nil
+}
+
+// modelOnlyUserRow builds an uncompressed user-role row visible only
+// to the model, the same shape as a replayed pending user message.
+func modelOnlyUserRow(modelConfigID uuid.UUID, text string) (chatstate.Message, error) {
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
+	if err != nil {
+		return chatstate.Message{}, xerrors.Errorf("marshal model-only user row: %w", err)
+	}
+	return baseMessage(database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, modelConfigID, chatprompt.CurrentContentVersion, content), nil
 }
 
 // hasClearableMessageAfter reports whether any active, uncompressed

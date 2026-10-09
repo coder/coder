@@ -609,6 +609,7 @@ func (server *Server) prepareGeneration(
 			resolvePlanPath: resolvePlanPathForTools,
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
+			messages:        input.Messages,
 		})
 	}
 	// The offer decides the chat-automations experiment once per turn;
@@ -669,9 +670,16 @@ func (server *Server) prepareGeneration(
 		}))
 	}
 
-	var exclusiveToolNames map[string]bool
+	exclusiveToolNames := map[string]bool{}
+	exclusiveToolMessages := map[string]chatloop.ExclusiveToolMessages{}
+	if isRootChat {
+		for _, name := range contextToolNames {
+			exclusiveToolNames[name] = true
+			exclusiveToolMessages[name] = exclusiveContextToolMessages(name)
+		}
+	}
 	if advisorRuntime != nil {
-		exclusiveToolNames = map[string]bool{chatadvisor.ToolName: true}
+		exclusiveToolNames[chatadvisor.ToolName] = true
 	}
 
 	builtinToolNames := make(map[string]bool, len(tools))
@@ -882,26 +890,27 @@ func (server *Server) prepareGeneration(
 	}
 
 	return generationPrepared{
-		Chat:                 refreshedChat,
-		Messages:             input.Messages,
-		Model:                model,
-		Prompt:               prompt,
-		Tools:                tools,
-		ActiveTools:          activeToolNames,
-		AllowInactiveTools:   allowInactiveTools,
-		ProviderTools:        providerTools,
-		ModelBuildOptions:    modelOpts,
-		ResolvedProvider:     resolved.resolvedProvider,
-		StageModel:           resolved.stageModel(),
-		ModelConfigID:        modelConfig.ID,
-		CallTemplate:         resolved.newCall(),
-		ContextLimitFallback: modelConfig.ContextLimit,
-		DynamicToolNames:     dynamicToolNames,
-		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
-		ExclusiveToolNames:   exclusiveToolNames,
-		BuiltinToolNames:     builtinToolNames,
-		ToolNameToConfigID:   toolNameToConfigID,
-		MaxSteps:             server.chatLimits.MaxStepsPerTurn,
+		Chat:                  refreshedChat,
+		Messages:              input.Messages,
+		Model:                 model,
+		Prompt:                prompt,
+		Tools:                 tools,
+		ActiveTools:           activeToolNames,
+		AllowInactiveTools:    allowInactiveTools,
+		ProviderTools:         providerTools,
+		ModelBuildOptions:     modelOpts,
+		ResolvedProvider:      resolved.resolvedProvider,
+		StageModel:            resolved.stageModel(),
+		ModelConfigID:         modelConfig.ID,
+		CallTemplate:          resolved.newCall(),
+		ContextLimitFallback:  modelConfig.ContextLimit,
+		DynamicToolNames:      dynamicToolNames,
+		StopAfterTools:        stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
+		ExclusiveToolNames:    exclusiveToolNames,
+		ExclusiveToolMessages: exclusiveToolMessages,
+		BuiltinToolNames:      builtinToolNames,
+		ToolNameToConfigID:    toolNameToConfigID,
+		MaxSteps:              server.chatLimits.MaxStepsPerTurn,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			ChatModelConfig: modelConfig,

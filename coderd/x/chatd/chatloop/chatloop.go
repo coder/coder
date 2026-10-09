@@ -159,9 +159,13 @@ type ExecuteLocalToolsOptions struct {
 	ObservedToolCalls []fantasy.ToolCallContent
 
 	ExclusiveToolNames map[string]bool
-	BuiltinToolNames   map[string]bool
-	ModelProvider      string
-	ModelName          string
+	// ExclusiveToolMessages overrides, per exclusive tool name, the
+	// error text of a rejected mixed batch. Empty fields and tools
+	// without an entry get the default text.
+	ExclusiveToolMessages map[string]ExclusiveToolMessages
+	BuiltinToolNames      map[string]bool
+	ModelProvider         string
+	ModelName             string
 
 	// ContextLimit is the model's context window in tokens. It is used
 	// to derive a per-result byte budget so a single oversized tool
@@ -597,6 +601,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 	policyResults, exclusiveViolation := applyExclusiveToolPolicy(
 		localCalls,
 		opts.ExclusiveToolNames,
+		opts.ExclusiveToolMessages,
 		opts.Metrics,
 		provider,
 		modelName,
@@ -1351,6 +1356,7 @@ func executeTools(
 func applyExclusiveToolPolicy(
 	toolCalls []fantasy.ToolCallContent,
 	exclusiveToolNames map[string]bool,
+	messages map[string]ExclusiveToolMessages,
 	metrics *Metrics,
 	provider, model string,
 ) ([]fantasy.ToolResultContent, bool) {
@@ -1358,7 +1364,7 @@ func applyExclusiveToolPolicy(
 	if !ok {
 		return nil, false
 	}
-	results := exclusiveToolPolicyResults(toolCalls, exclusiveToolNames, blockingToolName)
+	results := exclusiveToolPolicyResults(toolCalls, exclusiveToolNames, messages, blockingToolName)
 	for _, tr := range results {
 		recordToolResultMetrics(metrics, provider, model, tr)
 	}
@@ -1406,13 +1412,21 @@ func firstExclusiveToolName(
 func exclusiveToolPolicyResults(
 	toolCalls []fantasy.ToolCallContent,
 	exclusiveToolNames map[string]bool,
+	messages map[string]ExclusiveToolMessages,
 	blockingToolName string,
 ) []fantasy.ToolResultContent {
+	skippedMessage := messages[blockingToolName].Skipped
+	if skippedMessage == "" {
+		skippedMessage = exclusiveToolSkippedErrorMessage(blockingToolName)
+	}
 	results := make([]fantasy.ToolResultContent, len(toolCalls))
 	for i, tc := range toolCalls {
-		message := exclusiveToolSkippedErrorMessage(blockingToolName)
+		message := skippedMessage
 		if exclusiveToolNames[tc.ToolName] {
-			message = exclusiveToolMustRunAloneErrorMessage(tc.ToolName)
+			message = messages[tc.ToolName].MustRunAlone
+			if message == "" {
+				message = exclusiveToolMustRunAloneErrorMessage(tc.ToolName)
+			}
 		}
 		results[i] = fantasy.ToolResultContent{
 			ToolCallID: tc.ToolCallID,
@@ -1423,6 +1437,15 @@ func exclusiveToolPolicyResults(
 		}
 	}
 	return results
+}
+
+// ExclusiveToolMessages is the error text of a mixed batch rejected
+// because it contained an exclusive tool.
+type ExclusiveToolMessages struct {
+	// Skipped is written to the non-exclusive sibling calls.
+	Skipped string
+	// MustRunAlone is written to the exclusive call itself.
+	MustRunAlone string
 }
 
 func exclusiveToolMustRunAloneErrorMessage(toolName string) string {
