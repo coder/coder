@@ -15,10 +15,6 @@ import { isWorkspaceNotFound } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
 import { authorizationKey } from "./authCheck";
-import {
-	projectEditedConversationIntoCache,
-	reconcileEditedMessageInCache,
-} from "./chatMessageEdits";
 import { organizationsPermissions } from "./organizations";
 import { workspaceQuotaKey } from "./workspaceQuota";
 import { invalidateWorkspaceListQueries } from "./workspaces";
@@ -1048,15 +1044,6 @@ export const invalidateChatPrompts = (
 		exact: true,
 	});
 
-export const invalidateChatMessages = (
-	queryClient: QueryClient,
-	chatId: string,
-) =>
-	queryClient.invalidateQueries({
-		queryKey: chatMessagesKey(chatId),
-		exact: true,
-	});
-
 export const invalidateChatACL = (queryClient: QueryClient, chatId: string) =>
 	queryClient.invalidateQueries({
 		queryKey: chatACLKey(chatId),
@@ -1129,12 +1116,6 @@ export const resetUnloadedChatEntity = (
 	});
 };
 
-export const cancelChatMessages = (queryClient: QueryClient, chatId: string) =>
-	queryClient.cancelQueries({
-		queryKey: chatMessagesKey(chatId),
-		exact: true,
-	});
-
 export const removeChatEntity = (queryClient: QueryClient, chatId: string) =>
 	queryClient.removeQueries({
 		queryKey: chatEntityKey(chatId),
@@ -1170,16 +1151,20 @@ export const patchChatEntity = (
 		updater,
 	);
 
+export type ChatMessagesData = InfiniteData<TypesGen.ChatMessagesResponse>;
+
+// Every write to a chat's messages after the first page loads is an update of
+// the current pages. Replacing them, as a refetch does, drops stream writes
+// made while it was in flight.
 export const patchChatMessages = (
 	queryClient: QueryClient,
 	chatId: string,
-	updater: (
-		data: InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
-	) => InfiniteData<TypesGen.ChatMessagesResponse> | undefined,
+	updater: (data: ChatMessagesData | undefined) => ChatMessagesData | undefined,
 ) =>
-	queryClient.setQueryData<
-		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-	>(chatMessagesKey(chatId), updater);
+	queryClient.setQueryData<ChatMessagesData | undefined>(
+		chatMessagesKey(chatId),
+		updater,
+	);
 
 const replaceMessagesInPage = (
 	page: TypesGen.ChatMessagesResponse,
@@ -1616,6 +1601,12 @@ const fetchMessagesPage = async (
 
 export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
+	// The chat stream keeps the cached pages current, and when the chat page
+	// mounts again it resends what changed since the page's history_version.
+	// A refetch would reload every loaded page and race the stream, so the
+	// query is static: mounting, window focus, coming back online and
+	// invalidation do not refetch it.
+	staleTime: "static" as const,
 	initialPageParam: undefined as number | undefined,
 	queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
 		fetchMessagesPage(chatId, pageParam),
@@ -1629,6 +1620,40 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 		return lastPage.messages[lastPage.messages.length - 1].id;
 	},
 });
+
+/**
+ * Loads the page before the oldest cached message and appends it to the
+ * cached pages as they are when it arrives, so stream writes made while it
+ * loads are kept. fetchNextPage would append it to the pages cached when the
+ * request started instead.
+ */
+export const loadOlderChatMessages = async (
+	queryClient: QueryClient,
+	chatId: string,
+): Promise<void> => {
+	const { queryFn, getNextPageParam } = chatMessagesForInfiniteScroll(chatId);
+	const nextPageParam = (data: ChatMessagesData | undefined) => {
+		const lastPage = data?.pages.at(-1);
+		return lastPage && getNextPageParam(lastPage);
+	};
+	const beforeID = nextPageParam(
+		queryClient.getQueryData<ChatMessagesData>(chatMessagesKey(chatId)),
+	);
+	if (beforeID === undefined) {
+		return;
+	}
+	const page = await queryFn({ pageParam: beforeID });
+	patchChatMessages(queryClient, chatId, (current) =>
+		// Drop the page if another load appended first or a history reset
+		// replaced the pages; appending it would duplicate or misplace messages.
+		current && nextPageParam(current) === beforeID
+			? {
+					pages: [...current.pages, page],
+					pageParams: [...current.pageParams, beforeID],
+				}
+			: current,
+	);
+};
 
 // Cap requested prompts to keep the response small; well under the server-side maximum.
 const PROMPT_HISTORY_LIMIT = 500;
@@ -2448,77 +2473,15 @@ export const createChatMessageByChatId = (queryClient: QueryClient) => ({
 
 type EditChatMessageMutationArgs = {
 	messageId: number;
-	optimisticMessage?: TypesGen.ChatMessage;
 	req: TypesGen.EditChatMessageRequest;
 };
 
-type EditChatMessageMutationContext = {
-	previousData?: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
-};
-
+// useChatStore's applyEditResponse writes the edit's messages, unless the
+// stream has moved past them.
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),
-	onMutate: async ({
-		messageId,
-		optimisticMessage,
-	}: EditChatMessageMutationArgs): Promise<EditChatMessageMutationContext> => {
-		// Cancel in-flight refetches so they don't overwrite the
-		// optimistic update before the mutation completes.
-		await cancelChatMessages(queryClient, chatId);
-
-		const previousData = queryClient.getQueryData<
-			InfiniteData<TypesGen.ChatMessagesResponse>
-		>(chatMessagesKey(chatId));
-
-		patchChatMessages(queryClient, chatId, (current) =>
-			projectEditedConversationIntoCache({
-				currentData: current,
-				editedMessageId: messageId,
-				replacementMessage: optimisticMessage,
-				queuedMessages: [],
-			}),
-		);
-
-		return { previousData };
-	},
-	onError: (
-		_error: unknown,
-		_variables: EditChatMessageMutationArgs,
-		context: EditChatMessageMutationContext | undefined,
-	) => {
-		// Restore the cache on failure so the user sees the
-		// original messages again.
-		if (context?.previousData) {
-			patchChatMessages(queryClient, chatId, () => context.previousData);
-		}
-		// Invalidate messages as a safety net: the restored snapshot
-		// may be missing WebSocket-delivered messages that arrived
-		// during the mutation's flight time.
-		void invalidateChatMessages(queryClient, chatId);
-	},
-	onSuccess: (
-		response: TypesGen.EditChatMessageResponse,
-		variables: EditChatMessageMutationArgs,
-	) => {
-		patchChatMessages(queryClient, chatId, (current) =>
-			reconcileEditedMessageInCache({
-				currentData: current,
-				optimisticMessageId: variables.messageId,
-				responseMessages: response.messages ?? [response.message],
-				deletedMessageIds: response.deleted_message_ids,
-			}),
-		);
-	},
 	onSettled: () => {
-		// Refresh chat metadata (status, title, etc.). The messages
-		// query is intentionally NOT invalidated here. The per-chat
-		// WebSocket handles post-edit message delivery via
-		// FullRefresh, making REST invalidation unnecessary.
-		// Invalidating chatMessagesKey would trigger a redundant
-		// refetch that causes extra store mutations while the
-		// sticky user message is settling after the optimistic
-		// truncation.
 		void invalidateChatEntity(queryClient, chatId);
 		void invalidateChatPrompts(queryClient, chatId);
 		void invalidateChatDebugRuns(queryClient, chatId);
@@ -2546,11 +2509,9 @@ export const compactChat = (queryClient: QueryClient, chatId: string) => ({
 export const clearChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.experimental.clearChat(chatId),
 	onSuccess: () => {
+		// The stream delivers the boundary messages, so only the chat itself
+		// is refetched.
 		void invalidateChatEntity(queryClient, chatId);
-		// The clear commits its boundary rows synchronously with no
-		// worker turn, so the transcript must be refetched here rather
-		// than relying on streamed message events.
-		void invalidateChatMessages(queryClient, chatId);
 	},
 });
 
@@ -2594,8 +2555,9 @@ export const deleteChatQueuedMessage = (
 	mutationFn: (queuedMessageId: number) =>
 		API.experimental.deleteChatQueuedMessage(chatId, queuedMessageId),
 	onSuccess: async () => {
+		// The stream delivers the new queue, so only the chat itself is
+		// refetched.
 		await invalidateChatEntity(queryClient, chatId);
-		await invalidateChatMessages(queryClient, chatId);
 	},
 });
 

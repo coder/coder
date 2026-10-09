@@ -22,6 +22,7 @@ import {
 	getOpenChatPollInterval,
 	interruptChat,
 	invalidateChatEntity,
+	loadOlderChatMessages,
 	mcpServerConfigs,
 	openChat,
 	patchChatEntity,
@@ -297,7 +298,6 @@ const AgentChatPage: React.FC = () => {
 					messages: chatMessagesList,
 					queued_messages: chatQueuedMessages ?? [],
 					has_more: Boolean(chatMessagesQuery.data?.pages.at(-1)?.has_more),
-					history_version: chatMessagesQuery.data?.pages[0]?.history_version,
 				}
 			: undefined;
 	const chatLastModelConfigID = chat?.last_model_config_id;
@@ -313,6 +313,13 @@ const AgentChatPage: React.FC = () => {
 	const { isPending: isEditPending, mutateAsync: editMessage } = useMutation(
 		editChatMessage(queryClient, agentId),
 	);
+	const {
+		isPending: isLoadOlderMessagesPending,
+		isError: isLoadOlderMessagesError,
+		mutate: loadOlderMessages,
+	} = useMutation({
+		mutationFn: () => loadOlderChatMessages(queryClient, agentId),
+	});
 	const { isPending: isInterruptPending, mutateAsync: interrupt } = useMutation(
 		interruptChat(queryClient, agentId),
 	);
@@ -391,7 +398,8 @@ const AgentChatPage: React.FC = () => {
 		acceptServerChatStatus,
 		setCacheQueuedMessages,
 		getCacheQueuedMessages,
-		upsertCacheMessages,
+		applySendResponse,
+		applyEditResponse,
 	} = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
@@ -668,7 +676,8 @@ const AgentChatPage: React.FC = () => {
 			void invalidateChatEntity(queryClient, chatId);
 		},
 		scrollToEnd,
-		upsertCacheMessages,
+		applySendResponse,
+		applyEditResponse,
 		getCacheQueuedMessages,
 		setCacheQueuedMessages,
 		fetchQueueConvergence: (chatId: string) =>
@@ -827,10 +836,10 @@ const AgentChatPage: React.FC = () => {
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}
 					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
-					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
+					isFetchingMoreMessages={isLoadOlderMessagesPending}
 					isHydratingMessages={isHydratingMessages}
-					hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
-					onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+					hasFetchMoreError={isLoadOlderMessagesError}
+					onFetchMoreMessages={loadOlderMessages}
 					desktopChatId={desktopEnabled ? agentId : undefined}
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}

@@ -28,7 +28,6 @@ import {
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	settlePromotedQueueHead,
-	submitEdit,
 } from "./chatQueueReconciliation";
 import type { ChatStore } from "./chatStore";
 
@@ -57,16 +56,19 @@ export type SubmitChatTurnParams = {
 	mcpServerIds: readonly string[];
 	editMessage: (args: {
 		messageId: number;
-		optimisticMessage?: TypesGen.ChatMessage;
 		req: TypesGen.EditChatMessageRequest;
-	}) => Promise<unknown>;
+	}) => Promise<TypesGen.EditChatMessageResponse>;
 	sendMessage: (
 		req: CreateChatMessageRequestWithClearablePlanMode,
 	) => Promise<TypesGen.CreateChatMessageResponse>;
 	onRequestError: (error: unknown) => void;
 	invalidateChat: (chatId: string) => void;
 	scrollToEnd: (options: { behavior: "smooth" }) => void;
-	upsertCacheMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
+	applySendResponse: (messages: readonly TypesGen.ChatMessage[]) => void;
+	applyEditResponse: (
+		messages: readonly TypesGen.ChatMessage[],
+		editedMessageID: number,
+	) => void;
 	getCacheQueuedMessages: () =>
 		| readonly TypesGen.ChatQueuedMessage[]
 		| undefined;
@@ -273,7 +275,8 @@ export async function submitChatTurn(
 		onRequestError,
 		invalidateChat,
 		scrollToEnd,
-		upsertCacheMessages,
+		applySendResponse,
+		applyEditResponse,
 		getCacheQueuedMessages,
 		setCacheQueuedMessages,
 		fetchQueueConvergence,
@@ -342,30 +345,26 @@ export async function submitChatTurn(
 					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
 				})
 			: undefined;
-		const previousSnapshot = store.getSnapshot();
-		clearChatErrorReason(agentId);
-		store.clearStreamError();
-		store.batch(() => {
-			store.setQueuedMessages([]);
-			store.setChatStatus("running");
-			store.clearStreamState();
-		});
-		await submitEdit({
-			editMessage,
-			editArgs: {
+		store.setPendingEdit({ messageID: editedMessageID, optimisticMessage });
+		let response: TypesGen.EditChatMessageResponse;
+		try {
+			response = await editMessage({
 				messageId: editedMessageID,
-				optimisticMessage,
 				req: request,
-			},
-			onError: (error) => {
-				restoreOptimisticRequestSnapshot(store, previousSnapshot);
-				onRequestError(error);
-				// Hook dispatch failures can park an idle chat in error before
-				// returning the request error.
-				acceptServerChatStatus();
-				invalidateChat(agentId);
-			},
-		});
+			});
+		} catch (error) {
+			store.setPendingEdit(null);
+			onRequestError(error);
+			// Hook dispatch failures can park an idle chat in error before
+			// returning the request error.
+			acceptServerChatStatus();
+			invalidateChat(agentId);
+			throw error;
+		}
+		applyEditResponse(response.messages ?? [response.message], editedMessageID);
+		// applyEditResponse or the stream's history_reset has usually ended the
+		// edit already; clearing it here makes sure no edit outlives its request.
+		store.setPendingEdit(null);
 		scrollToEnd({ behavior: "smooth" });
 		return;
 	}
@@ -410,15 +409,13 @@ export async function submitChatTurn(
 		// instead, the WebSocket event overrides this optimistic value.
 		store.setChatStatus("running");
 	}
-	// Upsert the full batch because a queued send can insert a promoted
-	// head below the highest cached ID, which a reconnect would skip.
+	// Apply every inserted message, not only response.message: a send can also
+	// insert cancellations and a promoted queue head, whose lower IDs an
+	// after_id reconnect would skip.
 	const insertedMessages =
 		response.messages ?? (response.message ? [response.message] : []);
 	if (insertedMessages.length > 0) {
-		upsertCacheMessages(insertedMessages);
-		if (isActiveChat) {
-			store.upsertDurableMessages(insertedMessages);
-		}
+		applySendResponse(insertedMessages);
 		if (response.queued) {
 			applyQueuedSendReconciliation({
 				store,

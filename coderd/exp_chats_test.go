@@ -10306,6 +10306,72 @@ func TestStreamChat(t *testing.T) {
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), tab.sortedIDs(), "the tab is missing messages sent while it was not reading its stream")
 	})
 
+	// The web client does not refetch the messages after a clear or after a
+	// queued message is deleted; it relies on the stream for both.
+	t.Run("ClearSyncsOverStream", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "prompt"}},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+
+		page, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		tab := newChatTab(page)
+		_, events := tab.connect(ctx, t, client, chat.ID)
+		held := tab.sortedIDs()
+
+		_, err = client.ClearChat(ctx, chat.ID)
+		require.NoError(t, err)
+		live := liveChatMessageIDs(ctx, t, client, chat.ID)
+		require.Greater(t, len(live), len(held), "the clear adds visible messages")
+		tab.applyUntil(ctx, t, events, func(event codersdk.ChatStreamEvent) bool {
+			return event.Type == codersdk.ChatStreamEventTypePreviewReset && slices.Equal(tab.sortedIDs(), live)
+		})
+	})
+
+	t.Run("DeleteQueuedSyncsOverStream", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "delete queued over stream",
+			Status:            database.ChatStatusError,
+		})
+		content, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
+		require.NoError(t, err)
+		deleted := insertTestChatQueuedMessage(ctx, t, db, chat.ID, content, modelConfig.ID)
+		kept := insertTestChatQueuedMessage(ctx, t, db, chat.ID, content, modelConfig.ID)
+
+		page, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		tab := newChatTab(page)
+		_, events := tab.connect(ctx, t, client, chat.ID)
+
+		res, err := client.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, deleted.ID), nil)
+		require.NoError(t, err)
+		res.Body.Close()
+		require.Equal(t, http.StatusNoContent, res.StatusCode)
+
+		tab.applyUntil(ctx, t, events, func(event codersdk.ChatStreamEvent) bool {
+			return event.Type == codersdk.ChatStreamEventTypeQueueUpdate &&
+				len(event.QueuedMessages) == 1 && event.QueuedMessages[0].ID == kept.ID
+		})
+	})
+
 	t.Run("NegativeHistoryVersionReturns400", func(t *testing.T) {
 		t.Parallel()
 
