@@ -20,29 +20,29 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { formatKiB } from "#/utils/fileSize";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
-	buildPersonalSkillMarkdown,
-	getPersonalSkillContentSizeBytes,
-	isValidPersonalSkillDescription,
-	isValidPersonalSkillName,
-	PERSONAL_SKILL_MAX_SIZE_BYTES,
-	type PersonalSkillFormValues,
-	tryParsePersonalSkillMarkdown,
-} from "../utils/personalSkills";
+	buildSkillMarkdown,
+	getSkillContentSizeBytes,
+	isValidSkillDescription,
+	isValidSkillName,
+	SKILL_MAX_SIZE_BYTES,
+	type SkillFormValues,
+	tryParseSkillMarkdown,
+} from "../utils/skills";
 
-export type PersonalSkillErrorDisplay = {
+export type SkillErrorDisplay = {
 	message: string;
 	detail?: string;
 };
 
-type PersonalSkillEditorProps = {
+type SkillEditorProps = {
 	open: boolean;
 	mode: "create" | "edit";
-	initialValues: PersonalSkillFormValues;
+	initialValues: SkillFormValues;
 	existingNames: readonly string[];
-	submitError?: PersonalSkillErrorDisplay;
+	submitError?: SkillErrorDisplay;
 	isSubmitting: boolean;
 	onOpenChange: (open: boolean) => void;
-	onSubmit: (values: PersonalSkillFormValues, content: string) => void;
+	onSubmit: (values: SkillFormValues, content: string) => void;
 };
 
 type ImportStatus = {
@@ -57,7 +57,7 @@ const beginsWithFrontmatterDelimiter = (content: string): boolean =>
 		.split(/\r?\n/, 1)[0]
 		?.trim() === "---";
 
-export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
+export const SkillEditor: React.FC<SkillEditorProps> = ({
 	open,
 	mode,
 	initialValues,
@@ -82,7 +82,7 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 			.test(
 				"skill-name",
 				"Use kebab-case with lowercase letters, numbers, and single hyphens, up to 256 bytes.",
-				(value) => Boolean(value && isValidPersonalSkillName(value.trim())),
+				(value) => Boolean(value && isValidSkillName(value.trim())),
 			)
 			.test(
 				"unique-name",
@@ -96,28 +96,26 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 		description: Yup.string().test(
 			"description-size",
 			"Description must be 4096 bytes or smaller.",
-			(value) => isValidPersonalSkillDescription(value ?? ""),
+			(value) => isValidSkillDescription(value ?? ""),
 		),
 		body: Yup.string().test("body-required", "Body is required.", (value) =>
 			Boolean(value?.trim()),
 		),
 	});
 
-	const validate = (
-		values: PersonalSkillFormValues,
-	): FormikErrors<PersonalSkillFormValues> => {
+	const validate = (values: SkillFormValues): FormikErrors<SkillFormValues> => {
 		if (
-			getPersonalSkillContentSizeBytes(buildPersonalSkillMarkdown(values)) <=
-			PERSONAL_SKILL_MAX_SIZE_BYTES
+			getSkillContentSizeBytes(buildSkillMarkdown(values)) <=
+			SKILL_MAX_SIZE_BYTES
 		) {
 			return {};
 		}
 		return {
-			body: `Skill content must be ${formatKiB(PERSONAL_SKILL_MAX_SIZE_BYTES)} or smaller.`,
+			body: `Skill content must be ${formatKiB(SKILL_MAX_SIZE_BYTES)} or smaller.`,
 		};
 	};
 
-	const form = useFormik<PersonalSkillFormValues>({
+	const form = useFormik<SkillFormValues>({
 		initialValues,
 		enableReinitialize: true,
 		validationSchema,
@@ -128,7 +126,7 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 				description: values.description.trim(),
 				body: values.body.trim(),
 			};
-			onSubmit(normalizedValues, buildPersonalSkillMarkdown(normalizedValues));
+			onSubmit(normalizedValues, buildSkillMarkdown(normalizedValues));
 		},
 	});
 
@@ -143,7 +141,7 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 			return;
 		}
 
-		const result = tryParsePersonalSkillMarkdown(contentToImport);
+		const result = tryParseSkillMarkdown(contentToImport);
 		if (!result.ok) {
 			setImportStatus({
 				kind: "error",
@@ -191,11 +189,11 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 		}
 
 		setImportStatus(null);
-		if (file.size > PERSONAL_SKILL_MAX_SIZE_BYTES) {
+		if (file.size > SKILL_MAX_SIZE_BYTES) {
 			setImportStatus({
 				kind: "error",
 				title: "File is too large",
-				detail: `Choose a file that is ${formatKiB(PERSONAL_SKILL_MAX_SIZE_BYTES)} or smaller.`,
+				detail: `Choose a file that is ${formatKiB(SKILL_MAX_SIZE_BYTES)} or smaller.`,
 			});
 			return;
 		}
@@ -244,15 +242,15 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 		void importSkillMarkdown(pastedContent);
 	};
 
-	const content = buildPersonalSkillMarkdown(form.values);
-	const sizeBytes = getPersonalSkillContentSizeBytes(content);
+	const content = buildSkillMarkdown(form.values);
+	const sizeBytes = getSkillContentSizeBytes(content);
 	const nameError = form.touched.name ? form.errors.name : undefined;
 	const descriptionError = form.touched.description
 		? form.errors.description
 		: undefined;
 	const bodyError = form.touched.body ? form.errors.body : undefined;
-	const isTooLarge = sizeBytes > PERSONAL_SKILL_MAX_SIZE_BYTES;
-	const isNearLimit = sizeBytes > PERSONAL_SKILL_MAX_SIZE_BYTES * 0.9;
+	const isTooLarge = sizeBytes > SKILL_MAX_SIZE_BYTES;
+	const isNearLimit = sizeBytes > SKILL_MAX_SIZE_BYTES * 0.9;
 	const title = isCreate ? "Create personal skill" : "Edit personal skill";
 	const submitLabel = isCreate ? "Create skill" : "Save skill";
 
@@ -444,8 +442,7 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 									isTooLarge && "text-content-destructive",
 								)}
 							>
-								{formatKiB(sizeBytes)} of{" "}
-								{formatKiB(PERSONAL_SKILL_MAX_SIZE_BYTES)}
+								{formatKiB(sizeBytes)} of {formatKiB(SKILL_MAX_SIZE_BYTES)}
 								used.
 							</p>
 						</div>

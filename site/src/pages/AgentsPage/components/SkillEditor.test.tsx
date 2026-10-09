@@ -1,8 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { PERSONAL_SKILL_MAX_SIZE_BYTES } from "../utils/personalSkills";
-import { PersonalSkillEditor } from "./PersonalSkillEditor";
+import { SKILL_MAX_SIZE_BYTES } from "../utils/skills";
+import { SkillEditor } from "./SkillEditor";
 
 const markdown =
 	"---\nname: imported-skill\ndescription: Imported guidance.\n---\n\nUse imported instructions.";
@@ -10,7 +10,7 @@ const markdown =
 const renderEditor = (mode: "create" | "edit" = "create") => {
 	const onSubmit = vi.fn();
 	render(
-		<PersonalSkillEditor
+		<SkillEditor
 			open
 			mode={mode}
 			initialValues={
@@ -31,7 +31,7 @@ const renderEditor = (mode: "create" | "edit" = "create") => {
 	return { user: userEvent.setup(), onSubmit };
 };
 
-describe("PersonalSkillEditor file import", () => {
+describe("SkillEditor file import", () => {
 	it.each(["create", "edit"] as const)(
 		"imports a file before submitting in %s mode",
 		async (mode) => {
@@ -69,7 +69,7 @@ describe("PersonalSkillEditor file import", () => {
 		},
 		{ content: " \n", error: "File is empty" },
 		{
-			content: "x".repeat(PERSONAL_SKILL_MAX_SIZE_BYTES + 1),
+			content: "x".repeat(SKILL_MAX_SIZE_BYTES + 1),
 			error: "File is too large",
 		},
 	])("preserves edits when $error", async ({ content, error }) => {

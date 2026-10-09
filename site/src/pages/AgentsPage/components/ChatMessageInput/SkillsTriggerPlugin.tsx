@@ -12,7 +12,7 @@ import {
 	type NodeKey,
 } from "lexical";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
-import { parsePersonalSkillTrigger } from "../../utils/personalSkills";
+import { parseSkillTrigger } from "../../utils/skills";
 import type { SkillMenuItem } from "./SkillsTriggerMenu";
 
 export type ActiveSkillsTrigger = {
@@ -64,7 +64,7 @@ const activeTriggerFromSelection = (): ActiveSkillsTrigger | null => {
 
 	const textBeforeCaret = node.getTextContent().slice(0, anchor.offset);
 	const lineStart = textBeforeCaret.lastIndexOf("\n") + 1;
-	const trigger = parsePersonalSkillTrigger(textBeforeCaret.slice(lineStart));
+	const trigger = parseSkillTrigger(textBeforeCaret.slice(lineStart));
 	if (!trigger) {
 		return null;
 	}
