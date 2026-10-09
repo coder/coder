@@ -255,6 +255,104 @@ func TestInsertCustomRoles(t *testing.T) {
 	}
 }
 
+// TestCustomRoleChatUpdate checks the delegated chat permission against the
+// real authorizer on both role creation and editing.
+func TestCustomRoleChatUpdate(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	otherOrgID := uuid.New()
+	chatUpdate := database.CustomRolePermissions{{ResourceType: rbac.ResourceChat.Type, Action: policy.ActionUpdate}}
+	workspaceRead := database.CustomRolePermissions{{ResourceType: rbac.ResourceWorkspace.Type, Action: policy.ActionRead}}
+
+	cases := []struct {
+		name      string
+		roles     rbac.ExpandableRoles
+		orgID     uuid.UUID
+		perms     database.CustomRolePermissions
+		wantError string
+	}{
+		{
+			name:  "org-admin-chat-update",
+			roles: rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(orgID)},
+			orgID: orgID,
+			perms: chatUpdate,
+		},
+		{
+			name:  "site-owner-chat-update",
+			roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
+			orgID: orgID,
+			perms: chatUpdate,
+		},
+		{
+			name:      "non-role-manager-chat-update",
+			roles:     rbac.RoleIdentifiers{rbac.RoleMember()},
+			orgID:     orgID,
+			perms:     chatUpdate,
+			wantError: "forbidden",
+		},
+		{
+			name:      "org-admin-foreign-org-chat-update",
+			roles:     rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(orgID)},
+			orgID:     otherOrgID,
+			perms:     chatUpdate,
+			wantError: "forbidden",
+		},
+		{
+			name:  "org-admin-workspace-read-unchanged",
+			roles: rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(orgID)},
+			orgID: orgID,
+			perms: workspaceRead,
+		},
+		{
+			name:      "org-admin-foreign-org-workspace-read-unchanged",
+			roles:     rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(orgID)},
+			orgID:     otherOrgID,
+			perms:     workspaceRead,
+			wantError: "forbidden",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			az := dbauthz.New(db, rbac.NewAuthorizer(prometheus.NewRegistry()), slog.Make(), coderdtest.AccessControlStorePointer())
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			actor := rbac.Subject{ID: uuid.NewString(), Roles: tc.roles, Scope: rbac.ScopeAll}
+			actorCtx := dbauthz.As(ctx, actor)
+			org := uuid.NullUUID{UUID: tc.orgID, Valid: true}
+
+			// The owner creates a separate empty role for the update attempt.
+			ownerCtx := dbauthz.As(ctx, rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleOwner()}, Scope: rbac.ScopeAll})
+			editName := "edit-" + uuid.NewString()
+			_, err := az.InsertCustomRole(ownerCtx, database.InsertCustomRoleParams{
+				Name: editName, OrganizationID: org,
+			})
+			require.NoError(t, err)
+
+			_, err = az.InsertCustomRole(actorCtx, database.InsertCustomRoleParams{
+				Name: "create-" + uuid.NewString(), OrganizationID: org,
+				OrgPermissions: tc.perms,
+			})
+			if tc.wantError != "" {
+				require.ErrorContains(t, err, tc.wantError)
+			} else {
+				require.NoError(t, err)
+			}
+
+			_, err = az.UpdateCustomRole(actorCtx, database.UpdateCustomRoleParams{
+				Name: editName, OrganizationID: org, OrgPermissions: tc.perms,
+			})
+			if tc.wantError != "" {
+				require.ErrorContains(t, err, tc.wantError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func convertSDKPerm(perm codersdk.Permission) database.CustomRolePermission {
 	return database.CustomRolePermission{
 		Negate:       perm.Negate,

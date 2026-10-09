@@ -1250,6 +1250,20 @@ func TestPostChats(t *testing.T) {
 		}
 
 		setDefaults([]string{codersdk.RoleOrganizationWorkspaceAccess})
+		orgAdminRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
+		for _, adminClient := range []*codersdk.ExperimentalClient{client, codersdk.NewExperimentalClient(orgAdminRaw)} {
+			chat, err := adminClient.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+				Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "admin without agents-access"}},
+			})
+			require.NoError(t, err)
+			err = adminClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Title: ptr.Ref("own chat")})
+			require.NoError(t, err)
+			_, err = adminClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "follow-up"}},
+			})
+			require.NoError(t, err)
+		}
 		requireSDKError(t, createChat(), http.StatusForbidden)
 
 		setMemberRoles([]string{codersdk.RoleAgentsAccess})
@@ -10234,6 +10248,51 @@ func TestInterruptChat(t *testing.T) {
 		require.True(t, persisted.HeartbeatAt.Valid)
 	})
 
+	t.Run("PrivilegedNonOwners", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		siteAdmin, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		firstUser := coderdtest.CreateFirstUser(t, siteAdmin.Client)
+		modelConfig := createChatModel(t, siteAdmin)
+		_, owner := coderdtest.CreateAnotherUser(t, siteAdmin.Client, firstUser.OrganizationID)
+		siteOwnerRaw, _ := coderdtest.CreateAnotherUser(t, siteAdmin.Client, firstUser.OrganizationID, rbac.RoleOwner())
+		orgAdminRaw, _ := coderdtest.CreateAnotherUser(t, siteAdmin.Client, firstUser.OrganizationID, rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
+
+		for _, tc := range []struct {
+			name   string
+			client *codersdk.ExperimentalClient
+		}{
+			{name: "SiteAdmin", client: siteAdmin},
+			{name: "SiteOwner", client: codersdk.NewExperimentalClient(siteOwnerRaw)},
+			{name: "OrgAdmin", client: codersdk.NewExperimentalClient(orgAdminRaw)},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				chat := dbgen.Chat(t, db, database.Chat{
+					OrganizationID:    firstUser.OrganizationID,
+					OwnerID:           owner.ID,
+					LastModelConfigID: modelConfig.ID,
+				})
+				var err error
+				chat, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+					ID:          chat.ID,
+					Status:      database.ChatStatusRunning,
+					WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+					StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+					HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+				})
+				require.NoError(t, err)
+
+				interrupted, err := tc.client.InterruptChat(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, codersdk.ChatStatusInterrupting, interrupted.Status)
+				persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, database.ChatStatusInterrupting, persisted.Status)
+			})
+		}
+	})
+
 	t.Run("ChatNotFound", func(t *testing.T) {
 		t.Parallel()
 
@@ -10429,9 +10488,9 @@ func TestCompactChat(t *testing.T) {
 		clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Authorizer: &coderdtest.FakeAuthorizer{
 				ConditionalReturn: func(_ context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
-					// dbgen seeds rows with a synthetic "owner" subject;
-					// message inserts need chat update, so let them pass.
-					if subject.ID == "owner" {
+					// dbgen seeds chat messages as the system actor and other
+					// rows as a synthetic "owner" subject.
+					if subject.ID == "owner" || subject.Type == rbac.SubjectTypeSystemRestricted {
 						return nil
 					}
 					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
@@ -10690,9 +10749,9 @@ func TestClearChat(t *testing.T) {
 		clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Authorizer: &coderdtest.FakeAuthorizer{
 				ConditionalReturn: func(_ context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
-					// dbgen seeds rows with a synthetic "owner" subject;
-					// message inserts need chat update, so let them pass.
-					if subject.ID == "owner" {
+					// dbgen seeds chat messages as the system actor and other
+					// rows as a synthetic "owner" subject.
+					if subject.ID == "owner" || subject.Type == rbac.SubjectTypeSystemRestricted {
 						return nil
 					}
 					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
@@ -11645,12 +11704,16 @@ func TestGetChatDiffContents(t *testing.T) {
 		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
-		user := coderdtest.CreateFirstUser(t, client.Client)
+		admin := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
+		ownerRaw, owner := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
+		sharedRaw, sharedUser := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
+		ownerClient := codersdk.NewExperimentalClient(ownerRaw)
+		sharedClient := codersdk.NewExperimentalClient(sharedRaw)
 
 		_, err := db.InsertExternalAuthLink(dbauthz.AsSystemRestricted(ctx), database.InsertExternalAuthLinkParams{
 			ProviderID:       "github-test",
-			UserID:           user.UserID,
+			UserID:           owner.ID,
 			OAuthAccessToken: gitToken,
 			OAuthExpiry:      dbtime.Now().Add(24 * time.Hour),
 			CreatedAt:        dbtime.Now(),
@@ -11658,39 +11721,56 @@ func TestGetChatDiffContents(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "discovery write keys stored ref",
-		})
-		// A reported ref with no stored PR URL, so the diff GET must
-		// resolve the PR upstream.
-		_, err = db.UpsertChatDiffStatusReference(
-			dbauthz.AsSystemRestricted(ctx),
-			database.UpsertChatDiffStatusReferenceParams{
-				ChatID:          chat.ID,
-				Url:             sql.NullString{},
-				GitBranch:       "feature/keyed-discovery",
-				GitRemoteOrigin: origin,
-				StaleAt:         time.Now().UTC().Add(time.Hour),
-			},
-		)
-		require.NoError(t, err)
+		for _, viewer := range []struct {
+			name   string
+			client *codersdk.ExperimentalClient
+		}{
+			{name: "Owner", client: ownerClient},
+			{name: "Admin", client: client},
+			{name: "SharedReadOnly", client: sharedClient},
+		} {
+			t.Run(viewer.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				chat := dbgen.Chat(t, db, database.Chat{
+					OrganizationID:    admin.OrganizationID,
+					OwnerID:           owner.ID,
+					LastModelConfigID: modelConfig.ID,
+					Title:             "discovery write keys stored ref " + viewer.name,
+				})
+				err := client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+					UserRoles: map[string]codersdk.ChatRole{sharedUser.ID.String(): codersdk.ChatRoleRead},
+				})
+				require.NoError(t, err)
+				// A reported ref with no stored PR URL, so the diff GET must
+				// resolve the PR upstream.
+				_, err = db.UpsertChatDiffStatusReference(
+					dbauthz.AsSystemRestricted(ctx),
+					database.UpsertChatDiffStatusReferenceParams{
+						ChatID:          chat.ID,
+						Url:             sql.NullString{},
+						GitBranch:       "feature/keyed-discovery",
+						GitRemoteOrigin: origin,
+						StaleAt:         time.Now().UTC().Add(time.Hour),
+					},
+				)
+				require.NoError(t, err)
 
-		diffContents, err := client.GetChatDiffContents(ctx, chat.ID)
-		require.NoError(t, err)
-		require.NotNil(t, diffContents.Provider)
-		require.NotNil(t, diffContents.PullRequestURL)
-		require.Equal(t, prURL, *diffContents.PullRequestURL)
+				diffContents, err := viewer.client.GetChatDiffContents(ctx, chat.ID)
+				require.NoError(t, err)
+				require.NotNil(t, diffContents.Provider)
+				require.NotNil(t, diffContents.PullRequestURL)
+				require.Equal(t, prURL, *diffContents.PullRequestURL)
 
-		statuses, err := db.GetChatDiffStatusesByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.Len(t, statuses, 1, "the discovery write must update the reported ref, not add a row")
-		require.Equal(t, "feature/keyed-discovery", statuses[0].GitBranch)
-		require.Equal(t, origin, statuses[0].GitRemoteOrigin)
-		require.True(t, statuses[0].Url.Valid)
-		require.Equal(t, prURL, statuses[0].Url.String)
+				statuses, err := db.GetChatDiffStatusesByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				require.NoError(t, err)
+				require.Len(t, statuses, 1, "the discovery write must update the reported ref, not add a row")
+				require.Equal(t, "feature/keyed-discovery", statuses[0].GitBranch)
+				require.Equal(t, origin, statuses[0].GitRemoteOrigin)
+				require.True(t, statuses[0].Url.Valid)
+				require.Equal(t, prURL, statuses[0].Url.String)
+			})
+		}
 	})
 
 	t.Run("DiscoveryWriteDoesNotReorderPrimary", func(t *testing.T) {
@@ -18855,11 +18935,8 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 	})
 }
 
-// TestChatOwnerOnlyWriteHandlers verifies that only the chat owner can
-// call handlers that trigger chat processing. Org admins pass the RBAC
-// ActionUpdate check (org-level permission) but must still be blocked
-// because processing forwards the *owner's* credentials to external
-// services.
+// TestChatOwnerOnlyWriteHandlers verifies that non-owners cannot write to
+// another user's chat, including callers with custom chat update permissions.
 func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 	t.Parallel()
 
@@ -18898,6 +18975,8 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
 		)
 		adminClient = codersdk.NewExperimentalClient(orgAdminRaw)
+		_, err = adminClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
 		return ownerClient, adminClient, chat, db
 	}
 
@@ -18913,8 +18992,24 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 				Text: "org admin should not be able to send this",
 			}},
 		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	// Renaming, pinning, and archiving all go through PATCH /chats/{chat}.
+	t.Run("PatchChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		err := adminClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Title: ptr.Ref("renamed by org admin"),
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+
+		unchanged, err := ownerClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.Title, unchanged.Title)
 	})
 
 	t.Run("CompactChat", func(t *testing.T) {
@@ -18924,8 +19019,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
 
 		_, err := adminClient.CompactChat(ctx, chat.ID)
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("PatchChatMessage", func(t *testing.T) {
@@ -18952,8 +19046,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 				Text: "org admin should not be able to edit this",
 			}},
 		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("PromoteChatQueuedMessage", func(t *testing.T) {
@@ -18978,7 +19071,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusForbidden, promoteRes.StatusCode)
+		require.Equal(t, http.StatusNotFound, promoteRes.StatusCode)
 	})
 
 	t.Run("SubmitToolResults", func(t *testing.T) {
@@ -18993,8 +19086,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 				Output:     json.RawMessage(`"forbidden"`),
 			}},
 		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("ProposeChatTitle", func(t *testing.T) {
@@ -19004,8 +19096,126 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
 
 		_, err := adminClient.ProposeChatTitle(ctx, chat.ID)
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("CustomRoleCannotWriteOtherChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		ownerClient := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Database = rawDB
+			opts.Pubsub = pubsub
+		})
+		firstUser := coderdtest.CreateFirstUser(t, ownerClient.Client)
+		model := createChatModel(t, ownerClient)
+		chat := dbgen.Chat(t, rawDB, database.Chat{
+			OwnerID:           firstUser.UserID,
+			OrganizationID:    firstUser.OrganizationID,
+			LastModelConfigID: model.ID,
+		})
+		// Seed a stored role directly to verify broad custom grants cannot
+		// bypass chat ownership.
+		role, err := rawDB.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+			Name:           testutil.GetRandomName(t),
+			OrganizationID: uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true},
+			OrgPermissions: database.CustomRolePermissions{
+				{ResourceType: rbac.ResourceChat.Type, Action: policy.ActionRead},
+				{ResourceType: rbac.ResourceChat.Type, Action: policy.ActionUpdate},
+			},
+		})
+		require.NoError(t, err)
+		writerRaw, writer := coderdtest.CreateAnotherUser(t, ownerClient.Client, firstUser.OrganizationID)
+		_, err = ownerClient.UpdateOrganizationMemberRoles(ctx, firstUser.OrganizationID, writer.ID.String(), codersdk.UpdateRoles{Roles: []string{role.Name}})
+		require.NoError(t, err)
+		writerClient := codersdk.NewExperimentalClient(writerRaw)
+		_, err = writerClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+
+		t.Run("PostChatMessages", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := writerClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "forbidden"}},
+			})
+			requireSDKError(t, err, http.StatusNotFound)
+		})
+		for name, request := range map[string]codersdk.UpdateChatRequest{
+			"Title":             {Title: ptr.Ref("forbidden")},
+			"Pin":               {PinOrder: ptr.Ref(int32(1))},
+			"Archive":           {Archived: ptr.Ref(true)},
+			"Read":              {Read: ptr.Ref(true)},
+			"ManageAutomations": {ManageAutomationsEnabled: ptr.Ref(false)},
+			"MixedFields":       {Title: ptr.Ref("forbidden"), Read: ptr.Ref(true), Archived: ptr.Ref(true)},
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				err := writerClient.UpdateChat(ctx, chat.ID, request)
+				requireSDKError(t, err, http.StatusNotFound)
+				persisted, err := rawDB.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, chat, persisted)
+			})
+		}
+	})
+
+	t.Run("HandlerOwnershipDefense", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+			// Exercise handler ownership checks independently of RBAC.
+			opts.Authorizer = (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil)
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		model := createChatModel(t, client)
+		otherRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		other := codersdk.NewExperimentalClient(otherRaw)
+		chat := dbgen.Chat(t, db, database.Chat{OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID, LastModelConfigID: model.ID})
+		message := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: chat.ID, ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true}})
+		queued := insertTestChatQueuedMessage(ctx, t, db, chat.ID, json.RawMessage(`[{"type":"text","text":"queued"}]`), model.ID)
+		for name, call := range map[string]func(context.Context) error{
+			"Patch": func(ctx context.Context) error {
+				return other.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Title: ptr.Ref("denied")})
+			},
+			"Read": func(ctx context.Context) error {
+				return other.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Read: ptr.Ref(true)})
+			},
+			"ManageAutomations": func(ctx context.Context) error {
+				return other.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ManageAutomationsEnabled: ptr.Ref(true)})
+			},
+			"PostMessage": func(ctx context.Context) error {
+				_, err := other.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{})
+				return err
+			},
+			"EditMessage": func(ctx context.Context) error {
+				_, err := other.EditChatMessage(ctx, chat.ID, message.ID, codersdk.EditChatMessageRequest{})
+				return err
+			},
+			"Compact":      func(ctx context.Context) error { _, err := other.CompactChat(ctx, chat.ID); return err },
+			"Clear":        func(ctx context.Context) error { _, err := other.ClearChat(ctx, chat.ID); return err },
+			"ProposeTitle": func(ctx context.Context) error { _, err := other.ProposeChatTitle(ctx, chat.ID); return err },
+			"ToolResults": func(ctx context.Context) error {
+				return other.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{})
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				err := call(ctx)
+				sdkErr := requireSDKError(t, err, http.StatusForbidden)
+				require.Contains(t, sdkErr.Message, "Only the chat owner")
+			})
+		}
+		t.Run("Promote", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			res, err := other.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, queued.ID), nil)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusForbidden, res.StatusCode)
+		})
 	})
 
 	// Verify the owner can still operate normally.
@@ -19021,15 +19231,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 				Text: "owner should succeed",
 			}},
 		})
-		// The message is accepted (no 403). It may fail downstream
-		// (e.g. no running LLM) but that is not a 403.
-		if err != nil {
-			var sdkErr *codersdk.Error
-			if xerrors.As(err, &sdkErr) {
-				require.NotEqual(t, http.StatusForbidden, sdkErr.StatusCode(),
-					"owner must not receive 403")
-			}
-		}
+		require.NoError(t, err)
 	})
 }
 
@@ -19079,7 +19281,7 @@ func TestChatReadState(t *testing.T) {
 		require.True(t, hasUnread(ctx, t, client, chat.ID))
 	})
 
-	t.Run("NonOwnerForbidden", func(t *testing.T) {
+	t.Run("NonOwnerNotFound", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -19095,16 +19297,15 @@ func TestChatReadState(t *testing.T) {
 		})
 		insertAssistantMessage(t, db, chat.ID, modelConfig.ID)
 
-		// The deployment owner may update the chat but must not move
-		// another user's read cursor, and the rejection must land before
-		// any other field of the same request is written.
+		// RBAC must reject the deployment owner's update before changing
+		// another user's read cursor or any other field in the request.
 		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 			Title: ptr.Ref("renamed by admin"),
 			Read:  ptr.Ref(true),
 		})
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 
 		persisted, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)

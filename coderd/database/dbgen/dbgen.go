@@ -181,7 +181,21 @@ func ChatAutomation(t testing.TB, db database.Store, seed database.ChatAutomatio
 		whenBusy = database.NullChatAutomationWhenBusy{ChatAutomationWhenBusy: database.ChatAutomationWhenBusyQueue, Valid: true}
 	}
 
-	automation, err := db.InsertChatAutomation(genCtx, database.InsertChatAutomationParams{
+	ctx := genCtx
+	if seed.TargetChatID.Valid {
+		chat, err := db.GetChatByID(genCtx, seed.TargetChatID.UUID)
+		require.NoError(t, err, "get target chat")
+		// Existing-chat automations require update permission on the target.
+		ctx = dbauthz.As(genCtx, rbac.Subject{
+			ID: chat.OwnerID.String(),
+			Roles: rbac.RoleIdentifiers{
+				rbac.RoleOwner(), rbac.ScopedRoleAgentsAccess(chat.OrganizationID),
+			},
+			Scope: rbac.ScopeAll,
+		})
+	}
+
+	automation, err := db.InsertChatAutomation(ctx, database.InsertChatAutomationParams{
 		ID:                   takeFirst(seed.ID, uuid.New()),
 		OrganizationID:       takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:              takeFirst(seed.OwnerID, uuid.New()),
@@ -217,7 +231,10 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	}
 	role := takeFirst(seed.Role, database.ChatMessageRoleUser)
 
-	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
+	// Inserting messages requires chat update permission, which the
+	// synthetic owner subject lacks.
+	//nolint:gocritic // See above.
+	msgs, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(genCtx), database.InsertChatMessagesParams{
 		ChatID:              seed.ChatID,
 		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
 		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
@@ -527,7 +544,10 @@ func ChatMCPServer(t testing.TB, db database.Store, seed database.ChatMCPServer)
 		}).ID
 	}
 
-	server, err := db.UpsertChatMCPServer(genCtx, database.UpsertChatMCPServerParams{
+	// Upserting an MCP server requires chat update permission, which the
+	// synthetic owner subject lacks.
+	//nolint:gocritic // See above.
+	server, err := db.UpsertChatMCPServer(dbauthz.AsSystemRestricted(genCtx), database.UpsertChatMCPServerParams{
 		ID:                  takeFirst(seed.ID, uuid.New()),
 		ChatID:              chatID,
 		Slug:                takeFirst(seed.Slug, testutil.GetRandomName(t)),
