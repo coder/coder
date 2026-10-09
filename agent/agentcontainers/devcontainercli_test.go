@@ -8,12 +8,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/ory/dockertest/v3"
@@ -440,12 +442,131 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 	})
 }
 
+// TestDevcontainerCLI_UpReady tests that WithUpReady is called when
+// the first lifecycle hook after waitFor starts, while Up still runs.
+func TestDevcontainerCLI_UpReady(t *testing.T) {
+	t.Parallel()
+
+	testExePath, err := os.Executable()
+	require.NoError(t, err, "get test executable path")
+
+	waitFor := func(hook string) string {
+		return `{"configuration":{"waitFor":"` + hook + `"}}`
+	}
+	tests := []struct {
+		name             string
+		readConfigOutput string // Empty makes read-configuration fail.
+		logFile          string
+		readyHook        string // Up is ready when this hook starts, empty if never.
+	}{
+		{name: "Default", readConfigOutput: `{"configuration":{}}`, logFile: "up-waitfor.log", readyHook: "postCreateCommand"},
+		{name: "InitializeCommand", readConfigOutput: waitFor("initializeCommand"), logFile: "up-waitfor.log", readyHook: "onCreateCommand"},
+		{name: "OnCreateCommand", readConfigOutput: waitFor("onCreateCommand"), logFile: "up-waitfor.log", readyHook: "updateContentCommand"},
+		{name: "UpdateContentCommand", readConfigOutput: waitFor("updateContentCommand"), logFile: "up-waitfor.log", readyHook: "postCreateCommand"},
+		{name: "PostCreateCommand", readConfigOutput: waitFor("postCreateCommand"), logFile: "up-waitfor.log", readyHook: "postStartCommand"},
+		{name: "PostStartCommand", readConfigOutput: waitFor("postStartCommand"), logFile: "up-waitfor.log", readyHook: "postAttachCommand"},
+		{name: "UnknownWaitFor", readConfigOutput: waitFor("postAttachCommand"), logFile: "up-waitfor.log", readyHook: "postCreateCommand"},
+		{name: "ReadConfigurationFails", logFile: "up-waitfor.log", readyHook: "postCreateCommand"},
+		{name: "NoHookAfterWaitFor", readConfigOutput: waitFor("postCreateCommand"), logFile: "up.log"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+			readConfigExecer := &testDevcontainerExecer{
+				testExePath: testExePath,
+				wantArgs:    "read-configuration --workspace-folder /test/workspace",
+				wantError:   tt.readConfigOutput == "",
+			}
+			if tt.readConfigOutput != "" {
+				readConfigExecer.logFile = filepath.Join(t.TempDir(), "read-config.log")
+				require.NoError(t, os.WriteFile(readConfigExecer.logFile, []byte(tt.readConfigOutput+"\n"), 0o600))
+			}
+
+			ln, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			defer ln.Close()
+
+			execer := &testDevcontainerExecer{
+				testExePath:      testExePath,
+				wantArgs:         "up --log-format json --workspace-folder /test/workspace",
+				logFile:          filepath.Join("testdata", "devcontainercli", "parse", tt.logFile),
+				readConfigExecer: readConfigExecer,
+				releaseAddr:      ln.Addr().String(),
+			}
+			if tt.readyHook != "" {
+				// Block right before and right after the hook starts.
+				execer.blockAfterLines = []string{
+					"Running the " + tt.readyHook + " from devcontainer.json",
+					`"name":"Running ` + tt.readyHook + `...","status":"running"`,
+				}
+			}
+
+			readyC := make(chan struct{})
+			blockedC := make(chan struct{}, len(execer.blockAfterLines))
+			upErrC := make(chan error, 1)
+			dccli := agentcontainers.NewDevcontainerCLI(logger, execer)
+			go func() {
+				_, err := dccli.Up(ctx, "/test/workspace", "",
+					agentcontainers.WithUpOutput(notifyWriter{match: helperBlockedText, matchedC: blockedC}, io.Discard),
+					agentcontainers.WithUpReady(func() { close(readyC) }),
+				)
+				upErrC <- err
+			}()
+
+			for i, line := range execer.blockAfterLines {
+				testutil.RequireReceive(ctx, t, blockedC)
+				require.Equal(t, i > 0, isClosed(readyC), "ready after %q", line)
+
+				require.NoError(t, ln.(*net.TCPListener).SetDeadline(time.Now().Add(testutil.WaitShort)))
+				conn, err := ln.Accept()
+				require.NoError(t, err, "accept helper connection")
+				require.NoError(t, conn.Close())
+			}
+
+			require.NoError(t, testutil.RequireReceive(ctx, t, upErrC))
+			require.Equal(t, tt.readyHook != "", isClosed(readyC), "ready when Up returns")
+		})
+	}
+}
+
+func isClosed(c <-chan struct{}) bool {
+	select {
+	case <-c:
+		return true
+	default:
+		return false
+	}
+}
+
+// notifyWriter sends on matchedC for each write that contains match.
+type notifyWriter struct {
+	match    string
+	matchedC chan<- struct{}
+}
+
+func (w notifyWriter) Write(p []byte) (int, error) {
+	if bytes.Contains(p, []byte(w.match)) {
+		w.matchedC <- struct{}{}
+	}
+	return len(p), nil
+}
+
 // testDevcontainerExecer implements the agentexec.Execer interface for testing.
 type testDevcontainerExecer struct {
 	testExePath string
 	wantArgs    string
 	wantError   bool
 	logFile     string
+
+	readConfigExecer *testDevcontainerExecer // If set, runs read-configuration.
+	// See TestDevcontainerHelperProcess.
+	blockAfterLines []string
+	releaseAddr     string
 }
 
 // CommandContext returns a test binary command that simulates devcontainer responses.
@@ -454,6 +575,9 @@ func (e *testDevcontainerExecer) CommandContext(ctx context.Context, name string
 	if name != "devcontainer" {
 		// For non-devcontainer commands, use a standard execer.
 		return agentexec.DefaultExecer.CommandContext(ctx, name, args...)
+	}
+	if e.readConfigExecer != nil && len(args) > 0 && args[0] == "read-configuration" {
+		return e.readConfigExecer.CommandContext(ctx, name, args...)
 	}
 
 	// Create a command that runs the test binary with special flags
@@ -473,6 +597,8 @@ func (e *testDevcontainerExecer) CommandContext(ctx context.Context, name string
 		"TEST_DEVCONTAINER_WANT_ARGS="+e.wantArgs,
 		"TEST_DEVCONTAINER_WANT_ERROR="+fmt.Sprintf("%v", e.wantError),
 		"TEST_DEVCONTAINER_LOG_FILE="+e.logFile,
+		"TEST_DEVCONTAINER_BLOCK_AFTER="+strings.Join(e.blockAfterLines, "\n"),
+		"TEST_DEVCONTAINER_RELEASE_ADDR="+e.releaseAddr,
 	)
 
 	return cmd
@@ -484,8 +610,15 @@ func (*testDevcontainerExecer) PTYCommandContext(_ context.Context, name string,
 	panic("PTYCommandContext not expected in devcontainer tests")
 }
 
+// helperBlockedText is logged by TestDevcontainerHelperProcess when it
+// blocks.
+const helperBlockedText = "helper blocked"
+
 // This is a special test helper that is executed as a subprocess.
-// It simulates the behavior of the devcontainer CLI.
+// It simulates the behavior of the devcontainer CLI. After it writes a
+// log line that contains the next TEST_DEVCONTAINER_BLOCK_AFTER entry,
+// it logs helperBlockedText and waits until the test closes a
+// connection to TEST_DEVCONTAINER_RELEASE_ADDR.
 //
 //nolint:revive,paralleltest // This is a test helper function.
 func TestDevcontainerHelperProcess(t *testing.T) {
@@ -523,7 +656,25 @@ func TestDevcontainerHelperProcess(t *testing.T) {
 			fmt.Fprintf(os.Stderr, "Reading log file %s failed: %v\n", logFilePath, err)
 			os.Exit(2)
 		}
-		_, _ = io.Copy(os.Stdout, bytes.NewReader(output))
+		var blockAfterLines []string
+		if v := os.Getenv("TEST_DEVCONTAINER_BLOCK_AFTER"); v != "" {
+			blockAfterLines = strings.Split(v, "\n")
+		}
+		for _, line := range strings.SplitAfter(string(output), "\n") {
+			_, _ = os.Stdout.WriteString(line)
+			if len(blockAfterLines) == 0 || !strings.Contains(line, blockAfterLines[0]) {
+				continue
+			}
+			blockAfterLines = blockAfterLines[1:]
+			_, _ = fmt.Fprintf(os.Stdout, "{\"type\":\"text\",\"level\":3,\"timestamp\":0,\"text\":%q}\n", helperBlockedText)
+			conn, err := net.Dial("tcp", os.Getenv("TEST_DEVCONTAINER_RELEASE_ADDR"))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "dial release address failed: %v\n", err)
+				os.Exit(2)
+			}
+			_, _ = io.Copy(io.Discard, conn)
+			_ = conn.Close()
+		}
 	}
 
 	if os.Getenv("TEST_DEVCONTAINER_WANT_ERROR") == "true" {
@@ -596,6 +747,55 @@ func TestDockerDevcontainerCLI(t *testing.T) {
 		// Verify the first container is removed by the recreation.
 		_, found = findDevcontainerByID(t, pool, firstID)
 		assert.False(t, found, "first container should be removed")
+	})
+
+	t.Run("WaitFor", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceFolder := t.TempDir()
+		configPath := filepath.Join(workspaceFolder, ".devcontainer", "devcontainer.json")
+		require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
+		// updateContentCommand runs after waitFor and blocks until the
+		// test creates the release file.
+		content := `{
+	"image": "alpine:latest",
+	"runArgs": ["--label=com.coder.test=devcontainercli", "--label=` + agentcontainers.DevcontainerIsTestRunLabel + `=true"],
+	"waitFor": "onCreateCommand",
+	"onCreateCommand": "true",
+	"updateContentCommand": "while [ ! -f ${containerWorkspaceFolder}/release ]; do sleep 0.1; done"
+}`
+		require.NoError(t, os.WriteFile(configPath, []byte(content), 0o600))
+		t.Cleanup(func() {
+			containers, err := pool.Client.ListContainers(docker.ListContainersOptions{
+				All:     true,
+				Filters: map[string][]string{"label": {"devcontainer.local_folder=" + workspaceFolder}},
+			})
+			require.NoError(t, err, "list containers")
+			for _, c := range containers {
+				removeDevcontainerByID(t, pool, c.ID)
+			}
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		dccli := agentcontainers.NewDevcontainerCLI(logger, agentexec.DefaultExecer)
+
+		readyC := make(chan struct{}, 1)
+		upErrC := make(chan error, 1)
+		go func() {
+			_, err := dccli.Up(ctx, workspaceFolder, configPath, agentcontainers.WithUpReady(func() { readyC <- struct{}{} }))
+			upErrC <- err
+		}()
+
+		testutil.RequireReceive(ctx, t, readyC)
+		select {
+		case err := <-upErrC:
+			t.Fatalf("devcontainer up returned before updateContentCommand finished: %v", err)
+		default:
+		}
+
+		require.NoError(t, os.WriteFile(filepath.Join(workspaceFolder, "release"), nil, 0o600))
+		require.NoError(t, testutil.RequireReceive(ctx, t, upErrC))
 	})
 }
 

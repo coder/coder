@@ -2717,8 +2717,9 @@ func runSubAgentMain() int {
 }
 
 // This tests end-to-end functionality of auto-starting a devcontainer.
-// It runs "devcontainer up" which creates a real Docker container. As
-// such, it does not run by default in CI.
+// The sub-agent must start while a lifecycle command after waitFor
+// still runs. It runs "devcontainer up" which creates a real Docker
+// container. As such, it does not run by default in CI.
 //
 // You can run it manually as follows:
 //
@@ -2803,7 +2804,9 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 		"name": "mywork",
 		"image": "ubuntu:latest",
 		"cmd": ["sleep", "infinity"],
-		"runArgs": ["--network=host", "--label=`+agentcontainers.DevcontainerIsTestRunLabel+`=true"]
+		"runArgs": ["--network=host", "--label=`+agentcontainers.DevcontainerIsTestRunLabel+`=true"],
+		"waitFor": "onCreateCommand",
+		"postCreateCommand": "while [ ! -f /workspaces/mywork/release ]; do sleep 0.1; done"
     }`), 0o600)
 	require.NoError(t, err, "write devcontainer.json")
 
@@ -2926,6 +2929,9 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 	payload := testutil.RequireReceive(ctx, t, subAgentConnected)
 	require.Equal(t, subAgentToken.String(), payload.Token, "sub-agent token should match")
 	require.Equal(t, "/workspaces/mywork", payload.Directory, "sub-agent directory should match")
+
+	// The sub-agent connects while postCreateCommand is still running.
+	require.NoError(t, os.WriteFile(filepath.Join(tempWorkspaceFolder, "release"), nil, 0o600))
 
 	// Allow the subagent to exit.
 	close(subAgentReady)
