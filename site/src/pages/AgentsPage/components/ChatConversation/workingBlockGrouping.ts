@@ -203,7 +203,7 @@ export const groupWorkingBlocks = (
 	type Draft = {
 		rowIndices: number[];
 		toolIds: Set<string>;
-		citations: number;
+		sourceBlocks: number;
 		endsWithAnswer: boolean;
 		anchorKey?: string;
 		ordinal: number;
@@ -237,7 +237,7 @@ export const groupWorkingBlocks = (
 			current = {
 				rowIndices: [],
 				toolIds: new Set(),
-				citations: 0,
+				sourceBlocks: 0,
 				endsWithAnswer: false,
 				anchorKey,
 				ordinal,
@@ -253,7 +253,7 @@ export const groupWorkingBlocks = (
 		for (const tool of member.content.visibleTools) {
 			current.toolIds.add(tool.id);
 		}
-		current.citations += member.content.visibleBlocks.filter(
+		current.sourceBlocks += member.content.visibleBlocks.filter(
 			(block) => block.type === "sources",
 		).length;
 
@@ -322,19 +322,17 @@ export const groupWorkingBlocks = (
 			entryIndex++;
 		}
 
-		// Citations count as searches only when no provider result does: some
-		// providers cite without a search, and an interrupt commits a search's
-		// result apart from the answer citing it.
-		const stepCount = draft.toolIds.size + (searches || draft.citations);
+		// Source blocks count as searches only when no provider result does:
+		// some providers cite without a search, and an interrupt commits a
+		// search's result apart from the answer citing it.
+		const stepCount = draft.toolIds.size + (searches || draft.sourceBlocks);
 
 		// Completed reasoning alone stays visible. The live turn folds from its
 		// first reasoning, so thinking never shows and then vanishes once a tool
-		// call arrives, and unfolds only when a turn without steps starts its
-		// answer.
-		if (
-			stepCount === 0 &&
-			!(draft.containsLiveRow && options.isTurnActive && !draft.endsWithAnswer)
-		) {
+		// call arrives, and unfolds only when a turn without steps answers.
+		const foldsLiveTurn =
+			draft.containsLiveRow && options.isTurnActive && !draft.endsWithAnswer;
+		if (stepCount === 0 && !foldsLiveTurn) {
 			continue;
 		}
 

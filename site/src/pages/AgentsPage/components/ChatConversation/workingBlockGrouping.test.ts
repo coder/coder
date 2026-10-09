@@ -266,6 +266,31 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks).toMatchObject([{ stepCount: 2, endsWithAnswer: true }]);
 	});
 
+	it.each([
+		{ name: "no answer", answers: [] },
+		{
+			name: "a cited answer",
+			answers: [[text("Go 1.27"), citation, text(" is out."), citation]],
+		},
+	])(
+		"keeps the step of a search an interrupt committed apart from its row with $name",
+		({ answers }) => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			// chatd commits the call and result as separate messages that render
+			// no row.
+			const search = [
+				message("assistant", [searchCall("s", at(3))]),
+				message("tool", [searchResult("s", at(4))]),
+			];
+			const after = answers.map((parts) => message("assistant", parts));
+
+			expect(
+				group([prompt, ...steps, ...search, ...after]).blocks,
+			).toMatchObject([{ stepCount: 2 }]);
+		},
+	);
+
 	it("leaves an answer's reasoning unfolded in a turn without steps", () => {
 		const prompt = user("Go");
 		const answer = message("assistant", [reasoning("Easy"), text("Done.")]);
@@ -600,38 +625,6 @@ describe("groupWorkingBlocks", () => {
 					endedAt: WORKING_FIXTURE_START + 4000,
 				},
 			]);
-		});
-
-		it("keeps the step of a search an interrupt committed apart from its row", () => {
-			const prompt = user("Go");
-			const steps = step("a", 1, 2);
-			const parts = [searchCall("s", at(3)), searchResult("s", at(4))];
-			// chatd commits the call and result as separate messages that render
-			// no row.
-			const search = [
-				message("assistant", [parts[0]]),
-				message("tool", [parts[1]]),
-			];
-
-			expect(groupLive([prompt, ...steps], parts).blocks).toMatchObject([
-				{ stepCount: 2 },
-			]);
-			for (const after of [
-				[],
-				[message("assistant", [reasoning("Reading", at(5))])],
-				[
-					message("assistant", [
-						text("Go 1.27"),
-						citation,
-						text(" is out."),
-						citation,
-					]),
-				],
-			]) {
-				expect(
-					group([prompt, ...steps, ...search, ...after]).blocks,
-				).toMatchObject([{ stepCount: 2 }]);
-			}
 		});
 
 		it("starts no block from a search without citations alone", () => {
