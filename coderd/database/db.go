@@ -10,6 +10,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"time"
 
@@ -70,6 +71,10 @@ func New(sdb *sql.DB, opts ...func(*sqlQuerier)) Store {
 	return q
 }
 
+// ErrNestedTransaction is returned by InTx when TxOptions.RequireTopLevel is
+// set and the store is already in a transaction.
+var ErrNestedTransaction = xerrors.New("transaction must not be nested in another transaction")
+
 // TxOptions is used to pass some execution metadata to the callers.
 // Ideally we could throw this into a context, but no context is used for
 // transactions. So instead, the return context is attached to the options
@@ -81,6 +86,13 @@ type TxOptions struct {
 	// If zero, the driver or database's default level is used.
 	Isolation sql.IsolationLevel
 	ReadOnly  bool
+
+	// CheckoutContext, if set, bounds only the wait for a pooled connection
+	// for a top-level transaction. The transaction itself doesn't observe it.
+	CheckoutContext context.Context
+	// RequireTopLevel makes InTx return ErrNestedTransaction instead of
+	// joining an enclosing transaction.
+	RequireTopLevel bool
 
 	// -- Coder specific metadata --
 	// TxIdentifier is a unique identifier for the transaction to be used
@@ -163,7 +175,7 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *TxOptions) error {
 		attempts := 0
 		for attempts = 0; attempts < q.serialRetryCount; attempts++ {
 			txOpts.executionCount++
-			err = q.runTx(function, sqlOpts)
+			err = q.runTx(function, sqlOpts, txOpts)
 			if err == nil {
 				// Transaction succeeded.
 				return nil
@@ -178,12 +190,15 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *TxOptions) error {
 	}
 
 	txOpts.executionCount++
-	return q.runTx(function, sqlOpts)
+	return q.runTx(function, sqlOpts, txOpts)
 }
 
 // InTx performs database operations inside a transaction.
-func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) (err error) {
+func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions, opts *TxOptions) (err error) {
 	if _, ok := q.db.(*sqlx.Tx); ok {
+		if opts.RequireTopLevel {
+			return ErrNestedTransaction
+		}
 		// If the current inner "db" is already a transaction, we just reuse it.
 		// We do not need to handle commit/rollback as the outer tx will handle
 		// that.
@@ -194,8 +209,17 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) (e
 		return nil
 	}
 
-	transaction, err := q.sdb.BeginTxx(context.Background(), txOpts)
-	if err != nil {
+	var transaction *sqlx.Tx
+	if opts.CheckoutContext != nil {
+		var conn *sqlx.Conn
+		conn, transaction, err = q.beginOnConn(opts.CheckoutContext, txOpts)
+		if err != nil {
+			return err
+		}
+		// Runs after the deferred rollback below, returning the connection to
+		// the pool. Close fails only if a bad connection already closed it.
+		defer func() { _ = conn.Close() }()
+	} else if transaction, err = q.sdb.BeginTxx(context.Background(), txOpts); err != nil {
 		return xerrors.Errorf("begin transaction: %w", err)
 	}
 	defer func() {
@@ -216,6 +240,26 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) (e
 		return xerrors.Errorf("commit transaction: %w", err)
 	}
 	return nil
+}
+
+// beginOnConn checks out a connection, waiting no longer than checkoutCtx
+// allows, and begins a transaction on it. Like DB.BeginTx, it tries up to
+// three connections while BEGIN reports a bad one.
+func (q *sqlQuerier) beginOnConn(checkoutCtx context.Context, txOpts *sql.TxOptions) (*sqlx.Conn, *sqlx.Tx, error) {
+	for attempt := 1; ; attempt++ {
+		conn, err := q.sdb.Connx(checkoutCtx)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("check out connection: %w", err)
+		}
+		transaction, err := conn.BeginTxx(context.Background(), txOpts)
+		if err == nil {
+			return conn, transaction, nil
+		}
+		_ = conn.Close()
+		if !errors.Is(err, driver.ErrBadConn) || attempt == 3 {
+			return nil, nil, xerrors.Errorf("begin transaction: %w", err)
+		}
+	}
 }
 
 func safeString(s *string) string {

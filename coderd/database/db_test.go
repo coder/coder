@@ -3,6 +3,7 @@ package database_test
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -108,6 +109,32 @@ func TestInTx_CapturesRollbackError(t *testing.T) {
 	require.NotErrorIs(t, err, rollbackErr,
 		"rollback failure should be reported in the message, not wrapped in the error chain")
 
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestInTx_CheckoutContext(t *testing.T) {
+	t.Parallel()
+
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	// sqlmock forgets its connection once none are open, so keep one open
+	// for the retry to reopen.
+	held, err := sqlDB.Conn(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = held.Close() })
+
+	// A bad pooled connection is retried, as DB.BeginTx would, and the
+	// checkout context doesn't apply once the transaction has begun.
+	mock.ExpectBegin().WillReturnError(driver.ErrBadConn)
+	mock.ExpectBegin()
+	mock.ExpectCommit()
+	checkoutCtx, cancel := context.WithCancel(context.Background())
+	err = database.New(sqlDB).InTx(func(database.Store) error {
+		cancel()
+		return nil
+	}, &database.TxOptions{CheckoutContext: checkoutCtx})
+	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -698,6 +697,9 @@ func TestWorkspaceQuota(t *testing.T) {
 	})
 }
 
+// TestWorkspaceSerialization exercises PostgreSQL READ COMMITTED query
+// interleavings through committer, rather than the production CommitQuota path.
+//
 // nolint:paralleltest,tparallel // Tests must run serially
 func TestWorkspaceSerialization(t *testing.T) {
 	t.Parallel()
@@ -735,15 +737,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 
 	// UpdateBuildDeadline bumps a workspace deadline while doing a quota
 	// commit to the same workspace build.
-	//
-	// Note: This passes if the interrupt is run before 'GetQuota()'
-	// Passing orders:
-	//	- BeginTX -> Bump! -> GetQuota -> GetAllowance -> UpdateCost -> EndTx
-	//  - BeginTX -> GetQuota -> GetAllowance -> UpdateCost -> Bump! -> EndTx
 	t.Run("UpdateBuildDeadline", func(t *testing.T) {
-		t.Log("Expected to fail. As long as quota & deadline are on the same " +
-			" table and affect the same row, this will likely always fail.")
-
 		//  +------------------------------+------------------+
 		//  | Begin Tx                     |                  |
 		//  +------------------------------+------------------+
@@ -757,7 +751,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +------------------------------+------------------+
 		//  | CommitTx()                   |                  |
 		//  +------------------------------+------------------+
-		// pq: could not serialize access due to concurrent update
+		// Works!
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -784,17 +778,12 @@ func TestWorkspaceSerialization(t *testing.T) {
 		// Run order
 
 		quota := newCommitter(t, db, myWorkspace.Workspace, myWorkspace.Build)
-		quota.GetQuota(ctx, t)     // Step 1
-		bumpDeadline()             // Interrupt
-		quota.GetAllowance(ctx, t) // Step 2
-
-		err := quota.DBTx.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
-			ID:        myWorkspace.Build.ID,
-			DailyCost: 10,
-		}) // Step 3
-		require.ErrorContains(t, err, "could not serialize access due to concurrent update")
+		quota.GetQuota(ctx, t)                         // Step 1
+		bumpDeadline()                                 // Interrupt
+		quota.GetAllowance(ctx, t)                     // Step 2
+		quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
 		// End commit
-		require.ErrorContains(t, quota.Done(), "failed transaction")
+		require.NoError(t, quota.Done())
 	})
 
 	// UpdateOtherBuildDeadline bumps a user's other workspace deadline
@@ -859,12 +848,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 	})
 
 	t.Run("ActivityBump", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			t.Skip("Even though this test is expected to 'likely always fail', it doesn't fail on Windows")
-		}
-
-		t.Log("Expected to fail. As long as quota & deadline are on the same " +
-			" table and affect the same row, this will likely always fail.")
 		//  +---------------------+----------------------------------+
 		//  | W1 Quota Tx         |                                  |
 		//  +---------------------+----------------------------------+
@@ -880,7 +863,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		//  | CommitTx()          |                                  |
 		//  +---------------------+----------------------------------+
-		// pq: could not serialize access due to concurrent update
+		// Works!
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -906,14 +889,10 @@ func TestWorkspaceSerialization(t *testing.T) {
 
 		assert.NoError(t, err)
 
-		err = one.DBTx.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
-			ID:        myWorkspace.Build.ID,
-			DailyCost: 10,
-		})
-		require.ErrorContains(t, err, "could not serialize access due to concurrent update")
+		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
 
 		// End commit
-		assert.ErrorContains(t, one.Done(), "failed transaction")
+		assert.NoError(t, one.Done())
 	})
 
 	t.Run("BumpLastUsedAt", func(t *testing.T) {
@@ -1112,65 +1091,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		assert.NoError(t, one.Done())
 		assert.NoError(t, two.Done())
 	})
-
-	// QuotaCommit 2 workspaces in the same org.
-	// Workspaces do not share templates
-	t.Run("DoubleQuotaUserWorkspaces", func(t *testing.T) {
-		t.Log("Setting a new build cost to a workspace in a org affects other " +
-			"workspaces in the same org. This is expected to fail.")
-		//  +---------------------+---------------------+
-		//  | W1 Quota Tx         | W2 Quota Tx         |
-		//  +---------------------+---------------------+
-		//  | Begin Tx            |                     |
-		//  +---------------------+---------------------+
-		//  |                     | Begin Tx            |
-		//  +---------------------+---------------------+
-		//  | GetQuota(w1)        |                     |
-		//  +---------------------+---------------------+
-		//  | GetAllowance(w1)    |                     |
-		//  +---------------------+---------------------+
-		//  | UpdateBuildCost(w1) |                     |
-		//  +---------------------+---------------------+
-		//  |                     | UpdateBuildCost(w2) |
-		//  +---------------------+---------------------+
-		//  |                     | GetQuota(w2)        |
-		//  +---------------------+---------------------+
-		//  |                     | GetAllowance(w2)    |
-		//  +---------------------+---------------------+
-		//  | CommitTx()          |                     |
-		//  +---------------------+---------------------+
-		//  |                     | CommitTx()          |
-		//  +---------------------+---------------------+
-		// pq: could not serialize access due to read/write dependencies among transactions
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: org.Org.ID,
-			OwnerID:        user.ID,
-		}).Do()
-
-		myOtherWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: org.Org.ID,
-			OwnerID:        user.ID,
-		}).Do()
-
-		one := newCommitter(t, db, myWorkspace.Workspace, myWorkspace.Build)
-		two := newCommitter(t, db, myOtherWorkspace.Workspace, myOtherWorkspace.Build)
-
-		// Run order
-		one.GetQuota(ctx, t)
-		one.GetAllowance(ctx, t)
-
-		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
-
-		two.GetQuota(ctx, t)
-		two.GetAllowance(ctx, t)
-		two.UpdateWorkspaceBuildCostByID(ctx, t, 10)
-
-		// End commit
-		assert.NoError(t, one.Done())
-		assert.ErrorContains(t, two.Done(), "could not serialize access due to read/write dependencies among transactions")
-	})
 }
 
 func deprecatedQuotaEndpoint(ctx context.Context, client *codersdk.Client, userID string) (codersdk.WorkspaceQuota, error) {
@@ -1210,22 +1130,36 @@ func graphWithCost(cost int32) []*proto.Response {
 	}}
 }
 
-// committer does what the CommitQuota does, but allows
-// stepping through the actions in the tx and controlling the
-// timing.
-// This is a nice wrapper to make the tests more concise.
+// committer exposes quota queries in a READ COMMITTED transaction so tests
+// can control their interleaving with unrelated database updates.
 type committer struct {
 	DBTx *dbtestutil.DBTx
 	w    database.WorkspaceTable
 	b    database.WorkspaceBuild
+
+	done func() error
 }
 
+// newCommitter takes the quota lock, so a second committer for the same
+// owner and organization blocks until the first one is done.
 func newCommitter(t *testing.T, db database.Store, workspace database.WorkspaceTable, build database.WorkspaceBuild) *committer {
 	quotaTX := dbtestutil.StartTx(t, db, &database.TxOptions{
-		Isolation: sql.LevelSerializable,
+		Isolation: sql.LevelReadCommitted,
 		ReadOnly:  false,
 	})
-	return &committer{DBTx: quotaTX, w: workspace, b: build}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	c := &committer{
+		DBTx: quotaTX,
+		w:    workspace,
+		b:    build,
+		done: sync.OnceValue(quotaTX.Done),
+	}
+	// Release the lock if the subtest fails before Done, so later subtests
+	// for the same owner and organization don't block.
+	t.Cleanup(func() { _ = c.Done() })
+	err := quotaTX.AcquireLock(ctx, database.WorkspaceQuotaLockID(workspace.OwnerID, workspace.OrganizationID))
+	require.NoError(t, err)
+	return c
 }
 
 // GetQuota touches:
@@ -1269,5 +1203,5 @@ func (c *committer) UpdateWorkspaceBuildCostByID(ctx context.Context, t *testing
 }
 
 func (c *committer) Done() error {
-	return c.DBTx.Done()
+	return c.done()
 }

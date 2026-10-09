@@ -22,6 +22,9 @@ This guide provides best practices for upgrading Coder, along with troubleshooti
   For example, upgrades from v2.26.0 to v2.27.8 may encounter issues with the `api_keys` table.
   Upgrading to v2.26.6 first can help mitigate this.
   Contact [Coder support](../../../support/index.md) for guidance on your specific upgrade path.
+- **Check whether your deployment enforces quotas.**
+  A deployment that enforces [quotas](../../../admin/users/quotas.md) needs a short planned outage, not a rolling upgrade, when it upgrades from a release before v2.39.0 to v2.39.0 or later.
+  Refer to [Upgrade a deployment that enforces quotas](../../../admin/users/quotas.md#upgrade-a-deployment-that-enforces-quotas).
 
 ## Pre-upgrade strategy for Kubernetes HA deployments
 
@@ -45,6 +48,8 @@ For production deployments running multiple replicas (HA), active connections fr
      ```sh
      kubectl scale deployment coder --replicas=1
      ```
+
+     Don't scale to one when old and new replicas must not overlap, such as in the [quota upgrade](../../../admin/users/quotas.md#upgrade-a-deployment-that-enforces-quotas).
 
 1. **Perform upgrade:** Run your standard Helm upgrade command.
    When scaling to zero, this will bring up a fresh pod that can run migrations without competing for database locks.
