@@ -159,6 +159,14 @@ export const Opened: Story = {
 	},
 };
 
+export const OpenedWithKeyboard: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("button").focus();
+		await userEvent.keyboard("{Enter}");
+	},
+};
+
 export const SingleProxy: Story = {
 	args: {
 		proxyContextValue: {
