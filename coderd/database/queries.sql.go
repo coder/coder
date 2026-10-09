@@ -41938,47 +41938,24 @@ WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = $4
 	AND CASE
-		WHEN $5 :: text != '' THEN
-			CASE
-			    -- Some workspace specific status refer to the transition
-			    -- type. By default, the standard provisioner job status
-			    -- search strings are supported.
-			    -- 'running' states
-				WHEN $5 = 'starting' THEN
-				    latest_build.job_status = 'running'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition
-				WHEN $5 = 'stopping' THEN
-					latest_build.job_status = 'running'::provisioner_job_status AND
-					latest_build.transition = 'stop'::workspace_transition
-				WHEN $5 = 'deleting' THEN
-					latest_build.job_status = 'running' AND
-					latest_build.transition = 'delete'::workspace_transition
-
-			    -- 'succeeded' states
-			    WHEN $5 = 'deleted' THEN
-			    	latest_build.job_status = 'succeeded'::provisioner_job_status AND
-			    	latest_build.transition = 'delete'::workspace_transition
-				WHEN $5 = 'stopped' THEN
-					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'stop'::workspace_transition
-				WHEN $5 = 'started' THEN
-					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition
-
-			    -- Special case where the provisioner status and workspace status
-			    -- differ. A workspace is "running" if the job is "succeeded" and
-			    -- the transition is "start". This is because a workspace starts
-			    -- running when a job is complete.
-			    WHEN $5 = 'running' THEN
-					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition
-
-				WHEN $5 != '' THEN
-				    -- By default just match the job status exactly
-			    	latest_build.job_status = $5::provisioner_job_status
-				ELSE
-					true
-			END
+		WHEN array_length($5 :: text[], 1) > 0 THEN
+			-- Mirrors codersdk.ConvertWorkspaceStatus.
+			(CASE latest_build.job_status
+				WHEN 'running' THEN
+					CASE latest_build.transition
+						WHEN 'start' THEN 'starting'
+						WHEN 'stop' THEN 'stopping'
+						WHEN 'delete' THEN 'deleting'
+					END
+				-- A workspace is "running" once its start job has succeeded.
+				WHEN 'succeeded' THEN
+					CASE latest_build.transition
+						WHEN 'start' THEN 'running'
+						WHEN 'stop' THEN 'stopped'
+						WHEN 'delete' THEN 'deleted'
+					END
+				ELSE latest_build.job_status::text
+			END) = ANY($5 :: text[])
 		ELSE true
 	END
 	-- Filter by owner_id
@@ -42312,7 +42289,7 @@ type GetWorkspacesParams struct {
 	ParamNames                            []string     `db:"param_names" json:"param_names"`
 	ParamValues                           []string     `db:"param_values" json:"param_values"`
 	Deleted                               bool         `db:"deleted" json:"deleted"`
-	Status                                string       `db:"status" json:"status"`
+	Statuses                              []string     `db:"statuses" json:"statuses"`
 	OwnerID                               uuid.UUID    `db:"owner_id" json:"owner_id"`
 	OrganizationID                        uuid.UUID    `db:"organization_id" json:"organization_id"`
 	HasParam                              []string     `db:"has_param" json:"has_param"`
@@ -42392,7 +42369,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		pq.Array(arg.ParamNames),
 		pq.Array(arg.ParamValues),
 		arg.Deleted,
-		arg.Status,
+		pq.Array(arg.Statuses),
 		arg.OwnerID,
 		arg.OrganizationID,
 		pq.Array(arg.HasParam),

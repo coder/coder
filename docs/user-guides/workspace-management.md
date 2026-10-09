@@ -70,7 +70,9 @@ The following filters are supported:
 - `template` - Name of the template. Accepts multiple values and matches any of
   them, e.g., `template:docker template:kubernetes` or
   `template:docker,kubernetes`.
-- `status` - Indicates the status of the workspace, e.g, `status:failed` For a
+- `status` - Indicates the status of the workspace, e.g, `status:failed`. Accepts
+  multiple values and matches any of them, e.g., `status:running status:stopped`
+  or `status:running,stopped`. For a
   list of supported statuses, see
   [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
 - `outdated` - Filters workspaces using an outdated template version, e.g,
