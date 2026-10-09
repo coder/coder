@@ -239,6 +239,7 @@ Ask an organization admin to change an organization skill.
 
 Personal and organization skills are stored in Coder, not in the workspace.
 At each step, a chat loads the personal skills of the chat owner that are turned on, and the organization skills of the chat's organization that are turned on and shared with the chat owner.
+Site owners, organization admins, and organization auditors can read every skill in the organization, so their chats load every organization skill that is turned on, whatever its permissions.
 Workspace skills come from the chat's pinned context snapshot.
 
 Because stored skills are read again at each step, a change takes effect on the chat's next step.
@@ -246,12 +247,14 @@ For example, when an administrator turns off an organization skill or removes so
 
 The `/` menu in the chat composer lists skills in 3 groups: **Personal skills**, **Organization skills**, and **Workspace skills**.
 The **Organization skills** group shows the skills of the chat's organization that are turned on and shared with you.
+For site owners, organization admins, and organization auditors, the group and the **From your organizations** section on the **Skills** settings page list every organization skill that is turned on.
 
 ### Turn a skill on or off
 
 Personal and organization skills each have an **Enabled** switch in their skills table.
 A skill that is turned off stays stored, but it is hidden from the `/` menu and from the list of skills the agent can choose from.
 If the agent asks for a skill that is turned off, `read_skill` reports that the skill was not found.
+When a chat has no skills left to load, the agent doesn't get the `read_skill` tool at all.
 
 ### Skills with the same name
 
@@ -269,7 +272,8 @@ A bare name that matches more than 1 source is ambiguous, so `read_skill` reject
 The agent must pass the qualified alias instead, for example `org/code-review`.
 
 The list of available skills in the agent's system prompt shortens each description to 1,024 characters and ends it with an ellipsis.
-The stored description and the `read_skill` result keep the full text.
+The stored description keeps the full text.
+The `read_skill` result returns the skill body without the frontmatter, so it doesn't include the description.
 
 ## Workspace MCP tools
 

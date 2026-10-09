@@ -1,4 +1,5 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
+import { useRef } from "react";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -151,6 +152,7 @@ type SkillLoadDialogProps = {
 	isRetrying: boolean;
 	onRetry: () => void;
 	onClose: () => void;
+	onCloseAutoFocus: (event: Event) => void;
 };
 
 const SkillLoadDialog: React.FC<SkillLoadDialogProps> = ({
@@ -161,6 +163,7 @@ const SkillLoadDialog: React.FC<SkillLoadDialogProps> = ({
 	isRetrying,
 	onRetry,
 	onClose,
+	onCloseAutoFocus,
 }) => {
 	const lowerNoun = noun.toLocaleLowerCase("en-US");
 	const handleOpenChange = (open: boolean) => {
@@ -172,7 +175,7 @@ const SkillLoadDialog: React.FC<SkillLoadDialogProps> = ({
 	if (isLoading) {
 		return (
 			<Dialog open onOpenChange={handleOpenChange}>
-				<DialogContent>
+				<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
 					<DialogHeader>
 						<DialogTitle>Loading {lowerNoun}</DialogTitle>
 						<DialogDescription>
@@ -187,7 +190,7 @@ const SkillLoadDialog: React.FC<SkillLoadDialogProps> = ({
 
 	return (
 		<Dialog open onOpenChange={handleOpenChange}>
-			<DialogContent>
+			<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
 				<DialogHeader>
 					<DialogTitle>Unable to load {lowerNoun}</DialogTitle>
 					<DialogDescription>
@@ -220,9 +223,14 @@ const SkillLoadDialog: React.FC<SkillLoadDialogProps> = ({
 type EditSkillDialogProps = {
 	copy: SkillsCopy;
 	state: Extract<SkillEditorState, { mode: "edit" }>;
+	onCloseAutoFocus: (event: Event) => void;
 };
 
-const EditSkillDialog: React.FC<EditSkillDialogProps> = ({ copy, state }) => {
+const EditSkillDialog: React.FC<EditSkillDialogProps> = ({
+	copy,
+	state,
+	onCloseAutoFocus,
+}) => {
 	if (state.isLoading || state.loadError || !state.initialValues) {
 		return (
 			<SkillLoadDialog
@@ -233,6 +241,7 @@ const EditSkillDialog: React.FC<EditSkillDialogProps> = ({ copy, state }) => {
 				isRetrying={state.isRetrying}
 				onRetry={state.onRetry}
 				onClose={state.onClose}
+				onCloseAutoFocus={onCloseAutoFocus}
 			/>
 		);
 	}
@@ -252,6 +261,7 @@ const EditSkillDialog: React.FC<EditSkillDialogProps> = ({ copy, state }) => {
 					state.onClose();
 				}
 			}}
+			onCloseAutoFocus={onCloseAutoFocus}
 			onSubmit={state.onSubmit}
 		/>
 	);
@@ -260,9 +270,14 @@ const EditSkillDialog: React.FC<EditSkillDialogProps> = ({ copy, state }) => {
 type ViewSkillDialogProps = {
 	noun: string;
 	state: SkillViewState;
+	onCloseAutoFocus: (event: Event) => void;
 };
 
-const ViewSkillDialog: React.FC<ViewSkillDialogProps> = ({ noun, state }) => {
+const ViewSkillDialog: React.FC<ViewSkillDialogProps> = ({
+	noun,
+	state,
+	onCloseAutoFocus,
+}) => {
 	if (state.content === undefined) {
 		return (
 			<SkillLoadDialog
@@ -273,6 +288,7 @@ const ViewSkillDialog: React.FC<ViewSkillDialogProps> = ({ noun, state }) => {
 				isRetrying={state.isRetrying}
 				onRetry={state.onRetry}
 				onClose={state.onClose}
+				onCloseAutoFocus={onCloseAutoFocus}
 			/>
 		);
 	}
@@ -282,18 +298,26 @@ const ViewSkillDialog: React.FC<ViewSkillDialogProps> = ({ noun, state }) => {
 			content={state.content}
 			fileName={state.name}
 			onClose={state.onClose}
+			onCloseAutoFocus={onCloseAutoFocus}
 		/>
 	);
 };
 
-const DeleteSkillDialog: React.FC<{ state: SkillDeleteState }> = ({
+type DeleteSkillDialogProps = {
+	state: SkillDeleteState;
+	onCloseAutoFocus: (event: Event) => void;
+};
+
+const DeleteSkillDialog: React.FC<DeleteSkillDialogProps> = ({
 	state,
+	onCloseAutoFocus,
 }) => {
 	return (
 		<ConfirmDialog
 			type="delete"
 			open
 			onClose={state.onClose}
+			onCloseAutoFocus={onCloseAutoFocus}
 			title="Delete skill"
 			confirmText="Delete skill"
 			description={
@@ -320,6 +344,7 @@ const DeleteSkillDialog: React.FC<{ state: SkillDeleteState }> = ({
 
 type SkillEnabledSwitchProps = {
 	skill: SkillMetadata;
+	noun: string;
 	checked: boolean;
 	isBlocked: boolean;
 	readOnlyReason?: string;
@@ -328,6 +353,7 @@ type SkillEnabledSwitchProps = {
 
 const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
 	skill,
+	noun,
 	checked,
 	isBlocked,
 	readOnlyReason,
@@ -338,7 +364,11 @@ const SkillEnabledSwitch: React.FC<SkillEnabledSwitchProps> = ({
 	const toggle = (
 		<Switch
 			checked={checked}
-			aria-label={`Enable ${skill.name}`}
+			aria-label={
+				readOnlyReason
+					? `${noun} ${skill.name} enabled`
+					: `Enable ${skill.name}`
+			}
 			aria-disabled={isBlocked || undefined}
 			onCheckedChange={(enabled) => {
 				if (!isBlocked) {
@@ -384,6 +414,21 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	viewState,
 	deleteState,
 }) => {
+	const rowMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+	const rememberRowMenuTrigger = (
+		event: React.SyntheticEvent<HTMLButtonElement>,
+	) => {
+		rowMenuTriggerRef.current = event.currentTarget;
+	};
+	// Row menu dialogs open from a menu item that unmounts with the menu, so
+	// Radix would otherwise return focus to the document body on close.
+	const restoreRowMenuFocus = (event: Event) => {
+		const trigger = rowMenuTriggerRef.current;
+		if (trigger?.isConnected) {
+			event.preventDefault();
+			trigger.focus();
+		}
+	};
 	const pluralNoun = `${copy.noun.toLocaleLowerCase("en-US")}s`;
 	const isAtLimit = skills.length >= limit;
 	const readOnlyReason = canEdit
@@ -441,7 +486,9 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						<TableHead className="whitespace-nowrap">Name</TableHead>
 						<TableHead className="w-full">Description</TableHead>
 						<TableHead className="whitespace-nowrap">Enabled</TableHead>
-						<TableHead className="whitespace-nowrap">Updated</TableHead>
+						<TableHead className="hidden whitespace-nowrap sm:table-cell">
+							Updated
+						</TableHead>
 						<TableHead className="w-14">
 							<span className="sr-only">Actions</span>
 						</TableHead>
@@ -460,7 +507,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 								<TableCell>
 									<Skeleton className="h-5 w-9" />
 								</TableCell>
-								<TableCell>
+								<TableCell className="hidden sm:table-cell">
 									<Skeleton variant="text" className="w-44" />
 								</TableCell>
 								<TableCell>
@@ -507,6 +554,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 								<TableCell>
 									<SkillEnabledSwitch
 										skill={skill}
+										noun={copy.noun}
 										checked={
 											togglingSkill?.name === skill.name
 												? togglingSkill.enabled
@@ -517,7 +565,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 										onToggleEnabled={onToggleEnabled}
 									/>
 								</TableCell>
-								<TableCell className="whitespace-nowrap">
+								<TableCell className="hidden whitespace-nowrap sm:table-cell">
 									{formatUpdatedAt(skill.updated_at)}
 								</TableCell>
 								<TableCell className="text-right">
@@ -527,6 +575,8 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 												size="icon"
 												variant="subtle"
 												aria-label="Open menu"
+												onPointerDown={rememberRowMenuTrigger}
+												onKeyDown={rememberRowMenuTrigger}
 											>
 												{downloadingSkillName === skill.name ? (
 													<Spinner className="size-4" loading />
@@ -595,10 +645,25 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				/>
 			)}
 			{editorState?.mode === "edit" && (
-				<EditSkillDialog copy={copy} state={editorState} />
+				<EditSkillDialog
+					copy={copy}
+					state={editorState}
+					onCloseAutoFocus={restoreRowMenuFocus}
+				/>
 			)}
-			{viewState && <ViewSkillDialog noun={copy.noun} state={viewState} />}
-			{deleteState && <DeleteSkillDialog state={deleteState} />}
+			{viewState && (
+				<ViewSkillDialog
+					noun={copy.noun}
+					state={viewState}
+					onCloseAutoFocus={restoreRowMenuFocus}
+				/>
+			)}
+			{deleteState && (
+				<DeleteSkillDialog
+					state={deleteState}
+					onCloseAutoFocus={restoreRowMenuFocus}
+				/>
+			)}
 		</div>
 	);
 };

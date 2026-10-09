@@ -7,6 +7,7 @@ type TextPreviewDialogProps = {
 	/** Explicit media type for the attachment, if known. */
 	mediaType?: string;
 	onClose: () => void;
+	onCloseAutoFocus?: (event: Event) => void;
 };
 
 /**
@@ -34,6 +35,7 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 	fileName,
 	mediaType,
 	onClose,
+	onCloseAutoFocus,
 }) => {
 	const renderAsMarkdown = isMarkdownPreview(fileName, mediaType);
 
@@ -42,6 +44,7 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 			<DialogContent
 				className="max-h-[85vh] max-w-[90vw] w-full sm:w-fit sm:min-w-[400px] flex flex-col gap-0 p-0"
 				aria-describedby={undefined}
+				onCloseAutoFocus={onCloseAutoFocus}
 			>
 				<DialogTitle className="px-4 py-3 border-b border-border text-sm font-medium">
 					{fileName ?? "Pasted text"}

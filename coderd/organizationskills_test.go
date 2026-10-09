@@ -92,6 +92,7 @@ func TestOrganizationSkillValidationAndConflicts(t *testing.T) {
 	_, err = client.CreateOrganizationSkill(ctx, orgID, codersdk.CreateSkillRequest{Content: content})
 	sdkErr := requireSDKErrorStatus(t, err, http.StatusConflict)
 	assert.Equal(t, "A skill with that name already exists.", sdkErr.Message)
+	assert.Equal(t, "Choose a different name, or edit the existing skill.", sdkErr.Detail)
 
 	_, err = client.UpdateOrganizationSkill(ctx, orgID, "validated-skill", codersdk.UpdateSkillRequest{
 		Content: ptr.Ref(userSkillMarkdown("renamed-skill", "Valid", "Body.")),

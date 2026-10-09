@@ -82,7 +82,7 @@ func (api *API) postOrganizationSkill(rw http.ResponseWriter, r *http.Request) {
 		case database.IsCheckViolation(err, skillsPerOrganizationLimitConstraint):
 			writeOrganizationSkillLimitReached(ctx, rw)
 		case database.IsUniqueViolation(err, database.UniqueSkillsOrganizationIDNameIndex):
-			writeSkillNameConflict(ctx, rw, err)
+			writeSkillNameConflict(ctx, rw)
 		default:
 			httpapi.InternalServerError(rw, err)
 		}

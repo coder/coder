@@ -440,10 +440,10 @@ export const ImportSkillMarkdownKeepsEditName: Story = {
 			"---\nname: pasted-name\ndescription: New description.\n---\n\nNew body.",
 		);
 
-		// Wait for the import confirmation so the snapshot captures the
+		// Wait for the mismatch warning so the snapshot captures the
 		// updated fields with the kept name.
 		await dialogCanvas.findByText(
-			"Updated description and body fields. Kept the existing name.",
+			"The file is named pasted-name. Updated description and body fields, and kept the name review-sql.",
 		);
 	},
 };

@@ -62,9 +62,25 @@ describe("SkillsTable enabled toggle", () => {
 		const { user, updateSkill } = renderTable(false);
 
 		await user.click(
-			await screen.findByRole("switch", { name: "Enable review-sql" }),
+			await screen.findByRole("switch", {
+				name: "Organization skill review-sql enabled",
+			}),
 		);
 
 		expect(updateSkill).not.toHaveBeenCalled();
+	});
+});
+
+describe("SkillsTable row menu dialogs", () => {
+	it("returns focus to the row menu button when a dialog closes", async () => {
+		const { user } = renderTable(true);
+
+		const menuButton = await screen.findByRole("button", { name: "Open menu" });
+		await user.click(menuButton);
+		await user.click(await screen.findByRole("menuitem", { name: /Delete/ }));
+		await screen.findByRole("dialog");
+		await user.keyboard("{Escape}");
+
+		await waitFor(() => expect(menuButton).toHaveFocus());
 	});
 });

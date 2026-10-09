@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -186,9 +186,15 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 		},
 	});
 
+	// Clicks that land before the pending state re-renders the switch would
+	// otherwise send duplicate updates.
+	const togglingSkillNameRef = useRef<string | undefined>(undefined);
 	const toggleMutation = useMutation({
 		mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) =>
 			updateMutationOptions.mutationFn({ name, req: { enabled } }),
+		onSettled: () => {
+			togglingSkillNameRef.current = undefined;
+		},
 		onSuccess: (skill, { name, enabled }) =>
 			updateMutationOptions.onSuccess(skill, { name, req: { enabled } }),
 		onError: (error) => {
@@ -415,6 +421,10 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 				exportAllMutation.mutate();
 			}}
 			onToggleEnabled={(skill, enabled) => {
+				if (togglingSkillNameRef.current === skill.name) {
+					return;
+				}
+				togglingSkillNameRef.current = skill.name;
 				toggleMutation.mutate({ name: skill.name, enabled });
 			}}
 			downloadingSkillName={downloadingSkillName}

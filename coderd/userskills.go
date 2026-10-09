@@ -92,7 +92,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if database.IsUniqueViolation(err, database.UniqueSkillsUserIDNameIndex) {
-			writeSkillNameConflict(ctx, rw, err)
+			writeSkillNameConflict(ctx, rw)
 			return
 		}
 		httpapi.InternalServerError(rw, err)
@@ -373,10 +373,10 @@ func readSkillUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Reques
 	return update, true
 }
 
-func writeSkillNameConflict(ctx context.Context, rw http.ResponseWriter, err error) {
+func writeSkillNameConflict(ctx context.Context, rw http.ResponseWriter) {
 	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 		Message: "A skill with that name already exists.",
-		Detail:  err.Error(),
+		Detail:  "Choose a different name, or edit the existing skill.",
 	})
 }
 

@@ -14,7 +14,7 @@ const switchVariants = cva(
 	disabled:cursor-not-allowed
 	data-[state=checked]:disabled:bg-surface-tertiary data-[state=unchecked]:disabled:bg-surface-tertiary
 	aria-disabled:cursor-not-allowed
-	aria-disabled:data-[state=checked]:bg-surface-tertiary aria-disabled:data-[state=unchecked]:bg-surface-tertiary
+	aria-disabled:data-[state=checked]:bg-surface-invert-secondary aria-disabled:data-[state=unchecked]:bg-surface-tertiary
 	data-[state=checked]:hover:bg-surface-invert-secondary data-[state=unchecked]:hover:bg-surface-tertiary
 	data-[state=checked]:bg-surface-invert-primary data-[state=unchecked]:bg-surface-quaternary`,
 	{
