@@ -362,6 +362,9 @@ export async function submitChatTurn(
 			throw error;
 		}
 		applyEditResponse(response.messages ?? [response.message], editedMessageID);
+		// Applying the response commits the edit, and a response the stream got
+		// ahead of finds it committed; this keeps no pending edit past its request.
+		store.setPendingEdit(null);
 		scrollToEnd({ behavior: "smooth" });
 		return;
 	}
