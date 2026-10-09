@@ -703,6 +703,113 @@ func TestWorkspace(t *testing.T) {
 		})
 	})
 
+	t.Run("OwnerChecksRolesAndScopes", func(t *testing.T) {
+		t.Parallel()
+		owner, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		first := coderdtest.CreateFirstUser(t, owner)
+		version := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version.ID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		admin, err := owner.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		actor := dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin))
+
+		// privateTemplate returns a template nobody has access to through ACLs.
+		privateTemplate := func(t *testing.T) codersdk.Template {
+			v := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, owner, v.ID)
+			tpl := coderdtest.CreateTemplate(t, owner, first.OrganizationID, v.ID)
+			require.NoError(t, api.Database.UpdateTemplateACLByID(actor, database.UpdateTemplateACLByIDParams{
+				ID:       tpl.ID,
+				GroupACL: database.TemplateACL{},
+				UserACL:  database.TemplateACL{},
+			}))
+			return tpl
+		}
+		createAs := func(c *codersdk.Client, user codersdk.User, tpl codersdk.Template) error {
+			_, err := c.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+				TemplateID: tpl.ID,
+				Name:       testutil.GetRandomNameHyphenated(t),
+			})
+			return err
+		}
+		perms := func(rt string, actions ...policy.Action) database.CustomRolePermissions {
+			var out database.CustomRolePermissions
+			for _, a := range actions {
+				out = append(out, database.CustomRolePermission{ResourceType: rt, Action: a})
+			}
+			return out
+		}
+		orgRole := func(t *testing.T, name string, p database.CustomRolePermissions) {
+			_, err := api.Database.InsertCustomRole(actor, database.InsertCustomRoleParams{
+				Name:           name,
+				DisplayName:    name,
+				OrganizationID: uuid.NullUUID{UUID: first.OrganizationID, Valid: true},
+				OrgPermissions: p,
+			})
+			require.NoError(t, err)
+		}
+		grantOrgRole := func(t *testing.T, user codersdk.User, name string) {
+			_, err := api.Database.UpdateMemberRoles(actor, database.UpdateMemberRolesParams{
+				GrantedRoles: []string{name},
+				UserID:       user.ID,
+				OrgID:        first.OrganizationID,
+			})
+			require.NoError(t, err)
+		}
+
+		t.Run("OrgCustomRoleGrantsAccess", func(t *testing.T) {
+			t.Parallel()
+			tpl := privateTemplate(t)
+			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+			orgRole(t, "tpl-user", append(perms(rbac.ResourceTemplate.Type, policy.ActionRead, policy.ActionUse),
+				perms(rbac.ResourceWorkspace.Type, policy.ActionCreate)...))
+			grantOrgRole(t, member, "tpl-user")
+			require.NoError(t, createAs(owner, member, tpl))
+		})
+		t.Run("OrgCustomRoleLacksAccess", func(t *testing.T) {
+			t.Parallel()
+			tpl := privateTemplate(t)
+			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+			orgRole(t, "tpl-reader", perms(rbac.ResourceTemplate.Type, policy.ActionRead))
+			grantOrgRole(t, member, "tpl-reader")
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, createAs(owner, member, tpl), &apiErr)
+			require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		})
+		t.Run("CallerScopedToken", func(t *testing.T) {
+			t.Parallel()
+			tpl := privateTemplate(t)
+			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+			orgRole(t, "tpl-user-scoped", append(perms(rbac.ResourceTemplate.Type, policy.ActionRead, policy.ActionUse),
+				perms(rbac.ResourceWorkspace.Type, policy.ActionCreate)...))
+			grantOrgRole(t, member, "tpl-user-scoped")
+
+			tokenClient := func(scopes ...codersdk.APIKeyScope) *codersdk.Client {
+				key, err := owner.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{Scopes: scopes})
+				require.NoError(t, err)
+				c := codersdk.New(owner.URL)
+				c.SetSessionToken(key.Key)
+				return c
+			}
+			// An admin token limited to what creating a workspace needs still
+			// works: the owner is evaluated with their own full permissions,
+			// not the caller's token scope.
+			allowed := tokenClient(
+				codersdk.APIKeyScopeWorkspaceCreate, codersdk.APIKeyScopeTemplateRead, codersdk.APIKeyScopeTemplateUse,
+				codersdk.APIKeyScopeUserRead, codersdk.APIKeyScopeWorkspaceRead, codersdk.APIKeyScopeWorkspaceStart,
+			)
+			require.NoError(t, createAs(allowed, member, tpl))
+
+			// A token without workspace:create is rejected as before.
+			insufficient := tokenClient(codersdk.APIKeyScopeTemplateRead, codersdk.APIKeyScopeTemplateUse,
+				codersdk.APIKeyScopeUserRead)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, createAs(insufficient, member, tpl), &apiErr)
+			require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		})
+	})
+
 	t.Run("TemplateVersionPreset", func(t *testing.T) {
 		t.Parallel()
 
