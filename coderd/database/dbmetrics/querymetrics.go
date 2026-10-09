@@ -5016,11 +5016,11 @@ func (m queryMetricsStore) IsChatHeartbeatStale(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) IsChatInDeletedProject(ctx context.Context, chatID uuid.UUID) (bool, error) {
+func (m queryMetricsStore) IsChatInDeletedChatProject(ctx context.Context, chatID uuid.UUID) (bool, error) {
 	start := time.Now()
-	r0, r1 := m.s.IsChatInDeletedProject(ctx, chatID)
-	m.queryLatencies.WithLabelValues("IsChatInDeletedProject").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IsChatInDeletedProject").Inc()
+	r0, r1 := m.s.IsChatInDeletedChatProject(ctx, chatID)
+	m.queryLatencies.WithLabelValues("IsChatInDeletedChatProject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IsChatInDeletedChatProject").Inc()
 	return r0, r1
 }
 

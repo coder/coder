@@ -1408,9 +1408,9 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteEmptyDeletedChatProjects(gomock.Any(), int32(10)).Return(int64(0), nil).AnyTimes()
 		check.Args(int32(10)).Asserts(rbac.ResourceSystem, policy.ActionDelete).Returns(int64(0))
 	}))
-	s.Run("IsChatInDeletedProject", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("IsChatInDeletedChatProject", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		dbm.EXPECT().IsChatInDeletedProject(gomock.Any(), chat.ID).Return(false, nil).AnyTimes()
+		dbm.EXPECT().IsChatInDeletedChatProject(gomock.Any(), chat.ID).Return(false, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(false)
 	}))
 	s.Run("IsChatProjectAccessibleByUserID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

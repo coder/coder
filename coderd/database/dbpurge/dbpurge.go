@@ -46,9 +46,10 @@ const (
 	workspaceBuildOrchestrationsBatchSize = 10000
 	// Chat and chat file batch sizes stay smaller than audit/connection
 	// log batches because chat_files rows carry bytea blobs.
-	chatsBatchSize               = 1000
-	chatFilesBatchSize           = 1000
-	deletedChatProjectsBatchSize = 100
+	chatsBatchSize     = 1000
+	chatFilesBatchSize = 1000
+	// Deleted project rows are small; the batch only bounds one tick.
+	deletedChatProjectsBatchSize = 1000
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000

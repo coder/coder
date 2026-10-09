@@ -47,7 +47,7 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 			// removes them. Only project chats and sub-chats can be in one.
 			if chat.ProjectID.Valid || chat.RootChatID.Valid || chat.ParentChatID.Valid {
 				//nolint:gocritic // The chat was authorized by the fetch above.
-				inDeletedProject, err := db.IsChatInDeletedProject(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				inDeletedProject, err := db.IsChatInDeletedChatProject(dbauthz.AsSystemRestricted(ctx), chat.ID)
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 						Message: "Internal error fetching chat.",
