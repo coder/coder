@@ -314,7 +314,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("ForANonOrgMember", func(t *testing.T) {
+	t.Run("ForANonOrgMemberIsRejected", func(t *testing.T) {
 		t.Parallel()
 
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
@@ -343,8 +343,8 @@ func TestCreateUserWorkspace(t *testing.T) {
 		require.NoError(t, err)
 
 		// user to make the workspace for, **note** the user is not a member of the first org.
-		// This is strange, but technically valid. The creator can create a workspace for
-		// this user in this org, even though the user cannot access the workspace.
+		// The owner is checked as its own subject, so the creator cannot create a
+		// workspace for this user in this org.
 		secondOrg := coderdenttest.CreateOrganization(t, owner, coderdenttest.CreateOrganizationOptions{})
 		_, forUser := coderdtest.CreateAnotherUser(t, owner, secondOrg.ID)
 
@@ -361,17 +361,14 @@ func TestCreateUserWorkspace(t *testing.T) {
 
 		ctx = testutil.Context(t, testutil.WaitLong)
 
-		wrk, err := creator.CreateUserWorkspace(ctx, forUser.ID.String(), codersdk.CreateWorkspaceRequest{
+		_, err = creator.CreateUserWorkspace(ctx, forUser.ID.String(), codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
 			Name:       "workspace",
 		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, creator, wrk.LatestBuild.ID)
-
-		_, err = creator.WorkspaceByOwnerAndName(ctx, forUser.Username, wrk.Name, codersdk.WorkspaceOptions{
-			IncludeDeleted: false,
-		})
-		require.NoError(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, fmt.Sprintf("User %q is not allowed to create workspaces in this organization.", forUser.Username), apiErr.Message)
 	})
 
 	// Asserting some authz calls when creating a workspace.
