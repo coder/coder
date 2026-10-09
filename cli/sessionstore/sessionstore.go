@@ -25,12 +25,14 @@ import (
 // Backend is a storage backend for session tokens.
 type Backend interface {
 	// Read returns the session token for the given server URL or an error, if any. It
-	// will return os.ErrNotExist if no token exists for the given URL.
+	// will return os.ErrNotExist if no token exists for the given URL, and may return
+	// ErrOriginMismatch if the stored token was issued by a different origin.
 	Read(serverURL *url.URL) (string, error)
 	// Write stores the session token for the given server URL.
 	Write(serverURL *url.URL, token string) error
 	// Delete removes the session token for the given server URL or an error, if any.
-	// It will return os.ErrNotExist error if no token exists to delete.
+	// It will return os.ErrNotExist error if no token exists to delete, and may return
+	// ErrOriginMismatch if the stored token was issued by a different origin.
 	Delete(serverURL *url.URL) error
 }
 
@@ -44,6 +46,14 @@ var (
 	// ErrNotImplemented represents when keyring usage is not implemented on the current
 	// operating system.
 	ErrNotImplemented = xerrors.New("not implemented")
+
+	// ErrOriginMismatch is returned when a stored credential was issued by a different
+	// origin (scheme, host or port) than the requested server URL. Credentials are keyed
+	// by host so that other Coder applications can find them, which means a single host
+	// holds at most one credential. Without this check, pointing a client at
+	// http://coder.example.com would read, send and delete the session token belonging to
+	// https://coder.example.com.
+	ErrOriginMismatch = xerrors.New("stored session token belongs to a different deployment")
 )
 
 const (
@@ -82,6 +92,54 @@ func normalizeHost(u *url.URL) (string, error) {
 		return "", xerrors.New("nil server URL")
 	}
 	return strings.TrimSpace(strings.ToLower(u.Host)), nil
+}
+
+// normalizeOrigin returns the normalized origin of the URL: its scheme, host and port.
+// The port is omitted when it is the default for the scheme, so that
+// "https://coder.example.com" and "https://coder.example.com:443" produce the same
+// origin. Any path, query or user info on the URL is ignored.
+func normalizeOrigin(u *url.URL) (string, error) {
+	host, err := normalizeHost(u)
+	if err != nil {
+		return "", err
+	}
+	scheme := strings.TrimSpace(strings.ToLower(u.Scheme))
+	if scheme == "" {
+		return "", xerrors.New("server URL has no scheme")
+	}
+	return scheme + "://" + trimDefaultPort(scheme, host), nil
+}
+
+// trimDefaultPort removes the port from the host when it is the default for the scheme.
+func trimDefaultPort(scheme, host string) string {
+	switch scheme {
+	case "http":
+		return strings.TrimSuffix(host, ":80")
+	case "https":
+		return strings.TrimSuffix(host, ":443")
+	default:
+		return host
+	}
+}
+
+// credentialOrigin returns the origin a stored credential belongs to. host is the key
+// the credential is stored under.
+//
+// Credentials written by this package record the full origin in CoderURL. Credentials
+// written by older CLI versions, and by other Coder applications, record only the host
+// and so carry no scheme. Those are assumed to belong to an https deployment: https is
+// the norm for Coder deployments, and it is the safe assumption to make, because it
+// stops a plaintext http client from being handed a token that may have been issued by
+// the https deployment on the same host. A user on an http deployment whose credential
+// predates this check logs in once more to record the scheme.
+func credentialOrigin(cred credential, host string) string {
+	stored := strings.TrimSpace(cred.CoderURL)
+	if u, err := url.Parse(stored); err == nil && u.Scheme != "" && u.Host != "" {
+		if origin, err := normalizeOrigin(u); err == nil {
+			return origin
+		}
+	}
+	return "https://" + trimDefaultPort("https", host)
 }
 
 // parseCredentialsJSON parses the JSON from the keyring into a credentialsMap.
@@ -123,6 +181,10 @@ func (o Keyring) Read(serverURL *url.URL) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	origin, err := normalizeOrigin(serverURL)
+	if err != nil {
+		return "", err
+	}
 
 	credJSON, err := o.provider.Get(o.serviceName)
 	if err != nil {
@@ -142,11 +204,20 @@ func (o Keyring) Read(serverURL *url.URL) (string, error) {
 	if !ok {
 		return "", os.ErrNotExist
 	}
+	// The credential is keyed by host alone, so confirm it was issued by the origin
+	// being asked for before handing the token over.
+	if storedOrigin := credentialOrigin(cred, host); storedOrigin != origin {
+		return "", xerrors.Errorf("requested %s but the stored session token is for %s: %w", origin, storedOrigin, ErrOriginMismatch)
+	}
 	return cred.APIToken, nil
 }
 
 func (o Keyring) Write(serverURL *url.URL, token string) error {
 	host, err := normalizeHost(serverURL)
+	if err != nil {
+		return err
+	}
+	origin, err := normalizeOrigin(serverURL)
 	if err != nil {
 		return err
 	}
@@ -161,9 +232,11 @@ func (o Keyring) Write(serverURL *url.URL, token string) error {
 		return xerrors.Errorf("write: parse existing credentials: %w", err)
 	}
 
-	// Upsert the credential for this URL.
+	// Upsert the credential for this URL. The entry stays keyed by host so that other
+	// Coder applications keep finding it, while the full origin is recorded so that a
+	// later read or delete can tell which deployment the token belongs to.
 	creds[host] = credential{
-		CoderURL: host,
+		CoderURL: origin,
 		APIToken: token,
 	}
 
@@ -184,6 +257,10 @@ func (o Keyring) Delete(serverURL *url.URL) error {
 	if err != nil {
 		return err
 	}
+	origin, err := normalizeOrigin(serverURL)
+	if err != nil {
+		return err
+	}
 
 	existingJSON, err := o.provider.Get(o.serviceName)
 	if err != nil {
@@ -195,8 +272,13 @@ func (o Keyring) Delete(serverURL *url.URL) error {
 		return xerrors.Errorf("failed to parse existing credentials: %w", err)
 	}
 
-	if _, ok := creds[host]; !ok {
+	cred, ok := creds[host]
+	if !ok {
 		return os.ErrNotExist
+	}
+	// Refuse to sign out a deployment other than the one being asked for.
+	if storedOrigin := credentialOrigin(cred, host); storedOrigin != origin {
+		return xerrors.Errorf("requested %s but the stored session token is for %s: %w", origin, storedOrigin, ErrOriginMismatch)
 	}
 
 	delete(creds, host)
