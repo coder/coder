@@ -602,6 +602,38 @@ describe("groupWorkingBlocks", () => {
 			]);
 		});
 
+		it("keeps the step of a search an interrupt committed apart from its row", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const parts = [searchCall("s", at(3)), searchResult("s", at(4))];
+			// chatd commits the call and result as separate messages that render
+			// no row.
+			const search = [
+				message("assistant", [parts[0]]),
+				message("tool", [parts[1]]),
+			];
+
+			expect(groupLive([prompt, ...steps], parts).blocks).toMatchObject([
+				{ stepCount: 2 },
+			]);
+			for (const after of [
+				[],
+				[message("assistant", [reasoning("Reading", at(5))])],
+				[
+					message("assistant", [
+						text("Go 1.27"),
+						citation,
+						text(" is out."),
+						citation,
+					]),
+				],
+			]) {
+				expect(
+					group([prompt, ...steps, ...search, ...after]).blocks,
+				).toMatchObject([{ stepCount: 2 }]);
+			}
+		});
+
 		it("starts no block from a search without citations alone", () => {
 			const prompt = user("Go");
 			const parts = [searchCall("s", at(1)), searchResult("s"), text("Hi.")];
