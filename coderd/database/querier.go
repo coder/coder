@@ -921,7 +921,9 @@ type sqlcQuerier interface {
 	// workspaces in a given timeframe. The template IDs, active users, and
 	// usage_seconds all reflect any usage in the template, including apps.
 	//
-	// Session usage comes out per app name; callers group the names into families.
+	// Session usage comes out per reported app name, separate from workspace apps.
+	// Every registered app is listed; unregistered apps past
+	// @max_unregistered_apps fold into the overflow accounting row.
 	//
 	// When combining data from multiple templates, we must make a guess at
 	// how the user behaved for the 30 minute interval. In this case we make

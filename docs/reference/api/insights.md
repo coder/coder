@@ -97,9 +97,11 @@ curl -X GET http://coder-server:8080/api/v2/insights/templates?start_time=2019-0
     "active_users": 22,
     "apps_usage": [
       {
-        "display_name": "Visual Studio Code",
+        "display_name": "VS Code",
+        "family": "vscode",
         "icon": "string",
         "seconds": 80500,
+        "seconds_is_upper_bound": false,
         "slug": "vscode",
         "template_ids": [
           "497f6eca-6276-4993-bfeb-53cbbbba6f08"
@@ -137,7 +139,8 @@ curl -X GET http://coder-server:8080/api/v2/insights/templates?start_time=2019-0
     "start_time": "2019-08-24T14:15:22Z",
     "template_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-    ]
+    ],
+    "usage_total_seconds": 120000
   }
 }
 ```
