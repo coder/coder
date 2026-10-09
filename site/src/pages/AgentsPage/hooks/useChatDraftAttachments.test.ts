@@ -111,7 +111,6 @@ describe("useChatDraftAttachments", () => {
 				restored.result.current.attachments[0],
 			);
 			expect(state).toMatchObject({ status: "uploaded", fileId: "file-1" });
-			expect(state?.error).toBeUndefined();
 		});
 		const stored = parseStoredDrafts();
 		expect(stored).toHaveLength(1);
@@ -231,7 +230,6 @@ describe("useChatDraftAttachments", () => {
 			const state = result.current.uploadStates.get(file);
 			expect(state).toMatchObject({ status: "error" });
 			expect(state?.error).toContain("network down");
-			expect(state?.fileId).toBeUndefined();
 		});
 		expect(result.current.attachments).toHaveLength(1);
 

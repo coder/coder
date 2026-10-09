@@ -1,8 +1,12 @@
 import type React from "react";
 import {
 	AgentComposer,
-	type AgentComposerBindings,
-	AgentComposerProvider,
+	AgentComposerRuntimeProvider,
+	type ComposerChatBindings,
+	type ComposerDraftBindings,
+	type ComposerEditorBindings,
+	type ComposerEditorProps,
+	type ComposerFileBindings,
 } from "./AgentComposer";
 import {
 	AgentComposerContainer,
@@ -11,42 +15,24 @@ import {
 	AgentComposerSetupNotice,
 	needsAgentSetup,
 } from "./AgentComposerLayout";
-import { AgentComposerOptions } from "./AgentComposerOptions";
+import {
+	type AgentComposerModelProps,
+	AgentComposerOptions,
+} from "./AgentComposerOptions";
+import type { AgentComposerOptionsData } from "./AgentComposerOptionsContext";
+
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
-type AgentComposerConfiguration = {
-	bindings: Omit<
-		AgentComposerBindings,
-		"queuedMessages" | "onPromoteQueuedMessage"
-	>;
-	model: React.ComponentProps<typeof AgentComposerOptions.Model>;
-	tools: Omit<
-		React.ComponentProps<typeof AgentComposerOptions.Provider>,
-		"children"
-	>;
+type ComposerConfiguration = {
+	model: AgentComposerModelProps;
+	tools: AgentComposerOptionsData;
 	setup: AgentComposerSetup;
-	editor?: Partial<React.ComponentProps<typeof AgentComposer.Editor>>;
+	editor?: ComposerEditorProps;
 	fillWidth?: boolean;
 };
 
-type NewAgentComposerProps = Omit<
-	AgentComposerConfiguration,
-	"bindings" | "tools" | "editor"
-> & {
-	bindings: Omit<
-		AgentComposerConfiguration["bindings"],
-		| "isStreaming"
-		| "onInterrupt"
-		| "isInterruptPending"
-		| "isEditingHistoryMessage"
-		| "onCancelHistoryEdit"
-		| "userPromptHistory"
-	>;
-	tools: Omit<AgentComposerConfiguration["tools"], "linkedWorkspace">;
-	editor?: Omit<
-		NonNullable<AgentComposerConfiguration["editor"]>,
-		"hasWorkspace"
-	>;
+type NewAgentComposerProps = ComposerConfiguration & {
+	bindings: ComposerDraftBindings & { files: ComposerFileBindings };
 };
 
 /** Composer for creating a chat with the selected organization's settings. */
@@ -61,7 +47,10 @@ export const NewAgentComposer = ({
 	const showSetupNotice = needsAgentSetup(setup);
 
 	return (
-		<AgentComposerProvider bindings={bindings}>
+		<AgentComposerRuntimeProvider
+			bindings={bindings}
+			needsSetup={showSetupNotice}
+		>
 			<AgentComposerOptions.Provider {...tools}>
 				<AgentComposerContainer fillWidth={fillWidth}>
 					{showSetupNotice && (
@@ -70,16 +59,14 @@ export const NewAgentComposer = ({
 							organizationId={tools.organizationId}
 						/>
 					)}
-					<AgentComposer.Frame showSetupNotice={showSetupNotice}>
+					<AgentComposer.Frame>
 						<AgentComposer.Warning />
 						<AgentComposer.Attachments />
-						<AgentComposer.Editor hasWorkspace={false} {...editor} />
+						<AgentComposer.Editor {...editor} />
 						<AgentComposer.InvisibleCharacterWarning />
 						<AgentComposer.Toolbar>
 							<AgentComposerOptions.Frame>
-								<AgentComposerOptions.Menu
-									showAgentSetupNotice={showSetupNotice}
-								/>
+								<AgentComposerOptions.Menu />
 								<AgentComposerOptions.Model {...model} />
 								<AgentComposerOptions.PlanningBadge />
 								<AgentComposerOptions.Badges />
@@ -92,11 +79,13 @@ export const NewAgentComposer = ({
 					</AgentComposer.Frame>
 				</AgentComposerContainer>
 			</AgentComposerOptions.Provider>
-		</AgentComposerProvider>
+		</AgentComposerRuntimeProvider>
 	);
 };
 
-type ChatComposerProps = AgentComposerConfiguration & {
+type ChatComposerProps = ComposerConfiguration & {
+	bindings: ComposerDraftBindings &
+		ComposerChatBindings & { files: ComposerFileBindings };
 	queue?: Omit<React.ComponentProps<typeof QueuedMessagesList>, "className">;
 	context?: React.ComponentProps<typeof AgentComposerContextIndicator>;
 };
@@ -115,7 +104,8 @@ export const ChatComposer = ({
 	const showSetupNotice = needsAgentSetup(setup);
 
 	return (
-		<AgentComposerProvider
+		<AgentComposerRuntimeProvider
+			needsSetup={showSetupNotice}
 			bindings={{
 				...bindings,
 				queuedMessages: queue?.messages,
@@ -123,10 +113,7 @@ export const ChatComposer = ({
 			}}
 		>
 			<AgentComposerOptions.Provider {...tools}>
-				<AgentComposerContainer
-					fillWidth={fillWidth}
-					isEditing={bindings.isEditingHistoryMessage}
-				>
+				<AgentComposerContainer fillWidth={fillWidth}>
 					{queue && queue.messages.length > 0 && (
 						<QueuedMessagesList {...queue} className="mb-2" />
 					)}
@@ -136,17 +123,23 @@ export const ChatComposer = ({
 							organizationId={tools.organizationId}
 						/>
 					)}
-					<AgentComposer.Frame showSetupNotice={showSetupNotice}>
+					<AgentComposer.Frame>
 						<AgentComposer.Warning />
 						{bindings.isEditingHistoryMessage && <AgentComposer.EditBanner />}
 						<AgentComposer.Attachments />
-						<AgentComposer.Editor hasWorkspace={false} {...editor} />
+						{/* Commands act on the whole chat, not an edited history message. */}
+						<AgentComposer.Editor
+							{...editor}
+							slashCommands={
+								bindings.isEditingHistoryMessage
+									? undefined
+									: editor?.slashCommands
+							}
+						/>
 						<AgentComposer.InvisibleCharacterWarning />
 						<AgentComposer.Toolbar>
 							<AgentComposerOptions.Frame>
-								<AgentComposerOptions.Menu
-									showAgentSetupNotice={showSetupNotice}
-								/>
+								<AgentComposerOptions.Menu />
 								<AgentComposerOptions.Model {...model} />
 								{context ? (
 									<AgentComposerOptions.Badges
@@ -176,22 +169,14 @@ export const ChatComposer = ({
 					</AgentComposer.Frame>
 				</AgentComposerContainer>
 			</AgentComposerOptions.Provider>
-		</AgentComposerProvider>
+		</AgentComposerRuntimeProvider>
 	);
 };
 
 type LoadingChatComposerProps = {
-	bindings: Pick<
-		AgentComposerBindings,
-		| "inputRef"
-		| "initialValue"
-		| "initialEditorState"
-		| "remountKey"
-		| "onContentChange"
-		| "isDisabled"
-	>;
-	model: AgentComposerConfiguration["model"];
-	tools: Pick<AgentComposerConfiguration["tools"], "planning">;
+	bindings: ComposerEditorBindings & { isDisabled: boolean };
+	model: AgentComposerModelProps;
+	tools: { planning: ComposerConfiguration["tools"]["planning"] };
 };
 
 /** Composer that records draft changes while the chat loads. */
@@ -200,7 +185,7 @@ export const LoadingChatComposer = ({
 	model,
 	tools,
 }: LoadingChatComposerProps) => (
-	<AgentComposerProvider
+	<AgentComposerRuntimeProvider
 		bindings={{
 			...bindings,
 			onSend: () => {},
@@ -211,7 +196,7 @@ export const LoadingChatComposer = ({
 		<AgentComposerOptions.Provider {...tools}>
 			<AgentComposerContainer>
 				<AgentComposer.Frame>
-					<AgentComposer.Editor hasWorkspace={false} />
+					<AgentComposer.Editor />
 					<AgentComposer.InvisibleCharacterWarning />
 					<AgentComposer.Toolbar>
 						<AgentComposerOptions.Frame>
@@ -227,5 +212,5 @@ export const LoadingChatComposer = ({
 				</AgentComposer.Frame>
 			</AgentComposerContainer>
 		</AgentComposerOptions.Provider>
-	</AgentComposerProvider>
+	</AgentComposerRuntimeProvider>
 );

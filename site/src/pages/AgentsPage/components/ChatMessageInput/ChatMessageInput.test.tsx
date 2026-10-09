@@ -81,13 +81,14 @@ const QueuedReplacementHarness: React.FC<{
 };
 
 const FocusBeforeReadyHarness: React.FC<{
+	inputRef: React.RefObject<ChatMessageInputRef | null>;
+	method: "focus" | "focusWhenEditable";
+	disabled?: boolean;
 	onChange: React.ComponentProps<typeof ChatMessageInput>["onChange"];
-}> = ({ onChange }) => {
-	const inputRef = useRef<ChatMessageInputRef>(null);
-
+}> = ({ inputRef, method, disabled = false, onChange }) => {
 	useLayoutEffect(() => {
-		inputRef.current?.focus();
-	}, []);
+		inputRef.current?.[method]();
+	}, [inputRef, method]);
 
 	return (
 		<ChatMessageInput
@@ -95,6 +96,7 @@ const FocusBeforeReadyHarness: React.FC<{
 			ref={inputRef}
 			initialValue="persisted draft"
 			onChange={onChange}
+			disabled={disabled}
 			aria-label="Chat message input"
 		/>
 	);
@@ -247,10 +249,16 @@ describe("ChatMessageInput", () => {
 		});
 	});
 
-	it("focuses at the end when requested before the editor is ready", async () => {
+	it("focuses at the end when a deferred focus is requested before the editor is ready", async () => {
 		const user = userEvent.setup();
 		const onChange = vi.fn();
-		renderWithQueryClient(<FocusBeforeReadyHarness onChange={onChange} />);
+		renderWithQueryClient(
+			<FocusBeforeReadyHarness
+				inputRef={createRef<ChatMessageInputRef>()}
+				method="focusWhenEditable"
+				onChange={onChange}
+			/>,
+		);
 
 		await waitFor(() => {
 			expect(onChange).toHaveBeenCalledWith(
@@ -267,6 +275,37 @@ describe("ChatMessageInput", () => {
 				expect.any(String),
 				false,
 			);
+		});
+	});
+
+	it("ignores immediate focus until the editor is ready and editable", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const queryClient = createTestQueryClient();
+		const harness = (disabled: boolean) => (
+			<QueryClientProvider client={queryClient}>
+				<FocusBeforeReadyHarness
+					inputRef={inputRef}
+					method="focus"
+					disabled={disabled}
+					onChange={vi.fn()}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = render(harness(true));
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toBe("persisted draft");
+		});
+		act(() => inputRef.current?.focus());
+
+		await act(async () => rerender(harness(false)));
+		await user.paste(" unsolicited");
+		expect(inputRef.current?.getValue()).toBe("persisted draft");
+
+		await act(async () => inputRef.current?.focus());
+		await user.paste(" appended");
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toBe("persisted draft appended");
 		});
 	});
 
@@ -296,7 +335,7 @@ describe("ChatMessageInput", () => {
 				expect(inputRef.current?.getValue()).toBe("persisted draft");
 			});
 			await user.click(screen.getByRole("button", { name: "Focus elsewhere" }));
-			act(() => inputRef.current?.focus());
+			act(() => inputRef.current?.focusWhenEditable());
 
 			if (remount) {
 				await act(async () => rerender(input(true, 1)));
@@ -324,36 +363,39 @@ describe("ChatMessageInput", () => {
 		},
 	);
 
-	it("does not make a disabled editor editable when focus is requested", async () => {
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		const onEnter = vi.fn();
-		renderWithQueryClient(
-			<>
-				<button type="button">Focus elsewhere</button>
-				<ChatMessageInput
-					{...requiredProps()}
-					ref={inputRef}
-					initialValue="read-only draft"
-					onEnter={onEnter}
-					disabled
-					aria-label="Chat message input"
-				/>
-			</>,
-		);
-		await waitFor(() => {
-			expect(inputRef.current?.getValue()).toBe("read-only draft");
-		});
-		await user.click(screen.getByRole("button", { name: "Focus elsewhere" }));
-		act(() => inputRef.current?.focus());
-		await user.click(
-			screen.getByRole("textbox", { name: "Chat message input" }),
-		);
-		await user.keyboard("blocked{Enter}");
+	it.each(["focus", "focusWhenEditable"] as const)(
+		"does not make a disabled editor editable when %s is requested",
+		async (method) => {
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			const onEnter = vi.fn();
+			renderWithQueryClient(
+				<>
+					<button type="button">Focus elsewhere</button>
+					<ChatMessageInput
+						{...requiredProps()}
+						ref={inputRef}
+						initialValue="read-only draft"
+						onEnter={onEnter}
+						disabled
+						aria-label="Chat message input"
+					/>
+				</>,
+			);
+			await waitFor(() => {
+				expect(inputRef.current?.getValue()).toBe("read-only draft");
+			});
+			await user.click(screen.getByRole("button", { name: "Focus elsewhere" }));
+			act(() => inputRef.current?.[method]());
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			await user.keyboard("blocked{Enter}");
 
-		expect(inputRef.current?.getValue()).toBe("read-only draft");
-		expect(onEnter).not.toHaveBeenCalled();
-	});
+			expect(inputRef.current?.getValue()).toBe("read-only draft");
+			expect(onEnter).not.toHaveBeenCalled();
+		},
+	);
 
 	it("returns content inserted through the ref handle", async () => {
 		const inputRef = { current: null as ChatMessageInputRef | null };

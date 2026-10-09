@@ -4,10 +4,7 @@ import type {
 	Workspace,
 	WorkspaceAgent,
 } from "#/api/typesGenerated";
-import type {
-	AttachedWorkspaceInfo,
-	ToolBadgeData,
-} from "./AgentComposerBadges";
+import type { AttachedWorkspaceInfo } from "./AgentComposerBadges";
 
 /** Controlled inputs for independently configurable composer options. */
 export type AgentComposerOptionsData = {
@@ -47,16 +44,9 @@ export type AgentComposerOptionsData = {
 	};
 };
 
-/** Shared options contract for sibling tool controls. */
-type AgentComposerOptionsContextValue = Omit<
-	AgentComposerOptionsData,
-	"linkedWorkspace"
-> & {
-	badges: readonly ToolBadgeData[];
-};
-
-export const OptionsContext =
-	createContext<AgentComposerOptionsContextValue | null>(null);
+export const OptionsContext = createContext<AgentComposerOptionsData | null>(
+	null,
+);
 
 /** Reads shared tool state inside AgentComposerOptions.Provider. */
 export function useAgentComposerOptions() {

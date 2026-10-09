@@ -6,6 +6,11 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import type { AgentComposerOptionsData } from "./AgentComposerOptionsContext";
 
+/** Servers the deployment has enabled; disabled servers are never offered. */
+export const enabledMcpServers = (
+	mcp: AgentComposerOptionsData["mcp"],
+): MCPServerConfig[] => mcp?.servers.filter((server) => server.enabled) ?? [];
+
 /** Updates controlled MCP selection without changing unrelated server IDs. */
 export function setMCPServerSelected(
 	mcp: Pick<

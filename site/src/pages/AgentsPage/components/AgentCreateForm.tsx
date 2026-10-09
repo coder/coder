@@ -988,22 +988,24 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						},
 						warning: isPrefillEdited ? undefined : prefill?.warning,
 						hasModelOptions,
-						attachments,
-						// Files attached before org adoption cannot upload and would be discarded
-						// when restoration completes.
-						onAttach: organizationAdopted ? handleAttachWhenIdle : undefined,
-						onRemoveAttachment: handleRemoveAttachment,
-						uploadStates,
-						previewUrls,
-						textContents,
-						workspaceUploads: {
-							uploads: workspaceUploadEntries,
-							onAttach: canUploadWorkspaceFiles
-								? workspaceUploads.attach
-								: undefined,
-							onRemove: workspaceUploads.remove,
-							unavailableMessage: workspaceUploadUnavailableMessage,
-							deferred: true,
+						files: {
+							attachments,
+							// Files attached before org adoption cannot upload and would be discarded
+							// when restoration completes.
+							onAttach: organizationAdopted ? handleAttachWhenIdle : undefined,
+							onRemoveAttachment: handleRemoveAttachment,
+							uploadStates,
+							previewUrls,
+							textContents,
+							workspaceUploads: {
+								uploads: workspaceUploadEntries,
+								onAttach: canUploadWorkspaceFiles
+									? workspaceUploads.attach
+									: undefined,
+								onRemove: workspaceUploads.remove,
+								unavailableMessage: workspaceUploadUnavailableMessage,
+								deferred: true,
+							},
 						},
 					}}
 					editor={{

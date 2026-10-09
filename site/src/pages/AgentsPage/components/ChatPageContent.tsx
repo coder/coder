@@ -39,8 +39,13 @@ import {
 	resolveCompactionThreshold,
 } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
-import { isUploadInProgress, type UploadState } from "./AgentChatInput";
+import type { ComposerEditorBindings } from "./AgentComposer/context";
+import type { AttachedWorkspaceInfo } from "./AgentComposerBadges";
+import type { AgentComposerSetup } from "./AgentComposerLayout";
+import type { AgentComposerModelProps } from "./AgentComposerOptions";
+import type { AgentComposerOptionsData } from "./AgentComposerOptionsContext";
 import { ChatComposer } from "./AgentComposers";
+import { isUploadInProgress, type UploadState } from "./AttachmentPreview";
 import type { ChatAutomationNames } from "./ChatConversation/AutomationLabel";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
@@ -78,6 +83,8 @@ import {
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
+import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
+
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -312,40 +319,32 @@ type ChatPageInputProps = {
 	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
-	model: React.ComponentProps<typeof ChatComposer>["model"];
-	setup: React.ComponentProps<typeof ChatComposer>["setup"];
+	model: AgentComposerModelProps;
+	setup: AgentComposerSetup;
 	modelSelectorHelp?: React.ReactNode;
 	onPlanModeToggle: (enabled: boolean) => void;
 	onManageAutomationsToggle?: (enabled: boolean) => void;
-	bindings: Pick<
-		React.ComponentProps<typeof ChatComposer>["bindings"],
-		| "inputRef"
-		| "initialValue"
-		| "initialEditorState"
-		| "remountKey"
-		| "onContentChange"
-		| "isDisabled"
-		| "isReadOnly"
-		| "isLoading"
-		| "isInterruptPending"
-		| "hasModelOptions"
-		| "isEditingHistoryMessage"
-		| "onCancelHistoryEdit"
-		| "onInterrupt"
-	>;
+	bindings: ComposerEditorBindings & {
+		isDisabled: boolean;
+		isLoading: boolean;
+		hasModelOptions: boolean;
+		isInterruptPending?: boolean;
+		isEditingHistoryMessage?: boolean;
+		onCancelHistoryEdit?: () => void;
+		onInterrupt?: () => void;
+	};
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks: readonly TypesGen.ChatMessagePart[];
-	// MCP server picker state.
-	mcpServers: readonly TypesGen.MCPServerConfig[];
-	selectedMCPServerIds: readonly string[];
-	onMCPSelectionChange: (ids: string[]) => void;
-	onMCPAuthComplete: (serverId: string) => void;
+	mcp: NonNullable<AgentComposerOptionsData["mcp"]>;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
-	linkedWorkspace?: React.ComponentProps<
-		typeof ChatComposer
-	>["tools"]["linkedWorkspace"];
+	linkedWorkspace?: {
+		workspace?: TypesGen.Workspace;
+		agent?: TypesGen.WorkspaceAgent;
+		sshCommand?: string;
+		folder?: string;
+	};
 };
 
 export const ChatPageInput: React.FC<ChatPageInputProps> = ({
@@ -362,10 +361,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	onPlanModeToggle,
 	onManageAutomationsToggle,
 	editingFileBlocks,
-	mcpServers,
-	selectedMCPServerIds,
-	onMCPSelectionChange,
-	onMCPAuthComplete,
+	mcp,
 	onWorkspaceChange,
 	isWorkspaceLoading,
 	linkedWorkspace,
@@ -375,12 +371,23 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		isEditingHistoryMessage: isEditing = false,
 		isLoading: isSendPending,
 	} = bindings;
-	const {
-		workspace,
-		agent: workspaceAgent,
-		attachedWorkspace,
-	} = linkedWorkspace ?? {};
+	const { workspace, agent: workspaceAgent } = linkedWorkspace ?? {};
 	const { user: currentUser } = useAuthenticated();
+	let attachedWorkspace: AttachedWorkspaceInfo | undefined;
+
+	if (workspace) {
+		const { effectiveType, statusLabel } = getWorkspaceStatus(
+			workspace,
+			workspaceAgent,
+		);
+		attachedWorkspace = {
+			id: workspace.id,
+			name: workspace.name,
+			route: `/@${workspace.owner_name}/${workspace.name}`,
+			statusIcon: <StatusIcon type={effectiveType} />,
+			statusLabel,
+		};
+	}
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
 	const chatContext = chat.context;
@@ -709,6 +716,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		<ChatComposer
 			bindings={{
 				...bindings,
+				isReadOnly: !chat.archived && currentUser.id !== chat.owner_id,
 				onSend: async (message) => {
 					const hasActiveUploads =
 						attachments.some((file) =>
@@ -788,18 +796,20 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						composeWorkspaceUploads.reset();
 					}
 				},
-				attachments,
-				onAttach: handleAttach,
-				onRemoveAttachment: handleRemoveAttachment,
-				uploadStates,
-				previewUrls,
-				textContents,
-				workspaceUploads: {
-					uploads: visibleWorkspaceUploads,
-					onAttach: canUploadWorkspaceFiles
-						? modeWorkspaceUploads.attach
-						: undefined,
-					onRemove: handleRemoveWorkspaceUpload,
+				files: {
+					attachments,
+					onAttach: handleAttach,
+					onRemoveAttachment: handleRemoveAttachment,
+					uploadStates,
+					previewUrls,
+					textContents,
+					workspaceUploads: {
+						uploads: visibleWorkspaceUploads,
+						onAttach: canUploadWorkspaceFiles
+							? modeWorkspaceUploads.attach
+							: undefined,
+						onRemove: handleRemoveWorkspaceUpload,
+					},
 				},
 				userPromptHistory,
 				isStreaming,
@@ -833,20 +843,14 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 					onChange: onWorkspaceChange,
 					isLoading: workspacesQuery.isLoading || isWorkspaceLoading,
 				},
-				mcp: {
-					servers: mcpServers,
-					selectedServerIds: selectedMCPServerIds,
-					onSelectionChange: onMCPSelectionChange,
-					onAuthComplete: onMCPAuthComplete,
-				},
-				linkedWorkspace: { ...linkedWorkspace, chatId },
+				mcp,
+				linkedWorkspace: { ...linkedWorkspace, attachedWorkspace, chatId },
 			}}
 			setup={setup}
 			editor={{
 				workspaceSkills,
-				hasWorkspace: Boolean(attachedWorkspace?.id ?? workspace?.id),
-				// Commands act on the whole chat, not an edited history message.
-				slashCommands: isEditing ? undefined : CHAT_SLASH_COMMANDS,
+				hasWorkspace: workspace !== undefined,
+				slashCommands: CHAT_SLASH_COMMANDS,
 			}}
 		/>
 	);

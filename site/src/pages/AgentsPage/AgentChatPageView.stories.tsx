@@ -20,7 +20,6 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
@@ -53,7 +52,6 @@ import { LoadingChatComposer } from "./components/AgentComposers";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 import { ChatPageInput } from "./components/ChatPageContent";
-import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
@@ -170,7 +168,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 	chat,
 	...overrides
 }) => {
-	const { user: currentUser } = useAuthenticated();
 	const [defaultStore] = useState(() => createChatStore());
 	const store = overrides.store ?? defaultStore;
 
@@ -192,9 +189,12 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(async () => {}),
 		mcpServers: [],
-		selectedMCPServerIds: [],
-		onMCPSelectionChange: fn(),
-		onMCPAuthComplete: fn(),
+		mcp: {
+			servers: [],
+			selectedServerIds: [],
+			onSelectionChange: fn(),
+			onAuthComplete: fn(),
+		},
 		onPlanModeToggle: fn(),
 		isWorkspaceLoading: false,
 		onImplementPlan: fn(),
@@ -216,28 +216,8 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		onInterrupt: fn(),
 		isEditingHistoryMessage: props.editing.editingMessageId !== null,
 		onCancelHistoryEdit: fn(),
-		isReadOnly: !props.chat.archived && currentUser.id !== props.chat.owner_id,
 		...overrides.bindings,
 	};
-	const attachedWorkspace = (() => {
-		const { workspace, workspaceAgent } = props;
-		if (!workspace) {
-			return undefined;
-		}
-
-		const { effectiveType, statusLabel } = getWorkspaceStatus(
-			workspace,
-			workspaceAgent,
-		);
-
-		return {
-			id: workspace.id,
-			name: workspace.name,
-			route: `/@${workspace.owner_name}/${workspace.name}`,
-			statusIcon: <StatusIcon type={effectiveType} />,
-			statusLabel,
-		};
-	})();
 
 	return (
 		<AgentChatPageView
@@ -270,7 +250,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 						linkedWorkspace={{
 							workspace: props.workspace,
 							agent: props.workspaceAgent,
-							attachedWorkspace,
 							...overrides.linkedWorkspace,
 						}}
 					/>

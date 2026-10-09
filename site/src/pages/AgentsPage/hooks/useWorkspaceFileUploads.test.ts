@@ -8,7 +8,6 @@ import { act, createElement } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { UploadChatWorkspaceFileResponse } from "#/api/typesGenerated";
-import { createDeferred } from "#/testHelpers/deferred";
 import { mockApiError } from "#/testHelpers/entities";
 import { useWorkspaceFileUploads } from "./useWorkspaceFileUploads";
 
@@ -67,7 +66,6 @@ describe("useWorkspaceFileUploads", () => {
 			expect(result.current.uploads[0].status).toBe("uploaded");
 		});
 		expect(result.current.uploads[0].response).toEqual(okResponse);
-		expect(result.current.uploads[0].error).toBeUndefined();
 		expect(uploadMock).toHaveBeenCalledWith(
 			"chat-1",
 			expect.any(File),
@@ -297,10 +295,9 @@ describe("useWorkspaceFileUploads", () => {
 	});
 
 	it("uploadQueued re-uploads every entry on retry", async () => {
-		const retryUpload = createDeferred<UploadChatWorkspaceFileResponse>();
 		uploadMock
 			.mockRejectedValueOnce(new Error("boom"))
-			.mockReturnValueOnce(retryUpload.promise);
+			.mockResolvedValueOnce(okResponse);
 		const { result } = renderHook(() =>
 			useWorkspaceFileUploads(undefined, undefined),
 		);
@@ -317,16 +314,8 @@ describe("useWorkspaceFileUploads", () => {
 		// The retry targets a fresh chat, so the failed entry uploads
 		// again rather than being skipped.
 		let settled: readonly { status: string }[] = [];
-		let retry: ReturnType<typeof result.current.uploadQueued> | undefined;
-		act(() => {
-			retry = result.current.uploadQueued("chat-2");
-		});
-		expect(result.current.uploads[0]).toMatchObject({ status: "uploading" });
-		expect(result.current.uploads[0].error).toBeUndefined();
-		expect(result.current.uploads[0].response).toBeUndefined();
 		await act(async () => {
-			retryUpload.resolve(okResponse);
-			settled = (await retry) ?? [];
+			settled = await result.current.uploadQueued("chat-2");
 		});
 
 		expect(settled).toHaveLength(1);

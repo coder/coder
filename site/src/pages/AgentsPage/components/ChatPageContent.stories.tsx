@@ -120,7 +120,6 @@ const StoryChatPageInput: React.FC<{
 				hasModelOptions: true,
 				isEditingHistoryMessage: false,
 				onCancelHistoryEdit: fn(),
-				isReadOnly: false,
 				inputRef: { current: null },
 				initialValue: "",
 				remountKey: 0,
@@ -145,10 +144,12 @@ const StoryChatPageInput: React.FC<{
 			setup={{ canConfigureAgentSetup: false, unsupportedProviderNames: [] }}
 			onPlanModeToggle={fn()}
 			editingFileBlocks={[]}
-			mcpServers={[]}
-			selectedMCPServerIds={[]}
-			onMCPSelectionChange={fn()}
-			onMCPAuthComplete={fn()}
+			mcp={{
+				servers: [],
+				selectedServerIds: [],
+				onSelectionChange: fn(),
+				onAuthComplete: fn(),
+			}}
 			isWorkspaceLoading={false}
 		/>
 	</div>
@@ -476,7 +477,6 @@ const CompactionChatPageInput: React.FC = () => {
 					hasModelOptions: false,
 					isEditingHistoryMessage: false,
 					onCancelHistoryEdit: fn(),
-					isReadOnly: false,
 					inputRef: { current: null },
 					initialValue: "",
 					remountKey: 0,
@@ -493,10 +493,12 @@ const CompactionChatPageInput: React.FC = () => {
 				setup={{ canConfigureAgentSetup: false, unsupportedProviderNames: [] }}
 				onPlanModeToggle={fn()}
 				editingFileBlocks={[]}
-				mcpServers={[]}
-				selectedMCPServerIds={[]}
-				onMCPSelectionChange={fn()}
-				onMCPAuthComplete={fn()}
+				mcp={{
+					servers: [],
+					selectedServerIds: [],
+					onSelectionChange: fn(),
+					onAuthComplete: fn(),
+				}}
 				isWorkspaceLoading={false}
 			/>
 		</div>

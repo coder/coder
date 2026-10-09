@@ -55,7 +55,6 @@ import {
 	AgentChatPageView,
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
-import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { LoadingChatComposer } from "./components/AgentComposers";
 import { useAutomationsEnabled } from "./components/Automations/automationsFlag";
 import {
@@ -78,13 +77,13 @@ import {
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
+import type { ChatMessageInputRef } from "./components/ChatMessageInput/ChatMessageInput";
 import {
 	ChatPageInput,
 	workspaceSkillsFromChat,
 } from "./components/ChatPageContent";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
-import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import {
 	type SendChatTurnOptions,
 	useConversationEditingState,
@@ -114,6 +113,14 @@ import { pickReasoningEffort } from "./utils/reasoningEffort";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
+function restoreComposerFocus(
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>,
+) {
+	if (!isMobileViewport()) {
+		chatInputRef.current?.focusWhenEditable();
+	}
+}
+
 async function submitChatTurnAndRestoreFocus(
 	params: SubmitChatTurnParams,
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>,
@@ -121,9 +128,7 @@ async function submitChatTurnAndRestoreFocus(
 	try {
 		await submitChatTurn(params);
 	} finally {
-		if (!isMobileViewport()) {
-			chatInputRef.current?.focus();
-		}
+		restoreComposerFocus(chatInputRef);
 	}
 }
 
@@ -446,25 +451,6 @@ const AgentChatPage: React.FC = () => {
 		Array.from(gitWatcher.repositories.keys()).sort()[0] ||
 		workspaceAgent?.expanded_directory;
 
-	const attachedWorkspace = (() => {
-		if (!workspace) {
-			return undefined;
-		}
-
-		const { effectiveType, statusLabel } = getWorkspaceStatus(
-			workspace,
-			workspaceAgent,
-		);
-
-		return {
-			id: workspace.id,
-			name: workspace.name,
-			route: `/@${workspace.owner_name}/${workspace.name}`,
-			statusIcon: <StatusIcon type={effectiveType} />,
-			statusLabel,
-		};
-	})();
-
 	// Detect completed chat tool results so sidebar data stays in sync
 	// with the server state those tools may have changed.
 	useChatToolInvalidations({
@@ -592,17 +578,13 @@ const AgentChatPage: React.FC = () => {
 		setChatErrorReason(agentId, reason);
 	};
 
-	const restoreComposerFocus = () => {
-		if (!isMobileViewport()) {
-			chatInputRef.current?.focus();
-		}
-	};
-
 	const handleInterrupt = () => {
 		if (isInterruptPending) {
 			return;
 		}
-		interrupt(undefined, { onSettled: restoreComposerFocus });
+		interrupt(undefined, {
+			onSettled: () => restoreComposerFocus(chatInputRef),
+		});
 	};
 
 	const handleWorkspaceChange = (nextWorkspaceId: string | null) => {
@@ -898,21 +880,21 @@ const AgentChatPage: React.FC = () => {
 								onCancelHistoryEdit: editing.handleCancelHistoryEdit,
 								onInterrupt: handleInterrupt,
 								isDisabled: isInputDisabled,
-								isReadOnly: !chat.archived && currentUser.id !== chat.owner_id,
 								isLoading: isSubmissionPending,
 								isInterruptPending,
 								hasModelOptions,
 							}}
 							editingFileBlocks={editing.editingFileBlocks}
-							mcpServers={mcpServers}
-							selectedMCPServerIds={effectiveMCPServerIds}
-							onMCPSelectionChange={handleMCPSelectionChange}
-							onMCPAuthComplete={handleMCPAuthComplete}
+							mcp={{
+								servers: mcpServers,
+								selectedServerIds: effectiveMCPServerIds,
+								onSelectionChange: handleMCPSelectionChange,
+								onAuthComplete: handleMCPAuthComplete,
+							}}
 							linkedWorkspace={{
 								workspace,
 								agent: workspaceAgent,
 								sshCommand,
-								attachedWorkspace,
 								folder: preferredFolder,
 							}}
 						/>

@@ -497,7 +497,20 @@ export type ChatMessageInputRef = {
 	setValue: (text: string) => void;
 	insertText: (text: string) => void;
 	clear: () => void;
+	/**
+	 * Focus the editor at the end of its content now. Does nothing when
+	 * the editor is not initialized or not editable. A successful focus
+	 * also satisfies a pending focusWhenEditable request.
+	 */
 	focus: () => void;
+	/**
+	 * Focus the editor at the end of its content as soon as it is
+	 * initialized and editable, including after an inner remount. Use for
+	 * completion callbacks that run before React commits the state that
+	 * re-enables the editor. The request stays pending until it is
+	 * satisfied.
+	 */
+	focusWhenEditable: () => void;
 	getValue: () => string;
 	/**
 	 * Insert a file reference chip in a single Lexical update
@@ -819,13 +832,9 @@ const ChatMessageInput = ({
 		setSkillsMenuSelectedIndex(0);
 	};
 
-	const focusIfReady = () => {
+	const focusAtEndIfEditable = () => {
 		const editor = editorRef.current;
-		if (
-			!pendingFocusRef.current ||
-			!editor?.isEditable() ||
-			!editor.getRootElement()
-		) {
+		if (!editor?.isEditable() || !editor.getRootElement()) {
 			return;
 		}
 		pendingFocusRef.current = false;
@@ -846,6 +855,12 @@ const ChatMessageInput = ({
 		});
 	};
 
+	const flushPendingFocus = () => {
+		if (pendingFocusRef.current) {
+			focusAtEndIfEditable();
+		}
+	};
+
 	const handleEditorReady = (editor: LexicalEditor | null) => {
 		editorRef.current = editor;
 		if (!editor) {
@@ -858,7 +873,7 @@ const ChatMessageInput = ({
 			pendingReplacementRef.current = null;
 			replacePlainTextInEditor(editor, pending);
 		}
-		focusIfReady();
+		flushPendingFocus();
 	};
 
 	useImperativeHandle(
@@ -901,9 +916,10 @@ const ChatMessageInput = ({
 					paragraph.select();
 				});
 			},
-			focus: () => {
+			focus: focusAtEndIfEditable,
+			focusWhenEditable: () => {
 				pendingFocusRef.current = true;
-				focusIfReady();
+				focusAtEndIfEditable();
 			},
 			getValue: () => {
 				const editor = editorRef.current;

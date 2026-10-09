@@ -9,24 +9,28 @@ import type { ChatMessageInputRef } from "../ChatMessageInput/ChatMessageInput";
 /** Workspace file uploads displayed and routed by the composer. */
 type WorkspaceUploadsProps = {
 	uploads: readonly WorkspaceFileUpload[];
-
 	/** Supply this callback when workspace files can be accepted; omit it to reject them. */
 	onAttach?: (files: File[]) => void;
 	onRemove: (id: string) => void;
-
 	/** Message shown when a workspace file is rejected because uploads are unavailable. */
 	unavailableMessage?: string;
-
 	/** Set when files upload during submission and failed uploads retry on the next send. */
 	deferred?: boolean;
 };
 
-/** Draft inputs and callbacks for AgentComposerProvider. */
-export type AgentComposerBindings = {
-	onSend: (message: string) => Promise<void> | void;
-	isDisabled: boolean;
-	isReadOnly?: boolean;
-	isLoading: boolean;
+/** File data and operations supplied by the draft's upload owner. */
+export type ComposerFileBindings = {
+	attachments: readonly File[];
+	onAttach?: (files: File[]) => void;
+	onRemoveAttachment: (attachment: number | File) => void;
+	uploadStates: Map<File, UploadState>;
+	previewUrls: Map<File, string>;
+	textContents: Map<File, string>;
+	workspaceUploads?: WorkspaceUploadsProps;
+};
+
+/** Initial document and change notifications for the uncontrolled editor. */
+export type ComposerEditorBindings = {
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	initialValue: string;
 	initialEditorState?: string;
@@ -37,24 +41,35 @@ export type AgentComposerBindings = {
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => void;
+};
+
+/** Submission capabilities shared by new and existing chat drafts. */
+export type ComposerDraftBindings = ComposerEditorBindings & {
+	onSend: (message: string) => Promise<void> | void;
+	isDisabled: boolean;
+	isReadOnly?: boolean;
+	isLoading: boolean;
 	hasModelOptions: boolean;
+	warning?: string;
+};
+
+/** Operations available only inside an existing chat. */
+export type ComposerChatBindings = {
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
 	isInterruptPending?: boolean;
-	warning?: string;
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
 	userPromptHistory?: readonly string[];
-	queuedMessages?: readonly ChatQueuedMessage[];
-	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
-	attachments?: readonly File[];
-	onAttach?: (files: File[]) => void;
-	onRemoveAttachment?: (attachment: number | File) => void;
-	uploadStates?: Map<File, UploadState>;
-	previewUrls?: Map<File, string>;
-	textContents?: Map<File, string>;
-	workspaceUploads?: WorkspaceUploadsProps;
 };
+
+/** Draft inputs for the default runtime; assemblies select their own capabilities. */
+export type AgentComposerBindings = ComposerDraftBindings &
+	ComposerChatBindings & {
+		files?: ComposerFileBindings;
+		queuedMessages?: readonly ChatQueuedMessage[];
+		onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	};
 
 export type ComposerContextValue = {
 	state: {
@@ -65,7 +80,6 @@ export type ComposerContextValue = {
 		isInterruptPending: boolean;
 		isEditingHistoryMessage: boolean;
 		warning?: string;
-		isDragging: boolean;
 		invisibleCharCount: number;
 		canSend: boolean;
 		showSendButton: boolean;
@@ -74,9 +88,15 @@ export type ComposerContextValue = {
 		speechSupported: boolean;
 		speechRecording: boolean;
 		speechError: string | null;
+		needsSetup: boolean;
+		files?: Pick<
+			ComposerFileBindings,
+			"attachments" | "uploadStates" | "previewUrls" | "textContents"
+		> & {
+			workspaceUploads?: { uploads: readonly WorkspaceFileUpload[] };
+		};
 	};
 	actions: {
-		openFilePicker: () => void;
 		resetPromptCycle: () => void;
 		submit: () => void;
 		startRecording: () => void;
@@ -84,21 +104,15 @@ export type ComposerContextValue = {
 		cancelRecording: () => void;
 		interrupt?: () => void;
 		cancelHistoryEdit?: () => void;
-		fileSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
-		filePaste: (file: File) => boolean;
+		attachFiles: (files: File[]) => boolean;
+		removeAttachment: ComposerFileBindings["onRemoveAttachment"];
+		removeWorkspaceUpload: (id: string) => void;
 		inlineText: (file: File, nextContent?: string) => void;
-		textPreview: (content: string, fileName: string, mediaType: string) => void;
-		imagePreview: (src: string) => void;
-		contentChange: AgentComposerBindings["onContentChange"];
+		contentChange: ComposerEditorBindings["onContentChange"];
 		editorKeyDown: (event: React.KeyboardEvent) => void;
-		composerKeyDown: (event: React.KeyboardEvent) => void;
-		dragOver: (event: React.DragEvent) => void;
-		dragLeave: (event: React.DragEvent) => void;
-		drop: (event: React.DragEvent) => void;
 	};
 	meta: {
-		attachEditor: React.RefCallback<ChatMessageInputRef>;
-		attachFileInput: React.RefCallback<HTMLInputElement>;
+		editorRef: React.RefObject<ChatMessageInputRef | null>;
 		warningId: string;
 		composerElement: HTMLDivElement | null;
 		setComposerElement: React.Dispatch<
@@ -110,12 +124,6 @@ export type ComposerContextValue = {
 		sendShortcut: ReturnType<typeof getAgentChatSendShortcut>;
 		sendShortcutLabel?: string;
 		sendButtonKeyShortcuts?: string;
-		attachments: readonly File[];
-		onRemoveAttachment?: AgentComposerBindings["onRemoveAttachment"];
-		uploadStates?: Map<File, UploadState>;
-		previewUrls?: Map<File, string>;
-		textContents?: Map<File, string>;
-		workspaceUploads?: WorkspaceUploadsProps;
 	};
 };
 

@@ -14,7 +14,7 @@ import {
 	contentRangeForBox,
 	selectedLinesForBox,
 } from "../../utils/diffCommentSelection";
-import type { ChatMessageInputRef } from "../AgentChatInput";
+import type { ChatMessageInputRef } from "../ChatMessageInput/ChatMessageInput";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { DiffViewer } from "../DiffViewer/DiffViewer";
 

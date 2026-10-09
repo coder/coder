@@ -5,6 +5,7 @@ import {
 	ChevronRightIcon,
 	MonitorIcon,
 } from "lucide-react";
+import type React from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -26,64 +27,49 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useAgentComposerOptions } from "./AgentComposerOptionsContext";
 
-/** Opens the desktop picker or switches the options menu to its mobile view. */
+/** Menu row that opens workspace choices; mobile menus switch views from it directly. */
+export const AgentComposerWorkspaceMenuEntry = ({
+	chevronClassName,
+	...props
+}: React.ComponentProps<"button"> & { chevronClassName?: string }) => (
+	<button
+		type="button"
+		className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+		{...props}
+	>
+		<MonitorIcon className="size-3.5 shrink-0" />
+		<span>Attach workspace</span>
+		<ChevronRightIcon
+			className={cn("ml-auto size-icon-sm", chevronClassName)}
+		/>
+	</button>
+);
+
+/** Desktop flyout picker beside the options menu. */
 export const AgentComposerWorkspacePicker = ({
-	isMobile,
-	open,
-	onOpenChange,
 	disabled,
-	onOpenMobile,
 	onSelect,
 }: {
-	isMobile: boolean;
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
 	disabled: boolean;
-	onOpenMobile: () => void;
 	onSelect: (id: string | null) => void;
-}) => {
-	const trigger = (
-		<button
-			type="button"
-			disabled={disabled}
-			onClick={isMobile ? onOpenMobile : undefined}
-			className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-		>
-			<MonitorIcon className="size-3.5 shrink-0" />
-			<span>Attach workspace</span>
-			<ChevronRightIcon
-				className={cn(
-					"ml-auto size-icon-sm",
-					!isMobile && "transition-transform",
-					!isMobile && open && "rotate-180",
-				)}
+}) => (
+	<Popover>
+		<PopoverTrigger asChild>
+			<AgentComposerWorkspaceMenuEntry
+				disabled={disabled}
+				chevronClassName="transition-transform group-data-[state=open]:rotate-180"
 			/>
-		</button>
-	);
-
-	if (isMobile) {
-		return trigger;
-	}
-
-	return (
-		<Popover open={open} onOpenChange={onOpenChange}>
-			<PopoverTrigger asChild>{trigger}</PopoverTrigger>
-			<PopoverContent
-				side="right"
-				align="start"
-				sideOffset={8}
-				className="w-64 p-0"
-			>
-				<AgentComposerWorkspaceView
-					onSelect={(id) => {
-						onOpenChange(false);
-						onSelect(id);
-					}}
-				/>
-			</PopoverContent>
-		</Popover>
-	);
-};
+		</PopoverTrigger>
+		<PopoverContent
+			side="right"
+			align="start"
+			sideOffset={8}
+			className="w-64 p-0"
+		>
+			<AgentComposerWorkspaceView onSelect={onSelect} />
+		</PopoverContent>
+	</Popover>
+);
 
 /** Searchable workspace choices, with a back action in the mobile menu. */
 // Cross-organization workspaces remain selectable only when already selected,

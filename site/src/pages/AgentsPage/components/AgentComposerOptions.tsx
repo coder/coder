@@ -10,7 +10,6 @@ import {
 	AgentComposerBadges,
 	AgentComposerPlanningBadge,
 	composerPillSizingClasses,
-	type ToolBadgeData,
 } from "./AgentComposerBadges";
 import {
 	type AgentComposerOptionsData,
@@ -18,75 +17,13 @@ import {
 } from "./AgentComposerOptionsContext";
 import { AgentComposerOptionsMenu } from "./AgentComposerOptionsMenu";
 
-export type { AttachedWorkspaceInfo } from "./AgentComposerBadges";
-
-/** Tool settings shared by the menu and badges. */
-type AgentComposerOptionsProviderProps = AgentComposerOptionsData & {
-	children: React.ReactNode;
-};
-
+/** Shares controlled tool settings with the menu and badges. */
 const AgentComposerOptionsProvider = ({
 	children,
-	linkedWorkspace,
-	...data
-}: AgentComposerOptionsProviderProps) => {
-	const { mcp, workspaceSelection } = data;
-	const selectedServerIds = mcp?.selectedServerIds;
-	const { options, selectedId } = workspaceSelection ?? {};
-	const { workspace, agent, chatId, attachedWorkspace } = linkedWorkspace ?? {};
-
-	const enabledMcpServers =
-		mcp?.servers.filter((server) => server.enabled) ?? [];
-	const activeMcpServers = enabledMcpServers.filter(
-		(server) =>
-			(server.availability === "force_on" ||
-				selectedServerIds?.includes(server.id)) &&
-			!(server.auth_type === "oauth2" && !server.auth_connected),
-	);
-	const selectedWorkspace = options?.find((item) => item.id === selectedId);
-	const linkedWorkspaceId = workspace?.id ?? attachedWorkspace?.id;
-
-	// Ordering controls which trailing badges move into the overflow menu.
-	const badges: ToolBadgeData[] = [];
-	if (workspace && agent && chatId) {
-		badges.push({
-			kind: "linked-workspace",
-			props: {
-				workspace,
-				agent,
-				chatId,
-				sshCommand: linkedWorkspace?.sshCommand,
-				folder: linkedWorkspace?.folder,
-			},
-		});
-	} else if (attachedWorkspace) {
-		badges.push({ kind: "attached-workspace", ...attachedWorkspace });
-	}
-
-	if (selectedWorkspace && selectedWorkspace.id !== linkedWorkspaceId) {
-		badges.push({ kind: "workspace", name: selectedWorkspace.name });
-	}
-
-	if (activeMcpServers.length >= 3) {
-		badges.push({ kind: "mcp-group", servers: activeMcpServers });
-	} else {
-		for (const server of activeMcpServers) {
-			badges.push({ kind: "mcp", server });
-		}
-	}
-
-	return (
-		<OptionsContext
-			value={{
-				...data,
-				mcp: mcp ? { ...mcp, servers: enabledMcpServers } : undefined,
-				badges,
-			}}
-		>
-			{children}
-		</OptionsContext>
-	);
-};
+	...value
+}: AgentComposerOptionsData & { children: React.ReactNode }) => (
+	<OptionsContext value={value}>{children}</OptionsContext>
+);
 
 const AgentComposerOptionsFrame = ({
 	children,
@@ -95,7 +32,7 @@ const AgentComposerOptionsFrame = ({
 }) => <div className="flex min-w-0 flex-1 items-center gap-1">{children}</div>;
 
 /** Model catalog selection and reasoning controls, independent of tool state. */
-type AgentComposerModelProps = {
+export type AgentComposerModelProps = {
 	selectedModel: string;
 	onModelChange: (value: string) => void;
 	modelOptions: readonly ModelSelectorOption[];

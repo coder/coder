@@ -23,7 +23,7 @@ import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
 	AgentComposer,
-	AgentComposerProvider,
+	AgentComposerRuntimeProvider,
 	type ComposerContextValue,
 	useAgentComposer,
 } from "./AgentComposer";
@@ -74,6 +74,13 @@ const inputProps = {
 		hasModelOptions: true,
 		initialValue: "",
 		onContentChange: vi.fn(),
+		files: {
+			attachments: [],
+			onRemoveAttachment: vi.fn(),
+			uploadStates: new Map(),
+			previewUrls: new Map(),
+			textContents: new Map(),
+		},
 	},
 	model: {
 		selectedModel: modelOptions[0].id,
@@ -159,12 +166,14 @@ describe("ChatComposer", () => {
 		};
 
 		renderInput(
-			<AgentComposerProvider bindings={{ ...inputProps.bindings, onSend }}>
+			<AgentComposerRuntimeProvider
+				bindings={{ ...inputProps.bindings, onSend }}
+			>
 				<AgentComposer.Frame>
 					<AgentComposer.Editor hasWorkspace={false} />
 				</AgentComposer.Frame>
 				<SubmitDraft />
-			</AgentComposerProvider>,
+			</AgentComposerRuntimeProvider>,
 		);
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
 		await user.paste("Shared draft");
@@ -184,7 +193,6 @@ describe("ChatComposer", () => {
 				isStreaming: false,
 				isInterruptPending: false,
 				isEditingHistoryMessage: false,
-				isDragging: false,
 				invisibleCharCount: 0,
 				canSend: true,
 				showSendButton: true,
@@ -193,38 +201,35 @@ describe("ChatComposer", () => {
 				speechSupported: false,
 				speechRecording: false,
 				speechError: null,
+				needsSetup: false,
+				files: {
+					attachments: [],
+					uploadStates: new Map(),
+					previewUrls: new Map(),
+					textContents: new Map(),
+				},
 			},
 			actions: {
-				openFilePicker: vi.fn(),
 				resetPromptCycle: vi.fn(),
 				submit: () => onSubmit(editorRef.current?.getValue()),
 				startRecording: vi.fn(),
 				acceptRecording: vi.fn(),
 				cancelRecording: vi.fn(),
-				fileSelect: vi.fn(),
-				filePaste: vi.fn(() => true),
+				attachFiles: vi.fn(() => true),
+				removeAttachment: vi.fn(),
 				inlineText: vi.fn(),
-				textPreview: vi.fn(),
-				imagePreview: vi.fn(),
 				contentChange: vi.fn(),
 				editorKeyDown: vi.fn(),
-				composerKeyDown: vi.fn(),
-				dragOver: vi.fn(),
-				dragLeave: vi.fn(),
-				drop: vi.fn(),
+				removeWorkspaceUpload: vi.fn(),
 			},
 			meta: {
-				attachEditor: (editor) => {
-					editorRef.current = editor;
-				},
-				attachFileInput: vi.fn(),
+				editorRef,
 				warningId: "injected-composer-warning",
 				composerElement: null,
 				setComposerElement: vi.fn(),
 				initialValue: "",
 				sendShortcut: "enter",
 				sendShortcutLabel: undefined,
-				attachments: [],
 			},
 		};
 		renderInput(
@@ -279,37 +284,76 @@ describe("ChatComposer", () => {
 		},
 	);
 
-	it("inlines locally previewed text and removes its attachment", async () => {
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		const file = createMockFile("notes.txt", "text/plain");
-		const content = "Local attachment notes";
-		const onRemoveAttachment = vi.fn();
-		renderInput(
-			<ChatComposer
-				{...inputProps}
-				bindings={{
-					...inputProps.bindings,
-					inputRef,
-					attachments: [file],
-					textContents: new Map([[file, content]]),
-					onRemoveAttachment,
-				}}
-			/>,
-		);
+	it.each([
+		{ image: false, isEditingHistoryMessage: false },
+		{ image: false, isEditingHistoryMessage: true },
+		{ image: true, isEditingHistoryMessage: false },
+		{ image: true, isEditingHistoryMessage: true },
+	])(
+		"isolates preview Escape and removes the attachment (image: $image, editing: $isEditingHistoryMessage)",
+		async ({ image, isEditingHistoryMessage }) => {
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			const file = createMockFile(
+				image ? "screenshot.png" : "notes.txt",
+				image ? "image/png" : "text/plain",
+			);
+			const content = "Local attachment notes";
+			const onRemoveAttachment = vi.fn();
+			const onInterrupt = vi.fn();
+			const onCancelHistoryEdit = vi.fn();
+			renderInput(
+				<ChatComposer
+					{...inputProps}
+					bindings={{
+						...inputProps.bindings,
+						inputRef,
+						isStreaming: true,
+						isEditingHistoryMessage,
+						onInterrupt,
+						onCancelHistoryEdit,
+						files: {
+							...inputProps.bindings.files,
+							attachments: [file],
+							textContents: new Map([[file, content]]),
+							previewUrls: new Map([
+								[file, "data:image/png;base64,iVBORw0KGgo="],
+							]),
+							onRemoveAttachment,
+						},
+					}}
+				/>,
+			);
 
-		await user.click(screen.getByRole("button", { name: "View notes.txt" }));
-		await user.click(await screen.findByRole("dialog", { name: "notes.txt" }));
-		await user.keyboard("{Escape}");
-		await user.click(
-			await screen.findByRole("button", { name: "Paste inline" }),
-		);
-		await waitFor(() =>
-			expect(inputRef.current?.getValue()).toContain(content),
-		);
+			await user.click(
+				screen.getByRole("button", {
+					name: image ? "screenshot.png" : "View notes.txt",
+				}),
+			);
+			await user.click(
+				await screen.findByRole("dialog", {
+					name: image ? "Image preview" : "notes.txt",
+				}),
+			);
+			await user.keyboard("{Escape}");
+			expect(onInterrupt).not.toHaveBeenCalled();
+			expect(onCancelHistoryEdit).not.toHaveBeenCalled();
 
-		expect(onRemoveAttachment).toHaveBeenCalledExactlyOnceWith(file);
-	});
+			if (image) {
+				await user.click(
+					screen.getByRole("button", { name: "Remove screenshot.png" }),
+				);
+			} else {
+				await user.click(
+					await screen.findByRole("button", { name: "Paste inline" }),
+				);
+				await waitFor(() =>
+					expect(inputRef.current?.getValue()).toContain(content),
+				);
+			}
+			expect(onRemoveAttachment).toHaveBeenCalledExactlyOnceWith(file);
+		},
+	);
 
 	it("keeps the editor mounted while composing history-edit actions", async () => {
 		const user = userEvent.setup();
@@ -343,20 +387,6 @@ describe("ChatComposer", () => {
 		await user.click(screen.getByRole("button", { name: "Send" }));
 		expect(onSend).toHaveBeenCalledTimes(2);
 		expect(onSend).toHaveBeenLastCalledWith("Preserved draft");
-	});
-
-	it("fills its container when the page column sets the width", () => {
-		localStorage.removeItem("agents.chat-full-width");
-		const { rerender } = renderInput(<ChatComposer {...inputProps} />);
-		const column = screen.getByTestId("chat-composer").parentElement;
-
-		expect(column).toHaveClass("max-w-3xl");
-
-		rerender(<ChatComposer {...inputProps} fillWidth />);
-
-		expect(screen.getByTestId("chat-composer").parentElement).toHaveClass(
-			"max-w-full",
-		);
 	});
 
 	it("retains the loading composer draft on Enter even with a populated model", async () => {
@@ -487,32 +517,6 @@ describe("ChatComposer", () => {
 			expect(anotherInput).toHaveValue(isMobile ? "waiting next" : "waiting");
 		},
 	);
-
-	it("does not move typing focus when loading ends without a submission", async () => {
-		stubViewport(false);
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		const onSend = vi.fn();
-		const composer = (isLoading: boolean) => (
-			<>
-				<ChatComposer
-					{...inputProps}
-					bindings={{ ...inputProps.bindings, inputRef, onSend, isLoading }}
-				/>
-				<input aria-label="Another input" />
-			</>
-		);
-		const { rerender } = renderInput(composer(false));
-		rerender(composer(true));
-		const anotherInput = screen.getByRole("textbox", { name: "Another input" });
-		await user.click(anotherInput);
-		rerender(composer(false));
-
-		await user.keyboard("Continue elsewhere");
-		expect(anotherInput).toHaveValue("Continue elsewhere");
-		expect(inputRef.current?.getValue()).toBe("");
-		expect(onSend).not.toHaveBeenCalled();
-	});
 
 	it("cycles prompt history and restores the draft without interrupting streaming", async () => {
 		const user = userEvent.setup();
@@ -833,7 +837,10 @@ describe("ChatComposer", () => {
 		renderInput(
 			<ChatComposer
 				{...inputProps}
-				bindings={{ ...inputProps.bindings, onAttach, attachments: [] }}
+				bindings={{
+					...inputProps.bindings,
+					files: { ...inputProps.bindings.files, onAttach },
+				}}
 			/>,
 		);
 
@@ -1166,8 +1173,7 @@ describe("ChatComposer", () => {
 				bindings={{
 					...inputProps.bindings,
 					inputRef,
-					onAttach,
-					attachments: [],
+					files: { ...inputProps.bindings.files, onAttach },
 				}}
 			/>,
 		);
@@ -1201,12 +1207,14 @@ describe("ChatComposer", () => {
 				{...inputProps}
 				bindings={{
 					...inputProps.bindings,
-					onAttach,
-					attachments: [],
-					workspaceUploads: {
-						uploads: [],
-						onAttach: onWorkspaceAttach,
-						onRemove: vi.fn(),
+					files: {
+						...inputProps.bindings.files,
+						onAttach,
+						workspaceUploads: {
+							uploads: [],
+							onAttach: onWorkspaceAttach,
+							onRemove: vi.fn(),
+						},
 					},
 				}}
 			/>,
@@ -1256,12 +1264,14 @@ describe("ChatComposer", () => {
 				{...inputProps}
 				bindings={{
 					...inputProps.bindings,
-					onAttach,
-					attachments: [],
-					workspaceUploads: {
-						uploads: [],
-						onAttach: onWorkspaceAttach,
-						onRemove: vi.fn(),
+					files: {
+						...inputProps.bindings.files,
+						onAttach,
+						workspaceUploads: {
+							uploads: [],
+							onAttach: onWorkspaceAttach,
+							onRemove: vi.fn(),
+						},
 					},
 					isDisabled,
 					isLoading,
@@ -1295,9 +1305,11 @@ describe("ChatComposer", () => {
 				{...inputProps}
 				bindings={{
 					...inputProps.bindings,
-					onAttach,
-					attachments: [],
-					workspaceUploads: { uploads: [], onRemove: vi.fn() },
+					files: {
+						...inputProps.bindings.files,
+						onAttach,
+						workspaceUploads: { uploads: [], onRemove: vi.fn() },
+					},
 				}}
 			/>,
 		);

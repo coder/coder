@@ -7,7 +7,7 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
-import type React from "react";
+import { useState } from "react";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -16,23 +16,28 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { chatAttachmentAcceptAttribute } from "../utils/chatAttachments";
 import type { ChatSlashCommand } from "../utils/slashCommands";
+import type { AgentComposerBindings } from "./AgentComposer/context";
 import {
 	ComposerContext,
 	type ComposerContextValue,
 	useAgentComposer,
 } from "./AgentComposer/context";
 import { Frame } from "./AgentComposer/Frame";
+import { useComposerRuntime } from "./AgentComposer/useComposerRuntime";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { ChatMessageInput } from "./ChatMessageInput/ChatMessageInput";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
+import { ImageLightbox } from "./ImageLightbox";
+import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
 
-export { AgentComposerProvider } from "./AgentComposer/AgentComposerProvider";
 export {
-	type AgentComposerBindings,
+	type ComposerChatBindings,
 	type ComposerContextValue,
+	type ComposerDraftBindings,
+	type ComposerEditorBindings,
+	type ComposerFileBindings,
 	useAgentComposer,
 } from "./AgentComposer/context";
 
@@ -43,24 +48,44 @@ function Provider({
 	return <ComposerContext value={value}>{children}</ComposerContext>;
 }
 
+/** Supplies the default draft runtime through the injectable composer contract. */
+export function AgentComposerRuntimeProvider({
+	bindings,
+	children,
+	needsSetup = false,
+}: {
+	bindings: AgentComposerBindings;
+	children: React.ReactNode;
+	needsSetup?: boolean;
+}) {
+	const value = useComposerRuntime(bindings, needsSetup);
+
+	return <Provider {...value}>{children}</Provider>;
+}
+
+/** Editor affordances selected by an assembly, separate from document state. */
+export type ComposerEditorProps = {
+	placeholder?: string;
+	workspaceSkills?: readonly SkillMetadata[];
+	slashCommands?: readonly ChatSlashCommand[];
+	hasWorkspace?: boolean;
+};
+
 function Editor({
 	placeholder = "Type a message...",
 	workspaceSkills,
 	slashCommands,
-	hasWorkspace,
-}: {
-	placeholder?: string;
-	workspaceSkills?: readonly SkillMetadata[];
-	slashCommands?: readonly ChatSlashCommand[];
-	hasWorkspace: boolean;
-}) {
+	hasWorkspace = false,
+}: ComposerEditorProps) {
 	const { state, actions, meta } = useAgentComposer();
-	const { attachEditor } = meta;
+	const { editorRef } = meta;
 
 	return (
 		<ChatMessageInput
-			ref={attachEditor}
-			onFilePaste={state.canAttachFiles ? actions.filePaste : undefined}
+			ref={editorRef}
+			onFilePaste={
+				state.canAttachFiles ? (file) => actions.attachFiles([file]) : undefined
+			}
 			acceptFilePasteWhileDisabled={state.isLoading && !state.isReadOnly}
 			onPaste={actions.resetPromptCycle}
 			aria-label="Chat message"
@@ -84,43 +109,62 @@ function Editor({
 }
 
 function Attachments() {
-	const { state, actions, meta } = useAgentComposer();
-	const { attachFileInput } = meta;
+	const { state, actions } = useAgentComposer();
+	const [previewImage, setPreviewImage] = useState<string | null>(null);
+	const [previewText, setPreviewText] = useState<{
+		content: string;
+		fileName: string;
+		mediaType: string;
+	} | null>(null);
+	const files = state.files;
+
+	if (!files) {
+		return null;
+	}
 
 	return (
 		<>
-			{meta.onRemoveAttachment && (
-				<AttachmentPreview
-					attachments={meta.attachments}
-					onRemove={meta.onRemoveAttachment}
-					uploadStates={meta.uploadStates}
-					previewUrls={meta.previewUrls}
-					onPreview={actions.imagePreview}
-					textContents={meta.textContents}
-					onTextPreview={actions.textPreview}
-					onInlineText={actions.inlineText}
-				/>
-			)}
-			{meta.workspaceUploads && (
+			<AttachmentPreview
+				attachments={files.attachments}
+				onRemove={actions.removeAttachment}
+				uploadStates={files.uploadStates}
+				previewUrls={files.previewUrls}
+				onPreview={setPreviewImage}
+				textContents={files.textContents}
+				onTextPreview={(content, fileName, mediaType) => {
+					setPreviewText({ content, fileName, mediaType });
+				}}
+				onInlineText={actions.inlineText}
+			/>
+			{files.workspaceUploads && (
 				<WorkspaceUploadPreview
-					uploads={meta.workspaceUploads.uploads}
-					onRemove={meta.workspaceUploads.onRemove}
+					uploads={files.workspaceUploads.uploads}
+					onRemove={actions.removeWorkspaceUpload}
 				/>
 			)}
-			{/* Allow all workspace upload types so routeFiles can explain refusals on iOS. */}
-			{state.canAttachFiles && (
-				<input
-					ref={attachFileInput}
-					type="file"
-					data-testid="chat-attachment-file-input"
-					multiple
-					accept={
-						meta.workspaceUploads ? undefined : chatAttachmentAcceptAttribute
+			{/* Dialog Escape must not reach the composer's interrupt or history actions. */}
+			<div
+				className="contents"
+				role="presentation"
+				onKeyDown={(event) => {
+					if (event.key === "Escape") {
+						event.stopPropagation();
 					}
-					onChange={actions.fileSelect}
-					className="hidden"
-				/>
-			)}
+				}}
+			>
+				{previewImage && (
+					<ImageLightbox
+						src={previewImage}
+						onClose={() => setPreviewImage(null)}
+					/>
+				)}
+				{previewText && (
+					<TextPreviewDialog
+						{...previewText}
+						onClose={() => setPreviewText(null)}
+					/>
+				)}
+			</div>
 		</>
 	);
 }
@@ -190,6 +234,14 @@ function SubmitButton({ label }: { label: string }) {
 		return null;
 	}
 
+	let icon = <ArrowUpIcon />;
+
+	if (state.isLoading && !state.isInterruptPending) {
+		icon = <Spinner size="sm" loading aria-hidden="true" />;
+	} else if (state.speechRecording) {
+		icon = <CheckIcon />;
+	}
+
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -203,13 +255,7 @@ function SubmitButton({ label }: { label: string }) {
 					disabled={state.speechRecording ? false : !state.canSend}
 					aria-keyshortcuts={meta.sendButtonKeyShortcuts}
 				>
-					{state.isLoading && !state.isInterruptPending ? (
-						<Spinner size="sm" loading aria-hidden="true" />
-					) : state.speechRecording ? (
-						<CheckIcon />
-					) : (
-						<ArrowUpIcon />
-					)}
+					{icon}
 					<span className="sr-only">
 						{state.speechRecording ? "Accept voice input" : label}
 					</span>

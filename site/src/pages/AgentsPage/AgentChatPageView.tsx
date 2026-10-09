@@ -18,7 +18,6 @@ import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import { findWorkspaceAgent } from "#/utils/workspace";
-import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
@@ -29,9 +28,9 @@ import {
 	useChatSelector,
 	type useChatStore,
 } from "./components/ChatConversation/chatStore";
-
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
+import type { ChatMessageInputRef } from "./components/ChatMessageInput/ChatMessageInput";
 import { ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";

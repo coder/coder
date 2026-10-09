@@ -7,7 +7,7 @@ import {
 	PlusIcon,
 	ZapIcon,
 } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
@@ -23,30 +23,30 @@ import {
 import { Separator } from "#/components/Separator/Separator";
 import { isBelowMdViewport } from "#/utils/mobile";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
+import { chatAttachmentAcceptAttribute } from "../utils/chatAttachments";
 import { useAgentComposer } from "./AgentComposer";
 import {
+	enabledMcpServers,
 	MCPServerMenuItem,
 	setMCPServerSelected,
 } from "./AgentComposerMCPMenu";
 import { useAgentComposerOptions } from "./AgentComposerOptionsContext";
 import {
+	AgentComposerWorkspaceMenuEntry,
 	AgentComposerWorkspacePicker,
 	AgentComposerWorkspaceView,
 } from "./AgentComposerWorkspacePicker";
 
-/** Keeps OAuth and disconnect state alive independently of the menu's portaled content. */
-export const AgentComposerOptionsMenu = ({
-	showAgentSetupNotice = false,
-}: {
-	showAgentSetupNotice?: boolean;
-}) => {
+/** Keeps the file input, OAuth, and disconnect state alive independently of the menu's portaled content. */
+export const AgentComposerOptionsMenu = () => {
 	const options = useAgentComposerOptions();
 	const composer = useAgentComposer();
 	const { mcp, workspaceSelection } = options;
+	const mcpServers = enabledMcpServers(mcp);
 
+	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [open, setOpen] = useState(false);
 	const [view, setView] = useState<"main" | "workspace">("main");
-	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
 	const [disconnectTarget, setDisconnectTarget] =
 		useState<MCPServerConfig | null>(null);
 
@@ -60,7 +60,8 @@ export const AgentComposerOptionsMenu = ({
 		onAuthComplete: mcp?.onAuthComplete,
 		onFlowSuccess: (serverId) => {
 			if (
-				mcp?.servers.some((server) => server.id === serverId) &&
+				mcp &&
+				mcpServers.some((server) => server.id === serverId) &&
 				!mcp.selectedServerIds.includes(serverId)
 			) {
 				setMCPServerSelected(mcp, serverId, true);
@@ -74,6 +75,12 @@ export const AgentComposerOptionsMenu = ({
 	const selectWorkspace = (id: string | null) => {
 		workspaceSelection?.onChange?.(id);
 		setOpen(false);
+	};
+
+	const openFilePicker = () => {
+		setOpen(false);
+		composer.actions.resetPromptCycle();
+		fileInputRef.current?.click();
 	};
 
 	const confirmDisconnect = () => {
@@ -99,6 +106,30 @@ export const AgentComposerOptionsMenu = ({
 		});
 	};
 
+	const menuHasEnabledItems =
+		!composer.state.isDisabled ||
+		composer.state.needsSetup ||
+		canUseWorkspacePicker;
+	let workspaceEntry: React.ReactNode;
+
+	if (workspaceSelection?.onChange) {
+		if (isBelowMdViewport()) {
+			workspaceEntry = (
+				<AgentComposerWorkspaceMenuEntry
+					disabled={!canUseWorkspacePicker}
+					onClick={() => setView("workspace")}
+				/>
+			);
+		} else {
+			workspaceEntry = (
+				<AgentComposerWorkspacePicker
+					disabled={!canUseWorkspacePicker}
+					onSelect={selectWorkspace}
+				/>
+			);
+		}
+	}
+
 	return (
 		<>
 			<Popover
@@ -118,11 +149,7 @@ export const AgentComposerOptionsMenu = ({
 						variant="subtle"
 						size="icon"
 						className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
-						disabled={
-							composer.state.isDisabled &&
-							!showAgentSetupNotice &&
-							!canUseWorkspacePicker
-						}
+						disabled={!menuHasEnabledItems}
 						aria-label="More options"
 					>
 						<PlusIcon />
@@ -140,21 +167,15 @@ export const AgentComposerOptionsMenu = ({
 						/>
 					) : (
 						<>
-							<ComposerMenuActions onClose={() => setOpen(false)} />
-							{workspaceSelection?.onChange && (
-								<AgentComposerWorkspacePicker
-									onSelect={selectWorkspace}
-									isMobile={isBelowMdViewport()}
-									open={workspacePickerOpen}
-									onOpenChange={setWorkspacePickerOpen}
-									disabled={!canUseWorkspacePicker}
-									onOpenMobile={() => setView("workspace")}
-								/>
-							)}
-							{mcp && mcp.servers.length > 0 && (
+							<ComposerMenuActions
+								onClose={() => setOpen(false)}
+								onAttachFile={openFilePicker}
+							/>
+							{workspaceEntry}
+							{mcp && mcpServers.length > 0 && (
 								<>
 									<Separator className="my-1" />
-									{mcp.servers.map((server) => (
+									{mcpServers.map((server) => (
 										<MCPServerMenuItem
 											key={server.id}
 											server={server}
@@ -174,6 +195,29 @@ export const AgentComposerOptionsMenu = ({
 					)}
 				</PopoverContent>
 			</Popover>
+			{/* Allow all workspace upload types so attachFiles can explain refusals on iOS. */}
+			{composer.state.canAttachFiles && (
+				<input
+					ref={fileInputRef}
+					type="file"
+					data-testid="chat-attachment-file-input"
+					multiple
+					accept={
+						composer.state.files?.workspaceUploads
+							? undefined
+							: chatAttachmentAcceptAttribute
+					}
+					onChange={(event) => {
+						const files = Array.from(event.target.files ?? []);
+						if (files.length > 0) {
+							composer.actions.attachFiles(files);
+						}
+						// Reset so the same file can be selected again.
+						event.target.value = "";
+					}}
+					className="hidden"
+				/>
+			)}
 			{/* Portaled dialog keys still bubble through the React composer tree. */}
 			<div
 				className="contents"
@@ -199,8 +243,14 @@ export const AgentComposerOptionsMenu = ({
 	);
 };
 
-const ComposerMenuActions = ({ onClose }: { onClose: () => void }) => {
-	const { state, actions } = useAgentComposer();
+const ComposerMenuActions = ({
+	onClose,
+	onAttachFile,
+}: {
+	onClose: () => void;
+	onAttachFile: () => void;
+}) => {
+	const { state } = useAgentComposer();
 	const { planning, automations } = useAgentComposerOptions();
 
 	return (
@@ -208,10 +258,7 @@ const ComposerMenuActions = ({ onClose }: { onClose: () => void }) => {
 			{state.canAttachFiles && (
 				<button
 					type="button"
-					onClick={() => {
-						onClose();
-						actions.openFilePicker();
-					}}
+					onClick={onAttachFile}
 					className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 				>
 					<PaperclipIcon className="size-3.5 shrink-0" />

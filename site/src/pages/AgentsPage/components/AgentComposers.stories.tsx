@@ -29,7 +29,7 @@ import {
 	withProxyProvider,
 	withToaster,
 } from "#/testHelpers/storybook";
-import type { AttachedWorkspaceInfo } from "./AgentComposerOptions";
+import type { AttachedWorkspaceInfo } from "./AgentComposerBadges";
 import { ChatComposer } from "./AgentComposers";
 import type { UploadState } from "./AttachmentPreview";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
@@ -53,6 +53,13 @@ const defaultBindings = {
 	isDisabled: false,
 	isLoading: false,
 	hasModelOptions: true,
+	files: {
+		attachments: [],
+		onRemoveAttachment: fn(),
+		uploadStates: new Map<File, UploadState>(),
+		previewUrls: new Map<File, string>(),
+		textContents: new Map<File, string>(),
+	},
 } satisfies React.ComponentProps<typeof ChatComposer>["bindings"];
 
 const defaultModel = {
@@ -336,8 +343,10 @@ export const Streaming: Story = {
 			onInterrupt: fn(),
 			isInterruptPending: false,
 			initialValue: "",
-			onAttach: fn(),
-			onRemoveAttachment: fn(),
+			files: {
+				...defaultBindings.files,
+				onAttach: fn(),
+			},
 		},
 	},
 };
@@ -386,17 +395,19 @@ export const WithAttachments: Story = {
 		return {
 			bindings: {
 				...defaultBindings,
-				attachments,
-				uploadStates: new Map<File, UploadState>([
-					[file1, { status: "uploaded", fileId: "f1" }],
-					[file2, { status: "uploaded", fileId: "f2" }],
-				]),
-				previewUrls: new Map<File, string>([
-					[file1, TINY_PNG],
-					[file2, TINY_PNG],
-				]),
-				onAttach: fn(),
-				onRemoveAttachment: fn(),
+				files: {
+					...defaultBindings.files,
+					attachments,
+					uploadStates: new Map<File, UploadState>([
+						[file1, { status: "uploaded", fileId: "f1" }],
+						[file2, { status: "uploaded", fileId: "f2" }],
+					]),
+					previewUrls: new Map<File, string>([
+						[file1, TINY_PNG],
+						[file2, TINY_PNG],
+					]),
+					onAttach: fn(),
+				},
 				initialValue: "Here are the images",
 			},
 		};
@@ -409,13 +420,15 @@ export const WithUploadingAttachment: Story = {
 		return {
 			bindings: {
 				...defaultBindings,
-				attachments: [file],
-				uploadStates: new Map<File, UploadState>([
-					[file, { status: "uploading" }],
-				]),
-				previewUrls: new Map<File, string>([[file, TINY_PNG]]),
-				onAttach: fn(),
-				onRemoveAttachment: fn(),
+				files: {
+					...defaultBindings.files,
+					attachments: [file],
+					uploadStates: new Map<File, UploadState>([
+						[file, { status: "uploading" }],
+					]),
+					previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+					onAttach: fn(),
+				},
 				initialValue: "Waiting for upload",
 			},
 		};
@@ -450,13 +463,15 @@ export const WithAttachmentError: Story = {
 		return {
 			bindings: {
 				...defaultBindings,
-				attachments: [file],
-				uploadStates: new Map<File, UploadState>([
-					[file, { status: "error", error: "Upload failed: server error" }],
-				]),
-				previewUrls: new Map<File, string>([[file, TINY_PNG]]),
-				onAttach: fn(),
-				onRemoveAttachment: fn(),
+				files: {
+					...defaultBindings.files,
+					attachments: [file],
+					uploadStates: new Map<File, UploadState>([
+						[file, { status: "error", error: "Upload failed: server error" }],
+					]),
+					previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+					onAttach: fn(),
+				},
 				initialValue: "Upload had an error",
 			},
 		};
@@ -526,13 +541,15 @@ export const AttachmentsOnly: Story = {
 		return {
 			bindings: {
 				...defaultBindings,
-				attachments: [file],
-				uploadStates: new Map<File, UploadState>([
-					[file, { status: "uploaded", fileId: "f-only" }],
-				]),
-				previewUrls: new Map<File, string>([[file, TINY_PNG]]),
-				onAttach: fn(),
-				onRemoveAttachment: fn(),
+				files: {
+					...defaultBindings.files,
+					attachments: [file],
+					uploadStates: new Map<File, UploadState>([
+						[file, { status: "uploaded", fileId: "f-only" }],
+					]),
+					previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+					onAttach: fn(),
+				},
 				initialValue: "",
 			},
 		};
@@ -577,9 +594,10 @@ export const LargePasteCreatesAttachmentPreview: Story = {
 	args: {
 		bindings: {
 			...defaultBindings,
-			attachments: [],
-			onAttach: fn(),
-			onRemoveAttachment: fn(),
+			files: {
+				...defaultBindings.files,
+				onAttach: fn(),
+			},
 		},
 	},
 	parameters: {
@@ -595,11 +613,11 @@ export const LargePasteCreatesAttachmentPreview: Story = {
 		dispatchPasteWithText(target, largePasteText);
 
 		await waitFor(() => {
-			expect(args.bindings.onAttach).toHaveBeenCalledTimes(1);
+			expect(args.bindings.files.onAttach).toHaveBeenCalledTimes(1);
 		});
 
-		const callArgs = (args.bindings.onAttach as ReturnType<typeof fn>).mock
-			.calls[0];
+		const callArgs = (args.bindings.files.onAttach as ReturnType<typeof fn>)
+			.mock.calls[0];
 		const files = callArgs[0] as File[];
 		expect(files).toHaveLength(1);
 		expect(files[0].type).toBe("text/plain");
@@ -638,7 +656,7 @@ export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 			expect(target.textContent).toContain(LARGE_PASTE_MARKER);
 		});
 
-		expect(args.bindings.onAttach).not.toHaveBeenCalled();
+		expect(args.bindings.files.onAttach).not.toHaveBeenCalled();
 	},
 };
 
@@ -1054,8 +1072,10 @@ export const PlusMenuOpen: Story = {
 		...WithMCPServers.args,
 		bindings: {
 			...defaultBindings,
-			onAttach: fn(),
-			onRemoveAttachment: fn(),
+			files: {
+				...defaultBindings.files,
+				onAttach: fn(),
+			},
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -1880,18 +1900,21 @@ export const DeferredErrorChipKeepsSendEnabled: Story = {
 	args: {
 		bindings: {
 			...defaultBindings,
-			workspaceUploads: {
-				uploads: [
-					{
-						id: "wf-err",
-						file: createMockFile("dataset.zip", "application/zip"),
-						status: "error",
-						error: "upload failed",
-					},
-				],
-				onAttach: fn(),
-				onRemove: fn(),
-				deferred: true,
+			files: {
+				...defaultBindings.files,
+				workspaceUploads: {
+					uploads: [
+						{
+							id: "wf-err",
+							file: createMockFile("dataset.zip", "application/zip"),
+							status: "error",
+							error: "upload failed",
+						},
+					],
+					onAttach: fn(),
+					onRemove: fn(),
+					deferred: true,
+				},
 			},
 		},
 	},
@@ -1909,17 +1932,20 @@ export const ErrorChipAloneKeepsSendDisabled: Story = {
 	args: {
 		bindings: {
 			...defaultBindings,
-			workspaceUploads: {
-				uploads: [
-					{
-						id: "wf-err",
-						file: createMockFile("dataset.zip", "application/zip"),
-						status: "error",
-						error: "upload failed",
-					},
-				],
-				onAttach: fn(),
-				onRemove: fn(),
+			files: {
+				...defaultBindings.files,
+				workspaceUploads: {
+					uploads: [
+						{
+							id: "wf-err",
+							file: createMockFile("dataset.zip", "application/zip"),
+							status: "error",
+							error: "upload failed",
+						},
+					],
+					onAttach: fn(),
+					onRemove: fn(),
+				},
 			},
 		},
 	},

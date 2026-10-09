@@ -1,4 +1,3 @@
-import type React from "react";
 import { useId, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { preferenceSettings } from "#/api/queries/users";
@@ -14,7 +13,10 @@ import { useComposerEditor } from "./useComposerEditor";
 import { useComposerFiles } from "./useComposerFiles";
 
 /** Coordinates submission and exposes the public state/actions/meta contract. */
-export function useComposerRuntime(bindings: AgentComposerBindings) {
+export function useComposerRuntime(
+	bindings: AgentComposerBindings,
+	needsSetup: boolean,
+) {
 	const {
 		onSend,
 		isDisabled,
@@ -28,20 +30,9 @@ export function useComposerRuntime(bindings: AgentComposerBindings) {
 		onCancelHistoryEdit,
 		queuedMessages = [],
 		onPromoteQueuedMessage,
-		attachments = [],
-		workspaceUploads,
 	} = bindings;
 
 	const editorRef = useRef<ChatMessageInputRef>(null);
-	const fileInputRef = useRef<HTMLInputElement>(null);
-	const [attachEditor] = useState(
-		() => (editor: ChatMessageInputRef | null) => {
-			editorRef.current = editor;
-		},
-	);
-	const [attachFileInput] = useState(() => (input: HTMLInputElement | null) => {
-		fileInputRef.current = input;
-	});
 
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
@@ -57,14 +48,10 @@ export function useComposerRuntime(bindings: AgentComposerBindings) {
 	const editor = useComposerEditor(
 		bindings,
 		editorRef,
-		attachments.length > 0 || (workspaceUploads?.uploads.length ?? 0) > 0,
+		(bindings.files?.attachments.length ?? 0) > 0 ||
+			(bindings.files?.workspaceUploads?.uploads.length ?? 0) > 0,
 	);
-	const files = useComposerFiles(
-		bindings,
-		editorRef,
-		fileInputRef,
-		editor.resetPromptCycle,
-	);
+	const files = useComposerFiles(bindings, editorRef, editor.resetPromptCycle);
 
 	const hasSendableContent =
 		editor.hasContent ||
@@ -82,6 +69,7 @@ export function useComposerRuntime(bindings: AgentComposerBindings) {
 	let showSendButton = true;
 	let showStopButton = false;
 
+	// Recording keeps the accept action available even while editing a streaming chat.
 	if (isStreaming && !editor.speech.isRecording) {
 		if (isEditingHistoryMessage) {
 			showSendButton = false;
@@ -129,7 +117,7 @@ export function useComposerRuntime(bindings: AgentComposerBindings) {
 
 		const restoreFocus = () => {
 			if (!isMobileViewport()) {
-				editorRef.current?.focus();
+				editorRef.current?.focusWhenEditable();
 			}
 		};
 
@@ -137,18 +125,6 @@ export function useComposerRuntime(bindings: AgentComposerBindings) {
 			void completion.then(restoreFocus, restoreFocus);
 		} else {
 			restoreFocus();
-		}
-	};
-
-	const composerKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === "Escape") {
-			if (isEditingHistoryMessage) {
-				e.preventDefault();
-				onCancelHistoryEdit?.();
-			} else if (isStreaming && onInterrupt && !isInterruptPending) {
-				e.preventDefault();
-				onInterrupt();
-			}
 		}
 	};
 
@@ -161,18 +137,33 @@ export function useComposerRuntime(bindings: AgentComposerBindings) {
 			isInterruptPending,
 			isEditingHistoryMessage,
 			warning: bindings.warning,
-			isDragging: files.isDragging,
 			invisibleCharCount: editor.invisibleCharCount,
 			canSend,
 			showSendButton,
 			showStopButton,
-			canAttachFiles: bindings.onAttach !== undefined,
+			canAttachFiles: bindings.files?.onAttach !== undefined,
+			needsSetup,
+			files: bindings.files
+				? {
+						attachments: bindings.files.attachments,
+						uploadStates: bindings.files.uploadStates,
+						previewUrls: bindings.files.previewUrls,
+						textContents: bindings.files.textContents,
+						workspaceUploads: bindings.files.workspaceUploads
+							? { uploads: bindings.files.workspaceUploads.uploads }
+							: undefined,
+					}
+				: undefined,
 			speechSupported: editor.speech.isSupported,
 			speechRecording: editor.speech.isRecording,
 			speechError: editor.speech.error,
 		},
 		actions: {
-			...files.actions,
+			attachFiles: files.attachFiles,
+			inlineText: files.inlineText,
+			removeAttachment: (file) => bindings.files?.onRemoveAttachment(file),
+			removeWorkspaceUpload: (id) =>
+				bindings.files?.workspaceUploads?.onRemove(id),
 			resetPromptCycle: editor.resetPromptCycle,
 			submit,
 			startRecording: editor.startRecording,
@@ -182,11 +173,9 @@ export function useComposerRuntime(bindings: AgentComposerBindings) {
 			cancelHistoryEdit: onCancelHistoryEdit,
 			contentChange: editor.contentChange,
 			editorKeyDown: editor.editorKeyDown,
-			composerKeyDown,
 		},
 		meta: {
-			attachEditor,
-			attachFileInput,
+			editorRef,
 			warningId,
 			composerElement,
 			setComposerElement,
@@ -196,14 +185,8 @@ export function useComposerRuntime(bindings: AgentComposerBindings) {
 			sendShortcut,
 			sendShortcutLabel,
 			sendButtonKeyShortcuts,
-			attachments,
-			onRemoveAttachment: bindings.onRemoveAttachment,
-			uploadStates: bindings.uploadStates,
-			previewUrls: bindings.previewUrls,
-			textContents: bindings.textContents,
-			workspaceUploads,
 		},
 	};
 
-	return { context, previews: files.previews };
+	return context;
 }

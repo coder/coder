@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import type React from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAgentComposer } from "./context";
 
 function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
@@ -161,14 +161,13 @@ function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
 export function Frame({
 	children,
 	className,
-	showSetupNotice = false,
 }: {
 	children: React.ReactNode;
 	className?: string;
-	showSetupNotice?: boolean;
 }) {
 	const { state, actions, meta } = useAgentComposer();
 	const { composerElement, setComposerElement } = meta;
+	const [isDragging, setIsDragging] = useState(false);
 
 	useEffect(() => {
 		if (!composerElement) {
@@ -178,22 +177,78 @@ export function Frame({
 		return synchronizeDropdownViewport(composerElement);
 	}, [composerElement]);
 
+	const handleKeyDown = (event: React.KeyboardEvent) => {
+		if (event.key !== "Escape") {
+			return;
+		}
+
+		if (state.isEditingHistoryMessage) {
+			event.preventDefault();
+			actions.cancelHistoryEdit?.();
+		} else if (
+			state.isStreaming &&
+			actions.interrupt &&
+			!state.isInterruptPending
+		) {
+			event.preventDefault();
+			actions.interrupt();
+		}
+	};
+
+	const handleDragOver = (event: React.DragEvent) => {
+		if (!state.canAttachFiles) {
+			return;
+		}
+
+		event.preventDefault();
+
+		if (event.dataTransfer.types.includes("Files")) {
+			setIsDragging(true);
+		}
+	};
+
+	const handleDragLeave = (event: React.DragEvent) => {
+		if (!state.canAttachFiles) {
+			return;
+		}
+
+		if (
+			!(event.relatedTarget instanceof Node) ||
+			!event.currentTarget.contains(event.relatedTarget)
+		) {
+			setIsDragging(false);
+		}
+	};
+
+	const handleDrop = (event: React.DragEvent) => {
+		if (!state.canAttachFiles) {
+			return;
+		}
+
+		event.preventDefault();
+		setIsDragging(false);
+
+		if (event.dataTransfer.files.length > 0) {
+			actions.attachFiles(Array.from(event.dataTransfer.files));
+		}
+	};
+
 	return (
 		<div
 			ref={setComposerElement}
 			data-testid="chat-composer"
 			className={cn(
 				"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
-				showSetupNotice && "sm:bg-surface-secondary",
-				state.isDragging && "ring-2 ring-content-link/40",
+				state.needsSetup && "sm:bg-surface-secondary",
+				isDragging && "ring-2 ring-content-link/40",
 				(state.isEditingHistoryMessage || state.warning) &&
 					"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				className,
 			)}
-			onKeyDown={actions.composerKeyDown}
-			onDragOver={state.canAttachFiles ? actions.dragOver : undefined}
-			onDragLeave={state.canAttachFiles ? actions.dragLeave : undefined}
-			onDrop={state.canAttachFiles ? actions.drop : undefined}
+			onKeyDown={handleKeyDown}
+			onDragOver={handleDragOver}
+			onDragLeave={handleDragLeave}
+			onDrop={handleDrop}
 		>
 			{children}
 		</div>

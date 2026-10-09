@@ -44,7 +44,6 @@ export function useComposerEditor(
 	const promptCycle =
 		historySession?.editorKey === remountKey ? historySession : null;
 	const currentCycleValueRef = useRef<{
-		editorKey: AgentComposerBindings["remountKey"];
 		value: string;
 	} | null>(null);
 
@@ -80,6 +79,7 @@ export function useComposerEditor(
 			insertText: (text) => editorRef.current?.insertText(text),
 			clear: () => editorRef.current?.clear(),
 			focus: () => editorRef.current?.focus(),
+			focusWhenEditable: () => editorRef.current?.focusWhenEditable(),
 			getValue: () => editorRef.current?.getValue() ?? "",
 			addFileReference: (ref) => editorRef.current?.addFileReference(ref),
 			getContentParts: () => editorRef.current?.getContentParts() ?? [],
@@ -100,7 +100,7 @@ export function useComposerEditor(
 		}
 
 		// Editor callbacks may run before React commits the next history index.
-		currentCycleValueRef.current = { editorKey: remountKey, value: text };
+		currentCycleValueRef.current = { value: text };
 		editor.setValue(text);
 		editor.focus();
 	};
@@ -114,9 +114,7 @@ export function useComposerEditor(
 
 		if (
 			promptCycle !== null &&
-			(expected === null ||
-				expected.editorKey !== remountKey ||
-				content !== expected.value)
+			(expected === null || content !== expected.value)
 		) {
 			resetPromptCycle();
 		}

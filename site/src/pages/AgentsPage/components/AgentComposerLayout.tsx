@@ -9,20 +9,19 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator";
 export const AgentComposerContainer = ({
 	children,
 	fillWidth = false,
-	isEditing = false,
 }: {
 	children: React.ReactNode;
 	fillWidth?: boolean;
-	isEditing?: boolean;
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const { state } = useAgentComposer();
 
 	return (
 		<div
 			className={cn(
 				"mx-auto w-full pb-0 sm:pb-4",
 				fillWidth ? "max-w-full" : chatWidthClass(chatFullWidth),
-				isEditing && "pt-1",
+				state.isEditingHistoryMessage && "pt-1",
 			)}
 		>
 			{children}

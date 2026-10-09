@@ -6,7 +6,7 @@ import { AppProviders } from "#/App";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockWorkspace } from "#/testHelpers/entities";
 import { belowMdViewportMediaQuery } from "#/utils/mobile";
-import { AgentComposer, AgentComposerProvider } from "./AgentComposer";
+import { AgentComposer, AgentComposerRuntimeProvider } from "./AgentComposer";
 import { AgentComposerOptions } from "./AgentComposerOptions";
 
 const workspace = { ...MockWorkspace, name: "my-workspace" };
@@ -32,11 +32,11 @@ const Options = (
 const renderOptions = (
 	children: React.ReactNode,
 	bindings: Partial<
-		React.ComponentProps<typeof AgentComposerProvider>["bindings"]
+		React.ComponentProps<typeof AgentComposerRuntimeProvider>["bindings"]
 	> = {},
 ) => {
 	return render(
-		<AgentComposerProvider
+		<AgentComposerRuntimeProvider
 			bindings={{
 				onSend: vi.fn(),
 				isDisabled: false,
@@ -48,7 +48,7 @@ const renderOptions = (
 			}}
 		>
 			{children}
-		</AgentComposerProvider>,
+		</AgentComposerRuntimeProvider>,
 		{ wrapper: AppProviders },
 	);
 };
@@ -61,23 +61,33 @@ afterEach(() => {
 });
 
 describe("AgentComposerOptions", () => {
-	it("opens the file picker from the options menu", async () => {
+	it("attaches files picked from the options menu", async () => {
 		const user = userEvent.setup();
-		renderOptions(
-			<>
-				<AgentComposer.Attachments />
-				<Options />
-			</>,
-			{ onAttach: vi.fn() },
+		const onAttach = vi.fn();
+		renderOptions(<Options />, {
+			files: {
+				attachments: [],
+				onAttach,
+				onRemoveAttachment: vi.fn(),
+				uploadStates: new Map(),
+				previewUrls: new Map(),
+				textContents: new Map(),
+			},
+		});
+		const input = screen.getByTestId<HTMLInputElement>(
+			"chat-attachment-file-input",
 		);
-		const onAttachClick = vi.spyOn(
-			screen.getByTestId("chat-attachment-file-input"),
-			"click",
-		);
+		const inputClick = vi.spyOn(input, "click");
 
 		await user.click(screen.getByRole("button", { name: "More options" }));
 		await user.click(screen.getByRole("button", { name: "Attach file" }));
-		expect(onAttachClick).toHaveBeenCalledTimes(1);
+		expect(inputClick).toHaveBeenCalledTimes(1);
+
+		const file = new File(["image"], "image.png", { type: "image/png" });
+		await user.upload(input, file);
+		expect(onAttach).toHaveBeenCalledWith([file]);
+		await user.upload(input, file);
+		expect(onAttach).toHaveBeenCalledTimes(2);
 	});
 
 	it.each([false, true])(

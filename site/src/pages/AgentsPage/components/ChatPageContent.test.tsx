@@ -49,7 +49,6 @@ const renderChatPageInput = (
 				hasModelOptions: true,
 				isEditingHistoryMessage: false,
 				onCancelHistoryEdit: vi.fn(),
-				isReadOnly: false,
 				inputRef: { current: null },
 				initialValue: "",
 				remountKey: 0,
@@ -73,10 +72,12 @@ const renderChatPageInput = (
 			setup={{ canConfigureAgentSetup: false, unsupportedProviderNames: [] }}
 			onPlanModeToggle={vi.fn()}
 			editingFileBlocks={[]}
-			mcpServers={[]}
-			selectedMCPServerIds={[]}
-			onMCPSelectionChange={vi.fn()}
-			onMCPAuthComplete={vi.fn()}
+			mcp={{
+				servers: [],
+				selectedServerIds: [],
+				onSelectionChange: vi.fn(),
+				onAuthComplete: vi.fn(),
+			}}
 			isWorkspaceLoading={false}
 			{...overrides}
 		/>,

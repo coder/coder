@@ -9,7 +9,11 @@ import {
 import type React from "react";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
-import type { MCPServerConfig } from "#/api/typesGenerated";
+import type {
+	MCPServerConfig,
+	Workspace,
+	WorkspaceAgent,
+} from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
@@ -25,8 +29,14 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useAgentComposer } from "./AgentComposer";
-import { setMCPServerSelected } from "./AgentComposerMCPMenu";
-import { useAgentComposerOptions } from "./AgentComposerOptionsContext";
+import {
+	enabledMcpServers,
+	setMCPServerSelected,
+} from "./AgentComposerMCPMenu";
+import {
+	type AgentComposerOptionsData,
+	useAgentComposerOptions,
+} from "./AgentComposerOptionsContext";
 import { MCPServerIconStack } from "./MCPServerIconStack";
 import { WorkspacePill } from "./WorkspacePill";
 
@@ -39,36 +49,79 @@ export type AttachedWorkspaceInfo = {
 	statusLabel: string;
 };
 
-export type ToolBadgeData =
-	| { kind: "workspace"; name: string }
-	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
-	| { kind: "mcp"; server: MCPServerConfig }
-	| { kind: "mcp-group"; servers: readonly MCPServerConfig[] }
+type ToolBadgeData =
 	| { kind: "planning" }
 	| {
 			kind: "linked-workspace";
-			props: Omit<
-				React.ComponentProps<typeof WorkspacePill>,
-				"onRemoveWorkspace" | "inOverflowPopover"
-			>;
-	  };
+			workspace: Workspace;
+			agent: WorkspaceAgent;
+			chatId: string;
+			sshCommand?: string;
+			folder?: string;
+	  }
+	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
+	| { kind: "workspace"; name: string }
+	| { kind: "mcp"; server: MCPServerConfig }
+	| { kind: "mcp-group"; servers: readonly MCPServerConfig[] };
+
+/** Where a badge renders: in the measured row, hidden there after overflowing, or in a popover. */
+type BadgePlacement = "row" | "row-hidden" | "popover";
 
 // flex-basis sets an 8ch floor, grow uses free row space, and max-w-max
 // caps at the natural label width. Below the floor, +N overflow takes over.
 export const composerPillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 
-// Non-MCP badges can share a kind, so their keys are position-qualified.
-const badgeKey = (badge: ToolBadgeData, index: number) => {
-	if (badge.kind === "mcp") {
-		return badge.server.id;
+// Only MCP badges repeat a kind; every other kind appears at most once.
+const badgeKey = (badge: ToolBadgeData) =>
+	badge.kind === "mcp" ? badge.server.id : badge.kind;
+
+// Ordering controls which trailing badges move into the overflow menu.
+const toolBadges = ({
+	linkedWorkspace,
+	workspaceSelection,
+	mcp,
+}: AgentComposerOptionsData): ToolBadgeData[] => {
+	const { workspace, agent, chatId, sshCommand, folder, attachedWorkspace } =
+		linkedWorkspace ?? {};
+	const badges: ToolBadgeData[] = [];
+
+	if (workspace && agent && chatId) {
+		badges.push({
+			kind: "linked-workspace",
+			workspace,
+			agent,
+			chatId,
+			sshCommand,
+			folder,
+		});
+	} else if (attachedWorkspace) {
+		badges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
 
-	if (badge.kind === "mcp-group" || badge.kind === "linked-workspace") {
-		return badge.kind;
+	const selectedWorkspace = workspaceSelection?.options.find(
+		(item) => item.id === workspaceSelection.selectedId,
+	);
+	const linkedWorkspaceId = workspace?.id ?? attachedWorkspace?.id;
+	if (selectedWorkspace && selectedWorkspace.id !== linkedWorkspaceId) {
+		badges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
 
-	return `${badge.kind}-${index}`;
+	const activeMcpServers = enabledMcpServers(mcp).filter(
+		(server) =>
+			(server.availability === "force_on" ||
+				mcp?.selectedServerIds.includes(server.id)) &&
+			!(server.auth_type === "oauth2" && !server.auth_connected),
+	);
+	if (activeMcpServers.length >= 3) {
+		badges.push({ kind: "mcp-group", servers: activeMcpServers });
+	} else {
+		for (const server of activeMcpServers) {
+			badges.push({ kind: "mcp", server });
+		}
+	}
+
+	return badges;
 };
 
 // Clamp pills to the popover width so a long name cannot push its X out of view.
@@ -91,7 +144,7 @@ export const AgentComposerBadges = ({
 	leadingBadges?: readonly Extract<ToolBadgeData, { kind: "planning" }>[];
 }) => {
 	const options = useAgentComposerOptions();
-	const badges = [...leadingBadges, ...options.badges];
+	const badges = [...leadingBadges, ...toolBadges(options)];
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [open, setOpen] = useState(false);
 
@@ -107,9 +160,11 @@ export const AgentComposerBadges = ({
 		>
 			{badges.map((badge, index) => (
 				<ComposerBadge
-					key={badgeKey(badge, index)}
+					key={badgeKey(badge)}
 					badge={badge}
-					hidden={overflowCount > 0 && index >= visibleCount}
+					placement={
+						overflowCount > 0 && index >= visibleCount ? "row-hidden" : "row"
+					}
 				/>
 			))}
 			<Popover open={open && overflowCount > 0} onOpenChange={setOpen}>
@@ -144,11 +199,11 @@ export const AgentComposerBadges = ({
 						}
 					}}
 				>
-					{badges.slice(visibleCount).map((badge, index) => (
+					{badges.slice(visibleCount).map((badge) => (
 						<ComposerBadge
-							key={badgeKey(badge, visibleCount + index)}
+							key={badgeKey(badge)}
 							badge={badge}
-							inOverflowPopover
+							placement="popover"
 						/>
 					))}
 				</BadgePopoverContent>
@@ -238,7 +293,11 @@ const MCPGroupBadge = ({
 			</PopoverTrigger>
 			<BadgePopoverContent>
 				{servers.map((server) => (
-					<ComposerBadge key={server.id} badge={{ kind: "mcp", server }} />
+					<ComposerBadge
+						key={server.id}
+						badge={{ kind: "mcp", server }}
+						placement="popover"
+					/>
 				))}
 			</BadgePopoverContent>
 		</Popover>
@@ -247,16 +306,15 @@ const MCPGroupBadge = ({
 
 const ComposerBadge = ({
 	badge,
-	hidden,
-	inOverflowPopover = false,
+	placement,
 }: {
 	badge: ToolBadgeData;
-	hidden?: boolean;
-	inOverflowPopover?: boolean;
+	placement: BadgePlacement;
 }) => {
 	const { workspaceSelection, mcp } = useAgentComposerOptions();
 	const { state } = useAgentComposer();
 	const isDisabled = state.isDisabled;
+	const inPopover = placement === "popover";
 	const onRemoveWorkspace = workspaceSelection?.onChange
 		? () => workspaceSelection.onChange?.(null)
 		: undefined;
@@ -266,14 +324,18 @@ const ComposerBadge = ({
 			<span
 				className={cn(
 					"flex min-w-0 text-xs",
-					!inOverflowPopover && composerPillSizingClasses,
-					hidden && "hidden",
+					!inPopover && composerPillSizingClasses,
+					placement === "row-hidden" && "hidden",
 				)}
 			>
 				<WorkspacePill
-					{...badge.props}
+					workspace={badge.workspace}
+					agent={badge.agent}
+					chatId={badge.chatId}
+					sshCommand={badge.sshCommand}
+					folder={badge.folder}
 					onRemoveWorkspace={onRemoveWorkspace}
-					inOverflowPopover={inOverflowPopover}
+					inOverflowPopover={inPopover}
 				/>
 			</span>
 		);
@@ -281,7 +343,7 @@ const ComposerBadge = ({
 
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
-		hidden && "hidden",
+		placement === "row-hidden" && "hidden",
 	);
 
 	if (badge.kind === "planning") {
@@ -317,7 +379,7 @@ const ComposerBadge = ({
 					</span>
 				</TooltipTrigger>
 				{/* Touch focus would stick the tooltip open below md. */}
-				{!inOverflowPopover && (
+				{!inPopover && (
 					<TooltipContent className="hidden md:block">
 						{badge.statusLabel}
 					</TooltipContent>
