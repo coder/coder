@@ -33,3 +33,12 @@ Tags to filter provisioner jobs by.
 | Environment | <code>$CODER_ORGANIZATION</code> |
 
 Select which organization (uuid or name) to use.
+
+### -o, --output
+
+|         |                         |
+|---------|-------------------------|
+| Type    | <code>text\|json</code> |
+| Default | <code>text</code>       |
+
+Output format.
