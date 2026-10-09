@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -2763,7 +2764,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 				firstThreadID = root.ID
 			}
 
-			// Token usage on root: 100 input, 50 output, 20 cache read, 5 cache write.
+			// Token usage on root: 100 input, 50 output, 20 cache read, 5 cache write,
+			// priced at 1000 micros.
 			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 				InterceptionID:        root.ID,
 				ProviderResponseID:    "resp-root",
@@ -2773,6 +2775,10 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 				CacheWriteInputTokens: 5,
 				Metadata:              json.RawMessage(`{"cache_read_input": 20, "cache_creation_input": 5}`),
 				CreatedAt:             now.Add(offset),
+				CostMicros:            sql.NullInt64{Int64: 1000, Valid: true},
+				PricedModel:           sql.NullString{String: "claude-4", Valid: true},
+				InputPriceMicros:      sql.NullInt64{Int64: 3_000_000, Valid: true},
+				OutputPriceMicros:     sql.NullInt64{Int64: 15_000_000, Valid: true},
 			})
 
 			// Add a child interception with its own token usage.
@@ -2787,7 +2793,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 				ThreadParentInterceptionID: uuid.NullUUID{UUID: root.ID, Valid: true},
 			}, &childEndedAt)
 
-			// Token usage on child: 200 input, 100 output, 30 cache read.
+			// Token usage on child: 200 input, 100 output, 30 cache read, unpriced.
 			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 				InterceptionID:       child.ID,
 				ProviderResponseID:   "resp-child",
@@ -2825,6 +2831,20 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.NotEmpty(t, res.TokenUsageSummary.Metadata)
 		require.EqualValues(t, int64(150), res.TokenUsageSummary.Metadata["cache_read_input"])
 		require.EqualValues(t, int64(15), res.TokenUsageSummary.Metadata["cache_creation_input"])
+
+		// Per-thread cost covers only the priced root; the unpriced child
+		// is flagged.
+		require.EqualValues(t, 1000, res.Threads[0].TokenUsage.CostMicros)
+		require.True(t, res.Threads[0].TokenUsage.HasUnpricedUsage)
+		require.Equal(t, &codersdk.AIBridgePricedModel{
+			Model:       "claude-4",
+			InputPrice:  ptr.Ref(int64(3_000_000)),
+			OutputPrice: ptr.Ref(int64(15_000_000)),
+		}, res.Threads[0].PricedModel)
+
+		// Session-level cost includes all 3 threads.
+		require.EqualValues(t, 3000, res.TokenUsageSummary.CostMicros)
+		require.True(t, res.TokenUsageSummary.HasUnpricedUsage)
 	})
 
 	t.Run("TokenUsageBeyondFiftyThreads", func(t *testing.T) {
