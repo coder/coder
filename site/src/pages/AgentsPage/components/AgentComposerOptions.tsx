@@ -14,9 +14,9 @@ import {
 } from "./AgentComposerBadges";
 import {
 	type AgentComposerOptionsData,
-	AgentComposerOptionsMenu,
 	OptionsContext,
-} from "./AgentComposerOptionsMenu";
+} from "./AgentComposerOptionsContext";
+import { AgentComposerOptionsMenu } from "./AgentComposerOptionsMenu";
 
 export type { AttachedWorkspaceInfo } from "./AgentComposerBadges";
 

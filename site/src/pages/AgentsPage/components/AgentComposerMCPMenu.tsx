@@ -4,7 +4,7 @@ import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import type { AgentComposerOptionsData } from "./AgentComposerOptionsMenu";
+import type { AgentComposerOptionsData } from "./AgentComposerOptionsContext";
 
 /** Updates controlled MCP selection without changing unrelated server IDs. */
 export function setMCPServerSelected(

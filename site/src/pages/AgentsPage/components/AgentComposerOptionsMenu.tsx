@@ -7,16 +7,12 @@ import {
 	PlusIcon,
 	ZapIcon,
 } from "lucide-react";
-import { createContext, use, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
-import type {
-	MCPServerConfig,
-	Workspace,
-	WorkspaceAgent,
-} from "#/api/typesGenerated";
+import type { MCPServerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -28,80 +24,15 @@ import { Separator } from "#/components/Separator/Separator";
 import { isBelowMdViewport } from "#/utils/mobile";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useAgentComposer } from "./AgentComposer";
-import type {
-	AttachedWorkspaceInfo,
-	ToolBadgeData,
-} from "./AgentComposerBadges";
 import {
 	MCPServerMenuItem,
 	setMCPServerSelected,
 } from "./AgentComposerMCPMenu";
+import { useAgentComposerOptions } from "./AgentComposerOptionsContext";
 import {
 	AgentComposerWorkspacePicker,
 	AgentComposerWorkspaceView,
 } from "./AgentComposerWorkspacePicker";
-
-/** Controlled inputs for independently configurable composer options. */
-export type AgentComposerOptionsData = {
-	organizationId?: string;
-
-	planning: {
-		enabled: boolean;
-		onChange: (enabled: boolean) => void;
-	};
-
-	automations?: {
-		enabled: boolean;
-		onChange: (enabled: boolean) => void;
-	};
-
-	mcp?: {
-		servers: readonly MCPServerConfig[];
-		selectedServerIds: readonly string[];
-		onSelectionChange: (ids: string[]) => void;
-		onAuthComplete?: (id: string) => void;
-	};
-
-	workspaceSelection?: {
-		options: ReadonlyArray<Pick<Workspace, "id" | "name" | "organization_id">>;
-		selectedId: string | null;
-		onChange?: (id: string | null) => void;
-		isLoading?: boolean;
-	};
-
-	linkedWorkspace?: {
-		workspace?: Workspace;
-		agent?: WorkspaceAgent;
-		chatId?: string;
-		sshCommand?: string;
-		attachedWorkspace?: AttachedWorkspaceInfo;
-		folder?: string;
-	};
-};
-
-/** Shared options contract for sibling tool controls. */
-type AgentComposerOptionsContextValue = Omit<
-	AgentComposerOptionsData,
-	"linkedWorkspace"
-> & {
-	badges: readonly ToolBadgeData[];
-};
-
-export const OptionsContext =
-	createContext<AgentComposerOptionsContextValue | null>(null);
-
-/** Reads shared tool state inside AgentComposerOptions.Provider. */
-export function useAgentComposerOptions() {
-	const context = use(OptionsContext);
-
-	if (!context) {
-		throw new Error(
-			"useAgentComposerOptions must be used inside AgentComposerOptions.Provider",
-		);
-	}
-
-	return context;
-}
 
 /** Keeps OAuth and disconnect state alive independently of the menu's portaled content. */
 export const AgentComposerOptionsMenu = ({
@@ -204,9 +135,6 @@ export const AgentComposerOptionsMenu = ({
 				>
 					{view === "workspace" && workspaceSelection ? (
 						<AgentComposerWorkspaceView
-							workspaceOptions={workspaceSelection.options}
-							selectedWorkspaceId={workspaceSelection.selectedId}
-							chatOrganizationId={options.organizationId}
 							onSelect={selectWorkspace}
 							onBack={() => setView("main")}
 						/>
@@ -215,9 +143,6 @@ export const AgentComposerOptionsMenu = ({
 							<ComposerMenuActions onClose={() => setOpen(false)} />
 							{workspaceSelection?.onChange && (
 								<AgentComposerWorkspacePicker
-									workspaceOptions={workspaceSelection.options}
-									selectedWorkspaceId={workspaceSelection.selectedId}
-									chatOrganizationId={options.organizationId}
 									onSelect={selectWorkspace}
 									isMobile={isBelowMdViewport()}
 									open={workspacePickerOpen}

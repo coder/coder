@@ -26,7 +26,7 @@ import {
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useAgentComposer } from "./AgentComposer";
 import { setMCPServerSelected } from "./AgentComposerMCPMenu";
-import { useAgentComposerOptions } from "./AgentComposerOptionsMenu";
+import { useAgentComposerOptions } from "./AgentComposerOptionsContext";
 import { MCPServerIconStack } from "./MCPServerIconStack";
 import { WorkspacePill } from "./WorkspacePill";
 
