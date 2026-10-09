@@ -1700,6 +1700,40 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	},
 });
 
+/**
+ * Loads the page before the oldest cached message and appends it to the
+ * cached pages as they are when it arrives, so stream writes made while it
+ * loads are kept. fetchNextPage would append it to the pages cached when the
+ * request started instead.
+ */
+export const loadOlderChatMessages = async (
+	queryClient: QueryClient,
+	chatId: string,
+): Promise<void> => {
+	const { queryFn, getNextPageParam } = chatMessagesForInfiniteScroll(chatId);
+	const nextPageParam = (data: ChatMessagesData | undefined) => {
+		const lastPage = data?.pages.at(-1);
+		return lastPage && getNextPageParam(lastPage);
+	};
+	const beforeID = nextPageParam(
+		queryClient.getQueryData<ChatMessagesData>(chatMessagesKey(chatId)),
+	);
+	if (beforeID === undefined) {
+		return;
+	}
+	const page = await queryFn({ pageParam: beforeID });
+	patchChatMessages(queryClient, chatId, (current) =>
+		// Drop the page if the cache no longer ends where it was requested,
+		// for example after the cache was removed.
+		current && nextPageParam(current) === beforeID
+			? {
+					pages: [...current.pages, page],
+					pageParams: [...current.pageParams, beforeID],
+				}
+			: current,
+	);
+};
+
 // Cap requested prompts to keep the response small; well under the server-side maximum.
 const PROMPT_HISTORY_LIMIT = 500;
 

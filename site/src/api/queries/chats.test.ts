@@ -88,6 +88,7 @@ import {
 	invalidateChatPrompts,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	loadOlderChatMessages,
 	markChatRead,
 	markChatUnread,
 	mcpServerConfigACL,
@@ -5548,6 +5549,43 @@ describe("message upsert fan-out and history replacement", () => {
 
 	it("keeps both an older page and a write made while it was loading", async () => {
 		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.getChatMessages).mockReset();
+		seedMessagePages(queryClient, {
+			pages: [messagesPage([3, 2], true)],
+			pageParams: [undefined],
+		});
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockReturnValue(
+			olderPage.promise,
+		);
+
+		const load = loadOlderChatMessages(queryClient, "chat-1");
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(4)]);
+		olderPage.resolve(messagesPage([1]));
+		await load;
+
+		expect(API.experimental.getChatMessages).toHaveBeenCalledWith("chat-1", {
+			before_id: 2,
+			limit: 50,
+		});
+		expect(cachedMessageIDs(queryClient)).toEqual([[4, 3, 2], [1]]);
+	});
+
+	it("does not request an older page when there is none", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.getChatMessages).mockReset();
+		seedMessagePages(queryClient, {
+			pages: [messagesPage([2, 1])],
+			pageParams: [undefined],
+		});
+
+		await loadOlderChatMessages(queryClient, "chat-1");
+
+		expect(API.experimental.getChatMessages).not.toHaveBeenCalled();
+	});
+
+	it("keeps both an older page and a write made while it was loading (fetchNextPage)", async () => {
+		const queryClient = createTestQueryClient();
 		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
 		const observer = new InfiniteQueryObserver(queryClient, {
 			...chatMessagesForInfiniteScroll("chat-1"),
@@ -5615,6 +5653,7 @@ describe("message upsert fan-out and history replacement", () => {
 describe("chatMessagesForInfiniteScroll", () => {
 	it("does not refetch the messages when the chat page mounts again", async () => {
 		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.getChatMessages).mockReset();
 		vi.mocked(API.experimental.getChatMessages).mockResolvedValue({
 			messages: [{ ...MockChatMessage, id: 1 }],
 			queued_messages: [],

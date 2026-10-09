@@ -22,6 +22,7 @@ import {
 	getOpenChatPollInterval,
 	interruptChat,
 	invalidateChatEntity,
+	loadOlderChatMessages,
 	mcpServerConfigs,
 	openChat,
 	patchChatEntity,
@@ -313,6 +314,13 @@ const AgentChatPage: React.FC = () => {
 	const { isPending: isEditPending, mutateAsync: editMessage } = useMutation(
 		editChatMessage(queryClient, agentId),
 	);
+	const {
+		isPending: isLoadOlderMessagesPending,
+		isError: isLoadOlderMessagesError,
+		mutate: loadOlderMessages,
+	} = useMutation({
+		mutationFn: () => loadOlderChatMessages(queryClient, agentId),
+	});
 	const { isPending: isInterruptPending, mutateAsync: interrupt } = useMutation(
 		interruptChat(queryClient, agentId),
 	);
@@ -827,10 +835,10 @@ const AgentChatPage: React.FC = () => {
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}
 					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
-					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
+					isFetchingMoreMessages={isLoadOlderMessagesPending}
 					isHydratingMessages={isHydratingMessages}
-					hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
-					onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+					hasFetchMoreError={isLoadOlderMessagesError}
+					onFetchMoreMessages={async () => loadOlderMessages()}
 					desktopChatId={desktopEnabled ? agentId : undefined}
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
