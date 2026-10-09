@@ -1386,9 +1386,14 @@ func New(options *Options) *API {
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			r.Get("/", api.getOrganizationSkills)
+			r.Post("/", api.postOrganizationSkill)
 			r.Route("/{skillName}", func(r chi.Router) {
 				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
 					policy.ActionRead, policy.ActionUpdate, policy.ActionDelete)).Get("/", api.getOrganizationSkill)
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionUpdate)).Patch("/", api.patchOrganizationSkill)
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionDelete)).Delete("/", api.deleteOrganizationSkill)
 			})
 		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
