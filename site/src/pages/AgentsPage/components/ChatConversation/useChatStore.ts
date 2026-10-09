@@ -304,6 +304,9 @@ export const useChatStore = (
 			if (prevChatIDRef.current !== chatID) {
 				prevChatIDRef.current = chatID;
 				lastSyncedMessagesRef.current = [];
+				// A pending edit belongs to the previous chat; clear it first so
+				// that emptying the history does not commit it.
+				store.setPendingEdit(null);
 				store.replaceMessages([]);
 			}
 			// The stream writes the store and the cache together, so the page

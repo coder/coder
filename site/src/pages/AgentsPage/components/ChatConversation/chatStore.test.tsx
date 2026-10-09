@@ -4396,6 +4396,63 @@ describe("useChatStore", () => {
 		});
 	});
 
+	it("drops a pending edit without committing it when the chat changes", async () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const messagesFor = new Map(
+			["chat-edit-left", "chat-edit-next"].map((chatID) => [
+				chatID,
+				[
+					buildMessage(chatID, 1, "user", "question"),
+					buildMessage(chatID, 2, "assistant", "answer"),
+				],
+			]),
+		);
+		const { result, rerender } = renderHook(
+			(props: { chatID: string }) => {
+				const messages = messagesFor.get(props.chatID) ?? [];
+				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
+					chatID: props.chatID,
+					chatMessages: messages,
+					chatRecord: { ...buildChat(props.chatID), status: "waiting" },
+					chatMessagesData: {
+						messages,
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					store,
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{
+				wrapper: createWrapper(createTestQueryClient()),
+				initialProps: { chatID: "chat-edit-left" },
+			},
+		);
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalled();
+		});
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitData({
+				type: "status",
+				chat_id: "chat-edit-left",
+				status: { status: "waiting" },
+			});
+			result.current.store.setPendingEdit({ messageID: 1 });
+		});
+
+		rerender({ chatID: "chat-edit-next" });
+
+		expect(result.current.store.getSnapshot().pendingEdit).toBeNull();
+		expect(result.current.chatStatus).toBe("waiting");
+	});
+
 	it("sets reconnectState on a disconnect during a pending edit of a failed turn", async () => {
 		const sockets = mockWatchChatWithFreshSockets();
 		const chatID = "chat-disconnect-pending-edit";
