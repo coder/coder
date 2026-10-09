@@ -12,6 +12,12 @@ import {
 import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
+import {
+	type ContextRequestKind,
+	ContextRequestTool,
+	getContextRequestErrorMessage,
+	getContextRequestFollowUp,
+} from "./ContextRequestTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
@@ -46,6 +52,7 @@ import {
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatToolInput,
+	getContextBoundarySource,
 	getFileContentForViewer,
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
@@ -640,6 +647,7 @@ const ReadTemplateRenderer: React.FC<ToolRendererProps> = ({
 
 const ChatClearedRenderer: React.FC<ToolRendererProps> = ({
 	status,
+	args,
 	result,
 	isError,
 }) => {
@@ -649,6 +657,7 @@ const ChatClearedRenderer: React.FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			source={getContextBoundarySource(args, result)}
 		/>
 	);
 };
@@ -663,12 +672,6 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 	const summary =
 		(rec ? asString(rec.summary) : "") ||
 		(typeof result === "string" ? result : "");
-	// The result carries the source once committed; while streaming,
-	// only the call args are available.
-	const argsRec = parseArgs(args);
-	const source =
-		(rec ? asString(rec.source) : "") ||
-		(argsRec ? asString(argsRec.source) : "");
 
 	return (
 		<ChatSummarizedTool
@@ -676,10 +679,25 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
-			source={source || undefined}
+			source={getContextBoundarySource(args, result)}
 		/>
 	);
 };
+
+const createContextRequestRenderer =
+	(kind: ContextRequestKind): React.FC<ToolRendererProps> =>
+	({ status, args, result, isError }) => (
+		<ContextRequestTool
+			kind={kind}
+			followUp={getContextRequestFollowUp(args, result)}
+			status={status}
+			isError={isError}
+			errorMessage={getContextRequestErrorMessage(result, isError)}
+		/>
+	);
+
+const ClearContextRenderer = createContextRequestRenderer("clear");
+const CompactContextRenderer = createContextRequestRenderer("compact");
 
 const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	args,
@@ -1196,6 +1214,8 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	read_skill_file: ReadSkillFileRenderer,
 	chat_cleared: ChatClearedRenderer,
 	chat_summarized: ChatSummarizedRenderer,
+	clear_context: ClearContextRenderer,
+	compact_context: CompactContextRenderer,
 	ask_user_question: AskUserQuestionRenderer,
 	propose_plan: ProposePlanRenderer,
 	advisor: AdvisorRenderer,

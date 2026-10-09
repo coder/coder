@@ -2,13 +2,12 @@ import type React from "react";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Response } from "../Response";
 import { ToolCall } from "./ToolCall";
-import type { ToolStatus } from "./utils";
+import { contextBoundarySourceSuffix, type ToolStatus } from "./utils";
 
 /**
  * Collapsed-by-default rendering for `chat_summarized` tool calls.
- * Shows "Summarized" and reveals the summary only when expanded.
- * Manual compactions (user-requested via /compact) are labeled
- * distinctly from automatic threshold-triggered ones.
+ * The label reads "Summarized" followed by the source suffix, if any,
+ * and the summary is revealed only when expanded.
  */
 export const ChatSummarizedTool: React.FC<{
 	summary: string;
@@ -19,7 +18,6 @@ export const ChatSummarizedTool: React.FC<{
 }> = ({ summary, status, isError, errorMessage, source }) => {
 	const hasSummary = summary.trim().length > 0;
 	const isRunning = status === "running";
-	const isManual = source === "manual";
 
 	return (
 		<ToolCall.Root
@@ -34,9 +32,7 @@ export const ChatSummarizedTool: React.FC<{
 				label={
 					isRunning
 						? "Summarizing…"
-						: isManual
-							? "Summarized (manual)"
-							: "Summarized"
+						: `Summarized${contextBoundarySourceSuffix(source)}`
 				}
 			/>
 			<ToolCall.Content>
