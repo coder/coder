@@ -862,6 +862,11 @@
 							]
 						},
 						{
+							"title": "Backstage",
+							"description": "Use the official Coder plugins to surface and manage Coder workspaces from Backstage.",
+							"path": "./admin/integrations/backstage.md"
+						},
+						{
 							"title": "Dev Containers",
 							"description": "Configure dev container support in your templates using either Docker or Envbuilder.",
 							"path": "./admin/integrations/devcontainers/index.md",
