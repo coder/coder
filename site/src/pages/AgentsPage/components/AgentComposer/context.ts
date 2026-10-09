@@ -133,10 +133,12 @@ export const ComposerRefsContext = createContext<{
 /** Reads composer state and actions; must be called inside AgentComposer.Provider. */
 export function useAgentComposer() {
 	const context = use(ComposerContext);
+
 	if (!context) {
 		throw new Error(
 			"useAgentComposer must be used inside AgentComposer.Provider",
 		);
 	}
+
 	return context;
 }

@@ -90,7 +90,9 @@ export const AgentComposerWorkspacePicker = ({
 		</button>
 	);
 
-	if (isMobile) return trigger;
+	if (isMobile) {
+		return trigger;
+	}
 
 	return (
 		<Popover open={open} onOpenChange={onOpenChange}>
@@ -132,6 +134,7 @@ const WorkspacePickerList: React.FC<WorkspacePickerProps> = ({
 						workspace.organization_id !== chatOrganizationId;
 					const isSelected = selectedWorkspaceId === workspace.id;
 					const isUnavailable = isCrossOrg && !isSelected;
+
 					const item = (
 						<CommandItem
 							className={cn(
@@ -143,7 +146,9 @@ const WorkspacePickerList: React.FC<WorkspacePickerProps> = ({
 							value={workspace.name}
 							disabled={isUnavailable}
 							onSelect={() => {
-								if (!isUnavailable) onSelect(isSelected ? null : workspace.id);
+								if (!isUnavailable) {
+									onSelect(isSelected ? null : workspace.id);
+								}
 							}}
 						>
 							{workspace.name}
@@ -152,6 +157,7 @@ const WorkspacePickerList: React.FC<WorkspacePickerProps> = ({
 							)}
 						</CommandItem>
 					);
+
 					return isUnavailable ? (
 						<Tooltip key={workspace.id}>
 							<TooltipTrigger asChild>

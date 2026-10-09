@@ -17,6 +17,7 @@ export const AgentComposerContainer = ({
 	isEditing?: boolean;
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+
 	return (
 		<div
 			className={cn(
@@ -58,6 +59,7 @@ export const AgentComposerSetupNotice = ({
 }: AgentComposerSetup & { organizationId?: string }) => {
 	const { organizations } = useDashboard();
 	const organization = organizations.find((org) => org.id === organizationId);
+
 	return (
 		<div className="relative z-0 -mb-10">
 			<AgentSetupNotice
@@ -79,6 +81,7 @@ export const AgentComposerOptionsControl = (
 	>,
 ) => {
 	const { state, actions } = useAgentComposer();
+
 	return (
 		<AgentComposerOptions
 			{...props}
@@ -91,6 +94,7 @@ export const AgentComposerContextIndicator = (
 	props: React.ComponentProps<typeof ContextUsageIndicator>,
 ) => {
 	const { state } = useAgentComposer();
+
 	return (
 		<div
 			className={cn(

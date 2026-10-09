@@ -35,6 +35,7 @@ export function useComposerRuntime(
 		attachments = [],
 		workspaceUploads,
 	} = bindings;
+
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -45,6 +46,7 @@ export function useComposerRuntime(
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
 		null,
 	);
+
 	const editor = useComposerEditor(
 		bindings,
 		editorRef,
@@ -56,6 +58,7 @@ export function useComposerRuntime(
 		fileInputRef,
 		editor.resetPromptCycle,
 	);
+
 	const hasSendableContent =
 		editor.hasContent ||
 		files.hasUploadedAttachments ||
@@ -63,6 +66,7 @@ export function useComposerRuntime(
 	const submissionBlocked =
 		isDisabled || isReadOnly || isLoading || files.hasActiveUploads;
 	const canSend = !submissionBlocked && hasModelOptions && hasSendableContent;
+
 	const draftOccupiesSlot =
 		hasSendableContent || files.hasActiveUploads || editor.speech.isRecording;
 	const editingHoldsStop =
@@ -73,6 +77,7 @@ export function useComposerRuntime(
 		(!draftOccupiesSlot || editingHoldsStop);
 	const showSendButton =
 		!isStreaming || (draftOccupiesSlot && !editingHoldsStop);
+
 	const sendButtonLabel = isEditingHistoryMessage
 		? "Save Edit"
 		: isStreaming
@@ -96,6 +101,7 @@ export function useComposerRuntime(
 		const text = editorRef.current?.getValue()?.trim() ?? "";
 		const hasSubmissionContent =
 			Boolean(text) || files.hasUploadedAttachments || editor.hasFileReferences;
+
 		if (
 			!hasSubmissionContent &&
 			!submissionBlocked &&
@@ -105,11 +111,19 @@ export function useComposerRuntime(
 			void onPromoteQueuedMessage(queuedMessages[0].id);
 			return;
 		}
-		if (!hasSubmissionContent || submissionBlocked || !hasModelOptions) return;
+
+		if (!hasSubmissionContent || submissionBlocked || !hasModelOptions) {
+			return;
+		}
+
 		onSend(text);
 		editor.resetPromptCycle();
-		if (!isMobileViewport()) editorRef.current?.focus();
+
+		if (!isMobileViewport()) {
+			editorRef.current?.focus();
+		}
 	};
+
 	const composerKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === "Escape") {
 			if (isEditingHistoryMessage) {
@@ -121,6 +135,7 @@ export function useComposerRuntime(
 			}
 		}
 	};
+
 	const context: ComposerContextValue = {
 		state: {
 			isDisabled,
@@ -172,5 +187,6 @@ export function useComposerRuntime(
 			workspaceUploads,
 		},
 	};
+
 	return { context, previews: files.previews };
 }

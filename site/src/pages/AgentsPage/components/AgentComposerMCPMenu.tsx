@@ -18,7 +18,10 @@ type MCPMenuProps = {
 
 /** MCP authentication actions and controlled server selection. */
 export const AgentComposerMCPMenu = ({ servers, ...props }: MCPMenuProps) => {
-	if (servers.length === 0) return null;
+	if (servers.length === 0) {
+		return null;
+	}
+
 	return (
 		<>
 			<Separator className="my-1" />
@@ -41,6 +44,7 @@ const MCPServerMenuItem = ({
 	const isForceOn = server.availability === "force_on";
 	const isSelected =
 		isForceOn || (selectedServerIds?.includes(server.id) ?? false);
+
 	const needsAuth = server.auth_type === "oauth2" && !server.auth_connected;
 	const isConnecting = connectingServerId === server.id;
 

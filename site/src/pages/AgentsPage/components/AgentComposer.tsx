@@ -55,6 +55,7 @@ function Provider({
 		editorRef,
 		fileInputRef,
 	);
+
 	return (
 		<ComposerContext value={context}>
 			<ComposerRefsContext value={{ editorRef, fileInputRef }}>
@@ -78,9 +79,13 @@ function Editor({
 }) {
 	const { state, actions, meta } = useAgentComposer();
 	const refs = use(ComposerRefsContext);
-	if (!refs)
+
+	if (!refs) {
 		throw new Error("Editor must be used inside AgentComposer.Provider");
+	}
+
 	const { editorRef } = refs;
+
 	return (
 		<ChatMessageInput
 			ref={editorRef}
@@ -110,9 +115,13 @@ function Editor({
 function Attachments() {
 	const { state, actions, meta } = useAgentComposer();
 	const refs = use(ComposerRefsContext);
-	if (!refs)
+
+	if (!refs) {
 		throw new Error("Attachments must be used inside AgentComposer.Provider");
+	}
+
 	const { fileInputRef } = refs;
+
 	return (
 		<>
 			{meta.onRemoveAttachment && (
@@ -161,7 +170,11 @@ function Toolbar({ children }: { children: React.ReactNode }) {
 
 function VoiceInput() {
 	const { state, actions } = useAgentComposer();
-	if (!state.speechSupported) return null;
+
+	if (!state.speechSupported) {
+		return null;
+	}
+
 	return (
 		<>
 			<Button
@@ -194,6 +207,7 @@ function VoiceInput() {
 
 function PrimaryAction() {
 	const { state, actions, meta } = useAgentComposer();
+
 	return (
 		<>
 			{state.showSendButton && (
@@ -261,7 +275,11 @@ function PrimaryAction() {
 function InvisibleCharacterWarning() {
 	const { state } = useAgentComposer();
 	const { invisibleCharCount } = state;
-	if (invisibleCharCount === 0) return null;
+
+	if (invisibleCharCount === 0) {
+		return null;
+	}
+
 	// Unlike admin/user prompt textareas (which strip invisible chars
 	// server-side on save), chat messages are free-form user input. Warn
 	// without silently mutating them so users can review hidden content.
@@ -282,7 +300,11 @@ function InvisibleCharacterWarning() {
 
 function Warning() {
 	const { state, meta } = useAgentComposer();
-	if (!state.warning) return null;
+
+	if (!state.warning) {
+		return null;
+	}
+
 	return (
 		<div
 			id={meta.warningId}
@@ -296,7 +318,11 @@ function Warning() {
 
 function EditBanner() {
 	const { state, actions } = useAgentComposer();
-	if (!state.isEditingHistoryMessage) return null;
+
+	if (!state.isEditingHistoryMessage) {
+		return null;
+	}
+
 	return (
 		<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
 			<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">

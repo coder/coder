@@ -32,6 +32,7 @@ export const NewAgentComposer = ({
 	fillWidth,
 }: AgentComposerConfiguration) => {
 	const showSetupNotice = needsAgentSetup(setup);
+
 	return (
 		<AgentComposer.Provider bindings={bindings}>
 			<AgentComposerContainer fillWidth={fillWidth}>
@@ -78,6 +79,7 @@ export const ChatComposer = ({
 	context,
 }: ChatComposerProps) => {
 	const showSetupNotice = needsAgentSetup(setup);
+
 	return (
 		<AgentComposer.Provider bindings={bindings}>
 			<AgentComposerContainer

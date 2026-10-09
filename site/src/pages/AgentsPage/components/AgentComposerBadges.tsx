@@ -95,6 +95,7 @@ export const AgentComposerBadges = ({
 }) => {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [open, setOpen] = useState(false);
+
 	const overflowCount = useOverflowCount(containerRef, badges.length);
 	const visibleCount = Math.max(0, badges.length - overflowCount);
 
@@ -140,6 +141,7 @@ export const AgentComposerBadges = ({
 							event.preventDefault();
 							return;
 						}
+
 						if (
 							event.target instanceof Element &&
 							event.target.closest('[role="menu"]')
@@ -196,6 +198,7 @@ const ComposerBadge = ({
 			</span>
 		);
 	}
+
 	return (
 		<ToolBadge
 			badge={badge}
@@ -260,7 +263,9 @@ const MCPGroupBadge = ({
 	"onRemoveMcp" | "isDisabled"
 >) => {
 	const [open, setOpen] = useState(false);
+
 	const label = `${servers.length} MCPs`;
+
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
@@ -311,6 +316,7 @@ const ToolBadge = ({
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
 		className,
 	);
+
 	if (badge.kind === "planning") {
 		return (
 			<span data-testid="planning-badge" className={badgeCls}>
@@ -326,6 +332,7 @@ const ToolBadge = ({
 			</span>
 		);
 	}
+
 	if (badge.kind === "attached-workspace") {
 		return (
 			<Tooltip>
@@ -363,6 +370,7 @@ const ToolBadge = ({
 			</Tooltip>
 		);
 	}
+
 	if (badge.kind === "workspace") {
 		return (
 			<span className={badgeCls}>
@@ -378,6 +386,7 @@ const ToolBadge = ({
 			</span>
 		);
 	}
+
 	if (badge.kind === "mcp-group") {
 		return (
 			<MCPGroupBadge
@@ -388,6 +397,7 @@ const ToolBadge = ({
 			/>
 		);
 	}
+
 	return (
 		<span className={badgeCls}>
 			{badge.server.icon_url ? (

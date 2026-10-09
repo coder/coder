@@ -56,10 +56,12 @@ export const AgentComposerOptionsMenu = (props: OptionsMenuProps) => {
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
 	const [disconnectTarget, setDisconnectTarget] =
 		useState<MCPServerConfig | null>(null);
+
 	const queryClient = useQueryClient();
 	const disconnectMutation = useMutation(
 		disconnectMCPServerOAuth2(queryClient),
 	);
+
 	const { connectingServerId, connect } = useMCPOAuthFlow({
 		organizationId: props.chatOrganizationId,
 		onAuthComplete: props.onMCPAuthComplete,
@@ -72,18 +74,25 @@ export const AgentComposerOptionsMenu = (props: OptionsMenuProps) => {
 			}
 		},
 	});
+
 	const canUseWorkspacePicker =
 		Boolean(props.onWorkspaceChange) && !props.isWorkspaceLoading;
+
 	const selectWorkspace = (id: string | null) => {
 		props.onWorkspaceChange?.(id);
 		setOpen(false);
 	};
+
 	const confirmDisconnect = () => {
-		if (!disconnectTarget) return;
+		if (!disconnectTarget) {
+			return;
+		}
+
 		const name = disconnectTarget.display_name;
 		disconnectMutation.mutate(disconnectTarget.id, {
 			onSuccess: (response) => {
 				setDisconnectTarget(null);
+
 				if (response.token_revocation_error) {
 					toast.warning(`Disconnected ${name}.`, {
 						description: response.token_revocation_error,
@@ -104,7 +113,10 @@ export const AgentComposerOptionsMenu = (props: OptionsMenuProps) => {
 				open={open}
 				onOpenChange={(next) => {
 					setOpen(next);
-					if (!next) setView("main");
+
+					if (!next) {
+						setView("main");
+					}
 				}}
 			>
 				{" "}
@@ -174,7 +186,9 @@ export const AgentComposerOptionsMenu = (props: OptionsMenuProps) => {
 				className="contents"
 				role="presentation"
 				onKeyDown={(event) => {
-					if (event.key === "Escape") event.stopPropagation();
+					if (event.key === "Escape") {
+						event.stopPropagation();
+					}
 				}}
 			>
 				<ConfirmDialog
@@ -267,6 +281,7 @@ const MenuCheckboxItem = ({
 	disabled: boolean;
 }) => {
 	const id = useId();
+
 	return (
 		<button
 			type="button"

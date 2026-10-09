@@ -73,18 +73,24 @@ export const AgentComposerOptions: React.FC<AgentComposerOptionsProps> = (
 		chatId,
 		attachedWorkspace,
 	} = props;
+
 	const toggleMcp = (serverId: string, checked: boolean) => {
-		if (!onMCPSelectionChange || !selectedMCPServerIds) return;
+		if (!onMCPSelectionChange || !selectedMCPServerIds) {
+			return;
+		}
+
 		onMCPSelectionChange(
 			checked
 				? [...selectedMCPServerIds, serverId]
 				: selectedMCPServerIds.filter((id) => id !== serverId),
 		);
 	};
+
 	const removeWorkspace = onWorkspaceChange
 		? () => onWorkspaceChange(null)
 		: undefined;
 	const disablePlanMode = () => onPlanModeToggle(false);
+
 	const enabledMcpServers =
 		props.mcpServers?.filter((server) => server.enabled) ?? [];
 	const activeMcpServers = enabledMcpServers.filter(
@@ -93,10 +99,12 @@ export const AgentComposerOptions: React.FC<AgentComposerOptionsProps> = (
 				selectedMCPServerIds?.includes(server.id)) &&
 			!(server.auth_type === "oauth2" && !server.auth_connected),
 	);
+
 	const selectedWorkspace = workspaceOptions?.find(
 		(item) => item.id === selectedWorkspaceId,
 	);
 	const linkedWorkspaceId = workspace?.id ?? attachedWorkspace?.id;
+
 	const overflowPlanning = planModeEnabled && Boolean(props.hasContextUsage);
 
 	const workspacePill =
@@ -120,21 +128,29 @@ export const AgentComposerOptions: React.FC<AgentComposerOptionsProps> = (
 					},
 				}
 			: undefined;
+
 	// Ordering controls which trailing badges move into the overflow menu.
 	const badges: ToolBadgeData[] = [];
-	if (overflowPlanning) badges.push({ kind: "planning" });
+	if (overflowPlanning) {
+		badges.push({ kind: "planning" });
+	}
+
 	if (workspacePill) {
 		badges.push(workspacePill.badge);
 	} else if (attachedWorkspace) {
 		badges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
+
 	if (selectedWorkspace && selectedWorkspace.id !== linkedWorkspaceId) {
 		badges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
+
 	if (activeMcpServers.length >= 3) {
 		badges.push({ kind: "mcp-group", servers: activeMcpServers });
 	} else {
-		for (const server of activeMcpServers) badges.push({ kind: "mcp", server });
+		for (const server of activeMcpServers) {
+			badges.push({ kind: "mcp", server });
+		}
 	}
 
 	return (

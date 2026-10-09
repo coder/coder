@@ -13,6 +13,7 @@ function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
 	// coordinate systems while the keyboard is settling.
 	const viewport = globalThis.visualViewport;
 	const root = document.documentElement;
+
 	const fixedProbe = document.createElement("div");
 	Object.assign(fixedProbe.style, {
 		position: "fixed",
@@ -24,14 +25,17 @@ function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
 		visibility: "hidden",
 	});
 	document.body.appendChild(fixedProbe);
+
 	const composerGap = 8;
 	const viewportPadding = 16;
 	const minimumMenuHeight = 96;
+
 	const update = () => {
 		const rect = composerElement.getBoundingClientRect();
 		const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
 		const visibleViewportTop = viewport?.offsetTop ?? 0;
 		const bottom = Math.max(0, fixedViewportBottom - rect.bottom);
+
 		// Keep the dropdown's bottom edge above the software keyboard,
 		// which covers the bottom of the layout viewport without moving
 		// fixed-positioned elements.
@@ -46,6 +50,7 @@ function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
 			fixedViewportBottom - rect.top + composerGap,
 			keyboardInset + composerGap,
 		);
+
 		const dropdownBottomEdgeTop = fixedViewportBottom - aboveComposerBottom;
 		const maxHeightCandidates = [
 			dropdownBottomEdgeTop - visibleViewportTop - viewportPadding,
@@ -55,6 +60,7 @@ function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
 			minimumMenuHeight,
 			maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
 		);
+
 		root.style.setProperty("--mobile-dropdown-bottom", `${bottom}px`);
 		root.style.setProperty("--mobile-dropdown-left", `${rect.left}px`);
 		root.style.setProperty("--mobile-dropdown-width", `${rect.width}px`);
@@ -67,14 +73,22 @@ function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
 			`${aboveComposerMaxHeight}px`,
 		);
 	};
+
 	const animationFrameIDs = new Set<number>();
 	const timeoutIDs = new Set<ReturnType<typeof setTimeout>>();
+
 	const cancelScheduledUpdates = () => {
-		for (const id of animationFrameIDs) cancelAnimationFrame(id);
+		for (const id of animationFrameIDs) {
+			cancelAnimationFrame(id);
+		}
 		animationFrameIDs.clear();
-		for (const id of timeoutIDs) clearTimeout(id);
+
+		for (const id of timeoutIDs) {
+			clearTimeout(id);
+		}
 		timeoutIDs.clear();
 	};
+
 	const queueAnimationFrame = (callback: () => void) => {
 		const id = requestAnimationFrame(() => {
 			animationFrameIDs.delete(id);
@@ -82,9 +96,11 @@ function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
 		});
 		animationFrameIDs.add(id);
 	};
+
 	const scheduleUpdate = () => {
 		cancelScheduledUpdates();
 		update();
+
 		// Mobile WebKit can finish keyboard panning after focus and
 		// input events. Re-read geometry after the viewport settles so
 		// the first slash-menu render is not stuck under the composer.
@@ -92,6 +108,7 @@ function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
 			update();
 			queueAnimationFrame(update);
 		});
+
 		for (const delay of [50, 150, 300]) {
 			const id = setTimeout(() => {
 				timeoutIDs.delete(id);
@@ -100,9 +117,11 @@ function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
 			timeoutIDs.add(id);
 		}
 	};
+
 	scheduleUpdate();
 	const ro = new ResizeObserver(scheduleUpdate);
 	ro.observe(composerElement);
+
 	addEventListener("resize", scheduleUpdate);
 	addEventListener("scroll", scheduleUpdate, { passive: true });
 	addEventListener("focusin", scheduleUpdate);
@@ -113,9 +132,11 @@ function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
 	viewport?.addEventListener("resize", scheduleUpdate);
 	viewport?.addEventListener("scroll", scheduleUpdate);
 	viewport?.addEventListener("scrollend", scheduleUpdate);
+
 	return () => {
 		ro.disconnect();
 		cancelScheduledUpdates();
+
 		removeEventListener("resize", scheduleUpdate);
 		removeEventListener("scroll", scheduleUpdate);
 		removeEventListener("focusin", scheduleUpdate);
@@ -126,6 +147,7 @@ function synchronizeDropdownViewport(composerElement: HTMLDivElement) {
 		viewport?.removeEventListener("resize", scheduleUpdate);
 		viewport?.removeEventListener("scroll", scheduleUpdate);
 		viewport?.removeEventListener("scrollend", scheduleUpdate);
+
 		fixedProbe.remove();
 		root.style.removeProperty("--mobile-dropdown-bottom");
 		root.style.removeProperty("--mobile-dropdown-left");
@@ -147,10 +169,15 @@ export function Frame({
 }) {
 	const { state, actions, meta } = useAgentComposer();
 	const { composerElement, setComposerElement } = meta;
+
 	useEffect(() => {
-		if (!composerElement) return;
+		if (!composerElement) {
+			return;
+		}
+
 		return synchronizeDropdownViewport(composerElement);
 	}, [composerElement]);
+
 	return (
 		<div
 			ref={setComposerElement}
