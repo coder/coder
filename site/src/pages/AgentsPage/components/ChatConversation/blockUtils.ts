@@ -6,15 +6,23 @@ export const asNonEmptyString = (value: unknown): string | undefined => {
 	return next.length > 0 ? next : undefined;
 };
 
+const textBlock = (
+	type: "response" | "thinking",
+	text: string,
+	narration: boolean,
+): RenderBlock =>
+	type === "response" && narration ? { type, text, narration } : { type, text };
+
 /**
  * Append a text or thinking block to a render block list, merging
  * with the previous block when the types match. Text never merges
- * across a provider-executed call.
+ * across a provider-executed call or between narration and an answer.
  */
 export const appendTextBlock = (
 	blocks: RenderBlock[],
 	type: "response" | "thinking",
 	text: string,
+	narration = false,
 ): RenderBlock[] => {
 	if (!text.trim()) {
 		return blocks;
@@ -24,15 +32,19 @@ export const appendTextBlock = (
 	if (
 		last &&
 		last.type === type &&
-		!(last.type === "response" && last.beforeProviderTool)
+		!(
+			last.type === "response" &&
+			(last.beforeProviderTool || (last.narration ?? false) !== narration)
+		)
 	) {
-		nextBlocks[nextBlocks.length - 1] = {
+		nextBlocks[nextBlocks.length - 1] = textBlock(
 			type,
-			text: `${last.text}${text}`,
-		};
+			`${last.text}${text}`,
+			narration,
+		);
 		return nextBlocks;
 	}
-	nextBlocks.push({ type, text });
+	nextBlocks.push(textBlock(type, text, narration));
 	return nextBlocks;
 };
 

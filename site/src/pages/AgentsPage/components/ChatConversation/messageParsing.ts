@@ -242,7 +242,12 @@ export const parseMessageContent = (
 		switch (part.type) {
 			case "text": {
 				parsed.markdown = appendText(parsed.markdown, part.text);
-				parsed.blocks = appendTextBlock(parsed.blocks, "response", part.text);
+				parsed.blocks = appendTextBlock(
+					parsed.blocks,
+					"response",
+					part.text,
+					part.narration,
+				);
 				break;
 			}
 			case "reasoning": {

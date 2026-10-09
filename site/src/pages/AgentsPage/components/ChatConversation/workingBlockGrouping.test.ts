@@ -33,6 +33,11 @@ const text = (value: string): TypesGen.ChatMessagePart => ({
 	type: "text",
 	text: value,
 });
+const narration = (value: string): TypesGen.ChatMessagePart => ({
+	type: "text",
+	text: value,
+	narration: true,
+});
 const reasoning = (
 	value: string,
 	createdAt?: string,
@@ -667,6 +672,39 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks).toEqual([]);
 		});
 
+		it("folds labeled narration into the live block from its first delta", () => {
+			const prompt = user("Go");
+			const parts = [
+				reasoning("Planning", at(1)),
+				narration("Now I'll "),
+				narration("update the tests."),
+				call("a", at(2)),
+			];
+
+			for (const index of parts.keys()) {
+				const { rows, blocks } = groupLive([prompt], parts.slice(0, index + 1));
+				expect(blocks).toMatchObject([
+					{
+						key: `working:live:message:${prompt.id}:0`,
+						isLive: true,
+						endsWithAnswer: false,
+					},
+				]);
+				expect(rowIds(rows, blocks[0].rowIndices)).toEqual(["live"]);
+			}
+		});
+
+		it("keeps a tool-less turn's labeled narration folded above its answer", () => {
+			const prompt = user("Go");
+			const parts = [narration("Checking the docs."), text("They cover it.")];
+			const live = groupLive([prompt], parts);
+			const persisted = group([prompt, message("assistant", parts)]);
+
+			for (const { blocks } of [live, persisted]) {
+				expect(blocks).toMatchObject([{ stepCount: 0, endsWithAnswer: true }]);
+			}
+		});
+
 		// OpenAI streams a search's citations inside the answer text that follows
 		// it, and stores them before that text.
 		it.each([
@@ -1075,6 +1113,16 @@ describe("splitRowBlocks", () => {
 			persisted: [citation, text("Go 1.27 is out. Rust 1.98 is out.")],
 			live: [text("Go 1.27 is out."), citation, text(" Rust 1.98 is out.")],
 			answer: "Go 1.27 is out. Rust 1.98 is out.",
+		},
+		{
+			name: "labeled narration before the answer",
+			persisted: [narration("Checking the docs."), text("They cover it.")],
+			live: [
+				narration("Checking "),
+				narration("the docs."),
+				text("They cover it."),
+			],
+			answer: "They cover it.",
 		},
 	])(
 		"splits $name the same live and persisted",

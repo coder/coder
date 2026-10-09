@@ -34,7 +34,12 @@ export const applyMessagePartToStreamState = (
 			}
 			return {
 				...nextState,
-				blocks: appendTextBlock(nextState.blocks, "response", part.text),
+				blocks: appendTextBlock(
+					nextState.blocks,
+					"response",
+					part.text,
+					part.narration,
+				),
 			};
 		}
 		case "reasoning": {

@@ -3233,6 +3233,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
+      "narration": true,
       "parsed_commands": [
         [
           "string"
@@ -3328,6 +3329,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
   "media_type": "string",
   "name": "string",
+  "narration": true,
   "parsed_commands": [
     [
       "string"
@@ -3388,6 +3390,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `mcp_server_config_id`         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `narration`                    | boolean                                                      | false    |              | Narration marks assistant text that the model labeled as commentary on its work rather than its answer. Only providers that label their output set it, currently the OpenAI Responses API.                                                                                                                                                                                                                 |
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
 | `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
@@ -3502,6 +3505,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
@@ -3583,6 +3587,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
@@ -4964,6 +4969,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
+      "narration": true,
       "parsed_commands": [
         [
           "string"
@@ -5127,6 +5133,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
@@ -5206,6 +5213,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
+      "narration": true,
       "parsed_commands": [
         [
           "string"
@@ -5272,6 +5280,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
@@ -5387,6 +5396,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
     "media_type": "string",
     "name": "string",
+    "narration": true,
     "parsed_commands": [
       [
         "string"
@@ -6245,6 +6255,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
@@ -6325,6 +6336,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
@@ -6406,6 +6418,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
@@ -9331,6 +9344,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
+        "narration": true,
         "parsed_commands": [
           [
             "string"
@@ -9411,6 +9425,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
+          "narration": true,
           "parsed_commands": [
             [
               "string"
