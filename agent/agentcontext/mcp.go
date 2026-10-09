@@ -3,6 +3,7 @@ package agentcontext
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 )
@@ -13,7 +14,8 @@ import (
 // runner owns the connection lifecycle; this type carries only the
 // resolved result.
 type MCPServerStatus struct {
-	// Name is the server name declared in .mcp.json.
+	// Name is the server name declared in a scan root's .mcp.json or
+	// a plugin's mcp.json.
 	Name string
 	// Connected reports whether the runner reached the server and
 	// listed its tools during the most recent reload.
@@ -24,6 +26,9 @@ type MCPServerStatus struct {
 	// as the server reported them (no server prefix), when
 	// Connected; empty otherwise.
 	Tools []MCPTool
+	// PluginName is the Agent Plugin whose mcp.json declared the
+	// server; empty for servers from a scan root's .mcp.json.
+	PluginName string
 }
 
 // buildMCPServerResources turns a per-server MCP snapshot into one
@@ -40,6 +45,11 @@ type MCPServerStatus struct {
 // it). A server's .mcp.json entry still appears separately as a
 // KindMCPConfig resource from the filesystem pass.
 //
+// A plugin server whose "<plugin>/<name>" source equals a workspace
+// server's name is not emitted, since sources must be unique within a
+// push. The workspace server's resource carries a warning naming the
+// hidden plugin server instead.
+//
 // Tool names are emitted exactly as the server reported them; flattening
 // them into a single namespace (e.g. "server__tool") is the control
 // plane's concern, since the resource already carries the server name.
@@ -49,27 +59,60 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 	}
 	sorted := slices.Clone(servers)
 	slices.SortFunc(sorted, func(a, b MCPServerStatus) int {
-		return strings.Compare(a.Name, b.Name)
+		if c := strings.Compare(a.Name, b.Name); c != 0 {
+			return c
+		}
+		return strings.Compare(a.PluginName, b.PluginName)
 	})
+
+	workspaceServers := make(map[string]struct{}, len(sorted))
+	for _, s := range sorted {
+		if s.PluginName == "" && s.Name != "" {
+			workspaceServers[s.Name] = struct{}{}
+		}
+	}
+	// hidden maps a workspace server name to descriptions of the plugin
+	// servers it hides.
+	hidden := make(map[string][]string)
+	for _, s := range sorted {
+		if s.PluginName == "" || s.Name == "" {
+			continue
+		}
+		if source := mcpServerSource(s); hasKey(workspaceServers, source) {
+			hidden[source] = append(hidden[source], fmt.Sprintf("server %q of plugin %q", s.Name, s.PluginName))
+		}
+	}
 
 	resources := make([]Resource, 0, len(sorted))
 	for _, s := range sorted {
 		if s.Name == "" {
 			continue
 		}
+		source := mcpServerSource(s)
+		if s.PluginName != "" && hasKey(workspaceServers, source) {
+			continue
+		}
+		var warning string
+		if plugins := hidden[source]; len(plugins) > 0 {
+			warning = fmt.Sprintf("hides MCP %s, which has the same source", strings.Join(plugins, ", "))
+		}
 		if !s.Connected {
 			errMsg := s.Err
 			if errMsg == "" {
 				errMsg = "failed to connect"
 			}
+			if warning != "" {
+				errMsg += "; " + warning
+			}
 			resources = append(resources, Resource{
-				ID:          resourceID(KindMCPServer, s.Name),
+				ID:          resourceID(KindMCPServer, source),
 				Kind:        KindMCPServer,
-				Source:      s.Name,
+				Source:      source,
 				Name:        s.Name,
 				Status:      StatusUnreadable,
 				Error:       errMsg,
 				ContentHash: hashMCPServerError(s.Name, errMsg),
+				PluginName:  s.PluginName,
 			})
 			continue
 		}
@@ -81,13 +124,15 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 			return strings.Compare(a.Name, b.Name)
 		})
 		resources = append(resources, Resource{
-			ID:          resourceID(KindMCPServer, s.Name),
+			ID:          resourceID(KindMCPServer, source),
 			Kind:        KindMCPServer,
-			Source:      s.Name,
+			Source:      source,
 			Name:        s.Name,
 			Status:      StatusOK,
-			ContentHash: hashMCPServer(s.Name, serverTools),
+			Error:       warning,
+			ContentHash: hashMCPServer(s.Name, serverTools, warning),
 			Tools:       serverTools,
+			PluginName:  s.PluginName,
 		})
 	}
 	if len(resources) == 0 {
@@ -99,9 +144,14 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 // hashMCPServer produces a deterministic content hash over a server's
 // identity and full tool set (name, description, and input schema) so
 // any tool-set change flips the resource's content hash. The schema is
-// encoded with encoding/json, which sorts map keys.
-func hashMCPServer(server string, tools []MCPTool) [32]byte {
+// encoded with encoding/json, which sorts map keys. A non-empty warning
+// also participates, since the aggregate hash does not cover Error.
+func hashMCPServer(server string, tools []MCPTool, warning string) [32]byte {
 	h := sha256.New()
+	if warning != "" {
+		writeLengthPrefixed(h, "warning")
+		writeLengthPrefixed(h, warning)
+	}
 	writeLengthPrefixed(h, server)
 	for _, t := range tools {
 		writeLengthPrefixed(h, t.Name)
@@ -130,4 +180,19 @@ func hashMCPServerError(server, errMsg string) [32]byte {
 	var sum [32]byte
 	copy(sum[:], h.Sum(nil))
 	return sum
+}
+
+func hasKey(m map[string]struct{}, k string) bool {
+	_, ok := m[k]
+	return ok
+}
+
+// mcpServerSource returns the bare server name, or "<plugin>/<name>"
+// for plugin servers so they keep their own resource when a name
+// collides with another server.
+func mcpServerSource(s MCPServerStatus) string {
+	if s.PluginName == "" {
+		return s.Name
+	}
+	return s.PluginName + "/" + s.Name
 }

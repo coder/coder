@@ -1124,6 +1124,14 @@ type Resource struct {
 	// sanitized and capped at MaxPluginVersionRunes. Empty when
 	// the manifest omits it and for other kinds.
 	PluginVersion string
+	// HasMCPConfig reports, for a StatusOK KindPlugin, that the
+	// plugin root holds an mcp.json that resolves to a regular
+	// file inside the root. Not hashed and not sent on the wire.
+	HasMCPConfig bool
+	// pluginOrder is the position at which a StatusOK KindPlugin
+	// claimed its name during the walk. Not hashed and not sent on
+	// the wire.
+	pluginOrder int
 }
 
 // MCPTool mirrors the wire MCPTool message. InputSchema is the

@@ -1,6 +1,7 @@
 package agentcontext
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -25,6 +26,9 @@ import (
 const (
 	// pluginManifestFileName sits at the plugin root.
 	pluginManifestFileName = "plugin.json"
+	// pluginMCPConfigFileName sits at the plugin root and declares
+	// the plugin's MCP servers.
+	pluginMCPConfigFileName = "mcp.json"
 	// pluginSkillsDirName is the fixed skills container inside a
 	// plugin root.
 	pluginSkillsDirName = "skills"
@@ -422,12 +426,19 @@ func (r *Resolver) discoverPlugin(dir string, root ScanRoot, out *[]Resource, se
 	res.Description = manifest.Description
 	warnings := manifest.Warnings
 
+	if hasMCP, warn := r.hasPluginMCPConfig(pluginRoot); warn != "" {
+		warnings = append(warnings, warn)
+	} else {
+		res.HasMCPConfig = hasMCP
+	}
+
 	skills, warn := r.pluginSkills(pluginRoot, root, manifest.Name)
 	if warn != "" {
 		warnings = append(warnings, warn)
 	}
 
 	res.Error = strings.Join(warnings, "; ")
+	res.pluginOrder = len(pluginNames)
 	if !r.appendResource(out, seenSource, res) {
 		return pluginShadowed
 	}
@@ -436,6 +447,26 @@ func (r *Resolver) discoverPlugin(dir string, root ScanRoot, out *[]Resource, se
 		r.appendResource(out, seenSource, skill)
 	}
 	return pluginValid
+}
+
+// hasPluginMCPConfig reports whether pluginRoot holds an mcp.json that
+// resolves to a regular file inside the plugin root. A symlinked
+// mcp.json that escapes the root or is not a regular file yields a
+// warning and false.
+func (*Resolver) hasPluginMCPConfig(pluginRoot string) (found bool, warning string) {
+	path := filepath.Join(pluginRoot, pluginMCPConfigFileName)
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false, ""
+	}
+	_, readInfo, ok, _, errMsg := resolveReadTarget(path, info, pluginRoot)
+	if !ok {
+		return false, "mcp.json ignored: " + errMsg
+	}
+	if !readInfo.Mode().IsRegular() {
+		return false, "mcp.json ignored: not a regular file"
+	}
+	return true, ""
 }
 
 // readPluginManifest reads the plugin.json at manifestPath, whose Lstat
@@ -594,4 +625,40 @@ func (r *Resolver) pluginSkills(pluginRoot string, root ScanRoot, pluginName str
 		skills = append(skills, res)
 	}
 	return skills, warning
+}
+
+// PluginInfo describes a validated plugin present in a Snapshot.
+type PluginInfo struct {
+	// Name is the manifest name.
+	Name string
+	// Root is the canonical plugin root directory.
+	Root string
+	// HasMCPConfig reports that Root holds an mcp.json that resolves
+	// to a regular file inside Root. The file is not read or parsed.
+	HasMCPConfig bool
+}
+
+// Plugins returns the StatusOK plugin resources in s as PluginInfo
+// values, ordered by scan-root priority (user sources, then built-in
+// roots, then the working directory) rather than by resource ID.
+func (s Snapshot) Plugins() []PluginInfo {
+	var plugins []Resource
+	for _, r := range s.Resources {
+		if r.Kind != KindPlugin || r.Status != StatusOK {
+			continue
+		}
+		plugins = append(plugins, r)
+	}
+	slices.SortStableFunc(plugins, func(a, b Resource) int {
+		return cmp.Compare(a.pluginOrder, b.pluginOrder)
+	})
+	out := make([]PluginInfo, 0, len(plugins))
+	for _, r := range plugins {
+		out = append(out, PluginInfo{
+			Name:         r.Name,
+			Root:         r.Source,
+			HasMCPConfig: r.HasMCPConfig,
+		})
+	}
+	return out
 }
