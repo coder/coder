@@ -23,7 +23,9 @@ const (
 // ReferenceLookup resolves Terraform value references relative to their
 // declaring module. It is bound to the active traversal context and Query, so
 // lookups share cancellation and the cumulative work budget. A resolver must
-// not call it concurrently or retain it after returning.
+// not call it concurrently or retain it after returning. Every reference is
+// treated as explicit; normalize raw plan references with NormalizePlanReferences
+// before calling it.
 type ReferenceLookup func(
 	moduleAddress string,
 	references []string,
@@ -34,10 +36,12 @@ type ReferenceLookup func(
 // source's indexed dependencies after module close completion edges have been
 // removed. The slice may be modified without changing the source graph.
 // The resolver may omit graph dependencies or return other nodes from the same
-// parsed graph. It may call lookup to translate plan references; that work
-// shares the query's cumulative budget. Work performed outside lookup is not
-// included in that budget; callers must ensure it is bounded separately. The
-// resolver must return promptly when ctx is canceled.
+// parsed graph. It may call lookup to translate references; that work shares
+// the query's cumulative budget. Raw plan references must be passed through
+// NormalizePlanReferences before they are deduplicated or reordered. Work
+// performed outside lookup is not included in the query budget; callers must
+// ensure it is bounded separately. The resolver must return promptly when ctx
+// is canceled.
 //
 // This lets callers use information outside the graph, such as Terraform plan
 // configuration and parsed template or module HCL, when graph metadata alone
@@ -130,13 +134,48 @@ func newQueryWithLimits(
 	}, nil
 }
 
+// NormalizePlanReferences removes each whole-module prefix that Terraform plan
+// JSON emits immediately after a direct module-output reference to the same
+// module call. It preserves order and all other occurrences without modifying
+// references. Call it on the raw plan expression reference list before
+// deduplicating or reordering that list. Do not use it on references extracted
+// from HCL, where every occurrence is explicit.
+func NormalizePlanReferences(
+	ctx context.Context,
+	references []string,
+) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	normalized := make([]string, 0, len(references))
+	for position := 0; position < len(references); position++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		rawReference := references[position]
+		normalized = append(normalized, rawReference)
+		reference, err := tfaddr.ParseConfigurationReference(rawReference)
+		if err != nil {
+			return nil, xerrors.Errorf(
+				"normalize Terraform plan reference %q: %w", rawReference, err,
+			)
+		}
+		moduleCallAddress, ok := reference.ModuleOutputCallAddress()
+		if ok && position+1 < len(references) &&
+			references[position+1] == moduleCallAddress {
+			position++
+		}
+	}
+	return normalized, nil
+}
+
 // ConfigurationNodesForReferences resolves Terraform value references relative
 // to their declaring module. An empty declaringModuleAddress identifies the
 // root module. Each reference resolves to the most specific configuration
 // address present in the graph. A whole-module reference resolves to all of the
-// module's output nodes. Terraform plan JSON emits a whole-module reference
-// after each module-output reference. Such implied references are ignored; an
-// additional whole-module occurrence still resolves to all outputs.
+// module's output nodes. Every reference is treated as explicit. Raw Terraform
+// plan JSON references must first be passed through NormalizePlanReferences.
 //
 // Terraform plan JSON reports module-output reads through dynamic indexes or
 // splats as whole-module references. For example, module.rep[each.key].agent_id
@@ -162,40 +201,25 @@ func (q *Query) ConfigurationNodesForReferences(
 	}
 	moduleConfAddress := modulePath.ConfigurationAddress()
 
-	parsedReferences := map[string]tfaddr.ConfigurationReference{}
 	resolvedReferences := map[string]struct{}{}
-	pendingImpliedWholeModuleReferences := map[string]int{}
 	startNodes := map[NodeID]struct{}{}
 	for _, rawReference := range references {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		reference, parsed := parsedReferences[rawReference]
-		if !parsed {
-			reference, err = tfaddr.ParseConfigurationReference(rawReference)
-			if err != nil {
-				return nil, xerrors.Errorf(
-					"resolve Terraform reference %q: %w", rawReference, err,
-				)
-			}
-			parsedReferences[rawReference] = reference
+		if _, resolved := resolvedReferences[rawReference]; resolved {
+			continue
 		}
-		if moduleCallAddress, ok := reference.ModuleOutputCallAddress(); ok {
-			// Terraform emits one whole-module prefix for every output
-			// occurrence, including duplicate output references.
-			pendingImpliedWholeModuleReferences[moduleCallAddress]++
+		resolvedReferences[rawReference] = struct{}{}
+		reference, err := tfaddr.ParseConfigurationReference(rawReference)
+		if err != nil {
+			return nil, xerrors.Errorf(
+				"resolve Terraform reference %q: %w", rawReference, err,
+			)
 		}
 		if moduleAddress, ok := wholeModuleReferenceAddress(
 			reference, moduleConfAddress,
 		); ok {
-			if pendingImpliedWholeModuleReferences[rawReference] > 0 {
-				pendingImpliedWholeModuleReferences[rawReference]--
-				continue
-			}
-			if _, resolved := resolvedReferences[rawReference]; resolved {
-				continue
-			}
-			resolvedReferences[rawReference] = struct{}{}
 			if err := q.consumeReferenceLookups(1); err != nil {
 				return nil, err
 			}
@@ -208,10 +232,6 @@ func (q *Query) ConfigurationNodesForReferences(
 			}
 			continue
 		}
-		if _, resolved := resolvedReferences[rawReference]; resolved {
-			continue
-		}
-		resolvedReferences[rawReference] = struct{}{}
 		for address := range reference.ConfigurationAddresses(moduleConfAddress) {
 			if err := q.consumeReferenceLookups(1); err != nil {
 				return nil, err

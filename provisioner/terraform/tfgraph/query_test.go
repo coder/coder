@@ -3,6 +3,7 @@ package tfgraph_test
 import (
 	"context"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -10,6 +11,126 @@ import (
 
 	"github.com/coder/coder/v2/provisioner/terraform/tfgraph"
 )
+
+func TestNormalizePlanReferences(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name       string
+		references []string
+		expected   []string
+	}{
+		{
+			name: "ModuleOutputPrefix",
+			references: []string{
+				"module.runtime.agent_id",
+				"module.runtime",
+			},
+			expected: []string{"module.runtime.agent_id"},
+		},
+		{
+			name: "KeyedModuleOutputPrefix",
+			references: []string{
+				`module.runtime["primary"].agent_id`,
+				`module.runtime["primary"]`,
+			},
+			expected: []string{`module.runtime["primary"].agent_id`},
+		},
+		{
+			name: "NestedOutputTraversalPrefix",
+			references: []string{
+				"module.runtime.agent_id.value",
+				"module.runtime.agent_id",
+				"module.runtime",
+			},
+			expected: []string{
+				"module.runtime.agent_id.value",
+				"module.runtime.agent_id",
+			},
+		},
+		{
+			name: "ExplicitWholeModuleAfterImpliedPrefix",
+			references: []string{
+				"module.runtime.agent_id",
+				"module.runtime",
+				"module.runtime",
+			},
+			expected: []string{
+				"module.runtime.agent_id",
+				"module.runtime",
+			},
+		},
+		{
+			name: "DuplicateOutputOccurrences",
+			references: []string{
+				"module.runtime.agent_id",
+				"module.runtime",
+				"module.runtime.agent_id",
+				"module.runtime",
+			},
+			expected: []string{
+				"module.runtime.agent_id",
+				"module.runtime.agent_id",
+			},
+		},
+		{
+			name: "ExplicitWholeModuleBeforeOutput",
+			references: []string{
+				"module.runtime",
+				"module.runtime.agent_id",
+				"module.runtime",
+			},
+			expected: []string{
+				"module.runtime",
+				"module.runtime.agent_id",
+			},
+		},
+		{
+			name: "DifferentModuleInstances",
+			references: []string{
+				`module.runtime["primary"].agent_id`,
+				`module.runtime["primary"]`,
+				`module.runtime["secondary"]`,
+			},
+			expected: []string{
+				`module.runtime["primary"].agent_id`,
+				`module.runtime["secondary"]`,
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			references := slices.Clone(test.references)
+			normalized, err := tfgraph.NormalizePlanReferences(
+				t.Context(), references,
+			)
+			require.NoError(t, err)
+			require.Equal(t, test.expected, normalized)
+			require.Equal(t, test.references, references)
+		})
+	}
+
+	t.Run("InvalidReference", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := tfgraph.NormalizePlanReferences(
+			t.Context(), []string{"["},
+		)
+		require.ErrorContains(t, err, "normalize Terraform plan reference")
+	})
+
+	t.Run("Canceled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		_, err := tfgraph.NormalizePlanReferences(
+			ctx, []string{"module.runtime.agent_id"},
+		)
+		require.ErrorIs(t, err, context.Canceled)
+	})
+}
 
 func TestQueryConfigurationNodesForReferences(t *testing.T) {
 	t.Parallel()
@@ -40,29 +161,38 @@ func TestQueryConfigurationNodesForReferences(t *testing.T) {
 			expected:   []string{"module.runtime.output.agent_id"},
 		},
 		{
-			name: "PlanModuleOutputPrefix",
+			name: "OutputThenWholeModule",
 			references: []string{
 				"module.runtime.agent_id",
 				"module.runtime",
 			},
-			expected: []string{"module.runtime.output.agent_id"},
+			expected: []string{
+				"module.runtime.output.agent_id",
+				"module.runtime.output.token",
+			},
 		},
 		{
-			name: "PlanKeyedModuleOutputPrefix",
+			name: "KeyedOutputThenWholeModule",
 			references: []string{
 				`module.runtime["primary"].agent_id`,
 				`module.runtime["primary"]`,
 			},
-			expected: []string{"module.runtime.output.agent_id"},
+			expected: []string{
+				"module.runtime.output.agent_id",
+				"module.runtime.output.token",
+			},
 		},
 		{
-			name: "PlanNestedOutputTraversalPrefix",
+			name: "NestedOutputTraversalThenWholeModule",
 			references: []string{
 				"module.runtime.agent_id.value",
 				"module.runtime.agent_id",
 				"module.runtime",
 			},
-			expected: []string{"module.runtime.output.agent_id"},
+			expected: []string{
+				"module.runtime.output.agent_id",
+				"module.runtime.output.token",
+			},
 		},
 		{
 			name:       "WholeModule",
@@ -675,13 +805,17 @@ func TestQueryMatchesCapturedTerraformGraphs(t *testing.T) {
 		t.Run("PlanReferences", func(t *testing.T) {
 			t.Parallel()
 
+			references, err := tfgraph.NormalizePlanReferences(
+				t.Context(), []string{"module.rep", "each.key"},
+			)
+			require.NoError(t, err)
 			require.Equal(
 				t,
 				[]string{
 					"terraform_data.agent",
 					"terraform_data.other",
 				},
-				boundaryAddresses(t, []string{"module.rep", "each.key"}),
+				boundaryAddresses(t, references),
 			)
 		})
 
