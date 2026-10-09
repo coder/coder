@@ -51,6 +51,32 @@ describe("resolveSkillTriggers", () => {
 		expect(triggersFor(lists)).toEqual(expected);
 	});
 
+	it("qualifies plugin skills by plugin and counts them toward collisions", () => {
+		const triggers = resolveSkillTriggers([
+			{ source: "personal", skills: skills("review", "plan") },
+			{ source: "org", skills: [] },
+			{ source: "workspace", skills: skills("deploy") },
+			{
+				source: "plugin",
+				skills: [
+					{ name: "review", description: "", pluginName: "acme" },
+					{ name: "deploy", description: "", pluginName: "acme" },
+					{ name: "deploy", description: "", pluginName: "beta" },
+				],
+			},
+		]);
+		expect(
+			triggers.map((trigger) => [trigger.triggerText, trigger.pluginName]),
+		).toEqual([
+			["/personal/review", undefined],
+			["/plan", undefined],
+			["/workspace/deploy", undefined],
+			["/plugin/acme/review", "acme"],
+			["/plugin/acme/deploy", "acme"],
+			["/plugin/beta/deploy", "beta"],
+		]);
+	});
+
 	it("keeps the qualified alias searchable for bare triggers", () => {
 		expect(
 			resolveSkillTriggers([

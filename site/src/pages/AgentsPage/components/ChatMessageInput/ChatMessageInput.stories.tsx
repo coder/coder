@@ -261,6 +261,22 @@ export const CollidingPersonalSkillInsertsQualifiedTrigger: Story = {
 	},
 };
 
+export const CollidingPluginSkillQualifiesPersonalTrigger: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: [
+			{
+				name: "reviewer",
+				description: "Acme review process.",
+				pluginName: "acme",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/rev");
+	},
+};
+
 export const PersonalTriggersQualifiedWhileWorkspaceSkillsUnknown: Story = {
 	args: {
 		// No workspaceSkills: the chat detail has not resolved, so
