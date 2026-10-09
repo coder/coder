@@ -37,7 +37,7 @@ export const TEMPLATE_CUSTOMIZATIONS_FORM_ID = "template-customizations-form";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
-const emptyOrgs: Organization[] = [];
+const emptyOrgs: readonly Organization[] = [];
 
 const validationSchema = Yup.object({
 	name: nameValidator("Template ID"),

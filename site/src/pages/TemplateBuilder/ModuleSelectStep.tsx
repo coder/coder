@@ -33,7 +33,7 @@ type ModuleSelectStepProps = {
 	) => void;
 };
 
-const emptyModules: TemplateBuilderModule[] = [];
+const emptyModules: readonly TemplateBuilderModule[] = [];
 
 function toMeta(m: TemplateBuilderModule): SelectedModuleMeta {
 	return {
