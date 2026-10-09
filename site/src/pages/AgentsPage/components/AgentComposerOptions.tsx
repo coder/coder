@@ -22,7 +22,7 @@ import {
 
 export type { AttachedWorkspaceInfo } from "./AgentComposerBadges";
 
-/** Controlled tool state shared by the menu and independently composed badges. */
+/** Tool settings shared by the menu and badges. */
 type AgentComposerOptionsProviderProps = AgentComposerOptionsData & {
 	children: React.ReactNode;
 };
@@ -199,7 +199,7 @@ const AgentComposerOptionsBadges = ({
 	);
 };
 
-/** Compose model selection and shared tool controls without a fixed toolbar assembly. */
+/** Composer controls that callers can arrange or omit independently. */
 export const AgentComposerOptions = {
 	Provider: AgentComposerOptionsProvider,
 	Frame: AgentComposerOptionsFrame,

@@ -3,7 +3,7 @@ import { type AgentComposerBindings, ComposerContext } from "./context";
 import { ComposerFilePreviews } from "./useComposerFiles";
 import { useComposerRuntime } from "./useComposerRuntime";
 
-/** Supplies the agent draft implementation independently of the composed UI. */
+/** Provides draft interactions and attachment previews to composer children. */
 export function AgentComposerProvider({
 	bindings,
 	children,

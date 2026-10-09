@@ -12,7 +12,7 @@ type PromptCycle = {
 	savedDraft: string;
 };
 
-/** Owns document interactions without controlling Lexical's draft value. */
+/** Handles history navigation, speech input, and the uncontrolled editor handle. */
 export function useComposerEditor(
 	bindings: AgentComposerBindings,
 	editorRef: React.RefObject<ChatMessageInputRef | null>,

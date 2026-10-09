@@ -34,7 +34,7 @@ type AgentComposerConfiguration = {
 	fillWidth?: boolean;
 };
 
-/** Composes a new chat using its organization's controlled settings. */
+/** Composer for creating a chat with the selected organization's settings. */
 export const NewAgentComposer = ({
 	bindings,
 	model,
@@ -88,7 +88,7 @@ type ChatComposerProps = AgentComposerConfiguration & {
 	context?: React.ComponentProps<typeof AgentComposerContextIndicator>;
 };
 
-/** Composes an existing chat without taking ownership of its turn controller. */
+/** Composer for sending, queuing, and editing messages in an existing chat. */
 export const ChatComposer = ({
 	bindings,
 	model,
@@ -185,7 +185,7 @@ function HistoryEditComposerActions() {
 	);
 }
 
-/** Keeps the loading editor's draft handoff separate from loaded-chat behavior. */
+/** Composer that records draft changes while the chat loads. */
 export const LoadingChatComposer = ({
 	bindings,
 	model,

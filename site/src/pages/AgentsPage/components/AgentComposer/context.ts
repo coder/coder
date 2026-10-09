@@ -9,21 +9,19 @@ import type { ChatMessageInputRef } from "../ChatMessageInput/ChatMessageInput";
 /** Workspace file uploads displayed and routed by the composer. */
 type WorkspaceUploadsProps = {
 	uploads: readonly WorkspaceFileUpload[];
-	// Present only when the chat has a bound workspace with a
-	// connected agent; its absence hides the whole affordance.
+
+	/** Supply this callback when workspace files can be accepted; omit it to reject them. */
 	onAttach?: (files: File[]) => void;
 	onRemove: (id: string) => void;
-	// Toast shown when a workspace-routed file arrives while onAttach
-	// is unavailable. Overridden on the new-chat page, where the fix
-	// is selecting a workspace rather than attaching one to the chat.
+
+	/** Message shown when a workspace file is rejected because uploads are unavailable. */
 	unavailableMessage?: string;
-	// Deferred mode (new-chat page): entries upload during submit and
-	// every entry re-uploads on the next send after a failure, so
-	// error chips still count as sendable content.
+
+	/** Set when files upload during submission and failed uploads retry on the next send. */
 	deferred?: boolean;
 };
 
-/** External callbacks and draft inputs for the feature-local composer runtime. */
+/** Draft inputs and callbacks for AgentComposerProvider. */
 export type AgentComposerBindings = {
 	onSend: (message: string) => void;
 	isDisabled: boolean;

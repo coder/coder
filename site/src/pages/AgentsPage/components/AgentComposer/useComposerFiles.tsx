@@ -19,7 +19,7 @@ const workspaceUploadPendingSendMessage =
 
 type TextPreview = { content: string; fileName: string; mediaType: string };
 
-/** Routes file interactions and keeps upload readiness and previews together. */
+/** Handles file selection, upload readiness, and attachment previews. */
 export function useComposerFiles(
 	bindings: AgentComposerBindings,
 	editorRef: React.RefObject<ChatMessageInputRef | null>,
@@ -57,7 +57,7 @@ export function useComposerFiles(
 				(workspaceUploads?.deferred === true && upload.status === "error"),
 		);
 
-	// Eager workspace uploads must not outlive a pending send's draft reset.
+	// Block new workspace uploads during submission so draft cleanup cannot discard them.
 	const workspaceAttachBlockedBySend =
 		isLoading && workspaceUploads?.onAttach !== undefined;
 	const onWorkspaceAttach =
@@ -200,7 +200,7 @@ export function useComposerFiles(
 	};
 }
 
-/** Renders only the composer's locally owned previews. */
+/** Displays the attachment previews opened by file interactions. */
 export function ComposerFilePreviews({
 	previewImage,
 	setPreviewImage,
