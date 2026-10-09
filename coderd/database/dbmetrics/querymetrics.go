@@ -496,6 +496,22 @@ func (m queryMetricsStore) DeleteAPIKeysByUserID(ctx context.Context, userID uui
 	return r0
 }
 
+func (m queryMetricsStore) DeleteAgentHoursGroupAllotment(ctx context.Context, groupID uuid.UUID) (database.AgentHoursGroupAllotment, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteAgentHoursGroupAllotment(ctx, groupID)
+	m.queryLatencies.WithLabelValues("DeleteAgentHoursGroupAllotment").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAgentHoursGroupAllotment").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteAgentHoursOrganizationAllotment(ctx context.Context, organizationID uuid.UUID) (database.AgentHoursOrganizationAllotment, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteAgentHoursOrganizationAllotment(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("DeleteAgentHoursOrganizationAllotment").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAgentHoursOrganizationAllotment").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteAllChatHeartbeats(ctx, chatID)
@@ -1413,6 +1429,30 @@ func (m queryMetricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Cont
 	r0, r1 := m.s.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 	m.queryLatencies.WithLabelValues("GetActiveWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveWorkspaceBuildsByTemplateID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentHoursGroupAllotmentsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.GetAgentHoursGroupAllotmentsByOrganizationIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentHoursGroupAllotmentsByOrganizationID(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetAgentHoursGroupAllotmentsByOrganizationID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentHoursGroupAllotmentsByOrganizationID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentHoursOrganizationAllotment(ctx context.Context, organizationID uuid.UUID) (database.AgentHoursOrganizationAllotment, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentHoursOrganizationAllotment(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetAgentHoursOrganizationAllotment").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentHoursOrganizationAllotment").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentHoursOrganizationAllotments(ctx context.Context) ([]database.GetAgentHoursOrganizationAllotmentsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentHoursOrganizationAllotments(ctx)
+	m.queryLatencies.WithLabelValues("GetAgentHoursOrganizationAllotments").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentHoursOrganizationAllotments").Inc()
 	return r0, r1
 }
 
@@ -6590,6 +6630,22 @@ func (m queryMetricsStore) UpsertAISeatState(ctx context.Context, arg database.U
 	r0, r1 := m.s.UpsertAISeatState(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertAISeatState").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAISeatState").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertAgentHoursGroupAllotment(ctx context.Context, arg database.UpsertAgentHoursGroupAllotmentParams) (database.AgentHoursGroupAllotment, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertAgentHoursGroupAllotment(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertAgentHoursGroupAllotment").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAgentHoursGroupAllotment").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertAgentHoursOrganizationAllotment(ctx context.Context, arg database.UpsertAgentHoursOrganizationAllotmentParams) (database.AgentHoursOrganizationAllotment, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertAgentHoursOrganizationAllotment(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertAgentHoursOrganizationAllotment").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAgentHoursOrganizationAllotment").Inc()
 	return r0, r1
 }
 

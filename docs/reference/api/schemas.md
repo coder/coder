@@ -1564,6 +1564,79 @@ None
 |-----------|-----------------------------------------------------------------|----------|--------------|-------------|
 | `results` | array of [codersdk.AgentFirewallLog](#codersdkagentfirewalllog) | false    |              |             |
 
+## codersdk.AgentHoursGroupAllotment
+
+```json
+{
+  "allotment_bps": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_display_name": "string",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "group_name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                |
+|----------------------|---------|----------|--------------|------------------------------------------------------------|
+| `allotment_bps`      | integer | false    |              | Allotment bps is the share in basis points (10000 = 100%). |
+| `created_at`         | string  | false    |              |                                                            |
+| `group_display_name` | string  | false    |              |                                                            |
+| `group_id`           | string  | false    |              |                                                            |
+| `group_name`         | string  | false    |              |                                                            |
+| `updated_at`         | string  | false    |              |                                                            |
+
+## codersdk.AgentHoursGroupAllotments
+
+```json
+{
+  "groups": [
+    {
+      "allotment_bps": 0,
+      "created_at": "2019-08-24T14:15:22Z",
+      "group_display_name": "string",
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "group_name": "string",
+      "updated_at": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "organization_allotment_bps": 0
+}
+```
+
+### Properties
+
+| Name                         | Type                                                                            | Required | Restrictions | Description                                                                                                                                                                   |
+|------------------------------|---------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `groups`                     | array of [codersdk.AgentHoursGroupAllotment](#codersdkagenthoursgroupallotment) | false    |              |                                                                                                                                                                               |
+| `organization_allotment_bps` | integer                                                                         | false    |              | Organization allotment bps is the organization's own share of the deployment's Agent Hours. It is null when the organization has no allotment and draws from the shared pool. |
+
+## codersdk.AgentHoursOrganizationAllotment
+
+```json
+{
+  "allotment_bps": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                        | Type    | Required | Restrictions | Description                                                |
+|-----------------------------|---------|----------|--------------|------------------------------------------------------------|
+| `allotment_bps`             | integer | false    |              | Allotment bps is the share in basis points (10000 = 100%). |
+| `created_at`                | string  | false    |              |                                                            |
+| `organization_display_name` | string  | false    |              |                                                            |
+| `organization_id`           | string  | false    |              |                                                            |
+| `organization_name`         | string  | false    |              |                                                            |
+| `updated_at`                | string  | false    |              |                                                            |
+
 ## codersdk.AgentScriptTiming
 
 ```json
@@ -14442,9 +14515,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_memory`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_hours_group_allotment`, `agent_hours_organization_allotment`, `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_memory`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -17677,6 +17750,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name     | Type                                                                | Required | Restrictions | Description |
 |----------|---------------------------------------------------------------------|----------|--------------|-------------|
 | `prices` | array of [codersdk.AIModelPriceUpsert](#codersdkaimodelpriceupsert) | false    |              |             |
+
+## codersdk.UpsertAgentHoursAllotmentRequest
+
+```json
+{
+  "allotment_bps": 0
+}
+```
+
+### Properties
+
+| Name            | Type    | Required | Restrictions | Description                                                                      |
+|-----------------|---------|----------|--------------|----------------------------------------------------------------------------------|
+| `allotment_bps` | integer | false    |              | Allotment bps is the share in basis points, from 1 to AgentHoursAllotmentMaxBps. |
 
 ## codersdk.UpsertGroupAIBudgetRequest
 

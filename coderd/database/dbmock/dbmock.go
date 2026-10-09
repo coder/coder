@@ -808,6 +808,36 @@ func (mr *MockStoreMockRecorder) DeleteAPIKeysByUserID(ctx, userID any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeysByUserID), ctx, userID)
 }
 
+// DeleteAgentHoursGroupAllotment mocks base method.
+func (m *MockStore) DeleteAgentHoursGroupAllotment(ctx context.Context, groupID uuid.UUID) (database.AgentHoursGroupAllotment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAgentHoursGroupAllotment", ctx, groupID)
+	ret0, _ := ret[0].(database.AgentHoursGroupAllotment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteAgentHoursGroupAllotment indicates an expected call of DeleteAgentHoursGroupAllotment.
+func (mr *MockStoreMockRecorder) DeleteAgentHoursGroupAllotment(ctx, groupID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAgentHoursGroupAllotment", reflect.TypeOf((*MockStore)(nil).DeleteAgentHoursGroupAllotment), ctx, groupID)
+}
+
+// DeleteAgentHoursOrganizationAllotment mocks base method.
+func (m *MockStore) DeleteAgentHoursOrganizationAllotment(ctx context.Context, organizationID uuid.UUID) (database.AgentHoursOrganizationAllotment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAgentHoursOrganizationAllotment", ctx, organizationID)
+	ret0, _ := ret[0].(database.AgentHoursOrganizationAllotment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteAgentHoursOrganizationAllotment indicates an expected call of DeleteAgentHoursOrganizationAllotment.
+func (mr *MockStoreMockRecorder) DeleteAgentHoursOrganizationAllotment(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAgentHoursOrganizationAllotment", reflect.TypeOf((*MockStore)(nil).DeleteAgentHoursOrganizationAllotment), ctx, organizationID)
+}
+
 // DeleteAllChatHeartbeats mocks base method.
 func (m *MockStore) DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -2499,6 +2529,51 @@ func (m *MockStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, te
 func (mr *MockStoreMockRecorder) GetActiveWorkspaceBuildsByTemplateID(ctx, templateID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetActiveWorkspaceBuildsByTemplateID), ctx, templateID)
+}
+
+// GetAgentHoursGroupAllotmentsByOrganizationID mocks base method.
+func (m *MockStore) GetAgentHoursGroupAllotmentsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.GetAgentHoursGroupAllotmentsByOrganizationIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentHoursGroupAllotmentsByOrganizationID", ctx, organizationID)
+	ret0, _ := ret[0].([]database.GetAgentHoursGroupAllotmentsByOrganizationIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentHoursGroupAllotmentsByOrganizationID indicates an expected call of GetAgentHoursGroupAllotmentsByOrganizationID.
+func (mr *MockStoreMockRecorder) GetAgentHoursGroupAllotmentsByOrganizationID(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentHoursGroupAllotmentsByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetAgentHoursGroupAllotmentsByOrganizationID), ctx, organizationID)
+}
+
+// GetAgentHoursOrganizationAllotment mocks base method.
+func (m *MockStore) GetAgentHoursOrganizationAllotment(ctx context.Context, organizationID uuid.UUID) (database.AgentHoursOrganizationAllotment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentHoursOrganizationAllotment", ctx, organizationID)
+	ret0, _ := ret[0].(database.AgentHoursOrganizationAllotment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentHoursOrganizationAllotment indicates an expected call of GetAgentHoursOrganizationAllotment.
+func (mr *MockStoreMockRecorder) GetAgentHoursOrganizationAllotment(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentHoursOrganizationAllotment", reflect.TypeOf((*MockStore)(nil).GetAgentHoursOrganizationAllotment), ctx, organizationID)
+}
+
+// GetAgentHoursOrganizationAllotments mocks base method.
+func (m *MockStore) GetAgentHoursOrganizationAllotments(ctx context.Context) ([]database.GetAgentHoursOrganizationAllotmentsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentHoursOrganizationAllotments", ctx)
+	ret0, _ := ret[0].([]database.GetAgentHoursOrganizationAllotmentsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentHoursOrganizationAllotments indicates an expected call of GetAgentHoursOrganizationAllotments.
+func (mr *MockStoreMockRecorder) GetAgentHoursOrganizationAllotments(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentHoursOrganizationAllotments", reflect.TypeOf((*MockStore)(nil).GetAgentHoursOrganizationAllotments), ctx)
 }
 
 // GetAllTailnetCoordinators mocks base method.
@@ -12411,6 +12486,36 @@ func (m *MockStore) UpsertAISeatState(ctx context.Context, arg database.UpsertAI
 func (mr *MockStoreMockRecorder) UpsertAISeatState(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAISeatState", reflect.TypeOf((*MockStore)(nil).UpsertAISeatState), ctx, arg)
+}
+
+// UpsertAgentHoursGroupAllotment mocks base method.
+func (m *MockStore) UpsertAgentHoursGroupAllotment(ctx context.Context, arg database.UpsertAgentHoursGroupAllotmentParams) (database.AgentHoursGroupAllotment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertAgentHoursGroupAllotment", ctx, arg)
+	ret0, _ := ret[0].(database.AgentHoursGroupAllotment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertAgentHoursGroupAllotment indicates an expected call of UpsertAgentHoursGroupAllotment.
+func (mr *MockStoreMockRecorder) UpsertAgentHoursGroupAllotment(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAgentHoursGroupAllotment", reflect.TypeOf((*MockStore)(nil).UpsertAgentHoursGroupAllotment), ctx, arg)
+}
+
+// UpsertAgentHoursOrganizationAllotment mocks base method.
+func (m *MockStore) UpsertAgentHoursOrganizationAllotment(ctx context.Context, arg database.UpsertAgentHoursOrganizationAllotmentParams) (database.AgentHoursOrganizationAllotment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertAgentHoursOrganizationAllotment", ctx, arg)
+	ret0, _ := ret[0].(database.AgentHoursOrganizationAllotment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertAgentHoursOrganizationAllotment indicates an expected call of UpsertAgentHoursOrganizationAllotment.
+func (mr *MockStoreMockRecorder) UpsertAgentHoursOrganizationAllotment(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAgentHoursOrganizationAllotment", reflect.TypeOf((*MockStore)(nil).UpsertAgentHoursOrganizationAllotment), ctx, arg)
 }
 
 // UpsertAnnouncementBanners mocks base method.

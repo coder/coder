@@ -6,6 +6,8 @@ type ForeignKeyConstraint string
 
 // ForeignKeyConstraint enums.
 const (
+	ForeignKeyAgentHoursGroupAllotmentsGroupID                         ForeignKeyConstraint = "agent_hours_group_allotments_group_id_fkey"                      // ALTER TABLE ONLY agent_hours_group_allotments ADD CONSTRAINT agent_hours_group_allotments_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+	ForeignKeyAgentHoursOrganizationAllotmentsOrganizationID           ForeignKeyConstraint = "agent_hours_organization_allotments_organization_id_fkey"        // ALTER TABLE ONLY agent_hours_organization_allotments ADD CONSTRAINT agent_hours_organization_allotments_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 	ForeignKeyAIProviderKeysAPIKeyKeyID                                ForeignKeyConstraint = "ai_provider_keys_api_key_key_id_fkey"                            // ALTER TABLE ONLY ai_provider_keys ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 	ForeignKeyAIProviderKeysProviderID                                 ForeignKeyConstraint = "ai_provider_keys_provider_id_fkey"                               // ALTER TABLE ONLY ai_provider_keys ADD CONSTRAINT ai_provider_keys_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE;
 	ForeignKeyAIProvidersSettingsKeyID                                 ForeignKeyConstraint = "ai_providers_settings_key_id_fkey"                               // ALTER TABLE ONLY ai_providers ADD CONSTRAINT ai_providers_settings_key_id_fkey FOREIGN KEY (settings_key_id) REFERENCES dbcrypt_keys(active_key_digest);

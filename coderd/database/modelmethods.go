@@ -102,6 +102,46 @@ func (b GroupAIBudget) Auditable(groupName string) AuditableGroupAIBudget {
 	}
 }
 
+// AuditableAgentHoursOrganizationAllotment is the audit-log representation
+// of AgentHoursOrganizationAllotment, with the organization's name and the
+// allotment as a percentage instead of basis points.
+type AuditableAgentHoursOrganizationAllotment struct {
+	AgentHoursOrganizationAllotment
+	OrganizationName string `json:"organization_name"`
+	Allotment        string `json:"allotment"`
+}
+
+func (a AgentHoursOrganizationAllotment) Auditable(organizationName string) AuditableAgentHoursOrganizationAllotment {
+	return AuditableAgentHoursOrganizationAllotment{
+		AgentHoursOrganizationAllotment: a,
+		OrganizationName:                organizationName,
+		Allotment:                       formatAllotmentBps(a.AllotmentBps),
+	}
+}
+
+// AuditableAgentHoursGroupAllotment is the audit-log representation of
+// AgentHoursGroupAllotment, with the group's name and the allotment as a
+// percentage instead of basis points.
+type AuditableAgentHoursGroupAllotment struct {
+	AgentHoursGroupAllotment
+	GroupName string `json:"group_name"`
+	Allotment string `json:"allotment"`
+}
+
+func (a AgentHoursGroupAllotment) Auditable(groupName string) AuditableAgentHoursGroupAllotment {
+	return AuditableAgentHoursGroupAllotment{
+		AgentHoursGroupAllotment: a,
+		GroupName:                groupName,
+		Allotment:                formatAllotmentBps(a.AllotmentBps),
+	}
+}
+
+// formatAllotmentBps renders basis points as a percentage, for example 2550
+// as "25.5%".
+func formatAllotmentBps(bps int32) string {
+	return strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
+}
+
 // AuditableUserAIBudgetOverride is the audit-log representation of
 // UserAIBudgetOverride. It enriches the raw record with the username, the
 // attributed group's name, and a human-readable spend limit so audit

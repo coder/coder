@@ -1575,6 +1575,63 @@ export interface AgentHookUserPromptSubmitData {
 	readonly parts?: unknown;
 }
 
+// From codersdk/agenthours.go
+/**
+ * AgentHoursAllotmentMaxBps is the largest Agent Hours allotment, in basis
+ * points, and the cap on the sum of allotments within one tier. 10000 basis
+ * points equal 100%.
+ */
+export const AgentHoursAllotmentMaxBps = 10000;
+
+// From codersdk/agenthours.go
+/**
+ * AgentHoursGroupAllotment is a group's share of its organization's Agent
+ * Hours. Allotments are configuration only and are not enforced.
+ */
+export interface AgentHoursGroupAllotment {
+	readonly group_id: string;
+	readonly group_name: string;
+	readonly group_display_name: string;
+	/**
+	 * AllotmentBps is the share in basis points (10000 = 100%).
+	 */
+	readonly allotment_bps: number;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/agenthours.go
+/**
+ * AgentHoursGroupAllotments lists the group allotments of one organization.
+ */
+export interface AgentHoursGroupAllotments {
+	/**
+	 * OrganizationAllotmentBps is the organization's own share of the
+	 * deployment's Agent Hours. It is null when the organization has no
+	 * allotment and draws from the shared pool.
+	 */
+	readonly organization_allotment_bps?: number;
+	readonly groups: readonly AgentHoursGroupAllotment[];
+}
+
+// From codersdk/agenthours.go
+/**
+ * AgentHoursOrganizationAllotment is an organization's share of the
+ * deployment's licensed Agent Hours. Allotments are configuration only and
+ * are not enforced.
+ */
+export interface AgentHoursOrganizationAllotment {
+	readonly organization_id: string;
+	readonly organization_name: string;
+	readonly organization_display_name: string;
+	/**
+	 * AllotmentBps is the share in basis points (10000 = 100%).
+	 */
+	readonly allotment_bps: number;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
 // From codersdk/workspacebuilds.go
 export interface AgentScriptTiming {
 	readonly started_at: string;
@@ -9162,6 +9219,8 @@ export type ResourceType =
 	| "ai_provider_key"
 	| "ai_seat"
 	| "api_key"
+	| "agent_hours_group_allotment"
+	| "agent_hours_organization_allotment"
 	| "chat"
 	| "chat_automation"
 	| "chat_instruction_settings"
@@ -9209,6 +9268,8 @@ export const ResourceTypes: ResourceType[] = [
 	"ai_provider_key",
 	"ai_seat",
 	"api_key",
+	"agent_hours_group_allotment",
+	"agent_hours_organization_allotment",
 	"chat",
 	"chat_automation",
 	"chat_instruction_settings",
@@ -11472,6 +11533,18 @@ export interface UploadResponse {
  */
 export interface UpsertAIModelPricesRequest {
 	readonly prices: readonly AIModelPriceUpsert[];
+}
+
+// From codersdk/agenthours.go
+/**
+ * UpsertAgentHoursAllotmentRequest sets an Agent Hours allotment.
+ */
+export interface UpsertAgentHoursAllotmentRequest {
+	/**
+	 * AllotmentBps is the share in basis points, from 1 to
+	 * AgentHoursAllotmentMaxBps.
+	 */
+	readonly allotment_bps: number;
 }
 
 // From codersdk/aibridge.go

@@ -1745,6 +1745,34 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/agent-hours/allotments": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get Agent Hours organization allotments",
+                "operationId": "get-agent-hours-organization-allotments",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AgentHoursOrganizationAllotment"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/ai-gateway/clients": {
             "get": {
                 "description": "Alias: also available at /api/v2/aibridge/clients for backward compatibility.",
@@ -5741,6 +5769,80 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/groups/{group}/agent-hours/allotment": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Upsert Agent Hours group allotment",
+                "operationId": "upsert-agent-hours-group-allotment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Upsert Agent Hours allotment request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpsertAgentHoursAllotmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentHoursGroupAllotment"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete Agent Hours group allotment",
+                "operationId": "delete-agent-hours-group-allotment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/groups/{group}/ai/budget": {
             "get": {
                 "produces": [
@@ -7407,6 +7509,115 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Organization"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/agent-hours/allotment": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Upsert Agent Hours organization allotment",
+                "operationId": "upsert-agent-hours-organization-allotment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Upsert Agent Hours allotment request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpsertAgentHoursAllotmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentHoursOrganizationAllotment"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete Agent Hours organization allotment",
+                "operationId": "delete-agent-hours-organization-allotment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/agent-hours/group-allotments": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get Agent Hours group allotments",
+                "operationId": "get-agent-hours-group-allotments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentHoursGroupAllotments"
                         }
                     }
                 },
@@ -20449,6 +20660,75 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentHoursGroupAllotment": {
+            "type": "object",
+            "properties": {
+                "allotment_bps": {
+                    "description": "AllotmentBps is the share in basis points (10000 = 100%).",
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "group_display_name": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "group_name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.AgentHoursGroupAllotments": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentHoursGroupAllotment"
+                    }
+                },
+                "organization_allotment_bps": {
+                    "description": "OrganizationAllotmentBps is the organization's own share of the\ndeployment's Agent Hours. It is null when the organization has no\nallotment and draws from the shared pool.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AgentHoursOrganizationAllotment": {
+            "type": "object",
+            "properties": {
+                "allotment_bps": {
+                    "description": "AllotmentBps is the share in basis points (10000 = 100%).",
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "organization_display_name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.AgentScriptTiming": {
             "type": "object",
             "properties": {
@@ -30064,7 +30344,9 @@ const docTemplate = `{
                 "chat_instruction_settings",
                 "chat_operational_settings",
                 "chat_organization_system_prompt",
-                "experiment_rule"
+                "experiment_rule",
+                "agent_hours_organization_allotment",
+                "agent_hours_group_allotment"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -30111,7 +30393,9 @@ const docTemplate = `{
                 "ResourceTypeChatInstructionSettings",
                 "ResourceTypeChatOperationalSettings",
                 "ResourceTypeChatOrganizationSystemPrompt",
-                "ResourceTypeExperimentRule"
+                "ResourceTypeExperimentRule",
+                "ResourceTypeAgentHoursOrganizationAllotment",
+                "ResourceTypeAgentHoursGroupAllotment"
             ]
         },
         "codersdk.Response": {
@@ -32761,6 +33045,15 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.AIModelPriceUpsert"
                     }
+                }
+            }
+        },
+        "codersdk.UpsertAgentHoursAllotmentRequest": {
+            "type": "object",
+            "properties": {
+                "allotment_bps": {
+                    "description": "AllotmentBps is the share in basis points, from 1 to\nAgentHoursAllotmentMaxBps.",
+                    "type": "integer"
                 }
             }
         },

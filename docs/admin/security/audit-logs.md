@@ -123,6 +123,38 @@ Actions: `login`, `logout`, `register`, `create`, `write`, `delete`
 </tbody>
 </table>
 
+### AuditableAgentHoursGroupAllotment
+
+Actions: `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>allotment</code></td><td>Yes</td></tr>
+<tr><td><code>allotment_bps</code></td><td>No</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>group_id</code></td><td>No</td></tr>
+<tr><td><code>group_name</code></td><td>No</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
+
+### AuditableAgentHoursOrganizationAllotment
+
+Actions: `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>allotment</code></td><td>Yes</td></tr>
+<tr><td><code>allotment_bps</code></td><td>No</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>organization_name</code></td><td>No</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
+
 ### Group
 
 Actions: `create`, `write`, `delete`

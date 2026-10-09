@@ -6,6 +6,8 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
+	CheckAgentHoursGroupAllotmentsAllotmentBpsCheck          CheckConstraint = "agent_hours_group_allotments_allotment_bps_check"          // agent_hours_group_allotments
+	CheckAgentHoursOrganizationAllotmentsAllotmentBpsCheck   CheckConstraint = "agent_hours_organization_allotments_allotment_bps_check"   // agent_hours_organization_allotments
 	CheckAIGatewayKeysHashedSecretCheck                      CheckConstraint = "ai_gateway_keys_hashed_secret_check"                       // ai_gateway_keys
 	CheckAIGatewayKeysNameCheck                              CheckConstraint = "ai_gateway_keys_name_check"                                // ai_gateway_keys
 	CheckAIGatewayKeysSecretPrefixCheck                      CheckConstraint = "ai_gateway_keys_secret_prefix_check"                       // ai_gateway_keys

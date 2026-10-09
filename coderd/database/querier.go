@@ -145,6 +145,8 @@ type sqlcQuerier interface {
 	// SERIALIZABLE would abort and retry it instead.
 	DeleteAPIKeyByIDReturningRow(ctx context.Context, id string) (APIKey, error)
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	DeleteAgentHoursGroupAllotment(ctx context.Context, groupID uuid.UUID) (AgentHoursGroupAllotment, error)
+	DeleteAgentHoursOrganizationAllotment(ctx context.Context, organizationID uuid.UUID) (AgentHoursOrganizationAllotment, error)
 	// Deletes all heartbeat rows for the chat. Used during ownership
 	// transitions that abandon a lease.
 	DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error
@@ -423,6 +425,9 @@ type sqlcQuerier interface {
 	// TestGetActiveUsersAuthorizationRolesParity enforces this.
 	GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
+	GetAgentHoursGroupAllotmentsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]GetAgentHoursGroupAllotmentsByOrganizationIDRow, error)
+	GetAgentHoursOrganizationAllotment(ctx context.Context, organizationID uuid.UUID) (AgentHoursOrganizationAllotment, error)
+	GetAgentHoursOrganizationAllotments(ctx context.Context) ([]GetAgentHoursOrganizationAllotmentsRow, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
 	GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error)
@@ -1787,6 +1792,8 @@ type sqlcQuerier interface {
 	UpsertAIModelPrices(ctx context.Context, arg UpsertAIModelPricesParams) error
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)
+	UpsertAgentHoursGroupAllotment(ctx context.Context, arg UpsertAgentHoursGroupAllotmentParams) (AgentHoursGroupAllotment, error)
+	UpsertAgentHoursOrganizationAllotment(ctx context.Context, arg UpsertAgentHoursOrganizationAllotmentParams) (AgentHoursOrganizationAllotment, error)
 	UpsertAnnouncementBanners(ctx context.Context, value string) error
 	UpsertApplicationName(ctx context.Context, value string) error
 	// Upserts boundary usage statistics for a replica. On INSERT (new period), uses
