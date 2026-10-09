@@ -105,14 +105,16 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    and gpt-6+ reasoning classification in getResponsesModelConfig; also
 //    carries upstream #354 (gpt-6+ in IsResponsesModel).
 // 10) coder/fantasy#58, keep media tool results in the Gemini prompt.
-// 11) coder/fantasy mike/mcp-tool-media-batch-order (unmerged), keep OpenAI
-//    tool-result batches contiguous before attaching user media.
-// 12) coder/fantasy mike/openai-encrypted-reasoning (unmerged), capture
-//    finalized OpenAI Responses reasoning (item ID, encrypted content,
-//    summary) and replay it in full regardless of store. Skip hosted search
-//    references from unstored source responses.
-// See: https://github.com/coder/fantasy/commits/d55a86791a63
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261004200827-d55a86791a63
+// 11) coder/fantasy#64, keep OpenAI tool-result batches contiguous before
+//    attaching user media.
+// 12) coder/fantasy#65, attach empty metadata to Anthropic web searches
+//    with no results so chatd keeps them in saved history.
+// 13) coder/fantasy#63 (unmerged), capture finalized OpenAI Responses
+//    reasoning (item ID, encrypted content, summary) and replay it in full
+//    regardless of store. Skip hosted search references from unstored
+//    source responses.
+// See: https://github.com/coder/fantasy/commits/88cffb5d1d21
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261009153805-88cffb5d1d21
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
