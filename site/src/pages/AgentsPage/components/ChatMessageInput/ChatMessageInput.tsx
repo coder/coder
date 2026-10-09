@@ -696,8 +696,7 @@ const ChatMessageInput = ({
 		: [];
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
-	// Lists stay undefined until fetched, which keeps triggers qualified
-	// and built-in commands hidden.
+	// Lists stay undefined until fetched, which keeps triggers qualified.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
 		{ source: "org", skills: loadedOrganizationSkills },
