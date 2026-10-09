@@ -137,7 +137,6 @@ export function useEmptyStateDraft(
 			initialEditorState: draft.editorState,
 		};
 	});
-	const inputValueRef = useRef(initialInputValue);
 	const sentRef = useRef(false);
 	const persists = prefilledText === undefined;
 
@@ -146,7 +145,6 @@ export function useEmptyStateDraft(
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => {
-		inputValueRef.current = content;
 		if (persists && !sentRef.current) {
 			const shouldPersist = content.trim() || hasFileReferences;
 			if (shouldPersist) {
@@ -174,12 +172,9 @@ export function useEmptyStateDraft(
 		sentRef.current = false;
 	};
 
-	const getCurrentContent = () => inputValueRef.current;
-
 	return {
 		initialInputValue,
 		initialEditorState,
-		getCurrentContent,
 		handleContentChange,
 		submitDraft,
 		resetDraft,

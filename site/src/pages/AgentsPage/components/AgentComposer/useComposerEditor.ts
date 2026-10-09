@@ -6,6 +6,12 @@ import { useSpeechRecognition } from "../../hooks/useSpeechRecognition";
 import type { ChatMessageInputRef } from "../ChatMessageInput/ChatMessageInput";
 import type { AgentComposerBindings } from "./context";
 
+type PromptCycle = {
+	history: readonly string[];
+	index: number;
+	savedDraft: string;
+};
+
 /** Owns document interactions without controlling Lexical's draft value. */
 export function useComposerEditor(
 	bindings: AgentComposerBindings,
@@ -31,28 +37,17 @@ export function useComposerEditor(
 		countInvisibleCharacters(initialValue),
 	);
 
-	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
-	const [cycleSavedDraft, setCycleSavedDraft] = useState<string | null>(null);
-	const cycleHistorySnapshotRef = useRef<readonly string[] | null>(null);
+	const [promptCycle, setPromptCycle] = useState<PromptCycle | null>(null);
 	const currentCycleValueRef = useRef<string | null>(null);
 
-	const previousRemountKeyRef = useRef(remountKey);
 	const prevIsLoadingRef = useRef(isLoading);
 
 	const speech = useSpeechRecognition();
 	const [preRecordingValue, setPreRecordingValue] = useState("");
 
 	useEffect(() => {
-		if (previousRemountKeyRef.current === remountKey) {
-			return;
-		}
-
-		previousRemountKeyRef.current = remountKey;
-
-		// Keep in sync with resetPromptCycle without a callback dependency.
-		setCycleIndex(null);
-		setCycleSavedDraft(null);
-		cycleHistorySnapshotRef.current = null;
+		// Lexical remounts independently of the provider, ending the history session.
+		setPromptCycle(null);
 		currentCycleValueRef.current = null;
 	}, [remountKey]);
 
@@ -102,9 +97,7 @@ export function useComposerEditor(
 	}, [isLoading, editorRef]);
 
 	const resetPromptCycle = () => {
-		setCycleIndex(null);
-		setCycleSavedDraft(null);
-		cycleHistorySnapshotRef.current = null;
+		setPromptCycle(null);
 		currentCycleValueRef.current = null;
 	};
 
@@ -115,6 +108,7 @@ export function useComposerEditor(
 			return;
 		}
 
+		// Editor callbacks may run before React commits the next history index.
 		currentCycleValueRef.current = text;
 		editor.setValue(text);
 		editor.focus();
@@ -125,8 +119,7 @@ export function useComposerEditor(
 		serializedEditorState,
 		hasRefs,
 	) => {
-		// Ignore synchronous setValue echoes while cycling, but reset on user input.
-		if (cycleIndex !== null && content !== currentCycleValueRef.current) {
+		if (promptCycle !== null && content !== currentCycleValueRef.current) {
 			resetPromptCycle();
 		}
 
@@ -138,16 +131,14 @@ export function useComposerEditor(
 	};
 
 	const restoreCycleDraft = () => {
-		const savedDraft = cycleSavedDraft ?? "";
+		const savedDraft = promptCycle?.savedDraft ?? "";
 
-		setCycleIndex(null);
-		setCycleSavedDraft(null);
-		cycleHistorySnapshotRef.current = null;
+		resetPromptCycle();
 		applyCycleValue(savedDraft);
 	};
 
 	const editorKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === "Escape" && cycleIndex !== null) {
+		if (e.key === "Escape" && promptCycle !== null) {
 			e.preventDefault();
 			e.stopPropagation();
 			restoreCycleDraft();
@@ -163,7 +154,7 @@ export function useComposerEditor(
 			return;
 		}
 
-		if (cycleIndex === null) {
+		if (promptCycle === null) {
 			if (
 				e.key !== "ArrowUp" ||
 				hasContent ||
@@ -181,32 +172,33 @@ export function useComposerEditor(
 			}
 
 			e.preventDefault();
-			cycleHistorySnapshotRef.current = cycleHistory;
-			setCycleIndex(0);
-			setCycleSavedDraft(editorRef.current?.getValue() ?? "");
+			setPromptCycle({
+				history: cycleHistory,
+				index: 0,
+				savedDraft: editorRef.current?.getValue() ?? "",
+			});
 			applyCycleValue(latestPrompt);
 			return;
 		}
 
 		e.preventDefault();
-		const cycleHistory = cycleHistorySnapshotRef.current ?? userPromptHistory;
 		const nextIndex =
 			e.key === "ArrowDown"
-				? cycleIndex - 1
-				: Math.min(cycleIndex + 1, cycleHistory.length - 1);
+				? promptCycle.index - 1
+				: Math.min(promptCycle.index + 1, promptCycle.history.length - 1);
 
-		if (nextIndex === cycleIndex) {
+		if (nextIndex === promptCycle.index) {
 			return;
 		}
 
-		const nextPrompt = cycleHistory[nextIndex];
+		const nextPrompt = promptCycle.history[nextIndex];
 
 		if (nextPrompt === undefined) {
 			restoreCycleDraft();
 			return;
 		}
 
-		setCycleIndex(nextIndex);
+		setPromptCycle({ ...promptCycle, index: nextIndex });
 		applyCycleValue(nextPrompt);
 	};
 

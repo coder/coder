@@ -28,7 +28,7 @@ describe("useEmptyStateDraft", () => {
 		const { result, unmount } = renderDraft();
 
 		expect(result.current.initialInputValue).toBe("saved draft");
-		expect(result.current.getCurrentContent()).toBe("saved draft");
+
 		unmount();
 	});
 
@@ -36,7 +36,7 @@ describe("useEmptyStateDraft", () => {
 		const { result, unmount } = renderDraft();
 
 		expect(result.current.initialInputValue).toBe("");
-		expect(result.current.getCurrentContent()).toBe("");
+
 		unmount();
 	});
 
@@ -52,7 +52,7 @@ describe("useEmptyStateDraft", () => {
 		});
 
 		expect(localStorage.getItem(emptyInputStorageKey)).toBe("work in progress");
-		expect(result.current.getCurrentContent()).toBe("work in progress");
+
 		unmount();
 	});
 
@@ -103,7 +103,7 @@ describe("useEmptyStateDraft", () => {
 		});
 
 		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
-		expect(result.current.getCurrentContent()).toBe("fix the bug");
+
 		unmount();
 	});
 
@@ -216,7 +216,7 @@ describe("useEmptyStateDraft", () => {
 		});
 
 		expect(localStorage.getItem(emptyInputStorageKey)).toBe(editorState);
-		expect(result.current.getCurrentContent()).toBe("review this");
+
 		unmount();
 	});
 

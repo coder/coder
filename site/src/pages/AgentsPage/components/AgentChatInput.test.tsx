@@ -271,6 +271,117 @@ describe("AgentChatInput", () => {
 		},
 	);
 
+	it("ends prompt cycling when recalled text is edited", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+		const onInterrupt = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				inputRef={inputRef}
+				onSend={onSend}
+				onInterrupt={onInterrupt}
+				isStreaming
+				userPromptHistory={["Latest prompt", "Older prompt"]}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{ArrowUp}");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("Latest prompt"),
+		);
+		await user.keyboard(" edited");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("Latest prompt edited"),
+		);
+
+		await user.keyboard("{ArrowUp}{ArrowDown}{Escape}");
+		expect(onInterrupt).toHaveBeenCalledExactlyOnceWith();
+		await user.click(screen.getByRole("button", { name: "Queue" }));
+		expect(onSend).toHaveBeenCalledExactlyOnceWith("Latest prompt edited");
+	});
+
+	it("keeps the original history snapshot until cycling ends", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+		const props = { ...inputProps, inputRef, onSend };
+		const { rerender } = renderInput(
+			<AgentChatInput
+				{...props}
+				userPromptHistory={["Latest prompt", "Older prompt"]}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{ArrowUp}");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("Latest prompt"),
+		);
+
+		rerender(
+			<AppProviders>
+				<AgentChatInput {...props} userPromptHistory={["New prompt"]} />
+			</AppProviders>,
+		);
+		await user.keyboard("{ArrowUp}");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("Older prompt"),
+		);
+		await user.keyboard("{Escape}{ArrowUp}");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("New prompt"),
+		);
+		await user.click(screen.getByRole("button", { name: "Send" }));
+		expect(onSend).toHaveBeenCalledExactlyOnceWith("New prompt");
+	});
+
+	it("discards the history session when the editor remounts", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+		const onInterrupt = vi.fn();
+		const props = {
+			...inputProps,
+			inputRef,
+			onSend,
+			onInterrupt,
+			isStreaming: true,
+			initialValue: "   ",
+			userPromptHistory: ["Latest prompt", "Older prompt"],
+		};
+		const { rerender } = renderInput(
+			<AgentChatInput {...props} remountKey={0} />,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{ArrowUp}");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("Latest prompt"),
+		);
+
+		rerender(
+			<AppProviders>
+				<AgentChatInput
+					{...props}
+					remountKey={1}
+					initialValue="Replacement draft"
+				/>
+			</AppProviders>,
+		);
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("Replacement draft"),
+		);
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{ArrowDown}{Escape}");
+		expect(onInterrupt).toHaveBeenCalledExactlyOnceWith();
+		await user.click(screen.getByRole("button", { name: "Queue" }));
+		expect(onSend).toHaveBeenCalledExactlyOnceWith("Replacement draft");
+	});
+
 	it("does not replace a non-empty draft with prompt history", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
