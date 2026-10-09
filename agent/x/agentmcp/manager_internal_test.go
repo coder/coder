@@ -363,7 +363,9 @@ func TestResolveWorkingDir(t *testing.T) {
 }
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over
-// stdin/stdout, just enough for initialize + tools/list.
+// stdin/stdout, just enough for initialize + tools/list, plus a
+// tools/call handler for the unlisted "env" tool, which reports the
+// process environment and working directory as a JSON text result.
 func runFakeMCPServer() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
@@ -373,6 +375,9 @@ func runFakeMCPServer() {
 			JSONRPC string          `json:"jsonrpc"`
 			ID      json.RawMessage `json:"id"`
 			Method  string          `json:"method"`
+			Params  struct {
+				Name string `json:"name"`
+			} `json:"params"`
 		}
 		if err := json.Unmarshal(line, &req); err != nil {
 			continue
@@ -415,6 +420,32 @@ func runFakeMCPServer() {
 					},
 				},
 			}
+		case "tools/call":
+			if req.Params.Name != "env" {
+				resp = map[string]any{
+					"jsonrpc": "2.0",
+					"id":      req.ID,
+					"error": map[string]any{
+						"code":    -32602,
+						"message": "unknown tool",
+					},
+				}
+				break
+			}
+			cwd, _ := os.Getwd()
+			report, err := json.Marshal(fakeEnvReport{Env: os.Environ(), Cwd: cwd})
+			if err != nil {
+				continue
+			}
+			resp = map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result": map[string]any{
+					"content": []map[string]any{
+						{"type": "text", "text": string(report)},
+					},
+				},
+			}
 		default:
 			resp = map[string]any{
 				"jsonrpc": "2.0",
@@ -432,6 +463,12 @@ func runFakeMCPServer() {
 		}
 		_, _ = fmt.Fprintf(os.Stdout, "%s\n", out)
 	}
+}
+
+// fakeEnvReport is the payload of the fake server's "env" tool.
+type fakeEnvReport struct {
+	Env []string `json:"env"`
+	Cwd string   `json:"cwd"`
 }
 
 func TestCreateTransport_HTTP(t *testing.T) {
