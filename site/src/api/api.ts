@@ -3858,19 +3858,17 @@ class ExperimentalApiMethods {
 
 	createUserSkill = async (
 		user: string,
-		req: TypesGen.CreateUserSkillRequest,
-	): Promise<TypesGen.UserSkill> => {
-		const response = await this.axios.post<TypesGen.UserSkill>(
+		req: TypesGen.CreateSkillRequest,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.post<TypesGen.Skill>(
 			userSkillsPath(user),
 			req,
 		);
 		return response.data;
 	};
 
-	getUserSkills = async (
-		user: string,
-	): Promise<TypesGen.UserSkillMetadata[]> => {
-		const response = await this.axios.get<TypesGen.UserSkillMetadata[]>(
+	getUserSkills = async (user: string): Promise<TypesGen.SkillMetadata[]> => {
+		const response = await this.axios.get<TypesGen.SkillMetadata[]>(
 			userSkillsPath(user),
 		);
 		return response.data;
@@ -3879,8 +3877,8 @@ class ExperimentalApiMethods {
 	getUserSkillByName = async (
 		user: string,
 		name: string,
-	): Promise<TypesGen.UserSkill> => {
-		const response = await this.axios.get<TypesGen.UserSkill>(
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.get<TypesGen.Skill>(
 			userSkillPath(user, name),
 		);
 		return response.data;
@@ -3889,9 +3887,9 @@ class ExperimentalApiMethods {
 	updateUserSkill = async (
 		user: string,
 		name: string,
-		req: TypesGen.UpdateUserSkillRequest,
-	): Promise<TypesGen.UserSkill> => {
-		const response = await this.axios.patch<TypesGen.UserSkill>(
+		req: TypesGen.UpdateSkillRequest,
+	): Promise<TypesGen.Skill> => {
+		const response = await this.axios.patch<TypesGen.Skill>(
 			userSkillPath(user, name),
 			req,
 		);

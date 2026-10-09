@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,13 +21,13 @@ import (
 )
 
 const (
-	// personalSkillJSONEscapeExpansion is the maximum expansion for one byte in a JSON string.
-	personalSkillJSONEscapeExpansion = 6
-	// personalSkillRequestEnvelopeBytes leaves room for the surrounding JSON object.
-	personalSkillRequestEnvelopeBytes = 1024
-	// maxPersonalSkillRequestBytes allows worst-case JSON string escaping for
+	// skillJSONEscapeExpansion is the maximum expansion for one byte in a JSON string.
+	skillJSONEscapeExpansion = 6
+	// skillRequestEnvelopeBytes leaves room for the surrounding JSON object.
+	skillRequestEnvelopeBytes = 1024
+	// maxSkillRequestBytes allows worst-case JSON string escaping for
 	// otherwise valid raw skill content.
-	maxPersonalSkillRequestBytes = skills.MaxPersonalSkillSizeBytes*personalSkillJSONEscapeExpansion + personalSkillRequestEnvelopeBytes
+	maxSkillRequestBytes = skills.MaxPersonalSkillSizeBytes*skillJSONEscapeExpansion + skillRequestEnvelopeBytes
 
 	// These names are raised by trigger functions with USING CONSTRAINT.
 	// They are not table CHECK constraints, so dbgen does not emit them in
@@ -42,8 +43,8 @@ const (
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, username, or me"
-// @Param request body codersdk.CreateUserSkillRequest true "Create user skill request"
-// @Success 201 {object} codersdk.UserSkill
+// @Param request body codersdk.CreateSkillRequest true "Create user skill request"
+// @Success 201 {object} codersdk.Skill
 // @Router /api/experimental/users/{user}/skills [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
@@ -60,14 +61,8 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	var req codersdk.CreateUserSkillRequest
-	if !httpapi.ReadLimit(ctx, rw, r, maxPersonalSkillRequestBytes, &req) {
-		return
-	}
-
-	parsedSkill, err := skills.ParsePersonalSkillMarkdown([]byte(req.Content))
-	if err != nil {
-		writeInvalidUserSkillContent(ctx, rw, err)
+	content, parsedSkill, ok := readSkillCreate(ctx, rw, r)
+	if !ok {
 		return
 	}
 
@@ -76,7 +71,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 		UserID:      user.ID,
 		Name:        parsedSkill.Name,
 		Description: parsedSkill.Description,
-		Content:     req.Content,
+		Content:     content,
 	}
 	skill, err := api.Database.InsertUserSkill(ctx, params)
 	if err != nil {
@@ -97,10 +92,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if database.IsUniqueViolation(err, database.UniqueSkillsUserIDNameIndex) {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "A skill with that name already exists.",
-				Detail:  err.Error(),
-			})
+			writeSkillNameConflict(ctx, rw, err)
 			return
 		}
 		httpapi.InternalServerError(rw, err)
@@ -108,7 +100,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = skill
 
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.UserSkill(skill))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Skill(skill))
 }
 
 // @Summary List user skills
@@ -117,7 +109,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, username, or me"
-// @Success 200 {array} codersdk.UserSkillMetadata
+// @Success 200 {array} codersdk.SkillMetadata
 // @Router /api/experimental/users/{user}/skills [get]
 // @x-apidocgen {"skip": true}
 func (api *API) getUserSkills(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
@@ -144,7 +136,7 @@ func (api *API) getUserSkills(rw http.ResponseWriter, r *http.Request) { //nolin
 // @Tags Users
 // @Param user path string true "User ID, username, or me"
 // @Param skillName path string true "Skill name"
-// @Success 200 {object} codersdk.UserSkill
+// @Success 200 {object} codersdk.Skill
 // @Router /api/experimental/users/{user}/skills/{skillName} [get]
 // @x-apidocgen {"skip": true}
 func (api *API) getUserSkill(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
@@ -165,7 +157,7 @@ func (api *API) getUserSkill(rw http.ResponseWriter, r *http.Request) { //nolint
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserSkill(skill))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Skill(skill))
 }
 
 // @Summary Update a user skill
@@ -176,8 +168,8 @@ func (api *API) getUserSkill(rw http.ResponseWriter, r *http.Request) { //nolint
 // @Tags Users
 // @Param user path string true "User ID, username, or me"
 // @Param skillName path string true "Skill name"
-// @Param request body codersdk.UpdateUserSkillRequest true "Update user skill request"
-// @Success 200 {object} codersdk.UserSkill
+// @Param request body codersdk.UpdateSkillRequest true "Update user skill request"
+// @Success 200 {object} codersdk.Skill
 // @Router /api/experimental/users/{user}/skills/{skillName} [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
@@ -195,36 +187,24 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	var req codersdk.UpdateUserSkillRequest
-	if !httpapi.ReadLimit(ctx, rw, r, maxPersonalSkillRequestBytes, &req) {
-		return
-	}
-
-	parsedSkill, err := skills.ParsePersonalSkillMarkdown([]byte(req.Content))
-	if err != nil {
-		writeInvalidUserSkillContent(ctx, rw, err)
-		return
-	}
-	if parsedSkill.Name != name {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Skill name in path does not match frontmatter name.",
-			Detail:  fmt.Sprintf("path has %q, frontmatter has %q", name, parsedSkill.Name),
-		})
+	update, ok := readSkillUpdate(ctx, rw, r, name)
+	if !ok {
 		return
 	}
 
 	params := database.UpdateUserSkillByUserIDAndNameParams{
 		UserID:      user.ID,
 		Name:        name,
-		Description: parsedSkill.Description,
-		Content:     req.Content,
+		Description: update.Description,
+		Content:     update.Content,
+		Enabled:     update.Enabled,
 	}
 
 	var (
 		skill    database.Skill
 		oldSkill database.Skill
 	)
-	err = api.Database.InTx(func(tx database.Store) error {
+	err := api.Database.InTx(func(tx database.Store) error {
 		fetched, err := tx.GetUserSkillByUserIDAndName(ctx, database.GetUserSkillByUserIDAndNameParams{
 			UserID: user.ID,
 			Name:   name,
@@ -263,7 +243,7 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = oldSkill
 	aReq.New = skill
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserSkill(skill))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Skill(skill))
 }
 
 // @Summary Delete a user skill
@@ -331,7 +311,76 @@ func writeUserSkillLimitReached(ctx context.Context, rw http.ResponseWriter) {
 	})
 }
 
-func writeInvalidUserSkillContent(ctx context.Context, rw http.ResponseWriter, err error) {
+// skillUpdate holds the optional columns a skill PATCH writes.
+type skillUpdate struct {
+	Description sql.NullString
+	Content     sql.NullString
+	Enabled     sql.NullBool
+}
+
+// readSkillCreate reads and parses a skill create request. It writes the
+// error response and returns false when the request is invalid.
+func readSkillCreate(ctx context.Context, rw http.ResponseWriter, r *http.Request) (string, skills.ParsedSkill, bool) {
+	var req codersdk.CreateSkillRequest
+	if !httpapi.ReadLimit(ctx, rw, r, maxSkillRequestBytes, &req) {
+		return "", skills.ParsedSkill{}, false
+	}
+	parsed, err := skills.ParsePersonalSkillMarkdown([]byte(req.Content))
+	if err != nil {
+		writeInvalidSkillContent(ctx, rw, err)
+		return "", skills.ParsedSkill{}, false
+	}
+	return req.Content, parsed, true
+}
+
+// readSkillUpdate reads and validates a PATCH request for the skill named
+// name. It writes the error response and returns false when the request is
+// invalid.
+func readSkillUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Request, name string) (skillUpdate, bool) {
+	var req codersdk.UpdateSkillRequest
+	if !httpapi.ReadLimit(ctx, rw, r, maxSkillRequestBytes, &req) {
+		return skillUpdate{}, false
+	}
+	if req.Content == nil && req.Enabled == nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "No skill fields to update.",
+			Detail:  "Set content, enabled, or both.",
+		})
+		return skillUpdate{}, false
+	}
+
+	var update skillUpdate
+	if req.Enabled != nil {
+		update.Enabled = sql.NullBool{Bool: *req.Enabled, Valid: true}
+	}
+	if req.Content == nil {
+		return update, true
+	}
+	parsed, err := skills.ParsePersonalSkillMarkdown([]byte(*req.Content))
+	if err != nil {
+		writeInvalidSkillContent(ctx, rw, err)
+		return skillUpdate{}, false
+	}
+	if parsed.Name != name {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Skill name in path does not match frontmatter name.",
+			Detail:  fmt.Sprintf("path has %q, frontmatter has %q", name, parsed.Name),
+		})
+		return skillUpdate{}, false
+	}
+	update.Description = sql.NullString{String: parsed.Description, Valid: true}
+	update.Content = sql.NullString{String: *req.Content, Valid: true}
+	return update, true
+}
+
+func writeSkillNameConflict(ctx context.Context, rw http.ResponseWriter, err error) {
+	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+		Message: "A skill with that name already exists.",
+		Detail:  err.Error(),
+	})
+}
+
+func writeInvalidSkillContent(ctx context.Context, rw http.ResponseWriter, err error) {
 	message := "Invalid skill content."
 	switch {
 	case errors.Is(err, skills.ErrInvalidSkillName):

@@ -29624,7 +29624,7 @@ func (q *sqlQuerier) ListOrganizationSkillMetadataByOrganizationID(ctx context.C
 
 const listUserSkillMetadataByUserID = `-- name: ListUserSkillMetadataByUserID :many
 SELECT
-    id, user_id, name, description, created_at, updated_at
+    id, user_id, name, description, enabled, created_at, updated_at
 FROM skills
 WHERE user_id = $1::uuid
 ORDER BY name ASC
@@ -29635,6 +29635,7 @@ type ListUserSkillMetadataByUserIDRow struct {
 	UserID      uuid.NullUUID `db:"user_id" json:"user_id"`
 	Name        string        `db:"name" json:"name"`
 	Description string        `db:"description" json:"description"`
+	Enabled     bool          `db:"enabled" json:"enabled"`
 	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time     `db:"updated_at" json:"updated_at"`
 }
@@ -29653,6 +29654,7 @@ func (q *sqlQuerier) ListUserSkillMetadataByUserID(ctx context.Context, userID u
 			&i.UserID,
 			&i.Name,
 			&i.Description,
+			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -29717,24 +29719,27 @@ func (q *sqlQuerier) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.
 const updateUserSkillByUserIDAndName = `-- name: UpdateUserSkillByUserIDAndName :one
 UPDATE skills
 SET
-    description = $1,
-    content     = $2,
+    description = COALESCE($1::text, description),
+    content     = COALESCE($2::text, content),
+    enabled     = COALESCE($3::boolean, enabled),
     updated_at  = now()
-WHERE user_id = $3::uuid AND name = $4
+WHERE user_id = $4::uuid AND name = $5
 RETURNING id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl
 `
 
 type UpdateUserSkillByUserIDAndNameParams struct {
-	Description string    `db:"description" json:"description"`
-	Content     string    `db:"content" json:"content"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	Name        string    `db:"name" json:"name"`
+	Description sql.NullString `db:"description" json:"description"`
+	Content     sql.NullString `db:"content" json:"content"`
+	Enabled     sql.NullBool   `db:"enabled" json:"enabled"`
+	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
+	Name        string         `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg UpdateUserSkillByUserIDAndNameParams) (Skill, error) {
 	row := q.db.QueryRowContext(ctx, updateUserSkillByUserIDAndName,
 		arg.Description,
 		arg.Content,
+		arg.Enabled,
 		arg.UserID,
 		arg.Name,
 	)
