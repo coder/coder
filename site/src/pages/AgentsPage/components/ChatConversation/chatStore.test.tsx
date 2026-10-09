@@ -4373,6 +4373,27 @@ describe("useChatStore", () => {
 			expect(result.current.orderedMessageIDs).toEqual([4]);
 			expect(cachedIDs()).toEqual([4]);
 		});
+
+		it("writes an edit response only to the cache after the user left the chat", async () => {
+			const { result, cachedIDs, cachedQueueIDs } = renderChat();
+			await waitFor(() => {
+				expect(result.current.queuedIDs).toEqual([10]);
+			});
+			act(() => {
+				result.current.store.setActiveChatID("another-chat");
+			});
+
+			act(() => {
+				result.current.applyEditResponse(
+					[buildMessage(chatID, 3, "user", "edited")],
+					1,
+				);
+			});
+
+			expect(result.current.orderedMessageIDs).toEqual([1, 2]);
+			expect(cachedIDs()).toEqual([3]);
+			expect(cachedQueueIDs()).toEqual([]);
+		});
 	});
 
 	it("sets reconnectState on a disconnect during a pending edit of a failed turn", async () => {
