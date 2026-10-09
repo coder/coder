@@ -396,6 +396,11 @@ type AddSkillButtonProps = {
 	onClick: React.MouseEventHandler<HTMLButtonElement>;
 };
 
+const canFocus = (
+	button: HTMLButtonElement | null,
+): button is HTMLButtonElement =>
+	Boolean(button?.isConnected && !button.disabled);
+
 const AddSkillButton: React.FC<AddSkillButtonProps> = ({
 	ref,
 	disabled,
@@ -435,18 +440,25 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 }) => {
 	const dialogTriggerRef = useRef<HTMLButtonElement | null>(null);
 	const addSkillButtonRef = useRef<HTMLButtonElement | null>(null);
+	const exportAllButtonRef = useRef<HTMLButtonElement | null>(null);
 	const rememberDialogTrigger = (
 		event: React.SyntheticEvent<HTMLButtonElement>,
 	) => {
 		dialogTriggerRef.current = event.currentTarget;
 	};
 	// These dialogs open without a Radix DialogTrigger, so Radix would
-	// otherwise return focus to the document body on close. The opener can
-	// unmount meanwhile: a deleted row or a replaced empty state.
+	// otherwise return focus to the document body on close. An unmounted or
+	// disabled opener falls back to the header actions.
 	const restoreDialogFocus = (event: Event) => {
-		const trigger = dialogTriggerRef.current;
-		const target = trigger?.isConnected ? trigger : addSkillButtonRef.current;
-		if (target) {
+		// An array find here would stop the React Compiler memoizing this closure.
+		let target = dialogTriggerRef.current;
+		if (!canFocus(target)) {
+			target = addSkillButtonRef.current;
+		}
+		if (!canFocus(target)) {
+			target = exportAllButtonRef.current;
+		}
+		if (canFocus(target)) {
 			event.preventDefault();
 			target.focus();
 		}
@@ -464,6 +476,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	const headerActions = (
 		<div className="flex items-center gap-2">
 			<Button
+				ref={exportAllButtonRef}
 				variant="outline"
 				onClick={onExportAll}
 				disabled={isLoading || isExportingAll || skills.length === 0}

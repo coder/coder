@@ -10,6 +10,7 @@ import {
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
+import { SKILLS_MAX_PER_OWNER } from "../utils/skills";
 import { SkillsTable } from "./SkillsTable";
 import type { SkillsCopy } from "./SkillsTableView";
 
@@ -161,6 +162,31 @@ describe("SkillsTable create dialog", () => {
 
 		await waitFor(() =>
 			expect(screen.getByRole("button", { name: "Add skill" })).toHaveFocus(),
+		);
+	});
+
+	it("moves focus to Export all when a create reaches the skill limit", async () => {
+		const skills = Array.from(
+			{ length: SKILLS_MAX_PER_OWNER - 1 },
+			(_, index) => ({
+				...MockSkill,
+				id: `skill-${index}`,
+				name: `skill-${index}`,
+			}),
+		);
+		const { user } = renderTable(true, skills);
+		vi.spyOn(API.experimental, "createOrganizationSkill").mockResolvedValue({
+			...mockReviewSkill,
+			content: "---\nname: review-sql\n---\nBody.",
+		});
+
+		await user.click(await screen.findByRole("button", { name: "Add skill" }));
+		await user.type(await screen.findByLabelText("Name"), "review-sql");
+		await user.type(screen.getByLabelText("Body"), "Body.");
+		await user.click(screen.getByRole("button", { name: "Create skill" }));
+
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Export all" })).toHaveFocus(),
 		);
 	});
 });
