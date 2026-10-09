@@ -19,8 +19,8 @@ import (
 
 // resolveProjectMemory returns the durable-memory store and project name for
 // a chat. Only root chats inside a project have memory; chats outside a
-// project, subagents, the disabled experiment, and transient lookup failures
-// all report ok=false.
+// project, subagents, chats whose owner cannot use the project, the disabled
+// experiment, and transient lookup failures all report ok=false.
 func (p *Server) resolveProjectMemory(ctx context.Context, chat database.Chat) (store chattool.MemoryStore, projectName string, ok bool) {
 	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
 		return nil, "", false

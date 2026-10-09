@@ -48,9 +48,9 @@ const (
 	// log batches because chat_files rows carry bytea blobs.
 	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
-	// Deleted projects' chats are purged by family, so each root may carry
-	// many sub-chats.
+	// Counts root chats; each also deletes its sub-chats.
 	deletedProjectChatFamiliesBatchSize = 100
+	deletedChatProjectsBatchSize        = 100
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000
@@ -328,6 +328,11 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 				return xerrors.Errorf("failed to purge chats: %w", err)
 			}
 		}
+		// Deleted projects are purged regardless of chat retention.
+		purgedDeletedProjectChats, purgedDeletedChatProjects, err := purgeDeletedChatProjectsInTx(ctx, tx)
+		if err != nil {
+			return xerrors.Errorf("failed to purge deleted chat projects: %w", err)
+		}
 		if purgeChatDebugRuns && chatDebugRetentionDays > 0 {
 			deleteChatDebugRunsBefore := start.Add(-time.Duration(chatDebugRetentionDays) * 24 * time.Hour)
 			// updated_at is the retention clock, so the window starts after
@@ -393,6 +398,8 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("boundary_sessions", purgedBoundarySessions),
 			slog.F("workspace_build_orchestrations", purgedWorkspaceBuildOrchestrations),
 			slog.F("chats", purgedChats),
+			slog.F("deleted_project_chats", purgedDeletedProjectChats),
+			slog.F("deleted_chat_projects", purgedDeletedChatProjects),
 			slog.F("chat_files", purgedChatFiles),
 			slog.F("chat_debug_runs", purgedChatDebugRuns),
 			slog.F("chat_search_rows_backfilled", backfilledChatSearchRows),
@@ -409,6 +416,8 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("boundary_sessions").Add(float64(purgedBoundarySessions))
 			i.recordsPurged.WithLabelValues("workspace_build_orchestrations").Add(float64(purgedWorkspaceBuildOrchestrations))
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
+			i.recordsPurged.WithLabelValues("deleted_project_chats").Add(float64(purgedDeletedProjectChats))
+			i.recordsPurged.WithLabelValues("deleted_chat_projects").Add(float64(purgedDeletedChatProjects))
 			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
 		}
@@ -463,26 +472,17 @@ func (i *instance) Close() error {
 
 // purgeChatsInTx MUST BE CALLED WITH A TRANSACTION
 func (*instance) purgeChatsInTx(ctx context.Context, tx database.Store, start time.Time, chatRetentionDays int32) (purgedChats, purgedChatFiles int64, err error) {
-	purgedChats, err = tx.DeleteChatFamiliesOfDeletedProjects(ctx, deletedProjectChatFamiliesBatchSize)
-	if err != nil {
-		return 0, 0, xerrors.Errorf("failed to delete chats of deleted projects: %w", err)
-	}
-	if _, err := tx.DeleteEmptyDeletedChatProjects(ctx, deletedProjectChatFamiliesBatchSize); err != nil {
-		return 0, 0, xerrors.Errorf("failed to delete deleted chat projects: %w", err)
-	}
-
 	// Delete old archived chats first, then orphaned files
 	// (cascade clears chat_file_links but not chat_files).
 	if chatRetentionDays > 0 {
 		deleteChatsBefore := start.Add(-time.Duration(chatRetentionDays) * 24 * time.Hour)
-		purgedOldChats, err := tx.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+		purgedChats, err = tx.DeleteOldChats(ctx, database.DeleteOldChatsParams{
 			BeforeTime: deleteChatsBefore,
 			LimitCount: chatsBatchSize,
 		})
 		if err != nil {
 			return 0, 0, xerrors.Errorf("failed to delete old chats: %w", err)
 		}
-		purgedChats += purgedOldChats
 
 		purgedChatFiles, err = tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
 			BeforeTime: deleteChatsBefore,
@@ -494,4 +494,23 @@ func (*instance) purgeChatsInTx(ctx context.Context, tx database.Store, start ti
 	}
 
 	return purgedChats, purgedChatFiles, nil
+}
+
+// purgeDeletedChatProjectsInTx MUST BE CALLED WITH A TRANSACTION
+func purgeDeletedChatProjectsInTx(ctx context.Context, tx database.Store) (purgedChats, purgedProjects int64, err error) {
+	rootIDs, err := tx.LockDeletedChatProjectRootChats(ctx, deletedProjectChatFamiliesBatchSize)
+	if err != nil {
+		return 0, 0, xerrors.Errorf("lock root chats of deleted projects: %w", err)
+	}
+	if len(rootIDs) > 0 {
+		purgedChats, err = tx.DeleteChatFamiliesByRootIDs(ctx, rootIDs)
+		if err != nil {
+			return 0, 0, xerrors.Errorf("delete chat families of deleted projects: %w", err)
+		}
+	}
+	purgedProjects, err = tx.DeleteEmptyDeletedChatProjects(ctx, deletedChatProjectsBatchSize)
+	if err != nil {
+		return 0, 0, xerrors.Errorf("delete chat projects marked deleted with no chats left: %w", err)
+	}
+	return purgedChats, purgedProjects, nil
 }

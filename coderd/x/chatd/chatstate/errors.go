@@ -45,6 +45,11 @@ var (
 	// no new chat may join one.
 	ErrChatFamilyArchived = xerrors.New("chat family is archived")
 
+	// ErrChatProjectNotFound is returned by [CreateChat] and
+	// [CreateChatWithID] when the new chat names a missing or deleted
+	// project.
+	ErrChatProjectNotFound = xerrors.New("chat project not found")
+
 	// ErrEditedMessageNotUser is returned by [Tx.EditMessage] when the
 	// targeted chat_messages row exists but its role is not user.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")

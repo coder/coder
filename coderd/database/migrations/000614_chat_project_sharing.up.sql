@@ -18,6 +18,4 @@ CREATE INDEX idx_chat_projects_group_acl ON chat_projects USING gin (group_acl);
 
 ALTER TABLE chat_projects ADD COLUMN deleted boolean NOT NULL DEFAULT false;
 
-ALTER TABLE chats
-    DROP CONSTRAINT chats_project_id_fkey,
-    ADD CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. Project queries hide the project and its chats; dbpurge deletes its chat families, then the row.';

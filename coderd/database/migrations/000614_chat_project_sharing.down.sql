@@ -1,11 +1,18 @@
 -- The chat_project:share enum value cannot be dropped.
 
+-- Sub-chats carry no project_id, so delete whole families before the
+-- projects; otherwise they would resurface as top-level chats.
+WITH roots AS (
+    SELECT chats.id
+    FROM chats
+    JOIN chat_projects ON chat_projects.id = chats.project_id
+    WHERE chat_projects.deleted
+)
+DELETE FROM chats
+WHERE id IN (SELECT id FROM roots)
+    OR root_chat_id IN (SELECT id FROM roots);
 DELETE FROM chat_projects WHERE deleted;
 ALTER TABLE chat_projects DROP COLUMN deleted;
-
-ALTER TABLE chats
-    DROP CONSTRAINT chats_project_id_fkey,
-    ADD CONSTRAINT chats_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE SET NULL;
 
 DROP INDEX IF EXISTS idx_chat_projects_group_acl;
 DROP INDEX IF EXISTS idx_chat_projects_user_acl;

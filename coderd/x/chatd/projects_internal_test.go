@@ -3,6 +3,7 @@ package chatd //nolint:testpackage // Uses unexported chatworker helpers.
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -36,4 +37,10 @@ func TestDeleteChatProjectStopsRunningChat(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("the runner of a deleted chat must stop generating")
 	}
+
+	// A worker holding a candidate list read before the delete must not
+	// acquire the chat.
+	acquired, err := worker.acquireCandidate(ctx, uuid.New(), manager, chat.ID)
+	require.NoError(t, err)
+	require.False(t, acquired)
 }

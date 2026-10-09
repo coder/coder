@@ -996,6 +996,8 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 }
 
 // ChatProjectRoleActions returns the chat project actions a role grants.
+// Project read also grants reading its memories, and update grants creating
+// and deleting them.
 func ChatProjectRoleActions(role codersdk.ChatProjectRole) []policy.Action {
 	switch role {
 	case codersdk.ChatProjectRoleAdmin:

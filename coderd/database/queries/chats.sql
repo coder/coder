@@ -627,10 +627,8 @@ WHERE
     END
     AND NOT EXISTS (
         SELECT 1
-        FROM chats root
-        JOIN chat_projects ON chat_projects.id = root.project_id
-        WHERE root.id = COALESCE(chats_expanded.root_chat_id, chats_expanded.parent_chat_id, chats_expanded.id)
-            AND chat_projects.deleted
+        FROM chat_projects
+        WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
     )
     AND CASE
         WHEN sqlc.narg('project_id')::uuid IS NOT NULL THEN chats_expanded.project_id = sqlc.narg('project_id')::uuid
@@ -2431,6 +2429,14 @@ WHERE
         FROM chat_file_links
         WHERE file_id = @file_id::uuid
     )
+    -- Chats of a deleted project stay until dbpurge removes them.
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chats root
+        JOIN chat_projects ON chat_projects.id = root.project_id
+        WHERE root.id = COALESCE(chats_expanded.root_chat_id, chats_expanded.parent_chat_id, chats_expanded.id)
+            AND chat_projects.deleted
+    )
     -- Authorize Filter clause will be injected below in GetAuthorizedChatsByChatFileID.
     -- @authorize_filter
 ;
@@ -2672,13 +2678,6 @@ candidates AS (
         WHERE (chats.parent_chat_id IS NULL) = candidate_partitions.is_root
           AND chats.status = candidate_partitions.status
           AND chats.archived = false
-          AND NOT EXISTS (
-              SELECT 1
-              FROM chats root
-              JOIN chat_projects ON chat_projects.id = root.project_id
-              WHERE root.id = COALESCE(chats.root_chat_id, chats.parent_chat_id, chats.id)
-                AND chat_projects.deleted
-          )
           AND (
               chats.worker_id IS NULL
               OR chats.runner_id IS NULL
@@ -3175,9 +3174,6 @@ WHERE chat_heartbeats.chat_id = chat_ids.chat_id
 -- Deletes all heartbeat rows for the chat. Used during ownership
 -- transitions that abandon a lease.
 DELETE FROM chat_heartbeats WHERE chat_id = @chat_id::uuid;
-
--- name: DeleteChatHeartbeatsByChatIDs :exec
-DELETE FROM chat_heartbeats WHERE chat_id = ANY(@chat_ids::uuid[]);
 
 
 -- name: GetChatStreamSyncRows :many

@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
@@ -194,6 +195,7 @@ func TestChatProjectSharing(t *testing.T) {
 			GroupRoles: map[string]codersdk.ChatProjectRole{group.ID.String(): codersdk.ChatProjectRoleUse},
 		})
 		require.NoError(t, err)
+		// The Everyone group's ID is the organization ID.
 		err = client.UpdateChatProjectACL(ctx, orgProject.OrganizationID, orgProject.ID, codersdk.UpdateChatProjectACL{
 			GroupRoles: map[string]codersdk.ChatProjectRole{firstUser.OrganizationID.String(): codersdk.ChatProjectRoleUse},
 		})
@@ -215,6 +217,7 @@ func TestChatProjectSharing(t *testing.T) {
 		_, err = nonMember.GetChatProject(ctx, groupProject.OrganizationID, groupProject.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 
+		// Members of another organization do not reach the Everyone grant.
 		otherOrganization := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 		outsiderRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, otherOrganization.ID)
 		outsider := codersdk.NewExperimentalClient(outsiderRaw)
@@ -310,7 +313,7 @@ func TestChatProjectSharing(t *testing.T) {
 		require.Empty(t, acl.Users)
 	})
 
-	t.Run("DeleteRemovesChats", func(t *testing.T) {
+	t.Run("DeleteHidesChats", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -332,8 +335,14 @@ func TestChatProjectSharing(t *testing.T) {
 		ownerChat := createChatInProject(t, client, project.OrganizationID, &project.ID)
 		shareeChat := createChatInProject(t, sharee, project.OrganizationID, &project.ID)
 		otherChat := createChatInProject(t, client, project.OrganizationID, nil)
-		//nolint:gocritic // Test seeds worker leases and checks deleted rows directly.
+		//nolint:gocritic // Test seeds worker leases and reads hidden chats directly.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+		_, err = sqlDB.ExecContext(ctx, "UPDATE chats SET workspace_id = $2 WHERE id = $1", ownerChat.ID, ws.Workspace.ID)
+		require.NoError(t, err)
 		shareeChild := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    project.OrganizationID,
 			OwnerID:           shareeUser.ID,
@@ -356,15 +365,18 @@ func TestChatProjectSharing(t *testing.T) {
 		for _, id := range []uuid.UUID{ownerChat.ID, shareeChat.ID, shareeChild.ID} {
 			_, err := client.GetChat(ctx, id)
 			requireSDKError(t, err, http.StatusNotFound)
-			inDeleted, err := db.IsChatInDeletedProject(sysCtx, id)
-			require.NoError(t, err)
-			require.True(t, inDeleted, "chat rows stay until dbpurge removes them")
+			hidden, err := db.GetChatByID(sysCtx, id)
+			require.NoError(t, err, "chat rows stay until dbpurge removes them")
+			require.True(t, hidden.Archived)
+			require.False(t, hidden.RunnerID.Valid, "clearing the lease stops the runner at its next renewal")
 		}
-		var heartbeats int
-		require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_heartbeats WHERE chat_id = $1", shareeChat.ID).Scan(&heartbeats))
-		require.Zero(t, heartbeats)
+		byWorkspace, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
+		require.NoError(t, err)
+		require.Empty(t, byWorkspace)
 		_, err = client.GetChat(ctx, otherChat.ID)
 		require.NoError(t, err)
+		err = client.DeleteChatProject(ctx, project.OrganizationID, project.ID)
+		requireSDKError(t, err, http.StatusNotFound)
 
 		for _, id := range []uuid.UUID{ownerChat.ID, shareeChat.ID} {
 			require.True(t, mAudit.Contains(t, database.AuditLog{

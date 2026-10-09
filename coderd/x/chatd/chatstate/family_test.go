@@ -304,36 +304,127 @@ WHERE datname = current_database()
 	require.Equal(t, []uuid.UUID{root.ID}, ids, "no child may join the archived family")
 }
 
-func TestCreateChildChatRejectsDeletedProject(t *testing.T) {
+func TestCreateChatInChatProject(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedFamilyDeps(t, db)
-
 	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+
+	create := func(projectID, rootID uuid.NullUUID) error {
+		_, err := chatstate.CreateChat(ctx, db, newRecordingPubsub(), chatstate.CreateChatInput{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			ProjectID:         projectID,
+			LastModelConfigID: model.ID,
+			Title:             "chat",
+			ClientType:        database.ChatClientTypeApi,
+			ParentChatID:      rootID,
+			RootChatID:        rootID,
+			InitialStatus:     database.ChatStatusRunning,
+			InitialMessages: []chatstate.Message{
+				userTextMessage("hello", user.ID, model.ID),
+			},
+		})
+		return err
+	}
+	inProject := uuid.NullUUID{UUID: project.ID, Valid: true}
+	require.NoError(t, create(inProject, uuid.NullUUID{}))
 	root := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
-		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+		ProjectID:         inProject,
 		Status:            database.ChatStatusWaiting,
 	})
-	require.NoError(t, db.MarkChatProjectDeleted(ctx, project.ID))
+	require.NoError(t, create(uuid.NullUUID{}, uuid.NullUUID{UUID: root.ID, Valid: true}), "sub-chats of a live project's chat are allowed")
 
-	_, err := chatstate.CreateChat(ctx, db, newRecordingPubsub(), chatstate.CreateChatInput{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-		Title:             "child",
-		ClientType:        database.ChatClientTypeApi,
-		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
-		InitialStatus:     database.ChatStatusRunning,
-		InitialMessages: []chatstate.Message{
-			userTextMessage("hello", user.ID, model.ID),
-		},
-	})
-	require.ErrorIs(t, err, chatstate.ErrChatNotFound)
+	require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+	require.ErrorIs(t, create(inProject, uuid.NullUUID{}), chatstate.ErrChatProjectNotFound)
+}
+
+// TestCreateChatWaitsForChatProjectDelete verifies that root chat creation
+// serializes with a project delete holding the project FOR UPDATE, then
+// observes the committed tombstone.
+func TestCreateChatWaitsForChatProjectDelete(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	deleteErr := make(chan error, 1)
+	go func() {
+		deleteErr <- db.InTx(func(tx database.Store) error {
+			if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
+				return err
+			}
+			if err := tx.UpdateChatProjectDeletedByID(ctx, project.ID); err != nil {
+				return err
+			}
+			close(locked)
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}, nil)
+	}()
+	select {
+	case <-locked:
+	case err := <-deleteErr:
+		t.Fatalf("delete failed before holding the project lock: %v", err)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for the delete to lock the project")
+	}
+
+	createErr := make(chan error, 1)
+	go func() {
+		_, err := chatstate.CreateChat(ctx, db, newRecordingPubsub(), chatstate.CreateChatInput{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+			LastModelConfigID: model.ID,
+			Title:             "root",
+			ClientType:        database.ChatClientTypeApi,
+			InitialStatus:     database.ChatStatusRunning,
+			InitialMessages: []chatstate.Message{
+				userTextMessage("hello", user.ID, model.ID),
+			},
+		})
+		createErr <- err
+	}()
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var waiting int
+		err := sqlDB.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM pg_stat_activity
+WHERE datname = current_database()
+	AND pid <> pg_backend_pid()
+	AND wait_event_type = 'Lock'
+	AND query LIKE '%-- name: GetChatProjectByIDForShare%'
+`).Scan(&waiting)
+		return err == nil && waiting == 1
+	}, testutil.IntervalFast, "wait for chat creation to block on the project lock")
+	require.NoError(t, ctx.Err(), "waiting for chat creation to block")
+
+	close(release)
+	select {
+	case err := <-deleteErr:
+		require.NoError(t, err)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for the delete to commit")
+	}
+	select {
+	case err := <-createErr:
+		require.ErrorIs(t, err, chatstate.ErrChatProjectNotFound)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for chat creation")
+	}
 }
 
 func seedFamilyDeps(t *testing.T, db database.Store) (database.User, database.Organization, database.ChatModelConfig) {

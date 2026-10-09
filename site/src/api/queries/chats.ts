@@ -553,7 +553,10 @@ export const applyWatchedChatArchived = (
 	void invalidateChatSearches(queryClient);
 };
 
-/** Watch-event effect for the `hard_deleted` kind. */
+/**
+ * Evicts the chat from every list, archived lists included, and resets its
+ * entity so an open route refetches and gets 404.
+ */
 export const applyWatchedChatHardDeleted = (
 	queryClient: QueryClient,
 	chatId: string,
@@ -578,7 +581,8 @@ export const applyWatchedChatHardDeleted = (
 	void invalidateChatListQueries(queryClient);
 	void invalidateChatsByWorkspace(queryClient);
 	void invalidateChatSearches(queryClient);
-	// A project delete sends one event per chat; keep an in-flight refetch.
+	// The chat's project may be gone. A project delete sends one event per
+	// chat, so an in-flight refetch is kept.
 	void queryClient.invalidateQueries(
 		{ queryKey: chatProjectsKey },
 		{ cancelRefetch: false },

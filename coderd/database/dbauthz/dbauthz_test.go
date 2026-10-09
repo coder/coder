@@ -1389,14 +1389,29 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProjectChatFamilies(gomock.Any(), projectID).Return([]database.Chat{chat}, nil).AnyTimes()
 		check.Args(projectID).Asserts(chat, policy.ActionRead).Returns([]database.Chat{chat})
 	}))
-	s.Run("DeleteChatHeartbeatsByChatIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("DeleteChatQueuedMessagesByChatIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
-		dbm.EXPECT().DeleteChatHeartbeatsByChatIDs(gomock.Any(), ids).Return(nil).AnyTimes()
+		dbm.EXPECT().DeleteChatQueuedMessagesByChatIDs(gomock.Any(), ids).Return(nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
 	}))
-	s.Run("DeleteChatFamiliesOfDeletedProjects", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().DeleteChatFamiliesOfDeletedProjects(gomock.Any(), int32(10)).Return(int64(0), nil).AnyTimes()
-		check.Args(int32(10)).Asserts(rbac.ResourceSystem, policy.ActionDelete).Returns(int64(0))
+	s.Run("ArchiveChatsOfDeletedChatProject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().ArchiveChatsOfDeletedChatProject(gomock.Any(), ids).Return(nil).AnyTimes()
+		check.Args(ids).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
+	}))
+	s.Run("LockChatProjectRootChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().LockChatProjectRootChats(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
+	}))
+	s.Run("LockDeletedChatProjectRootChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().LockDeletedChatProjectRootChats(gomock.Any(), int32(10)).Return([]uuid.UUID{}, nil).AnyTimes()
+		check.Args(int32(10)).Asserts(rbac.ResourceSystem, policy.ActionDelete).Returns([]uuid.UUID{})
+	}))
+	s.Run("DeleteChatFamiliesByRootIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().DeleteChatFamiliesByRootIDs(gomock.Any(), ids).Return(int64(0), nil).AnyTimes()
+		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionDelete).Returns(int64(0))
 	}))
 	s.Run("DeleteEmptyDeletedChatProjects", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().DeleteEmptyDeletedChatProjects(gomock.Any(), int32(10)).Return(int64(0), nil).AnyTimes()
@@ -1416,6 +1431,11 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("GetChatProjectByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
 		dbm.EXPECT().GetChatProjectByIDForUpdate(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		check.Args(project.ID).Asserts(project, policy.ActionRead).Returns(project)
+	}))
+	s.Run("GetChatProjectByIDForShare", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		dbm.EXPECT().GetChatProjectByIDForShare(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
 		check.Args(project.ID).Asserts(project, policy.ActionRead).Returns(project)
 	}))
 	s.Run("GetChatProjectByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -1561,10 +1581,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpsertChatOrganizationSystemPrompt(gomock.Any(), arg).Return(database.ChatOrganizationSystemPrompt{OrganizationID: orgID, SystemPrompt: "prompt"}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatModelConfig.InOrg(orgID), policy.ActionUpdate)
 	}))
-	s.Run("MarkChatProjectDeleted", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("UpdateChatProjectDeletedByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
 		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
-		dbm.EXPECT().MarkChatProjectDeleted(gomock.Any(), project.ID).Return(nil).AnyTimes()
+		dbm.EXPECT().UpdateChatProjectDeletedByID(gomock.Any(), project.ID).Return(nil).AnyTimes()
 		check.Args(project.ID).Asserts(project, policy.ActionDelete)
 	}))
 	s.Run("GetChatPlanModeInstructions", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
