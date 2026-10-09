@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { type ChatDetailError, chatDetailErrorsEqual } from "./chatError";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+	getPersistedDetailError,
+} from "./chatError";
 
 describe("chatDetailErrorsEqual", () => {
 	it("compares matching errors by value", () => {
@@ -27,5 +31,31 @@ describe("chatDetailErrorsEqual", () => {
 		expect(
 			chatDetailErrorsEqual(error, { ...error, detail: "Bad image." }),
 		).toBe(false);
+	});
+});
+
+describe("getPersistedDetailError", () => {
+	it("returns the persisted error only while the chat is in error", () => {
+		const cachedError: ChatDetailError = {
+			kind: "generic",
+			message: "turn failed",
+		};
+
+		// A pending edit shows its turn as running, which hides the error of
+		// the turn it replaces.
+		expect(
+			getPersistedDetailError({
+				chatStatus: "running",
+				chatRecord: undefined,
+				cachedError,
+			}),
+		).toBeUndefined();
+		expect(
+			getPersistedDetailError({
+				chatStatus: "error",
+				chatRecord: undefined,
+				cachedError,
+			}),
+		).toEqual(cachedError);
 	});
 });
