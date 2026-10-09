@@ -18,4 +18,4 @@ CREATE INDEX idx_chat_projects_group_acl ON chat_projects USING gin (group_acl);
 
 ALTER TABLE chat_projects ADD COLUMN deleted boolean NOT NULL DEFAULT false;
 
-COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. Project queries hide the project and its chats; dbpurge deletes its chat families, then the row.';
+COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. Chat retention deletes the project''s archived chats; dbpurge then deletes the row.';

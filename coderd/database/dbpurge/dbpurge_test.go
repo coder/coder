@@ -257,7 +257,6 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
-		mDB.EXPECT().LockDeletedChatProjectRootChats(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 		mDB.EXPECT().DeleteEmptyDeletedChatProjects(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
@@ -312,7 +311,6 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
-		mDB.EXPECT().LockDeletedChatProjectRootChats(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 		mDB.EXPECT().DeleteEmptyDeletedChatProjects(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
@@ -2955,7 +2953,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			},
 		},
 		{
-			name: "DeletedProjectChatsPurgedWithRetentionDisabled",
+			name: "DeletedChatProjectPurgedAfterItsChatsAgeOut",
 			run: func(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 				clk := quartz.NewMock(t)
@@ -2964,51 +2962,60 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 				deps := setupChatDeps(t, db)
-				require.NoError(t, db.UpsertChatRetentionDays(ctx, int32(0)))
+				require.NoError(t, db.UpsertChatRetentionDays(ctx, int32(30)))
 
-				project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: deps.org.ID, OwnerID: deps.user.ID})
-				keptProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: deps.org.ID, OwnerID: deps.user.ID})
-				emptyProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: deps.org.ID, OwnerID: deps.user.ID})
-				root := dbgen.Chat(t, db, database.Chat{
-					OrganizationID:    deps.org.ID,
-					OwnerID:           deps.user.ID,
-					LastModelConfigID: deps.modelConfig.ID,
-					ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
-				})
-				child := dbgen.Chat(t, db, database.Chat{
-					OrganizationID:    deps.org.ID,
-					OwnerID:           deps.user.ID,
-					LastModelConfigID: deps.modelConfig.ID,
-					ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
-					RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
-				})
-				kept := dbgen.Chat(t, db, database.Chat{
-					OrganizationID:    deps.org.ID,
-					OwnerID:           deps.user.ID,
-					LastModelConfigID: deps.modelConfig.ID,
-					ProjectID:         uuid.NullUUID{UUID: keptProject.ID, Valid: true},
-				})
-				require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+				newProject := func() database.ChatProject {
+					return dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: deps.org.ID, OwnerID: deps.user.ID})
+				}
+				newChat := func(projectID, rootID uuid.NullUUID) database.Chat {
+					return dbgen.Chat(t, db, database.Chat{
+						OrganizationID:    deps.org.ID,
+						OwnerID:           deps.user.ID,
+						LastModelConfigID: deps.modelConfig.ID,
+						ProjectID:         projectID,
+						ParentChatID:      rootID,
+						RootChatID:        rootID,
+					})
+				}
+				deleteProject := func(project database.ChatProject, archivedAt time.Time) {
+					require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+					require.NoError(t, db.ArchiveChatsOfDeletedChatProject(ctx, project.ID))
+					_, err := rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $2 WHERE project_id = $1 OR root_chat_id IN (SELECT id FROM chats WHERE project_id = $1)", project.ID, archivedAt)
+					require.NoError(t, err)
+				}
 
+				agedProject := newProject()
+				agedRoot := newChat(uuid.NullUUID{UUID: agedProject.ID, Valid: true}, uuid.NullUUID{})
+				agedChild := newChat(uuid.NullUUID{}, uuid.NullUUID{UUID: agedRoot.ID, Valid: true})
+				deleteProject(agedProject, now.Add(-31*24*time.Hour))
+				recentProject := newProject()
+				recentRoot := newChat(uuid.NullUUID{UUID: recentProject.ID, Valid: true}, uuid.NullUUID{})
+				deleteProject(recentProject, now.Add(-time.Hour))
+				emptyProject := newProject()
+
+				reg := prometheus.NewRegistry()
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
-				for _, id := range []uuid.UUID{root.ID, child.ID} {
+				for _, id := range []uuid.UUID{agedRoot.ID, agedChild.ID} {
 					_, err := db.GetChatByID(ctx, id)
 					require.ErrorIs(t, err, sql.ErrNoRows)
 				}
-				var projectRows int
-				require.NoError(t, rawDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_projects WHERE id = $1", project.ID).Scan(&projectRows))
-				require.Zero(t, projectRows)
-
-				_, err := db.GetChatByID(ctx, kept.ID)
+				projectExists := func(id uuid.UUID) bool {
+					var n int
+					require.NoError(t, rawDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_projects WHERE id = $1", id).Scan(&n))
+					return n == 1
+				}
+				require.False(t, projectExists(agedProject.ID))
+				require.True(t, projectExists(recentProject.ID), "chat retention still holds the deleted project's chats")
+				_, err := db.GetChatByID(ctx, recentRoot.ID)
 				require.NoError(t, err)
-				_, err = db.GetChatProjectByID(ctx, keptProject.ID)
-				require.NoError(t, err)
-				_, err = db.GetChatProjectByID(ctx, emptyProject.ID)
-				require.NoError(t, err, "a live project with no chats is not purged")
+				require.True(t, projectExists(emptyProject.ID), "a live project with no chats is not purged")
+				require.Equal(t, 1, promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+					"record_type": "deleted_chat_projects",
+				}))
 			},
 		},
 	}

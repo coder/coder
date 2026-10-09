@@ -146,7 +146,6 @@ func runWatchChatGitWorkspaceLookupTest(t *testing.T, workspaceErr error, wantSt
 		OwnerID:     uuid.New(),
 		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 	}, nil)
-	mDB.EXPECT().IsChatInDeletedProject(gomock.Any(), chatID).Return(false, nil)
 
 	mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{}, workspaceErr)
 
@@ -205,7 +204,6 @@ func TestWatchChatGit(t *testing.T) {
 			OwnerID:     uuid.New(),
 			WorkspaceID: uuid.NullUUID{Valid: false},
 		}, nil)
-		mDB.EXPECT().IsChatInDeletedProject(gomock.Any(), chatID).Return(false, nil)
 
 		// And: We mount the HTTP handler.
 		r.With(httpmw.ExtractChatParam(mDB)).
@@ -350,7 +348,6 @@ func TestWatchChatGit(t *testing.T) {
 			OwnerID:     uuid.New(),
 			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 		}, nil)
-		mDB.EXPECT().IsChatInDeletedProject(gomock.Any(), chatID).Return(false, nil)
 
 		// And: Return the workspace so the handler's
 		// workspace-level authz check can run.
@@ -483,7 +480,6 @@ func TestWatchChatGit(t *testing.T) {
 			OwnerID:     uuid.New(),
 			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 		}, nil)
-		mDB.EXPECT().IsChatInDeletedProject(gomock.Any(), chatID).Return(false, nil)
 
 		// And: Return the workspace so the handler's
 		// workspace-level authz check can run.
@@ -660,7 +656,6 @@ func TestWatchChatGit(t *testing.T) {
 			OwnerID:     uuid.New(),
 			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 		}, nil)
-		mDB.EXPECT().IsChatInDeletedProject(gomock.Any(), chatID).Return(false, nil)
 
 		// And: Return the workspace so the handler's
 		// workspace-level authz check can run.

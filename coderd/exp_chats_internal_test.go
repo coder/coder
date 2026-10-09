@@ -92,7 +92,6 @@ func TestGetChatCostSurfacesReadAuthzRace(t *testing.T) {
 	}
 
 	dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
-	dbm.EXPECT().IsChatInDeletedProject(gomock.Any(), chat.ID).Return(false, nil)
 	dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), chat.ID).Return(
 		database.GetAIBridgeChatCostRow{},
 		dbauthz.NotAuthorizedError{Err: sql.ErrNoRows},

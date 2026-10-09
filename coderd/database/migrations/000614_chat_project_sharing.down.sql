@@ -1,7 +1,7 @@
 -- The chat_project:share enum value cannot be dropped.
 
--- Sub-chats carry no project_id, so delete whole families before the
--- projects; otherwise they would resurface as top-level chats.
+-- Sub-chats carry no project_id; deleting only the roots would turn them
+-- into top-level chats.
 WITH roots AS (
     SELECT chats.id
     FROM chats

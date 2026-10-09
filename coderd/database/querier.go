@@ -61,11 +61,14 @@ type sqlcQuerier interface {
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)
 	ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
-	// Forces chats into an archived idle state with no lease, so readers that
-	// skip archived chats skip them, workers stop at their next renewal and do
-	// not reacquire them, and no sub-chat can join their families. Callers
-	// clear the queue first, because archived waiting chats have none.
-	ArchiveChatsOfDeletedChatProject(ctx context.Context, chatIds []uuid.UUID) error
+	// Execution-state transition outside chatstate: moves every family member
+	// of a deleted project from any state to StateXW, or StateXE0 from error,
+	// and publishes nothing. Clearing the runner makes heartbeat renewal stop
+	// matching, so workers stop; archived roots refuse new sub-chats. Run it
+	// before clearing the queue, so a send waiting on a chat lock reads the
+	// archived state and is refused. Keep the SET list in sync with
+	// UpdateChatExecutionState.
+	ArchiveChatsOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error
 	// Archiving templates is a soft delete action, so is reversible.
 	// Archiving prevents the version from being used and discovered
 	// by listing.
@@ -177,7 +180,6 @@ type sqlcQuerier interface {
 	// window (for example, after an unarchive races with a pending
 	// archive-cleanup retry).
 	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
-	DeleteChatFamiliesByRootIDs(ctx context.Context, rootIds []uuid.UUID) (int64, error)
 	DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg DeleteChatMCPServersByChatIDExcludingSlugsParams) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
@@ -189,7 +191,9 @@ type sqlcQuerier interface {
 	// number of affected rows so callers can detect missing rows without
 	// a follow-up read.
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
-	DeleteChatQueuedMessagesByChatIDs(ctx context.Context, chatIds []uuid.UUID) error
+	// Lives here rather than with the other queue queries because it is a step
+	// of the project delete; see UpdateChatProjectDeletedByID.
+	DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteEmptyDeletedChatProjects(ctx context.Context, limitCount int32) (int64, error)
@@ -571,8 +575,9 @@ type sqlcQuerier interface {
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
 	GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error)
-	// Root chat creation holds this until commit, so a concurrent project
-	// delete either waits for the new chat or is seen by the creation.
+	// Root chat creation in a project must hold this until its insert commits,
+	// so a concurrent project delete either archives the new chat or makes
+	// this return no rows.
 	GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]Chat, error)
@@ -1439,12 +1444,10 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
-	// Waits for sub-chat creations under the roots, which hold the root
-	// FOR SHARE, so a later statement sees every committed child.
+	// Sub-chat creation holds its root FOR SHARE, so this waits for it. At
+	// READ COMMITTED, the default isolation, a later statement then sees every
+	// child committed during the wait.
 	LockChatProjectRootChats(ctx context.Context, projectID uuid.UUID) error
-	// Locking the roots first makes the family delete, a separate statement,
-	// see sub-chats that committed while this one waited.
-	LockDeletedChatProjectRootChats(ctx context.Context, limitCount int32) ([]uuid.UUID, error)
 	// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
 	// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
 	// is held the key cannot be deleted, and a committed deletion is observed as
@@ -1662,8 +1665,17 @@ type sqlcQuerier interface {
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
 	UpdateChatProjectACLByID(ctx context.Context, arg UpdateChatProjectACLByIDParams) error
 	UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error)
-	// Irreversible: dbpurge deletes the project's chat families on its next
-	// tick, regardless of chat retention.
+	// Irreversible. Only chatd.DeleteChatProjectWithoutEvents may call this,
+	// in one READ COMMITTED transaction, in this order:
+	//   1. GetChatProjectByIDForUpdate, which waits for root chat creations
+	//      holding GetChatProjectByIDForShare;
+	//   2. UpdateChatProjectDeletedByID;
+	//   3. LockChatProjectRootChats;
+	//   4. ArchiveChatsOfDeletedChatProject;
+	//   5. DeleteChatQueuedMessagesOfDeletedChatProject.
+	// Calling it alone leaves the project's chats running and acquirable.
+	// The archived chats are then removed by chat retention like any other
+	// archived chat, and dbpurge deletes the project row once none are left.
 	UpdateChatProjectDeletedByID(ctx context.Context, id uuid.UUID) error
 	// Stores the client-visible retry payload. retry_state_version is
 	// assigned by trigger from the current snapshot_version.

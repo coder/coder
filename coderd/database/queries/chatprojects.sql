@@ -106,8 +106,17 @@ DELETE FROM chat_projects
 WHERE id = @id::uuid;
 
 -- name: UpdateChatProjectDeletedByID :exec
--- Irreversible: dbpurge deletes the project's chat families on its next
--- tick, regardless of chat retention.
+-- Irreversible. Only chatd.DeleteChatProjectWithoutEvents may call this,
+-- in one READ COMMITTED transaction, in this order:
+--   1. GetChatProjectByIDForUpdate, which waits for root chat creations
+--      holding GetChatProjectByIDForShare;
+--   2. UpdateChatProjectDeletedByID;
+--   3. LockChatProjectRootChats;
+--   4. ArchiveChatsOfDeletedChatProject;
+--   5. DeleteChatQueuedMessagesOfDeletedChatProject.
+-- Calling it alone leaves the project's chats running and acquirable.
+-- The archived chats are then removed by chat retention like any other
+-- archived chat, and dbpurge deletes the project row once none are left.
 UPDATE chat_projects
 SET deleted = true, updated_at = now()
 WHERE id = @id::uuid AND NOT deleted;
@@ -118,8 +127,9 @@ FROM chat_projects
 WHERE owner_id = @owner_id::uuid AND NOT deleted;
 
 -- name: GetChatProjectByIDForShare :one
--- Root chat creation holds this until commit, so a concurrent project
--- delete either waits for the new chat or is seen by the creation.
+-- Root chat creation in a project must hold this until its insert commits,
+-- so a concurrent project delete either archives the new chat or makes
+-- this return no rows.
 SELECT *
 FROM chat_projects
 WHERE id = @id::uuid AND NOT deleted
@@ -139,22 +149,35 @@ WHERE id IN (
 ORDER BY id;
 
 -- name: LockChatProjectRootChats :exec
--- Waits for sub-chat creations under the roots, which hold the root
--- FOR SHARE, so a later statement sees every committed child.
+-- Sub-chat creation holds its root FOR SHARE, so this waits for it. At
+-- READ COMMITTED, the default isolation, a later statement then sees every
+-- child committed during the wait.
 SELECT id
 FROM chats
 WHERE project_id = @project_id::uuid AND parent_chat_id IS NULL
 ORDER BY id
 FOR UPDATE;
 
--- name: DeleteChatQueuedMessagesByChatIDs :exec
-DELETE FROM chat_queued_messages WHERE chat_id = ANY(@chat_ids::uuid[]);
-
 -- name: ArchiveChatsOfDeletedChatProject :exec
--- Forces chats into an archived idle state with no lease, so readers that
--- skip archived chats skip them, workers stop at their next renewal and do
--- not reacquire them, and no sub-chat can join their families. Callers
--- clear the queue first, because archived waiting chats have none.
+-- Execution-state transition outside chatstate: moves every family member
+-- of a deleted project from any state to StateXW, or StateXE0 from error,
+-- and publishes nothing. Clearing the runner makes heartbeat renewal stop
+-- matching, so workers stop; archived roots refuse new sub-chats. Run it
+-- before clearing the queue, so a send waiting on a chat lock reads the
+-- archived state and is refused. Keep the SET list in sync with
+-- UpdateChatExecutionState.
+WITH family AS (
+    SELECT chats.id
+    FROM chats
+    JOIN chat_projects ON chat_projects.id = chats.project_id
+    WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
+    UNION ALL
+    SELECT child.id
+    FROM chats child
+    JOIN chats root ON root.id = child.root_chat_id
+    JOIN chat_projects ON chat_projects.id = root.project_id
+    WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
+)
 UPDATE chats
 SET
     archived = true,
@@ -167,7 +190,24 @@ SET
     retry_state = NULL,
     snapshot_version = snapshot_version + 1,
     updated_at = now()
-WHERE id = ANY(@chat_ids::uuid[]);
+WHERE id IN (SELECT id FROM family);
+
+-- name: DeleteChatQueuedMessagesOfDeletedChatProject :exec
+-- Lives here rather than with the other queue queries because it is a step
+-- of the project delete; see UpdateChatProjectDeletedByID.
+DELETE FROM chat_queued_messages
+WHERE chat_id IN (
+    SELECT chats.id
+    FROM chats
+    JOIN chat_projects ON chat_projects.id = chats.project_id
+    WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
+    UNION ALL
+    SELECT child.id
+    FROM chats child
+    JOIN chats root ON root.id = child.root_chat_id
+    JOIN chat_projects ON chat_projects.id = root.project_id
+    WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
+);
 
 -- name: IsChatInDeletedProject :one
 SELECT EXISTS (
@@ -177,25 +217,6 @@ SELECT EXISTS (
     JOIN chat_projects ON chat_projects.id = root.project_id
     WHERE c.id = @chat_id::uuid AND chat_projects.deleted
 )::boolean;
-
--- name: LockDeletedChatProjectRootChats :many
--- Locking the roots first makes the family delete, a separate statement,
--- see sub-chats that committed while this one waited.
-SELECT chats.id
-FROM chats
-JOIN chat_projects ON chat_projects.id = chats.project_id
-WHERE chat_projects.deleted AND chats.parent_chat_id IS NULL
-ORDER BY chats.id
-LIMIT @limit_count
-FOR UPDATE OF chats;
-
--- name: DeleteChatFamiliesByRootIDs :execrows
-DELETE FROM chats
-WHERE id IN (
-    SELECT unnest(@root_ids::uuid[])
-    UNION ALL
-    SELECT chats.id FROM chats WHERE chats.root_chat_id = ANY(@root_ids::uuid[])
-);
 
 -- name: DeleteEmptyDeletedChatProjects :execrows
 WITH empty AS (

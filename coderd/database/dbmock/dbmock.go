@@ -178,17 +178,17 @@ func (mr *MockStoreMockRecorder) ArchiveChatByID(ctx, id any) *gomock.Call {
 }
 
 // ArchiveChatsOfDeletedChatProject mocks base method.
-func (m *MockStore) ArchiveChatsOfDeletedChatProject(ctx context.Context, chatIds []uuid.UUID) error {
+func (m *MockStore) ArchiveChatsOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ArchiveChatsOfDeletedChatProject", ctx, chatIds)
+	ret := m.ctrl.Call(m, "ArchiveChatsOfDeletedChatProject", ctx, projectID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ArchiveChatsOfDeletedChatProject indicates an expected call of ArchiveChatsOfDeletedChatProject.
-func (mr *MockStoreMockRecorder) ArchiveChatsOfDeletedChatProject(ctx, chatIds any) *gomock.Call {
+func (mr *MockStoreMockRecorder) ArchiveChatsOfDeletedChatProject(ctx, projectID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveChatsOfDeletedChatProject", reflect.TypeOf((*MockStore)(nil).ArchiveChatsOfDeletedChatProject), ctx, chatIds)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveChatsOfDeletedChatProject", reflect.TypeOf((*MockStore)(nil).ArchiveChatsOfDeletedChatProject), ctx, projectID)
 }
 
 // ArchiveUnusedTemplateVersions mocks base method.
@@ -966,21 +966,6 @@ func (mr *MockStoreMockRecorder) DeleteChatDebugDataByChatID(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatDebugDataByChatID", reflect.TypeOf((*MockStore)(nil).DeleteChatDebugDataByChatID), ctx, arg)
 }
 
-// DeleteChatFamiliesByRootIDs mocks base method.
-func (m *MockStore) DeleteChatFamiliesByRootIDs(ctx context.Context, rootIds []uuid.UUID) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatFamiliesByRootIDs", ctx, rootIds)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DeleteChatFamiliesByRootIDs indicates an expected call of DeleteChatFamiliesByRootIDs.
-func (mr *MockStoreMockRecorder) DeleteChatFamiliesByRootIDs(ctx, rootIds any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatFamiliesByRootIDs", reflect.TypeOf((*MockStore)(nil).DeleteChatFamiliesByRootIDs), ctx, rootIds)
-}
-
 // DeleteChatMCPServersByChatIDExcludingSlugs mocks base method.
 func (m *MockStore) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg database.DeleteChatMCPServersByChatIDExcludingSlugsParams) error {
 	m.ctrl.T.Helper()
@@ -1096,18 +1081,18 @@ func (mr *MockStoreMockRecorder) DeleteChatQueuedMessageReturningCount(ctx, arg 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatQueuedMessageReturningCount", reflect.TypeOf((*MockStore)(nil).DeleteChatQueuedMessageReturningCount), ctx, arg)
 }
 
-// DeleteChatQueuedMessagesByChatIDs mocks base method.
-func (m *MockStore) DeleteChatQueuedMessagesByChatIDs(ctx context.Context, chatIds []uuid.UUID) error {
+// DeleteChatQueuedMessagesOfDeletedChatProject mocks base method.
+func (m *MockStore) DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatQueuedMessagesByChatIDs", ctx, chatIds)
+	ret := m.ctrl.Call(m, "DeleteChatQueuedMessagesOfDeletedChatProject", ctx, projectID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteChatQueuedMessagesByChatIDs indicates an expected call of DeleteChatQueuedMessagesByChatIDs.
-func (mr *MockStoreMockRecorder) DeleteChatQueuedMessagesByChatIDs(ctx, chatIds any) *gomock.Call {
+// DeleteChatQueuedMessagesOfDeletedChatProject indicates an expected call of DeleteChatQueuedMessagesOfDeletedChatProject.
+func (mr *MockStoreMockRecorder) DeleteChatQueuedMessagesOfDeletedChatProject(ctx, projectID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatQueuedMessagesByChatIDs", reflect.TypeOf((*MockStore)(nil).DeleteChatQueuedMessagesByChatIDs), ctx, chatIds)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatQueuedMessagesOfDeletedChatProject", reflect.TypeOf((*MockStore)(nil).DeleteChatQueuedMessagesOfDeletedChatProject), ctx, projectID)
 }
 
 // DeleteCryptoKey mocks base method.
@@ -9979,21 +9964,6 @@ func (m *MockStore) LockChatProjectRootChats(ctx context.Context, projectID uuid
 func (mr *MockStoreMockRecorder) LockChatProjectRootChats(ctx, projectID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatProjectRootChats", reflect.TypeOf((*MockStore)(nil).LockChatProjectRootChats), ctx, projectID)
-}
-
-// LockDeletedChatProjectRootChats mocks base method.
-func (m *MockStore) LockDeletedChatProjectRootChats(ctx context.Context, limitCount int32) ([]uuid.UUID, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LockDeletedChatProjectRootChats", ctx, limitCount)
-	ret0, _ := ret[0].([]uuid.UUID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LockDeletedChatProjectRootChats indicates an expected call of LockDeletedChatProjectRootChats.
-func (mr *MockStoreMockRecorder) LockDeletedChatProjectRootChats(ctx, limitCount any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockDeletedChatProjectRootChats", reflect.TypeOf((*MockStore)(nil).LockDeletedChatProjectRootChats), ctx, limitCount)
 }
 
 // LockProvisionerKeyByIDForShare mocks base method.
