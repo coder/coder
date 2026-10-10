@@ -30,7 +30,7 @@ export const paginatedSessions = (
 	};
 };
 
-export const aiBridgeProvidersKey = ["aiBridgeProviders"] as const;
+const aiBridgeProvidersKey = ["aiBridgeProviders"] as const;
 
 export const aiBridgeProviders = () => ({
 	queryKey: aiBridgeProvidersKey,
