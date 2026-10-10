@@ -1,8 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "#/components/Filter/storyHelpers";
+import type { UseFilterResult } from "#/components/Filter/Filter";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import {
 	MockTemplate,
 	MockTemplateExample,
@@ -11,26 +9,26 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { pixelWithTablet } from "#/testHelpers/pixel";
-import { withDashboardProvider } from "#/testHelpers/storybook";
-import type { TemplateFilterState } from "./TemplatesFilter";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { TemplatesPageView } from "./TemplatesPageView";
 
-const defaultFilterProps = getDefaultFilterProps<TemplateFilterState>({
-	menus: {
-		organizations: MockMenu,
-	},
-	values: {
-		author: MockUserOwner.username,
-	},
-});
+const defaultFilter = getDefaultFilterProps<{ filter: UseFilterResult }>({
+	values: {},
+}).filter;
 
 const meta: Meta<typeof TemplatesPageView> = {
 	title: "pages/TemplatesPage",
-	decorators: [withDashboardProvider],
-	parameters: { pixel: { matrix: pixelWithTablet } },
+	decorators: [withAuthProvider, withDashboardProvider],
+	parameters: {
+		pixel: { matrix: pixelWithTablet },
+		user: MockUserOwner,
+	},
 	component: TemplatesPageView,
 	args: {
-		filterState: defaultFilterProps,
+		filter: defaultFilter,
 		templateBuilderEnabled: false,
 		templateUpdatePermissions: {},
 	},
@@ -130,31 +128,23 @@ export const WithFilteredAllTemplates: Story = {
 	args: {
 		...WithTemplates.args,
 		templates: [],
-		filterState: {
-			filter: {
-				...defaultFilterProps.filter,
-				query: "searchnotfound",
-				values: {},
-				used: true,
-			},
-			menus: defaultFilterProps.menus,
+		filter: {
+			...defaultFilter,
+			query: "searchnotfound",
+			values: {},
+			used: true,
 		},
 	},
 };
 
-export const WithUserDropdown: Story = {
+export const WithAuthorFilter: Story = {
 	args: {
 		...WithTemplates.args,
-		filterState: {
-			...defaultFilterProps,
-			menus: {
-				user: MockMenu,
-			},
-			filter: {
-				...defaultFilterProps.filter,
-				query: "author:me",
-				values: { author: "me" },
-			},
+		filter: {
+			...defaultFilter,
+			query: "author:me",
+			values: { author: "me" },
+			used: true,
 		},
 	},
 };

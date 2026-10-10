@@ -15,16 +15,18 @@ import {
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
 import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
+import {
+	getSelfUserFilterOptions,
+	getUserFilterOptions,
+} from "#/components/Filter/userFilterOptions";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	ATTRIBUTE_CHIP_KEYS,
 	getAttributeFilterOptions,
 	getOrganizationFilterOptions,
-	getSelfUserFilterOptions,
 	getStatusFilterOptions,
 	getTemplateFilterOptions,
-	getUserFilterOptions,
 } from "./categoryOptions";
 
 type WorkspaceFilterProps = Readonly<{
@@ -126,6 +128,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 	return (
 		<div className="flex min-w-0 flex-col gap-2">
 			<FilterCombobox
+				queryScope="workspaces"
 				value={filter.query}
 				onChange={filter.update}
 				categories={categories}

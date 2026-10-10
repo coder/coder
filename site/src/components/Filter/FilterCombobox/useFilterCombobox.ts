@@ -323,6 +323,7 @@ type UseFilterComboboxOptions = {
 	value: string;
 	onChange: (query: string) => void;
 	categories: readonly FilterCategory[];
+	queryScope: string;
 };
 
 /**
@@ -337,6 +338,7 @@ export const useFilterCombobox = ({
 	value,
 	onChange,
 	categories: categoriesProp,
+	queryScope,
 }: UseFilterComboboxOptions) => {
 	// Typed text matches a scope category's widened key too, such as `user`.
 	const categories = useMemo(
@@ -549,6 +551,7 @@ export const useFilterCombobox = ({
 	const unfilteredOptions = useQueries({
 		queries: categories.map((category) =>
 			filterComboboxOptions(
+				queryScope,
 				category.key,
 				category.getOptions,
 				"",
@@ -674,6 +677,7 @@ export const useFilterCombobox = ({
 
 	const activeOptionsQuery = useQuery(
 		filterComboboxOptions(
+			queryScope,
 			activeCategoryKey ?? "",
 			activeCategory?.getOptions,
 			debouncedActiveOptionsQuery,
@@ -721,6 +725,7 @@ export const useFilterCombobox = ({
 	const suggestionOptions = useQueries({
 		queries: optionLookupCategories.map((category) =>
 			filterComboboxOptions(
+				queryScope,
 				category.key,
 				category.getOptions,
 				debouncedTypeaheadQuery,
@@ -1150,6 +1155,7 @@ export const useFilterCombobox = ({
 			return undefined;
 		}
 		const options = filterComboboxOptions(
+			queryScope,
 			category.key,
 			category.getOptions,
 			"",
@@ -1190,7 +1196,13 @@ export const useFilterCombobox = ({
 			const [unfiltered, filtered] = await Promise.all([
 				unfilteredForMenuCheck(category),
 				queryClient.fetchQuery(
-					filterComboboxOptions(category.key, category.getOptions, text, true),
+					filterComboboxOptions(
+						queryScope,
+						category.key,
+						category.getOptions,
+						text,
+						true,
+					),
 				),
 			]);
 			// Chips may change while the lookup runs, so read the last sent query.

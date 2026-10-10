@@ -8,8 +8,11 @@ import type { FilterOption } from "./types";
  */
 export const SEARCH_DEBOUNCE_MS = 300;
 
-const filterComboboxOptionsKey = (categoryKey: string, query: string) =>
-	["filterCombobox", "options", categoryKey, query] as const;
+const filterComboboxOptionsKey = (
+	queryScope: string,
+	categoryKey: string,
+	query: string,
+) => ["filterCombobox", "options", queryScope, categoryKey, query] as const;
 
 /**
  * react-query options for one category's options at `query`. `getOptions` is
@@ -17,13 +20,14 @@ const filterComboboxOptionsKey = (categoryKey: string, query: string) =>
  * degrades to an empty result instead of throwing.
  */
 export const filterComboboxOptions = (
+	queryScope: string,
 	categoryKey: string,
 	getOptions: ((query: string) => Promise<FilterOption[]>) | undefined,
 	query: string,
 	enabled: boolean,
 ) => {
 	return {
-		queryKey: filterComboboxOptionsKey(categoryKey, query),
+		queryKey: filterComboboxOptionsKey(queryScope, categoryKey, query),
 		queryFn: async (): Promise<FilterOption[]> =>
 			getOptions ? getOptions(query) : [],
 		enabled,
