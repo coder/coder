@@ -134,6 +134,16 @@ export const ReadOnly: Story = {
 	},
 };
 
+export const ReadOnlyRowMenu: Story = {
+	args: ReadOnly.args,
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /review-sql/ });
+		await userEvent.click(
+			within(row).getByRole("button", { name: "Open menu" }),
+		);
+	},
+};
+
 export const ReadOnlyEmpty: Story = {
 	args: {
 		canEdit: false,
