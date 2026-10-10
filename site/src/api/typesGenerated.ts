@@ -11541,8 +11541,7 @@ export interface UpsertAIModelPricesRequest {
  */
 export interface UpsertAgentHoursAllotmentRequest {
 	/**
-	 * AllotmentBps is the share in basis points, from 1 to
-	 * AgentHoursAllotmentMaxBps.
+	 * AllotmentBps is the share in basis points, from 1 to 10000.
 	 */
 	readonly allotment_bps: number;
 }

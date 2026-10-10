@@ -50,10 +50,6 @@ func checkAgentHoursAllotment(othersBps int64, currentBps, requestedBps int32) e
 	return nil
 }
 
-func formatAgentHoursBps(bps int64) string {
-	return strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
-}
-
 // agentHoursAllotmentBody decodes a codersdk.UpsertAgentHoursAllotmentRequest
 // from any valid JSON, keeping the allotment raw, so that a fractional or
 // quoted value or a body that is not an object gets a field validation error
@@ -94,10 +90,10 @@ func readAgentHoursAllotment(ctx context.Context, rw http.ResponseWriter, r *htt
 
 func overgrantDetail(e agentHoursOvergrantError) string {
 	if e.availableBps == e.unallottedBps {
-		return fmt.Sprintf("Only %s is unallotted.", formatAgentHoursBps(e.unallottedBps))
+		return fmt.Sprintf("Only %s is unallotted.", database.FormatAllotmentBps(e.unallottedBps))
 	}
 	return fmt.Sprintf("Only %s is unallotted, so this allotment can be at most %s.",
-		formatAgentHoursBps(e.unallottedBps), formatAgentHoursBps(e.availableBps))
+		database.FormatAllotmentBps(e.unallottedBps), database.FormatAllotmentBps(e.availableBps))
 }
 
 // writeAgentHoursAllotmentTxError writes the response for an error returned

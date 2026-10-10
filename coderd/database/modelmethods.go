@@ -115,7 +115,7 @@ func (a AgentHoursOrganizationAllotment) Auditable(organizationName string) Audi
 	return AuditableAgentHoursOrganizationAllotment{
 		AgentHoursOrganizationAllotment: a,
 		OrganizationName:                organizationName,
-		Allotment:                       formatAllotmentBps(a.AllotmentBps),
+		Allotment:                       FormatAllotmentBps(int64(a.AllotmentBps)),
 	}
 }
 
@@ -132,13 +132,13 @@ func (a AgentHoursGroupAllotment) Auditable(groupName string) AuditableAgentHour
 	return AuditableAgentHoursGroupAllotment{
 		AgentHoursGroupAllotment: a,
 		GroupName:                groupName,
-		Allotment:                formatAllotmentBps(a.AllotmentBps),
+		Allotment:                FormatAllotmentBps(int64(a.AllotmentBps)),
 	}
 }
 
-// formatAllotmentBps renders basis points as a percentage, for example 2550
+// FormatAllotmentBps renders basis points as a percentage, for example 2550
 // as "25.5%".
-func formatAllotmentBps(bps int32) string {
+func FormatAllotmentBps(bps int64) string {
 	return strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
 }
 

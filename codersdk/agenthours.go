@@ -51,8 +51,7 @@ type AgentHoursGroupAllotments struct {
 
 // UpsertAgentHoursAllotmentRequest sets an Agent Hours allotment.
 type UpsertAgentHoursAllotmentRequest struct {
-	// AllotmentBps is the share in basis points, from 1 to
-	// AgentHoursAllotmentMaxBps.
+	// AllotmentBps is the share in basis points, from 1 to 10000.
 	AllotmentBps int32 `json:"allotment_bps" example:"2500"`
 }
 

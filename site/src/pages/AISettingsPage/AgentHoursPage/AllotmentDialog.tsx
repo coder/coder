@@ -48,10 +48,7 @@ type AllotmentDialogProps = {
 	onSubmit: (target: AllotmentTarget, bps: number) => Promise<unknown>;
 };
 
-const validatePercent = (
-	value: string,
-	availableBps: number,
-): { bps?: number; error?: string } => {
+const validatePercent = (value: string, availableBps: number) => {
 	if (value.trim() === "") {
 		return { error: "Enter a percentage." };
 	}
@@ -72,7 +69,7 @@ const validatePercent = (
 			error: `Only ${formatAllotmentPercent(availableBps)} is available.`,
 		};
 	}
-	return parsed;
+	return { bps: parsed.bps };
 };
 
 /** Mounted only while open, so its state starts fresh for every edit. */
@@ -101,12 +98,13 @@ export const AllotmentDialog: React.FC<AllotmentDialogProps> = ({
 		target ?? candidates.find((candidate) => candidate.id === selectedId);
 	const validation = validatePercent(percent, availableBps);
 	const validationError = showValidation ? validation.error : undefined;
+	const entityLabel = entity === "group" ? "Group" : "Organization";
+	const entityWithArticle = entity === "group" ? "a group" : "an organization";
 	const targetError =
 		showValidation && selectedTarget === undefined
-			? `Select ${entity === "group" ? "a group" : "an organization"}.`
+			? `Select ${entityWithArticle}.`
 			: undefined;
 	const availableHours = allotmentHours(availableBps, poolHours);
-	const entityLabel = entity === "group" ? "Group" : "Organization";
 
 	const handleSubmit = (event: React.FormEvent) => {
 		event.preventDefault();
@@ -169,9 +167,7 @@ export const AllotmentDialog: React.FC<AllotmentDialogProps> = ({
 										targetError ? `${targetId}-error` : undefined
 									}
 								>
-									<SelectValue
-										placeholder={`Select ${entity === "group" ? "a group" : "an organization"}`}
-									/>
+									<SelectValue placeholder={`Select ${entityWithArticle}`} />
 								</SelectTrigger>
 								<SelectContent>
 									{candidates.map((candidate) => (

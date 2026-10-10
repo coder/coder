@@ -17761,9 +17761,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name            | Type    | Required | Restrictions | Description                                                                      |
-|-----------------|---------|----------|--------------|----------------------------------------------------------------------------------|
-| `allotment_bps` | integer | false    |              | Allotment bps is the share in basis points, from 1 to AgentHoursAllotmentMaxBps. |
+| Name            | Type    | Required | Restrictions | Description                                                  |
+|-----------------|---------|----------|--------------|--------------------------------------------------------------|
+| `allotment_bps` | integer | false    |              | Allotment bps is the share in basis points, from 1 to 10000. |
 
 ## codersdk.UpsertGroupAIBudgetRequest
 

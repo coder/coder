@@ -33055,7 +33055,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "allotment_bps": {
-                    "description": "AllotmentBps is the share in basis points, from 1 to\nAgentHoursAllotmentMaxBps.",
+                    "description": "AllotmentBps is the share in basis points, from 1 to 10000.",
                     "type": "integer",
                     "example": 2500
                 }
