@@ -12,7 +12,11 @@ import {
 import { MockSkill } from "#/testHelpers/skills";
 import { SKILLS_MAX_PER_OWNER } from "../utils/skills";
 import { SkillsTable } from "./SkillsTable";
-import type { SkillsCopy } from "./SkillsTableView";
+import {
+	fullSkillAccess,
+	readOnlySkillAccess,
+	type SkillsCopy,
+} from "./SkillsTableView";
 
 const copy: SkillsCopy = {
 	noun: "Organization skill",
@@ -45,7 +49,7 @@ const renderTable = (
 			<SkillsTable
 				owner={{ type: "organization", organizationId: MockOrganization.id }}
 				copy={copy}
-				canEdit={canEdit}
+				access={canEdit ? fullSkillAccess : readOnlySkillAccess}
 			/>
 		</QueryClientProvider>,
 	);
