@@ -66,7 +66,7 @@ Excluded and oversize resources still appear in the chat's context list with the
 ## Skills
 
 Skills are structured, reusable instruction sets that the agent loads on demand.
-A chat can use skills from 3 sources:
+A chat can use skills from three sources:
 
 - Workspace skills live in the workspace filesystem and are discovered automatically when a chat attaches to a workspace.
 - [Personal skills](#personal-skills) belong to you and are available to all of your chats.
@@ -201,11 +201,12 @@ Each organization can have up to 100 skills, and skills that are turned off coun
 Manage organization skills from **Admin settings** > **AI** > **Coder Agents** > **Skills**, and choose the organization in the organization picker.
 The page address is `/ai/settings/skills?org=<organization-name>`.
 
-| Action                                                             | Who can do it                              |
+| Action                                                             | Built-in roles that can do it              |
 |--------------------------------------------------------------------|--------------------------------------------|
 | Add, edit, delete, turn on or off, manage permissions              | Site owners and organization admins        |
 | View, download, and export the skills and their `SKILL.md` content | Site owners, organization admins, auditors |
 
+A [custom role](../../admin/users/groups-roles.md#custom-roles) can grant the same actions through `organization_skill` permissions.
 Auditors get a read-only view of the page.
 Coder records organization skill changes, including permission changes, in the audit log.
 
@@ -216,7 +217,8 @@ A new skill is shared with the organization's **Everyone** group, so every membe
 
 To change who can use a skill:
 
-1. Open the skill's row menu and select **Manage permissions**.
+1. Open the skill's row menu.
+1. Select **Manage permissions**.
 1. In the **Skill permissions** dialog, add or remove organization members and groups.
 
 Each entry grants the **Use** role.
@@ -249,7 +251,7 @@ Workspace skills come from the chat's pinned context snapshot.
 Because stored skills are read again at each step, a change takes effect on the chat's next step.
 For example, when an administrator turns off an organization skill or removes someone's access, the chat stops listing that skill on its next step.
 
-The `/` menu in the chat composer lists skills in 3 groups: **Personal skills**, **Organization skills**, and **Workspace skills**.
+The `/` menu in the chat composer lists skills in three groups: **Personal skills**, **Organization skills**, and **Workspace skills**.
 The **Organization skills** group shows the skills of the chat's organization that are turned on and that you can use.
 For site owners, organization admins, and auditors, the group lists every organization skill that is turned on.
 
@@ -262,7 +264,7 @@ When a chat has no skills left to load, the agent doesn't get the `read_skill` t
 
 ### Skills with the same name
 
-The same skill name can exist in more than 1 source.
+The same skill name can exist in more than one source.
 No source overrides another.
 Instead, each copy gets a qualified alias that names its source:
 
@@ -272,10 +274,10 @@ Instead, each copy gets a qualified alias that names its source:
 | Organization | `org/<name>`       |
 | Workspace    | `workspace/<name>` |
 
-A bare name that matches more than 1 source is ambiguous, so `read_skill` rejects it.
+A bare name that matches more than one source is ambiguous, so `read_skill` rejects it.
 The agent must pass the qualified alias instead, for example `org/code-review`.
 
-The list of available skills in the agent's system prompt shortens each description to 1,024 characters and ends it with an ellipsis.
+The list of available skills in the agent's system prompt shortens a description longer than 1,024 characters to its first 1,024 characters and ends it with an ellipsis.
 The stored description keeps the full text.
 The `read_skill` result returns the skill body without the frontmatter, so it doesn't include the description.
 
