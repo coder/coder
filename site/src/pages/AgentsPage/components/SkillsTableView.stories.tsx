@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockSkill } from "#/testHelpers/skills";
-import { fullSkillAccess } from "../utils/skills";
+import { fullSkillAccess, readOnlySkillAccess } from "../utils/skills";
 import {
 	type SkillEditorState,
 	SkillsTableView,
@@ -265,7 +265,7 @@ export const UploadEmptyFile: Story = {
 	},
 };
 
-const reviewSQLEditorState: SkillEditorState = {
+const mockReviewSQLEditorState: SkillEditorState = {
 	mode: "edit",
 	initialValues: {
 		name: "review-sql",
@@ -283,14 +283,14 @@ const reviewSQLEditorState: SkillEditorState = {
 
 export const EditDialogOpen: Story = {
 	args: {
-		editorState: reviewSQLEditorState,
+		editorState: mockReviewSQLEditorState,
 	},
 };
 
 export const ViewDialogOpen: Story = {
 	args: {
-		access: { create: false, update: false, delete: false },
-		editorState: { ...reviewSQLEditorState, readOnly: true },
+		access: readOnlySkillAccess,
+		editorState: { ...mockReviewSQLEditorState, readOnly: true },
 	},
 };
 

@@ -6,9 +6,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { UpdateOrganizationSkillACLRequest } from "#/api/typesGenerated";
 import {
 	MockGroup,
+	MockMCPServerConfigACLAvailable,
 	MockOrganization,
 	MockOrganizationSkillACL,
-	MockOrganizationSkillACLAvailable,
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import {
@@ -27,7 +27,7 @@ describe("OrganizationSkillSharingDialog", () => {
 		server.use(
 			http.get(aclPath, () => HttpResponse.json(MockOrganizationSkillACL)),
 			http.get(`${aclPath}/available`, () =>
-				HttpResponse.json(MockOrganizationSkillACLAvailable),
+				HttpResponse.json(MockMCPServerConfigACLAvailable),
 			),
 			http.patch<PathParams, UpdateOrganizationSkillACLRequest>(
 				aclPath,

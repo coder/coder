@@ -61,9 +61,10 @@ const SkillsPage: React.FC = () => {
 			) : (
 				<RequirePermission isFeatureVisible={Boolean(organization)}>
 					{organizationPermissionsQuery.isRefetchError && (
-						<div className="mb-4">
-							<ErrorAlert error={organizationPermissionsQuery.error} />
-						</div>
+						<ErrorAlert
+							className="mb-4"
+							error={organizationPermissionsQuery.error}
+						/>
 					)}
 					{organization && (
 						<OrganizationSkills

@@ -95,7 +95,7 @@ export type SkillsTableViewProps = {
 	isRetrying: boolean;
 	onRetry: () => void;
 	onCreate: () => void;
-	/** Opens the editor, read-only without update access. */
+	/** Also handles View: the editor opens read-only without update access. */
 	onEdit: (name: string) => void;
 	onDelete: (skill: SkillMetadata) => void;
 	onDownload: (skill: SkillMetadata) => void;
@@ -199,7 +199,7 @@ const EditSkillDialog: React.FC<
 			mode="edit"
 			readOnly={state.readOnly}
 			noun={copy.noun}
-			description={copy.editorDescription}
+			editorDescription={copy.editorDescription}
 			initialValues={state.initialValues}
 			existingNames={state.existingNames}
 			submitError={state.submitError}
@@ -465,7 +465,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 					open
 					mode="create"
 					noun={copy.noun}
-					description={copy.editorDescription}
+					editorDescription={copy.editorDescription}
 					initialValues={editorState.initialValues}
 					existingNames={editorState.existingNames}
 					submitError={editorState.submitError}

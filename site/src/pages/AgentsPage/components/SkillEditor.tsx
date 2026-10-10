@@ -39,7 +39,7 @@ type SkillEditorProps = {
 	mode: "create" | "edit";
 	readOnly?: boolean;
 	noun: string;
-	description: string;
+	editorDescription: string;
 	initialValues: SkillFormValues;
 	existingNames: readonly string[];
 	submitError?: SkillErrorDisplay;
@@ -66,7 +66,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 	mode,
 	readOnly = false,
 	noun,
-	description,
+	editorDescription,
 	initialValues,
 	existingNames,
 	submitError,
@@ -262,9 +262,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 	const lowerNoun = noun.toLocaleLowerCase("en-US");
 	const title = readOnly
 		? `View ${lowerNoun}`
-		: isCreate
-			? `Create ${lowerNoun}`
-			: `Edit ${lowerNoun}`;
+		: `${isCreate ? "Create" : "Edit"} ${lowerNoun}`;
 	const submitLabel = isCreate ? "Create skill" : "Save skill";
 
 	return (
@@ -279,7 +277,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 				>
 					<DialogHeader className="px-6 pt-6">
 						<DialogTitle>{title}</DialogTitle>
-						<DialogDescription>{description}</DialogDescription>
+						<DialogDescription>{editorDescription}</DialogDescription>
 					</DialogHeader>
 
 					<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">

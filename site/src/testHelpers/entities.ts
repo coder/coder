@@ -3390,11 +3390,6 @@ export const MockOrganizationSkillACL: TypesGen.OrganizationSkillACL = {
 	],
 };
 
-export const MockOrganizationSkillACLAvailable: TypesGen.ACLAvailable = {
-	users: [MockUserOwner, MockUserMember],
-	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
-};
-
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
 		{ ...MockEveryoneGroup, role: "use" },

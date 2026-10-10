@@ -14,7 +14,7 @@ const renderEditor = (mode: "create" | "edit" = "create") => {
 			open
 			mode={mode}
 			noun="Personal skill"
-			description="Personal skill guidance."
+			editorDescription="Personal skill guidance."
 			initialValues={
 				mode === "create"
 					? { name: "", description: "", body: "" }

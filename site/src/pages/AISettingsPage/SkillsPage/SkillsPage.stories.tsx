@@ -9,7 +9,7 @@ import {
 	MockOrganizationPermissions,
 	MockUserOwner,
 } from "#/testHelpers/entities";
-import { MockSkills } from "#/testHelpers/skills";
+import { MockDisabledSkill, MockSkills } from "#/testHelpers/skills";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -17,21 +17,7 @@ import {
 } from "#/testHelpers/storybook";
 import SkillsPage from "./SkillsPage";
 
-const mockOrganizationSkills = [
-	...MockSkills,
-	{
-		...MockSkills[0],
-		id: "skill-legacy-review",
-		name: "legacy-review",
-		description: "Older review checklist kept for reference.",
-		enabled: false,
-	},
-];
-
-const organizationSkillsQuery = (organizationId: string) => ({
-	key: skillList({ type: "organization", organizationId }).queryKey,
-	data: mockOrganizationSkills,
-});
+const mockOrganizationSkills = [...MockSkills, MockDisabledSkill];
 
 const secondOrganizationRoute = reactRouterParameters({
 	location: {
@@ -67,7 +53,13 @@ export const OrganizationAdmin: Story = {
 				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
 				data: { [MockDefaultOrganization.id]: MockOrganizationPermissions },
 			},
-			organizationSkillsQuery(MockDefaultOrganization.id),
+			{
+				key: skillList({
+					type: "organization",
+					organizationId: MockDefaultOrganization.id,
+				}).queryKey,
+				data: mockOrganizationSkills,
+			},
 		],
 	},
 };
@@ -87,7 +79,13 @@ export const MultipleOrganizations: Story = {
 					[MockOrganization2.id]: MockOrganizationPermissions,
 				},
 			},
-			organizationSkillsQuery(MockOrganization2.id),
+			{
+				key: skillList({
+					type: "organization",
+					organizationId: MockOrganization2.id,
+				}).queryKey,
+				data: mockOrganizationSkills,
+			},
 		],
 	},
 };

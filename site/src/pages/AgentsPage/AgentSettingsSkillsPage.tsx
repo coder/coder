@@ -94,8 +94,8 @@ const AgentSettingsSkillsPage: React.FC = () => {
 										title: organizationName,
 										description:
 											"Read-only skills available to you. Ask an organization admin to change them.",
-										emptyDescription: "",
-										editorDescription: "",
+										editorDescription:
+											"Read-only organization skill. Ask an organization admin to change it.",
 										archiveName: `${organization.name}-skills.zip`,
 									}}
 									access={readOnlySkillAccess}

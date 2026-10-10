@@ -223,7 +223,7 @@ export type SkillsCopy = {
 	noun: string;
 	title: string;
 	description: string;
-	emptyDescription: string;
+	emptyDescription?: string;
 	editorDescription: string;
 	archiveName: string;
 };

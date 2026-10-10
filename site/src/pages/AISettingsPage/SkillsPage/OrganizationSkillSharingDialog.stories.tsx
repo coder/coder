@@ -10,14 +10,12 @@ import {
 import { MockSkills } from "#/testHelpers/skills";
 import { OrganizationSkillSharingDialog } from "./OrganizationSkillSharingDialog";
 
-const mockSkillName = MockSkills[0].name;
-
 const meta: Meta<typeof OrganizationSkillSharingDialog> = {
 	title: "pages/AISettingsPage/SkillsPage/OrganizationSkillSharingDialog",
 	component: OrganizationSkillSharingDialog,
 	args: {
 		organizationId: MockDefaultOrganization.id,
-		skillName: mockSkillName,
+		skillName: MockSkills[0].name,
 		onClose: fn(),
 	},
 };
