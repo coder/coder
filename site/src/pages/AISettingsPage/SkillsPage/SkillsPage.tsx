@@ -46,11 +46,6 @@ const SkillsPage: React.FC = () => {
 	const organizationPermissions = organization
 		? organizationPermissionsQuery.data?.[organization.id]
 		: undefined;
-	const access = {
-		create: Boolean(organizationPermissions?.createOrganizationSkill),
-		update: Boolean(organizationPermissions?.updateOrganizationSkill),
-		delete: Boolean(organizationPermissions?.deleteOrganizationSkill),
-	};
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.viewAnyOrganizationSkills}>
@@ -85,7 +80,17 @@ const SkillsPage: React.FC = () => {
 									"Organization skills are available to agents in this organization and stored as a single SKILL.md file with frontmatter.",
 								archiveName: `${organization.name}-skills.zip`,
 							}}
-							access={access}
+							access={{
+								create: Boolean(
+									organizationPermissions?.createOrganizationSkill,
+								),
+								update: Boolean(
+									organizationPermissions?.updateOrganizationSkill,
+								),
+								delete: Boolean(
+									organizationPermissions?.deleteOrganizationSkill,
+								),
+							}}
 							toolbar={
 								<OrganizationPicker
 									id="skills-organization"

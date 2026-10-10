@@ -101,7 +101,6 @@ export type SkillDeleteState = {
 	onClose: () => void;
 };
 
-/** The skill actions the viewer may take; each control follows its own action. */
 export type SkillAccess = {
 	create: boolean;
 	update: boolean;
