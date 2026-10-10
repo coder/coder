@@ -123,7 +123,7 @@ export type SkillsTableViewProps = {
 	onExportAll: () => void;
 	onToggleEnabled: (skill: SkillMetadata, enabled: boolean) => void;
 	downloadingSkillName?: string;
-	togglingSkill?: { name: string; enabled: boolean };
+	pendingToggles: ReadonlyMap<string, boolean>;
 	isExportingAll: boolean;
 	editorState?: SkillEditorState;
 	viewState?: SkillViewState;
@@ -299,6 +299,25 @@ const ViewSkillDialog: React.FC<ViewSkillDialogProps> = ({
 		<TextPreviewDialog
 			content={state.content}
 			fileName={state.name}
+			notice={
+				Boolean(state.loadError) && (
+					<ErrorAlert
+						error={state.loadError}
+						showDebugDetail={false}
+						actions={
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={state.onRetry}
+								disabled={state.isRetrying}
+							>
+								{state.isRetrying && <Spinner className="size-4" loading />}
+								Retry
+							</Button>
+						}
+					/>
+				)
+			}
 			onClose={state.onClose}
 			onCloseAutoFocus={onCloseAutoFocus}
 			showCloseButton
@@ -430,7 +449,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	onExportAll,
 	onToggleEnabled,
 	downloadingSkillName,
-	togglingSkill,
+	pendingToggles,
 	isExportingAll,
 	editorState,
 	viewState,
@@ -595,12 +614,8 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 									<SkillEnabledSwitch
 										skill={skill}
 										noun={copy.noun}
-										checked={
-											togglingSkill?.name === skill.name
-												? togglingSkill.enabled
-												: skill.enabled
-										}
-										isBlocked={!canEdit || togglingSkill?.name === skill.name}
+										checked={pendingToggles.get(skill.name) ?? skill.enabled}
+										isBlocked={!canEdit || pendingToggles.has(skill.name)}
 										readOnlyReason={readOnlyReason}
 										onToggleEnabled={onToggleEnabled}
 									/>

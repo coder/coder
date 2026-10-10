@@ -1,4 +1,4 @@
-import type { QueryClient } from "react-query";
+import type { Mutation, QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
@@ -135,11 +135,20 @@ export const createSkill = (queryClient: QueryClient, owner: SkillOwner) => ({
 	mutationFn: (req: TypesGen.CreateSkillRequest) =>
 		skillsAPI(owner).create(req),
 	onSuccess: (skill: TypesGen.Skill) => {
-		queryClient.setQueryData<TypesGen.SkillMetadata[]>(
+		const skills = queryClient.getQueryData<TypesGen.SkillMetadata[]>(
 			skillsKey(owner),
-			(skills) =>
-				skills ? upsertSkillMetadata(skills, toSkillMetadata(skill)) : skills,
 		);
+		if (skills) {
+			queryClient.setQueryData(
+				skillsKey(owner),
+				upsertSkillMetadata(skills, toSkillMetadata(skill)),
+			);
+		} else {
+			void queryClient.invalidateQueries({
+				queryKey: skillsKey(owner),
+				exact: true,
+			});
+		}
 		queryClient.setQueryData(skillKey(owner, skill.name), skill);
 	},
 });
@@ -186,9 +195,19 @@ export const toggleSkillEnabled = (
 	};
 };
 
+const isToggleSkillEnabledArgs = (
+	variables: unknown,
+): variables is ToggleSkillEnabledArgs =>
+	typeof variables === "object" &&
+	variables !== null &&
+	"name" in variables &&
+	typeof variables.name === "string" &&
+	"enabled" in variables &&
+	typeof variables.enabled === "boolean";
+
 /**
  * Reads the mutation cache, which marks every toggle pending as soon as it
- * starts; rendered mutation state lags a click and tracks only the latest.
+ * starts; rendered mutation state lags a click.
  */
 export const isSkillTogglePending = (
 	queryClient: QueryClient,
@@ -198,11 +217,18 @@ export const isSkillTogglePending = (
 	queryClient.isMutating({
 		mutationKey: toggleSkillEnabledKey(owner),
 		predicate: ({ state: { variables } }) =>
-			typeof variables === "object" &&
-			variables !== null &&
-			"name" in variables &&
-			variables.name === name,
+			isToggleSkillEnabledArgs(variables) && variables.name === name,
 	}) > 0;
+
+/** Options for `useMutationState` that list every in-flight enabled toggle. */
+export const pendingSkillToggles = (owner: SkillOwner) => ({
+	filters: {
+		mutationKey: toggleSkillEnabledKey(owner),
+		status: "pending" as const,
+	},
+	select: ({ state: { variables } }: Mutation) =>
+		isToggleSkillEnabledArgs(variables) ? variables : undefined,
+});
 
 export const deleteSkill = (queryClient: QueryClient, owner: SkillOwner) => ({
 	mutationFn: (name: string) => skillsAPI(owner).delete(name),

@@ -325,6 +325,90 @@ func TestOrganizationSkillACLConcurrentDelete(t *testing.T) {
 	requireSDKErrorStatus(t, err, http.StatusNotFound)
 }
 
+func TestOrganizationSkillACLMemberRemoval(t *testing.T) {
+	t.Parallel()
+
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ownerRawClient := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
+	firstUser := coderdtest.CreateFirstUser(t, ownerRawClient)
+	orgID := firstUser.OrganizationID
+	owner := codersdk.NewExperimentalClient(ownerRawClient)
+
+	// Each case starts from a skill without the Everyone grant so a rejoined
+	// member can only read it through a leftover direct grant.
+	setup := func(ctx context.Context, t *testing.T, name string) (codersdk.Skill, *codersdk.ExperimentalClient, uuid.UUID) {
+		t.Helper()
+		skill, err := owner.CreateOrganizationSkill(ctx, orgID, codersdk.CreateSkillRequest{
+			Content: userSkillMarkdown(name, "ACL", "Body."),
+		})
+		require.NoError(t, err)
+		require.NoError(t, owner.UpdateOrganizationSkillACL(ctx, orgID, skill.Name, codersdk.UpdateOrganizationSkillACLRequest{
+			GroupRoles: map[string]codersdk.OrganizationSkillRole{orgID.String(): codersdk.OrganizationSkillRoleDeleted},
+		}))
+		rawClient, user := coderdtest.CreateAnotherUser(t, ownerRawClient, orgID)
+		return skill, codersdk.NewExperimentalClient(rawClient), user.ID
+	}
+	requireRejoinedMemberCannotRead := func(ctx context.Context, t *testing.T, skill codersdk.Skill, client *codersdk.ExperimentalClient, userID uuid.UUID) {
+		t.Helper()
+		var granted bool
+		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT user_acl ? $2 FROM skills WHERE id = $1`, skill.ID, userID.String()).Scan(&granted))
+		require.False(t, granted)
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgID, UserID: userID})
+		_, err := client.OrganizationSkillByName(ctx, orgID, skill.Name)
+		requireSDKErrorStatus(t, err, http.StatusNotFound)
+	}
+
+	t.Run("RemovalBeforeGrant", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		skill, client, userID := setup(ctx, t, "removal-before-grant")
+
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = tx.Rollback() })
+		_, err = tx.ExecContext(ctx, `DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2`, orgID, userID)
+		require.NoError(t, err)
+
+		patchErr := make(chan error, 1)
+		go func() {
+			patchErr <- owner.UpdateOrganizationSkillACL(ctx, orgID, skill.Name, codersdk.UpdateOrganizationSkillACLRequest{
+				UserRoles: map[string]codersdk.OrganizationSkillRole{userID.String(): codersdk.OrganizationSkillRoleRead},
+			})
+		}()
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			if len(patchErr) > 0 {
+				return true
+			}
+			var waits int
+			err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
+WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'`).Scan(&waits)
+			return err == nil && waits > 0
+		}, testutil.IntervalFast, "PATCH returns or waits for the membership lock")
+		require.NoError(t, tx.Commit())
+
+		err = testutil.RequireReceive(ctx, t, patchErr)
+		sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Error(), "user "+userID.String()+" does not belong to organization")
+		requireRejoinedMemberCannotRead(ctx, t, skill, client, userID)
+	})
+
+	t.Run("RemovalAfterGrant", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		skill, client, userID := setup(ctx, t, "removal-after-grant")
+		require.NoError(t, owner.UpdateOrganizationSkillACL(ctx, orgID, skill.Name, codersdk.UpdateOrganizationSkillACLRequest{
+			UserRoles: map[string]codersdk.OrganizationSkillRole{userID.String(): codersdk.OrganizationSkillRoleRead},
+		}))
+		_, err := client.OrganizationSkillByName(ctx, orgID, skill.Name)
+		require.NoError(t, err)
+
+		require.NoError(t, ownerRawClient.DeleteOrganizationMember(ctx, orgID, userID.String()))
+		requireRejoinedMemberCannotRead(ctx, t, skill, client, userID)
+	})
+}
+
 func aclAvailableUserIDs(available codersdk.ACLAvailable) []uuid.UUID {
 	ids := make([]uuid.UUID, 0, len(available.Users))
 	for _, user := range available.Users {
