@@ -23,7 +23,14 @@ const meta = {
 	component: AgentSettingsSkillsPage,
 	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 	parameters: {
-		user: MockUserMember,
+		user: {
+			...MockUserMember,
+			organization_ids: [
+				MockDefaultOrganization.id,
+				MockOrganization2.id,
+				MockOrganization3.id,
+			],
+		},
 		organizations: [
 			MockDefaultOrganization,
 			MockOrganization2,

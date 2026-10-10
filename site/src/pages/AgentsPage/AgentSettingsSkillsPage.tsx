@@ -2,26 +2,34 @@ import { useQueries } from "react-query";
 import { organizationSkills } from "#/api/queries/skills";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { SectionHeader } from "./components/SectionHeader";
 import { SkillsTable } from "./components/SkillsTable";
 
 const AgentSettingsSkillsPage: React.FC = () => {
-	const { organizations } = useDashboard();
+	const { user } = useAuthenticated();
+	// The dashboard lists every organization the user can read, but chats
+	// only run in organizations the user is a member of.
+	const memberOrganizations = useDashboard().organizations.filter(
+		(organization) => user.organization_ids.includes(organization.id),
+	);
 	const organizationSkillQueries = useQueries({
-		queries: organizations.map((organization) =>
+		queries: memberOrganizations.map((organization) =>
 			organizationSkills(organization.id),
 		),
 	});
-	const visibleOrganizations = organizations.flatMap((organization, index) => {
-		const query = organizationSkillQueries[index];
-		const hasEnabledSkills = Boolean(
-			query.data?.some((skill) => skill.enabled),
-		);
-		return hasEnabledSkills || query.isError
-			? [{ organization, query, hasEnabledSkills }]
-			: [];
-	});
+	const visibleOrganizations = memberOrganizations.flatMap(
+		(organization, index) => {
+			const query = organizationSkillQueries[index];
+			const hasEnabledSkills = Boolean(
+				query.data?.some((skill) => skill.enabled),
+			);
+			return hasEnabledSkills || query.isError
+				? [{ organization, query, hasEnabledSkills }]
+				: [];
+		},
+	);
 
 	return (
 		<div className="flex flex-col gap-12">
@@ -44,7 +52,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 				<section className="flex flex-col gap-8">
 					<SectionHeader
 						label="From your organizations"
-						description="Organization skills your agents can use in chats that belong to that organization. Members get the skills shared with them. Site owners, organization admins, and organization auditors get every enabled skill."
+						description="Organization skills your agents can use in chats that belong to that organization. Members get the skills shared with them. Site owners, organization admins, and auditors get every enabled skill."
 					/>
 					{visibleOrganizations.map(
 						({ organization, query, hasEnabledSkills }) => {

@@ -36,8 +36,8 @@ export const OrganizationSkillSharingDialog: React.FC<
 			description={
 				<>
 					Manage which organization members and groups can use {skillName}. Site
-					owners, organization admins, and organization auditors can use it
-					whenever it is enabled.
+					owners, organization admins, and auditors can use it whenever it is
+					enabled.
 				</>
 			}
 			loadingLabel="Loading skill permissions"
