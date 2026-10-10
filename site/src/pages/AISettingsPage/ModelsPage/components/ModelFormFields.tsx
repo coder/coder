@@ -32,10 +32,14 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import {
+	disabledControlClassName,
 	GeneralModelConfigFields,
 	ModelConfigFields,
 	PricingEstimateFields,
 	ReasoningEffortConfigFields,
+	unitInputAddonClassName,
+	unitInputGroupClassName,
+	unitSuffixClassName,
 } from "#/modules/aiModels/ModelConfigFields";
 import { ModelIdentifierField } from "#/modules/aiModels/ModelIdentifierField";
 import type {
@@ -275,13 +279,17 @@ export const ModelFormFields: React.FC<{
 						)}
 						<InputGroup
 							className={cn(
+								unitInputGroupClassName,
 								contextLimitField.error && "border-border-destructive",
 							)}
 						>
 							<InputGroupInput
 								id={contextLimitField.id}
 								name={contextLimitField.name}
-								className="min-w-0 placeholder:text-content-disabled"
+								className={cn(
+									"min-w-0 placeholder:text-content-disabled",
+									disabledControlClassName,
+								)}
 								placeholder="200000"
 								value={contextLimitField.value}
 								onChange={contextLimitField.onChange}
@@ -289,8 +297,11 @@ export const ModelFormFields: React.FC<{
 								disabled={isSaving || isReadOnly}
 								aria-invalid={contextLimitField.error}
 							/>
-							<InputGroupAddon align="inline-end">
-								<span className="text-xs text-content-disabled">Tokens</span>
+							<InputGroupAddon
+								align="inline-end"
+								className={unitInputAddonClassName}
+							>
+								<span className={unitSuffixClassName}>Tokens</span>
 							</InputGroupAddon>
 						</InputGroup>
 					</div>
@@ -380,6 +391,7 @@ export const ModelFormFields: React.FC<{
 							</Label>
 							<InputGroup
 								className={cn(
+									unitInputGroupClassName,
 									compressionThresholdField.error &&
 										"border-border-destructive",
 								)}
@@ -387,7 +399,7 @@ export const ModelFormFields: React.FC<{
 								<InputGroupInput
 									id={compressionThresholdField.id}
 									name={compressionThresholdField.name}
-									className="placeholder:text-content-disabled"
+									className={disabledControlClassName}
 									placeholder="70"
 									value={compressionThresholdField.value}
 									onChange={compressionThresholdField.onChange}
@@ -395,8 +407,11 @@ export const ModelFormFields: React.FC<{
 									disabled={isSaving || isReadOnly}
 									aria-invalid={compressionThresholdField.error}
 								/>
-								<InputGroupAddon align="inline-end">
-									<span className="text-xs text-content-disabled">%</span>
+								<InputGroupAddon
+									align="inline-end"
+									className={unitInputAddonClassName}
+								>
+									<span className={unitSuffixClassName}>%</span>
 								</InputGroupAddon>
 							</InputGroup>
 							{compressionThresholdField.error && (
