@@ -582,7 +582,7 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 		if err != nil {
 			continue
 		}
-		out = append(out, ScanRoot{Path: canonical})
+		out = append(out, ScanRoot{Path: canonical, Global: r == globalInstructionsRoot})
 	}
 	if m.workingDir != nil {
 		if wd := strings.TrimSpace(m.workingDir()); wd != "" {
