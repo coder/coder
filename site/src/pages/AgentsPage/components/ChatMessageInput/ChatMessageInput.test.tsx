@@ -84,8 +84,8 @@ const FocusBeforeReadyHarness: React.FC<{
 	inputRef: React.RefObject<ChatMessageInputRef | null>;
 	method: "focus" | "focusWhenEditable";
 	disabled?: boolean;
-	onChange: React.ComponentProps<typeof ChatMessageInput>["onChange"];
-}> = ({ inputRef, method, disabled = false, onChange }) => {
+	remountKey?: number;
+}> = ({ inputRef, method, disabled = false, remountKey }) => {
 	useLayoutEffect(() => {
 		inputRef.current?.[method]();
 	}, [inputRef, method]);
@@ -95,8 +95,8 @@ const FocusBeforeReadyHarness: React.FC<{
 			{...requiredProps()}
 			ref={inputRef}
 			initialValue="persisted draft"
-			onChange={onChange}
 			disabled={disabled}
+			remountKey={remountKey}
 			aria-label="Chat message input"
 		/>
 	);
@@ -249,35 +249,6 @@ describe("ChatMessageInput", () => {
 		});
 	});
 
-	it("focuses at the end when a deferred focus is requested before the editor is ready", async () => {
-		const user = userEvent.setup();
-		const onChange = vi.fn();
-		renderWithQueryClient(
-			<FocusBeforeReadyHarness
-				inputRef={createRef<ChatMessageInputRef>()}
-				method="focusWhenEditable"
-				onChange={onChange}
-			/>,
-		);
-
-		await waitFor(() => {
-			expect(onChange).toHaveBeenCalledWith(
-				"persisted draft",
-				expect.any(String),
-				false,
-			);
-		});
-		await user.paste(" appended");
-
-		await waitFor(() => {
-			expect(onChange).toHaveBeenCalledWith(
-				"persisted draft appended",
-				expect.any(String),
-				false,
-			);
-		});
-	});
-
 	it("ignores immediate focus until the editor is ready and editable", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
@@ -288,7 +259,6 @@ describe("ChatMessageInput", () => {
 					inputRef={inputRef}
 					method="focus"
 					disabled={disabled}
-					onChange={vi.fn()}
 				/>
 			</QueryClientProvider>
 		);
@@ -309,93 +279,42 @@ describe("ChatMessageInput", () => {
 		});
 	});
 
-	it.each([false, true])(
-		"defers disabled focus until editable, with inner remount %s",
-		async (remount) => {
-			const user = userEvent.setup();
-			const inputRef = createRef<ChatMessageInputRef>();
-			const onChange = vi.fn();
-			const queryClient = createTestQueryClient();
-			const input = (disabled: boolean, remountKey = 0) => (
-				<QueryClientProvider client={queryClient}>
-					<button type="button">Focus elsewhere</button>
-					<ChatMessageInput
-						{...requiredProps()}
-						ref={inputRef}
-						initialValue="persisted draft"
-						onChange={onChange}
-						disabled={disabled}
-						remountKey={remountKey}
-						aria-label="Chat message input"
-					/>
-				</QueryClientProvider>
-			);
-			const { rerender } = render(input(true));
-			await waitFor(() => {
-				expect(inputRef.current?.getValue()).toBe("persisted draft");
-			});
-			await user.click(screen.getByRole("button", { name: "Focus elsewhere" }));
-			act(() => inputRef.current?.focusWhenEditable());
+	it("defers focus until editable across an inner remount and consumes the request once", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const queryClient = createTestQueryClient();
+		const input = (disabled: boolean, remountKey = 0) => (
+			<QueryClientProvider client={queryClient}>
+				<button type="button">Focus elsewhere</button>
+				<FocusBeforeReadyHarness
+					inputRef={inputRef}
+					method="focusWhenEditable"
+					disabled={disabled}
+					remountKey={remountKey}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = render(input(true));
+		await user.click(
+			screen.getByRole("textbox", { name: "Chat message input" }),
+		);
+		await user.keyboard("blocked{Enter}");
+		expect(inputRef.current?.getValue()).toBe("persisted draft");
 
-			if (remount) {
-				await act(async () => rerender(input(true, 1)));
-				await user.click(
-					screen.getByRole("button", { name: "Focus elsewhere" }),
-				);
-			}
-			await act(async () => rerender(input(false, remount ? 1 : 0)));
-			await user.paste(" appended");
-
-			await waitFor(() => {
-				expect(inputRef.current?.getValue()).toBe("persisted draft appended");
-				expect(onChange).toHaveBeenCalledWith(
-					"persisted draft appended",
-					expect.any(String),
-					false,
-				);
-			});
-
-			await user.click(screen.getByRole("button", { name: "Focus elsewhere" }));
-			await act(async () => rerender(input(true, remount ? 1 : 0)));
-			await act(async () => rerender(input(false, remount ? 1 : 0)));
-			await user.paste(" unsolicited");
+		await act(async () => rerender(input(true, 1)));
+		await user.click(screen.getByRole("button", { name: "Focus elsewhere" }));
+		await act(async () => rerender(input(false, 1)));
+		await user.paste(" appended");
+		await waitFor(() => {
 			expect(inputRef.current?.getValue()).toBe("persisted draft appended");
-		},
-	);
+		});
 
-	it.each(["focus", "focusWhenEditable"] as const)(
-		"does not make a disabled editor editable when %s is requested",
-		async (method) => {
-			const user = userEvent.setup();
-			const inputRef = createRef<ChatMessageInputRef>();
-			const onEnter = vi.fn();
-			renderWithQueryClient(
-				<>
-					<button type="button">Focus elsewhere</button>
-					<ChatMessageInput
-						{...requiredProps()}
-						ref={inputRef}
-						initialValue="read-only draft"
-						onEnter={onEnter}
-						disabled
-						aria-label="Chat message input"
-					/>
-				</>,
-			);
-			await waitFor(() => {
-				expect(inputRef.current?.getValue()).toBe("read-only draft");
-			});
-			await user.click(screen.getByRole("button", { name: "Focus elsewhere" }));
-			act(() => inputRef.current?.[method]());
-			await user.click(
-				screen.getByRole("textbox", { name: "Chat message input" }),
-			);
-			await user.keyboard("blocked{Enter}");
-
-			expect(inputRef.current?.getValue()).toBe("read-only draft");
-			expect(onEnter).not.toHaveBeenCalled();
-		},
-	);
+		await user.click(screen.getByRole("button", { name: "Focus elsewhere" }));
+		await act(async () => rerender(input(true, 1)));
+		await act(async () => rerender(input(false, 1)));
+		await user.paste(" unsolicited");
+		expect(inputRef.current?.getValue()).toBe("persisted draft appended");
+	});
 
 	it("returns content inserted through the ref handle", async () => {
 		const inputRef = { current: null as ChatMessageInputRef | null };

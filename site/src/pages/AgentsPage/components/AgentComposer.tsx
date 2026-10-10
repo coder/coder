@@ -34,7 +34,6 @@ import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
 
 export {
 	type ComposerChatBindings,
-	type ComposerContextValue,
 	type ComposerDraftBindings,
 	type ComposerEditorBindings,
 	type ComposerFileBindings,

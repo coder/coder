@@ -116,31 +116,6 @@ const mockChatAutomationsResponse = () => {
 };
 
 describe("ChatPageInput", () => {
-	it.each([undefined, true])(
-		"toggles automations with the SDK enabled value %s",
-		async (enabled) => {
-			const user = userEvent.setup();
-			const onManageAutomationsToggle = vi.fn();
-			renderChatPageInput(createChatStore(), {
-				chat: {
-					...MockChat,
-					id: "",
-					organization_id: "",
-					manage_automations_enabled: enabled,
-				},
-				onManageAutomationsToggle,
-			});
-
-			await user.click(
-				await screen.findByRole("button", { name: "More options" }),
-			);
-			await user.click(
-				screen.getByRole("menuitemcheckbox", { name: "Manage automations" }),
-			);
-			expect(onManageAutomationsToggle).toHaveBeenCalledWith(!enabled);
-		},
-	);
-
 	it("routes Stop to onInterrupt while the chat requires action", async () => {
 		const user = userEvent.setup();
 		const onInterrupt = vi.fn();

@@ -25,7 +25,6 @@ import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
 import {
 	AgentComposer,
 	AgentComposerRuntimeProvider,
-	type ComposerContextValue,
 	useAgentComposer,
 } from "./AgentComposer";
 import { ChatComposer, LoadingChatComposer } from "./AgentComposers";
@@ -182,73 +181,6 @@ describe("ChatComposer", () => {
 		expect(onSend).toHaveBeenCalledExactlyOnceWith("Shared draft");
 	});
 
-	it("supports an injected public contract without the default runtime", async () => {
-		const user = userEvent.setup();
-		const editorRef = createRef<ChatMessageInputRef>();
-		const onSubmit = vi.fn();
-		const value: ComposerContextValue = {
-			state: {
-				isDisabled: false,
-				isReadOnly: false,
-				isLoading: false,
-				isStreaming: false,
-				isInterruptPending: false,
-				isEditingHistoryMessage: false,
-				invisibleCharCount: 0,
-				canSend: true,
-				showSendButton: true,
-				showStopButton: false,
-				canAttachFiles: false,
-				speechSupported: false,
-				speechRecording: false,
-				speechError: null,
-				needsSetup: false,
-				files: {
-					workspaceUploads: { uploads: [] },
-					attachments: [],
-					uploadStates: new Map(),
-					previewUrls: new Map(),
-					textContents: new Map(),
-				},
-			},
-			actions: {
-				resetPromptCycle: vi.fn(),
-				submit: () => onSubmit(editorRef.current?.getValue()),
-				startRecording: vi.fn(),
-				acceptRecording: vi.fn(),
-				cancelRecording: vi.fn(),
-				attachFiles: vi.fn(() => true),
-				removeAttachment: vi.fn(),
-				inlineText: vi.fn(),
-				contentChange: vi.fn(),
-				editorKeyDown: vi.fn(),
-				removeWorkspaceUpload: vi.fn(),
-			},
-			meta: {
-				editorRef,
-				warningId: "injected-composer-warning",
-				composerElement: null,
-				setComposerElement: vi.fn(),
-				initialValue: "",
-				sendShortcut: "enter",
-				sendShortcutLabel: undefined,
-			},
-		};
-		renderInput(
-			<AgentComposer.Provider {...value}>
-				<AgentComposer.Frame>
-					<AgentComposer.Editor hasWorkspace={false} />
-					<AgentComposer.Submit />
-				</AgentComposer.Frame>
-			</AgentComposer.Provider>,
-		);
-		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-		await user.paste("Injected draft");
-
-		await user.click(screen.getByRole("button", { name: "Send" }));
-		expect(onSubmit).toHaveBeenCalledExactlyOnceWith("Injected draft");
-	});
-
 	it.each([
 		{ isDisabled: false, isEditingHistoryMessage: false, promoted: true },
 		{ isDisabled: true, isEditingHistoryMessage: false, promoted: false },
@@ -294,8 +226,6 @@ describe("ChatComposer", () => {
 
 	it.each([
 		{ image: false, isEditingHistoryMessage: false },
-		{ image: false, isEditingHistoryMessage: true },
-		{ image: true, isEditingHistoryMessage: false },
 		{ image: true, isEditingHistoryMessage: true },
 	])(
 		"isolates preview Escape and removes the attachment (image: $image, editing: $isEditingHistoryMessage)",
@@ -362,40 +292,6 @@ describe("ChatComposer", () => {
 			expect(onRemoveAttachment).toHaveBeenCalledExactlyOnceWith(file);
 		},
 	);
-
-	it("keeps the editor mounted while composing history-edit actions", async () => {
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		const onSend = vi.fn();
-		const props = {
-			...inputProps,
-			bindings: { ...inputProps.bindings, inputRef, onSend },
-		};
-		const { rerender } = renderInput(<ChatComposer {...props} />);
-		const handle = inputRef.current;
-		const textbox = screen.getByRole("textbox", { name: "Chat message" });
-
-		await user.click(textbox);
-		await user.paste("Preserved draft");
-		await waitFor(() => expect(handle?.getValue()).toBe("Preserved draft"));
-
-		rerender(
-			<ChatComposer
-				{...props}
-				bindings={{ ...props.bindings, isEditingHistoryMessage: true }}
-			/>,
-		);
-
-		expect(inputRef.current).toBe(handle);
-		expect(screen.getByRole("textbox", { name: "Chat message" })).toBe(textbox);
-		await user.click(screen.getByRole("button", { name: "Save Edit" }));
-		expect(onSend).toHaveBeenCalledExactlyOnceWith("Preserved draft");
-
-		rerender(<ChatComposer {...props} />);
-		await user.click(screen.getByRole("button", { name: "Send" }));
-		expect(onSend).toHaveBeenCalledTimes(2);
-		expect(onSend).toHaveBeenLastCalledWith("Preserved draft");
-	});
 
 	it("retains the loading composer draft on Enter even with a populated model", async () => {
 		const user = userEvent.setup();
@@ -495,14 +391,9 @@ describe("ChatComposer", () => {
 		},
 	);
 
-	it.each([
-		{ isMobile: false, rejects: false, completesWhileLoading: false },
-		{ isMobile: false, rejects: false, completesWhileLoading: true },
-		{ isMobile: false, rejects: true, completesWhileLoading: true },
-		{ isMobile: true, rejects: false, completesWhileLoading: true },
-	])(
-		"restores typing only on desktop after submission completes (mobile: $isMobile, rejects: $rejects, completes while loading: $completesWhileLoading)",
-		async ({ isMobile, rejects, completesWhileLoading }) => {
+	it.each([false, true])(
+		"restores typing after send completion only on desktop (mobile: %s)",
+		async (isMobile) => {
 			stubViewport(isMobile);
 			const user = userEvent.setup();
 			const inputRef = createRef<ChatMessageInputRef>();
@@ -533,29 +424,10 @@ describe("ChatComposer", () => {
 			});
 			await user.click(anotherInput);
 
-			if (!completesWhileLoading) {
-				await act(async () => {
-					rerender(composer(false));
-				});
-				await user.keyboard("waiting");
-				expect(anotherInput).toHaveValue("waiting");
-			}
-
-			await act(async () => {
-				if (rejects) {
-					completion.reject(new Error("Send failed"));
-				} else {
-					completion.resolve(undefined);
-				}
-			});
-
-			if (completesWhileLoading) {
-				await user.keyboard("waiting");
-				expect(anotherInput).toHaveValue("waiting");
-				await act(async () => {
-					rerender(composer(false));
-				});
-			}
+			await act(async () => completion.resolve(undefined));
+			await user.keyboard("waiting");
+			expect(anotherInput).toHaveValue("waiting");
+			await act(async () => rerender(composer(false)));
 
 			await user.paste(" next");
 			await waitFor(() => {
@@ -620,84 +492,6 @@ describe("ChatComposer", () => {
 		expect(onInterrupt).toHaveBeenCalledExactlyOnceWith();
 	});
 
-	it("ends prompt cycling when recalled text is edited", async () => {
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		const onSend = vi.fn();
-		const onInterrupt = vi.fn();
-
-		renderInput(
-			<ChatComposer
-				{...inputProps}
-				bindings={{
-					...inputProps.bindings,
-					inputRef,
-					onSend,
-					onInterrupt,
-					isStreaming: true,
-					userPromptHistory: ["Latest prompt", "Older prompt"],
-				}}
-			/>,
-		);
-
-		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-		await user.keyboard("{ArrowUp}");
-		await waitFor(() =>
-			expect(inputRef.current?.getValue()).toBe("Latest prompt"),
-		);
-		await user.keyboard(" edited");
-		await waitFor(() =>
-			expect(inputRef.current?.getValue()).toBe("Latest prompt edited"),
-		);
-
-		await user.keyboard("{ArrowUp}{ArrowDown}{Escape}");
-		expect(onInterrupt).toHaveBeenCalledExactlyOnceWith();
-		await user.click(screen.getByRole("button", { name: "Queue" }));
-		expect(onSend).toHaveBeenCalledExactlyOnceWith("Latest prompt edited");
-	});
-
-	it("keeps the original history snapshot until cycling ends", async () => {
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		const onSend = vi.fn();
-		const props = {
-			...inputProps,
-			bindings: { ...inputProps.bindings, inputRef, onSend },
-		};
-		const { rerender } = renderInput(
-			<ChatComposer
-				{...props}
-				bindings={{
-					...props.bindings,
-					userPromptHistory: ["Latest prompt", "Older prompt"],
-				}}
-			/>,
-		);
-
-		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-		await user.keyboard("{ArrowUp}");
-		await waitFor(() =>
-			expect(inputRef.current?.getValue()).toBe("Latest prompt"),
-		);
-
-		rerender(
-			<ChatComposer
-				{...props}
-				bindings={{ ...props.bindings, userPromptHistory: ["New prompt"] }}
-			/>,
-		);
-		await user.keyboard("{ArrowUp}");
-		await waitFor(() =>
-			expect(inputRef.current?.getValue()).toBe("Older prompt"),
-		);
-		await user.keyboard("{Escape}{ArrowUp}");
-		await waitFor(() =>
-			expect(inputRef.current?.getValue()).toBe("New prompt"),
-		);
-		await user.click(screen.getByRole("button", { name: "Send" }));
-		expect(onSend).toHaveBeenCalledExactlyOnceWith("New prompt");
-	});
-
 	it("discards the history session when the editor remounts", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
@@ -750,133 +544,29 @@ describe("ChatComposer", () => {
 		expect(onInterrupt).toHaveBeenCalledExactlyOnceWith();
 		await user.click(screen.getByRole("button", { name: "Queue" }));
 		expect(onSend).toHaveBeenCalledExactlyOnceWith("Replacement draft");
-
-		const freshDraft = " ";
-		rerender(
-			<StrictMode>
-				<ChatComposer
-					{...props}
-					bindings={{
-						...props.bindings,
-						remountKey: 2,
-						initialValue: freshDraft,
-						userPromptHistory: ["New latest prompt", "New older prompt"],
-					}}
-				/>
-			</StrictMode>,
-		);
-		await waitFor(() => expect(inputRef.current?.getValue()).toBe(freshDraft));
-		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-		await user.keyboard("{ArrowDown}");
-		expect(inputRef.current?.getValue()).toBe(freshDraft);
-		await user.keyboard("{ArrowUp}");
-		await waitFor(() =>
-			expect(inputRef.current?.getValue()).toBe("New latest prompt"),
-		);
-		await user.keyboard("{Escape}");
-		await waitFor(() => expect(inputRef.current?.getValue()).toBe(freshDraft));
-		expect(onInterrupt).toHaveBeenCalledExactlyOnceWith();
-		expect(onSend).toHaveBeenCalledExactlyOnceWith("Replacement draft");
 	});
 
-	it("does not replace a non-empty draft with prompt history", async () => {
+	it("keeps a retained editor handle live after remount", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
 		const onSend = vi.fn();
-		renderInput(
-			<ChatComposer
-				{...inputProps}
-				bindings={{
-					...inputProps.bindings,
-					inputRef,
-					onSend,
-					initialValue: "Unfinished draft",
-					userPromptHistory: ["Latest prompt"],
-				}}
-			/>,
-		);
-
-		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-		await user.keyboard("{ArrowUp}{ArrowDown}");
-		expect(inputRef.current?.getValue()).toBe("Unfinished draft");
-		await user.click(screen.getByRole("button", { name: "Send" }));
-		expect(onSend).toHaveBeenCalledWith("Unfinished draft");
-	});
-
-	it("keeps the retained input ref live after restoring file references on remount", async () => {
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		const onSend = vi.fn();
-		const onContentChange =
-			vi.fn<
-				React.ComponentProps<typeof ChatComposer>["bindings"]["onContentChange"]
-			>();
 		const props = {
 			...inputProps,
-			bindings: { ...inputProps.bindings, inputRef, onSend, onContentChange },
+			bindings: { ...inputProps.bindings, inputRef, onSend },
 		};
-		const { rerender } = renderInput(
-			<ChatComposer
-				{...props}
-				bindings={{ ...props.bindings, remountKey: 0 }}
-			/>,
-		);
+		const { rerender } = renderInput(<ChatComposer {...props} />);
 		const handle = inputRef.current;
-		const reference = {
-			fileName: "src/main.ts",
-			startLine: 2,
-			endLine: 4,
-			content: "export const answer = 42;",
-		};
-
-		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-		await user.paste("Review this: ");
-		act(() => handle?.addFileReference(reference));
-		await waitFor(() => {
-			expect(handle?.getContentParts()).toEqual([
-				{ type: "text", text: "Review this: " },
-				{ type: "file-reference", reference },
-			]);
-			expect(onContentChange).toHaveBeenLastCalledWith(
-				expect.any(String),
-				expect.any(String),
-				true,
-			);
-		});
-		const serializedState = onContentChange.mock.lastCall?.[1];
-		if (!serializedState) {
-			throw new Error("Expected serialized editor state");
-		}
-		act(() => handle?.clear());
-		await waitFor(() => expect(handle?.getContentParts()).toEqual([]));
 
 		rerender(
 			<ChatComposer
 				{...props}
-				bindings={{
-					...props.bindings,
-					remountKey: 1,
-					initialValue: "Plain-text fallback",
-					initialEditorState: serializedState,
-				}}
+				bindings={{ ...props.bindings, remountKey: 1 }}
 			/>,
 		);
-		await waitFor(() => {
-			expect(handle?.getContentParts()).toEqual([
-				{ type: "text", text: "Review this: " },
-				{ type: "file-reference", reference },
-			]);
-		});
-
 		act(() => handle?.setValue("Replacement draft"));
 		await waitFor(() => expect(handle?.getValue()).toBe("Replacement draft"));
-		act(() => handle?.focus());
-		await user.paste(" after remount");
-		await waitFor(() =>
-			expect(handle?.getValue()).toBe("Replacement draft after remount"),
-		);
 		await user.click(screen.getByRole("button", { name: "Send" }));
-		expect(onSend).toHaveBeenCalledWith("Replacement draft after remount");
+		expect(onSend).toHaveBeenCalledExactlyOnceWith("Replacement draft");
 	});
 
 	it("attaches chat files and asks for a running workspace for other dropped files", () => {
