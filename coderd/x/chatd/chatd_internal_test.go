@@ -2062,10 +2062,6 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 					Name:        "personal-review",
 					Description: "Personal review process",
 					Enabled:     true,
-				}, {
-					UserID:      uuid.NullUUID{UUID: userID, Valid: true},
-					Name:        "personal-disabled",
-					Description: "Disabled process",
 				}}, nil
 			},
 		)

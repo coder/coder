@@ -459,39 +459,6 @@ func TestReadSkillTool(t *testing.T) {
 		assert.Equal(t, "my-skill", loadedName)
 	})
 
-	t.Run("OrganizationSkillUsesStoredLoader", func(t *testing.T) {
-		t.Parallel()
-
-		orgSkill := skillspkg.Skill{
-			Name:        "team-review",
-			Description: "test",
-			Source:      skillspkg.SourceOrganization,
-		}
-		var loaded skillspkg.Skill
-		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
-				require.Equal(t, "org/team-review", alias)
-				return skillspkg.ResolvedSkill{Skill: orgSkill, Alias: alias}, nil
-			},
-			LoadStoredSkillBody: func(_ context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
-				loaded = skill
-				return skillspkg.ParsedSkill{Skill: skill, Body: "Organization instructions."}, nil
-			},
-		})
-
-		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-			ID:    "call-1",
-			Name:  "read_skill",
-			Input: `{"name":"org/team-review"}`,
-		})
-		require.NoError(t, err)
-		assert.False(t, resp.IsError)
-		assert.Equal(t, orgSkill, loaded)
-		assert.Equal(t, "org/team-review", responseName(t, resp))
-		assert.Contains(t, resp.Content, "Organization instructions.")
-		assert.Contains(t, resp.Content, `"files":[]`)
-	})
-
 	t.Run("WorkspaceQualifiedAlias", func(t *testing.T) {
 		t.Parallel()
 
@@ -821,28 +788,26 @@ func TestReadSkillFileTool(t *testing.T) {
 		assert.Contains(t, resp.Content, "reviewer guide")
 	})
 
-	t.Run("StoredSkillUnsupported", func(t *testing.T) {
+	t.Run("PersonalSkillUnsupported", func(t *testing.T) {
 		t.Parallel()
 
-		for _, source := range []skillspkg.Source{skillspkg.SourcePersonal, skillspkg.SourceOrganization} {
-			tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
-				ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
-					return skillspkg.ResolvedSkill{
-						Skill: skillspkg.Skill{Name: alias, Source: source},
-						Alias: alias,
-					}, nil
-				},
-			})
+		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
+			ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
+				return skillspkg.ResolvedSkill{
+					Skill: skillspkg.Skill{Name: alias, Source: skillspkg.SourcePersonal},
+					Alias: alias,
+				}, nil
+			},
+		})
 
-			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-				ID:    "call-1",
-				Name:  "read_skill_file",
-				Input: `{"name":"my-skill","path":"helper.md"}`,
-			})
-			require.NoError(t, err)
-			assert.True(t, resp.IsError)
-			assert.Contains(t, resp.Content, "not supported for "+string(source)+" skills")
-		}
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill_file",
+			Input: `{"name":"my-skill","path":"helper.md"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "not supported for personal skills")
 	})
 
 	t.Run("AmbiguousLookupSurfacesAliases", func(t *testing.T) {
