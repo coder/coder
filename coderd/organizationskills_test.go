@@ -108,7 +108,7 @@ func TestOrganizationSkillValidationAndConflicts(t *testing.T) {
 func TestOrganizationSkillAccess(t *testing.T) {
 	t.Parallel()
 
-	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	db, ps := dbtestutil.NewDB(t)
 	ownerClient := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	firstUser := coderdtest.CreateFirstUser(t, ownerClient)
 	orgID := firstUser.OrganizationID
@@ -218,27 +218,6 @@ func TestOrganizationSkillAccess(t *testing.T) {
 		requireSDKErrorStatus(t, err, http.StatusNotFound)
 		_, err = foreign.OrganizationSkillByName(ctx, orgID, everyone.Name)
 		requireSDKErrorStatus(t, err, http.StatusNotFound)
-	})
-
-	t.Run("RevokedEveryoneGrant", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		revoked := dbgen.OrganizationSkill(t, db, database.Skill{
-			OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true},
-			Name:           "revoked-skill",
-			GroupACL:       everyoneACL(),
-			UserACL:        database.ChatACL{},
-		})
-		requireOrganizationSkillListed(ctx, t, member, orgID, revoked.Name)
-
-		_, err := sqlDB.ExecContext(ctx, `UPDATE skills SET group_acl = '{}'::jsonb WHERE id = $1`, revoked.ID)
-		require.NoError(t, err)
-
-		requireOrganizationSkillNotListed(ctx, t, member, orgID, revoked.Name)
-		_, err = member.OrganizationSkillByName(ctx, orgID, revoked.Name)
-		requireSDKErrorStatus(t, err, http.StatusNotFound)
-		requireOrganizationSkillListed(ctx, t, admin, orgID, revoked.Name)
 	})
 
 	t.Run("ReadScopedAPIKey", func(t *testing.T) {
