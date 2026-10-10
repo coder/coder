@@ -68,8 +68,10 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		onArchiveSuccess,
 		navigateAfterArchive,
 		onOpenRenameDialog,
+		renderTrailing,
 	} = useChatTree();
 	const chatID = chat.id;
+	const trailing = renderTrailing?.(chat);
 	const isActiveChat = activeChatId === chatID;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
 		visibleChatIDs.has(childID),
@@ -337,7 +339,13 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 							</div>
 						)}
 					</NavLink>
-					<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
+					<div
+						className={cn(
+							"relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch",
+							// Slot content can be wider than the age, so let the column grow.
+							trailing && "w-auto min-w-7",
+						)}
+					>
 						<div className="flex h-6 w-7 shrink-0 items-center justify-end">
 							{isArchivingThisChat ? (
 								<Spinner
@@ -376,6 +384,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 								</span>
 							)}
 						</div>
+						{trailing}
 						{isSharedChat && (
 							<UsersIcon
 								className="mt-auto size-3.5 text-content-secondary"
@@ -392,6 +401,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									variant="subtle"
 									className={cn(
 										"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100",
+										// inset-0 pins both edges; in a wider column the fixed
+										// width wins from the left, so release that edge.
+										trailing && "left-auto",
 										isActiveChat && "opacity-100",
 									)}
 									aria-label={`Open actions for ${chat.title}`}
