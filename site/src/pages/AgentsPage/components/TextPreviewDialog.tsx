@@ -16,6 +16,7 @@ type TextPreviewDialogProps = {
 	onClose: () => void;
 	onCloseAutoFocus?: (event: Event) => void;
 	showCloseButton?: boolean;
+	notice?: React.ReactNode;
 };
 
 /**
@@ -45,6 +46,7 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 	onClose,
 	onCloseAutoFocus,
 	showCloseButton = false,
+	notice,
 }) => {
 	const renderAsMarkdown = isMarkdownPreview(fileName, mediaType);
 
@@ -59,6 +61,7 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 					{fileName ?? "Pasted text"}
 				</DialogTitle>
 				<div className="min-h-0 overflow-auto p-4 max-h-[calc(85vh-3rem)]">
+					{notice && <div className="mb-4">{notice}</div>}
 					{renderAsMarkdown ? (
 						// Reuse the same Markdown renderer used for chat messages
 						// so attached markdown previews look consistent with the
