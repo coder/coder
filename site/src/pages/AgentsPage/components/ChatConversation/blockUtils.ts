@@ -8,27 +8,32 @@ export const asNonEmptyString = (value: unknown): string | undefined => {
 
 /**
  * Append a text or thinking block to a render block list, merging
- * with the previous block when the types match.
+ * with the previous block when the types match. Whitespace-only text
+ * extends a matching block but never starts one: models stream
+ * paragraph breaks as separate "\n\n" deltas, and dropping them joins
+ * the paragraphs. Returns `blocks` unchanged when nothing is appended.
  */
 export const appendTextBlock = (
 	blocks: RenderBlock[],
 	type: "response" | "thinking",
 	text: string,
 ): RenderBlock[] => {
-	if (!text.trim()) {
-		return blocks;
-	}
-	const nextBlocks = [...blocks];
-	const last = nextBlocks[nextBlocks.length - 1];
+	const last = blocks[blocks.length - 1];
 	if (last && last.type === type) {
+		if (!text) {
+			return blocks;
+		}
+		const nextBlocks = [...blocks];
 		nextBlocks[nextBlocks.length - 1] = {
 			type,
 			text: `${last.text}${text}`,
 		};
 		return nextBlocks;
 	}
-	nextBlocks.push({ type, text });
-	return nextBlocks;
+	if (!text.trim()) {
+		return blocks;
+	}
+	return [...blocks, { type, text }];
 };
 
 type ToolGroupRenderBlock = {
