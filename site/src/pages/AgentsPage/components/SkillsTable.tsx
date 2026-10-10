@@ -14,18 +14,18 @@ import {
 } from "#/api/queries/skills";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import {
-	PERSONAL_SKILLS_MAX_PER_USER,
-	type PersonalSkillFormValues,
-	parsePersonalSkillMarkdown,
+	parseSkillMarkdown,
+	SKILLS_MAX_PER_OWNER,
+	type SkillFormValues,
 } from "../utils/skills";
-import type { PersonalSkillErrorDisplay } from "./SkillEditor";
+import type { SkillErrorDisplay } from "./SkillEditor";
 import {
-	AgentSettingsPersonalSkillsPageView,
-	type PersonalSkillDeleteState,
-	type PersonalSkillEditorState,
+	type SkillDeleteState,
+	type SkillEditorState,
+	SkillsTableView,
 } from "./SkillsTableView";
 
-const emptySkillFormValues: PersonalSkillFormValues = {
+const emptySkillFormValues: SkillFormValues = {
 	name: "",
 	description: "",
 	body: "",
@@ -40,7 +40,7 @@ type DialogState =
 const personalSkillError = (
 	error: unknown,
 	fallback: string,
-): PersonalSkillErrorDisplay | undefined => {
+): SkillErrorDisplay | undefined => {
 	if (!error) {
 		return undefined;
 	}
@@ -207,11 +207,11 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 		? downloadMutation.variables
 		: undefined;
 
-	let editInitialValues: PersonalSkillFormValues | undefined;
+	let editInitialValues: SkillFormValues | undefined;
 	let editLoadError: unknown = editSkillQuery.error;
 	if (editSkillQuery.data) {
 		try {
-			const parsed = parsePersonalSkillMarkdown(editSkillQuery.data.content);
+			const parsed = parseSkillMarkdown(editSkillQuery.data.content);
 			editInitialValues = {
 				name: editSkillQuery.data.name,
 				description: editSkillQuery.data.description,
@@ -222,7 +222,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 		}
 	}
 
-	let editorState: PersonalSkillEditorState | undefined;
+	let editorState: SkillEditorState | undefined;
 	if (dialogState?.type === "create") {
 		editorState = {
 			mode: "create",
@@ -281,7 +281,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 		};
 	}
 
-	let deleteState: PersonalSkillDeleteState | undefined;
+	let deleteState: SkillDeleteState | undefined;
 	if (dialogState?.type === "delete") {
 		deleteState = {
 			skill: dialogState.skill,
@@ -310,7 +310,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 	}
 
 	return (
-		<AgentSettingsPersonalSkillsPageView
+		<SkillsTableView
 			skills={skills}
 			error={skillsQuery.error}
 			isLoading={skillsQuery.isLoading}
@@ -319,7 +319,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 				void skillsQuery.refetch();
 			}}
 			onCreate={() => {
-				if (skills.length >= PERSONAL_SKILLS_MAX_PER_USER) {
+				if (skills.length >= SKILLS_MAX_PER_OWNER) {
 					return;
 				}
 				createMutation.reset();

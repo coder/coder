@@ -1,17 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
-	buildPersonalSkillMarkdown,
+	buildSkillMarkdown,
 	filterSkillsByQuery,
-	getPersonalSkillContentSizeBytes,
-	isPersonalSkillTriggerToken,
-	isValidPersonalSkillDescription,
-	isValidPersonalSkillName,
-	PERSONAL_SKILL_MAX_SIZE_BYTES,
-	parsePersonalSkillMarkdown,
-	parsePersonalSkillTrigger,
-	personalSkillTriggerText,
-	tryParsePersonalSkillMarkdown,
+	getSkillContentSizeBytes,
+	isSkillTriggerToken,
+	isValidSkillDescription,
+	isValidSkillName,
+	parseSkillMarkdown,
+	parseSkillTrigger,
+	SKILL_MAX_SIZE_BYTES,
+	tryParseSkillMarkdown,
 } from "./skills";
 
 const now = "2026-05-08T00:00:00Z";
@@ -105,38 +104,32 @@ describe("filterSkillsByQuery", () => {
 	});
 });
 
-describe("personal skill slash triggers", () => {
-	it("formats skill trigger text", () => {
-		expect(personalSkillTriggerText(skill("reviewer", "", 0))).toBe(
-			"/reviewer",
-		);
-	});
-
+describe("skill slash triggers", () => {
 	it("parses trigger text at line start or after whitespace", () => {
-		expect(parsePersonalSkillTrigger("/rev")).toEqual({
+		expect(parseSkillTrigger("/rev")).toEqual({
 			slashOffset: 0,
 			query: "rev",
 		});
-		expect(parsePersonalSkillTrigger("ask /docs")).toEqual({
+		expect(parseSkillTrigger("ask /docs")).toEqual({
 			slashOffset: 4,
 			query: "docs",
 		});
 	});
 
 	it("rejects mid-token slash triggers", () => {
-		expect(parsePersonalSkillTrigger("https://")).toBeNull();
+		expect(parseSkillTrigger("https://")).toBeNull();
 	});
 
 	it("validates replacement trigger tokens", () => {
-		expect(isPersonalSkillTriggerToken("/rev")).toBe(true);
-		expect(isPersonalSkillTriggerToken("/bad token")).toBe(false);
+		expect(isSkillTriggerToken("/rev")).toBe(true);
+		expect(isSkillTriggerToken("/bad token")).toBe(false);
 	});
 });
 
-describe("parsePersonalSkillMarkdown", () => {
+describe("parseSkillMarkdown", () => {
 	it("parses SKILL.md frontmatter and body", () => {
 		expect(
-			parsePersonalSkillMarkdown(
+			parseSkillMarkdown(
 				'---\nname: "test-skill"\ndescription: "Does a thing"\n---\n\nUse this skill.',
 			),
 		).toEqual({
@@ -148,7 +141,7 @@ describe("parsePersonalSkillMarkdown", () => {
 
 	it("parses folded YAML description values", () => {
 		expect(
-			parsePersonalSkillMarkdown(
+			parseSkillMarkdown(
 				[
 					"---",
 					"name: brainstorming",
@@ -175,7 +168,7 @@ describe("parsePersonalSkillMarkdown", () => {
 
 	it("uses YAML comment semantics in frontmatter", () => {
 		expect(
-			parsePersonalSkillMarkdown(
+			parseSkillMarkdown(
 				"---\nname: test-skill\ndescription: Build # test\n---\nBody",
 			),
 		).toEqual({
@@ -186,19 +179,17 @@ describe("parsePersonalSkillMarkdown", () => {
 	});
 
 	it("rejects non-string frontmatter fields", () => {
+		expect(() => parseSkillMarkdown("---\nname: null\n---\nBody")).toThrow(
+			"Skill name must be a string.",
+		);
 		expect(() =>
-			parsePersonalSkillMarkdown("---\nname: null\n---\nBody"),
-		).toThrow("Skill name must be a string.");
-		expect(() =>
-			parsePersonalSkillMarkdown(
-				"---\nname: test-skill\ndescription: null\n---\nBody",
-			),
+			parseSkillMarkdown("---\nname: test-skill\ndescription: null\n---\nBody"),
 		).toThrow("Skill description must be a string.");
 	});
 
 	it("allows whitespace around frontmatter delimiters", () => {
 		expect(
-			parsePersonalSkillMarkdown("  ---  \nname: test-skill\n  ---  \nBody"),
+			parseSkillMarkdown("  ---  \nname: test-skill\n  ---  \nBody"),
 		).toEqual({
 			name: "test-skill",
 			description: "",
@@ -207,14 +198,14 @@ describe("parsePersonalSkillMarkdown", () => {
 	});
 
 	it("requires a non-empty body", () => {
-		expect(() =>
-			parsePersonalSkillMarkdown("---\nname: test-skill\n---\n\n"),
-		).toThrow("Skill body is required.");
+		expect(() => parseSkillMarkdown("---\nname: test-skill\n---\n\n")).toThrow(
+			"Skill body is required.",
+		);
 	});
 
 	it("preserves HTML comments in the body", () => {
 		expect(
-			parsePersonalSkillMarkdown(
+			parseSkillMarkdown(
 				"---\nname: test-skill\n---\n\nKeep <!-- TODO --> notes.",
 			),
 		).toMatchObject({
@@ -223,10 +214,10 @@ describe("parsePersonalSkillMarkdown", () => {
 	});
 });
 
-describe("tryParsePersonalSkillMarkdown", () => {
+describe("tryParseSkillMarkdown", () => {
 	it("returns parsed values for valid SKILL.md content", () => {
 		expect(
-			tryParsePersonalSkillMarkdown(
+			tryParseSkillMarkdown(
 				"---\nname: test-skill\ndescription: Does a thing\n---\nBody",
 			),
 		).toEqual({
@@ -241,9 +232,7 @@ describe("tryParsePersonalSkillMarkdown", () => {
 
 	it("returns an error message for invalid SKILL.md content", () => {
 		expect(
-			tryParsePersonalSkillMarkdown(
-				"---\ndescription: Missing name\n---\nBody",
-			),
+			tryParseSkillMarkdown("---\ndescription: Missing name\n---\nBody"),
 		).toEqual({
 			ok: false,
 			error: "Skill name is required.",
@@ -251,24 +240,20 @@ describe("tryParsePersonalSkillMarkdown", () => {
 	});
 
 	it("keeps delimiter errors distinct", () => {
-		expect(
-			tryParsePersonalSkillMarkdown("name: test-skill\n---\nBody"),
-		).toEqual({
+		expect(tryParseSkillMarkdown("name: test-skill\n---\nBody")).toEqual({
 			ok: false,
 			error: "Missing opening frontmatter delimiter.",
 		});
-		expect(
-			tryParsePersonalSkillMarkdown("---\nname: test-skill\nBody"),
-		).toEqual({
+		expect(tryParseSkillMarkdown("---\nname: test-skill\nBody")).toEqual({
 			ok: false,
 			error: "Missing closing frontmatter delimiter.",
 		});
 	});
 });
 
-describe("buildPersonalSkillMarkdown", () => {
+describe("buildSkillMarkdown", () => {
 	it("builds backend-compatible skill markdown", () => {
-		const content = buildPersonalSkillMarkdown({
+		const content = buildSkillMarkdown({
 			name: "test-skill",
 			description: "Does a thing",
 			body: "Use this skill.",
@@ -277,7 +262,7 @@ describe("buildPersonalSkillMarkdown", () => {
 		expect(content).toBe(
 			'---\nname: test-skill\ndescription: "Does a thing"\n---\nUse this skill.\n',
 		);
-		expect(parsePersonalSkillMarkdown(content)).toEqual({
+		expect(parseSkillMarkdown(content)).toEqual({
 			name: "test-skill",
 			description: "Does a thing",
 			body: "Use this skill.",
@@ -286,7 +271,7 @@ describe("buildPersonalSkillMarkdown", () => {
 
 	it("omits the description line when description is empty", () => {
 		expect(
-			buildPersonalSkillMarkdown({
+			buildSkillMarkdown({
 				name: "test-skill",
 				description: "",
 				body: "Use this skill.",
@@ -295,30 +280,30 @@ describe("buildPersonalSkillMarkdown", () => {
 	});
 
 	it("quotes skill names that YAML would otherwise coerce", () => {
-		const content = buildPersonalSkillMarkdown({
+		const content = buildSkillMarkdown({
 			name: "true",
 			description: "",
 			body: "Use this skill.",
 		});
 
 		expect(content).toContain('name: "true"');
-		expect(parsePersonalSkillMarkdown(content)).toMatchObject({
+		expect(parseSkillMarkdown(content)).toMatchObject({
 			name: "true",
 		});
 
-		const numericNameContent = buildPersonalSkillMarkdown({
+		const numericNameContent = buildSkillMarkdown({
 			name: "123",
 			description: "",
 			body: "Use this skill.",
 		});
 		expect(numericNameContent).toContain('name: "123"');
-		expect(parsePersonalSkillMarkdown(numericNameContent)).toMatchObject({
+		expect(parseSkillMarkdown(numericNameContent)).toMatchObject({
 			name: "123",
 		});
 	});
 
 	it("escapes quoted description values", () => {
-		const content = buildPersonalSkillMarkdown({
+		const content = buildSkillMarkdown({
 			name: "test-skill",
 			description: 'Review "critical" C:\\paths.',
 			body: "Use this skill.",
@@ -327,43 +312,43 @@ describe("buildPersonalSkillMarkdown", () => {
 		expect(content).toContain(
 			'description: "Review \\"critical\\" C:\\\\paths."',
 		);
-		expect(parsePersonalSkillMarkdown(content)).toMatchObject({
+		expect(parseSkillMarkdown(content)).toMatchObject({
 			description: 'Review "critical" C:\\paths.',
 		});
 	});
 });
 
-describe("isValidPersonalSkillName", () => {
+describe("isValidSkillName", () => {
 	it("accepts kebab-case skill names", () => {
-		expect(isValidPersonalSkillName("test-skill-1")).toBe(true);
+		expect(isValidSkillName("test-skill-1")).toBe(true);
 	});
 
 	it("rejects names outside the backend pattern", () => {
-		expect(isValidPersonalSkillName("Test Skill")).toBe(false);
-		expect(isValidPersonalSkillName("test--skill")).toBe(false);
-		expect(isValidPersonalSkillName("-test-skill")).toBe(false);
+		expect(isValidSkillName("Test Skill")).toBe(false);
+		expect(isValidSkillName("test--skill")).toBe(false);
+		expect(isValidSkillName("-test-skill")).toBe(false);
 	});
 
 	it("rejects names over the backend byte limit", () => {
-		expect(isValidPersonalSkillName("a".repeat(256))).toBe(true);
-		expect(isValidPersonalSkillName("a".repeat(257))).toBe(false);
+		expect(isValidSkillName("a".repeat(256))).toBe(true);
+		expect(isValidSkillName("a".repeat(257))).toBe(false);
 	});
 });
 
-describe("isValidPersonalSkillDescription", () => {
+describe("isValidSkillDescription", () => {
 	it("rejects descriptions over the backend byte limit", () => {
-		expect(isValidPersonalSkillDescription("a".repeat(4096))).toBe(true);
-		expect(isValidPersonalSkillDescription("a".repeat(4097))).toBe(false);
+		expect(isValidSkillDescription("a".repeat(4096))).toBe(true);
+		expect(isValidSkillDescription("a".repeat(4097))).toBe(false);
 	});
 });
 
-describe("getPersonalSkillContentSizeBytes", () => {
+describe("getSkillContentSizeBytes", () => {
 	it("counts UTF-8 bytes", () => {
-		expect(getPersonalSkillContentSizeBytes("a")).toBe(1);
-		expect(getPersonalSkillContentSizeBytes("🧪")).toBe(4);
+		expect(getSkillContentSizeBytes("a")).toBe(1);
+		expect(getSkillContentSizeBytes("🧪")).toBe(4);
 	});
 
 	it("exposes the backend size limit", () => {
-		expect(PERSONAL_SKILL_MAX_SIZE_BYTES).toBe(65_536);
+		expect(SKILL_MAX_SIZE_BYTES).toBe(65_536);
 	});
 });

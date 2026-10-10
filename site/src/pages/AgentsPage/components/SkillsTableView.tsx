@@ -36,47 +36,44 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { formatDate } from "#/utils/time";
-import {
-	PERSONAL_SKILLS_MAX_PER_USER,
-	type PersonalSkillFormValues,
-} from "../utils/skills";
+import { SKILLS_MAX_PER_OWNER, type SkillFormValues } from "../utils/skills";
 import { SectionHeader } from "./SectionHeader";
-import type { PersonalSkillErrorDisplay } from "./SkillEditor";
-import { PersonalSkillEditor } from "./SkillEditor";
+import type { SkillErrorDisplay } from "./SkillEditor";
+import { SkillEditor } from "./SkillEditor";
 
-export type PersonalSkillEditorState =
+export type SkillEditorState =
 	| {
 			mode: "create";
-			initialValues: PersonalSkillFormValues;
+			initialValues: SkillFormValues;
 			existingNames: readonly string[];
-			submitError?: PersonalSkillErrorDisplay;
+			submitError?: SkillErrorDisplay;
 			isSubmitting: boolean;
-			onSubmit: (values: PersonalSkillFormValues, content: string) => void;
+			onSubmit: (values: SkillFormValues, content: string) => void;
 			onClose: () => void;
 	  }
 	| {
 			mode: "edit";
-			initialValues?: PersonalSkillFormValues;
+			initialValues?: SkillFormValues;
 			existingNames: readonly string[];
 			loadError?: unknown;
 			isLoading: boolean;
 			isRetrying: boolean;
-			submitError?: PersonalSkillErrorDisplay;
+			submitError?: SkillErrorDisplay;
 			isSubmitting: boolean;
 			onRetry: () => void;
-			onSubmit: (values: PersonalSkillFormValues, content: string) => void;
+			onSubmit: (values: SkillFormValues, content: string) => void;
 			onClose: () => void;
 	  };
 
-export type PersonalSkillDeleteState = {
+export type SkillDeleteState = {
 	skill: SkillMetadata;
-	error?: PersonalSkillErrorDisplay;
+	error?: SkillErrorDisplay;
 	isDeleting: boolean;
 	onConfirm: () => void;
 	onClose: () => void;
 };
 
-export type AgentSettingsPersonalSkillsPageViewProps = {
+export type SkillsTableViewProps = {
 	skills: readonly SkillMetadata[];
 	error: unknown;
 	isLoading: boolean;
@@ -89,8 +86,8 @@ export type AgentSettingsPersonalSkillsPageViewProps = {
 	onExportAll: () => void;
 	downloadingSkillName?: string;
 	isExportingAll: boolean;
-	editorState?: PersonalSkillEditorState;
-	deleteState?: PersonalSkillDeleteState;
+	editorState?: SkillEditorState;
+	deleteState?: SkillDeleteState;
 };
 
 const formatUpdatedAt = (value: string) => {
@@ -110,7 +107,7 @@ const formatUpdatedAt = (value: string) => {
 };
 
 const EditSkillDialog: React.FC<{
-	state: Extract<PersonalSkillEditorState, { mode: "edit" }>;
+	state: Extract<SkillEditorState, { mode: "edit" }>;
 }> = ({ state }) => {
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
@@ -168,7 +165,7 @@ const EditSkillDialog: React.FC<{
 	}
 
 	return (
-		<PersonalSkillEditor
+		<SkillEditor
 			open
 			mode="edit"
 			initialValues={state.initialValues}
@@ -181,7 +178,7 @@ const EditSkillDialog: React.FC<{
 	);
 };
 
-const DeleteSkillDialog: React.FC<{ state: PersonalSkillDeleteState }> = ({
+const DeleteSkillDialog: React.FC<{ state: SkillDeleteState }> = ({
 	state,
 }) => {
 	return (
@@ -213,9 +210,7 @@ const DeleteSkillDialog: React.FC<{ state: PersonalSkillDeleteState }> = ({
 	);
 };
 
-export const AgentSettingsPersonalSkillsPageView: React.FC<
-	AgentSettingsPersonalSkillsPageViewProps
-> = ({
+export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	skills,
 	error,
 	isLoading,
@@ -231,7 +226,7 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 	editorState,
 	deleteState,
 }) => {
-	const isAtLimit = skills.length >= PERSONAL_SKILLS_MAX_PER_USER;
+	const isAtLimit = skills.length >= SKILLS_MAX_PER_OWNER;
 	const addSkillAction = (
 		<Button
 			variant="outline"
@@ -267,8 +262,8 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 			{isAtLimit && (
 				<Alert severity="warning">
 					<AlertDescription>
-						You have reached the limit of {PERSONAL_SKILLS_MAX_PER_USER}{" "}
-						personal skills. Delete a skill before creating another one.
+						You have reached the limit of {SKILLS_MAX_PER_OWNER} personal
+						skills. Delete a skill before creating another one.
 					</AlertDescription>
 				</Alert>
 			)}
@@ -385,7 +380,7 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 			</Table>
 
 			{editorState?.mode === "create" && (
-				<PersonalSkillEditor
+				<SkillEditor
 					open
 					mode="create"
 					initialValues={editorState.initialValues}
