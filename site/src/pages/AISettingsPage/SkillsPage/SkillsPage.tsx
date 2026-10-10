@@ -53,11 +53,11 @@ const SkillsPage: React.FC = () => {
 	const organizationPermissions = organization
 		? organizationPermissionsQuery.data?.[organization.id]
 		: undefined;
-	const canEdit = Boolean(
-		organizationPermissions?.createOrganizationSkill &&
-			organizationPermissions.updateOrganizationSkill &&
-			organizationPermissions.deleteOrganizationSkill,
-	);
+	const access = {
+		create: Boolean(organizationPermissions?.createOrganizationSkill),
+		update: Boolean(organizationPermissions?.updateOrganizationSkill),
+		delete: Boolean(organizationPermissions?.deleteOrganizationSkill),
+	};
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.viewAnyOrganizationSkills}>
@@ -92,7 +92,7 @@ const SkillsPage: React.FC = () => {
 									"Organization skills are available to agents in this organization and stored as a single SKILL.md file with frontmatter.",
 								archiveName: `${organization.name}-skills.zip`,
 							}}
-							canEdit={canEdit}
+							access={access}
 							onManagePermissions={
 								organizationPermissions?.shareOrganizationSkill
 									? (skill, onCloseAutoFocus) =>
