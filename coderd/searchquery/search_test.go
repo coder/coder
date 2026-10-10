@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -669,7 +670,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 			OrganizationID:      orgID,
 			WorkspaceOwner:      "testowner",
 			WorkspaceOwnerEmail: "owner@example.com",
-			Type:                string(database.ConnectionTypePortForwarding),
+			ConnectionMethod:    string(database.ConnectionLogMethodPortForwarding),
 			Username:            "testuser",
 			UserEmail:           "test@example.com",
 			ConnectedAfter:      time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -680,6 +681,81 @@ func TestSearchConnectionLogs(t *testing.T) {
 		}
 
 		require.Equal(t, expected, values)
+	})
+
+	// type: is the legacy filter. No query has an organization term, so no
+	// database is needed.
+	t.Run("Type", func(t *testing.T) {
+		t.Parallel()
+
+		parse := func(q string) database.GetConnectionLogsOffsetParams {
+			values, count, errs := searchquery.ConnectionLogs(context.Background(), nil, q, database.APIKey{})
+			require.Len(t, errs, 0, q)
+			require.Equal(t, values.ConnectionMethod, count.ConnectionMethod, q)
+			require.Equal(t, values.AppNames, count.AppNames, q)
+			require.Equal(t, values.ExcludedAppNames, count.ExcludedAppNames, q)
+			return values
+		}
+
+		// The families grow, so check membership rather than the list.
+		vscode := parse("type:vscode")
+		require.Equal(t, string(database.ConnectionLogMethodSSH), vscode.ConnectionMethod)
+		require.Contains(t, vscode.AppNames, "cursor")
+		require.NotContains(t, vscode.AppNames, "goland")
+		require.Empty(t, vscode.ExcludedAppNames)
+
+		jetbrains := parse("type:jetbrains")
+		require.Contains(t, jetbrains.AppNames, "goland")
+		require.NotContains(t, jetbrains.AppNames, "cursor")
+
+		// Plain SSH also matches absent and unregistered apps.
+		ssh := parse("type:ssh")
+		require.Equal(t, string(database.ConnectionLogMethodSSH), ssh.ConnectionMethod)
+		require.Empty(t, ssh.AppNames)
+		require.ElementsMatch(t, slices.Concat(vscode.AppNames, jetbrains.AppNames), ssh.ExcludedAppNames)
+
+		pty := parse("type:reconnecting_pty")
+		require.Equal(t, string(database.ConnectionLogMethodReconnectingPTY), pty.ConnectionMethod)
+		require.Empty(t, pty.AppNames)
+		require.Empty(t, pty.ExcludedAppNames)
+
+		// An app is not a type, and type cannot be combined with its replacements.
+		for _, q := range []string{"type:cursor", "type:unknown", "type:ssh method:ssh", "type:vscode app:cursor"} {
+			_, _, errs := searchquery.ConnectionLogs(context.Background(), nil, q, database.APIKey{})
+			require.Len(t, errs, 1, q)
+		}
+	})
+
+	t.Run("Method", func(t *testing.T) {
+		t.Parallel()
+
+		values, count, errs := searchquery.ConnectionLogs(context.Background(), nil, "method:reconnecting_pty", database.APIKey{})
+		require.Len(t, errs, 0)
+		require.Equal(t, string(database.ConnectionLogMethodReconnectingPTY), values.ConnectionMethod)
+		require.Equal(t, values.ConnectionMethod, count.ConnectionMethod)
+
+		// A legacy type is not a method.
+		for _, q := range []string{"method:vscode", "method:unknown"} {
+			_, _, errs = searchquery.ConnectionLogs(context.Background(), nil, q, database.APIKey{})
+			require.Len(t, errs, 1, q)
+		}
+	})
+
+	// app: matches the normalized name of the connecting application.
+	t.Run("App", func(t *testing.T) {
+		t.Parallel()
+
+		values, count, errs := searchquery.ConnectionLogs(context.Background(), nil, "app:Code-Server", database.APIKey{})
+		require.Len(t, errs, 0)
+		require.Equal(t, []string{"code_server"}, values.AppNames)
+		require.Equal(t, values.AppNames, count.AppNames)
+
+		// Repeated app terms match any of them.
+		values, count, errs = searchquery.ConnectionLogs(context.Background(), nil, "app:vscode app:Cursor app:cursor method:ssh", database.APIKey{})
+		require.Len(t, errs, 0)
+		require.Equal(t, []string{"cursor", "vscode"}, values.AppNames)
+		require.Equal(t, values.AppNames, count.AppNames)
+		require.Equal(t, string(database.ConnectionLogMethodSSH), values.ConnectionMethod)
 	})
 
 	t.Run("Me", func(t *testing.T) {

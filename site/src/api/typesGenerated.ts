@@ -4130,23 +4130,47 @@ export interface ConnectionLog {
 	readonly workspace_name: string;
 	readonly agent_name: string;
 	readonly ip?: string;
-	readonly type: ConnectionType;
 	/**
-	 * WebInfo is only set when `type` is one of:
-	 * - `ConnectionTypePortForwarding`
-	 * - `ConnectionTypeWorkspaceApp`
-	 * - `ConnectionTypeTunnel`
+	 * @deprecated Use ConnectionMethod and AppName.
+	 */
+	readonly type: string;
+	readonly connection_method: ConnectionLogMethod;
+	/**
+	 * AppName is the name of the connecting application, when known. The
+	 * client reports it, so it is a normalized label and not a guarantee.
+	 * Workspace app slugs and forwarded ports are reported in WebInfo.
+	 */
+	readonly app_name?: string;
+	/**
+	 * AppDisplayName is the registry display name for AppName, or AppName
+	 * itself when the app is unregistered.
+	 */
+	readonly app_display_name?: string;
+	/**
+	 * WebInfo is set for connections that coderd records.
 	 */
 	readonly web_info?: ConnectionLogWebInfo;
 	/**
-	 * SSHInfo is only set when `type` is one of:
-	 * - `ConnectionTypeSSH`
-	 * - `ConnectionTypeReconnectingPTY`
-	 * - `ConnectionTypeVSCode`
-	 * - `ConnectionTypeJetBrains`
+	 * SSHInfo is set for connections that agents report.
 	 */
 	readonly ssh_info?: ConnectionLogSSHInfo;
 }
+
+// From codersdk/dbenums_gen.go
+export type ConnectionLogMethod =
+	| "port_forwarding"
+	| "reconnecting_pty"
+	| "ssh"
+	| "tunnel"
+	| "workspace_app";
+
+export const ConnectionLogMethods: ConnectionLogMethod[] = [
+	"port_forwarding",
+	"reconnecting_pty",
+	"ssh",
+	"tunnel",
+	"workspace_app",
+];
 
 // From codersdk/connectionlog.go
 export interface ConnectionLogResponse {
