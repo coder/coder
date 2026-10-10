@@ -2,12 +2,14 @@ import { useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { organizationsPermissions } from "#/api/queries/organizations";
+import type { Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { SkillsTable } from "#/pages/AgentsPage/components/SkillsTable";
+import type { SkillAccess } from "#/pages/AgentsPage/components/SkillsTableView";
 import { pageTitle } from "#/utils/page";
 import { OrganizationPicker } from "../MCPServersPage/components/OrganizationPicker";
 import {
@@ -20,11 +22,6 @@ const SkillsPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const [searchParams, setSearchParams] = useSearchParams();
-	const [sharingSkill, setSharingSkill] = useState<{
-		organizationId: string;
-		name: string;
-		onCloseAutoFocus: (event: Event) => void;
-	}>();
 	const organizationPermissionsQuery = useQuery({
 		...organizationsPermissions(
 			organizations.map((organization) => organization.id),
@@ -74,35 +71,14 @@ const SkillsPage: React.FC = () => {
 						</div>
 					)}
 					{organization && (
-						<SkillsTable
+						<OrganizationSkills
 							// Reset dialogs and in-flight state when the organization changes.
 							key={organization.id}
-							owner={{
-								type: "organization",
-								organizationId: organization.id,
-							}}
-							copy={{
-								noun: "Organization skill",
-								title: "Skills",
-								description:
-									"Reusable instructions that agents in this organization can load when they need specialized guidance. Each skill holds a single SKILL.md file and is shared with everyone in the organization by default.",
-								emptyDescription:
-									"Add a skill to give agents in this organization reusable guidance.",
-								editorDescription:
-									"Organization skills are available to agents in this organization and stored as a single SKILL.md file with frontmatter.",
-								archiveName: `${organization.name}-skills.zip`,
-							}}
+							organization={organization}
 							access={access}
-							onManagePermissions={
-								organizationPermissions?.shareOrganizationSkill
-									? (skill, onCloseAutoFocus) =>
-											setSharingSkill({
-												organizationId: organization.id,
-												name: skill.name,
-												onCloseAutoFocus,
-											})
-									: undefined
-							}
+							canShare={Boolean(
+								organizationPermissions?.shareOrganizationSkill,
+							)}
 							toolbar={
 								<OrganizationPicker
 									id="skills-organization"
@@ -121,17 +97,66 @@ const SkillsPage: React.FC = () => {
 							}
 						/>
 					)}
-					{sharingSkill && (
-						<OrganizationSkillSharingDialog
-							organizationId={sharingSkill.organizationId}
-							skillName={sharingSkill.name}
-							onClose={() => setSharingSkill(undefined)}
-							onCloseAutoFocus={sharingSkill.onCloseAutoFocus}
-						/>
-					)}
 				</RequirePermission>
 			)}
 		</RequirePermission>
+	);
+};
+
+type OrganizationSkillsProps = {
+	organization: Organization;
+	access: SkillAccess;
+	canShare: boolean;
+	toolbar: React.ReactNode;
+};
+
+const OrganizationSkills: React.FC<OrganizationSkillsProps> = ({
+	organization,
+	access,
+	canShare,
+	toolbar,
+}) => {
+	const [sharingSkill, setSharingSkill] = useState<{
+		name: string;
+		onCloseAutoFocus: (event: Event) => void;
+	}>();
+
+	return (
+		<>
+			<SkillsTable
+				owner={{
+					type: "organization",
+					organizationId: organization.id,
+				}}
+				copy={{
+					noun: "Organization skill",
+					title: "Skills",
+					description:
+						"Reusable instructions that agents in this organization can load when they need specialized guidance. Each skill holds a single SKILL.md file and is shared with everyone in the organization by default.",
+					emptyDescription:
+						"Add a skill to give agents in this organization reusable guidance.",
+					editorDescription:
+						"Organization skills are available to agents in this organization and stored as a single SKILL.md file with frontmatter.",
+					archiveName: `${organization.name}-skills.zip`,
+				}}
+				access={access}
+				onManagePermissions={
+					canShare
+						? (skill, onCloseAutoFocus) =>
+								setSharingSkill({ name: skill.name, onCloseAutoFocus })
+						: undefined
+				}
+				toolbar={toolbar}
+			/>
+			{sharingSkill && (
+				<OrganizationSkillSharingDialog
+					organizationId={organization.id}
+					skillName={sharingSkill.name}
+					onClose={() => setSharingSkill(undefined)}
+					onCloseAutoFocus={sharingSkill.onCloseAutoFocus}
+				/>
+			)}
+		</>
 	);
 };
 
