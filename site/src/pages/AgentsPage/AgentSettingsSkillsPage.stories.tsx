@@ -104,6 +104,25 @@ export const NoOrganizationSkills: Story = {
 	},
 };
 
+export const OrganizationSkillsLoading: Story = {
+	parameters: {
+		organizations: [MockDefaultOrganization],
+		queries: [
+			{ key: skillsKey({ type: "user", user: "me" }), data: MockSkills },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getOrganizationSkills").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findAllByRole("progressbar", {
+			name: "Loading organization skills",
+		});
+	},
+};
+
 export const OrganizationSkillsError: Story = {
 	parameters: {
 		organizations: [MockDefaultOrganization],
@@ -117,6 +136,8 @@ export const OrganizationSkillsError: Story = {
 		);
 	},
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("button", { name: "Retry" });
+		await within(canvasElement).findByRole("button", {
+			name: `Retry loading ${MockDefaultOrganization.display_name} skills`,
+		});
 	},
 };
