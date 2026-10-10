@@ -5,15 +5,6 @@ import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -21,7 +12,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { Loader } from "#/components/Loader/Loader";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -40,6 +30,7 @@ import {
 import { formatDate } from "#/utils/time";
 import { SKILLS_MAX_PER_OWNER, type SkillFormValues } from "../utils/skills";
 import { SectionHeader } from "./SectionHeader";
+import { DeleteSkillDialog, EditSkillDialog } from "./SkillDialogs";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import { SkillEditor } from "./SkillEditor";
 import { SkillEnabledSwitch } from "./SkillEnabledSwitch";
@@ -132,122 +123,6 @@ const formatUpdatedAt = (value: string) => {
 		second: undefined,
 		minute: "2-digit",
 	});
-};
-
-type DialogFocusProps = {
-	onCloseAutoFocus: (event: Event) => void;
-};
-
-const EditSkillDialog: React.FC<
-	DialogFocusProps & {
-		copy: SkillsCopy;
-		state: Extract<SkillEditorState, { mode: "edit" }>;
-	}
-> = ({ copy, state, onCloseAutoFocus }) => {
-	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
-	const handleOpenChange = (open: boolean) => {
-		if (!open) {
-			state.onClose();
-		}
-	};
-
-	if (state.isLoading) {
-		return (
-			<Dialog open onOpenChange={handleOpenChange}>
-				<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
-					<DialogHeader>
-						<DialogTitle>Loading {lowerNoun}</DialogTitle>
-						<DialogDescription>
-							Fetching the latest SKILL.md content.
-						</DialogDescription>
-					</DialogHeader>
-					<Loader />
-				</DialogContent>
-			</Dialog>
-		);
-	}
-
-	if (state.loadError || !state.initialValues) {
-		return (
-			<Dialog open onOpenChange={handleOpenChange}>
-				<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
-					<DialogHeader>
-						<DialogTitle>Unable to load {lowerNoun}</DialogTitle>
-						<DialogDescription>
-							The skill could not be loaded for editing.
-						</DialogDescription>
-					</DialogHeader>
-					{state.loadError ? (
-						<ErrorAlert error={state.loadError} showDebugDetail={false} />
-					) : (
-						<Alert severity="error">
-							<AlertDescription>
-								The saved content could not be parsed as SKILL.md.
-							</AlertDescription>
-						</Alert>
-					)}
-					<DialogFooter>
-						<Button variant="outline" onClick={state.onClose}>
-							Close
-						</Button>
-						<Button onClick={state.onRetry} disabled={state.isRetrying}>
-							{state.isRetrying && <Spinner className="size-4" loading />}
-							Retry
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-		);
-	}
-
-	return (
-		<SkillEditor
-			open
-			mode="edit"
-			noun={copy.noun}
-			description={copy.editorDescription}
-			initialValues={state.initialValues}
-			existingNames={state.existingNames}
-			submitError={state.submitError}
-			isSubmitting={state.isSubmitting}
-			onOpenChange={handleOpenChange}
-			onCloseAutoFocus={onCloseAutoFocus}
-			onSubmit={state.onSubmit}
-		/>
-	);
-};
-
-const DeleteSkillDialog: React.FC<
-	DialogFocusProps & { state: SkillDeleteState }
-> = ({ state, onCloseAutoFocus }) => {
-	return (
-		<ConfirmDialog
-			type="delete"
-			open
-			onClose={state.onClose}
-			onCloseAutoFocus={onCloseAutoFocus}
-			title="Delete skill"
-			confirmText="Delete skill"
-			description={
-				<>
-					<p className="m-0">
-						Delete {state.skill.name}? Agents will no longer be able to use this
-						skill. This action cannot be undone.
-					</p>
-					{state.error && (
-						<Alert severity="error" className="mt-3">
-							<AlertDescription>
-								{state.error.message}
-								{state.error.detail ? ` ${state.error.detail}` : ""}
-							</AlertDescription>
-						</Alert>
-					)}
-				</>
-			}
-			onConfirm={state.onConfirm}
-			confirmLoading={state.isDeleting}
-		/>
-	);
 };
 
 type AddSkillButtonProps = {
