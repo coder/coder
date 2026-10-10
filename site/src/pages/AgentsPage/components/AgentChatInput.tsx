@@ -1527,6 +1527,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						sendShortcut={sendShortcut}
 						disabled={isReadOnly || isLoading}
 						hasWorkspace={hasSkillsWorkspace}
+						organizationId={chatOrganizationId}
 						workspaceSkills={workspaceSkills}
 						slashCommands={slashCommands}
 						skillsMenuAnchor={composerElement}

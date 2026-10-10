@@ -2,11 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent } from "storybook/test";
 import { MockSkills } from "#/testHelpers/skills";
+import { resolveSkillTriggers } from "../../utils/skillAliases";
 import { filterSkillsByQuery } from "../../utils/skills";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import {
 	createCommandMenuItem,
-	createSkillMenuItem,
 	type SkillMetadata,
 	SkillsTriggerMenu,
 } from "./SkillsTriggerMenu";
@@ -23,13 +23,23 @@ const mockWorkspaceSkills: SkillMetadata[] = [
 	},
 ];
 
-const mockPersonalSkillItems = MockSkills.map((skill) =>
-	createSkillMenuItem("personal", skill),
-);
+const mockOrganizationSkills: SkillMetadata[] = [
+	{
+		name: "release-notes",
+		description: "Write release notes in the organization style.",
+	},
+];
+
+const mockPersonalSkillItems = resolveSkillTriggers([
+	{ source: "personal", skills: MockSkills },
+]);
 const compactCommandItem = createCommandMenuItem(COMPACT_SLASH_COMMAND);
-const mockWorkspaceSkillItems = mockWorkspaceSkills.map((skill) =>
-	createSkillMenuItem("workspace", skill),
-);
+const mockOrganizationSkillItems = resolveSkillTriggers([
+	{ source: "org", skills: mockOrganizationSkills },
+]);
+const mockWorkspaceSkillItems = resolveSkillTriggers([
+	{ source: "workspace", skills: mockWorkspaceSkills },
+]);
 
 // Provides the composer-box element the menu anchors to, since the
 // menu is pinned above its anchor at the anchor's width.
@@ -59,10 +69,14 @@ const meta: Meta<typeof SkillsTriggerMenu> = {
 		query: "",
 		commands: [],
 		personalSkills: mockPersonalSkillItems,
+		organizationSkills: [],
 		workspaceSkills: [],
+		organizationSkillsEnabled: false,
 		workspaceSkillsEnabled: false,
 		isPersonalLoading: false,
 		isPersonalError: false,
+		isOrganizationLoading: false,
+		isOrganizationError: false,
 		isWorkspaceLoading: false,
 		onSelectedIndexChange: fn(),
 		selectedIndex: 0,
@@ -92,6 +106,29 @@ export const BothGroups: Story = {
 	},
 };
 
+export const AllSkillGroups: Story = {
+	args: {
+		organizationSkills: mockOrganizationSkillItems,
+		workspaceSkills: mockWorkspaceSkillItems,
+		organizationSkillsEnabled: true,
+		workspaceSkillsEnabled: true,
+	},
+};
+
+export const OrganizationLoading: Story = {
+	args: {
+		organizationSkillsEnabled: true,
+		isOrganizationLoading: true,
+	},
+};
+
+export const OrganizationError: Story = {
+	args: {
+		organizationSkillsEnabled: true,
+		isOrganizationError: true,
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		isPersonalLoading: true,
@@ -116,6 +153,14 @@ export const EmptyWithWorkspace: Story = {
 	},
 };
 
+export const EmptyWithAllSources: Story = {
+	args: {
+		personalSkills: [],
+		organizationSkillsEnabled: true,
+		workspaceSkillsEnabled: true,
+	},
+};
+
 export const Empty: Story = {
 	args: {
 		personalSkills: [],
@@ -132,12 +177,15 @@ export const Filtered: Story = {
 	},
 };
 
-const manyPersonalSkillItems = Array.from({ length: 30 }, (_, index) =>
-	createSkillMenuItem("personal", {
-		name: `skill-${String(index).padStart(2, "0")}`,
-		description: "",
-	}),
-);
+const manyPersonalSkillItems = resolveSkillTriggers([
+	{
+		source: "personal",
+		skills: Array.from({ length: 30 }, (_, index) => ({
+			name: `skill-${String(index).padStart(2, "0")}`,
+			description: "",
+		})),
+	},
+]);
 
 // cmdk scrolls the controlled highlight into view only at mount, so the
 // selection must move after mount to exercise the menu's own scrolling.

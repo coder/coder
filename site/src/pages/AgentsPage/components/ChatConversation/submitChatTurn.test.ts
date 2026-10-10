@@ -46,6 +46,7 @@ const buildParams = (
 		hasModelOptions: true,
 		isEditReasoningEffortDirtyRef: { current: false },
 		personalSkills: [],
+		organizationSkills: [],
 		workspaceSkills: [],
 		compact: vi.fn().mockResolvedValue(undefined),
 		clearChatContext: vi.fn().mockResolvedValue(undefined),
@@ -167,6 +168,25 @@ describe("submitChatTurn", () => {
 		);
 		expect(compact).not.toHaveBeenCalled();
 		expect(sendMessage).not.toHaveBeenCalled();
+	});
+
+	it("sends /compact as a message when an organization skill owns the name", async () => {
+		const compact = vi.fn();
+		const sendMessage = vi.fn().mockResolvedValue({ queued: false });
+		await submitChatTurn(
+			buildParams({
+				message: "/compact",
+				organizationSkills: [{ name: "compact" }],
+				compact,
+				sendMessage,
+			}),
+		);
+		expect(compact).not.toHaveBeenCalled();
+		expect(sendMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				content: [{ type: "text", text: "/compact" }],
+			}),
+		);
 	});
 
 	it("compacts instead of sending and restores state if compact fails", async () => {
