@@ -6,10 +6,12 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -166,13 +168,26 @@ func (api *API) patchOrganizationSkill(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	skill, err := api.Database.UpdateOrganizationSkillByOrganizationIDAndName(ctx, database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
-		Description:    update.Description,
-		Content:        update.Content,
-		Enabled:        update.Enabled,
-		OrganizationID: oldSkill.OrganizationID.UUID,
-		Name:           oldSkill.Name,
-	})
+	var current, skill database.Skill
+	err := api.Database.InTx(func(tx database.Store) error {
+		var err error
+		//nolint:gocritic // The update below reauthorizes the locked row for update.
+		current, err = tx.GetOrganizationSkillByIDForUpdate(dbauthz.AsSystemRestricted(ctx), oldSkill.ID)
+		if err != nil {
+			return xerrors.Errorf("lock organization skill: %w", err)
+		}
+		skill, err = tx.UpdateOrganizationSkillByOrganizationIDAndName(ctx, database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
+			Description:    update.Description,
+			Content:        update.Content,
+			Enabled:        update.Enabled,
+			OrganizationID: current.OrganizationID.UUID,
+			Name:           current.Name,
+		})
+		if err != nil {
+			return xerrors.Errorf("update organization skill: %w", err)
+		}
+		return nil
+	}, nil)
 	if err != nil {
 		switch {
 		case httpapi.IsUnauthorizedError(err):
@@ -184,6 +199,9 @@ func (api *API) patchOrganizationSkill(rw http.ResponseWriter, r *http.Request) 
 		}
 		return
 	}
+	// Assign the locked snapshot after InTx returns so the audit log can
+	// never claim a rolled-back update was committed.
+	aReq.Old = database.AuditableOrganizationSkill{Skill: current}
 	aReq.New = database.AuditableOrganizationSkill{Skill: skill}
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Skill(skill))
