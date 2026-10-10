@@ -101,15 +101,6 @@ const mockChatPageRequests = () => {
 	};
 };
 
-const submitInComposer = async (text: string) => {
-	const user = userEvent.setup();
-	await user.click(await screen.findByTestId("chat-message-input"));
-	await user.paste(text);
-	// The first Enter accepts the highlighted menu entry, the second submits.
-	await user.keyboard("{Enter}");
-	await user.keyboard("{Enter}");
-};
-
 // Lexical reads selection geometry when text is pasted; jsdom has none.
 beforeAll(() => {
 	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
@@ -140,7 +131,12 @@ describe("AgentChatPage slash commands", () => {
 		await queryClient.refetchQueries({
 			queryKey: skillsKey({ type: "user", user: "me" }),
 		});
-		await submitInComposer("/clear");
+		const user = userEvent.setup();
+		await user.click(await screen.findByTestId("chat-message-input"));
+		await user.paste("/clear");
+		// The first Enter accepts the highlighted menu entry, the second submits.
+		await user.keyboard("{Enter}");
+		await user.keyboard("{Enter}");
 
 		await waitFor(() => expect(clearChat).toHaveBeenCalledWith(mockChat.id));
 	});
