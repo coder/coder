@@ -157,39 +157,28 @@ func TestSkillOwners(t *testing.T) {
 		require.True(t, database.IsCheckViolation(err, database.CheckSkillsUserAclIsObject), err)
 	})
 
-	t.Run("CapPerOwner", func(t *testing.T) {
+	// TestUserSkillLimit and TestUserSkillLimitConcurrentCreates in coderd
+	// cover the user branch of the cap trigger.
+	t.Run("CapPerProject", func(t *testing.T) {
 		t.Parallel()
-		for _, tc := range []struct {
-			name       string
-			newOwner   func() owners
-			constraint database.CheckConstraint
-		}{
-			{"User", func() owners { return owners{user: valid(newUser())} }, "skills_per_user_limit"},
-			{"Organization", func() owners { return owners{org: valid(newOrg())} }, "skills_per_organization_limit"},
-			{"Project", func() owners { return owners{project: valid(newProject())} }, "skills_per_project_limit"},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitLong)
-				full := tc.newOwner()
-				for i := range skills.MaxPersonalSkillsPerUser {
-					// Disabled rows count toward the cap.
-					require.NoError(t, insertSkill(ctx, sqlDB, skillRow{owners: full, enabled: i%2 == 0}))
-				}
-				err := insertSkill(ctx, sqlDB, skillRow{owners: full, enabled: true})
-				require.True(t, database.IsCheckViolation(err, tc.constraint), err)
-
-				require.NoError(t, insertSkill(ctx, sqlDB, skillRow{owners: tc.newOwner(), enabled: true}))
-			})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		full := owners{project: valid(newProject())}
+		for range skills.MaxPersonalSkillsPerUser {
+			require.NoError(t, insertSkill(ctx, sqlDB, skillRow{owners: full, enabled: true}))
 		}
+		err := insertSkill(ctx, sqlDB, skillRow{owners: full, enabled: true})
+		require.True(t, database.IsCheckViolation(err, "skills_per_project_limit"), err)
+
+		require.NoError(t, insertSkill(ctx, sqlDB, skillRow{owners: owners{project: valid(newProject())}, enabled: true}))
 	})
 
 	t.Run("ConcurrentOrganizationInsertsHonorCap", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		org := valid(newOrg())
-		for range skills.MaxPersonalSkillsPerUser - 1 {
-			require.NoError(t, insertSkill(ctx, sqlDB, skillRow{owners: owners{org: org}, enabled: true}))
+		for i := range skills.MaxPersonalSkillsPerUser - 1 {
+			// Disabled rows count toward the cap.
+			require.NoError(t, insertSkill(ctx, sqlDB, skillRow{owners: owners{org: org}, enabled: i%2 == 0}))
 		}
 
 		tx, err := sqlDB.BeginTx(ctx, nil)
@@ -224,6 +213,8 @@ func TestSkillOwners(t *testing.T) {
 		err = testutil.RequireReceive(ctx, t, concurrent)
 		require.True(t, database.IsCheckViolation(err, "skills_per_organization_limit"), err)
 		require.Equal(t, skills.MaxPersonalSkillsPerUser, countSkills(ctx, "organization_id", org.UUID))
+
+		require.NoError(t, insertSkill(ctx, sqlDB, skillRow{owners: owners{org: valid(newOrg())}, enabled: true}))
 	})
 
 	t.Run("NamesUniquePerOwner", func(t *testing.T) {
