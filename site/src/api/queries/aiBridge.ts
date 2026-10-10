@@ -30,6 +30,13 @@ export const paginatedSessions = (
 	};
 };
 
+export const aiBridgeProvidersKey = ["aiBridgeProviders"] as const;
+
+export const aiBridgeProviders = () => ({
+	queryKey: aiBridgeProvidersKey,
+	queryFn: () => API.getAIBridgeProviders(),
+});
+
 // The spend endpoints authorize on reading the organization's group members,
 // so this lists exactly the organizations they would serve.
 export const aiSpendOrganizations = () =>
