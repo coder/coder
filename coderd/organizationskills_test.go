@@ -25,7 +25,6 @@ func TestOrganizationSkillAccess(t *testing.T) {
 	ownerClient := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	firstUser := coderdtest.CreateFirstUser(t, ownerClient)
 	orgID := firstUser.OrganizationID
-	admin := codersdk.NewExperimentalClient(ownerClient)
 	memberRawClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, orgID)
 	member := codersdk.NewExperimentalClient(memberRawClient)
 	sharedRawClient, sharedUser := coderdtest.CreateAnotherUser(t, ownerClient, orgID)
@@ -115,6 +114,24 @@ func TestOrganizationSkillAccess(t *testing.T) {
 		requireOrganizationSkillListed(ctx, t, scoped, orgID, everyone.Name)
 		_, err := scoped.OrganizationSkillByName(ctx, orgID, everyone.Name)
 		require.NoError(t, err)
+	})
+
+	t.Run("WriteScopedAPIKeyCannotRead", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		for _, scope := range []database.APIKeyScope{"organization_skill:update", "organization_skill:delete"} {
+			_, token := dbgen.APIKey(t, db, database.APIKey{
+				UserID: firstUser.UserID,
+				Scopes: database.APIKeyScopes{"organization:read", scope},
+			})
+			scopedRawClient := codersdk.New(ownerClient.URL)
+			scopedRawClient.SetSessionToken(token)
+			scoped := codersdk.NewExperimentalClient(scopedRawClient)
+
+			_, err := scoped.OrganizationSkillByName(ctx, orgID, everyone.Name)
+			requireSDKErrorStatus(t, err, http.StatusNotFound, scope)
+		}
 	})
 }
 
