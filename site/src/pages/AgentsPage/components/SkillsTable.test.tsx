@@ -9,12 +9,12 @@ import {
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
-import { SkillsTable } from "./SkillsTable";
 import {
 	fullSkillAccess,
 	type SkillAccess,
 	type SkillsCopy,
-} from "./SkillsTableView";
+} from "../utils/skills";
+import { SkillsTable } from "./SkillsTable";
 
 const copy: SkillsCopy = {
 	noun: "Organization skill",

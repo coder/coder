@@ -17,15 +17,15 @@ import type { SkillMetadata } from "#/api/typesGenerated";
 import {
 	parseSkillMarkdown,
 	SKILLS_MAX_PER_OWNER,
+	type SkillAccess,
 	type SkillFormValues,
+	type SkillsCopy,
 } from "../utils/skills";
 import type { SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import {
-	type SkillAccess,
 	type SkillDeleteState,
 	type SkillEditorState,
-	type SkillsCopy,
 	SkillsTableView,
 	type SkillsTableViewProps,
 } from "./SkillsTableView";
@@ -368,10 +368,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			}}
 			onEdit={(name) => {
 				updateMutation.reset();
-				setDialogState({ type: "edit", name });
-			}}
-			onView={(name) => {
-				setDialogState({ type: "view", name });
+				setDialogState({ type: access.update ? "edit" : "view", name });
 			}}
 			onDelete={(skill) => {
 				deleteMutation.reset();

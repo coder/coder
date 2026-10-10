@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockSkill } from "#/testHelpers/skills";
+import { fullSkillAccess } from "../utils/skills";
 import {
-	fullSkillAccess,
 	type SkillEditorState,
 	SkillsTableView,
 	type SkillsTableViewProps,
@@ -73,7 +73,6 @@ const baseArgs: SkillsTableViewProps = {
 	onRetry: fn(),
 	onCreate: fn(),
 	onEdit: fn(),
-	onView: fn(),
 	onDelete: fn(),
 	onDownload: fn(),
 	onExportAll: fn(),

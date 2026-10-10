@@ -1,10 +1,18 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { useRef } from "react";
 import type { SkillOwner } from "#/api/queries/skills";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -12,6 +20,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { Loader } from "#/components/Loader/Loader";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -28,26 +37,18 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { formatDate } from "#/utils/time";
-import { SKILLS_MAX_PER_OWNER, type SkillFormValues } from "../utils/skills";
-import { SectionHeader, type SectionHeaderLevel } from "./SectionHeader";
 import {
-	DeleteSkillDialog,
-	EditSkillDialog,
-	RetryButton,
-} from "./SkillDialogs";
+	SKILLS_MAX_PER_OWNER,
+	type SkillAccess,
+	type SkillFormValues,
+	type SkillsCopy,
+} from "../utils/skills";
+import { RetryButton } from "./RetryButton";
+import { SectionHeader, type SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import { SkillEditor } from "./SkillEditor";
 import { SkillEnabledSwitch } from "./SkillEnabledSwitch";
-
-export type SkillsCopy = {
-	/** Singular noun in sentence case, for example "Personal skill". */
-	noun: string;
-	title: string;
-	description: string;
-	emptyDescription: string;
-	editorDescription: string;
-	archiveName: string;
-};
+import { useDialogFocusReturn } from "./useDialogFocusReturn";
 
 export type SkillEditorState =
 	| {
@@ -82,24 +83,6 @@ export type SkillDeleteState = {
 	onClose: () => void;
 };
 
-export type SkillAccess = {
-	create: boolean;
-	update: boolean;
-	delete: boolean;
-};
-
-export const fullSkillAccess: SkillAccess = {
-	create: true,
-	update: true,
-	delete: true,
-};
-
-export const readOnlySkillAccess: SkillAccess = {
-	create: false,
-	update: false,
-	delete: false,
-};
-
 export type SkillsTableViewProps = {
 	owner: SkillOwner;
 	skills: readonly SkillMetadata[];
@@ -112,8 +95,8 @@ export type SkillsTableViewProps = {
 	isRetrying: boolean;
 	onRetry: () => void;
 	onCreate: () => void;
+	/** Opens the editor, read-only without update access. */
 	onEdit: (name: string) => void;
-	onView: (name: string) => void;
 	onDelete: (skill: SkillMetadata) => void;
 	onDownload: (skill: SkillMetadata) => void;
 	onManagePermissions?: (
@@ -143,27 +126,124 @@ const formatUpdatedAt = (value: string) => {
 	});
 };
 
-type AddSkillButtonProps = {
-	ref?: React.Ref<HTMLButtonElement>;
-	disabled: boolean;
-	onClick: React.MouseEventHandler<HTMLButtonElement>;
+type DialogProps<State> = {
+	state: State;
+	onCloseAutoFocus: (event: Event) => void;
 };
 
-const AddSkillButton: React.FC<AddSkillButtonProps> = ({
-	ref,
-	disabled,
-	onClick,
-}) => (
-	<Button ref={ref} variant="outline" onClick={onClick} disabled={disabled}>
-		<PlusIcon />
-		Add skill
-	</Button>
-);
+const EditSkillDialog: React.FC<
+	DialogProps<Extract<SkillEditorState, { mode: "edit" }>> & {
+		copy: SkillsCopy;
+	}
+> = ({ copy, state, onCloseAutoFocus }) => {
+	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
+	const handleOpenChange = (open: boolean) => {
+		if (!open) {
+			state.onClose();
+		}
+	};
 
-const canFocus = (
-	button: HTMLButtonElement | null,
-): button is HTMLButtonElement =>
-	Boolean(button?.isConnected && !button.disabled);
+	if (state.isLoading) {
+		return (
+			<Dialog open onOpenChange={handleOpenChange}>
+				<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
+					<DialogHeader>
+						<DialogTitle>Loading {lowerNoun}</DialogTitle>
+						<DialogDescription>
+							Fetching the latest SKILL.md content.
+						</DialogDescription>
+					</DialogHeader>
+					<Loader />
+				</DialogContent>
+			</Dialog>
+		);
+	}
+
+	if (state.loadError || !state.initialValues) {
+		return (
+			<Dialog open onOpenChange={handleOpenChange}>
+				<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
+					<DialogHeader>
+						<DialogTitle>Unable to load {lowerNoun}</DialogTitle>
+						<DialogDescription>
+							The skill could not be loaded for{" "}
+							{state.readOnly ? "viewing" : "editing"}.
+						</DialogDescription>
+					</DialogHeader>
+					{state.loadError ? (
+						<ErrorAlert error={state.loadError} showDebugDetail={false} />
+					) : (
+						<Alert severity="error">
+							<AlertDescription>
+								The saved content could not be parsed as SKILL.md.
+							</AlertDescription>
+						</Alert>
+					)}
+					<DialogFooter>
+						<Button variant="outline" onClick={state.onClose}>
+							Close
+						</Button>
+						<RetryButton
+							isRetrying={state.isRetrying}
+							onRetry={state.onRetry}
+						/>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		);
+	}
+
+	return (
+		<SkillEditor
+			open
+			mode="edit"
+			readOnly={state.readOnly}
+			noun={copy.noun}
+			description={copy.editorDescription}
+			initialValues={state.initialValues}
+			existingNames={state.existingNames}
+			submitError={state.submitError}
+			isSubmitting={state.isSubmitting}
+			onOpenChange={handleOpenChange}
+			onCloseAutoFocus={onCloseAutoFocus}
+			onSubmit={state.onSubmit}
+		/>
+	);
+};
+
+const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
+	state,
+	onCloseAutoFocus,
+}) => {
+	return (
+		<ConfirmDialog
+			type="delete"
+			open
+			onClose={state.onClose}
+			onCloseAutoFocus={onCloseAutoFocus}
+			title="Delete skill"
+			confirmText="Delete skill"
+			description={
+				<>
+					<p className="m-0">
+						Delete {state.skill.name}? Agents will no longer be able to use this
+						skill. This action cannot be undone.
+					</p>
+					{state.error && (
+						<Alert severity="error" className="mt-3">
+							<AlertDescription>
+								{state.error.message}
+								{state.error.detail ? ` ${state.error.detail}` : ""}
+							</AlertDescription>
+						</Alert>
+					)}
+				</>
+			}
+			onConfirm={state.onConfirm}
+			confirmLoading={state.isDeleting}
+		/>
+	);
+};
 
 export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	owner,
@@ -178,7 +258,6 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	onRetry,
 	onCreate,
 	onEdit,
-	onView,
 	onDelete,
 	onDownload,
 	onManagePermissions,
@@ -188,42 +267,33 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	editorState,
 	deleteState,
 }) => {
-	const dialogTriggerRef = useRef<HTMLButtonElement | null>(null);
-	const addSkillButtonRef = useRef<HTMLButtonElement | null>(null);
-	const exportAllButtonRef = useRef<HTMLButtonElement | null>(null);
-	const rememberDialogTrigger = (
-		event: React.SyntheticEvent<HTMLButtonElement>,
-	) => {
-		dialogTriggerRef.current = event.currentTarget;
-	};
-	// These dialogs open without a Radix DialogTrigger, so Radix would
-	// otherwise return focus to the document body on close. An unmounted or
-	// disabled opener falls back to the header actions.
-	const restoreDialogFocus = (event: Event) => {
-		// An array find here would stop the React Compiler memoizing this closure.
-		let target = dialogTriggerRef.current;
-		if (!canFocus(target)) {
-			target = addSkillButtonRef.current;
-		}
-		if (!canFocus(target)) {
-			target = exportAllButtonRef.current;
-		}
-		if (canFocus(target)) {
-			event.preventDefault();
-			target.focus();
-		}
-	};
-	const openCreateDialog = (event: React.MouseEvent<HTMLButtonElement>) => {
-		rememberDialogTrigger(event);
-		onCreate();
-	};
+	const {
+		setPrimaryFallback,
+		setSecondaryFallback,
+		rememberTrigger,
+		restoreFocus,
+	} = useDialogFocusReturn();
 	const pluralNoun = `${copy.noun.toLocaleLowerCase("en-US")}s`;
 	const isAtLimit = skills.length >= SKILLS_MAX_PER_OWNER;
-	const addSkillDisabled = isLoading || isAtLimit;
+	const addSkillAction = (ref?: React.Ref<HTMLButtonElement>) =>
+		access.create && (
+			<Button
+				ref={ref}
+				variant="outline"
+				onClick={(event) => {
+					rememberTrigger(event);
+					onCreate();
+				}}
+				disabled={isLoading || isAtLimit}
+			>
+				<PlusIcon />
+				Add skill
+			</Button>
+		);
 	const headerActions = (
 		<div className="flex items-center gap-2">
 			<Button
-				ref={exportAllButtonRef}
+				ref={setSecondaryFallback}
 				variant="outline"
 				onClick={onExportAll}
 				disabled={isLoading || isExportingAll || skills.length === 0}
@@ -231,13 +301,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				{isExportingAll && <Spinner className="size-4" loading />}
 				Export all
 			</Button>
-			{access.create && (
-				<AddSkillButton
-					ref={addSkillButtonRef}
-					disabled={addSkillDisabled}
-					onClick={openCreateDialog}
-				/>
-			)}
+			{addSkillAction(setPrimaryFallback)}
 		</div>
 	);
 
@@ -249,7 +313,6 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				action={headerActions}
 				level={headerLevel}
 			/>
-
 			{toolbar}
 
 			{access.create && isAtLimit && (
@@ -313,14 +376,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						<TableEmpty
 							message={`No ${pluralNoun} yet`}
 							description={access.create ? copy.emptyDescription : undefined}
-							cta={
-								access.create && (
-									<AddSkillButton
-										disabled={addSkillDisabled}
-										onClick={openCreateDialog}
-									/>
-								)
-							}
+							cta={addSkillAction()}
 						/>
 					) : (
 						skills.map((skill) => (
@@ -355,8 +411,8 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 												size="icon"
 												variant="subtle"
 												aria-label="Open menu"
-												onPointerDown={rememberDialogTrigger}
-												onKeyDown={rememberDialogTrigger}
+												onPointerDown={rememberTrigger}
+												onKeyDown={rememberTrigger}
 											>
 												{downloadingSkillName === skill.name ? (
 													<Spinner className="size-4" loading />
@@ -375,21 +431,15 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 											{onManagePermissions && (
 												<DropdownMenuItem
 													onClick={() =>
-														onManagePermissions(skill, restoreDialogFocus)
+														onManagePermissions(skill, restoreFocus)
 													}
 												>
 													Manage permissions
 												</DropdownMenuItem>
 											)}
-											{access.update ? (
-												<DropdownMenuItem onClick={() => onEdit(skill.name)}>
-													Edit
-												</DropdownMenuItem>
-											) : (
-												<DropdownMenuItem onClick={() => onView(skill.name)}>
-													View
-												</DropdownMenuItem>
-											)}
+											<DropdownMenuItem onClick={() => onEdit(skill.name)}>
+												{access.update ? "Edit" : "View"}
+											</DropdownMenuItem>
 											{access.delete && (
 												<>
 													<DropdownMenuSeparator />
@@ -426,20 +476,20 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						}
 					}}
 					onSubmit={editorState.onSubmit}
-					onCloseAutoFocus={restoreDialogFocus}
+					onCloseAutoFocus={restoreFocus}
 				/>
 			)}
 			{editorState?.mode === "edit" && (
 				<EditSkillDialog
 					copy={copy}
 					state={editorState}
-					onCloseAutoFocus={restoreDialogFocus}
+					onCloseAutoFocus={restoreFocus}
 				/>
 			)}
 			{deleteState && (
 				<DeleteSkillDialog
 					state={deleteState}
-					onCloseAutoFocus={restoreDialogFocus}
+					onCloseAutoFocus={restoreFocus}
 				/>
 			)}
 		</div>

@@ -3,13 +3,10 @@ import { skillList } from "#/api/queries/skills";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { RetryButton } from "./components/RetryButton";
 import { SectionHeader } from "./components/SectionHeader";
-import { RetryButton } from "./components/SkillDialogs";
 import { SkillsTable } from "./components/SkillsTable";
-import {
-	fullSkillAccess,
-	readOnlySkillAccess,
-} from "./components/SkillsTableView";
+import { fullSkillAccess, readOnlySkillAccess } from "./utils/skills";
 
 const AgentSettingsSkillsPage: React.FC = () => {
 	const { user } = useAuthenticated();

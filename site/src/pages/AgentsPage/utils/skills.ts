@@ -217,3 +217,31 @@ export const getSkillContentSizeBytes = (content: string): number =>
 export const isValidSkillName = (name: string): boolean =>
 	skillNamePattern.test(name) &&
 	getSkillContentSizeBytes(name) <= SKILL_MAX_NAME_BYTES;
+
+export type SkillsCopy = {
+	/** Singular noun in sentence case, for example "Personal skill". */
+	noun: string;
+	title: string;
+	description: string;
+	emptyDescription: string;
+	editorDescription: string;
+	archiveName: string;
+};
+
+export type SkillAccess = {
+	create: boolean;
+	update: boolean;
+	delete: boolean;
+};
+
+export const fullSkillAccess: SkillAccess = {
+	create: true,
+	update: true,
+	delete: true,
+};
+
+export const readOnlySkillAccess: SkillAccess = {
+	create: false,
+	update: false,
+	delete: false,
+};

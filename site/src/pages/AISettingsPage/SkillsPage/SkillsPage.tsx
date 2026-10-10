@@ -9,7 +9,7 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { SkillsTable } from "#/pages/AgentsPage/components/SkillsTable";
-import type { SkillAccess } from "#/pages/AgentsPage/components/SkillsTableView";
+import type { SkillAccess } from "#/pages/AgentsPage/utils/skills";
 import { pageTitle } from "#/utils/page";
 import { OrganizationPicker } from "../MCPServersPage/components/OrganizationPicker";
 import {
