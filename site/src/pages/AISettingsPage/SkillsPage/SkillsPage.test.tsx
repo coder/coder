@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -174,10 +174,10 @@ describe("SkillsPage Manage permissions", () => {
 		await screen.findByRole("combobox", {
 			name: `Organization ${MockOrganization2.display_name}`,
 		});
-		const [menuButton] = await screen.findAllByRole("button", {
-			name: "Open menu",
-		});
-		await user.click(menuButton);
+		const reviewerRow = await screen.findByRole("row", { name: /reviewer/ });
+		await user.click(
+			within(reviewerRow).getByRole("button", { name: "Open menu" }),
+		);
 		await user.click(
 			await screen.findByRole("menuitem", { name: "Manage permissions" }),
 		);
