@@ -46,6 +46,44 @@ type UpdateSkillRequest struct {
 	Enabled *bool   `json:"enabled,omitempty"`
 }
 
+// OrganizationSkillRole is a role a user or group holds in an organization
+// skill's access control list.
+type OrganizationSkillRole string
+
+const (
+	OrganizationSkillRoleRead OrganizationSkillRole = "read"
+	// OrganizationSkillRoleDeleted removes the principal's ACL entry when used
+	// in an update request.
+	OrganizationSkillRoleDeleted OrganizationSkillRole = ""
+)
+
+// OrganizationSkillACL is the resolved access control list of an
+// organization skill.
+type OrganizationSkillACL struct {
+	Users  []OrganizationSkillUser  `json:"users"`
+	Groups []OrganizationSkillGroup `json:"groups"`
+}
+
+// OrganizationSkillUser is a user entry in an organization skill ACL.
+type OrganizationSkillUser struct {
+	MinimalUser
+	Role OrganizationSkillRole `json:"role" enums:"read"`
+}
+
+// OrganizationSkillGroup is a group entry in an organization skill ACL.
+type OrganizationSkillGroup struct {
+	Group
+	Role OrganizationSkillRole `json:"role" enums:"read"`
+}
+
+// UpdateOrganizationSkillACLRequest is a sparse update of an organization
+// skill ACL: only the listed principals change, and
+// OrganizationSkillRoleDeleted removes an entry.
+type UpdateOrganizationSkillACLRequest struct {
+	UserRoles  map[string]OrganizationSkillRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]OrganizationSkillRole `json:"group_roles,omitempty"`
+}
+
 func userSkillsPath(user string) string {
 	return fmt.Sprintf("/api/experimental/users/%s/skills", url.PathEscape(user))
 }
@@ -201,4 +239,52 @@ func (c *ExperimentalClient) DeleteOrganizationSkill(ctx context.Context, organi
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// OrganizationSkillACL returns the resolved ACL of an organization skill.
+func (c *ExperimentalClient) OrganizationSkillACL(ctx context.Context, organizationID uuid.UUID, name string) (OrganizationSkillACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, organizationSkillPath(organizationID, name)+"/acl", nil)
+	if err != nil {
+		return OrganizationSkillACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationSkillACL{}, ReadBodyAsError(res)
+	}
+	var acl OrganizationSkillACL
+	return acl, ReadBodyAsJSON(res, &acl)
+}
+
+// UpdateOrganizationSkillACL applies a sparse ACL update to an organization
+// skill.
+func (c *ExperimentalClient) UpdateOrganizationSkillACL(ctx context.Context, organizationID uuid.UUID, name string, req UpdateOrganizationSkillACLRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, organizationSkillPath(organizationID, name)+"/acl", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// OrganizationSkillACLAvailable returns the organization members and groups
+// that can be added to an organization skill ACL.
+func (c *ExperimentalClient) OrganizationSkillACLAvailable(ctx context.Context, organizationID uuid.UUID, name string, req UsersRequest) (ACLAvailable, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		organizationSkillPath(organizationID, name)+"/acl/available",
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
+	if err != nil {
+		return ACLAvailable{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ACLAvailable{}, ReadBodyAsError(res)
+	}
+	var available ACLAvailable
+	return available, ReadBodyAsJSON(res, &available)
 }
