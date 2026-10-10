@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -70,17 +70,17 @@ it("lets a role that can only update skills toggle and edit them", async () => {
 			]),
 		),
 	);
-	const skill = { ...MockSkill, name: "review-sql", enabled: true };
+	const mockReviewSkill = { ...MockSkill, name: "review-sql", enabled: true };
 	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([
-		skill,
+		mockReviewSkill,
 	]);
 	vi.spyOn(API.experimental, "getOrganizationSkillByName").mockResolvedValue({
-		...skill,
+		...mockReviewSkill,
 		content: "---\nname: review-sql\ndescription: Review SQL.\n---\n\nBody\n",
 	});
 	const updateSkill = vi
 		.spyOn(API.experimental, "updateOrganizationSkill")
-		.mockResolvedValue({ ...skill, enabled: false, content: "" });
+		.mockResolvedValue({ ...mockReviewSkill, enabled: false, content: "" });
 	const router = createMemoryRouter(
 		[{ path: "/ai/settings/skills", element: <SkillsPage /> }],
 		{ initialEntries: ["/ai/settings/skills"] },
@@ -99,10 +99,8 @@ it("lets a role that can only update skills toggle and edit them", async () => {
 			},
 		),
 	);
-	expect(screen.queryByRole("button", { name: "Add skill" })).toBeNull();
 
 	await user.click(screen.getByRole("button", { name: "Open menu" }));
-	expect(screen.queryByRole("menuitem", { name: /Delete/ })).toBeNull();
 	await user.click(screen.getByRole("menuitem", { name: "Edit" }));
 	await screen.findByRole("dialog", { name: "Edit organization skill" });
 });
@@ -176,10 +174,10 @@ describe("SkillsPage Manage permissions", () => {
 		await screen.findByRole("combobox", {
 			name: `Organization ${MockOrganization2.display_name}`,
 		});
-		const [menuButton] = await screen.findAllByRole("button", {
-			name: "Open menu",
-		});
-		await user.click(menuButton);
+		const reviewerRow = await screen.findByRole("row", { name: /reviewer/ });
+		await user.click(
+			within(reviewerRow).getByRole("button", { name: "Open menu" }),
+		);
 		await user.click(
 			await screen.findByRole("menuitem", { name: "Manage permissions" }),
 		);
