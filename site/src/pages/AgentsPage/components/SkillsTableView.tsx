@@ -101,11 +101,30 @@ export type SkillDeleteState = {
 	onClose: () => void;
 };
 
+/** The skill actions the viewer may take; each control follows its own action. */
+export type SkillAccess = {
+	create: boolean;
+	update: boolean;
+	delete: boolean;
+};
+
+export const fullSkillAccess: SkillAccess = {
+	create: true,
+	update: true,
+	delete: true,
+};
+
+export const readOnlySkillAccess: SkillAccess = {
+	create: false,
+	update: false,
+	delete: false,
+};
+
 export type SkillsTableViewProps = {
 	skills: readonly SkillMetadata[];
 	copy: SkillsCopy;
 	limit: number;
-	canEdit: boolean;
+	access: SkillAccess;
 	toolbar?: React.ReactNode;
 	error: unknown;
 	isLoading: boolean;
@@ -430,7 +449,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	skills,
 	copy,
 	limit,
-	canEdit,
+	access,
 	toolbar,
 	error,
 	isLoading,
@@ -481,7 +500,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	};
 	const pluralNoun = `${copy.noun.toLocaleLowerCase("en-US")}s`;
 	const isAtLimit = skills.length >= limit;
-	const readOnlyReason = canEdit
+	const readOnlyReason = access.update
 		? undefined
 		: `You do not have permission to change ${pluralNoun}.`;
 	const addSkillDisabled = isLoading || isAtLimit;
@@ -496,7 +515,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				{isExportingAll && <Spinner className="size-4" loading />}
 				Export all
 			</Button>
-			{canEdit && (
+			{access.create && (
 				<AddSkillButton
 					ref={addSkillButtonRef}
 					disabled={addSkillDisabled}
@@ -516,7 +535,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 
 			{toolbar}
 
-			{canEdit && isAtLimit && (
+			{access.create && isAtLimit && (
 				<Alert severity="warning">
 					<AlertDescription>
 						You have reached the limit of {limit} {pluralNoun}. Delete a skill
@@ -579,9 +598,9 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 					) : skills.length === 0 ? (
 						<TableEmpty
 							message={`No ${pluralNoun} yet`}
-							description={canEdit ? copy.emptyDescription : undefined}
+							description={access.create ? copy.emptyDescription : undefined}
 							cta={
-								canEdit && (
+								access.create && (
 									<AddSkillButton
 										disabled={addSkillDisabled}
 										onClick={openCreateDialog}
@@ -610,7 +629,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 										skill={skill}
 										noun={copy.noun}
 										checked={pendingToggles.get(skill.name) ?? skill.enabled}
-										isBlocked={!canEdit || pendingToggles.has(skill.name)}
+										isBlocked={!access.update || pendingToggles.has(skill.name)}
 										readOnlyReason={readOnlyReason}
 										onToggleEnabled={onToggleEnabled}
 									/>
@@ -642,11 +661,17 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 											>
 												Download
 											</DropdownMenuItem>
-											{canEdit ? (
+											{access.update ? (
+												<DropdownMenuItem onClick={() => onEdit(skill.name)}>
+													Edit
+												</DropdownMenuItem>
+											) : (
+												<DropdownMenuItem onClick={() => onView(skill.name)}>
+													View
+												</DropdownMenuItem>
+											)}
+											{access.delete && (
 												<>
-													<DropdownMenuItem onClick={() => onEdit(skill.name)}>
-														Edit
-													</DropdownMenuItem>
 													<DropdownMenuSeparator />
 													<DropdownMenuItem
 														className="text-content-destructive focus:text-content-destructive"
@@ -655,10 +680,6 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 														Delete&hellip;
 													</DropdownMenuItem>
 												</>
-											) : (
-												<DropdownMenuItem onClick={() => onView(skill.name)}>
-													View
-												</DropdownMenuItem>
 											)}
 										</DropdownMenuContent>
 									</DropdownMenu>

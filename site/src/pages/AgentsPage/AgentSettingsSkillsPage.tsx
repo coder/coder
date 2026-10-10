@@ -1,4 +1,5 @@
 import { SkillsTable } from "./components/SkillsTable";
+import { fullSkillAccess } from "./components/SkillsTableView";
 
 const AgentSettingsSkillsPage: React.FC = () => (
 	<SkillsTable
@@ -14,7 +15,7 @@ const AgentSettingsSkillsPage: React.FC = () => (
 				"Personal skills are available to your agents and stored as a single SKILL.md file with frontmatter. For richer skills with supporting files, add them to your repo under `.agents/skills/` or load them from a workspace.",
 			archiveName: "personal-skills.zip",
 		}}
-		canEdit
+		access={fullSkillAccess}
 	/>
 );
 
