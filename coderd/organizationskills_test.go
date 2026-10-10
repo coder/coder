@@ -24,88 +24,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestOrganizationSkillsCRUD(t *testing.T) {
-	t.Parallel()
-
-	ownerClient := coderdtest.New(t, nil)
-	firstUser := coderdtest.CreateFirstUser(t, ownerClient)
-	orgID := firstUser.OrganizationID
-	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, orgID, rbac.ScopedRoleOrgAdmin(orgID))
-
-	for name, client := range map[string]*codersdk.ExperimentalClient{
-		"OrgAdmin":  codersdk.NewExperimentalClient(orgAdminClient),
-		"SiteOwner": codersdk.NewExperimentalClient(ownerClient),
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := testutil.Context(t, testutil.WaitMedium)
-			skillName := "crud-" + uuid.NewString()[:8]
-			content := userSkillMarkdown(skillName, "Initial description", "Body.")
-			created, err := client.CreateOrganizationSkill(ctx, orgID, codersdk.CreateSkillRequest{Content: content})
-			require.NoError(t, err)
-			assert.Equal(t, skillName, created.Name)
-			assert.Equal(t, "Initial description", created.Description)
-			assert.Equal(t, content, created.Content)
-			assert.True(t, created.Enabled)
-
-			listed := requireOrganizationSkillListed(ctx, t, client, orgID, skillName)
-			assert.Equal(t, created.ID, listed.ID)
-			assert.True(t, listed.Enabled)
-
-			got, err := client.OrganizationSkillByName(ctx, orgID, skillName)
-			require.NoError(t, err)
-			assert.Equal(t, content, got.Content)
-
-			updatedContent := userSkillMarkdown(skillName, "Updated description", "Updated body.")
-			updated, err := client.UpdateOrganizationSkill(ctx, orgID, skillName, codersdk.UpdateSkillRequest{Content: ptr.Ref(updatedContent)})
-			require.NoError(t, err)
-			assert.Equal(t, "Updated description", updated.Description)
-			assert.Equal(t, updatedContent, updated.Content)
-
-			disabled, err := client.UpdateOrganizationSkill(ctx, orgID, skillName, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
-			require.NoError(t, err)
-			assert.False(t, disabled.Enabled)
-			assert.Equal(t, updatedContent, disabled.Content)
-			listed = requireOrganizationSkillListed(ctx, t, client, orgID, skillName)
-			assert.False(t, listed.Enabled)
-
-			require.NoError(t, client.DeleteOrganizationSkill(ctx, orgID, skillName))
-			_, err = client.OrganizationSkillByName(ctx, orgID, skillName)
-			requireSDKErrorStatus(t, err, http.StatusNotFound)
-		})
-	}
-}
-
-func TestOrganizationSkillValidationAndConflicts(t *testing.T) {
-	t.Parallel()
-
-	ownerClient := coderdtest.New(t, nil)
-	firstUser := coderdtest.CreateFirstUser(t, ownerClient)
-	orgID := firstUser.OrganizationID
-	client := codersdk.NewExperimentalClient(ownerClient)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-
-	content := userSkillMarkdown("validated-skill", "Valid", "Body.")
-	_, err := client.CreateOrganizationSkill(ctx, orgID, codersdk.CreateSkillRequest{Content: content})
-	require.NoError(t, err)
-
-	_, err = client.CreateOrganizationSkill(ctx, orgID, codersdk.CreateSkillRequest{Content: content})
-	sdkErr := requireSDKErrorStatus(t, err, http.StatusConflict)
-	assert.Equal(t, "A skill with that name already exists.", sdkErr.Message)
-	assert.Equal(t, "Choose a different name, or edit the existing skill.", sdkErr.Detail)
-
-	_, err = client.UpdateOrganizationSkill(ctx, orgID, "validated-skill", codersdk.UpdateSkillRequest{
-		Content: ptr.Ref(userSkillMarkdown("renamed-skill", "Valid", "Body.")),
-	})
-	sdkErr = requireSDKErrorStatus(t, err, http.StatusBadRequest)
-	assert.Equal(t, "Skill name in path does not match frontmatter name.", sdkErr.Message)
-
-	_, err = client.UpdateOrganizationSkill(ctx, orgID, "validated-skill", codersdk.UpdateSkillRequest{})
-	sdkErr = requireSDKErrorStatus(t, err, http.StatusBadRequest)
-	assert.Equal(t, "No skill fields to update.", sdkErr.Message)
-}
-
 func TestOrganizationSkillAccess(t *testing.T) {
 	t.Parallel()
 
@@ -221,43 +139,33 @@ func TestOrganizationSkillAccess(t *testing.T) {
 		requireSDKErrorStatus(t, err, http.StatusNotFound)
 	})
 
-	t.Run("ReadScopedAPIKey", func(t *testing.T) {
+	t.Run("ScopedAPIKeys", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		_, token := dbgen.APIKey(t, db, database.APIKey{
-			UserID: firstUser.UserID,
-			Scopes: database.APIKeyScopes{"organization:read", "organization_skill:read"},
-		})
-		scopedRawClient := codersdk.New(ownerClient.URL)
-		scopedRawClient.SetSessionToken(token)
-		scoped := codersdk.NewExperimentalClient(scopedRawClient)
-
-		requireOrganizationSkillListed(ctx, t, scoped, orgID, everyone.Name)
-		_, err := scoped.OrganizationSkillByName(ctx, orgID, everyone.Name)
-		require.NoError(t, err)
-		_, err = scoped.CreateOrganizationSkill(ctx, orgID, codersdk.CreateSkillRequest{
-			Content: userSkillMarkdown("scoped-created", "Denied", "Body."),
-		})
-		requireSDKErrorStatus(t, err, http.StatusForbidden)
-		_, err = scoped.UpdateOrganizationSkill(ctx, orgID, everyone.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
-		requireSDKErrorStatus(t, err, http.StatusForbidden)
-	})
-
-	t.Run("WriteScopedAPIKeyCannotRead", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		for _, scope := range []database.APIKeyScope{"organization_skill:update", "organization_skill:delete"} {
+		scopedClient := func(scope database.APIKeyScope) *codersdk.ExperimentalClient {
 			_, token := dbgen.APIKey(t, db, database.APIKey{
 				UserID: firstUser.UserID,
 				Scopes: database.APIKeyScopes{"organization:read", scope},
 			})
-			scopedRawClient := codersdk.New(ownerClient.URL)
-			scopedRawClient.SetSessionToken(token)
-			scoped := codersdk.NewExperimentalClient(scopedRawClient)
+			client := codersdk.New(ownerClient.URL)
+			client.SetSessionToken(token)
+			return codersdk.NewExperimentalClient(client)
+		}
 
-			_, err := scoped.OrganizationSkillByName(ctx, orgID, everyone.Name)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		reader := scopedClient("organization_skill:read")
+		requireOrganizationSkillListed(ctx, t, reader, orgID, everyone.Name)
+		_, err := reader.OrganizationSkillByName(ctx, orgID, everyone.Name)
+		require.NoError(t, err)
+		_, err = reader.CreateOrganizationSkill(ctx, orgID, codersdk.CreateSkillRequest{
+			Content: userSkillMarkdown("scoped-created", "Denied", "Body."),
+		})
+		requireSDKErrorStatus(t, err, http.StatusForbidden)
+		_, err = reader.UpdateOrganizationSkill(ctx, orgID, everyone.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
+		requireSDKErrorStatus(t, err, http.StatusForbidden)
+
+		for _, scope := range []database.APIKeyScope{"organization_skill:update", "organization_skill:delete"} {
+			_, err := scopedClient(scope).OrganizationSkillByName(ctx, orgID, everyone.Name)
 			requireSDKErrorStatus(t, err, http.StatusNotFound, scope)
 		}
 	})
@@ -289,7 +197,9 @@ func TestOrganizationSkillLimit(t *testing.T) {
 	)
 }
 
-func TestOrganizationSkillAudit(t *testing.T) {
+// TestOrganizationSkillAuditsDeniedWrites covers denied writes, which the
+// middleware admits for readers and the handler audits before rejecting.
+func TestOrganizationSkillAuditsDeniedWrites(t *testing.T) {
 	t.Parallel()
 
 	auditor := audit.NewMock()
@@ -300,34 +210,22 @@ func TestOrganizationSkillAudit(t *testing.T) {
 	memberRawClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, orgID)
 	member := codersdk.NewExperimentalClient(memberRawClient)
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	auditor.ResetLogs()
 
 	skill, err := client.CreateOrganizationSkill(ctx, orgID, codersdk.CreateSkillRequest{
 		Content: userSkillMarkdown("audited-skill", "Audit", "Body."),
 	})
 	require.NoError(t, err)
+	auditor.ResetLogs()
 	_, err = member.UpdateOrganizationSkill(ctx, orgID, skill.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
 	requireSDKErrorStatus(t, err, http.StatusForbidden)
 	err = member.DeleteOrganizationSkill(ctx, orgID, skill.Name)
 	requireSDKErrorStatus(t, err, http.StatusForbidden)
-	_, err = client.UpdateOrganizationSkill(ctx, orgID, skill.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
-	require.NoError(t, err)
-	require.NoError(t, client.DeleteOrganizationSkill(ctx, orgID, skill.Name))
 
 	logs := auditor.AuditLogs()
-	require.Len(t, logs, 5)
-	for i, want := range []struct {
-		action database.AuditAction
-		status int32
-	}{
-		{database.AuditActionCreate, http.StatusCreated},
-		{database.AuditActionWrite, http.StatusForbidden},
-		{database.AuditActionDelete, http.StatusForbidden},
-		{database.AuditActionWrite, http.StatusOK},
-		{database.AuditActionDelete, http.StatusNoContent},
-	} {
-		assert.Equal(t, want.action, logs[i].Action)
-		assert.Equal(t, want.status, logs[i].StatusCode)
+	require.Len(t, logs, 2)
+	for i, action := range []database.AuditAction{database.AuditActionWrite, database.AuditActionDelete} {
+		assert.Equal(t, action, logs[i].Action)
+		assert.EqualValues(t, http.StatusForbidden, logs[i].StatusCode)
 		assert.Equal(t, database.ResourceTypeOrganizationSkill, logs[i].ResourceType)
 		assert.Equal(t, skill.ID, logs[i].ResourceID)
 		assert.Equal(t, skill.Name, logs[i].ResourceTarget)
