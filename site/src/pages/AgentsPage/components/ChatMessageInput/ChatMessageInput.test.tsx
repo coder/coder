@@ -318,15 +318,14 @@ describe("ChatMessageInput", () => {
 			return user;
 		};
 
-		it("inserts the bare trigger of an organization skill", async () => {
+		it("inserts the bare trigger of an organization skill chosen with arrow keys", async () => {
 			const inputRef = renderWithSkills({
 				personal: [mockReviewerSkill],
 				organization: [mockReleaseNotesSkill],
 			});
-			const user = await pasteTrigger("/rel");
-			await user.click(
-				await screen.findByRole("option", { name: /release-notes/ }),
-			);
+			const user = await pasteTrigger("/");
+			await screen.findByRole("option", { name: /release-notes/ });
+			await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
 			expect(inputRef.current?.getValue()).toBe("/release-notes");
 		});
 
