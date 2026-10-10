@@ -337,34 +337,26 @@ func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]
 // ignored: instruction files and MCP configs are recognized only
 // at a scan root's top level.
 func (r *Resolver) discoverTopLevelFiles(root ScanRoot, out *[]Resource, seenID map[string]int) {
+	for _, res := range r.readInstructionFiles(root.Path, root.UserSource) {
+		appendResource(out, seenID, res)
+	}
 	entries, err := os.ReadDir(root.Path)
 	if err != nil {
 		return
 	}
 	for _, e := range entries {
-		name := e.Name()
-		isInstruction := recognizedInstructionFile(name)
-		if !isInstruction && name != mcpConfigFileName {
-			continue
-		}
-		// A directory that happens to share a recognized basename
-		// is not a resource. resolveReadTarget separately rejects
-		// symlinks whose targets are not regular files.
-		if e.IsDir() {
+		// A directory that happens to share the basename is not a
+		// resource. resolveReadTarget separately rejects symlinks
+		// whose targets are not regular files.
+		if e.Name() != mcpConfigFileName || e.IsDir() {
 			continue
 		}
 		info, err := e.Info()
 		if err != nil {
 			continue
 		}
-		path := filepath.Join(root.Path, name)
-		var res Resource
-		if isInstruction {
-			res = r.readInstructionFile(root.Path, path, info, root.UserSource)
-		} else {
-			res = r.readMCPConfig(root.Path, path, info, root.UserSource)
-		}
-		appendResource(out, seenID, res)
+		path := filepath.Join(root.Path, e.Name())
+		appendResource(out, seenID, r.readMCPConfig(root.Path, path, info, root.UserSource))
 	}
 }
 
@@ -386,12 +378,16 @@ func (r *Resolver) discoverChildProjectInstructionFiles(root ScanRoot, out *[]Re
 		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
-		child := filepath.Join(root.Path, e.Name())
-		if r.readInstructionFilesIn(child, out, seenID) {
-			projects++
-			if projects == maxChildProjects {
-				break
-			}
+		files := r.readInstructionFiles(filepath.Join(root.Path, e.Name()), "")
+		if len(files) == 0 {
+			continue
+		}
+		for _, res := range files {
+			appendResource(out, seenID, res)
+		}
+		projects++
+		if projects == maxChildProjects {
+			break
 		}
 	}
 }
@@ -430,15 +426,26 @@ func lstatInstructionFiles(dir string) []instructionFileEntry {
 	return found
 }
 
-// readInstructionFilesIn appends the recognized instruction files that sit
-// directly in dir, with dir as the containment root, and reports whether
-// any was found.
-func (r *Resolver) readInstructionFilesIn(dir string, out *[]Resource, seenID map[string]int) bool {
+// readInstructionFiles reads the recognized instruction files that sit
+// directly in dir, with dir as the containment root. Each keeps its walked
+// path as Source and ID because chatd scopes instructions to the directory
+// holding that path. Names that resolve to the same file collapse to the
+// first in instructionFileNames order, so a CLAUDE.md -> AGENTS.md alias
+// ships once; links from other directories are separate scopes.
+func (r *Resolver) readInstructionFiles(dir, userSource string) []Resource {
 	files := lstatInstructionFiles(dir)
+	out := make([]Resource, 0, len(files))
+	seenTarget := make(map[string]struct{}, len(files))
 	for _, f := range files {
-		appendResource(out, seenID, r.readInstructionFile(dir, f.path, f.info, ""))
+		if target, err := filepath.EvalSymlinks(f.path); err == nil {
+			if _, dup := seenTarget[target]; dup {
+				continue
+			}
+			seenTarget[target] = struct{}{}
+		}
+		out = append(out, r.readInstructionFile(dir, f.path, f.info, userSource))
 	}
-	return len(files) > 0
+	return out
 }
 
 func directoryEntryNames(dir string) map[string]struct{} {
@@ -454,20 +461,10 @@ func directoryEntryNames(dir string) map[string]struct{} {
 }
 
 // ResolveInstructionFiles reads the instruction files that sit directly in
-// dir with the same name, symlink-containment, and size rules as snapshot
-// discovery, dir being the containment root. Unlike a snapshot resource, a
-// symlinked file keeps the link's path as its Source: its instructions apply
-// to dir, not to the target's directory.
+// dir with the same name, symlink-containment, size, and identity rules as
+// snapshot discovery, dir being the containment root.
 func (r *Resolver) ResolveInstructionFiles(dir string) []Resource {
-	r = r.normalize()
-	var out []Resource
-	seenID := make(map[string]int)
-	for _, f := range lstatInstructionFiles(dir) {
-		res := r.readInstructionFile(dir, f.path, f.info, "")
-		res.Source = f.path
-		appendResource(&out, seenID, res)
-	}
-	return compactResources(out)
+	return r.normalize().readInstructionFiles(dir, "")
 }
 
 // compactResources drops the tombstones appendResource leaves behind when a
@@ -688,22 +685,10 @@ func validateMCPConfig(data []byte) error {
 // inspecting Status==StatusOK.
 func (r *Resolver) readFileResource(kind ResourceKind, scanRoot, path string, info fs.FileInfo, userSource string) Resource {
 	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, scanRoot)
-	// Attribute the resource to the resolved target rather than
-	// the path we walked. When several names point at the same
-	// file (e.g. CLAUDE.md and .cursorrules symlinked to
-	// AGENTS.md), they share an ID and collapse to a single
-	// resource via the walk's ID-based dedup, instead of shipping
-	// identical content multiple times. On resolve failure the
-	// original path is kept so the error points at the offending
-	// link.
-	idPath := path
-	if ok {
-		idPath = readPath
-	}
 	res := Resource{
-		ID:         resourceID(kind, idPath),
+		ID:         resourceID(kind, path),
 		Kind:       kind,
-		Source:     idPath,
+		Source:     path,
 		SizeBytes:  safeUint64(info.Size()),
 		SourcePath: userSource,
 	}

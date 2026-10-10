@@ -77,10 +77,11 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		require.JSONEq(t, string(fix.bodyB), string(postRes[0].Body), "the new agent's resource body is copied verbatim")
 	})
 
-	// RepinsStaleContextWhenLifecycleToolClearedAgent: workspace lifecycle
+	// ClearsStaleContextWhenLifecycleToolClearedAgent: workspace lifecycle
 	// tools temporarily clear agent_id while preserving the existing pin. The
-	// subsequent bind must replace that stale pin with the new agent's context.
-	t.Run("RepinsStaleContextWhenLifecycleToolClearedAgent", func(t *testing.T) {
+	// subsequent bind must drop that stale pin; first-turn hydration pins the
+	// new agent's context.
+	t.Run("ClearsStaleContextWhenLifecycleToolClearedAgent", func(t *testing.T) {
 		t.Parallel()
 		fix := newRebindFixture(t)
 
@@ -115,16 +116,58 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 
 		post, err := fix.db.GetChatByID(fix.ctx, chat.ID)
 		require.NoError(t, err)
-		require.Equal(t, fix.hashB, post.ContextAggregateHash, "rebind replaces the stale pin")
+		require.Nil(t, post.ContextAggregateHash, "rebind drops the stale pin")
 		postRes, err := fix.db.ListChatContextResourcesByChatID(fix.ctx, chat.ID)
 		require.NoError(t, err)
-		require.Len(t, postRes, 1)
-		require.Equal(t, fix.srcB, postRes[0].Source)
+		require.Empty(t, postRes)
 	})
 
-	// SkipsRepinWhenNoPriorAgent: binding a chat that had no agent or pinned
-	// context must not re-pin here. The create/push path owns first-time pinning.
-	t.Run("SkipsRepinWhenNoPriorAgent", func(t *testing.T) {
+	// ClearsDiscoveredRowsWhenLifecycleToolClearedAgent: discovery can pin
+	// rows before the agent's first push, so a chat with no pinned hash can
+	// still hold the old agent's instruction files.
+	t.Run("ClearsDiscoveredRowsWhenLifecycleToolClearedAgent", func(t *testing.T) {
+		t.Parallel()
+		fix := newRebindFixture(t)
+
+		chat := dbgen.Chat(t, fix.db, database.Chat{
+			OwnerID:           fix.user.ID,
+			OrganizationID:    fix.org.ID,
+			LastModelConfigID: fix.model.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: fix.ws.ID, Valid: true},
+			AgentID:           uuid.NullUUID{UUID: fix.agentNoSnap, Valid: true},
+			Status:            database.ChatStatusWaiting,
+		})
+		require.NoError(t, fix.db.InsertChatContextDiscoveredResource(fix.ctx, database.InsertChatContextDiscoveredResourceParams{
+			ChatID:      chat.ID,
+			Source:      "/home/coder/workspace/repo/AGENTS.md",
+			BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
+			Body:        json.RawMessage(`{"instruction_file":{"content":"old agent"}}`),
+			ContentHash: []byte{0x01},
+			SizeBytes:   9,
+			Status:      database.WorkspaceAgentContextResourceStatusOk,
+		}))
+		unbound, err := fix.db.UpdateChatWorkspaceBinding(fix.ctx, database.UpdateChatWorkspaceBindingParams{
+			ID:          chat.ID,
+			WorkspaceID: chat.WorkspaceID,
+			BuildID:     uuid.NullUUID{UUID: fix.buildID, Valid: true},
+			AgentID:     uuid.NullUUID{},
+		})
+		require.NoError(t, err)
+		require.Nil(t, unbound.ContextAggregateHash)
+
+		wc := newRebindTurnContext(t, fix.db, unbound)
+		_, err = wc.persistBuildAgentBinding(fix.ctx, unbound, fix.buildID, fix.agentB)
+		require.NoError(t, err)
+
+		postRes, err := fix.db.ListChatContextResourcesByChatID(fix.ctx, chat.ID)
+		require.NoError(t, err)
+		require.Empty(t, postRes, "the old agent's discovered rows do not follow the chat to a new agent")
+	})
+
+	// LeavesPinningToHydrationWhenNoPriorAgent: binding a chat that had no
+	// agent or pinned context pins nothing here. The create/push path and
+	// first-turn hydration own first-time pinning.
+	t.Run("LeavesPinningToHydrationWhenNoPriorAgent", func(t *testing.T) {
 		t.Parallel()
 		fix := newRebindFixture(t)
 

@@ -3,6 +3,9 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"path"
+	"slices"
 	"testing"
 	"time"
 
@@ -12,11 +15,13 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // TestHydrateChatContextOnCreate covers the create-time pinning path, which the
@@ -32,7 +37,8 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db, logger: slogtest.Make(t, nil)}
+		clock := quartz.NewMock(t)
+		server := &Server{db: db, logger: slogtest.Make(t, nil), clock: clock}
 
 		agentID := uuid.New()
 		chat := database.Chat{ID: uuid.New(), AgentID: uuid.NullUUID{UUID: agentID, Valid: true}}
@@ -53,6 +59,13 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 			AggregateHash: snapshot.AggregateHash,
 			ContextError:  snapshot.SnapshotError,
 		}).Return([]uuid.UUID{chat.ID}, nil)
+		db.EXPECT().SettleChatsContextDrift(gomock.Any(), database.SettleChatsContextDriftParams{
+			ChatIds:       []uuid.UUID{chat.ID},
+			AgentID:       agentID,
+			AggregateHash: snapshot.AggregateHash,
+			ContextError:  snapshot.SnapshotError,
+			DirtySince:    clock.Now(),
+		}).Return(nil)
 
 		server.hydrateChatContextOnCreate(ctx, chat)
 	})
@@ -88,6 +101,207 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 			AgentID: uuid.NullUUID{UUID: agentID, Valid: true},
 		})
 	})
+}
+
+// TestSyncAgentChatsContextAddedResourcesStaysWithinTheChatCaps: snapshots
+// that keep publishing new sources cannot grow a chat past its caps. New
+// sources are admitted in source order; the rest wait for a refresh.
+func TestSyncAgentChatsContextAddedResourcesStaysWithinTheChatCaps(t *testing.T) {
+	t.Parallel()
+	fix := newRebindFixture(t)
+	chat := dbgen.Chat(t, fix.db, database.Chat{
+		OwnerID:           fix.user.ID,
+		OrganizationID:    fix.org.ID,
+		LastModelConfigID: fix.model.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: fix.ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: fix.agentA, Valid: true},
+		Status:            database.ChatStatusWaiting,
+	})
+	_, err := fix.db.HydrateAgentChatsContext(fix.ctx, database.HydrateAgentChatsContextParams{
+		AgentID:       fix.agentA,
+		AggregateHash: fix.hashA,
+	})
+	require.NoError(t, err)
+
+	body := json.RawMessage(`{"instruction_file":{"content":"repo rules"}}`)
+	publish := func(hash []byte, sources ...string) {
+		for _, source := range sources {
+			seedAgentContext(fix.ctx, t, fix.db, fix.agentA, source, hash, database.WorkspaceAgentContextBodyKindInstructionFile, body)
+		}
+	}
+	add := func(hash []byte, maxResources, maxContentBytes int64) {
+		_, err := fix.db.SyncAgentChatsContextAddedResources(fix.ctx, database.SyncAgentChatsContextAddedResourcesParams{
+			AgentID:         fix.agentA,
+			AggregateHash:   hash,
+			MaxResources:    maxResources,
+			MaxContentBytes: maxContentBytes,
+		})
+		require.NoError(t, err)
+	}
+	held := func() (sources []string, contentBytes int64) {
+		rows, err := fix.db.ListChatContextResourcesByChatID(fix.ctx, chat.ID)
+		require.NoError(t, err)
+		for _, row := range rows {
+			sources = append(sources, row.Source)
+			contentBytes += row.SizeBytes
+		}
+		slices.Sort(sources)
+		return sources, contentBytes
+	}
+
+	publish([]byte{0x02}, "/home/coder/r/c/AGENTS.md", "/home/coder/r/a/AGENTS.md", "/home/coder/r/b/AGENTS.md")
+	add([]byte{0x02}, 3, 1<<20)
+	sources, contentBytes := held()
+	require.Equal(t, []string{"/home/coder/r/a/AGENTS.md", "/home/coder/r/b/AGENTS.md", fix.srcA}, sources, "the row cap admits the first new sources")
+
+	publish([]byte{0x03}, "/home/coder/r/d/AGENTS.md")
+	add([]byte{0x03}, 3, 1<<20)
+	sources, _ = held()
+	require.Len(t, sources, 3, "a later snapshot cannot grow a full chat")
+
+	add([]byte{0x03}, 10, contentBytes+int64(len(body)))
+	sources, _ = held()
+	require.Equal(t, []string{"/home/coder/r/a/AGENTS.md", "/home/coder/r/b/AGENTS.md", "/home/coder/r/c/AGENTS.md", fix.srcA}, sources, "the content cap admits only what fits")
+}
+
+// TestSyncAgentChatsContextMCPResourcesStaysWithinTheChatCap: a full chat
+// still live-syncs the servers it holds, takes no new ones, and takes the
+// next one into the slot a removed server frees.
+func TestSyncAgentChatsContextMCPResourcesStaysWithinTheChatCap(t *testing.T) {
+	t.Parallel()
+	fix := newRebindFixture(t)
+	chat := dbgen.Chat(t, fix.db, database.Chat{
+		OwnerID:           fix.user.ID,
+		OrganizationID:    fix.org.ID,
+		LastModelConfigID: fix.model.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: fix.ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: fix.agentA, Valid: true},
+		Status:            database.ChatStatusWaiting,
+	})
+	_, err := fix.db.HydrateAgentChatsContext(fix.ctx, database.HydrateAgentChatsContextParams{
+		AgentID:       fix.agentA,
+		AggregateHash: fix.hashA,
+	})
+	require.NoError(t, err)
+
+	const serverA, serverB = "/home/coder/.mcp/a", "/home/coder/.mcp/b"
+	publish := func(source string, hash byte) {
+		seedAgentContext(fix.ctx, t, fix.db, fix.agentA, source, []byte{hash},
+			database.WorkspaceAgentContextBodyKindMcpServer, json.RawMessage(`{"mcp_server":{"server_name":"`+path.Base(source)+`"}}`))
+	}
+	sync := func() map[string]database.ChatContextResource {
+		_, err := fix.db.SyncAgentChatsContextMCPResources(fix.ctx, database.SyncAgentChatsContextMCPResourcesParams{
+			AgentID:      fix.agentA,
+			MaxResources: 2,
+		})
+		require.NoError(t, err)
+		rows, err := fix.db.ListChatContextResourcesByChatID(fix.ctx, chat.ID)
+		require.NoError(t, err)
+		out := make(map[string]database.ChatContextResource, len(rows))
+		for _, row := range rows {
+			out[row.Source] = row
+		}
+		return out
+	}
+
+	publish(serverA, 0x01)
+	publish(serverB, 0x01)
+	rows := sync()
+	require.Len(t, rows, 2)
+	require.Contains(t, rows, serverA, "servers are admitted in source order")
+
+	publish(serverA, 0x02)
+	rows = sync()
+	require.Len(t, rows, 2)
+	require.Equal(t, []byte{0x02}, rows[serverA].ContentHash, "a held server still live-syncs at the cap")
+
+	require.NoError(t, fix.db.DeleteStaleWorkspaceAgentContextResources(fix.ctx, database.DeleteStaleWorkspaceAgentContextResourcesParams{
+		WorkspaceAgentID: fix.agentA,
+		ActiveSources:    []string{fix.srcA, serverB},
+	}))
+	rows = sync()
+	require.Len(t, rows, 2)
+	require.Contains(t, rows, serverB, "the removed server's slot admits the next one")
+}
+
+// TestHydrateAdoptsDiscoveredRows: a file chatd discovered before the
+// agent's first push keeps the body the model read when the snapshot
+// publishes the same source, and the chat is out of date if they differ.
+func TestHydrateAdoptsDiscoveredRows(t *testing.T) {
+	t.Parallel()
+	fix := newRebindFixture(t)
+	newChat := func() database.Chat {
+		return dbgen.Chat(t, fix.db, database.Chat{
+			OwnerID:           fix.user.ID,
+			OrganizationID:    fix.org.ID,
+			LastModelConfigID: fix.model.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: fix.ws.ID, Valid: true},
+			AgentID:           uuid.NullUUID{UUID: fix.agentA, Valid: true},
+			Status:            database.ChatStatusWaiting,
+		})
+	}
+	stale, clean := newChat(), newChat()
+	readBody := json.RawMessage(`{"instruction_file":{"content":"read before the push"}}`)
+	require.NoError(t, fix.db.InsertChatContextDiscoveredResource(fix.ctx, database.InsertChatContextDiscoveredResourceParams{
+		ChatID:      stale.ID,
+		Source:      fix.srcA,
+		BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
+		Body:        readBody,
+		ContentHash: []byte{0x01},
+		SizeBytes:   int64(len(readBody)),
+		Status:      database.WorkspaceAgentContextResourceStatusOk,
+	}))
+	server := &Server{db: fix.db, logger: slogtest.Make(t, nil), clock: quartz.NewMock(t)}
+
+	hydrated, published, err := server.hydrateAgentChatsFromSnapshot(fix.ctx, fix.agentA)
+	require.NoError(t, err)
+	require.True(t, published)
+	require.ElementsMatch(t, []uuid.UUID{stale.ID, clean.ID}, hydrated)
+
+	rows, err := fix.db.ListChatContextResourcesByChatID(fix.ctx, stale.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.False(t, rows[0].Discovered, "the snapshot owns the adopted row")
+	require.JSONEq(t, string(readBody), string(rows[0].Body), "adoption keeps the body the model read")
+	got, err := fix.db.GetChatByID(fix.ctx, stale.ID)
+	require.NoError(t, err)
+	require.True(t, got.ContextDirtySince.Valid, "the adopted row differs from the snapshot")
+	got, err = fix.db.GetChatByID(fix.ctx, clean.ID)
+	require.NoError(t, err)
+	require.False(t, got.ContextDirtySince.Valid)
+	require.Equal(t, fix.hashA, got.ContextAggregateHash)
+}
+
+// TestHydrateAndMarkChatsDirtyFlagsBodyOnlyDrift: the aggregate hash leaves
+// out an instruction file's global flag, so a push that only changes it
+// keeps the hash but still leaves a clean chat out of date.
+func TestHydrateAndMarkChatsDirtyFlagsBodyOnlyDrift(t *testing.T) {
+	t.Parallel()
+	fix := newRebindFixture(t)
+	chat := dbgen.Chat(t, fix.db, database.Chat{
+		OwnerID:           fix.user.ID,
+		OrganizationID:    fix.org.ID,
+		LastModelConfigID: fix.model.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: fix.ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: fix.agentA, Valid: true},
+		Status:            database.ChatStatusWaiting,
+	})
+	_, err := fix.db.HydrateAgentChatsContext(fix.ctx, database.HydrateAgentChatsContextParams{
+		AgentID:       fix.agentA,
+		AggregateHash: fix.hashA,
+	})
+	require.NoError(t, err)
+	seedAgentContext(fix.ctx, t, fix.db, fix.agentA, fix.srcA, fix.hashA,
+		database.WorkspaceAgentContextBodyKindInstructionFile, json.RawMessage(`{"instruction_file":{"content":"agent-a","global":true}}`))
+	server := &Server{db: fix.db, logger: slogtest.Make(t, nil), pubsub: dbpubsub.NewInMemory(), clock: quartz.NewMock(t)}
+
+	_, err = server.HydrateAndMarkChatsDirty(fix.ctx, fix.db, fix.agentA, fix.hashA, "", server.clock.Now())
+	require.NoError(t, err)
+
+	got, err := fix.db.GetChatByID(fix.ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, got.ContextDirtySince.Valid)
+	require.Equal(t, fix.hashA, got.ContextAggregateHash)
 }
 
 // TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied verifies one
@@ -128,17 +342,27 @@ func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
 	// Return the dirtied chat from the additive sync too: a chat can gain
 	// rows and still diverge on others.
 	db.EXPECT().SyncAgentChatsContextAddedResources(gomock.Any(), database.SyncAgentChatsContextAddedResourcesParams{
+		AgentID:         agentID,
+		AggregateHash:   hash,
+		MaxResources:    maxChatContextResources,
+		MaxContentBytes: maxChatContextContentBytes,
+	}).Return([]uuid.UUID{addedChat.ID, dirtiedChat.ID}, nil)
+	db.EXPECT().SettleChatsContextDrift(gomock.Any(), database.SettleChatsContextDriftParams{
+		ChatIds:       []uuid.UUID{hydratedChat.ID, addedChat.ID, dirtiedChat.ID},
 		AgentID:       agentID,
 		AggregateHash: hash,
 		DirtySince:    now,
-	}).Return([]uuid.UUID{addedChat.ID, dirtiedChat.ID}, nil)
+	}).Return(nil)
 	db.EXPECT().MarkChatsContextDirtyByAgent(gomock.Any(), database.MarkChatsContextDirtyByAgentParams{
 		AgentID:       agentID,
 		AggregateHash: hash,
 		DirtySince:    sql.NullTime{Time: now, Valid: true},
 	}).Return([]database.MarkChatsContextDirtyByAgentRow{{ID: dirtiedChat.ID, OwnerID: ownerID}}, nil)
 	// Return the dirtied chat from the sync to verify event deduplication.
-	db.EXPECT().SyncAgentChatsContextMCPResources(gomock.Any(), agentID).
+	db.EXPECT().SyncAgentChatsContextMCPResources(gomock.Any(), database.SyncAgentChatsContextMCPResourcesParams{
+		AgentID:      agentID,
+		MaxResources: maxChatContextResources,
+	}).
 		Return([]uuid.UUID{syncedChat.ID, dirtiedChat.ID}, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), hydratedChat.ID).Return(hydratedChat, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), addedChat.ID).Return(addedChat, nil)
@@ -174,7 +398,8 @@ func TestEnsureChatContextPinnedOnFirstTurn(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		ps := dbpubsub.NewInMemory()
-		server := &Server{db: db, logger: slogtest.Make(t, nil), pubsub: ps}
+		clock := quartz.NewMock(t)
+		server := &Server{db: db, logger: slogtest.Make(t, nil), pubsub: ps, clock: clock}
 
 		ownerID := uuid.New()
 		agentID := uuid.New()
@@ -213,6 +438,12 @@ func TestEnsureChatContextPinnedOnFirstTurn(t *testing.T) {
 			AggregateHash: snapshot.AggregateHash,
 			ContextError:  snapshot.SnapshotError,
 		}).Return([]uuid.UUID{chat.ID, siblingChat.ID}, nil)
+		db.EXPECT().SettleChatsContextDrift(gomock.Any(), database.SettleChatsContextDriftParams{
+			ChatIds:       []uuid.UUID{chat.ID, siblingChat.ID},
+			AgentID:       agentID,
+			AggregateHash: snapshot.AggregateHash,
+			DirtySince:    clock.Now(),
+		}).Return(nil)
 		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(pinnedChat, nil)
 		db.EXPECT().GetChatByID(gomock.Any(), siblingChat.ID).Return(pinnedSibling, nil)
 

@@ -2,6 +2,7 @@ package agentcontext
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -180,6 +181,20 @@ func NewManager(opts ManagerOptions) *Manager {
 	return m
 }
 
+// childRescanInterval bounds how long a repository cloned into a child
+// directory that already existed while empty goes unpublished: the
+// watcher only watches children that hold a marker.
+const childRescanInterval = 30 * time.Second
+
+// publishPolicy selects whether a resolve pass publishes a snapshot
+// identical to the one already published.
+type publishPolicy int
+
+const (
+	publishAlways publishPolicy = iota
+	publishIfChanged
+)
+
 // Run starts the watcher and the re-resolve goroutine. Run
 // blocks until ctx is canceled or Close is called. It is safe
 // to call Run at most once per Manager.
@@ -221,19 +236,25 @@ func (m *Manager) Run(ctx context.Context) error {
 
 	defer watcher.Close()
 
+	rescan := m.clock.NewTicker(childRescanInterval, "agentcontext", "rescan")
+	defer rescan.Stop()
+
 	for {
+		policy := publishAlways
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-m.closedCh:
 			return nil
 		case <-m.trigger:
-			m.mu.Lock()
-			roots := m.scanRootsLocked()
-			m.mu.Unlock()
-			watcher.Sync(ctx, roots)
-			m.resolveAndBroadcast(ctx)
+		case <-rescan.C:
+			policy = publishIfChanged
 		}
+		m.mu.Lock()
+		roots := m.scanRootsLocked()
+		m.mu.Unlock()
+		watcher.Sync(ctx, roots)
+		m.resolveAndBroadcast(ctx, policy)
 	}
 }
 
@@ -564,7 +585,7 @@ func (m *Manager) SetReady() {
 	}
 	// No Run loop yet (embedders or tests driving the Manager directly):
 	// resolve inline.
-	m.resolveAndBroadcast(context.Background())
+	m.resolveAndBroadcast(context.Background(), publishAlways)
 }
 
 // scanRootsLocked returns the list of ScanRoots to feed the
@@ -622,11 +643,11 @@ func (m *Manager) effectiveAllowedRoots() []string {
 }
 
 // resolveAndBroadcast computes a fresh snapshot and notifies
-// every subscriber. The broadcast is unconditional: Resync
-// waiters that triggered the pass without an actual content
-// change still need to wake up. Subscribers compare snapshots
-// via AggregateHash if they want to filter.
-func (m *Manager) resolveAndBroadcast(ctx context.Context) {
+// every subscriber. Under publishAlways the broadcast is
+// unconditional: Resync waiters that triggered the pass without
+// an actual content change still need to wake up. Subscribers
+// compare snapshots via AggregateHash if they want to filter.
+func (m *Manager) resolveAndBroadcast(ctx context.Context, policy publishPolicy) {
 	// Snapshot the inputs under the lock, then release it
 	// before running the resolver. The resolver walks the
 	// filesystem, reads files, and hashes them; holding
@@ -674,6 +695,12 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 		// stale-epoch result does not overwrite a fresher
 		// Snapshot at a higher version number. The newer
 		// pass will broadcast its own result.
+		m.mu.Unlock()
+		return
+	}
+	published := m.snapshot
+	published.Version = 0
+	if policy == publishIfChanged && reflect.DeepEqual(published, snap) {
 		m.mu.Unlock()
 		return
 	}

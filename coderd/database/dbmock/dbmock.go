@@ -923,17 +923,17 @@ func (mr *MockStoreMockRecorder) DeleteChatContextDiscoveredResource(ctx, arg an
 }
 
 // DeleteChatContextResourcesByChatID mocks base method.
-func (m *MockStore) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
+func (m *MockStore) DeleteChatContextResourcesByChatID(ctx context.Context, arg database.DeleteChatContextResourcesByChatIDParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatContextResourcesByChatID", ctx, chatID)
+	ret := m.ctrl.Call(m, "DeleteChatContextResourcesByChatID", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteChatContextResourcesByChatID indicates an expected call of DeleteChatContextResourcesByChatID.
-func (mr *MockStoreMockRecorder) DeleteChatContextResourcesByChatID(ctx, chatID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteChatContextResourcesByChatID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatContextResourcesByChatID", reflect.TypeOf((*MockStore)(nil).DeleteChatContextResourcesByChatID), ctx, chatID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatContextResourcesByChatID", reflect.TypeOf((*MockStore)(nil).DeleteChatContextResourcesByChatID), ctx, arg)
 }
 
 // DeleteChatDebugDataAfterMessageID mocks base method.
@@ -8303,6 +8303,20 @@ func (mr *MockStoreMockRecorder) InsertChatAutomation(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatAutomation", reflect.TypeOf((*MockStore)(nil).InsertChatAutomation), ctx, arg)
 }
 
+// InsertChatContextDiscoveredResource mocks base method.
+func (m *MockStore) InsertChatContextDiscoveredResource(ctx context.Context, arg database.InsertChatContextDiscoveredResourceParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatContextDiscoveredResource", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertChatContextDiscoveredResource indicates an expected call of InsertChatContextDiscoveredResource.
+func (mr *MockStoreMockRecorder) InsertChatContextDiscoveredResource(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatContextDiscoveredResource", reflect.TypeOf((*MockStore)(nil).InsertChatContextDiscoveredResource), ctx, arg)
+}
+
 // InsertChatDebugRun mocks base method.
 func (m *MockStore) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	m.ctrl.T.Helper()
@@ -9833,6 +9847,21 @@ func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatByID", reflect.TypeOf((*MockStore)(nil).LockChatByID), ctx, id)
 }
 
+// LockChatContextForWrite mocks base method.
+func (m *MockStore) LockChatContextForWrite(ctx context.Context, id uuid.UUID) (uuid.NullUUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockChatContextForWrite", ctx, id)
+	ret0, _ := ret[0].(uuid.NullUUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockChatContextForWrite indicates an expected call of LockChatContextForWrite.
+func (mr *MockStoreMockRecorder) LockChatContextForWrite(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatContextForWrite", reflect.TypeOf((*MockStore)(nil).LockChatContextForWrite), ctx, id)
+}
+
 // LockProvisionerKeyByIDForShare mocks base method.
 func (m *MockStore) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -10186,6 +10215,20 @@ func (mr *MockStoreMockRecorder) SetTransactionLockTimeout(ctx, lockTimeoutMs an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTransactionLockTimeout", reflect.TypeOf((*MockStore)(nil).SetTransactionLockTimeout), ctx, lockTimeoutMs)
 }
 
+// SettleChatsContextDrift mocks base method.
+func (m *MockStore) SettleChatsContextDrift(ctx context.Context, arg database.SettleChatsContextDriftParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SettleChatsContextDrift", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SettleChatsContextDrift indicates an expected call of SettleChatsContextDrift.
+func (mr *MockStoreMockRecorder) SettleChatsContextDrift(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SettleChatsContextDrift", reflect.TypeOf((*MockStore)(nil).SettleChatsContextDrift), ctx, arg)
+}
+
 // SoftDeleteChatMessageByID mocks base method.
 func (m *MockStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	m.ctrl.T.Helper()
@@ -10272,18 +10315,18 @@ func (mr *MockStoreMockRecorder) SyncAgentChatsContextAddedResources(ctx, arg an
 }
 
 // SyncAgentChatsContextMCPResources mocks base method.
-func (m *MockStore) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+func (m *MockStore) SyncAgentChatsContextMCPResources(ctx context.Context, arg database.SyncAgentChatsContextMCPResourcesParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SyncAgentChatsContextMCPResources", ctx, agentID)
+	ret := m.ctrl.Call(m, "SyncAgentChatsContextMCPResources", ctx, arg)
 	ret0, _ := ret[0].([]uuid.UUID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SyncAgentChatsContextMCPResources indicates an expected call of SyncAgentChatsContextMCPResources.
-func (mr *MockStoreMockRecorder) SyncAgentChatsContextMCPResources(ctx, agentID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) SyncAgentChatsContextMCPResources(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAgentChatsContextMCPResources", reflect.TypeOf((*MockStore)(nil).SyncAgentChatsContextMCPResources), ctx, agentID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAgentChatsContextMCPResources", reflect.TypeOf((*MockStore)(nil).SyncAgentChatsContextMCPResources), ctx, arg)
 }
 
 // TouchChatDebugRunUpdatedAt mocks base method.
@@ -12510,20 +12553,6 @@ func (m *MockStore) UpsertChatComputerUseProvider(ctx context.Context, provider 
 func (mr *MockStoreMockRecorder) UpsertChatComputerUseProvider(ctx, provider any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatComputerUseProvider", reflect.TypeOf((*MockStore)(nil).UpsertChatComputerUseProvider), ctx, provider)
-}
-
-// UpsertChatContextDiscoveredResource mocks base method.
-func (m *MockStore) UpsertChatContextDiscoveredResource(ctx context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatContextDiscoveredResource", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertChatContextDiscoveredResource indicates an expected call of UpsertChatContextDiscoveredResource.
-func (mr *MockStoreMockRecorder) UpsertChatContextDiscoveredResource(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatContextDiscoveredResource", reflect.TypeOf((*MockStore)(nil).UpsertChatContextDiscoveredResource), ctx, arg)
 }
 
 // UpsertChatDebugLoggingAllowUsers mocks base method.

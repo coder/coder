@@ -1479,7 +1479,7 @@ func executeSingleTool(
 	}
 
 	_, isProviderRunner := providerRunnerNames[resolvedName]
-	if !isProviderRunner && !isToolActive(resolvedName, activeTools) && !allowInactiveTools[resolvedName] {
+	if !isProviderRunner && !ToolActive(resolvedName, activeTools, allowInactiveTools) {
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not active in this turn: " + resolvedName),
 		}
@@ -1613,6 +1613,13 @@ func normalizeToolMedia(resp *fantasy.ToolResponse) (string, bool) {
 
 func isToolActive(name string, activeTools []string) bool {
 	return len(activeTools) == 0 || slices.Contains(activeTools, name)
+}
+
+// ToolActive reports whether the turn's active-tool policy lets a call to
+// the named function tool run; ExecuteLocalTools answers any other call
+// with an error result without running it.
+func ToolActive(name string, activeTools []string, allowInactiveTools map[string]bool) bool {
+	return isToolActive(name, activeTools) || allowInactiveTools[name]
 }
 
 // serialToolCaller is implemented by tools whose calls within one step

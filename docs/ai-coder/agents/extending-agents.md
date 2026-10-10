@@ -30,6 +30,9 @@ The lifecycle of an edit looks like this:
 This is why an in-flight chat can keep using an older version of a file it already read: a push adds to a chat's pinned context but never rewrites it.
 The pinned copy of an existing file only changes when you refresh the chat or when the chat is rebound to a different agent, for example after a workspace rebuild.
 MCP servers are the exception: their tool lists follow the workspace on every push without marking the chat out of date.
+A chat holds at most 1,256 context resources and 3&nbsp;MiB of instruction and skill content.
+When a chat reaches either limit, new instruction files and skills from the snapshot are skipped until you refresh its context, which drops the ones the workspace no longer has.
+New MCP servers are skipped only at the resource limit; servers the chat already has keep updating.
 
 The agent publishes nothing until the workspace is ready.
 Until startup scripts finish, the agent holds an empty snapshot, so a chat opened during workspace startup can show no skills and no MCP tools until the first real push lands.
@@ -52,8 +55,23 @@ The agent reads instruction files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and
 It reads skills only from the fixed container directories described below.
 It also scans up to 64 immediate, non-hidden subdirectories of the working directory that contain instruction files, such as repositories cloned during a chat.
 Only instruction files are read from these subdirectories, not skills or `.mcp.json`.
+A repository cloned into an existing empty subdirectory can take around 30 seconds to appear, because the agent finds it on a periodic rescan rather than through its file watcher.
 The agent skips symlinked child directories, never scans deeper for instruction files, and never climbs to a parent directory.
 To pick up context in another directory, declare that directory as its own source.
+
+### Nested instruction files
+
+A repository often keeps instruction files deeper than the snapshot scans, such as a `site/src/AGENTS.md` two levels below the working directory, or in a subdirectory the child scan skipped.
+The snapshot does not include them, so the chat loads them on demand instead.
+When the agent reads, writes, or edits a file, or runs a command in an explicit working directory, the chat looks for instruction files in that directory and in each parent directory below the workspace working directory, and adds any it finds to that chat only.
+For a path outside the working directory, or in a workspace whose template doesn't set `dir` on its `coder_agent` resource, the search goes up to, but not including, the filesystem root.
+These files are pinned like other resources: they appear in the chat's context list and are read again when you select **Refresh context**.
+Edits to a file loaded on demand do not mark the chat out of date, because the agent watches only the directories it scans for the snapshot.
+Once a directory has a pinned instruction file, later tool calls don't search it again, so a new or changed instruction file there reaches the chat only when you refresh its context.
+A directory where nothing was found is searched again after 10 minutes, or right away when a tool reads or writes an instruction file in it or runs a command there.
+A chat holds at most 1&nbsp;MiB of nested instruction content; files past that cap are listed as excluded with no content, like a snapshot's.
+A chat also holds at most 256 nested instruction files; further files are not added until a refresh drops files that no longer exist.
+Paths on a Windows network share (`\\server\share`) are not searched.
 
 ### Snapshot limits
 

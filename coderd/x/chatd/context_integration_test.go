@@ -365,9 +365,10 @@ func TestChatContextAddedResourcesVersionDivergentChat(t *testing.T) {
 	}()
 	<-read
 	added, err := db.SyncAgentChatsContextAddedResources(chatdCtx, database.SyncAgentChatsContextAddedResourcesParams{
-		AgentID:       agent.ID,
-		AggregateHash: hashV2,
-		DirtySince:    now,
+		AgentID:         agent.ID,
+		AggregateHash:   hashV2,
+		MaxResources:    1000,
+		MaxContentBytes: 1 << 20,
 	})
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{chat.ID}, added, "the divergent chat still receives the new file")
@@ -435,7 +436,7 @@ func TestChatContextDiscoveredUpsertRacesRefresh(t *testing.T) {
 			if err := tx.SetChatContextSnapshot(chatdCtx, database.SetChatContextSnapshotParams{ID: chat.ID, AggregateHash: snapshotHash}); err != nil {
 				return err
 			}
-			if err := tx.DeleteChatContextResourcesByChatID(chatdCtx, chat.ID); err != nil {
+			if err := tx.DeleteChatContextResourcesByChatID(chatdCtx, database.DeleteChatContextResourcesByChatIDParams{ChatID: chat.ID}); err != nil {
 				return err
 			}
 			return tx.InsertAgentContextResourcesIntoChat(chatdCtx, database.InsertAgentContextResourcesIntoChatParams{ChatID: chat.ID, AgentID: agent.ID})
@@ -444,7 +445,7 @@ func TestChatContextDiscoveredUpsertRacesRefresh(t *testing.T) {
 	<-read
 	body, err := protojson.Marshal(&agentproto.InstructionFileBody{Content: []byte("discovered")})
 	require.NoError(t, err)
-	require.NoError(t, db.UpsertChatContextDiscoveredResource(chatdCtx, database.UpsertChatContextDiscoveredResourceParams{
+	require.NoError(t, db.InsertChatContextDiscoveredResource(chatdCtx, database.InsertChatContextDiscoveredResourceParams{
 		ChatID:      chat.ID,
 		Source:      nestedSource,
 		BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
@@ -737,12 +738,11 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	// drift.
 	nestedSource := "/home/coder/repo/site/AGENTS.md"
 	nestedDiscoveredHash := []byte{0x41}
-	nestedAgentHash := []byte{0x42}
 	discover := func(source string, hash []byte) {
 		t.Helper()
 		body, merr := protojson.Marshal(&agentproto.InstructionFileBody{Content: []byte("discovered")})
 		require.NoError(t, merr)
-		require.NoError(t, db.UpsertChatContextDiscoveredResource(chatdCtx, database.UpsertChatContextDiscoveredResourceParams{
+		require.NoError(t, db.InsertChatContextDiscoveredResource(chatdCtx, database.InsertChatContextDiscoveredResourceParams{
 			ChatID:      chat.ID,
 			Source:      source,
 			BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
@@ -773,18 +773,19 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	require.True(t, pinned[nestedSource].Discovered, "the discovered row survives an unrelated push")
 	require.Equal(t, otherHash, pinned[otherSource].ContentHash)
 
-	// Once the agent publishes the same source, the watched snapshot copy
-	// takes over the row.
+	// Once the agent publishes the same source, the snapshot adopts the row
+	// as the model read it.
 	hashV11 := []byte{0x11}
-	push(11, hashV11, append(slices.Clone(v9), instructionResource(otherSource, "other", otherHash), instructionResource(nestedSource, "site rules", nestedAgentHash))...)
+	nestedPublished := instructionResource(nestedSource, "discovered", nestedDiscoveredHash)
+	push(11, hashV11, append(slices.Clone(v9), instructionResource(otherSource, "other", otherHash), nestedPublished)...)
 	got, err = expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	require.False(t, got.Context.Dirty, "adopting a discovered source is an addition, not drift")
+	require.False(t, got.Context.Dirty, "adopting a discovered source with the snapshot's content is an addition, not drift")
 	require.Equal(t, hashV11, pinnedHash())
 	pinned = pinnedResources()
 	require.Len(t, pinned, 6)
-	require.False(t, pinned[nestedSource].Discovered, "the snapshot copy replaces the discovered row")
-	require.Equal(t, nestedAgentHash, pinned[nestedSource].ContentHash)
+	require.False(t, pinned[nestedSource].Discovered, "the snapshot owns the adopted row")
+	require.Equal(t, nestedDiscoveredHash, pinned[nestedSource].ContentHash)
 
 	// Reconciling a vanished file removes discovered rows only.
 	docsSource := "/home/coder/repo/docs/AGENTS.md"
@@ -797,9 +798,8 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	require.Contains(t, pinned, nestedSource, "a snapshot row is not a discovered row")
 	require.NotContains(t, pinned, docsSource)
 
-	// A server the agent publishes under a discovered file's source takes
-	// the row over like any snapshot copy: the live sync rewrites it, and the
-	// row is no longer the discovered reconciliation's to drop.
+	// A server the agent publishes under a discovered file's source does not
+	// turn what the model read into tool inventory.
 	discover(docsSource, nestedDiscoveredHash)
 	docsServer := &agentproto.ContextResource{
 		Source:      docsSource,
@@ -810,16 +810,33 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 			McpServer: &agentproto.MCPServerBody{ServerName: docsSource},
 		},
 	}
-	push(12, hashV11, append(slices.Clone(v9), instructionResource(otherSource, "other", otherHash), instructionResource(nestedSource, "site rules", nestedAgentHash), docsServer)...)
+	push(12, hashV11, append(slices.Clone(v9), instructionResource(otherSource, "other", otherHash), nestedPublished, docsServer)...)
 	got, err = expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.False(t, got.Context.Dirty)
 	pinned = pinnedResources()
 	require.Len(t, pinned, 7)
-	require.Equal(t, database.WorkspaceAgentContextBodyKindMcpServer, pinned[docsSource].BodyKind, "the server is live-synced over the discovered row")
-	require.False(t, pinned[docsSource].Discovered, "the snapshot owns the row")
-	require.NoError(t, db.DeleteChatContextDiscoveredResource(chatdCtx, database.DeleteChatContextDiscoveredResourceParams{ChatID: chat.ID, Source: docsSource}))
-	require.Contains(t, pinnedResources(), docsSource, "the server row survives the discovered delete")
+	require.Equal(t, database.WorkspaceAgentContextBodyKindInstructionFile, pinned[docsSource].BodyKind, "the live sync leaves the discovered row as read")
+	require.True(t, pinned[docsSource].Discovered)
+
+	// A snapshot that publishes a discovered source with a different body
+	// marks the chat out of date even when the hashes match: the hash leaves
+	// out the global flag.
+	globalSource := "/home/coder/repo/lib/AGENTS.md"
+	discover(globalSource, nestedDiscoveredHash)
+	globalPublished := instructionResource(globalSource, "discovered", nestedDiscoveredHash)
+	globalPublished.GetInstructionFile().Global = true
+	hashV13 := []byte{0x13}
+	push(13, hashV13, append(slices.Clone(v9), instructionResource(otherSource, "other", otherHash), nestedPublished, docsServer, globalPublished)...)
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, got.Context.Dirty, "the adopted row differs from the snapshot's body")
+	require.Equal(t, hashV11, pinnedHash(), "an out-of-date chat keeps its hash")
+	pinned = pinnedResources()
+	require.False(t, pinned[globalSource].Discovered)
+	var adopted agentproto.InstructionFileBody
+	require.NoError(t, protojson.Unmarshal(pinned[globalSource].Body, &adopted))
+	require.False(t, adopted.Global, "adoption keeps the body the model read")
 }
 
 // TestChatContextMCPSyncFromAgentPush verifies that agent pushes live-sync MCP

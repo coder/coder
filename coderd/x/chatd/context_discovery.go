@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"maps"
 	"math"
 	"path"
 	"slices"
@@ -33,10 +31,11 @@ const (
 	// workspace cannot stall the step.
 	instructionDiscoveryTimeout = 3 * time.Second
 	// instructionProbeTTL is how long a directory the agent reported empty
-	// is skipped, unless a later step makes it stale.
+	// is skipped, unless a tool touches an instruction file or runs a
+	// command there.
 	instructionProbeTTL = 10 * time.Minute
-	// maxInstructionProbeEntries bounds each probe cache across all agents;
-	// a cache is reset when it fills.
+	// maxInstructionProbeEntries bounds the probe cache across all agents;
+	// the cache is reset when it fills.
 	maxInstructionProbeEntries = 4096
 	// maxInstructionProbesPerStep bounds the directories one step asks the
 	// agent about after pinned and cached-negative ones are filtered.
@@ -48,113 +47,65 @@ const (
 	// maxDiscoveredInstructionFiles caps the discovered rows a chat holds,
 	// whatever their status; the byte cap alone leaves bodyless rows unbounded.
 	maxDiscoveredInstructionFiles = 256
-	// pendingProbeTTL is how long a directory a command ran in is re-probed
-	// on later touches of its tree: a background or timed-out command may
-	// still be writing after its result returned.
-	pendingProbeTTL = 10 * time.Minute
 )
 
 // instructionFileNames mirrors the agent resolver's recognized names so a
-// tool that writes one of them re-probes its directory.
+// tool that touches one of them re-probes its directory.
 var instructionFileNames = []string{"AGENTS.md", "CLAUDE.md", ".cursorrules"}
 
-// instructionProbeCache remembers, per agent, directories reported empty
-// (shared by every chat), directories one chat's row cap kept out (that
-// chat only), and directories a command ran in, which are re-probed for a while.
+type instructionDiscoverer func(ctx context.Context, calls []fantasy.ToolCallContent, results []fantasy.Content)
+
+// instructionProbeCache remembers, per agent, the directories the agent
+// reported empty, for every chat on that agent.
 type instructionProbeCache struct {
 	mu      sync.Mutex
 	entries map[instructionProbeKey]time.Time
-	pending map[instructionProbeKey]time.Time
 }
 
-// instructionProbeKey has chatID uuid.Nil for entries every chat shares.
 type instructionProbeKey struct {
 	agentID uuid.UUID
-	chatID  uuid.UUID
 	dir     string
 }
 
-func (c *instructionProbeCache) negative(now time.Time, agentID, chatID uuid.UUID, dir string) bool {
+func (c *instructionProbeCache) negative(now time.Time, agentID uuid.UUID, dir string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for _, scope := range []uuid.UUID{uuid.Nil, chatID} {
-		if expiry, ok := c.entries[instructionProbeKey{agentID: agentID, chatID: scope, dir: pathKey(dir)}]; ok && now.Before(expiry) {
-			return true
-		}
-	}
-	return false
+	expiry, ok := c.entries[instructionProbeKey{agentID: agentID, dir: pathKey(dir)}]
+	return ok && now.Before(expiry)
 }
 
-// markPending records directories a command ran in.
-func (c *instructionProbeCache) markPending(now time.Time, agentID uuid.UUID, dirs []string) {
-	keys := make([]instructionProbeKey, 0, len(dirs))
-	for _, dir := range dirs {
-		keys = append(keys, instructionProbeKey{agentID: agentID, dir: pathKey(dir)})
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.pending = insertBounded(c.pending, now, pendingProbeTTL, keys)
-}
-
-// isPending reports whether a command ran recently in dir or an ancestor,
-// since the command may be writing anywhere in its tree.
-func (c *instructionProbeCache) isPending(now time.Time, agentID uuid.UUID, dir string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for {
-		if expiry, ok := c.pending[instructionProbeKey{agentID: agentID, dir: pathKey(dir)}]; ok && now.Before(expiry) {
-			return true
-		}
-		if isRootAgentPath(dir) {
-			return false
-		}
-		dir = path.Dir(dir)
-	}
-}
-
-func (c *instructionProbeCache) markNegative(now time.Time, agentID, chatID uuid.UUID, dirs []string) {
-	keys := make([]instructionProbeKey, 0, len(dirs))
-	for _, dir := range dirs {
-		keys = append(keys, instructionProbeKey{agentID: agentID, chatID: chatID, dir: pathKey(dir)})
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.entries = insertBounded(c.entries, now, instructionProbeTTL, keys)
-}
-
-// insertBounded records keys with an expiry of now plus ttl. When the map
+// markNegative records dirs as empty until the TTL passes. When the cache
 // would exceed maxInstructionProbeEntries, expired entries go first and then
-// the whole map, which only costs the next touch a probe it may not need.
-func insertBounded(m map[instructionProbeKey]time.Time, now time.Time, ttl time.Duration, keys []instructionProbeKey) map[instructionProbeKey]time.Time {
-	if len(keys) == 0 {
-		return m
+// the whole cache, which only costs the next touch a probe it may not need.
+func (c *instructionProbeCache) markNegative(now time.Time, agentID uuid.UUID, dirs []string) {
+	if len(dirs) == 0 {
+		return
 	}
-	if m == nil {
-		m = make(map[instructionProbeKey]time.Time)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.entries == nil {
+		c.entries = make(map[instructionProbeKey]time.Time)
 	}
-	if len(m)+len(keys) > maxInstructionProbeEntries {
-		for key, expiry := range m {
+	if len(c.entries)+len(dirs) > maxInstructionProbeEntries {
+		for key, expiry := range c.entries {
 			if !now.Before(expiry) {
-				delete(m, key)
+				delete(c.entries, key)
 			}
 		}
-		if len(m)+len(keys) > maxInstructionProbeEntries {
-			m = make(map[instructionProbeKey]time.Time)
+		if len(c.entries)+len(dirs) > maxInstructionProbeEntries {
+			c.entries = make(map[instructionProbeKey]time.Time)
 		}
 	}
-	for _, key := range keys {
-		m[key] = now.Add(ttl)
+	for _, dir := range dirs {
+		c.entries[instructionProbeKey{agentID: agentID, dir: pathKey(dir)}] = now.Add(instructionProbeTTL)
 	}
-	return m
 }
 
-func (c *instructionProbeCache) forget(agentID, chatID uuid.UUID, dirs []string) {
+func (c *instructionProbeCache) forget(agentID uuid.UUID, dirs []string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, dir := range dirs {
-		for _, scope := range []uuid.UUID{uuid.Nil, chatID} {
-			delete(c.entries, instructionProbeKey{agentID: agentID, chatID: scope, dir: pathKey(dir)})
-		}
+		delete(c.entries, instructionProbeKey{agentID: agentID, dir: pathKey(dir)})
 	}
 }
 
@@ -298,15 +249,19 @@ func agentTouchedPaths(files, dirs []string, operatingSystem string) (outFiles, 
 
 // candidateInstructionDirs lists each touched directory and its ancestors
 // below the working directory, whose own files arrive through the snapshot,
-// deduplicated and shallowest first so the request cap keeps the widest scopes.
+// or below the root when the agent reports none, deduplicated and
+// shallowest first so the request cap keeps the widest scopes.
 func candidateInstructionDirs(files, dirs []string, workingDir string) []string {
-	workingKey := pathKey(agentPath(workingDir))
+	workingKey := ""
+	if workingDir != "" {
+		workingKey = pathKey(agentPath(workingDir))
+	}
 	seen := make(map[string]struct{})
 	var out []string
 	visit := func(dir string) {
 		for {
 			key := pathKey(dir)
-			if isRootAgentPath(dir) || key == workingKey || (workingKey != "/" && strings.HasPrefix(workingKey+"/", key+"/")) {
+			if isRootAgentPath(dir) || (workingKey != "" && (key == workingKey || (workingKey != "/" && strings.HasPrefix(workingKey+"/", key+"/")))) {
 				return
 			}
 			if _, ok := seen[key]; ok {
@@ -338,96 +293,42 @@ func sortShallowestFirst(dirs []string) {
 	})
 }
 
-// staleInstructionDirs lists, by pathKey, the directories an instruction
-// file was written to and the explicit execute workdirs, whose files may
-// have changed during the step.
-func staleInstructionDirs(files, dirs []string) map[string]struct{} {
-	stale := make(map[string]struct{}, len(dirs))
+// invalidatedProbeDirs lists the directories whose cached empty answer
+// the step's touches invalidate: those of touched instruction files and
+// explicit execute workdirs.
+func invalidatedProbeDirs(files, dirs []string) []string {
+	out := slices.Clone(dirs)
 	for _, file := range files {
 		if isInstructionFilePath(file) {
-			stale[pathKey(path.Dir(file))] = struct{}{}
+			out = append(out, path.Dir(file))
 		}
 	}
-	for _, dir := range dirs {
-		stale[pathKey(dir)] = struct{}{}
-	}
-	return stale
+	return out
 }
 
 // pinnedInstructionDirs lists, by pathKey, the directories whose files the
-// chat already holds, and separately those whose excluded file would fit
-// the bytes now free, so a later touch re-reads them.
-func pinnedInstructionDirs(rows []database.ChatContextResource) (pinned, freed map[string]struct{}) {
-	var used int64
+// chat already holds; discovery leaves them to Refresh.
+func pinnedInstructionDirs(rows []database.ChatContextResource) map[string]struct{} {
+	pinned := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
-		if row.Discovered && row.BodyKind == database.WorkspaceAgentContextBodyKindInstructionFile && row.Status == database.WorkspaceAgentContextResourceStatusOk {
-			used += row.SizeBytes
+		if row.BodyKind == database.WorkspaceAgentContextBodyKindInstructionFile {
+			pinned[pathKey(instructionRowDir(row))] = struct{}{}
 		}
 	}
-	free := maxDiscoveredInstructionBytes - used
-	freed = make(map[string]struct{})
-	pinned = make(map[string]struct{}, len(rows))
-	for _, row := range rows {
-		if row.BodyKind != database.WorkspaceAgentContextBodyKindInstructionFile {
-			continue
-		}
-		key := pathKey(instructionRowDir(row))
-		if row.Discovered && row.Status == database.WorkspaceAgentContextResourceStatusExcluded && row.SizeBytes <= free {
-			freed[key] = struct{}{}
-		}
-		pinned[key] = struct{}{}
-	}
-	for key := range freed {
-		delete(pinned, key)
-	}
-	return pinned, freed
+	return pinned
 }
 
-// selectInstructionProbes keeps the stale candidates and those neither
-// pinned nor cached negative. pinnedDirs and stale are keyed by pathKey.
-func selectInstructionProbes(candidates []string, pinnedDirs, stale map[string]struct{}, negative func(dir string) bool) []string {
+// selectInstructionProbes keeps the candidates neither pinned nor cached
+// negative. pinnedDirs is keyed by pathKey.
+func selectInstructionProbes(candidates []string, pinnedDirs map[string]struct{}, negative func(dir string) bool) []string {
 	probe := make([]string, 0, len(candidates))
 	for _, dir := range candidates {
-		key := pathKey(dir)
-		if _, touched := stale[key]; touched {
-			probe = append(probe, dir)
-			continue
-		}
-		if _, ok := pinnedDirs[key]; ok || negative(dir) {
+		if _, ok := pinnedDirs[pathKey(dir)]; ok || negative(dir) {
 			continue
 		}
 		probe = append(probe, dir)
 	}
 	return probe
-}
-
-// removedDiscoveredSources lists the discovered rows in stale, probed
-// directories whose source the probe did not return. stale and returned
-// are keyed by pathKey.
-func removedDiscoveredSources(rows []database.ChatContextResource, stale map[string]struct{}, probed []string, returned map[string]struct{}) []string {
-	probedKeys := make(map[string]struct{}, len(probed))
-	for _, dir := range probed {
-		probedKeys[pathKey(dir)] = struct{}{}
-	}
-	var out []string
-	for _, row := range rows {
-		if !row.Discovered {
-			continue
-		}
-		source := agentPath(row.Source)
-		dirKey := pathKey(path.Dir(source))
-		if _, ok := stale[dirKey]; !ok {
-			continue
-		}
-		if _, ok := probedKeys[dirKey]; !ok {
-			continue
-		}
-		if _, ok := returned[pathKey(source)]; ok {
-			continue
-		}
-		out = append(out, row.Source)
-	}
-	return out
 }
 
 func agentWorkingDirectory(agent database.WorkspaceAgent) string {
@@ -437,9 +338,34 @@ func agentWorkingDirectory(agent database.WorkspaceAgent) string {
 	return agent.Directory
 }
 
+// newInstructionDiscoverer binds discovery to the turn's workspace context.
+// The connection is taken before the agent: taking it may switch the turn
+// to the workspace's current agent, which is the one the probes then reach.
+func (p *Server) newInstructionDiscoverer(workspaceCtx *turnWorkspaceContext, chat database.Chat) instructionDiscoverer {
+	return func(ctx context.Context, calls []fantasy.ToolCallContent, results []fantasy.Content) {
+		files, dirs := touchedPaths(calls, results)
+		if len(files) == 0 && len(dirs) == 0 {
+			return
+		}
+		conn, err := workspaceCtx.getWorkspaceConn(ctx)
+		if err != nil {
+			p.logger.Debug(ctx, "connect to agent for instruction discovery", slog.F("chat_id", chat.ID), slog.Error(err))
+			return
+		}
+		agent, err := workspaceCtx.getWorkspaceAgent(ctx)
+		if err != nil {
+			p.logger.Debug(ctx, "read agent for instruction discovery", slog.F("chat_id", chat.ID), slog.Error(err))
+			return
+		}
+		p.discoverInstructionContext(ctx, conn, agent, chat, files, dirs)
+	}
+}
+
 // discoverInstructionContext asks agent, over conn, for instruction files
-// in the directories the touched files and dirs imply and pins any it finds
-// for this chat. Every failure is logged and swallowed: it must never fail the step.
+// in the directories the touched files and dirs imply and pins the ones the
+// chat does not hold yet. Pinned files are never rewritten here; Refresh
+// re-reads them. Every failure is logged and swallowed: it must never fail
+// the step.
 func (p *Server) discoverInstructionContext(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
@@ -447,28 +373,13 @@ func (p *Server) discoverInstructionContext(
 	chat database.Chat,
 	files, dirs []string,
 ) {
-	workingDir := agentWorkingDirectory(agent)
-	if workingDir == "" {
-		return
-	}
 	files, dirs = agentTouchedPaths(files, dirs, agent.OperatingSystem)
-	candidates := candidateInstructionDirs(files, dirs, workingDir)
+	candidates := candidateInstructionDirs(files, dirs, agentWorkingDirectory(agent))
 	if len(candidates) == 0 {
 		return
 	}
 	logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("agent_id", agent.ID))
-
-	now := p.clock.Now()
-	stale := staleInstructionDirs(files, dirs)
-	// A directory a command ran in recently stays stale for later touches:
-	// the command may still be writing when its result returns.
-	p.instructionProbes.markPending(now, agent.ID, dirs)
-	for _, dir := range candidates {
-		if p.instructionProbes.isPending(now, agent.ID, dir) {
-			stale[pathKey(dir)] = struct{}{}
-		}
-	}
-	p.instructionProbes.forget(agent.ID, chat.ID, slices.Collect(maps.Keys(stale)))
+	p.instructionProbes.forget(agent.ID, invalidatedProbeDirs(files, dirs))
 
 	//nolint:gocritic // Chatd reads the chat's pinned rows as the daemon subject.
 	dbCtx := dbauthz.AsChatd(ctx)
@@ -477,13 +388,12 @@ func (p *Server) discoverInstructionContext(
 		logger.Debug(ctx, "list pinned context for instruction discovery", slog.Error(err))
 		return
 	}
-	pinned, freed := pinnedInstructionDirs(rows)
-	// A directory re-probed because its excluded file would fit now is read
-	// as authoritatively as a stale one, or a vanished file's row would keep
-	// the slot and the probe would repeat after every negative expiry.
-	maps.Copy(stale, freed)
-	probe := selectInstructionProbes(candidates, pinned, stale, func(dir string) bool {
-		return p.instructionProbes.negative(now, agent.ID, chat.ID, dir)
+	if contextUsageOf(rows).full() {
+		return
+	}
+	now := p.clock.Now()
+	probe := selectInstructionProbes(candidates, pinnedInstructionDirs(rows), func(dir string) bool {
+		return p.instructionProbes.negative(now, agent.ID, dir)
 	})
 	if len(probe) == 0 {
 		return
@@ -496,37 +406,25 @@ func (p *Server) discoverInstructionContext(
 	if len(probed) == 0 {
 		return
 	}
-	result, err := p.applyDiscoveredInstructionFiles(ctx, chat.ID, agent.ID, rows, resolved, stale, probed)
-	if err != nil {
-		logger.Warn(ctx, "reconcile discovered instruction files", slog.Error(err))
-		return
-	}
-
 	foundDirs := make(map[string]struct{}, len(resolved))
 	for _, file := range resolved {
 		foundDirs[pathKey(agentPath(file.Directory))] = struct{}{}
 	}
-	negatives := make([]string, 0, len(probed))
-	for _, dir := range probed {
-		key := pathKey(dir)
-		if _, ok := foundDirs[key]; ok {
-			continue
-		}
-		// A stale directory is not remembered as empty: the command that made
-		// it stale may still create the file after this probe.
-		if _, ok := stale[key]; ok {
-			continue
-		}
-		negatives = append(negatives, dir)
-	}
-	p.instructionProbes.markNegative(now, agent.ID, uuid.Nil, negatives)
-	// A directory this chat's row cap kept out is not asked again for a
-	// while; the cap is the chat's, so other chats on the agent still probe it.
-	p.instructionProbes.markNegative(now, agent.ID, chat.ID, result.capped)
-	if result.pinned == 0 && result.removed == 0 {
+	empty := slices.DeleteFunc(slices.Clone(probed), func(dir string) bool {
+		_, found := foundDirs[pathKey(dir)]
+		return found
+	})
+	p.instructionProbes.markNegative(now, agent.ID, empty)
+
+	pinned, err := p.applyDiscoveredInstructionFiles(ctx, chat.ID, agent.ID, resolved, probed, nil)
+	if err != nil {
+		logger.Warn(ctx, "pin discovered instruction files", slog.Error(err))
 		return
 	}
-	logger.Debug(ctx, "reconciled discovered instruction files", slog.F("pinned", result.pinned), slog.F("removed", result.removed))
+	if pinned == 0 {
+		return
+	}
+	logger.Debug(ctx, "pinned discovered instruction files", slog.F("pinned", pinned))
 	updated, err := p.db.GetChatByID(dbCtx, chat.ID)
 	if err != nil {
 		logger.Warn(ctx, "read chat after instruction discovery", slog.Error(err))
@@ -535,127 +433,95 @@ func (p *Server) discoverInstructionContext(
 	p.publishChatPubsubEvents([]database.Chat{updated}, codersdk.ChatWatchEventKindContextDirty)
 }
 
-type discoveryReconciliation struct {
-	pinned, removed int
-	// capped lists the directories whose new files the row cap kept out.
-	capped []string
+// contextUsage is what a chat's pinned rows hold against the discovered
+// caps and the whole-chat caps every addition path shares.
+type contextUsage struct {
+	resources, discoveredFiles    int
+	contentBytes, discoveredBytes int64
 }
 
-// discoveryBudget is the share of the chat's discovered caps that rows
-// outside a reconciliation's reach already consume.
-type discoveryBudget struct {
-	bytes int64
-	files int
+func contextUsageOf(rows []database.ChatContextResource) contextUsage {
+	var usage contextUsage
+	for _, row := range rows {
+		usage.resources++
+		readable := row.Status == database.WorkspaceAgentContextResourceStatusOk
+		if readable && row.BodyKind != database.WorkspaceAgentContextBodyKindMcpConfig && row.BodyKind != database.WorkspaceAgentContextBodyKindMcpServer {
+			usage.contentBytes += row.SizeBytes
+		}
+		if row.Discovered {
+			usage.discoveredFiles++
+			if readable {
+				usage.discoveredBytes += row.SizeBytes
+			}
+		}
+	}
+	return usage
 }
 
-// reconcileDiscoveredInstructionFiles removes the discovered rows in stale,
-// probed directories the agent no longer returned, then pins the resolved
-// files against the chat's inventory (rows): a file pinned under another
-// spelling of a Windows path keeps that spelling, since the row key is
-// case-sensitive, and a file the snapshot owns is left to it. Content past
-// the byte cap is pinned as excluded and a new source past the row cap is not
-// pinned; reserved is the share of both caps held by rows outside the inventory.
-func reconcileDiscoveredInstructionFiles(
+// full reports whether a row cap leaves no room for another discovered file.
+func (u contextUsage) full() bool {
+	return u.discoveredFiles >= maxDiscoveredInstructionFiles || u.resources >= maxChatContextResources
+}
+
+// fits reports whether size more readable bytes stay within both byte caps.
+func (u contextUsage) fits(size int64) bool {
+	return size <= maxDiscoveredInstructionBytes-u.discoveredBytes && size <= maxChatContextContentBytes-u.contentBytes
+}
+
+// pinInstructionFiles pins, as discovered rows, the resolved files whose
+// source the chat's inventory (rows) does not hold, in the order resolved,
+// which is shallowest first. Content past a byte cap is pinned as excluded;
+// files past a row cap are not pinned. It returns how many it pinned.
+func pinInstructionFiles(
 	ctx context.Context,
 	store database.Store,
 	chatID uuid.UUID,
 	rows []database.ChatContextResource,
 	resolved []workspacesdk.ContextInstructionFile,
-	stale map[string]struct{},
-	probed []string,
-	reserved discoveryBudget,
-) (discoveryReconciliation, error) {
-	var result discoveryReconciliation
-	spellings := make(map[string]string, len(rows))
-	snapshotOwned := make(map[string]struct{}, len(rows))
-	heldBytes := make(map[string]int64, len(rows))
-	used := reserved.bytes
-	count := reserved.files
+) (int, error) {
+	held := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
-		if row.BodyKind != database.WorkspaceAgentContextBodyKindInstructionFile {
-			continue
-		}
-		key := pathKey(agentPath(row.Source))
-		spellings[key] = row.Source
-		if !row.Discovered {
-			snapshotOwned[key] = struct{}{}
-			continue
-		}
-		count++
-		if row.Status == database.WorkspaceAgentContextResourceStatusOk {
-			heldBytes[key] = row.SizeBytes
-			used += row.SizeBytes
-		}
+		held[pathKey(agentPath(row.Source))] = struct{}{}
 	}
-	returned := make(map[string]struct{}, len(resolved))
+	usage := contextUsageOf(rows)
+	pinned := 0
 	for _, file := range resolved {
-		returned[pathKey(agentPath(file.Source))] = struct{}{}
-	}
-	// Vanished files go first so a renamed file takes over the budget and
-	// the row its old name held.
-	for _, source := range removedDiscoveredSources(rows, stale, probed, returned) {
-		if err := store.DeleteChatContextDiscoveredResource(ctx, database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: source}); err != nil {
-			return result, xerrors.Errorf("delete removed instruction file %q: %w", source, err)
+		if usage.full() {
+			break
 		}
-		key := pathKey(agentPath(source))
-		used -= heldBytes[key]
-		delete(heldBytes, key)
-		delete(spellings, key)
-		count--
-		result.removed++
-	}
-	for _, file := range resolved {
 		key := pathKey(agentPath(file.Source))
-		if _, owned := snapshotOwned[key]; owned {
+		if _, ok := held[key]; ok || !database.WorkspaceAgentContextResourceStatus(file.Status).Valid() {
 			continue
 		}
-		if !database.WorkspaceAgentContextResourceStatus(file.Status).Valid() {
-			// A status this server does not know leaves the row as it was.
-			continue
-		}
-		source, known := spellings[key]
-		if known {
-			file.Source = source
-		} else if count >= maxDiscoveredInstructionFiles {
-			if dir := agentPath(file.Directory); !slices.Contains(result.capped, dir) {
-				result.capped = append(result.capped, dir)
-			}
-			continue
-		}
-		// A re-read replaces the bytes an earlier read held, whatever the
-		// file's status is now.
-		used -= heldBytes[key]
-		delete(heldBytes, key)
 		size := int64(math.MaxInt64)
 		if file.SizeBytes <= math.MaxInt64 {
 			size = int64(file.SizeBytes)
 		}
 		if file.Status == string(database.WorkspaceAgentContextResourceStatusOk) {
-			if size > maxDiscoveredInstructionBytes-used {
-				file.Status = string(database.WorkspaceAgentContextResourceStatusExcluded)
-				file.Error = fmt.Sprintf("discovered instruction content cap of %d bytes reached", maxDiscoveredInstructionBytes)
-				file.Content = ""
+			if usage.fits(size) {
+				usage.contentBytes += size
+				usage.discoveredBytes += size
 			} else {
-				used += size
-				heldBytes[key] = size
+				file.Status = string(database.WorkspaceAgentContextResourceStatusExcluded)
+				file.Error = "chat instruction content cap reached"
+				file.Content = ""
 			}
 		}
-		if err := pinDiscoveredInstructionFile(ctx, store, chatID, file, size); err != nil {
-			return result, xerrors.Errorf("pin discovered instruction file %q: %w", file.Source, err)
+		if err := insertDiscoveredInstructionFile(ctx, store, chatID, file, size); err != nil {
+			return pinned, xerrors.Errorf("pin discovered instruction file %q: %w", file.Source, err)
 		}
-		result.pinned++
-		if !known {
-			spellings[key] = file.Source
-			count++
-		}
+		held[key] = struct{}{}
+		usage.resources++
+		usage.discoveredFiles++
+		pinned++
 	}
-	return result, nil
+	return pinned, nil
 }
 
-// pinDiscoveredInstructionFile stores one resolved file as a discovered row.
-// A non-OK status is pinned without a body so the inventory still lists the
-// file and a file that stopped being readable drops its earlier body.
-func pinDiscoveredInstructionFile(ctx context.Context, store database.Store, chatID uuid.UUID, file workspacesdk.ContextInstructionFile, size int64) error {
+// insertDiscoveredInstructionFile stores one resolved file as a discovered
+// row. A non-OK status is pinned without a body so the inventory still lists
+// the file.
+func insertDiscoveredInstructionFile(ctx context.Context, store database.Store, chatID uuid.UUID, file workspacesdk.ContextInstructionFile, size int64) error {
 	contentHash, err := hex.DecodeString(file.ContentHash)
 	if err != nil {
 		return xerrors.Errorf("decode content hash: %w", err)
@@ -664,7 +530,7 @@ func pinDiscoveredInstructionFile(ctx context.Context, store database.Store, cha
 	if err != nil {
 		return xerrors.Errorf("encode instruction body: %w", err)
 	}
-	if err := store.UpsertChatContextDiscoveredResource(ctx, database.UpsertChatContextDiscoveredResourceParams{
+	if err := store.InsertChatContextDiscoveredResource(ctx, database.InsertChatContextDiscoveredResourceParams{
 		ChatID:      chatID,
 		Source:      file.Source,
 		BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
@@ -674,44 +540,93 @@ func pinDiscoveredInstructionFile(ctx context.Context, store database.Store, cha
 		Status:      database.WorkspaceAgentContextResourceStatus(file.Status),
 		Error:       file.Error,
 	}); err != nil {
-		return xerrors.Errorf("upsert discovered resource: %w", err)
+		return xerrors.Errorf("insert discovered resource: %w", err)
 	}
 	return nil
 }
 
-// applyDiscoveredInstructionFiles reconciles a probe's answer, given for
-// agentID against the captured inventory, in one repeatable-read transaction.
-// The chat lock drops the answer after a rebind (the rows now belong to
-// another agent) and the inventory is re-read inside so rows another writer
-// pinned meanwhile, snapshot or discovered, are left alone.
+// applyDiscoveredInstructionFiles pins a probe's answer against the chat's
+// current inventory, and drops it once the chat is bound to another agent.
+// A refresh passes the discovered rows it captured, so rows still unchanged
+// in a probed directory take the probe's answer and newer state wins.
 func (p *Server) applyDiscoveredInstructionFiles(
 	ctx context.Context,
 	chatID, agentID uuid.UUID,
-	captured []database.ChatContextResource,
 	resolved []workspacesdk.ContextInstructionFile,
-	stale map[string]struct{},
 	probed []string,
-) (discoveryReconciliation, error) {
+	captured []database.ChatContextResource,
+) (int, error) {
 	//nolint:gocritic // Chatd pins discovered rows onto a chat it does not own.
 	ctx = dbauthz.AsChatd(ctx)
-	var result discoveryReconciliation
+	var pinned int
 	err := database.ReadModifyUpdate(p.db, func(tx database.Store) error {
-		locked, err := tx.GetChatByIDForUpdate(ctx, chatID)
+		pinned = 0
+		bound, err := tx.LockChatContextForWrite(ctx, chatID)
 		if err != nil {
-			return xerrors.Errorf("lock chat for discovered instruction files: %w", err)
+			return xerrors.Errorf("lock chat context: %w", err)
 		}
-		if locked.AgentID.UUID != agentID {
+		if !bound.Valid || bound.UUID != agentID {
 			return nil
 		}
-		current, err := tx.ListChatContextResourcesByChatID(ctx, chatID)
+		rows, err := tx.ListChatContextResourcesByChatID(ctx, chatID)
 		if err != nil {
 			return xerrors.Errorf("list chat context resources: %w", err)
 		}
-		rows, files, reserved := unchangedDiscoveredRows(captured, current, resolved)
-		result, err = reconcileDiscoveredInstructionFiles(ctx, tx, chatID, rows, files, stale, probed, reserved)
+		rows, kept, err := releaseCapturedRows(ctx, tx, chatID, rows, captured, probed)
+		if err != nil {
+			return err
+		}
+		files := slices.DeleteFunc(slices.Clone(resolved), func(file workspacesdk.ContextInstructionFile) bool {
+			_, ok := kept[pathKey(agentPath(file.Source))]
+			return ok
+		})
+		pinned, err = pinInstructionFiles(ctx, tx, chatID, rows, files)
 		return err
 	})
-	return result, err
+	return pinned, err
+}
+
+// releaseCapturedRows deletes the captured rows in probed directories that
+// are still as captured, so the probe's answer replaces them. The captured
+// sources that changed or disappeared meanwhile are returned by pathKey: a
+// newer writer owns them, so the answer must not recreate or overwrite them.
+func releaseCapturedRows(
+	ctx context.Context,
+	store database.Store,
+	chatID uuid.UUID,
+	rows, captured []database.ChatContextResource,
+	probed []string,
+) ([]database.ChatContextResource, map[string]struct{}, error) {
+	probedDirs := make(map[string]struct{}, len(probed))
+	for _, dir := range probed {
+		probedDirs[pathKey(dir)] = struct{}{}
+	}
+	current := make(map[string]database.ChatContextResource, len(rows))
+	for _, row := range rows {
+		current[pathKey(agentPath(row.Source))] = row
+	}
+	released := make(map[string]struct{}, len(captured))
+	kept := make(map[string]struct{})
+	for _, was := range captured {
+		if _, ok := probedDirs[pathKey(instructionRowDir(was))]; !ok {
+			continue
+		}
+		key := pathKey(agentPath(was.Source))
+		row, ok := current[key]
+		if !ok || !row.Discovered || !sameDiscoveredRow(was, row) {
+			kept[key] = struct{}{}
+			continue
+		}
+		if err := store.DeleteChatContextDiscoveredResource(ctx, database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: row.Source}); err != nil {
+			return nil, nil, xerrors.Errorf("delete re-read instruction file %q: %w", row.Source, err)
+		}
+		released[key] = struct{}{}
+	}
+	rows = slices.DeleteFunc(rows, func(row database.ChatContextResource) bool {
+		_, ok := released[pathKey(agentPath(row.Source))]
+		return ok
+	})
+	return rows, kept, nil
 }
 
 // rediscoverInstructionContext re-reads the discovered rows a refresh kept
@@ -733,69 +648,12 @@ func (p *Server) rediscoverInstructionContext(ctx context.Context, chat database
 	if len(probed) == 0 {
 		return
 	}
-	stale := make(map[string]struct{}, len(probed))
-	for _, dir := range probed {
-		stale[pathKey(dir)] = struct{}{}
-	}
-	if _, err := p.applyDiscoveredInstructionFiles(ctx, chat.ID, chat.AgentID.UUID, captured, resolved, stale, probed); err != nil {
+	if _, err := p.applyDiscoveredInstructionFiles(ctx, chat.ID, chat.AgentID.UUID, resolved, probed, captured); err != nil {
 		logger.Warn(ctx, "apply instruction rediscovery", slog.Error(err))
 	}
 }
 
-// unchangedDiscoveredRows narrows a probe's result to what no other writer
-// touched since captured: the current inventory minus discovered rows rewritten
-// or added meanwhile, the resolved files minus those sources, and the share of
-// the caps the left-out rows hold, so the caller does not spend it again.
-func unchangedDiscoveredRows(
-	captured, current []database.ChatContextResource,
-	resolved []workspacesdk.ContextInstructionFile,
-) ([]database.ChatContextResource, []workspacesdk.ContextInstructionFile, discoveryBudget) {
-	capturedRows := make(map[string]database.ChatContextResource, len(captured))
-	for _, row := range captured {
-		if row.Discovered {
-			capturedRows[pathKey(agentPath(row.Source))] = row
-		}
-	}
-	rows := make([]database.ChatContextResource, 0, len(current))
-	unchanged := make(map[string]struct{}, len(current))
-	touched := make(map[string]struct{}, len(current))
-	var reserved discoveryBudget
-	for _, row := range current {
-		key := pathKey(agentPath(row.Source))
-		if !row.Discovered {
-			rows = append(rows, row)
-			continue
-		}
-		if was, ok := capturedRows[key]; ok && sameDiscoveredRow(was, row) {
-			rows = append(rows, row)
-			unchanged[key] = struct{}{}
-			continue
-		}
-		touched[key] = struct{}{}
-		reserved.files++
-		if row.Status == database.WorkspaceAgentContextResourceStatusOk {
-			reserved.bytes += row.SizeBytes
-		}
-	}
-	files := make([]workspacesdk.ContextInstructionFile, 0, len(resolved))
-	for _, file := range resolved {
-		key := pathKey(agentPath(file.Source))
-		if _, ok := touched[key]; ok {
-			continue
-		}
-		if _, ok := capturedRows[key]; ok {
-			if _, ok := unchanged[key]; !ok {
-				// Captured but gone from the inventory: a step removed it.
-				continue
-			}
-		}
-		files = append(files, file)
-	}
-	return rows, files, reserved
-}
-
-// sameDiscoveredRow compares every field a pin rewrites: pinning a file the
-// budget had excluded changes its status and body but not its hash.
+// sameDiscoveredRow compares every field a pin writes.
 func sameDiscoveredRow(a, b database.ChatContextResource) bool {
 	return bytes.Equal(a.ContentHash, b.ContentHash) &&
 		a.Status == b.Status &&
