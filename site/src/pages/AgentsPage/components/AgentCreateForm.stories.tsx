@@ -16,6 +16,7 @@ import {
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { aiProvidersListKey } from "#/api/queries/aiProviders";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
@@ -2033,6 +2034,55 @@ export const OrgPickerTightSpacing: Story = {
 				data: [MockDefaultOrganization, MockOrganization2],
 			},
 		],
+	},
+};
+
+const pickerProjects: TypesGen.ChatProject[] = [
+	{ ...MockChatProject, icon: "/emojis/1f680.png" },
+	{
+		...MockChatProject,
+		id: "chat-project-incidents",
+		name: "Incident response",
+		icon: "/emojis/1f525.png",
+	},
+	{
+		...MockChatProject,
+		id: "chat-project-org-2",
+		organization_id: MockOrganization2.id,
+		name: "Organization 2 project",
+	},
+];
+
+export const WithProjectPicker: Story = {
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			...defaultQueries,
+			{ key: chatProjectsKey, data: pickerProjects },
+		],
+	},
+};
+
+export const WithOrganizationAndProjectPickers: Story = {
+	parameters: {
+		experiments: ["chat-projects"],
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			...defaultQueries,
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+			{ key: chatProjectsKey, data: pickerProjects },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /^Project:/ }),
+		);
+		await screen.findByRole("button", { name: "New project" });
 	},
 };
 
