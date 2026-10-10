@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClientProvider } from "react-query";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -31,13 +31,17 @@ const mockDocsSkill = {
 	enabled: true,
 };
 
-const renderTable = (canEdit: boolean, skills = [mockReviewSkill]) => {
+const renderTable = (
+	canEdit: boolean,
+	skills = [mockReviewSkill],
+	queryClient = createTestQueryClient(),
+) => {
 	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue(skills);
 	const updateSkill = vi
 		.spyOn(API.experimental, "updateOrganizationSkill")
 		.mockResolvedValue({ ...mockReviewSkill, enabled: false, content: "" });
 	renderComponent(
-		<QueryClientProvider client={createTestQueryClient()}>
+		<QueryClientProvider client={queryClient}>
 			<SkillsTable
 				owner={{ type: "organization", organizationId: MockOrganization.id }}
 				copy={copy}
@@ -81,6 +85,24 @@ describe("SkillsTable enabled toggle", () => {
 			"review-sql",
 			"docs-style",
 		]);
+	});
+
+	it("keeps an earlier toggle pending while another skill toggles", async () => {
+		const { user, updateSkill } = renderTable(true, [
+			mockReviewSkill,
+			mockDocsSkill,
+		]);
+		updateSkill.mockReturnValue(new Promise(() => {}));
+		const reviewToggle = await screen.findByRole("switch", {
+			name: "Enable review-sql",
+		});
+
+		await user.click(reviewToggle);
+		await user.click(screen.getByRole("switch", { name: "Enable docs-style" }));
+		await user.click(reviewToggle);
+
+		expect(reviewToggle).not.toBeChecked();
+		expect(updateSkill).toHaveBeenCalledTimes(2);
 	});
 
 	it("toggles the same skill again after its update settles", async () => {
@@ -130,6 +152,26 @@ describe("SkillsTable enabled toggle", () => {
 });
 
 describe("SkillsTable create dialog", () => {
+	it("refetches a failed list after a successful create", async () => {
+		const getSkills = vi
+			.spyOn(API.experimental, "getOrganizationSkills")
+			.mockRejectedValueOnce(new Error("List failed."));
+		const { user } = renderTable(true, [mockReviewSkill]);
+		vi.spyOn(API.experimental, "createOrganizationSkill").mockResolvedValue({
+			...mockReviewSkill,
+			content: "---\nname: review-sql\n---\nBody.",
+		});
+
+		await screen.findByRole("button", { name: "Retry" });
+		await user.click(screen.getByRole("button", { name: "Add skill" }));
+		await user.type(await screen.findByLabelText("Name"), "review-sql");
+		await user.type(screen.getByLabelText("Body"), "Body.");
+		await user.click(screen.getByRole("button", { name: "Create skill" }));
+
+		await screen.findByRole("switch", { name: "Enable review-sql" });
+		expect(getSkills).toHaveBeenCalledTimes(2);
+	});
+
 	it("returns focus to the empty-state Add skill button on Escape", async () => {
 		const { user } = renderTable(true, []);
 
@@ -217,6 +259,38 @@ describe("SkillsTable row menu dialogs", () => {
 		await waitFor(() =>
 			expect(document.activeElement).toHaveAccessibleName("Add skill"),
 		);
+	});
+
+	it("offers Retry when reopening View fails to refresh cached content", async () => {
+		const { user } = renderTable(
+			false,
+			[mockReviewSkill],
+			new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+		);
+		const detail = {
+			...mockReviewSkill,
+			content: "---\nname: review-sql\n---\nBody.",
+		};
+		const getSkill = vi
+			.spyOn(API.experimental, "getOrganizationSkillByName")
+			.mockResolvedValueOnce(detail)
+			.mockRejectedValueOnce(new Error("Refresh failed."))
+			.mockResolvedValue(detail);
+		const openView = async () => {
+			await user.click(
+				await screen.findByRole("button", { name: "Open menu" }),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: "View" }));
+		};
+
+		await openView();
+		await user.click(await screen.findByRole("button", { name: "Close" }));
+		await openView();
+		const dialog = await screen.findByRole("dialog", { name: "review-sql" });
+		await within(dialog).findByText("Refresh failed.");
+		await user.click(within(dialog).getByRole("button", { name: "Retry" }));
+
+		await waitFor(() => expect(getSkill).toHaveBeenCalledTimes(3));
 	});
 
 	it("closes the View dialog with its Close button", async () => {
