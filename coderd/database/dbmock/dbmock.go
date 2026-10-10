@@ -908,6 +908,20 @@ func (mr *MockStoreMockRecorder) DeleteChatAutomationByID(ctx, id any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatAutomationByID", reflect.TypeOf((*MockStore)(nil).DeleteChatAutomationByID), ctx, id)
 }
 
+// DeleteChatContextDiscoveredResource mocks base method.
+func (m *MockStore) DeleteChatContextDiscoveredResource(ctx context.Context, arg database.DeleteChatContextDiscoveredResourceParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatContextDiscoveredResource", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatContextDiscoveredResource indicates an expected call of DeleteChatContextDiscoveredResource.
+func (mr *MockStoreMockRecorder) DeleteChatContextDiscoveredResource(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatContextDiscoveredResource", reflect.TypeOf((*MockStore)(nil).DeleteChatContextDiscoveredResource), ctx, arg)
+}
+
 // DeleteChatContextResourcesByChatID mocks base method.
 func (m *MockStore) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -12496,6 +12510,20 @@ func (m *MockStore) UpsertChatComputerUseProvider(ctx context.Context, provider 
 func (mr *MockStoreMockRecorder) UpsertChatComputerUseProvider(ctx, provider any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatComputerUseProvider", reflect.TypeOf((*MockStore)(nil).UpsertChatComputerUseProvider), ctx, provider)
+}
+
+// UpsertChatContextDiscoveredResource mocks base method.
+func (m *MockStore) UpsertChatContextDiscoveredResource(ctx context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatContextDiscoveredResource", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertChatContextDiscoveredResource indicates an expected call of UpsertChatContextDiscoveredResource.
+func (mr *MockStoreMockRecorder) UpsertChatContextDiscoveredResource(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatContextDiscoveredResource", reflect.TypeOf((*MockStore)(nil).UpsertChatContextDiscoveredResource), ctx, arg)
 }
 
 // UpsertChatDebugLoggingAllowUsers mocks base method.
