@@ -651,14 +651,11 @@ const AgentChatPage: React.FC = () => {
 		hasModelOptions,
 		isEditReasoningEffortDirtyRef,
 		// chatd skips disabled skills, so they never shadow a built-in
-		// command. A list that failed with no data counts as empty rather
-		// than blocking built-in commands until the page remounts.
-		personalSkills:
-			personalSkillsQuery.data?.filter((skill) => skill.enabled) ??
-			(personalSkillsQuery.isError ? [] : undefined),
-		organizationSkills:
-			organizationSkillsQuery.data?.filter((skill) => skill.enabled) ??
-			(organizationSkillsQuery.isError ? [] : undefined),
+		// command. A list with no data stays unknown, even after an error.
+		personalSkills: personalSkillsQuery.data?.filter((skill) => skill.enabled),
+		organizationSkills: organizationSkillsQuery.data?.filter(
+			(skill) => skill.enabled,
+		),
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,

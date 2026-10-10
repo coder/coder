@@ -1,7 +1,16 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Outlet } from "react-router";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
+import {
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 import { API } from "#/api/api";
 import { skillsKey } from "#/api/queries/skills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -85,6 +94,10 @@ const mockChatPageRequests = () => {
 		clearChat: vi
 			.spyOn(API.experimental, "clearChat")
 			.mockResolvedValue(mockChat),
+		compactChat: vi
+			.spyOn(API.experimental, "compactChat")
+			.mockResolvedValue(mockChat),
+		createChatMessage: vi.spyOn(API.experimental, "createChatMessage"),
 	};
 };
 
@@ -103,6 +116,11 @@ beforeAll(() => {
 		configurable: true,
 		value: () => new DOMRect(0, 0, 1, 16),
 	});
+});
+
+// Held commands stay in the composer, which saves a per-chat draft on unmount.
+beforeEach(() => {
+	localStorage.clear();
 });
 
 afterEach(() => {
@@ -126,4 +144,39 @@ describe("AgentChatPage slash commands", () => {
 
 		await waitFor(() => expect(clearChat).toHaveBeenCalledWith(mockChat.id));
 	});
+
+	it.each(["clear", "compact"])(
+		"holds /%s while the organization skills request fails",
+		async (command) => {
+			const { clearChat, compactChat, createChatMessage } =
+				mockChatPageRequests();
+			vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+			vi.spyOn(API.experimental, "getOrganizationSkills").mockRejectedValue(
+				new Error("Failed to load skills."),
+			);
+			const toastInfo = vi.spyOn(toast, "info");
+
+			const { queryClient } = renderChatPage();
+			await waitFor(() =>
+				expect(
+					queryClient.getQueryState(
+						skillsKey({
+							type: "organization",
+							organizationId: mockChat.organization_id,
+						}),
+					)?.status,
+				).toBe("error"),
+			);
+			await submitInComposer(`/${command}`);
+
+			await waitFor(() =>
+				expect(toastInfo).toHaveBeenCalledWith(
+					`Checking whether /${command} is available. Try again in a moment.`,
+				),
+			);
+			expect(clearChat).not.toHaveBeenCalled();
+			expect(compactChat).not.toHaveBeenCalled();
+			expect(createChatMessage).not.toHaveBeenCalled();
+		},
+	);
 });
