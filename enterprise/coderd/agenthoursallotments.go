@@ -381,6 +381,13 @@ func (api *API) upsertAgentHoursGroupAllotment(rw http.ResponseWriter, r *http.R
 	if !api.groupOrganizationActive(ctx, rw, group) {
 		return
 	}
+	if group.IsEveryone() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("The %q group cannot have an Agent Hours allotment.", database.EveryoneGroup),
+			Detail:  "Hours of members without an allotted group count toward the organization's unallotted share.",
+		})
+		return
+	}
 
 	allotmentBps, ok := readAgentHoursAllotment(ctx, rw, r)
 	if !ok {

@@ -345,6 +345,23 @@ func TestAgentHoursGroupAllotments(t *testing.T) {
 		require.Len(t, list.Groups, 1)
 	})
 
+	t.Run("EveryoneCannotBeAllotted", func(t *testing.T) {
+		t.Parallel()
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: agentHoursLicense(1000),
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The Everyone group's ID is its organization's ID.
+		//nolint:gocritic // The owner can update every group.
+		_, err := client.UpsertAgentHoursGroupAllotment(ctx, owner.OrganizationID, allotmentReq(100))
+		requireAgentHoursStatus(t, err, http.StatusBadRequest)
+		//nolint:gocritic // The owner can read every group.
+		list, err := client.AgentHoursGroupAllotments(ctx, owner.OrganizationID)
+		require.NoError(t, err)
+		require.Empty(t, list.Groups)
+	})
+
 	t.Run("DeletingGroupRemovesAllotment", func(t *testing.T) {
 		t.Parallel()
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{

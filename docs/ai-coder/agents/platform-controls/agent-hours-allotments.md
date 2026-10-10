@@ -29,6 +29,7 @@ Changing or removing an organization's allotment doesn't change the allotments o
 
 Agent Hours that aren't allotted stay in a shared pool.
 An organization without an allotment draws from that shared pool, and its groups can still have allotments.
+The **Everyone** group can't have an allotment, because members without an allotted group already draw from their organization's unallotted share.
 A deployment with a single organization can allot to groups without giving the organization an allotment.
 Coder shows hour figures for groups only when their organization has an allotment and the license grants a fixed number of Agent Hours.
 
