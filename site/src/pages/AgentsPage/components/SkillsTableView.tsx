@@ -3,7 +3,7 @@ import { useRef } from "react";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
+import { Button, type ButtonProps } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
@@ -161,6 +161,22 @@ const formatUpdatedAt = (value: string) => {
 	});
 };
 
+type RetryButtonProps = Pick<ButtonProps, "size" | "variant"> & {
+	isRetrying: boolean;
+	onRetry: () => void;
+};
+
+const RetryButton: React.FC<RetryButtonProps> = ({
+	isRetrying,
+	onRetry,
+	...buttonProps
+}) => (
+	<Button {...buttonProps} onClick={onRetry} disabled={isRetrying}>
+		{isRetrying && <Spinner className="size-4" loading />}
+		Retry
+	</Button>
+);
+
 type SkillLoadDialogProps = {
 	noun: string;
 	purpose: "editing" | "viewing";
@@ -227,10 +243,7 @@ const SkillLoadDialog: React.FC<SkillLoadDialogProps> = ({
 					<Button variant="outline" onClick={onClose}>
 						Close
 					</Button>
-					<Button onClick={onRetry} disabled={isRetrying}>
-						{isRetrying && <Spinner className="size-4" loading />}
-						Retry
-					</Button>
+					<RetryButton isRetrying={isRetrying} onRetry={onRetry} />
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
@@ -320,15 +333,12 @@ const ViewSkillDialog: React.FC<ViewSkillDialogProps> = ({
 						error={state.loadError}
 						showDebugDetail={false}
 						actions={
-							<Button
+							<RetryButton
 								size="sm"
 								variant="outline"
-								onClick={state.onRetry}
-								disabled={state.isRetrying}
-							>
-								{state.isRetrying && <Spinner className="size-4" loading />}
-								Retry
-							</Button>
+								isRetrying={state.isRetrying}
+								onRetry={state.onRetry}
+							/>
 						}
 					/>
 				)
@@ -585,14 +595,11 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						<TableEmpty
 							message={`Failed to load ${pluralNoun}`}
 							cta={
-								<Button
+								<RetryButton
 									variant="outline"
-									onClick={onRetry}
-									disabled={isRetrying}
-								>
-									{isRetrying && <Spinner className="size-4" loading />}
-									Retry
-								</Button>
+									isRetrying={isRetrying}
+									onRetry={onRetry}
+								/>
 							}
 						/>
 					) : skills.length === 0 ? (
