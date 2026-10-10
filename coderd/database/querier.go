@@ -816,6 +816,7 @@ type sqlcQuerier interface {
 	GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
 	GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIDRow, error)
+	GetOrganizationSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (Skill, error)
 	GetOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg GetOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
 	GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error)
 	GetOrganizationsByUserID(ctx context.Context, arg GetOrganizationsByUserIDParams) ([]Organization, error)
