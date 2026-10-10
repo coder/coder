@@ -110,6 +110,15 @@
 	--color-git-deleted-bright: hsl(var(--git-deleted-bright));
 	--color-git-merged-bright: hsl(var(--git-merged-bright));
 
+	@keyframes shimmer {
+		from {
+			background-position: 100% center;
+		}
+		to {
+			background-position: 0% center;
+		}
+	}
+
 	@keyframes spinner-leaf-fade {
 		0% {
 			opacity: 0.85;
@@ -420,6 +429,32 @@
 			overflow-y: auto !important;
 			overscroll-behavior: contain;
 			-webkit-overflow-scrolling: touch;
+		}
+	}
+}
+
+@utility shimmer {
+	@media (forced-colors: active) {
+		-webkit-text-fill-color: CanvasText;
+	}
+
+	/* Keep ordinary text when clipping is unsupported or motion is disabled. */
+	@supports (background-clip: text) or (-webkit-background-clip: text) {
+		@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+			background-image: linear-gradient(
+				90deg,
+				currentColor calc(50% - var(--shimmer-spread)),
+				hsl(var(--content-primary)),
+				currentColor calc(50% + var(--shimmer-spread))
+			);
+			background-size: calc(200% + var(--shimmer-spread) * 2) 100%;
+			/* Pixel disables animations; keep the highlight visible in captures. */
+			background-position: 50% center;
+			background-repeat: no-repeat;
+			background-clip: text;
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			animation: shimmer var(--shimmer-duration) linear infinite;
 		}
 	}
 }
