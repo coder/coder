@@ -6,6 +6,7 @@ import {
 	deleteAgentHoursOrganizationAllotment,
 	upsertAgentHoursOrganizationAllotment,
 } from "#/api/queries/agentHours";
+import { organizations } from "#/api/queries/organizations";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -20,7 +21,7 @@ import { OrganizationAgentHours } from "./OrganizationAgentHours";
 
 const AgentHoursPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
-	const { entitlements, organizations } = useDashboard();
+	const { entitlements } = useDashboard();
 	const queryClient = useQueryClient();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const feature = entitlements.features.agent_runtime_hours;
@@ -43,6 +44,13 @@ const AgentHoursPage: React.FC = () => {
 	const organizationAllotmentsQuery = useQuery({
 		...agentHoursOrganizationAllotments(),
 		enabled: feature.enabled && permissions.editDeploymentConfig,
+	});
+	// Organizations deleted elsewhere must leave the Add candidates, as
+	// deleted groups do.
+	const organizationsQuery = useQuery({
+		...organizations(),
+		enabled: feature.enabled && permissions.editDeploymentConfig,
+		refetchOnWindowFocus: true,
 	});
 	// Do not deny access before organization access resolves; the view shows a
 	// failed lookup's error instead.
@@ -73,7 +81,7 @@ const AgentHoursPage: React.FC = () => {
 				licenseHours={licenseHours}
 				organizationAllotments={organizationAllotmentsQuery.data}
 				organizationAllotmentsError={organizationAllotmentsQuery.error}
-				organizations={organizations}
+				organizations={organizationsQuery.data ?? []}
 				onSaveOrganizationAllotment={(organizationId, allotmentBps) =>
 					upsertMutation.mutateAsync({ organizationId, allotmentBps })
 				}

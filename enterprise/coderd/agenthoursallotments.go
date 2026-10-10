@@ -54,17 +54,31 @@ func formatAgentHoursBps(bps int64) string {
 	return strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
 }
 
-// readAgentHoursAllotment reads a codersdk.UpsertAgentHoursAllotmentRequest.
-// The allotment is decoded raw so that a fractional or quoted value gets a
-// field validation error instead of a decode error naming Go types.
-func readAgentHoursAllotment(ctx context.Context, rw http.ResponseWriter, r *http.Request) (int32, bool) {
+// agentHoursAllotmentBody decodes a codersdk.UpsertAgentHoursAllotmentRequest
+// from any valid JSON, keeping the allotment raw, so that a fractional or
+// quoted value or a body that is not an object gets a field validation error
+// instead of a decode error naming Go types.
+type agentHoursAllotmentBody struct {
+	allotmentBps json.RawMessage
+}
+
+func (b *agentHoursAllotmentBody) UnmarshalJSON(data []byte) error {
 	var req struct {
 		AllotmentBps json.RawMessage `json:"allotment_bps"`
 	}
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if json.Unmarshal(data, &req) == nil {
+		b.allotmentBps = req.AllotmentBps
+	}
+	return nil
+}
+
+// readAgentHoursAllotment reads a codersdk.UpsertAgentHoursAllotmentRequest.
+func readAgentHoursAllotment(ctx context.Context, rw http.ResponseWriter, r *http.Request) (int32, bool) {
+	var body agentHoursAllotmentBody
+	if !httpapi.Read(ctx, rw, r, &body) {
 		return 0, false
 	}
-	bps, err := strconv.ParseInt(string(req.AllotmentBps), 10, 32)
+	bps, err := strconv.ParseInt(string(body.allotmentBps), 10, 32)
 	if err == nil && bps >= 1 && bps <= codersdk.AgentHoursAllotmentMaxBps {
 		return int32(bps), true
 	}

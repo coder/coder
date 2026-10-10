@@ -81,7 +81,7 @@ func TestAgentHoursAllotmentNonIntegerRejected(t *testing.T) {
 		fmt.Sprintf("/api/v2/organizations/%s/agent-hours/allotment", owner.OrganizationID),
 		fmt.Sprintf("/api/v2/groups/%s/agent-hours/allotment", group.ID),
 	} {
-		for _, body := range []string{`{"allotment_bps":12.5}`, `{"allotment_bps":"5000"}`} {
+		for _, body := range []string{`{"allotment_bps":12.5}`, `{"allotment_bps":"5000"}`, `[5000]`, `5000`} {
 			//nolint:gocritic // Organization allotments are owner-only.
 			res, err := client.Request(ctx, http.MethodPut, path, json.RawMessage(body))
 			require.NoError(t, err)

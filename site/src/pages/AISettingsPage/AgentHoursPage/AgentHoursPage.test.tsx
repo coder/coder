@@ -15,6 +15,7 @@ import {
 	MockNoPermissions,
 	MockOrganization,
 	MockOrganization2,
+	MockOrganization3,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -36,7 +37,6 @@ vi.mock("#/hooks/useAuthenticated", () => ({
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({
-		organizations: [MockOrganization],
 		entitlements: {
 			...MockEntitlements,
 			features: withDefaultFeatures(
@@ -61,10 +61,14 @@ afterEach(() => {
 	access.isLicensed = true;
 });
 
-const renderPage = ({ canUpdateGroups = true, groups = [MockGroup] } = {}) => {
+const renderPage = ({
+	canUpdateGroups = true,
+	groups = [MockGroup],
+	organizations = [MockOrganization],
+} = {}) => {
 	const getOrganizations = vi
 		.spyOn(API, "getOrganizations")
-		.mockResolvedValue([MockOrganization]);
+		.mockResolvedValue(organizations);
 	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
 		[MockOrganization.id]: canUpdateGroups,
 	});
@@ -329,6 +333,39 @@ it("does not add an allotment for a group deleted after selection", async () => 
 	expect(upsert).not.toHaveBeenCalled();
 });
 
+it("does not add an allotment for an organization deleted after selection", async () => {
+	const user = userEvent.setup();
+	const upsert = vi.spyOn(API, "upsertAgentHoursOrganizationAllotment");
+	const { getOrganizations } = renderPage({
+		organizations: [MockOrganization, MockOrganization3],
+	});
+	const region = await screen.findByRole("region", {
+		name: "Organization allotments",
+	});
+	const add = await within(region).findByRole("button", {
+		name: "Add allotment",
+	});
+	await waitFor(() => expect(add).toBeEnabled());
+	await user.click(add);
+	await user.click(screen.getByRole("combobox", { name: "Organization" }));
+	await user.click(
+		await screen.findByRole("option", { name: MockOrganization3.display_name }),
+	);
+	await user.type(screen.getByRole("textbox", { name: "Allotment" }), "5");
+
+	getOrganizations.mockResolvedValue([MockOrganization]);
+	refocusWindow();
+	await waitFor(() =>
+		expect(
+			screen.getByRole("combobox", { name: "Organization" }),
+		).toHaveTextContent("Select an organization"),
+	);
+	await user.click(screen.getByRole("button", { name: "Save" }));
+
+	await screen.findByText("Select an organization.");
+	expect(upsert).not.toHaveBeenCalled();
+});
+
 it("reports a lost permission to change an allotment", async () => {
 	const user = userEvent.setup();
 	server.use(
@@ -356,7 +393,7 @@ it("refreshes allotments and access when the window regains focus", async () => 
 	} = renderPage();
 	await waitFor(() => expect(getGroupAllotments).toHaveBeenCalledTimes(1));
 	await waitFor(() => expect(getGroups).toHaveBeenCalledTimes(1));
-	expect(getOrganizations).toHaveBeenCalledTimes(1);
+	await waitFor(() => expect(getOrganizations).toHaveBeenCalledTimes(2));
 
 	refocusWindow();
 	await waitFor(() =>
@@ -364,7 +401,7 @@ it("refreshes allotments and access when the window regains focus", async () => 
 	);
 	await waitFor(() => expect(getGroupAllotments).toHaveBeenCalledTimes(2));
 	await waitFor(() => expect(getGroups).toHaveBeenCalledTimes(2));
-	await waitFor(() => expect(getOrganizations).toHaveBeenCalledTimes(2));
+	await waitFor(() => expect(getOrganizations).toHaveBeenCalledTimes(4));
 });
 
 it("reports an allotment that is already gone as removed", async () => {
