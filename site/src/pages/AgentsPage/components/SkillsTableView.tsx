@@ -1,4 +1,5 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
+import { useRef } from "react";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -130,10 +131,16 @@ const formatUpdatedAt = (value: string) => {
 	});
 };
 
-const EditSkillDialog: React.FC<{
-	copy: SkillsCopy;
-	state: Extract<SkillEditorState, { mode: "edit" }>;
-}> = ({ copy, state }) => {
+type DialogFocusProps = {
+	onCloseAutoFocus: (event: Event) => void;
+};
+
+const EditSkillDialog: React.FC<
+	DialogFocusProps & {
+		copy: SkillsCopy;
+		state: Extract<SkillEditorState, { mode: "edit" }>;
+	}
+> = ({ copy, state, onCloseAutoFocus }) => {
 	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
@@ -144,7 +151,7 @@ const EditSkillDialog: React.FC<{
 	if (state.isLoading) {
 		return (
 			<Dialog open onOpenChange={handleOpenChange}>
-				<DialogContent>
+				<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
 					<DialogHeader>
 						<DialogTitle>Loading {lowerNoun}</DialogTitle>
 						<DialogDescription>
@@ -160,7 +167,7 @@ const EditSkillDialog: React.FC<{
 	if (state.loadError || !state.initialValues) {
 		return (
 			<Dialog open onOpenChange={handleOpenChange}>
-				<DialogContent>
+				<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
 					<DialogHeader>
 						<DialogTitle>Unable to load {lowerNoun}</DialogTitle>
 						<DialogDescription>
@@ -201,19 +208,21 @@ const EditSkillDialog: React.FC<{
 			submitError={state.submitError}
 			isSubmitting={state.isSubmitting}
 			onOpenChange={handleOpenChange}
+			onCloseAutoFocus={onCloseAutoFocus}
 			onSubmit={state.onSubmit}
 		/>
 	);
 };
 
-const DeleteSkillDialog: React.FC<{ state: SkillDeleteState }> = ({
-	state,
-}) => {
+const DeleteSkillDialog: React.FC<
+	DialogFocusProps & { state: SkillDeleteState }
+> = ({ state, onCloseAutoFocus }) => {
 	return (
 		<ConfirmDialog
 			type="delete"
 			open
 			onClose={state.onClose}
+			onCloseAutoFocus={onCloseAutoFocus}
 			title="Delete skill"
 			confirmText="Delete skill"
 			description={
@@ -238,6 +247,28 @@ const DeleteSkillDialog: React.FC<{ state: SkillDeleteState }> = ({
 	);
 };
 
+type AddSkillButtonProps = {
+	ref?: React.Ref<HTMLButtonElement>;
+	disabled: boolean;
+	onClick: React.MouseEventHandler<HTMLButtonElement>;
+};
+
+const AddSkillButton: React.FC<AddSkillButtonProps> = ({
+	ref,
+	disabled,
+	onClick,
+}) => (
+	<Button ref={ref} variant="outline" onClick={onClick} disabled={disabled}>
+		<PlusIcon />
+		Add skill
+	</Button>
+);
+
+const canFocus = (
+	button: HTMLButtonElement | null,
+): button is HTMLButtonElement =>
+	Boolean(button?.isConnected && !button.disabled);
+
 export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	skills,
 	copy,
@@ -256,21 +287,42 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	editorState,
 	deleteState,
 }) => {
+	const dialogTriggerRef = useRef<HTMLButtonElement | null>(null);
+	const addSkillButtonRef = useRef<HTMLButtonElement | null>(null);
+	const exportAllButtonRef = useRef<HTMLButtonElement | null>(null);
+	const rememberDialogTrigger = (
+		event: React.SyntheticEvent<HTMLButtonElement>,
+	) => {
+		dialogTriggerRef.current = event.currentTarget;
+	};
+	// These dialogs open without a Radix DialogTrigger, so Radix would
+	// otherwise return focus to the document body on close. An unmounted or
+	// disabled opener falls back to the header actions.
+	const restoreDialogFocus = (event: Event) => {
+		// An array find here would stop the React Compiler memoizing this closure.
+		let target = dialogTriggerRef.current;
+		if (!canFocus(target)) {
+			target = addSkillButtonRef.current;
+		}
+		if (!canFocus(target)) {
+			target = exportAllButtonRef.current;
+		}
+		if (canFocus(target)) {
+			event.preventDefault();
+			target.focus();
+		}
+	};
+	const openCreateDialog = (event: React.MouseEvent<HTMLButtonElement>) => {
+		rememberDialogTrigger(event);
+		onCreate();
+	};
 	const pluralNoun = `${copy.noun.toLocaleLowerCase("en-US")}s`;
 	const isAtLimit = skills.length >= SKILLS_MAX_PER_OWNER;
-	const addSkillAction = access.create && (
-		<Button
-			variant="outline"
-			onClick={onCreate}
-			disabled={isLoading || isAtLimit}
-		>
-			<PlusIcon />
-			Add skill
-		</Button>
-	);
+	const addSkillDisabled = isLoading || isAtLimit;
 	const headerActions = (
 		<div className="flex items-center gap-2">
 			<Button
+				ref={exportAllButtonRef}
 				variant="outline"
 				onClick={onExportAll}
 				disabled={isLoading || isExportingAll || skills.length === 0}
@@ -278,7 +330,13 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				{isExportingAll && <Spinner className="size-4" loading />}
 				Export all
 			</Button>
-			{addSkillAction}
+			{access.create && (
+				<AddSkillButton
+					ref={addSkillButtonRef}
+					disabled={addSkillDisabled}
+					onClick={openCreateDialog}
+				/>
+			)}
 		</div>
 	);
 
@@ -348,7 +406,14 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						<TableEmpty
 							message={`No ${pluralNoun} yet`}
 							description={access.create ? copy.emptyDescription : undefined}
-							cta={addSkillAction}
+							cta={
+								access.create && (
+									<AddSkillButton
+										disabled={addSkillDisabled}
+										onClick={openCreateDialog}
+									/>
+								)
+							}
 						/>
 					) : (
 						skills.map((skill) => (
@@ -376,6 +441,8 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 												size="icon"
 												variant="subtle"
 												aria-label="Open menu"
+												onPointerDown={rememberDialogTrigger}
+												onKeyDown={rememberDialogTrigger}
 											>
 												{downloadingSkillName === skill.name ? (
 													<Spinner className="size-4" loading />
@@ -432,12 +499,22 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						}
 					}}
 					onSubmit={editorState.onSubmit}
+					onCloseAutoFocus={restoreDialogFocus}
 				/>
 			)}
 			{editorState?.mode === "edit" && (
-				<EditSkillDialog copy={copy} state={editorState} />
+				<EditSkillDialog
+					copy={copy}
+					state={editorState}
+					onCloseAutoFocus={restoreDialogFocus}
+				/>
 			)}
-			{deleteState && <DeleteSkillDialog state={deleteState} />}
+			{deleteState && (
+				<DeleteSkillDialog
+					state={deleteState}
+					onCloseAutoFocus={restoreDialogFocus}
+				/>
+			)}
 		</div>
 	);
 };

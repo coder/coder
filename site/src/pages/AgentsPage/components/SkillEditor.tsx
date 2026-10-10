@@ -44,6 +44,7 @@ type SkillEditorProps = {
 	submitError?: SkillErrorDisplay;
 	isSubmitting: boolean;
 	onOpenChange: (open: boolean) => void;
+	onCloseAutoFocus?: (event: Event) => void;
 	onSubmit: (values: SkillFormValues, content: string) => void;
 };
 
@@ -69,6 +70,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 	submitError,
 	isSubmitting,
 	onOpenChange,
+	onCloseAutoFocus,
 	onSubmit,
 }) => {
 	const isCreate = mode === "create";
@@ -261,7 +263,10 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+			<DialogContent
+				className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0"
+				onCloseAutoFocus={onCloseAutoFocus}
+			>
 				<form
 					className="flex min-h-0 flex-1 flex-col"
 					onSubmit={form.handleSubmit}
