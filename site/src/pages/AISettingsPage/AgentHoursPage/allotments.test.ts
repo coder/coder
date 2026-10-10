@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	allotmentHours,
+	allotmentTargetLabel,
 	formatAllotmentPercent,
 	formatHours,
 	parseAllotmentPercent,
@@ -64,5 +65,23 @@ describe("formatHours", () => {
 
 	it("formats no hours as zero", () => {
 		expect(formatHours(0)).toBe("0 hours");
+	});
+});
+
+describe("allotmentTargetLabel", () => {
+	const engineering = { id: "1", name: "eng", display_name: "Engineering" };
+	const platform = { id: "2", name: "platform", display_name: "Engineering" };
+	const named = { id: "3", name: "Engineering", display_name: "" };
+
+	it.each([
+		{ target: engineering, targets: [engineering], label: "Engineering" },
+		{
+			target: platform,
+			targets: [engineering, platform],
+			label: "Engineering (platform)",
+		},
+		{ target: named, targets: [engineering, named], label: "Engineering" },
+	])("labels $target.name as $label", ({ target, targets, label }) => {
+		expect(allotmentTargetLabel(target, targets)).toBe(label);
 	});
 });

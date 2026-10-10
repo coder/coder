@@ -265,8 +265,7 @@ func TestAgentHoursOrganizationAllotments(t *testing.T) {
 // in the current database.
 func advisoryLockWaiters(ctx context.Context, sqlDB *sql.DB, lockID int64) int {
 	var waiting int
-	// #nosec G115 -- Splitting the 64-bit key into the two 32-bit halves
-	// pg_locks reports.
+	// #nosec G115: pg_locks reports the 64-bit key as two 32-bit halves.
 	err := sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM pg_locks
 		WHERE locktype = 'advisory' AND NOT granted
 		AND database = (SELECT oid FROM pg_database WHERE datname = current_database())

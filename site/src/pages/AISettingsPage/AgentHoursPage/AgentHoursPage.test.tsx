@@ -64,6 +64,7 @@ afterEach(() => {
 const renderPage = ({
 	canUpdateGroups = true,
 	groups = [MockGroup],
+	groupAllotments = [MockAgentHoursGroupAllotment],
 	organizations = [MockOrganization],
 } = {}) => {
 	const getOrganizations = vi
@@ -91,7 +92,7 @@ const renderPage = ({
 		.spyOn(API, "getAgentHoursGroupAllotments")
 		.mockResolvedValue({
 			organization_allotment_bps: 6000,
-			groups: [MockAgentHoursGroupAllotment],
+			groups: groupAllotments,
 		});
 	const router = createMemoryRouter(
 		[
@@ -364,6 +365,90 @@ it("does not add an allotment for an organization deleted after selection", asyn
 
 	await screen.findByText("Select an organization.");
 	expect(upsert).not.toHaveBeenCalled();
+});
+
+it("tells apart organizations that share a display name", async () => {
+	const user = userEvent.setup();
+	const upsert = vi
+		.spyOn(API, "upsertAgentHoursOrganizationAllotment")
+		.mockResolvedValue(MockAgentHoursOrganizationAllotment);
+	const namesake = {
+		...MockOrganization3,
+		display_name: MockOrganization.display_name,
+	};
+	renderPage({
+		organizations: [MockOrganization, MockOrganization2, namesake],
+	});
+	const region = await screen.findByRole("region", {
+		name: "Organization allotments",
+	});
+
+	await saveAllotment(
+		user,
+		region,
+		`${MockOrganization.display_name} (${MockOrganization.name})`,
+		"65",
+	);
+	await waitFor(() =>
+		expect(upsert).toHaveBeenCalledWith(MockOrganization.id, {
+			allotment_bps: 6500,
+		}),
+	);
+
+	const add = within(region).getByRole("button", { name: "Add allotment" });
+	await waitFor(() => expect(add).toBeEnabled());
+	await user.click(add);
+	await user.click(screen.getByRole("combobox", { name: "Organization" }));
+	await user.click(
+		await screen.findByRole("option", {
+			name: `${namesake.display_name} (${namesake.name})`,
+		}),
+	);
+	await user.type(screen.getByRole("textbox", { name: "Allotment" }), "5");
+	await user.click(screen.getByRole("button", { name: "Save" }));
+	await waitFor(() =>
+		expect(upsert).toHaveBeenLastCalledWith(namesake.id, {
+			allotment_bps: 500,
+		}),
+	);
+});
+
+it("tells apart groups that share a display name", async () => {
+	const user = userEvent.setup();
+	const upsert = vi
+		.spyOn(API, "upsertAgentHoursGroupAllotment")
+		.mockResolvedValue(MockAgentHoursGroupAllotment);
+	const allotted = { ...MockGroup, display_name: "Design" };
+	const namesake = { ...MockGroup2, display_name: "Design" };
+	renderPage({
+		groups: [allotted, namesake],
+		groupAllotments: [
+			{ ...MockAgentHoursGroupAllotment, group_display_name: "Design" },
+		],
+	});
+	const region = await screen.findByRole("region", {
+		name: "Group allotments",
+	});
+
+	await saveAllotment(user, region, `Design (${allotted.name})`, "20");
+	await waitFor(() =>
+		expect(upsert).toHaveBeenCalledWith(allotted.id, { allotment_bps: 2000 }),
+	);
+
+	const add = within(region).getByRole("button", { name: "Add allotment" });
+	await waitFor(() => expect(add).toBeEnabled());
+	await user.click(add);
+	await user.click(screen.getByRole("combobox", { name: "Group" }));
+	await user.click(
+		await screen.findByRole("option", { name: `Design (${namesake.name})` }),
+	);
+	await user.type(screen.getByRole("textbox", { name: "Allotment" }), "5");
+	await user.click(screen.getByRole("button", { name: "Save" }));
+	await waitFor(() =>
+		expect(upsert).toHaveBeenLastCalledWith(namesake.id, {
+			allotment_bps: 500,
+		}),
+	);
 });
 
 it("reports a lost permission to change an allotment", async () => {

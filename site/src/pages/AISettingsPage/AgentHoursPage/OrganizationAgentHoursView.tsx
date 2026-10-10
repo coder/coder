@@ -2,6 +2,7 @@ import type { AgentHoursGroupAllotments, Group } from "#/api/typesGenerated";
 import { AllotmentPanel } from "./AllotmentPanel";
 import {
 	allotmentHours,
+	allotmentTargetLabel,
 	formatAllotmentPercent,
 	formatHours,
 } from "./allotments";
@@ -25,6 +26,13 @@ export const OrganizationAgentHoursView: React.FC<
 		organizationBps === undefined
 			? undefined
 			: allotmentHours(organizationBps, licenseHours);
+	const allottedGroups = groupAllotments?.groups.map((allotment) => ({
+		id: allotment.group_id,
+		name: allotment.group_name,
+		display_name: allotment.group_display_name,
+		bps: allotment.allotment_bps,
+	}));
+	const groupTargets = [...(allottedGroups ?? []), ...(groups ?? [])];
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -56,22 +64,20 @@ export const OrganizationAgentHoursView: React.FC<
 				poolLabel="this organization's Agent Hours"
 				allotments={
 					groups &&
-					groupAllotments?.groups.map((allotment) => ({
-						id: allotment.group_id,
-						name: allotment.group_display_name || allotment.group_name,
-						bps: allotment.allotment_bps,
+					allottedGroups?.map((allotted) => ({
+						id: allotted.id,
+						name: allotmentTargetLabel(allotted, groupTargets),
+						bps: allotted.bps,
 					}))
 				}
 				candidates={(groups ?? [])
 					.filter(
 						(group) =>
-							!groupAllotments?.groups.some(
-								(allotment) => allotment.group_id === group.id,
-							),
+							!allottedGroups?.some((allotted) => allotted.id === group.id),
 					)
 					.map((group) => ({
 						id: group.id,
-						name: group.display_name || group.name,
+						name: allotmentTargetLabel(group, groupTargets),
 					}))}
 				poolHours={organizationHours}
 				error={error}

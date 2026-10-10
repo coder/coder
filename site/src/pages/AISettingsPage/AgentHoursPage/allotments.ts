@@ -37,6 +37,26 @@ export const allotmentHours = (
 		? undefined
 		: (poolHours * bps) / AgentHoursAllotmentMaxBps;
 
+type NamedAllotmentTarget = { id: string; name: string; display_name: string };
+
+/**
+ * Display names are not unique, so a target that shares its display name with
+ * another target also shows its unique name, as organization pickers do.
+ */
+export const allotmentTargetLabel = (
+	target: NamedAllotmentTarget,
+	targets: readonly NamedAllotmentTarget[],
+): string => {
+	const label = target.display_name || target.name;
+	const collides = targets.some(
+		(other) =>
+			other.id !== target.id && (other.display_name || other.name) === label,
+	);
+	return collides && target.name !== label
+		? `${label} (${target.name})`
+		: label;
+};
+
 export const formatHours = (hours: number): string =>
 	hours > 0 && hours < 0.01
 		? "< 0.01 hours"

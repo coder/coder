@@ -15,6 +15,7 @@ import { OrganizationSettingsSection } from "#/pages/AISettingsPage/components/O
 import { SettingsSection } from "#/pages/AISettingsPage/components/SettingsSection";
 import { docs } from "#/utils/docs";
 import { AllotmentPanel } from "./AllotmentPanel";
+import { allotmentTargetLabel } from "./allotments";
 
 type AgentHoursPageViewProps = {
 	/** False when the license does not include Agent Hours. */
@@ -64,6 +65,16 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 	organizationAgentHours,
 }) => {
 	const showLicenseNotice = !isLicensed && canManageAllotments;
+	const allottedOrganizations = organizationAllotments?.map((allotment) => ({
+		id: allotment.organization_id,
+		name: allotment.organization_name,
+		display_name: allotment.organization_display_name,
+		bps: allotment.allotment_bps,
+	}));
+	const organizationTargets = [
+		...(allottedOrganizations ?? []),
+		...organizations,
+	];
 
 	return (
 		<div className="flex max-w-4xl flex-col gap-10">
@@ -101,23 +112,21 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 					<AllotmentPanel
 						entity="organization"
 						poolLabel="the deployment's Agent Hours"
-						allotments={organizationAllotments?.map((allotment) => ({
-							id: allotment.organization_id,
-							name:
-								allotment.organization_display_name ||
-								allotment.organization_name,
-							bps: allotment.allotment_bps,
+						allotments={allottedOrganizations?.map((allotted) => ({
+							id: allotted.id,
+							name: allotmentTargetLabel(allotted, organizationTargets),
+							bps: allotted.bps,
 						}))}
 						candidates={organizations
 							.filter(
 								(candidate) =>
-									!organizationAllotments?.some(
-										(allotment) => allotment.organization_id === candidate.id,
+									!allottedOrganizations?.some(
+										(allotted) => allotted.id === candidate.id,
 									),
 							)
 							.map((candidate) => ({
 								id: candidate.id,
-								name: candidate.display_name || candidate.name,
+								name: allotmentTargetLabel(candidate, organizationTargets),
 							}))}
 						poolHours={licenseHours}
 						error={organizationAllotmentsError}
