@@ -652,8 +652,9 @@ function useMessageScrollerController({
 
   const setRootElement = useElementRef(rootRef, mirrorStateAttributes)
   // LOCAL CHANGE: handle content that mounted before this viewport attached,
-  // and publish the opening position at once, so nothing reads the unplaced
-  // position (scrollTop 0) before the first paint.
+  // and publish the placed position now instead of on the next frame, so a
+  // reader that rendered with scrollTop 0 re-renders before its own
+  // next-frame work runs.
   const attachViewport = React.useCallback(() => {
     mirrorStateAttributes()
     handleContentChange()
