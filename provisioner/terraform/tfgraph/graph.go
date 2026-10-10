@@ -5,6 +5,17 @@
 //
 // Its API supports Coder's script-ordering pipeline but does not yet
 // cover the broader graph processing in ConvertState.
+//
+// Query the parsed graph directly to use Terraform's dependency edges:
+//
+//	graph, err := Parse(ctx, rawGraph)
+//	query, err := NewQuery(graph)
+//
+// Create a resolved graph view when configuration data must filter or restore
+// dependencies:
+//
+//	view, err := graph.WithResolvedDependencies(resolver)
+//	query, err = NewQuery(view)
 package tfgraph
 
 import (
@@ -18,6 +29,8 @@ import (
 
 	"github.com/awalterschulze/gographviz"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/provisioner/terraform/tfaddr"
 )
 
 // TODO(PLAT-554): Measure parser time and memory use with
@@ -32,11 +45,12 @@ const (
 	maxDiagnosticValueBytes = 256
 )
 
-// NodeID identifies a node within one Index. Its representation is opaque and
-// remains stable for the lifetime of that index.
+// NodeID identifies a node in a graph returned by Parse. It can also be used
+// with graphs derived from that graph, but not with an unrelated graph. Its
+// zero value is invalid.
 type NodeID struct {
-	index *Index
-	// position is one-based so the zero value is invalid.
+	index *graphIndex
+	// position is one-based within graphIndex.nodes so the zero value is invalid.
 	position int
 }
 
@@ -63,8 +77,8 @@ func (n Node) Operation() string {
 	return n.operation
 }
 
-// ConfigurationAddress returns the normalized address if the node represents
-// a configuration expansion, or an empty string otherwise.
+// ConfigurationAddress returns an expansion node's normalized configuration
+// address, or an empty string for non-expansion nodes.
 func (n Node) ConfigurationAddress() string {
 	if n.operation != "expand" {
 		return ""
@@ -81,51 +95,72 @@ func (n Node) InstanceAddress() string {
 	return n.address
 }
 
-// Index is an immutable index of a Terraform graph's normalized nodes and
-// forward dependency topology. A NodeID is valid only with the exact Index
-// pointer that produced it, so Index values must not be copied.
-type Index struct {
+// Graph is a queryable representation of a Terraform graph's normalized nodes
+// and forward dependency topology. A Graph returned by WithResolvedDependencies
+// shares the immutable indexed nodes and edges of its source graph.
+type Graph struct {
+	index               *graphIndex
+	resolveDependencies DependencyResolver
+}
+
+type graphIndex struct {
 	nodes []Node
 	// dependencies[source] contains the graph nodes that source depends on.
 	dependencies                [][]NodeID
 	nodesByConfigurationAddress map[string][]NodeID
 	nodesByInstanceAddress      map[string][]NodeID
+	outputNodesByModuleAddress  map[string][]NodeID
 }
 
-// Node returns one node from the index.
-func (i *Index) Node(id NodeID) (Node, bool) {
-	position, ok := i.nodePosition(id)
+// Node returns one node from the graph.
+func (g *Graph) Node(id NodeID) (Node, bool) {
+	if g == nil || g.index == nil {
+		return Node{}, false
+	}
+	position, ok := g.index.nodePosition(id)
 	if !ok {
 		return Node{}, false
 	}
-	return i.nodes[position], true
+	return g.index.nodes[position], true
 }
 
 // Nodes returns all nodes in deterministic node-ID order.
-func (i *Index) Nodes() iter.Seq2[NodeID, Node] {
+func (g *Graph) Nodes() iter.Seq2[NodeID, Node] {
 	return func(yield func(NodeID, Node) bool) {
-		for position, node := range i.nodes {
-			if !yield(nodeID(i, position), node) {
+		if g == nil || g.index == nil {
+			return
+		}
+		for position, node := range g.index.nodes {
+			if !yield(nodeID(g.index, position), node) {
 				return
 			}
 		}
 	}
 }
 
-// NodesForConfigurationAddress returns the expansion nodes with address.
-func (i *Index) NodesForConfigurationAddress(address string) []NodeID {
-	return slices.Clone(i.nodesByConfigurationAddress[address])
+// NodesForConfigurationAddress returns expansion nodes for the given
+// configuration address. Modifying the returned slice does not affect
+// the graph.
+func (g *Graph) NodesForConfigurationAddress(address string) []NodeID {
+	if g == nil || g.index == nil {
+		return nil
+	}
+	return slices.Clone(g.index.nodesByConfigurationAddress[address])
 }
 
-// NodesForInstanceAddress returns the concrete instance nodes with address.
-func (i *Index) NodesForInstanceAddress(address string) []NodeID {
-	return slices.Clone(i.nodesByInstanceAddress[address])
+// NodesForInstanceAddress returns concrete instance nodes for the given
+// instance address. Modifying the returned slice does not affect the graph.
+func (g *Graph) NodesForInstanceAddress(address string) []NodeID {
+	if g == nil || g.index == nil {
+		return nil
+	}
+	return slices.Clone(g.index.nodesByInstanceAddress[address])
 }
 
 // Parse parses successful DOT output from Terraform Core's
-// operation-graph emitter for a Coder template into an immutable
-// index. Callers must not pass arbitrary DOT.
-func Parse(ctx context.Context, rawGraph string) (*Index, error) {
+// operation-graph emitter for a Coder template into an immutable Graph.
+// Callers must not pass arbitrary DOT.
+func Parse(ctx context.Context, rawGraph string) (*Graph, error) {
 	return parseWithLimits(ctx, rawGraph, defaultIndexLimits())
 }
 
@@ -153,7 +188,7 @@ func parseWithLimits(
 	ctx context.Context,
 	rawGraph string,
 	limits indexLimits,
-) (*Index, error) {
+) (*Graph, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -193,13 +228,14 @@ func parseWithLimits(
 	}
 
 	rawNodeIDs := slices.Sorted(maps.Keys(graph.Nodes.Lookup))
-	index := &Index{
+	index := &graphIndex{
 		nodes: make([]Node, 0, len(rawNodeIDs)),
 		dependencies: make(
 			[][]NodeID, 0, len(rawNodeIDs),
 		),
 		nodesByConfigurationAddress: map[string][]NodeID{},
 		nodesByInstanceAddress:      map[string][]NodeID{},
+		outputNodesByModuleAddress:  map[string][]NodeID{},
 	}
 	nodeIDByRawID := make(map[string]NodeID, len(rawNodeIDs))
 	var nodeIDBytes, retainedAddressBytes int
@@ -234,6 +270,11 @@ func parseWithLimits(
 			index.nodesByConfigurationAddress[address] = append(
 				index.nodesByConfigurationAddress[address], id,
 			)
+			if moduleAddress, ok := moduleAddressForOutput(address); ok {
+				index.outputNodesByModuleAddress[moduleAddress] = append(
+					index.outputNodesByModuleAddress[moduleAddress], id,
+				)
+			}
 		}
 		if address := node.InstanceAddress(); address != "" {
 			index.nodesByInstanceAddress[address] = append(
@@ -286,7 +327,7 @@ func parseWithLimits(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return index, nil
+	return &Graph{index: index}, nil
 }
 
 // preflight bounds parser allocation for operation graphs emitted by
@@ -470,6 +511,18 @@ func parseNode(rawNodeID string) Node {
 	}
 }
 
+func moduleAddressForOutput(address string) (string, bool) {
+	separator := strings.LastIndex(address, ".output.")
+	if separator < 0 {
+		return "", false
+	}
+	moduleAddress := address[:separator]
+	if _, err := tfaddr.ParseModulePath(moduleAddress); err != nil {
+		return "", false
+	}
+	return moduleAddress, true
+}
+
 func addressOperation(raw string) (address string, operation string) {
 	if !strings.HasSuffix(raw, ")") {
 		return raw, ""
@@ -481,11 +534,11 @@ func addressOperation(raw string) (address string, operation string) {
 	return raw[:operationStart], raw[operationStart+2 : len(raw)-1]
 }
 
-func nodeID(index *Index, position int) NodeID {
+func nodeID(index *graphIndex, position int) NodeID {
 	return NodeID{index: index, position: position + 1}
 }
 
-func (i *Index) nodePosition(id NodeID) (int, bool) {
+func (i *graphIndex) nodePosition(id NodeID) (int, bool) {
 	position := id.position - 1
 	return position,
 		id.index == i && position >= 0 && position < len(i.nodes)

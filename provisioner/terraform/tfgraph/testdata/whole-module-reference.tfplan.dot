@@ -1,0 +1,24 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] module.runtime.module.component.terraform_data.referenced (expand)" [label = "module.runtime.module.component.terraform_data.referenced", shape = "box"]
+		"[root] module.runtime.module.component.terraform_data.unrelated (expand)" [label = "module.runtime.module.component.terraform_data.unrelated", shape = "box"]
+		"[root] provider[\"terraform.io/builtin/terraform\"]" [label = "provider[\"terraform.io/builtin/terraform\"]", shape = "diamond"]
+		"[root] terraform_data.consumer (expand)" [label = "terraform_data.consumer", shape = "box"]
+		"[root] module.runtime (close)" -> "[root] module.runtime.output.component (expand)"
+		"[root] module.runtime.module.component (close)" -> "[root] module.runtime.module.component.output.result (expand)"
+		"[root] module.runtime.module.component (close)" -> "[root] module.runtime.module.component.terraform_data.unrelated (expand)"
+		"[root] module.runtime.module.component (expand)" -> "[root] module.runtime (expand)"
+		"[root] module.runtime.module.component.output.result (expand)" -> "[root] module.runtime.module.component.terraform_data.referenced (expand)"
+		"[root] module.runtime.module.component.terraform_data.referenced (expand)" -> "[root] module.runtime.module.component (expand)"
+		"[root] module.runtime.module.component.terraform_data.referenced (expand)" -> "[root] provider[\"terraform.io/builtin/terraform\"]"
+		"[root] module.runtime.module.component.terraform_data.unrelated (expand)" -> "[root] module.runtime.module.component (expand)"
+		"[root] module.runtime.module.component.terraform_data.unrelated (expand)" -> "[root] provider[\"terraform.io/builtin/terraform\"]"
+		"[root] module.runtime.output.component (expand)" -> "[root] module.runtime.module.component (close)"
+		"[root] provider[\"terraform.io/builtin/terraform\"] (close)" -> "[root] terraform_data.consumer (expand)"
+		"[root] root" -> "[root] module.runtime (close)"
+		"[root] root" -> "[root] provider[\"terraform.io/builtin/terraform\"] (close)"
+		"[root] terraform_data.consumer (expand)" -> "[root] module.runtime.output.component (expand)"
+	}
+}

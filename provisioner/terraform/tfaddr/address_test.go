@@ -190,9 +190,6 @@ func TestConfigurationReferenceAddresses(t *testing.T) {
 			reference:    `module.runtime["primary"].agent.id`,
 			expected: []string{
 				"module.开发.module.runtime.output.agent",
-				"module.开发.module.runtime.agent.id",
-				"module.开发.module.runtime.agent",
-				"module.开发.module.runtime",
 			},
 		},
 	} {
@@ -238,6 +235,56 @@ func TestConfigurationReferenceConfigurationAddress(t *testing.T) {
 			reference, err := tfaddr.ParseConfigurationReference(test.reference)
 			require.NoError(t, err)
 			require.Equal(t, test.expected, reference.ConfigurationAddress())
+		})
+	}
+}
+
+func TestConfigurationReferenceModuleOutputCallAddress(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name      string
+		reference string
+		expected  string
+		ok        bool
+	}{
+		{
+			name:      "ModuleOutput",
+			reference: "module.runtime.agent_id",
+			expected:  "module.runtime",
+			ok:        true,
+		},
+		{
+			name:      "KeyedModuleOutput",
+			reference: `module.runtime["primary"].agent_id`,
+			expected:  `module.runtime["primary"]`,
+			ok:        true,
+		},
+		{
+			name:      "NestedOutputTraversal",
+			reference: "module.runtime.agent_id.value",
+		},
+		{
+			name:      "IndexedOutputValue",
+			reference: "module.runtime.agent_id[0]",
+		},
+		{
+			name:      "WholeModule",
+			reference: "module.runtime",
+		},
+		{
+			name:      "Resource",
+			reference: "coder_agent.main.id",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			reference, err := tfaddr.ParseConfigurationReference(test.reference)
+			require.NoError(t, err)
+			address, ok := reference.ModuleOutputCallAddress()
+			require.Equal(t, test.ok, ok)
+			require.Equal(t, test.expected, address)
 		})
 	}
 }

@@ -1,0 +1,22 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] provider[\"terraform.io/builtin/terraform\"]" [label = "provider[\"terraform.io/builtin/terraform\"]", shape = "diamond"]
+		"[root] terraform_data.agent_a" [label = "terraform_data.agent_a", shape = "box"]
+		"[root] terraform_data.agent_a (expand)" [label = "terraform_data.agent_a", shape = "box"]
+		"[root] terraform_data.agent_b" [label = "terraform_data.agent_b", shape = "box"]
+		"[root] terraform_data.agent_b (expand)" [label = "terraform_data.agent_b", shape = "box"]
+		"[root] terraform_data.script" [label = "terraform_data.script", shape = "box"]
+		"[root] terraform_data.script (expand)" [label = "terraform_data.script", shape = "box"]
+		"[root] local.both (expand)" -> "[root] terraform_data.agent_b"
+		"[root] provider[\"terraform.io/builtin/terraform\"] (close)" -> "[root] terraform_data.script"
+		"[root] root" -> "[root] provider[\"terraform.io/builtin/terraform\"] (close)"
+		"[root] terraform_data.agent_a (expand)" -> "[root] provider[\"terraform.io/builtin/terraform\"]"
+		"[root] terraform_data.agent_a" -> "[root] terraform_data.agent_a (expand)"
+		"[root] terraform_data.agent_b (expand)" -> "[root] terraform_data.agent_a"
+		"[root] terraform_data.agent_b" -> "[root] terraform_data.agent_b (expand)"
+		"[root] terraform_data.script (expand)" -> "[root] local.both (expand)"
+		"[root] terraform_data.script" -> "[root] terraform_data.script (expand)"
+	}
+}
