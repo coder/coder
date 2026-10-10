@@ -383,6 +383,13 @@ function useMessageScrollerController({
       return
     }
 
+    // LOCAL CHANGE: placing the content needs the viewport. When both mount
+    // under an already mounted provider, this runs from Content's layout
+    // effect before the viewport ref attaches; the attach handles it instead.
+    if (!viewportRef.current) {
+      return
+    }
+
     const items = getMessageScrollerItems(content, spacerRef.current)
     const previousItemCount = itemCountRef.current
     const previousFirstItem = firstItemRef.current
@@ -644,7 +651,15 @@ function useMessageScrollerController({
   )
 
   const setRootElement = useElementRef(rootRef, mirrorStateAttributes)
-  const setViewportElement = useElementRef(viewportRef, mirrorStateAttributes)
+  // LOCAL CHANGE: handle content that mounted before this viewport attached,
+  // and publish the opening position at once, so nothing reads the unplaced
+  // position (scrollTop 0) before the first paint.
+  const attachViewport = React.useCallback(() => {
+    mirrorStateAttributes()
+    handleContentChange()
+    commitScrollState()
+  }, [commitScrollState, handleContentChange, mirrorStateAttributes])
+  const setViewportElement = useElementRef(viewportRef, attachViewport)
 
   const setContentElement = React.useCallback(
     (element: HTMLDivElement | null) => {
