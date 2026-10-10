@@ -47,11 +47,12 @@ export const DashboardProvider: React.FC<React.PropsWithChildren> = ({
 	const error =
 		entitlementsQuery.error ||
 		appearanceQuery.error ||
-		// Experiments refetch in the background; keep the last list when a
-		// refetch fails instead of replacing the dashboard with an error.
+		// Experiments and organizations refetch in the background; keep the
+		// last list when a refetch fails instead of replacing the dashboard
+		// with an error.
 		(!experimentsQuery.data && experimentsQuery.error) ||
 		buildInfoQuery.error ||
-		organizationsQuery.error;
+		(!organizationsQuery.data && organizationsQuery.error);
 
 	if (error) {
 		return <ErrorAlert error={error} />;
