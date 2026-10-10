@@ -59,7 +59,8 @@ export const EditSkillDialog: React.FC<
 					<DialogHeader>
 						<DialogTitle>Unable to load {lowerNoun}</DialogTitle>
 						<DialogDescription>
-							The skill could not be loaded for editing.
+							The skill could not be loaded for{" "}
+							{state.readOnly ? "viewing" : "editing"}.
 						</DialogDescription>
 					</DialogHeader>
 					{state.loadError ? (
@@ -89,6 +90,7 @@ export const EditSkillDialog: React.FC<
 		<SkillEditor
 			open
 			mode="edit"
+			readOnly={state.readOnly}
 			noun={copy.noun}
 			description={copy.editorDescription}
 			initialValues={state.initialValues}

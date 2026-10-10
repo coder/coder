@@ -3,6 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockSkill } from "#/testHelpers/skills";
 import {
 	fullSkillAccess,
+	type SkillEditorState,
 	SkillsTableView,
 	type SkillsTableViewProps,
 } from "./SkillsTableView";
@@ -72,6 +73,7 @@ const baseArgs: SkillsTableViewProps = {
 	onRetry: fn(),
 	onCreate: fn(),
 	onEdit: fn(),
+	onView: fn(),
 	onDelete: fn(),
 	onDownload: fn(),
 	onExportAll: fn(),
@@ -264,23 +266,32 @@ export const UploadEmptyFile: Story = {
 	},
 };
 
+const reviewSQLEditorState: SkillEditorState = {
+	mode: "edit",
+	initialValues: {
+		name: "review-sql",
+		description: "Review SQL changes for query and index risks.",
+		body: "Check query plans, missing indexes, and transaction boundaries.",
+	},
+	existingNames: MockPersonalSkills.map((skill) => skill.name),
+	isLoading: false,
+	isRetrying: false,
+	isSubmitting: false,
+	onRetry: fn(),
+	onSubmit: fn(),
+	onClose: fn(),
+};
+
 export const EditDialogOpen: Story = {
 	args: {
-		editorState: {
-			mode: "edit",
-			initialValues: {
-				name: "review-sql",
-				description: "Review SQL changes for query and index risks.",
-				body: "Check query plans, missing indexes, and transaction boundaries.",
-			},
-			existingNames: MockPersonalSkills.map((skill) => skill.name),
-			isLoading: false,
-			isRetrying: false,
-			isSubmitting: false,
-			onRetry: fn(),
-			onSubmit: fn(),
-			onClose: fn(),
-		},
+		editorState: reviewSQLEditorState,
+	},
+};
+
+export const ViewDialogOpen: Story = {
+	args: {
+		access: { create: false, update: false, delete: false },
+		editorState: { ...reviewSQLEditorState, readOnly: true },
 	},
 };
 

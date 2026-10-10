@@ -57,6 +57,7 @@ export type SkillEditorState =
 	  }
 	| {
 			mode: "edit";
+			readOnly?: boolean;
 			initialValues?: SkillFormValues;
 			existingNames: readonly string[];
 			loadError?: unknown;
@@ -100,6 +101,7 @@ export type SkillsTableViewProps = {
 	onRetry: () => void;
 	onCreate: () => void;
 	onEdit: (name: string) => void;
+	onView: (name: string) => void;
 	onDelete: (skill: SkillMetadata) => void;
 	onDownload: (skill: SkillMetadata) => void;
 	onExportAll: () => void;
@@ -158,6 +160,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	onRetry,
 	onCreate,
 	onEdit,
+	onView,
 	onDelete,
 	onDownload,
 	onExportAll,
@@ -350,9 +353,13 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 											>
 												Download
 											</DropdownMenuItem>
-											{access.update && (
+											{access.update ? (
 												<DropdownMenuItem onClick={() => onEdit(skill.name)}>
 													Edit
+												</DropdownMenuItem>
+											) : (
+												<DropdownMenuItem onClick={() => onView(skill.name)}>
+													View
 												</DropdownMenuItem>
 											)}
 											{access.delete && (

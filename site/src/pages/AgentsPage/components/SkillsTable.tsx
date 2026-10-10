@@ -37,6 +37,7 @@ const emptySkillFormValues: SkillFormValues = {
 type DialogState =
 	| { type: "create"; submittedContent?: string }
 	| { type: "edit"; name: string; submittedContent?: string }
+	| { type: "view"; name: string }
 	| { type: "delete"; skill: SkillMetadata; submittedName?: string }
 	| null;
 
@@ -116,7 +117,10 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	const existingNames = skills.map((skill) =>
 		skill.name.toLocaleLowerCase("en-US"),
 	);
-	const editName = dialogState?.type === "edit" ? dialogState.name : "";
+	const editName =
+		dialogState?.type === "edit" || dialogState?.type === "view"
+			? dialogState.name
+			: "";
 	const editSkillQuery = useQuery({
 		...skill(owner, editName),
 		enabled: Boolean(editName),
@@ -260,9 +264,12 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			},
 			onClose: () => setDialogState(null),
 		};
-	} else if (dialogState?.type === "edit") {
+	} else if (dialogState?.type === "edit" || dialogState?.type === "view") {
+		const submittedContent =
+			dialogState.type === "edit" ? dialogState.submittedContent : undefined;
 		editorState = {
 			mode: "edit",
+			readOnly: dialogState.type === "view",
 			initialValues: editInitialValues,
 			existingNames,
 			loadError: editLoadError,
@@ -270,7 +277,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			isRetrying: editSkillQuery.isFetching,
 			submitError:
 				updateMutation.variables?.name === dialogState.name &&
-				updateMutation.variables.req.content === dialogState.submittedContent
+				updateMutation.variables.req.content === submittedContent
 					? skillError(
 							updateMutation.error,
 							`Failed to save ${lowerNoun}.`,
@@ -347,6 +354,9 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			onEdit={(name) => {
 				updateMutation.reset();
 				setDialogState({ type: "edit", name });
+			}}
+			onView={(name) => {
+				setDialogState({ type: "view", name });
 			}}
 			onDelete={(skill) => {
 				deleteMutation.reset();
