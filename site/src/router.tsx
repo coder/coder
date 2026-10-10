@@ -478,6 +478,10 @@ const AISettingsUpdateMCPServerPage = lazy(
 		),
 );
 
+const AISettingsSkillsPage = lazy(
+	() => import("./pages/AISettingsPage/SkillsPage/SkillsPage"),
+);
+
 const GlobalLayout = () => {
 	return (
 		<Suspense fallback={<Loader fullscreen />}>
@@ -775,6 +779,7 @@ export const router = createBrowserRouter(
 							path="mcp-servers/:serverId"
 							element={<AISettingsUpdateMCPServerPage />}
 						/>
+						<Route path="skills" element={<AISettingsSkillsPage />} />
 						<Route path="providers" element={<AISettingsProvidersPage />} />
 						<Route
 							path="providers/add"

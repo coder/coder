@@ -1,0 +1,130 @@
+import { act, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createMemoryRouter } from "react-router";
+import { describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import {
+	MockNoPermissions,
+	MockOrganization,
+	MockOrganization2,
+	MockOrganizationSkillACL,
+	MockOrganizationSkillACLAvailable,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import { renderWithRouter } from "#/testHelpers/renderHelpers";
+import { MockSkill, MockSkills } from "#/testHelpers/skills";
+import SkillsPage from "./SkillsPage";
+
+vi.mock("#/hooks/useAuthenticated", () => ({
+	useAuthenticated: () => ({
+		user: MockUserOwner,
+		permissions: { ...MockNoPermissions, viewAnyOrganizationSkills: true },
+	}),
+}));
+vi.mock("#/modules/dashboard/useDashboard", () => ({
+	useDashboard: () => ({
+		organizations: [MockOrganization, MockOrganization2],
+	}),
+}));
+
+it("lets a role that can only update skills toggle and edit them", async () => {
+	const user = userEvent.setup();
+	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+		Object.fromEntries(
+			Object.keys(checks).map((key) => [
+				key,
+				!key.endsWith(".createOrganizationSkill") &&
+					!key.endsWith(".deleteOrganizationSkill"),
+			]),
+		),
+	);
+	const mockReviewSkill = { ...MockSkill, name: "review-sql", enabled: true };
+	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([
+		mockReviewSkill,
+	]);
+	vi.spyOn(API.experimental, "getOrganizationSkillByName").mockResolvedValue({
+		...mockReviewSkill,
+		content: "---\nname: review-sql\ndescription: Review SQL.\n---\n\nBody\n",
+	});
+	const updateSkill = vi
+		.spyOn(API.experimental, "updateOrganizationSkill")
+		.mockResolvedValue({ ...mockReviewSkill, enabled: false, content: "" });
+	const router = createMemoryRouter(
+		[{ path: "/ai/settings/skills", element: <SkillsPage /> }],
+		{ initialEntries: ["/ai/settings/skills"] },
+	);
+	renderWithRouter(router);
+
+	await user.click(
+		await screen.findByRole("switch", { name: "Enable review-sql" }),
+	);
+	await waitFor(() =>
+		expect(updateSkill).toHaveBeenCalledWith(
+			MockOrganization.id,
+			"review-sql",
+			{
+				enabled: false,
+			},
+		),
+	);
+
+	await user.click(screen.getByRole("button", { name: "Open menu" }));
+	await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+	await screen.findByRole("dialog", { name: "Edit organization skill" });
+});
+
+describe("SkillsPage Manage permissions", () => {
+	it("closes the dialog when history leaves its organization", async () => {
+		vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+		);
+		vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue(
+			MockSkills,
+		);
+		vi.spyOn(API.experimental, "getOrganizationSkillACL").mockResolvedValue(
+			MockOrganizationSkillACL,
+		);
+		vi.spyOn(
+			API.experimental,
+			"getOrganizationSkillACLAvailable",
+		).mockResolvedValue(MockOrganizationSkillACLAvailable);
+		const router = createMemoryRouter(
+			[{ path: "/ai/settings/skills", element: <SkillsPage /> }],
+			{ initialEntries: ["/ai/settings/skills"] },
+		);
+		renderWithRouter(router);
+		const user = userEvent.setup();
+
+		await user.click(
+			await screen.findByRole("combobox", {
+				name: `Organization ${MockOrganization.display_name}`,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("option", { name: /My Organization 2/ }),
+		);
+		await screen.findByRole("combobox", {
+			name: `Organization ${MockOrganization2.display_name}`,
+		});
+		const reviewerRow = await screen.findByRole("row", { name: /reviewer/ });
+		await user.click(
+			within(reviewerRow).getByRole("button", { name: "Open menu" }),
+		);
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Manage permissions" }),
+		);
+		await screen.findByRole("dialog", { name: "Skill permissions" });
+
+		await act(() => router.navigate(-1));
+		expect(screen.queryByRole("dialog")).toBeNull();
+		await screen.findByRole("combobox", {
+			name: `Organization ${MockOrganization.display_name}`,
+		});
+
+		await act(() => router.navigate(1));
+		await screen.findByRole("combobox", {
+			name: `Organization ${MockOrganization2.display_name}`,
+		});
+		expect(screen.queryByRole("dialog")).toBeNull();
+	});
+});

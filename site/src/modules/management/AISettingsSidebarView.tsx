@@ -116,6 +116,10 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 		"/ai/settings/instructions",
 		organizationName,
 	);
+	const skillsPath = organizationScopedPath(
+		"/ai/settings/skills",
+		organizationName,
+	);
 
 	return (
 		<BaseSidebar>
@@ -152,6 +156,9 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 							<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
 						)}
 						<SubNavItem href={instructionsPath}>Instructions</SubNavItem>
+						{permissions.viewAnyOrganizationSkills && (
+							<SubNavItem href={skillsPath}>Skills</SubNavItem>
+						)}
 						<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
 					</SubNavGroup>
 				)}
@@ -185,6 +192,12 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 					canViewOrganizationInstructions && (
 						<SubNavGroup>
 							<SubNavItem href={instructionsPath}>Instructions</SubNavItem>
+						</SubNavGroup>
+					)}
+				{!permissions.editDeploymentConfig &&
+					permissions.viewAnyOrganizationSkills && (
+						<SubNavGroup>
+							<SubNavItem href={skillsPath}>Skills</SubNavItem>
 						</SubNavGroup>
 					)}
 			</div>

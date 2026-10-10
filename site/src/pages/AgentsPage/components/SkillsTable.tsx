@@ -26,6 +26,7 @@ import {
 	type SkillEditorState,
 	type SkillsCopy,
 	SkillsTableView,
+	type SkillsTableViewProps,
 } from "./SkillsTableView";
 
 const emptySkillFormValues: SkillFormValues = {
@@ -102,12 +103,16 @@ type SkillsTableProps = {
 	owner: SkillOwner;
 	copy: SkillsCopy;
 	access: SkillAccess;
+	toolbar?: React.ReactNode;
+	onManagePermissions?: SkillsTableViewProps["onManagePermissions"];
 };
 
 export const SkillsTable: React.FC<SkillsTableProps> = ({
 	owner,
 	copy,
 	access,
+	toolbar,
+	onManagePermissions,
 }) => {
 	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
 	const queryClient = useQueryClient();
@@ -338,6 +343,8 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			skills={skills}
 			copy={copy}
 			access={access}
+			toolbar={toolbar}
+			onManagePermissions={onManagePermissions}
 			error={skillsQuery.error}
 			isLoading={skillsQuery.isLoading}
 			isRetrying={skillsQuery.isFetching}

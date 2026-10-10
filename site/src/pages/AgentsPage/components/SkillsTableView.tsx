@@ -95,6 +95,7 @@ export type SkillsTableViewProps = {
 	skills: readonly SkillMetadata[];
 	copy: SkillsCopy;
 	access: SkillAccess;
+	toolbar?: React.ReactNode;
 	error: unknown;
 	isLoading: boolean;
 	isRetrying: boolean;
@@ -104,6 +105,10 @@ export type SkillsTableViewProps = {
 	onView: (name: string) => void;
 	onDelete: (skill: SkillMetadata) => void;
 	onDownload: (skill: SkillMetadata) => void;
+	onManagePermissions?: (
+		skill: SkillMetadata,
+		onCloseAutoFocus: (event: Event) => void,
+	) => void;
 	onExportAll: () => void;
 	downloadingSkillName?: string;
 	isExportingAll: boolean;
@@ -154,6 +159,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	skills,
 	copy,
 	access,
+	toolbar,
 	error,
 	isLoading,
 	isRetrying,
@@ -163,6 +169,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	onView,
 	onDelete,
 	onDownload,
+	onManagePermissions,
 	onExportAll,
 	downloadingSkillName,
 	isExportingAll,
@@ -229,6 +236,8 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				description={copy.description}
 				action={headerActions}
 			/>
+
+			{toolbar}
 
 			{access.create && isAtLimit && (
 				<Alert severity="warning">
@@ -353,6 +362,15 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 											>
 												Download
 											</DropdownMenuItem>
+											{onManagePermissions && (
+												<DropdownMenuItem
+													onClick={() =>
+														onManagePermissions(skill, restoreDialogFocus)
+													}
+												>
+													Manage permissions
+												</DropdownMenuItem>
+											)}
 											{access.update ? (
 												<DropdownMenuItem onClick={() => onEdit(skill.name)}>
 													Edit
