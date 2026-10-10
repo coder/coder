@@ -1350,8 +1350,9 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 // expectBestEffortContextRepin lets persistBuildAgentBinding's best-effort
 // context re-pin run against a mock store. The re-pin fires whenever a turn
 // rebinds a chat to a different agent; these agent-switch tests set up no
-// context snapshot, so it takes the no-snapshot clear path. The re-pin
-// behavior itself is covered by TestPersistBuildAgentBindingRepinsContext.
+// context snapshot, so it takes the no-snapshot clear path; each test
+// expects the GetChatByID that re-reads the row after the re-pin. The
+// re-pin behavior itself is covered by TestPersistBuildAgentBindingRepinsContext.
 func expectBestEffortContextRepin(db *dbmock.MockStore) {
 	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) }).AnyTimes()
@@ -1399,6 +1400,7 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 			AgentID: uuid.NullUUID{UUID: currentAgentID, Valid: true},
 			ID:      chat.ID,
 		}).Return(updatedChat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(updatedChat, nil),
 	)
 
 	chatStateMu := &sync.Mutex{}
@@ -1458,6 +1460,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 			AgentID: uuid.NullUUID{UUID: currentAgentID, Valid: true},
 			ID:      chat.ID,
 		}).Return(updatedChat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(updatedChat, nil),
 	)
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
@@ -2319,6 +2322,7 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 		BuildID: uuid.NullUUID{UUID: buildID, Valid: true},
 		AgentID: uuid.NullUUID{UUID: newAgentID, Valid: true},
 	}).Return(updatedChat, nil).Times(1)
+	db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(updatedChat, nil).Times(1)
 
 	newConn := agentconnmock.NewMockAgentConn(ctrl)
 	newConn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
