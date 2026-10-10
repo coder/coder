@@ -2903,6 +2903,13 @@ func (s *MethodTestSuite) TestOrganization() {
 		dbm.EXPECT().GetOrganizationByName(gomock.Any(), arg).Return(o, nil).AnyTimes()
 		check.Args(arg).Asserts(o, policy.ActionRead).Returns(o)
 	}))
+	s.Run("LockOrganizationMembersByUserIDsForShare", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		ids := []uuid.UUID{uuid.New(), uuid.New()}
+		arg := database.LockOrganizationMembersByUserIDsForShareParams{OrganizationID: o.ID, UserIds: ids}
+		dbm.EXPECT().LockOrganizationMembersByUserIDsForShare(gomock.Any(), arg).Return(ids, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead).Returns(ids)
+	}))
 	s.Run("GetOrganizationIDsByMemberIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		oa := testutil.Fake(s.T(), faker, database.Organization{})
 		ob := testutil.Fake(s.T(), faker, database.Organization{})
