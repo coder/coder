@@ -31,6 +31,7 @@ import {
 import type { SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import {
+	type SkillAccess,
 	type SkillDeleteState,
 	type SkillEditorState,
 	type SkillsCopy,
@@ -112,7 +113,7 @@ const exportSkillsArchive = async (
 type SkillsTableProps = {
 	owner: SkillOwner;
 	copy: SkillsCopy;
-	canEdit: boolean;
+	access: SkillAccess;
 	enabledOnly?: boolean;
 	headerLevel?: SectionHeaderLevel;
 	toolbar?: React.ReactNode;
@@ -122,7 +123,7 @@ type SkillsTableProps = {
 export const SkillsTable: React.FC<SkillsTableProps> = ({
 	owner,
 	copy,
-	canEdit,
+	access,
 	enabledOnly = false,
 	headerLevel,
 	toolbar,
@@ -396,7 +397,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			skills={skills}
 			copy={copy}
 			limit={SKILLS_MAX_PER_OWNER}
-			canEdit={canEdit}
+			access={access}
 			headerLevel={headerLevel}
 			toolbar={toolbar}
 			error={skillsQuery.error}
