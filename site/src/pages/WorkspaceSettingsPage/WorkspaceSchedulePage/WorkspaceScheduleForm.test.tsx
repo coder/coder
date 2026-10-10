@@ -1,4 +1,5 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { API } from "#/api/api";
 import { defaultSchedule } from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { MockTemplate } from "#/testHelpers/entities";
@@ -272,6 +273,49 @@ const defaultFormProps: WorkspaceScheduleFormProps = {
 		},
 	},
 };
+
+describe("timezone selection", () => {
+	it.each([
+		{ search: "australia", timezone: "Australia/Sydney", keyboard: false },
+		{ search: "new york", timezone: "America/New_York", keyboard: true },
+		{ search: "Canada/Eastern", timezone: "Canada/Eastern", keyboard: false },
+	])(
+		"submits $timezone after searching for $search",
+		async ({ search, timezone, keyboard }) => {
+			const user = userEvent.setup();
+			const onSubmit = vi.fn();
+			render(
+				<WorkspaceScheduleForm
+					{...defaultFormProps}
+					initialValues={valid}
+					onSubmit={onSubmit}
+				/>,
+			);
+
+			await user.click(screen.getByLabelText("Timezone"));
+			await user.type(
+				screen.getByRole("combobox", { name: "Search timezones" }),
+				search,
+			);
+			if (keyboard) {
+				await user.keyboard("{ArrowDown}{ArrowUp}{Enter}");
+			} else {
+				await user.click(
+					screen.getByRole("option", { name: timezone.replaceAll("_", " ") }),
+				);
+			}
+			await user.click(screen.getByRole("button", { name: "Save" }));
+
+			await waitFor(() => {
+				expect(onSubmit).toHaveBeenCalledExactlyOnceWith(
+					{ ...valid, timezone },
+					expect.anything(),
+				);
+			});
+		},
+		15_000,
+	);
+});
 
 describe("templateInheritance", () => {
 	it("disables the entire autostart feature appropriately", async () => {
