@@ -2,14 +2,52 @@ import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
-const userSkillsKey = (user = "me") => ["user-skills", user] as const;
+export type SkillOwner =
+	| { type: "user"; user: string }
+	| { type: "organization"; organizationId: string };
 
-const userSkillKey = (name: string, user = "me") =>
-	[...userSkillsKey(user), name] as const;
+const skillsKey = (owner: SkillOwner) =>
+	owner.type === "user"
+		? (["user-skills", owner.user] as const)
+		: (["organization-skills", owner.organizationId] as const);
 
-const toUserSkillMetadata = (
-	skill: TypesGen.Skill,
-): TypesGen.SkillMetadata => ({
+const skillKey = (owner: SkillOwner, name: string) =>
+	[...skillsKey(owner), name] as const;
+
+const skillsAPI = (owner: SkillOwner) =>
+	owner.type === "user"
+		? {
+				list: () => API.experimental.getUserSkills(owner.user),
+				get: (name: string) =>
+					API.experimental.getUserSkillByName(owner.user, name),
+				create: (req: TypesGen.CreateSkillRequest) =>
+					API.experimental.createUserSkill(owner.user, req),
+				update: (name: string, req: TypesGen.UpdateSkillRequest) =>
+					API.experimental.updateUserSkill(owner.user, name, req),
+				delete: (name: string) =>
+					API.experimental.deleteUserSkill(owner.user, name),
+			}
+		: {
+				list: () =>
+					API.experimental.getOrganizationSkills(owner.organizationId),
+				get: (name: string) =>
+					API.experimental.getOrganizationSkillByName(
+						owner.organizationId,
+						name,
+					),
+				create: (req: TypesGen.CreateSkillRequest) =>
+					API.experimental.createOrganizationSkill(owner.organizationId, req),
+				update: (name: string, req: TypesGen.UpdateSkillRequest) =>
+					API.experimental.updateOrganizationSkill(
+						owner.organizationId,
+						name,
+						req,
+					),
+				delete: (name: string) =>
+					API.experimental.deleteOrganizationSkill(owner.organizationId, name),
+			};
+
+const toSkillMetadata = (skill: TypesGen.Skill): TypesGen.SkillMetadata => ({
 	id: skill.id,
 	name: skill.name,
 	description: skill.description,
@@ -18,72 +56,70 @@ const toUserSkillMetadata = (
 	updated_at: skill.updated_at,
 });
 
-const sortUserSkillMetadata = (
+const sortSkillMetadata = (
 	skills: TypesGen.SkillMetadata[],
 ): TypesGen.SkillMetadata[] =>
 	skills.toSorted((a, b) => a.name.localeCompare(b.name, "en-US"));
 
-const upsertUserSkillMetadata = (
+const upsertSkillMetadata = (
 	skills: TypesGen.SkillMetadata[] | undefined,
 	skill: TypesGen.SkillMetadata,
 ): TypesGen.SkillMetadata[] => {
 	const withoutSkill = skills?.filter(({ name }) => name !== skill.name) ?? [];
-	return sortUserSkillMetadata([...withoutSkill, skill]);
+	return sortSkillMetadata([...withoutSkill, skill]);
 };
 
-export const userSkills = (user = "me") => ({
-	queryKey: userSkillsKey(user),
-	queryFn: (): Promise<TypesGen.SkillMetadata[]> =>
-		API.experimental.getUserSkills(user),
+export const skillList = (owner: SkillOwner) => ({
+	queryKey: skillsKey(owner),
+	queryFn: (): Promise<TypesGen.SkillMetadata[]> => skillsAPI(owner).list(),
 });
 
-export const userSkill = (name: string, user = "me") => ({
-	queryKey: userSkillKey(name, user),
-	queryFn: (): Promise<TypesGen.Skill> =>
-		API.experimental.getUserSkillByName(user, name),
+export const userSkills = (user = "me") => skillList({ type: "user", user });
+
+export const skill = (owner: SkillOwner, name: string) => ({
+	queryKey: skillKey(owner, name),
+	queryFn: (): Promise<TypesGen.Skill> => skillsAPI(owner).get(name),
 });
 
-export const createUserSkill = (queryClient: QueryClient, user = "me") => ({
+export const createSkill = (queryClient: QueryClient, owner: SkillOwner) => ({
 	mutationFn: (req: TypesGen.CreateSkillRequest) =>
-		API.experimental.createUserSkill(user, req),
+		skillsAPI(owner).create(req),
 	onSuccess: (skill: TypesGen.Skill) => {
 		queryClient.setQueryData<TypesGen.SkillMetadata[]>(
-			userSkillsKey(user),
-			(skills) => upsertUserSkillMetadata(skills, toUserSkillMetadata(skill)),
+			skillsKey(owner),
+			(skills) => upsertSkillMetadata(skills, toSkillMetadata(skill)),
 		);
-		queryClient.setQueryData(userSkillKey(skill.name, user), skill);
+		queryClient.setQueryData(skillKey(owner, skill.name), skill);
 	},
 });
 
-type UpdateUserSkillArgs = {
+type UpdateSkillArgs = {
 	name: string;
 	req: TypesGen.UpdateSkillRequest;
 };
 
-export const updateUserSkill = (queryClient: QueryClient, user = "me") => ({
-	mutationFn: ({ name, req }: UpdateUserSkillArgs) =>
-		API.experimental.updateUserSkill(user, name, req),
-	onSuccess: (skill: TypesGen.Skill, { name }: UpdateUserSkillArgs) => {
-		queryClient.setQueryData(userSkillKey(name, user), skill);
+export const updateSkill = (queryClient: QueryClient, owner: SkillOwner) => ({
+	mutationFn: ({ name, req }: UpdateSkillArgs) =>
+		skillsAPI(owner).update(name, req),
+	onSuccess: (skill: TypesGen.Skill, { name }: UpdateSkillArgs) => {
+		queryClient.setQueryData(skillKey(owner, name), skill);
 		queryClient.setQueryData<TypesGen.SkillMetadata[]>(
-			userSkillsKey(user),
+			skillsKey(owner),
 			(skills) =>
-				skills
-					? upsertUserSkillMetadata(skills, toUserSkillMetadata(skill))
-					: skills,
+				skills ? upsertSkillMetadata(skills, toSkillMetadata(skill)) : skills,
 		);
 	},
 });
 
-export const deleteUserSkill = (queryClient: QueryClient, user = "me") => ({
-	mutationFn: (name: string) => API.experimental.deleteUserSkill(user, name),
+export const deleteSkill = (queryClient: QueryClient, owner: SkillOwner) => ({
+	mutationFn: (name: string) => skillsAPI(owner).delete(name),
 	onSuccess: (_data: unknown, name: string) => {
 		queryClient.removeQueries({
-			queryKey: userSkillKey(name, user),
+			queryKey: skillKey(owner, name),
 			exact: true,
 		});
 		queryClient.setQueryData<TypesGen.SkillMetadata[]>(
-			userSkillsKey(user),
+			skillsKey(owner),
 			(skills) => skills?.filter((skill) => skill.name !== name),
 		);
 	},

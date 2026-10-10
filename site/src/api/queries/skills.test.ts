@@ -2,12 +2,15 @@ import { QueryClient } from "react-query";
 import { describe, expect, it } from "vitest";
 import type { Skill, SkillMetadata } from "#/api/typesGenerated";
 import {
-	createUserSkill,
-	deleteUserSkill,
-	updateUserSkill,
-	userSkill,
+	createSkill,
+	deleteSkill,
+	type SkillOwner,
+	skill,
+	updateSkill,
 	userSkills,
 } from "./skills";
+
+const me: SkillOwner = { type: "user", user: "me" };
 
 const createTestQueryClient = (): QueryClient =>
 	new QueryClient({
@@ -44,9 +47,9 @@ const toMetadata = (skill: Skill): SkillMetadata => ({
 describe("user skill queries", () => {
 	it("defaults query keys to the current user alias", () => {
 		expect(userSkills().queryKey).toEqual(["user-skills", "me"]);
-		expect(userSkill("alpha").queryKey).toEqual(["user-skills", "me", "alpha"]);
+		expect(skill(me, "alpha").queryKey).toEqual(["user-skills", "me", "alpha"]);
 		expect(userSkills("user-id").queryKey).toEqual(["user-skills", "user-id"]);
-		expect(userSkill("alpha", "user-id").queryKey).toEqual([
+		expect(skill({ type: "user", user: "user-id" }, "alpha").queryKey).toEqual([
 			"user-skills",
 			"user-id",
 			"alpha",
@@ -59,13 +62,13 @@ describe("user skill queries", () => {
 		const zeta = makeSkill("zeta");
 		queryClient.setQueryData(userSkills().queryKey, [toMetadata(zeta)]);
 
-		createUserSkill(queryClient).onSuccess(alpha);
+		createSkill(queryClient, me).onSuccess(alpha);
 
 		expect(queryClient.getQueryData(userSkills().queryKey)).toEqual([
 			toMetadata(alpha),
 			toMetadata(zeta),
 		]);
-		expect(queryClient.getQueryData(userSkill("alpha").queryKey)).toEqual(
+		expect(queryClient.getQueryData(skill(me, "alpha").queryKey)).toEqual(
 			alpha,
 		);
 	});
@@ -84,9 +87,9 @@ describe("user skill queries", () => {
 			toMetadata(alpha),
 			toMetadata(beta),
 		]);
-		queryClient.setQueryData(userSkill("alpha").queryKey, alpha);
+		queryClient.setQueryData(skill(me, "alpha").queryKey, alpha);
 
-		updateUserSkill(queryClient).onSuccess(updatedAlpha, {
+		updateSkill(queryClient, me).onSuccess(updatedAlpha, {
 			name: "alpha",
 			req: { content: updatedAlpha.content },
 		});
@@ -95,7 +98,7 @@ describe("user skill queries", () => {
 			toMetadata(updatedAlpha),
 			toMetadata(beta),
 		]);
-		expect(queryClient.getQueryData(userSkill("alpha").queryKey)).toEqual(
+		expect(queryClient.getQueryData(skill(me, "alpha").queryKey)).toEqual(
 			updatedAlpha,
 		);
 	});
@@ -108,15 +111,15 @@ describe("user skill queries", () => {
 			toMetadata(alpha),
 			toMetadata(beta),
 		]);
-		queryClient.setQueryData(userSkill("alpha").queryKey, alpha);
+		queryClient.setQueryData(skill(me, "alpha").queryKey, alpha);
 
-		deleteUserSkill(queryClient).onSuccess(undefined, "alpha");
+		deleteSkill(queryClient, me).onSuccess(undefined, "alpha");
 
 		expect(queryClient.getQueryData(userSkills().queryKey)).toEqual([
 			toMetadata(beta),
 		]);
 		expect(
-			queryClient.getQueryData(userSkill("alpha").queryKey),
+			queryClient.getQueryData(skill(me, "alpha").queryKey),
 		).toBeUndefined();
 	});
 });

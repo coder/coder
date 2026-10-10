@@ -41,6 +41,16 @@ import { SectionHeader } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import { SkillEditor } from "./SkillEditor";
 
+export type SkillsCopy = {
+	/** Singular noun in sentence case, for example "Personal skill". */
+	noun: string;
+	title: string;
+	description: string;
+	emptyDescription: string;
+	editorDescription: string;
+	archiveName: string;
+};
+
 export type SkillEditorState =
 	| {
 			mode: "create";
@@ -73,8 +83,22 @@ export type SkillDeleteState = {
 	onClose: () => void;
 };
 
+export type SkillAccess = {
+	create: boolean;
+	update: boolean;
+	delete: boolean;
+};
+
+export const fullSkillAccess: SkillAccess = {
+	create: true,
+	update: true,
+	delete: true,
+};
+
 export type SkillsTableViewProps = {
 	skills: readonly SkillMetadata[];
+	copy: SkillsCopy;
+	access: SkillAccess;
 	error: unknown;
 	isLoading: boolean;
 	isRetrying: boolean;
@@ -107,8 +131,10 @@ const formatUpdatedAt = (value: string) => {
 };
 
 const EditSkillDialog: React.FC<{
+	copy: SkillsCopy;
 	state: Extract<SkillEditorState, { mode: "edit" }>;
-}> = ({ state }) => {
+}> = ({ copy, state }) => {
+	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
 			state.onClose();
@@ -120,7 +146,7 @@ const EditSkillDialog: React.FC<{
 			<Dialog open onOpenChange={handleOpenChange}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>Loading personal skill</DialogTitle>
+						<DialogTitle>Loading {lowerNoun}</DialogTitle>
 						<DialogDescription>
 							Fetching the latest SKILL.md content.
 						</DialogDescription>
@@ -136,7 +162,7 @@ const EditSkillDialog: React.FC<{
 			<Dialog open onOpenChange={handleOpenChange}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>Unable to load personal skill</DialogTitle>
+						<DialogTitle>Unable to load {lowerNoun}</DialogTitle>
 						<DialogDescription>
 							The skill could not be loaded for editing.
 						</DialogDescription>
@@ -168,6 +194,8 @@ const EditSkillDialog: React.FC<{
 		<SkillEditor
 			open
 			mode="edit"
+			noun={copy.noun}
+			description={copy.editorDescription}
 			initialValues={state.initialValues}
 			existingNames={state.existingNames}
 			submitError={state.submitError}
@@ -212,6 +240,8 @@ const DeleteSkillDialog: React.FC<{ state: SkillDeleteState }> = ({
 
 export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	skills,
+	copy,
+	access,
 	error,
 	isLoading,
 	isRetrying,
@@ -226,8 +256,9 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	editorState,
 	deleteState,
 }) => {
+	const pluralNoun = `${copy.noun.toLocaleLowerCase("en-US")}s`;
 	const isAtLimit = skills.length >= SKILLS_MAX_PER_OWNER;
-	const addSkillAction = (
+	const addSkillAction = access.create && (
 		<Button
 			variant="outline"
 			onClick={onCreate}
@@ -254,23 +285,23 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	return (
 		<div className="flex flex-col gap-8">
 			<SectionHeader
-				label="Personal skills"
-				description="Reusable instructions your agents can pick when they need specialized guidance. Personal skills hold a single SKILL.md file. For richer skills with supporting files, add them to your repo under `.agents/skills/` or load them from a workspace."
+				label={copy.title}
+				description={copy.description}
 				action={headerActions}
 			/>
 
-			{isAtLimit && (
+			{access.create && isAtLimit && (
 				<Alert severity="warning">
 					<AlertDescription>
-						You have reached the limit of {SKILLS_MAX_PER_OWNER} personal
-						skills. Delete a skill before creating another one.
+						You have reached the limit of {SKILLS_MAX_PER_OWNER} {pluralNoun}.
+						Delete a skill before creating another one.
 					</AlertDescription>
 				</Alert>
 			)}
 
 			{Boolean(error) && <ErrorAlert error={error} />}
 
-			<Table aria-label="Personal skills">
+			<Table aria-label={copy.title}>
 				<TableHeader>
 					<TableRow>
 						<TableHead className="whitespace-nowrap">Name</TableHead>
@@ -284,7 +315,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				<TableBody size="lg">
 					{isLoading ? (
 						<TableLoaderSkeleton>
-							<TableRowSkeleton aria-label="Loading personal skills">
+							<TableRowSkeleton aria-label={`Loading ${pluralNoun}`}>
 								<TableCell>
 									<Skeleton variant="text" className="w-32" />
 								</TableCell>
@@ -301,7 +332,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						</TableLoaderSkeleton>
 					) : skills.length === 0 && error ? (
 						<TableEmpty
-							message="Failed to load personal skills"
+							message={`Failed to load ${pluralNoun}`}
 							cta={
 								<Button
 									variant="outline"
@@ -315,8 +346,8 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						/>
 					) : skills.length === 0 ? (
 						<TableEmpty
-							message="No personal skills yet"
-							description="Create a personal skill to save reusable agent guidance for your workflows."
+							message={`No ${pluralNoun} yet`}
+							description={access.create ? copy.emptyDescription : undefined}
 							cta={addSkillAction}
 						/>
 					) : (
@@ -360,16 +391,22 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 											>
 												Download
 											</DropdownMenuItem>
-											<DropdownMenuItem onClick={() => onEdit(skill.name)}>
-												Edit
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												className="text-content-destructive focus:text-content-destructive"
-												onClick={() => onDelete(skill)}
-											>
-												Delete&hellip;
-											</DropdownMenuItem>
+											{access.update && (
+												<DropdownMenuItem onClick={() => onEdit(skill.name)}>
+													Edit
+												</DropdownMenuItem>
+											)}
+											{access.delete && (
+												<>
+													<DropdownMenuSeparator />
+													<DropdownMenuItem
+														className="text-content-destructive focus:text-content-destructive"
+														onClick={() => onDelete(skill)}
+													>
+														Delete&hellip;
+													</DropdownMenuItem>
+												</>
+											)}
 										</DropdownMenuContent>
 									</DropdownMenu>
 								</TableCell>
@@ -383,6 +420,8 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				<SkillEditor
 					open
 					mode="create"
+					noun={copy.noun}
+					description={copy.editorDescription}
 					initialValues={editorState.initialValues}
 					existingNames={editorState.existingNames}
 					submitError={editorState.submitError}
@@ -395,7 +434,9 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 					onSubmit={editorState.onSubmit}
 				/>
 			)}
-			{editorState?.mode === "edit" && <EditSkillDialog state={editorState} />}
+			{editorState?.mode === "edit" && (
+				<EditSkillDialog copy={copy} state={editorState} />
+			)}
 			{deleteState && <DeleteSkillDialog state={deleteState} />}
 		</div>
 	);

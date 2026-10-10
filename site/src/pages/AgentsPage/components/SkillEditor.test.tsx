@@ -13,6 +13,8 @@ const renderEditor = (mode: "create" | "edit" = "create") => {
 		<SkillEditor
 			open
 			mode={mode}
+			noun="Personal skill"
+			description="Personal skill guidance."
 			initialValues={
 				mode === "create"
 					? { name: "", description: "", body: "" }

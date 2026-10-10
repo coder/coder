@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockSkill } from "#/testHelpers/skills";
-import { SkillsTableView, type SkillsTableViewProps } from "./SkillsTableView";
+import {
+	fullSkillAccess,
+	SkillsTableView,
+	type SkillsTableViewProps,
+} from "./SkillsTableView";
 
 const MockReviewSQLSkill = {
 	...MockSkill,
@@ -48,6 +52,18 @@ const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
 const baseArgs: SkillsTableViewProps = {
 	skills: MockPersonalSkills,
+	copy: {
+		noun: "Personal skill",
+		title: "Personal skills",
+		description:
+			"Reusable instructions your agents can pick when they need specialized guidance. Personal skills hold a single SKILL.md file. For richer skills with supporting files, add them to your repo under `.agents/skills/` or load them from a workspace.",
+		emptyDescription:
+			"Create a personal skill to save reusable agent guidance for your workflows.",
+		editorDescription:
+			"Personal skills are available to your agents and stored as a single SKILL.md file with frontmatter. For richer skills with supporting files, add them to your repo under `.agents/skills/` or load them from a workspace.",
+		archiveName: "personal-skills.zip",
+	},
+	access: fullSkillAccess,
 	error: undefined,
 	isLoading: false,
 	isRetrying: false,
