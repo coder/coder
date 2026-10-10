@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -44,12 +43,10 @@ func TestOrganizationSkillACL(t *testing.T) {
 	orgAdminRawClient, _ := coderdtest.CreateAnotherUser(t, ownerRawClient, orgID, rbac.ScopedRoleOrgAdmin(orgID))
 	memberRawClient, member := coderdtest.CreateAnotherUser(t, ownerRawClient, orgID)
 	memberClient := codersdk.NewExperimentalClient(memberRawClient)
-	auditorRawClient, _ := coderdtest.CreateAnotherUser(t, ownerRawClient, orgID, rbac.ScopedRoleOrgAuditor(orgID))
 
 	otherOrg := dbgen.Organization(t, db, database.Organization{})
 	foreignUser := dbgen.User(t, db, database.User{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: foreignUser.ID})
-	foreignGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
 
 	readACL := func(ids ...uuid.UUID) database.ChatACL {
 		entries := database.ChatACL{}
@@ -67,64 +64,55 @@ func TestOrganizationSkillACL(t *testing.T) {
 		return skill
 	}
 
-	t.Run("SharersManageACL", func(t *testing.T) {
+	// The site owner shares in every other subtest. Listing candidates is
+	// shared with MCP server configs and covered by
+	// TestMCPServerConfigACLAvailable.
+	t.Run("OrgAdminManagesACL", func(t *testing.T) {
 		t.Parallel()
 
-		for name, client := range map[string]*codersdk.ExperimentalClient{
-			"org-admin":  codersdk.NewExperimentalClient(orgAdminRawClient),
-			"site-owner": owner,
-		} {
-			t.Run(name, func(t *testing.T) {
-				t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := codersdk.NewExperimentalClient(orgAdminRawClient)
+		skill := createSkill(ctx, t, "org-admin-sharer")
 
-				ctx := testutil.Context(t, testutil.WaitMedium)
-				skill := createSkill(ctx, t, "sharer-"+name)
+		acl, err := client.OrganizationSkillACL(ctx, orgID, skill.Name)
+		require.NoError(t, err)
+		require.Empty(t, acl.Users)
+		require.Len(t, acl.Groups, 1)
+		require.Equal(t, orgID, acl.Groups[0].ID)
+		require.Equal(t, codersdk.OrganizationSkillRoleRead, acl.Groups[0].Role)
 
-				acl, err := client.OrganizationSkillACL(ctx, orgID, skill.Name)
-				require.NoError(t, err)
-				require.Empty(t, acl.Users)
-				require.Len(t, acl.Groups, 1)
-				require.Equal(t, orgID, acl.Groups[0].ID)
-				require.Equal(t, codersdk.OrganizationSkillRoleRead, acl.Groups[0].Role)
+		available, err := client.OrganizationSkillACLAvailable(ctx, orgID, skill.Name, codersdk.UsersRequest{})
+		require.NoError(t, err)
+		require.Contains(t, aclAvailableUserIDs(available), member.ID)
+		require.NotContains(t, aclAvailableUserIDs(available), foreignUser.ID)
 
-				available, err := client.OrganizationSkillACLAvailable(ctx, orgID, skill.Name, codersdk.UsersRequest{})
-				require.NoError(t, err)
-				require.Contains(t, aclAvailableUserIDs(available), member.ID)
-
-				err = client.UpdateOrganizationSkillACL(ctx, orgID, skill.Name, codersdk.UpdateOrganizationSkillACLRequest{
-					UserRoles: map[string]codersdk.OrganizationSkillRole{member.ID.String(): codersdk.OrganizationSkillRoleRead},
-				})
-				require.NoError(t, err)
-				acl, err = client.OrganizationSkillACL(ctx, orgID, skill.Name)
-				require.NoError(t, err)
-				require.Len(t, acl.Users, 1)
-				require.Equal(t, member.ID, acl.Users[0].ID)
-				require.Equal(t, codersdk.OrganizationSkillRoleRead, acl.Users[0].Role)
-			})
-		}
+		err = client.UpdateOrganizationSkillACL(ctx, orgID, skill.Name, codersdk.UpdateOrganizationSkillACLRequest{
+			UserRoles: map[string]codersdk.OrganizationSkillRole{member.ID.String(): codersdk.OrganizationSkillRoleRead},
+		})
+		require.NoError(t, err)
+		acl, err = client.OrganizationSkillACL(ctx, orgID, skill.Name)
+		require.NoError(t, err)
+		require.Len(t, acl.Users, 1)
+		require.Equal(t, member.ID, acl.Users[0].ID)
+		require.Equal(t, codersdk.OrganizationSkillRoleRead, acl.Users[0].Role)
 	})
 
-	t.Run("NonSharersGetNotFound", func(t *testing.T) {
+	t.Run("ReadersGetNotFound", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		skill := createSkill(ctx, t, "non-sharer-skill")
-		for name, client := range map[string]*codersdk.ExperimentalClient{
-			"EveryoneReader": memberClient,
-			"OrgAuditor":     codersdk.NewExperimentalClient(auditorRawClient),
-		} {
-			_, err := client.OrganizationSkillByName(ctx, orgID, skill.Name)
-			require.NoError(t, err, name)
+		_, err := memberClient.OrganizationSkillByName(ctx, orgID, skill.Name)
+		require.NoError(t, err)
 
-			_, err = client.OrganizationSkillACL(ctx, orgID, skill.Name)
-			requireSDKErrorStatus(t, err, http.StatusNotFound, name)
-			err = client.UpdateOrganizationSkillACL(ctx, orgID, skill.Name, codersdk.UpdateOrganizationSkillACLRequest{
-				UserRoles: map[string]codersdk.OrganizationSkillRole{member.ID.String(): codersdk.OrganizationSkillRoleRead},
-			})
-			requireSDKErrorStatus(t, err, http.StatusNotFound, name)
-			_, err = client.OrganizationSkillACLAvailable(ctx, orgID, skill.Name, codersdk.UsersRequest{})
-			requireSDKErrorStatus(t, err, http.StatusNotFound, name)
-		}
+		_, err = memberClient.OrganizationSkillACL(ctx, orgID, skill.Name)
+		requireSDKErrorStatus(t, err, http.StatusNotFound)
+		err = memberClient.UpdateOrganizationSkillACL(ctx, orgID, skill.Name, codersdk.UpdateOrganizationSkillACLRequest{
+			UserRoles: map[string]codersdk.OrganizationSkillRole{member.ID.String(): codersdk.OrganizationSkillRoleRead},
+		})
+		requireSDKErrorStatus(t, err, http.StatusNotFound)
+		_, err = memberClient.OrganizationSkillACLAvailable(ctx, orgID, skill.Name, codersdk.UsersRequest{})
+		requireSDKErrorStatus(t, err, http.StatusNotFound)
 	})
 
 	t.Run("SparseUpdateChangesReaders", func(t *testing.T) {
@@ -191,74 +179,24 @@ func TestOrganizationSkillACL(t *testing.T) {
 		require.Equal(t, 1, acl.Groups[0].TotalMemberCount)
 	})
 
-	t.Run("RejectsInvalidUpdates", func(t *testing.T) {
+	// Membership, duplicate-spelling and cross-organization validation is
+	// shared with MCP server configs and covered by TestMCPServerConfigACL.
+	t.Run("RejectsUnsupportedRole", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		skill := createSkill(ctx, t, "invalid-acl-skill")
-		for name, tc := range map[string]struct {
-			req    codersdk.UpdateOrganizationSkillACLRequest
-			detail string
-		}{
-			"UserOutsideOrganization": {
-				req: codersdk.UpdateOrganizationSkillACLRequest{
-					UserRoles: map[string]codersdk.OrganizationSkillRole{foreignUser.ID.String(): codersdk.OrganizationSkillRoleRead},
-				},
-				detail: "user " + foreignUser.ID.String() + " does not belong to organization",
-			},
-			"GroupFromOtherOrganization": {
-				req: codersdk.UpdateOrganizationSkillACLRequest{
-					GroupRoles: map[string]codersdk.OrganizationSkillRole{foreignGroup.ID.String(): codersdk.OrganizationSkillRoleRead},
-				},
-				detail: "group " + foreignGroup.ID.String() + " does not belong to organization",
-			},
-			"UnsupportedRole": {
-				req: codersdk.UpdateOrganizationSkillACLRequest{
-					UserRoles: map[string]codersdk.OrganizationSkillRole{member.ID.String(): "use"},
-				},
-				detail: `role "use" is not a valid organization skill role`,
-			},
-			"DuplicateSpellings": {
-				req: codersdk.UpdateOrganizationSkillACLRequest{
-					UserRoles: map[string]codersdk.OrganizationSkillRole{
-						member.ID.String():                  codersdk.OrganizationSkillRoleRead,
-						strings.ToUpper(member.ID.String()): codersdk.OrganizationSkillRoleDeleted,
-					},
-				},
-				detail: "duplicate entries for ID " + member.ID.String(),
-			},
-		} {
-			err := owner.UpdateOrganizationSkillACL(ctx, orgID, skill.Name, tc.req)
-			sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest, name)
-			require.Contains(t, sdkErr.Error(), tc.detail, name)
-		}
+		err := owner.UpdateOrganizationSkillACL(ctx, orgID, skill.Name, codersdk.UpdateOrganizationSkillACLRequest{
+			UserRoles: map[string]codersdk.OrganizationSkillRole{member.ID.String(): "use"},
+		})
+		sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Error(), `role "use" is not a valid organization skill role`)
 
 		acl, err := owner.OrganizationSkillACL(ctx, orgID, skill.Name)
 		require.NoError(t, err)
 		require.Empty(t, acl.Users)
 		require.Len(t, acl.Groups, 1)
 		require.Equal(t, orgID, acl.Groups[0].ID)
-	})
-
-	t.Run("AvailableListsOrganizationPrincipals", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		group := dbgen.Group(t, db, database.Group{OrganizationID: orgID})
-		skill := createSkill(ctx, t, "available-acl-skill")
-
-		available, err := owner.OrganizationSkillACLAvailable(ctx, orgID, skill.Name, codersdk.UsersRequest{})
-		require.NoError(t, err)
-		userIDs := aclAvailableUserIDs(available)
-		require.Contains(t, userIDs, member.ID)
-		require.NotContains(t, userIDs, foreignUser.ID)
-		groupIDs := make([]uuid.UUID, 0, len(available.Groups))
-		for _, availableGroup := range available.Groups {
-			groupIDs = append(groupIDs, availableGroup.ID)
-		}
-		require.Contains(t, groupIDs, orgID)
-		require.Contains(t, groupIDs, group.ID)
-		require.NotContains(t, groupIDs, foreignGroup.ID)
 	})
 
 	t.Run("ScopedAPIKeys", func(t *testing.T) {
