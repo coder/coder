@@ -69,6 +69,14 @@ const (
 	CheckOauth2ProviderAppsClientTypeCheck                   CheckConstraint = "oauth2_provider_apps_client_type_check"                    // oauth2_provider_apps
 	CheckMaxProvisionerLogsLength                            CheckConstraint = "max_provisioner_logs_length"                               // provisioner_jobs
 	CheckNatsPortValidTcp                                    CheckConstraint = "nats_port_valid_tcp"                                       // replicas
+	CheckSkillsAclOnlyOnOrganizationSkills                   CheckConstraint = "skills_acl_only_on_organization_skills"                    // skills
+	CheckSkillsContentSize                                   CheckConstraint = "skills_content_size"                                       // skills
+	CheckSkillsDescriptionSize                               CheckConstraint = "skills_description_size"                                   // skills
+	CheckSkillsGroupAclIsObject                              CheckConstraint = "skills_group_acl_is_object"                                // skills
+	CheckSkillsNameFormat                                    CheckConstraint = "skills_name_format"                                        // skills
+	CheckSkillsNameSize                                      CheckConstraint = "skills_name_size"                                          // skills
+	CheckSkillsSingleOwner                                   CheckConstraint = "skills_single_owner"                                       // skills
+	CheckSkillsUserAclIsObject                               CheckConstraint = "skills_user_acl_is_object"                                 // skills
 	CheckTelemetryLockEventTypeConstraint                    CheckConstraint = "telemetry_lock_event_type_constraint"                      // telemetry_locks
 	CheckValidationMonotonicOrder                            CheckConstraint = "validation_monotonic_order"                                // template_version_parameters
 	CheckUsageEventTypeCheck                                 CheckConstraint = "usage_event_type_check"                                    // usage_events
@@ -76,10 +84,6 @@ const (
 	CheckUserAIBudgetOverridesSpendLimitMicrosCheck          CheckConstraint = "user_ai_budget_overrides_spend_limit_micros_check"         // user_ai_budget_overrides
 	CheckUserAIProviderKeysAPIKeyCheck                       CheckConstraint = "user_ai_provider_keys_api_key_check"                       // user_ai_provider_keys
 	CheckUserSecretsEnabledRequiresTarget                    CheckConstraint = "user_secrets_enabled_requires_target"                      // user_secrets
-	CheckUserSkillsContentSize                               CheckConstraint = "user_skills_content_size"                                  // user_skills
-	CheckUserSkillsDescriptionSize                           CheckConstraint = "user_skills_description_size"                              // user_skills
-	CheckUserSkillsNameFormat                                CheckConstraint = "user_skills_name_format"                                   // user_skills
-	CheckUserSkillsNameSize                                  CheckConstraint = "user_skills_name_size"                                     // user_skills
 	CheckMaxLogsLength                                       CheckConstraint = "max_logs_length"                                           // workspace_agents
 	CheckSubsystemsNotNone                                   CheckConstraint = "subsystems_not_none"                                       // workspace_agents
 	CheckWorkspaceBuildOrchestrationsAttemptCountCheck       CheckConstraint = "workspace_build_orchestrations_attempt_count_check"        // workspace_build_orchestrations

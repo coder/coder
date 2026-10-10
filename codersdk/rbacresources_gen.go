@@ -41,6 +41,7 @@ const (
 	ResourceOauth2AppSecret               RBACResource = "oauth2_app_secret"
 	ResourceOrganization                  RBACResource = "organization"
 	ResourceOrganizationMember            RBACResource = "organization_member"
+	ResourceOrganizationSkill             RBACResource = "organization_skill"
 	ResourcePrebuiltWorkspace             RBACResource = "prebuilt_workspace"
 	ResourceProvisionerDaemon             RBACResource = "provisioner_daemon"
 	ResourceProvisionerJobs               RBACResource = "provisioner_jobs"
@@ -124,6 +125,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceOauth2AppSecret:               {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOrganization:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOrganizationMember:            {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceOrganizationSkill:             {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
 	ResourcePrebuiltWorkspace:             {ActionDelete, ActionUpdate},
 	ResourceProvisionerDaemon:             {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceProvisionerJobs:               {ActionCreate, ActionRead, ActionUpdate},

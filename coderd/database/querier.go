@@ -250,6 +250,7 @@ type sqlcQuerier interface {
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error)
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
+	DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg DeleteOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
 	DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
 	DeleteRuntimeConfig(ctx context.Context, key string) error
@@ -266,7 +267,7 @@ type sqlcQuerier interface {
 	DeleteUserAIProviderKeysByProviderID(ctx context.Context, aiProviderID uuid.UUID) error
 	DeleteUserChatCompactionThreshold(ctx context.Context, arg DeleteUserChatCompactionThresholdParams) error
 	DeleteUserSecretByUserIDAndName(ctx context.Context, arg DeleteUserSecretByUserIDAndNameParams) (UserSecret, error)
-	DeleteUserSkillByUserIDAndName(ctx context.Context, arg DeleteUserSkillByUserIDAndNameParams) (UserSkill, error)
+	DeleteUserSkillByUserIDAndName(ctx context.Context, arg DeleteUserSkillByUserIDAndNameParams) (Skill, error)
 	DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg DeleteWebpushSubscriptionByUserIDAndEndpointParams) error
 	DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUID) error
 	DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error
@@ -815,6 +816,7 @@ type sqlcQuerier interface {
 	GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
 	GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIDRow, error)
+	GetOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg GetOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
 	GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error)
 	GetOrganizationsByUserID(ctx context.Context, arg GetOrganizationsByUserIDParams) ([]Organization, error)
 	// GetOrganizationsWithPrebuildStatus returns organizations with prebuilds configured and their
@@ -1081,7 +1083,7 @@ type sqlcQuerier interface {
 	// values rather than interpolating between rows.
 	GetUserSecretsTelemetrySummary(ctx context.Context) (GetUserSecretsTelemetrySummaryRow, error)
 	GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
-	GetUserSkillByUserIDAndName(ctx context.Context, arg GetUserSkillByUserIDAndNameParams) (UserSkill, error)
+	GetUserSkillByUserIDAndName(ctx context.Context, arg GetUserSkillByUserIDAndNameParams) (Skill, error)
 	// GetUserStatusCounts returns the count of users in each status over time.
 	// The time range is inclusively defined by the start_time and end_time parameters.
 	GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error)
@@ -1274,6 +1276,7 @@ type sqlcQuerier interface {
 	InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error)
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
+	InsertOrganizationSkill(ctx context.Context, arg InsertOrganizationSkillParams) (Skill, error)
 	InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error)
 	InsertPresetParameters(ctx context.Context, arg InsertPresetParametersParams) ([]TemplateVersionPresetParameter, error)
 	InsertPresetPrebuildSchedule(ctx context.Context, arg InsertPresetPrebuildScheduleParams) (TemplateVersionPresetPrebuildSchedule, error)
@@ -1303,7 +1306,7 @@ type sqlcQuerier interface {
 	// If there is a conflict, the user is already a member
 	InsertUserGroupsByID(ctx context.Context, arg InsertUserGroupsByIDParams) ([]uuid.UUID, error)
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
-	InsertUserSkill(ctx context.Context, arg InsertUserSkillParams) (UserSkill, error)
+	InsertUserSkill(ctx context.Context, arg InsertUserSkillParams) (Skill, error)
 	InsertVolumeResourceMonitor(ctx context.Context, arg InsertVolumeResourceMonitorParams) (WorkspaceAgentVolumeResourceMonitor, error)
 	// Inserts or updates a webpush subscription. The (user_id, endpoint) pair
 	// is unique; re-subscribing the same endpoint replaces the keys instead of
@@ -1400,6 +1403,7 @@ type sqlcQuerier interface {
 	// totals over every matching user. It must keep the same joins and predicates as
 	// ExportOrganizationAISpend so both report the same token usage.
 	ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error)
+	ListOrganizationSkillMetadataByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ListOrganizationSkillMetadataByOrganizationIDRow, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	// Used by the usage generator to find missing heartbeat buckets.
@@ -1679,6 +1683,7 @@ type sqlcQuerier interface {
 	UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error)
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error)
 	UpdateOrganizationDeletedByID(ctx context.Context, arg UpdateOrganizationDeletedByIDParams) error
+	UpdateOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg UpdateOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
 	UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg UpdateOrganizationWorkspaceSharingSettingsParams) (Organization, error)
 	// Cancels all pending provisioner jobs for prebuilt workspaces on a specific preset from an
 	// inactive template version.
@@ -1731,7 +1736,7 @@ type sqlcQuerier interface {
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)
 	UpdateUserSecretByUserIDAndName(ctx context.Context, arg UpdateUserSecretByUserIDAndNameParams) (UserSecret, error)
 	UpdateUserShellToolDisplayMode(ctx context.Context, arg UpdateUserShellToolDisplayModeParams) (string, error)
-	UpdateUserSkillByUserIDAndName(ctx context.Context, arg UpdateUserSkillByUserIDAndNameParams) (UserSkill, error)
+	UpdateUserSkillByUserIDAndName(ctx context.Context, arg UpdateUserSkillByUserIDAndNameParams) (Skill, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)
 	UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error)
 	UpdateUserThemeDark(ctx context.Context, arg UpdateUserThemeDarkParams) (UserConfig, error)

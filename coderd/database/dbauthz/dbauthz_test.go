@@ -7020,7 +7020,7 @@ func (s *MethodTestSuite) TestUserSecrets() {
 func (s *MethodTestSuite) TestUserSkills() {
 	s.Run("GetUserSkillByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
-		skill := testutil.Fake(s.T(), faker, database.UserSkill{UserID: user.ID})
+		skill := testutil.Fake(s.T(), faker, database.Skill{UserID: uuid.NullUUID{UUID: user.ID, Valid: true}})
 		arg := database.GetUserSkillByUserIDAndNameParams{UserID: user.ID, Name: skill.Name}
 		dbm.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), arg).Return(skill, nil).AnyTimes()
 		check.Args(arg).
@@ -7029,7 +7029,7 @@ func (s *MethodTestSuite) TestUserSkills() {
 	}))
 	s.Run("ListUserSkillMetadataByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
-		row := testutil.Fake(s.T(), faker, database.ListUserSkillMetadataByUserIDRow{UserID: user.ID})
+		row := testutil.Fake(s.T(), faker, database.ListUserSkillMetadataByUserIDRow{UserID: uuid.NullUUID{UUID: user.ID, Valid: true}})
 		dbm.EXPECT().ListUserSkillMetadataByUserID(gomock.Any(), user.ID).Return([]database.ListUserSkillMetadataByUserIDRow{row}, nil).AnyTimes()
 		check.Args(user.ID).
 			Asserts(rbac.ResourceUserSkill.WithOwner(user.ID.String()), policy.ActionRead).
@@ -7042,9 +7042,9 @@ func (s *MethodTestSuite) TestUserSkills() {
 			UserID: user.ID,
 			Name:   "test",
 		}
-		ret := testutil.Fake(s.T(), faker, database.UserSkill{
+		ret := testutil.Fake(s.T(), faker, database.Skill{
 			ID:     arg.ID,
-			UserID: user.ID,
+			UserID: uuid.NullUUID{UUID: user.ID, Valid: true},
 			Name:   arg.Name,
 		})
 		dbm.EXPECT().InsertUserSkill(gomock.Any(), arg).Return(ret, nil).AnyTimes()
@@ -7055,7 +7055,7 @@ func (s *MethodTestSuite) TestUserSkills() {
 	s.Run("UpdateUserSkillByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.UpdateUserSkillByUserIDAndNameParams{UserID: user.ID, Name: "test"}
-		updated := testutil.Fake(s.T(), faker, database.UserSkill{UserID: user.ID, Name: arg.Name})
+		updated := testutil.Fake(s.T(), faker, database.Skill{UserID: uuid.NullUUID{UUID: user.ID, Valid: true}, Name: arg.Name})
 		dbm.EXPECT().UpdateUserSkillByUserIDAndName(gomock.Any(), arg).Return(updated, nil).AnyTimes()
 		check.Args(arg).
 			Asserts(rbac.ResourceUserSkill.WithOwner(user.ID.String()), policy.ActionUpdate).
@@ -7064,11 +7064,75 @@ func (s *MethodTestSuite) TestUserSkills() {
 	s.Run("DeleteUserSkillByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.DeleteUserSkillByUserIDAndNameParams{UserID: user.ID, Name: "test"}
-		deleted := testutil.Fake(s.T(), faker, database.UserSkill{UserID: user.ID, Name: arg.Name})
+		deleted := testutil.Fake(s.T(), faker, database.Skill{UserID: uuid.NullUUID{UUID: user.ID, Valid: true}, Name: arg.Name})
 		dbm.EXPECT().DeleteUserSkillByUserIDAndName(gomock.Any(), arg).Return(deleted, nil).AnyTimes()
 		check.Args(arg).
 			Asserts(rbac.ResourceUserSkill.WithOwner(user.ID.String()), policy.ActionDelete).
 			Returns(deleted)
+	}))
+}
+
+func (s *MethodTestSuite) TestOrganizationSkills() {
+	orgSkill := func(orgID uuid.UUID, name string) database.Skill {
+		return database.Skill{
+			ID:             uuid.New(),
+			OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true},
+			Name:           name,
+			GroupACL:       database.ChatACL{orgID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+		}
+	}
+	s.Run("InsertOrganizationSkill", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertOrganizationSkillParams{ID: uuid.New(), OrganizationID: uuid.New(), Name: "test"}
+		ret := orgSkill(arg.OrganizationID, arg.Name)
+		dbm.EXPECT().InsertOrganizationSkill(gomock.Any(), arg).Return(ret, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceOrganizationSkill.InOrg(arg.OrganizationID), policy.ActionCreate).
+			Returns(ret)
+	}))
+	s.Run("GetOrganizationSkillByOrganizationIDAndName", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetOrganizationSkillByOrganizationIDAndNameParams{OrganizationID: uuid.New(), Name: "test"}
+		skill := orgSkill(arg.OrganizationID, arg.Name)
+		dbm.EXPECT().GetOrganizationSkillByOrganizationIDAndName(gomock.Any(), arg).Return(skill, nil).AnyTimes()
+		check.Args(arg).Asserts(skill, policy.ActionRead).Returns(skill)
+	}))
+	s.Run("ListOrganizationSkillMetadataByOrganizationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		rows := []database.ListOrganizationSkillMetadataByOrganizationIDRow{
+			testutil.Fake(s.T(), faker, database.ListOrganizationSkillMetadataByOrganizationIDRow{OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true}}),
+		}
+		dbm.EXPECT().GetAuthorizedOrganizationSkillMetadata(gomock.Any(), orgID, gomock.Any()).Return(rows, nil).AnyTimes()
+		check.Args(orgID).Asserts().Returns(rows)
+	}))
+	s.Run("GetAuthorizedOrganizationSkillMetadata", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		rows := []database.ListOrganizationSkillMetadataByOrganizationIDRow{
+			testutil.Fake(s.T(), faker, database.ListOrganizationSkillMetadataByOrganizationIDRow{OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true}}),
+		}
+		dbm.EXPECT().GetAuthorizedOrganizationSkillMetadata(gomock.Any(), orgID, gomock.Any()).Return(rows, nil).AnyTimes()
+		check.Args(orgID, emptyPreparedAuthorized{}).Asserts().Returns(rows)
+	}))
+	s.Run("UpdateOrganizationSkillByOrganizationIDAndName", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
+			OrganizationID: uuid.New(),
+			Name:           "test",
+			Enabled:        sql.NullBool{Bool: false, Valid: true},
+		}
+		skill := orgSkill(arg.OrganizationID, arg.Name)
+		updated := skill
+		updated.Enabled = false
+		dbm.EXPECT().GetOrganizationSkillByOrganizationIDAndName(gomock.Any(), database.GetOrganizationSkillByOrganizationIDAndNameParams{
+			OrganizationID: arg.OrganizationID,
+			Name:           arg.Name,
+		}).Return(skill, nil).AnyTimes()
+		dbm.EXPECT().UpdateOrganizationSkillByOrganizationIDAndName(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(skill, policy.ActionUpdate).Returns(updated)
+	}))
+	s.Run("DeleteOrganizationSkillByOrganizationIDAndName", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.DeleteOrganizationSkillByOrganizationIDAndNameParams{OrganizationID: uuid.New(), Name: "test"}
+		skill := orgSkill(arg.OrganizationID, arg.Name)
+		dbm.EXPECT().GetOrganizationSkillByOrganizationIDAndName(gomock.Any(), database.GetOrganizationSkillByOrganizationIDAndNameParams(arg)).Return(skill, nil).AnyTimes()
+		dbm.EXPECT().DeleteOrganizationSkillByOrganizationIDAndName(gomock.Any(), arg).Return(skill, nil).AnyTimes()
+		check.Args(arg).Asserts(skill, policy.ActionDelete).Returns(skill)
 	}))
 }
 
