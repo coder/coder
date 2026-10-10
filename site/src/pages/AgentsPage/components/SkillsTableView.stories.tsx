@@ -4,6 +4,8 @@ import { mockApiError } from "#/testHelpers/entities";
 import { MockSkill } from "#/testHelpers/skills";
 import { SKILLS_MAX_PER_OWNER } from "../utils/skills";
 import {
+	fullSkillAccess,
+	readOnlySkillAccess,
 	SkillsTableView,
 	type SkillsTableViewProps,
 	type SkillViewState,
@@ -77,7 +79,7 @@ const baseArgs: SkillsTableViewProps = {
 		archiveName: "personal-skills.zip",
 	},
 	limit: SKILLS_MAX_PER_OWNER,
-	canEdit: true,
+	access: fullSkillAccess,
 	error: undefined,
 	isLoading: false,
 	isRetrying: false,
@@ -153,7 +155,7 @@ export const TogglingSkill: Story = {
 
 export const ReadOnly: Story = {
 	args: {
-		canEdit: false,
+		access: readOnlySkillAccess,
 	},
 };
 
@@ -167,23 +169,30 @@ export const ReadOnlyRowMenu: Story = {
 	},
 };
 
+export const UpdateOnlyRowMenu: Story = {
+	args: {
+		access: { create: false, update: true, delete: false },
+	},
+	play: ReadOnlyRowMenu.play,
+};
+
 export const ReadOnlyEmpty: Story = {
 	args: {
-		canEdit: false,
+		access: readOnlySkillAccess,
 		skills: [],
 	},
 };
 
 export const ViewDialogOpen: Story = {
 	args: {
-		canEdit: false,
+		access: readOnlySkillAccess,
 		viewState: mockReviewSQLViewState,
 	},
 };
 
 export const ViewDialogRefreshFailed: Story = {
 	args: {
-		canEdit: false,
+		access: readOnlySkillAccess,
 		viewState: {
 			...mockReviewSQLViewState,
 			loadError: mockApiError({ message: "Failed to refresh the skill." }),

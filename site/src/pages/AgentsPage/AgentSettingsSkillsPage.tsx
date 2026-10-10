@@ -6,6 +6,10 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { SectionHeader } from "./components/SectionHeader";
 import { SkillsTable } from "./components/SkillsTable";
+import {
+	fullSkillAccess,
+	readOnlySkillAccess,
+} from "./components/SkillsTableView";
 
 const AgentSettingsSkillsPage: React.FC = () => {
 	const { user } = useAuthenticated();
@@ -46,7 +50,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 						"Personal skills are available to your agents and stored as a single SKILL.md file with frontmatter. For richer skills with supporting files, add them to your repo under `.agents/skills/` or load them from a workspace.",
 					archiveName: "personal-skills.zip",
 				}}
-				canEdit
+				access={fullSkillAccess}
 			/>
 			{visibleOrganizations.length > 0 && (
 				<section className="flex flex-col gap-8">
@@ -98,7 +102,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 										editorDescription: "",
 										archiveName: `${organization.name}-skills.zip`,
 									}}
-									canEdit={false}
+									access={readOnlySkillAccess}
 									enabledOnly
 									headerLevel="section"
 								/>
