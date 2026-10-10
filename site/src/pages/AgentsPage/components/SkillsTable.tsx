@@ -327,6 +327,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 
 	return (
 		<SkillsTableView
+			owner={owner}
 			skills={skills}
 			copy={copy}
 			access={access}

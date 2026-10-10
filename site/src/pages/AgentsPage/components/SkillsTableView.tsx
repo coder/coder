@@ -1,5 +1,6 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { useRef } from "react";
+import type { SkillOwner } from "#/api/queries/skills";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -41,6 +42,7 @@ import { SKILLS_MAX_PER_OWNER, type SkillFormValues } from "../utils/skills";
 import { SectionHeader } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import { SkillEditor } from "./SkillEditor";
+import { SkillEnabledSwitch } from "./SkillEnabledSwitch";
 
 export type SkillsCopy = {
 	/** Singular noun in sentence case, for example "Personal skill". */
@@ -97,6 +99,7 @@ export const fullSkillAccess: SkillAccess = {
 };
 
 export type SkillsTableViewProps = {
+	owner: SkillOwner;
 	skills: readonly SkillMetadata[];
 	copy: SkillsCopy;
 	access: SkillAccess;
@@ -270,6 +273,7 @@ const canFocus = (
 	Boolean(button?.isConnected && !button.disabled);
 
 export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
+	owner,
 	skills,
 	copy,
 	access,
@@ -364,7 +368,10 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 					<TableRow>
 						<TableHead className="whitespace-nowrap">Name</TableHead>
 						<TableHead className="w-full">Description</TableHead>
-						<TableHead className="whitespace-nowrap">Updated</TableHead>
+						<TableHead className="whitespace-nowrap">Enabled</TableHead>
+						<TableHead className="hidden whitespace-nowrap sm:table-cell">
+							Updated
+						</TableHead>
 						<TableHead className="w-14">
 							<span className="sr-only">Actions</span>
 						</TableHead>
@@ -381,6 +388,9 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 									<Skeleton variant="text" />
 								</TableCell>
 								<TableCell>
+									<Skeleton className="h-5 w-9" />
+								</TableCell>
+								<TableCell className="hidden sm:table-cell">
 									<Skeleton variant="text" className="w-44" />
 								</TableCell>
 								<TableCell>
@@ -431,7 +441,14 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 										</span>
 									)}
 								</TableCell>
-								<TableCell className="whitespace-nowrap">
+								<TableCell>
+									<SkillEnabledSwitch
+										owner={owner}
+										skill={skill}
+										disabled={!access.update}
+									/>
+								</TableCell>
+								<TableCell className="hidden whitespace-nowrap sm:table-cell">
 									{formatUpdatedAt(skill.updated_at)}
 								</TableCell>
 								<TableCell className="text-right">

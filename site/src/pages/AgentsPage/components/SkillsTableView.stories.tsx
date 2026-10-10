@@ -21,6 +21,7 @@ const MockReleaseNotesSkill = {
 	id: "skill-write-release-notes",
 	name: "write-release-notes",
 	description: "Draft concise release notes from a change list.",
+	enabled: false,
 	created_at: "2026-05-01T12:00:00.000Z",
 	updated_at: "2026-05-04T09:15:00.000Z",
 };
@@ -51,6 +52,7 @@ const MockDebugHTTPSkill = {
 const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
 const baseArgs: SkillsTableViewProps = {
+	owner: { type: "user", user: "me" },
 	skills: MockPersonalSkills,
 	copy: {
 		noun: "Personal skill",

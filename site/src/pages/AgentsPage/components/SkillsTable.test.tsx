@@ -31,6 +31,9 @@ const renderTable = (access: SkillAccess) => {
 	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([
 		mockReviewSkill,
 	]);
+	const updateSkill = vi
+		.spyOn(API.experimental, "updateOrganizationSkill")
+		.mockResolvedValue({ ...mockReviewSkill, enabled: false, content: "" });
 	renderComponent(
 		<QueryClientProvider client={createTestQueryClient()}>
 			<SkillsTable
@@ -40,8 +43,38 @@ const renderTable = (access: SkillAccess) => {
 			/>
 		</QueryClientProvider>,
 	);
-	return { user: userEvent.setup() };
+	return { user: userEvent.setup(), updateSkill };
 };
+
+describe("SkillsTable enabled toggle", () => {
+	it("sends only the enabled flag", async () => {
+		const { user, updateSkill } = renderTable(fullSkillAccess);
+
+		await user.click(
+			await screen.findByRole("switch", { name: "Enable review-sql" }),
+		);
+
+		await waitFor(() => expect(updateSkill).toHaveBeenCalledTimes(1));
+		expect(updateSkill.mock.calls[0]).toStrictEqual([
+			MockOrganization.id,
+			"review-sql",
+			{ enabled: false },
+		]);
+	});
+
+	it("does not send an update when the user cannot edit", async () => {
+		const { user, updateSkill } = renderTable({
+			...fullSkillAccess,
+			update: false,
+		});
+
+		await user.click(
+			await screen.findByRole("switch", { name: "Enable review-sql" }),
+		);
+
+		expect(updateSkill).not.toHaveBeenCalled();
+	});
+});
 
 describe("SkillsTable row menu dialogs", () => {
 	it("returns focus to the row menu button when a dialog closes", async () => {
