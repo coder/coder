@@ -98,7 +98,6 @@ export const AllotmentDialog: React.FC<AllotmentDialogProps> = ({
 		target ?? candidates.find((candidate) => candidate.id === selectedId);
 	const validation = validatePercent(percent, availableBps);
 	const validationError = showValidation ? validation.error : undefined;
-	const entityLabel = entity === "group" ? "Group" : "Organization";
 	const entityWithArticle = entity === "group" ? "a group" : "an organization";
 	const targetError =
 		showValidation && selectedTarget === undefined
@@ -155,7 +154,9 @@ export const AllotmentDialog: React.FC<AllotmentDialogProps> = ({
 					)}
 					{!target && (
 						<div className="flex flex-col gap-2">
-							<Label htmlFor={targetId}>{entityLabel}</Label>
+							<Label htmlFor={targetId}>
+								{entity === "group" ? "Group" : "Organization"}
+							</Label>
 							<Select
 								value={selectedTarget?.id ?? ""}
 								onValueChange={setSelectedId}

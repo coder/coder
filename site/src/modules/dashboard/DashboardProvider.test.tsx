@@ -11,6 +11,7 @@ import {
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import type { DashboardValue } from "./DashboardProvider";
 import { useDashboard } from "./useDashboard";
 
 describe("DashboardProvider", () => {
@@ -28,9 +29,9 @@ describe("DashboardProvider", () => {
 			expected: [MockDefaultOrganization],
 		},
 	] as const)(
-		"keeps the dashboard value when an $field refetch fails",
+		"keeps the dashboard value when refetching $field fails",
 		async ({ field, path, key, expected }) => {
-			const onRender = vi.fn<(value: unknown) => void>();
+			const onRender = vi.fn<(value: DashboardValue[typeof field]) => void>();
 			const onUnmount = vi.fn();
 			const Consumer: React.FC = () => {
 				const dashboard = useDashboard();
