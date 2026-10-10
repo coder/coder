@@ -61,6 +61,7 @@
 	--color-surface-secondary: hsl(var(--surface-secondary));
 	--color-surface-tertiary: hsl(var(--surface-tertiary));
 	--color-surface-quaternary: hsl(var(--surface-quaternary));
+	--color-surface-control: hsl(var(--surface-control));
 	--color-surface-invert-primary: hsl(var(--surface-invert-primary));
 	--color-surface-invert-secondary: hsl(var(--surface-invert-secondary));
 	--color-surface-destructive: hsl(var(--surface-destructive));
@@ -443,6 +444,7 @@
 		--surface-secondary: 240 5% 96%;
 		--surface-tertiary: 240 6% 90%;
 		--surface-quaternary: 240 5% 84%;
+		--surface-control: 240 4% 46%;
 		--surface-invert-primary: 240 4% 16%;
 		--surface-invert-secondary: 240 5% 26%;
 		--surface-destructive: 0 93% 94%;
@@ -520,6 +522,7 @@
 		--surface-secondary: 240 6% 10%;
 		--surface-tertiary: 240 4% 16%;
 		--surface-quaternary: 240 5% 26%;
+		--surface-control: 240 4% 46%;
 		--surface-invert-primary: 240 6% 90%;
 		--surface-invert-secondary: 240 5% 65%;
 		--surface-destructive: 0 75% 15%;
