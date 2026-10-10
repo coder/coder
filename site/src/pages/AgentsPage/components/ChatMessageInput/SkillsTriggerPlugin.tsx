@@ -12,7 +12,7 @@ import {
 	type NodeKey,
 } from "lexical";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
-import { parsePersonalSkillTrigger } from "../../utils/personalSkills";
+import { parsePersonalSkillTrigger } from "../../utils/skills";
 import type { SkillMenuItem } from "./SkillsTriggerMenu";
 
 export type ActiveSkillsTrigger = {

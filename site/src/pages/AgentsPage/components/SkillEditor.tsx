@@ -27,7 +27,7 @@ import {
 	PERSONAL_SKILL_MAX_SIZE_BYTES,
 	type PersonalSkillFormValues,
 	tryParsePersonalSkillMarkdown,
-} from "../utils/personalSkills";
+} from "../utils/skills";
 
 export type PersonalSkillErrorDisplay = {
 	message: string;

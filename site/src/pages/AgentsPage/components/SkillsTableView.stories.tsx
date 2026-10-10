@@ -4,7 +4,7 @@ import { MockSkill } from "#/testHelpers/skills";
 import {
 	AgentSettingsPersonalSkillsPageView,
 	type AgentSettingsPersonalSkillsPageViewProps,
-} from "./AgentSettingsPersonalSkillsPageView";
+} from "./SkillsTableView";
 
 const MockReviewSQLSkill = {
 	...MockSkill,

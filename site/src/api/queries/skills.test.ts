@@ -7,7 +7,7 @@ import {
 	updateUserSkill,
 	userSkill,
 	userSkills,
-} from "./userSkills";
+} from "./skills";
 
 const createTestQueryClient = (): QueryClient =>
 	new QueryClient({

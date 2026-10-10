@@ -33,13 +33,13 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import { userSkills } from "#/api/queries/userSkills";
+import { userSkills } from "#/api/queries/skills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MODIFIER_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import {
 	filterSkillsByQuery,
 	isPersonalSkillTriggerToken,
-} from "../../utils/personalSkills";
+} from "../../utils/skills";
 import type { ChatSlashCommand } from "../../utils/slashCommands";
 import {
 	$createFileReferenceNode,

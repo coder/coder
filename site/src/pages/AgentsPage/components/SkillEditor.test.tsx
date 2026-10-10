@@ -1,8 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { PERSONAL_SKILL_MAX_SIZE_BYTES } from "../utils/personalSkills";
-import { PersonalSkillEditor } from "./PersonalSkillEditor";
+import { PERSONAL_SKILL_MAX_SIZE_BYTES } from "../utils/skills";
+import { PersonalSkillEditor } from "./SkillEditor";
 
 const markdown =
 	"---\nname: imported-skill\ndescription: Imported guidance.\n---\n\nUse imported instructions.";

@@ -12,7 +12,7 @@ import {
 	parsePersonalSkillTrigger,
 	personalSkillTriggerText,
 	tryParsePersonalSkillMarkdown,
-} from "./personalSkills";
+} from "./skills";
 
 const now = "2026-05-08T00:00:00Z";
 

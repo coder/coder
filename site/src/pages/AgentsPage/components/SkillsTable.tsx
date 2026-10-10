@@ -11,19 +11,19 @@ import {
 	updateUserSkill,
 	userSkill,
 	userSkills,
-} from "#/api/queries/userSkills";
+} from "#/api/queries/skills";
 import type { SkillMetadata } from "#/api/typesGenerated";
-import {
-	AgentSettingsPersonalSkillsPageView,
-	type PersonalSkillDeleteState,
-	type PersonalSkillEditorState,
-} from "./AgentSettingsPersonalSkillsPageView";
-import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
 import {
 	PERSONAL_SKILLS_MAX_PER_USER,
 	type PersonalSkillFormValues,
 	parsePersonalSkillMarkdown,
-} from "./utils/personalSkills";
+} from "../utils/skills";
+import type { PersonalSkillErrorDisplay } from "./SkillEditor";
+import {
+	AgentSettingsPersonalSkillsPageView,
+	type PersonalSkillDeleteState,
+	type PersonalSkillEditorState,
+} from "./SkillsTableView";
 
 const emptySkillFormValues: PersonalSkillFormValues = {
 	name: "",
