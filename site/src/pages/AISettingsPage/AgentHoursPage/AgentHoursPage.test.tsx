@@ -372,12 +372,16 @@ it("tells apart organizations that share a display name", async () => {
 	const upsert = vi
 		.spyOn(API, "upsertAgentHoursOrganizationAllotment")
 		.mockResolvedValue(MockAgentHoursOrganizationAllotment);
-	const namesake = {
+	const mockNamesakeOrganization = {
 		...MockOrganization3,
 		display_name: MockOrganization.display_name,
 	};
 	renderPage({
-		organizations: [MockOrganization, MockOrganization2, namesake],
+		organizations: [
+			MockOrganization,
+			MockOrganization2,
+			mockNamesakeOrganization,
+		],
 	});
 	const region = await screen.findByRole("region", {
 		name: "Organization allotments",
@@ -401,13 +405,13 @@ it("tells apart organizations that share a display name", async () => {
 	await user.click(screen.getByRole("combobox", { name: "Organization" }));
 	await user.click(
 		await screen.findByRole("option", {
-			name: `${namesake.display_name} (${namesake.name})`,
+			name: `${mockNamesakeOrganization.display_name} (${mockNamesakeOrganization.name})`,
 		}),
 	);
 	await user.type(screen.getByRole("textbox", { name: "Allotment" }), "5");
 	await user.click(screen.getByRole("button", { name: "Save" }));
 	await waitFor(() =>
-		expect(upsert).toHaveBeenLastCalledWith(namesake.id, {
+		expect(upsert).toHaveBeenLastCalledWith(mockNamesakeOrganization.id, {
 			allotment_bps: 500,
 		}),
 	);
@@ -418,10 +422,10 @@ it("tells apart groups that share a display name", async () => {
 	const upsert = vi
 		.spyOn(API, "upsertAgentHoursGroupAllotment")
 		.mockResolvedValue(MockAgentHoursGroupAllotment);
-	const allotted = { ...MockGroup, display_name: "Design" };
-	const namesake = { ...MockGroup2, display_name: "Design" };
+	const mockAllottedGroup = { ...MockGroup, display_name: "Design" };
+	const mockNamesakeGroup = { ...MockGroup2, display_name: "Design" };
 	renderPage({
-		groups: [allotted, namesake],
+		groups: [mockAllottedGroup, mockNamesakeGroup],
 		groupAllotments: [
 			{ ...MockAgentHoursGroupAllotment, group_display_name: "Design" },
 		],
@@ -430,9 +434,11 @@ it("tells apart groups that share a display name", async () => {
 		name: "Group allotments",
 	});
 
-	await saveAllotment(user, region, `Design (${allotted.name})`, "20");
+	await saveAllotment(user, region, `Design (${mockAllottedGroup.name})`, "20");
 	await waitFor(() =>
-		expect(upsert).toHaveBeenCalledWith(allotted.id, { allotment_bps: 2000 }),
+		expect(upsert).toHaveBeenCalledWith(mockAllottedGroup.id, {
+			allotment_bps: 2000,
+		}),
 	);
 
 	const add = within(region).getByRole("button", { name: "Add allotment" });
@@ -440,12 +446,14 @@ it("tells apart groups that share a display name", async () => {
 	await user.click(add);
 	await user.click(screen.getByRole("combobox", { name: "Group" }));
 	await user.click(
-		await screen.findByRole("option", { name: `Design (${namesake.name})` }),
+		await screen.findByRole("option", {
+			name: `Design (${mockNamesakeGroup.name})`,
+		}),
 	);
 	await user.type(screen.getByRole("textbox", { name: "Allotment" }), "5");
 	await user.click(screen.getByRole("button", { name: "Save" }));
 	await waitFor(() =>
-		expect(upsert).toHaveBeenLastCalledWith(namesake.id, {
+		expect(upsert).toHaveBeenLastCalledWith(mockNamesakeGroup.id, {
 			allotment_bps: 500,
 		}),
 	);

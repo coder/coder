@@ -69,18 +69,30 @@ describe("formatHours", () => {
 });
 
 describe("allotmentTargetLabel", () => {
-	const engineering = { id: "1", name: "eng", display_name: "Engineering" };
-	const platform = { id: "2", name: "platform", display_name: "Engineering" };
-	const named = { id: "3", name: "Engineering", display_name: "" };
+	const mockEngineering = { id: "1", name: "eng", display_name: "Engineering" };
+	const mockPlatform = {
+		id: "2",
+		name: "platform",
+		display_name: "Engineering",
+	};
+	const mockNameOnly = { id: "3", name: "Engineering", display_name: "" };
 
 	it.each([
-		{ target: engineering, targets: [engineering], label: "Engineering" },
 		{
-			target: platform,
-			targets: [engineering, platform],
+			target: mockEngineering,
+			targets: [mockEngineering],
+			label: "Engineering",
+		},
+		{
+			target: mockPlatform,
+			targets: [mockEngineering, mockPlatform],
 			label: "Engineering (platform)",
 		},
-		{ target: named, targets: [engineering, named], label: "Engineering" },
+		{
+			target: mockNameOnly,
+			targets: [mockEngineering, mockNameOnly],
+			label: "Engineering",
+		},
 	])("labels $target.name as $label", ({ target, targets, label }) => {
 		expect(allotmentTargetLabel(target, targets)).toBe(label);
 	});

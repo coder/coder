@@ -41,7 +41,7 @@ type NamedAllotmentTarget = { id: string; name: string; display_name: string };
 
 /**
  * Display names are not unique, so a target that shares its display name with
- * another target also shows its unique name, as organization pickers do.
+ * another target also shows its unique name.
  */
 export const allotmentTargetLabel = (
 	target: NamedAllotmentTarget,
