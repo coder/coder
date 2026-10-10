@@ -4693,6 +4693,10 @@ func (q *querier) GetOrganizationResourceCountByID(ctx context.Context, organiza
 	return q.db.GetOrganizationResourceCountByID(ctx, organizationID)
 }
 
+func (q *querier) GetOrganizationSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Skill, error) {
+	return fetch(q.log, q.auth, q.db.GetOrganizationSkillByIDForUpdate)(ctx, id)
+}
+
 func (q *querier) GetOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.GetOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
 	return fetch(q.log, q.auth, q.db.GetOrganizationSkillByOrganizationIDAndName)(ctx, arg)
 }

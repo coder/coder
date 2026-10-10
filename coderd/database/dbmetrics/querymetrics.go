@@ -2880,6 +2880,14 @@ func (m queryMetricsStore) GetOrganizationResourceCountByID(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOrganizationSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Skill, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationSkillByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetOrganizationSkillByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationSkillByIDForUpdate").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.GetOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOrganizationSkillByOrganizationIDAndName(ctx, arg)

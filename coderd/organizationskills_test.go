@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -332,6 +333,58 @@ func TestOrganizationSkillAudit(t *testing.T) {
 		assert.Equal(t, skill.Name, logs[i].ResourceTarget)
 		assert.Equal(t, orgID, logs[i].OrganizationID)
 	}
+}
+
+func TestOrganizationSkillUpdateAuditsLockedRow(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	auditor := audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
+		oldSkill, oldOK := old.(database.AuditableOrganizationSkill)
+		newSkill, newOK := newVal.(database.AuditableOrganizationSkill)
+		if !oldOK || !newOK {
+			return audit.Map{}
+		}
+		return audit.Map{"description": {Old: oldSkill.Description, New: newSkill.Description}}
+	})
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ownerClient := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps, Auditor: auditor})
+	firstUser := coderdtest.CreateFirstUser(t, ownerClient)
+	client := codersdk.NewExperimentalClient(ownerClient)
+	skill, err := client.CreateOrganizationSkill(ctx, firstUser.OrganizationID, codersdk.CreateSkillRequest{
+		Content: userSkillMarkdown("locked-audit-skill", "Before", "Body."),
+	})
+	require.NoError(t, err)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+	_, err = tx.ExecContext(ctx, `UPDATE skills SET description = 'Concurrent' WHERE id = $1`, skill.ID)
+	require.NoError(t, err)
+
+	patchErr := make(chan error, 1)
+	go func() {
+		_, err := client.UpdateOrganizationSkill(ctx, firstUser.OrganizationID, skill.Name, codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
+		patchErr <- err
+	}()
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var waits int
+		err := sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
+WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'`).Scan(&waits)
+		return err == nil && waits > 0
+	}, testutil.IntervalFast, "PATCH waits for the skill row lock")
+	require.NoError(t, tx.Commit())
+	require.NoError(t, testutil.RequireReceive(ctx, t, patchErr))
+
+	var log database.AuditLog
+	for _, entry := range auditor.AuditLogs() {
+		if entry.ResourceID == skill.ID && entry.Action == database.AuditActionWrite {
+			log = entry
+		}
+	}
+	var diff map[string]codersdk.AuditDiffField
+	require.NoError(t, json.Unmarshal(log.Diff, &diff))
+	require.Equal(t, "Concurrent", diff["description"].Old)
 }
 
 func requireOrganizationSkillListed(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, orgID uuid.UUID, name string) codersdk.SkillMetadata {
