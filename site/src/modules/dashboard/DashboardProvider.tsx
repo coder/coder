@@ -44,14 +44,15 @@ export const DashboardProvider: React.FC<React.PropsWithChildren> = ({
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const organizationsQuery = useQuery(organizations(metadata.organizations));
 
+	// Experiments refetch in the background and other pages refetch the
+	// shared organizations list; keep the last list when a refetch fails
+	// instead of replacing the dashboard with an error.
 	const error =
 		entitlementsQuery.error ||
 		appearanceQuery.error ||
-		// Experiments refetch in the background; keep the last list when a
-		// refetch fails instead of replacing the dashboard with an error.
 		(!experimentsQuery.data && experimentsQuery.error) ||
 		buildInfoQuery.error ||
-		organizationsQuery.error;
+		(!organizationsQuery.data && organizationsQuery.error);
 
 	if (error) {
 		return <ErrorAlert error={error} />;

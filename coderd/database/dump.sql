@@ -663,7 +663,9 @@ CREATE TYPE resource_type AS ENUM (
     'chat_project',
     'chat_automation',
     'chat_project_memory',
-    'chat_organization_system_prompt'
+    'chat_organization_system_prompt',
+    'agent_hours_organization_allotment',
+    'agent_hours_group_allotment'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1632,6 +1634,26 @@ END;
 $$;
 
 COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv and search_tsv_config.';
+
+CREATE TABLE agent_hours_group_allotments (
+    group_id uuid NOT NULL,
+    allotment_bps integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT agent_hours_group_allotments_allotment_bps_check CHECK (((allotment_bps > 0) AND (allotment_bps <= 10000)))
+);
+
+COMMENT ON TABLE agent_hours_group_allotments IS 'Share of the group''s organization''s Agent Hours allotted to a group, in basis points. Configuration only; not enforced.';
+
+CREATE TABLE agent_hours_organization_allotments (
+    organization_id uuid NOT NULL,
+    allotment_bps integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT agent_hours_organization_allotments_allotment_bps_check CHECK (((allotment_bps > 0) AND (allotment_bps <= 10000)))
+);
+
+COMMENT ON TABLE agent_hours_organization_allotments IS 'Share of the deployment''s licensed Agent Hours allotted to an organization, in basis points. Configuration only; not enforced.';
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
@@ -4472,6 +4494,12 @@ ALTER TABLE ONLY workspace_proxies ALTER COLUMN region_id SET DEFAULT nextval('w
 
 ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval('workspace_resource_metadata_id_seq'::regclass);
 
+ALTER TABLE ONLY agent_hours_group_allotments
+    ADD CONSTRAINT agent_hours_group_allotments_pkey PRIMARY KEY (group_id);
+
+ALTER TABLE ONLY agent_hours_organization_allotments
+    ADD CONSTRAINT agent_hours_organization_allotments_pkey PRIMARY KEY (organization_id);
+
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
@@ -5391,6 +5419,12 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY agent_hours_group_allotments
+    ADD CONSTRAINT agent_hours_group_allotments_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY agent_hours_organization_allotments
+    ADD CONSTRAINT agent_hours_organization_allotments_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

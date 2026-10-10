@@ -7800,6 +7800,51 @@ func (s *MethodTestSuite) TestAIBridge() {
 	}))
 }
 
+func (s *MethodTestSuite) TestAgentHoursAllotments() {
+	s.Run("GetAgentHoursOrganizationAllotments", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := testutil.Fake(s.T(), faker, database.GetAgentHoursOrganizationAllotmentsRow{})
+		dbm.EXPECT().GetAgentHoursOrganizationAllotments(gomock.Any()).Return([]database.GetAgentHoursOrganizationAllotmentsRow{row}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.GetAgentHoursOrganizationAllotmentsRow{row})
+	}))
+	s.Run("GetAgentHoursOrganizationAllotment", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := testutil.Fake(s.T(), faker, database.AgentHoursOrganizationAllotment{})
+		dbm.EXPECT().GetAgentHoursOrganizationAllotment(gomock.Any(), row.OrganizationID).Return(row, nil).AnyTimes()
+		check.Args(row.OrganizationID).Asserts(rbac.ResourceOrganization.WithID(row.OrganizationID).InOrg(row.OrganizationID), policy.ActionRead).Returns(row)
+	}))
+	s.Run("UpsertAgentHoursOrganizationAllotment", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := testutil.Fake(s.T(), faker, database.AgentHoursOrganizationAllotment{})
+		arg := database.UpsertAgentHoursOrganizationAllotmentParams{OrganizationID: row.OrganizationID, AllotmentBps: row.AllotmentBps}
+		dbm.EXPECT().UpsertAgentHoursOrganizationAllotment(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(row)
+	}))
+	s.Run("DeleteAgentHoursOrganizationAllotment", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := testutil.Fake(s.T(), faker, database.AgentHoursOrganizationAllotment{})
+		dbm.EXPECT().DeleteAgentHoursOrganizationAllotment(gomock.Any(), row.OrganizationID).Return(row, nil).AnyTimes()
+		check.Args(row.OrganizationID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(row)
+	}))
+	s.Run("GetAgentHoursGroupAllotmentsByOrganizationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		row := testutil.Fake(s.T(), faker, database.GetAgentHoursGroupAllotmentsByOrganizationIDRow{})
+		dbm.EXPECT().GetAgentHoursGroupAllotmentsByOrganizationID(gomock.Any(), orgID).Return([]database.GetAgentHoursGroupAllotmentsByOrganizationIDRow{row}, nil).AnyTimes()
+		check.Args(orgID).Asserts(rbac.ResourceGroup.InOrg(orgID), policy.ActionRead).Returns([]database.GetAgentHoursGroupAllotmentsByOrganizationIDRow{row})
+	}))
+	s.Run("UpsertAgentHoursGroupAllotment", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		row := testutil.Fake(s.T(), faker, database.AgentHoursGroupAllotment{GroupID: g.ID})
+		arg := database.UpsertAgentHoursGroupAllotmentParams{GroupID: g.ID, AllotmentBps: row.AllotmentBps}
+		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
+		dbm.EXPECT().UpsertAgentHoursGroupAllotment(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(g, policy.ActionUpdate).Returns(row)
+	}))
+	s.Run("DeleteAgentHoursGroupAllotment", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		row := testutil.Fake(s.T(), faker, database.AgentHoursGroupAllotment{GroupID: g.ID})
+		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
+		dbm.EXPECT().DeleteAgentHoursGroupAllotment(gomock.Any(), g.ID).Return(row, nil).AnyTimes()
+		check.Args(g.ID).Asserts(g, policy.ActionUpdate).Returns(row)
+	}))
+}
+
 func (s *MethodTestSuite) TestTelemetry() {
 	s.Run("InsertTelemetryLock", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		db.EXPECT().InsertTelemetryLock(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()

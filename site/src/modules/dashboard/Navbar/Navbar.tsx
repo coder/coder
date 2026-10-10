@@ -1,4 +1,5 @@
 import { useQuery } from "react-query";
+import { agentHoursAllotmentOrganizations } from "#/api/queries/agentHours";
 import { aiSpendOrganizations } from "#/api/queries/aiBridge";
 import { buildInfo } from "#/api/queries/buildInfo";
 import type { LinkConfig } from "#/api/typesGenerated";
@@ -10,6 +11,7 @@ import {
 	canAccessAnyChatModelConfig,
 	canViewDeploymentSettings,
 } from "#/modules/permissions";
+import { canViewAgentHours } from "#/pages/AISettingsPage/AgentHoursPage/agentHoursAccess";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { canViewAISpend } from "#/pages/AISettingsPage/SpendPage/spendAccess";
 import { useFeatureVisibility } from "../useFeatureVisibility";
@@ -57,10 +59,21 @@ export const Navbar: React.FC = () => {
 		enabled:
 			entitlements.features.aibridge.enabled && !canViewSiteWideAISettings,
 	});
+	const agentHoursOrganizationsQuery = useQuery({
+		...agentHoursAllotmentOrganizations(),
+		enabled:
+			entitlements.features.agent_runtime_hours.enabled &&
+			!canViewSiteWideAISettings,
+	});
 	const canViewAISettings =
 		canViewSiteWideAISettings ||
 		organizationMCPSharing.canShare ||
-		canViewAISpend(entitlements, spendOrganizationsQuery.data);
+		canViewAISpend(entitlements, spendOrganizationsQuery.data) ||
+		canViewAgentHours(
+			entitlements,
+			permissions,
+			agentHoursOrganizationsQuery.data,
+		);
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();

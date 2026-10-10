@@ -1535,6 +1535,50 @@ func GroupAIBudget(b database.GroupAIBudget) codersdk.GroupAIBudget {
 	}
 }
 
+func AgentHoursOrganizationAllotment(a database.AgentHoursOrganizationAllotment, org database.Organization) codersdk.AgentHoursOrganizationAllotment {
+	return codersdk.AgentHoursOrganizationAllotment{
+		OrganizationID:          a.OrganizationID,
+		OrganizationName:        org.Name,
+		OrganizationDisplayName: org.DisplayName,
+		AllotmentBps:            a.AllotmentBps,
+		CreatedAt:               a.CreatedAt,
+		UpdatedAt:               a.UpdatedAt,
+	}
+}
+
+func AgentHoursOrganizationAllotmentRow(row database.GetAgentHoursOrganizationAllotmentsRow) codersdk.AgentHoursOrganizationAllotment {
+	return codersdk.AgentHoursOrganizationAllotment{
+		OrganizationID:          row.OrganizationID,
+		OrganizationName:        row.OrganizationName,
+		OrganizationDisplayName: row.OrganizationDisplayName,
+		AllotmentBps:            row.AllotmentBps,
+		CreatedAt:               row.CreatedAt,
+		UpdatedAt:               row.UpdatedAt,
+	}
+}
+
+func AgentHoursGroupAllotment(a database.AgentHoursGroupAllotment, group database.Group) codersdk.AgentHoursGroupAllotment {
+	return codersdk.AgentHoursGroupAllotment{
+		GroupID:          a.GroupID,
+		GroupName:        group.Name,
+		GroupDisplayName: group.DisplayName,
+		AllotmentBps:     a.AllotmentBps,
+		CreatedAt:        a.CreatedAt,
+		UpdatedAt:        a.UpdatedAt,
+	}
+}
+
+func AgentHoursGroupAllotmentRow(row database.GetAgentHoursGroupAllotmentsByOrganizationIDRow) codersdk.AgentHoursGroupAllotment {
+	return codersdk.AgentHoursGroupAllotment{
+		GroupID:          row.GroupID,
+		GroupName:        row.GroupName,
+		GroupDisplayName: row.GroupDisplayName,
+		AllotmentBps:     row.AllotmentBps,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
+	}
+}
+
 func UserAIBudgetOverride(o database.UserAIBudgetOverride) codersdk.UserAIBudgetOverride {
 	return codersdk.UserAIBudgetOverride{
 		UserID:           o.UserID,

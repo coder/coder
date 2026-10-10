@@ -111,6 +111,218 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const deleteAgentHoursGroupAllotment = `-- name: DeleteAgentHoursGroupAllotment :one
+DELETE FROM agent_hours_group_allotments
+WHERE group_id = $1
+RETURNING group_id, allotment_bps, created_at, updated_at
+`
+
+func (q *sqlQuerier) DeleteAgentHoursGroupAllotment(ctx context.Context, groupID uuid.UUID) (AgentHoursGroupAllotment, error) {
+	row := q.db.QueryRowContext(ctx, deleteAgentHoursGroupAllotment, groupID)
+	var i AgentHoursGroupAllotment
+	err := row.Scan(
+		&i.GroupID,
+		&i.AllotmentBps,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteAgentHoursOrganizationAllotment = `-- name: DeleteAgentHoursOrganizationAllotment :one
+DELETE FROM agent_hours_organization_allotments
+WHERE organization_id = $1
+RETURNING organization_id, allotment_bps, created_at, updated_at
+`
+
+func (q *sqlQuerier) DeleteAgentHoursOrganizationAllotment(ctx context.Context, organizationID uuid.UUID) (AgentHoursOrganizationAllotment, error) {
+	row := q.db.QueryRowContext(ctx, deleteAgentHoursOrganizationAllotment, organizationID)
+	var i AgentHoursOrganizationAllotment
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.AllotmentBps,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAgentHoursGroupAllotmentsByOrganizationID = `-- name: GetAgentHoursGroupAllotmentsByOrganizationID :many
+SELECT
+	allotment.group_id,
+	allotment.allotment_bps,
+	allotment.created_at,
+	allotment.updated_at,
+	groups.name AS group_name,
+	groups.display_name AS group_display_name
+FROM agent_hours_group_allotments allotment
+JOIN groups ON groups.id = allotment.group_id
+WHERE groups.organization_id = $1
+ORDER BY groups.name ASC
+`
+
+type GetAgentHoursGroupAllotmentsByOrganizationIDRow struct {
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	AllotmentBps     int32     `db:"allotment_bps" json:"allotment_bps"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	GroupName        string    `db:"group_name" json:"group_name"`
+	GroupDisplayName string    `db:"group_display_name" json:"group_display_name"`
+}
+
+func (q *sqlQuerier) GetAgentHoursGroupAllotmentsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]GetAgentHoursGroupAllotmentsByOrganizationIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAgentHoursGroupAllotmentsByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAgentHoursGroupAllotmentsByOrganizationIDRow
+	for rows.Next() {
+		var i GetAgentHoursGroupAllotmentsByOrganizationIDRow
+		if err := rows.Scan(
+			&i.GroupID,
+			&i.AllotmentBps,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GroupName,
+			&i.GroupDisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAgentHoursOrganizationAllotment = `-- name: GetAgentHoursOrganizationAllotment :one
+SELECT organization_id, allotment_bps, created_at, updated_at
+FROM agent_hours_organization_allotments
+WHERE organization_id = $1
+`
+
+func (q *sqlQuerier) GetAgentHoursOrganizationAllotment(ctx context.Context, organizationID uuid.UUID) (AgentHoursOrganizationAllotment, error) {
+	row := q.db.QueryRowContext(ctx, getAgentHoursOrganizationAllotment, organizationID)
+	var i AgentHoursOrganizationAllotment
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.AllotmentBps,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAgentHoursOrganizationAllotments = `-- name: GetAgentHoursOrganizationAllotments :many
+SELECT
+	allotment.organization_id,
+	allotment.allotment_bps,
+	allotment.created_at,
+	allotment.updated_at,
+	organizations.name AS organization_name,
+	organizations.display_name AS organization_display_name
+FROM agent_hours_organization_allotments allotment
+JOIN organizations ON organizations.id = allotment.organization_id
+WHERE organizations.deleted = false
+ORDER BY organizations.name ASC
+`
+
+type GetAgentHoursOrganizationAllotmentsRow struct {
+	OrganizationID          uuid.UUID `db:"organization_id" json:"organization_id"`
+	AllotmentBps            int32     `db:"allotment_bps" json:"allotment_bps"`
+	CreatedAt               time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time `db:"updated_at" json:"updated_at"`
+	OrganizationName        string    `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string    `db:"organization_display_name" json:"organization_display_name"`
+}
+
+func (q *sqlQuerier) GetAgentHoursOrganizationAllotments(ctx context.Context) ([]GetAgentHoursOrganizationAllotmentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAgentHoursOrganizationAllotments)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAgentHoursOrganizationAllotmentsRow
+	for rows.Next() {
+		var i GetAgentHoursOrganizationAllotmentsRow
+		if err := rows.Scan(
+			&i.OrganizationID,
+			&i.AllotmentBps,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertAgentHoursGroupAllotment = `-- name: UpsertAgentHoursGroupAllotment :one
+INSERT INTO agent_hours_group_allotments (group_id, allotment_bps)
+VALUES ($1, $2)
+ON CONFLICT (group_id) DO UPDATE SET
+	allotment_bps = EXCLUDED.allotment_bps,
+	updated_at = NOW()
+RETURNING group_id, allotment_bps, created_at, updated_at
+`
+
+type UpsertAgentHoursGroupAllotmentParams struct {
+	GroupID      uuid.UUID `db:"group_id" json:"group_id"`
+	AllotmentBps int32     `db:"allotment_bps" json:"allotment_bps"`
+}
+
+func (q *sqlQuerier) UpsertAgentHoursGroupAllotment(ctx context.Context, arg UpsertAgentHoursGroupAllotmentParams) (AgentHoursGroupAllotment, error) {
+	row := q.db.QueryRowContext(ctx, upsertAgentHoursGroupAllotment, arg.GroupID, arg.AllotmentBps)
+	var i AgentHoursGroupAllotment
+	err := row.Scan(
+		&i.GroupID,
+		&i.AllotmentBps,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertAgentHoursOrganizationAllotment = `-- name: UpsertAgentHoursOrganizationAllotment :one
+INSERT INTO agent_hours_organization_allotments (organization_id, allotment_bps)
+VALUES ($1, $2)
+ON CONFLICT (organization_id) DO UPDATE SET
+	allotment_bps = EXCLUDED.allotment_bps,
+	updated_at = NOW()
+RETURNING organization_id, allotment_bps, created_at, updated_at
+`
+
+type UpsertAgentHoursOrganizationAllotmentParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	AllotmentBps   int32     `db:"allotment_bps" json:"allotment_bps"`
+}
+
+func (q *sqlQuerier) UpsertAgentHoursOrganizationAllotment(ctx context.Context, arg UpsertAgentHoursOrganizationAllotmentParams) (AgentHoursOrganizationAllotment, error) {
+	row := q.db.QueryRowContext(ctx, upsertAgentHoursOrganizationAllotment, arg.OrganizationID, arg.AllotmentBps)
+	var i AgentHoursOrganizationAllotment
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.AllotmentBps,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteAIGatewayKey = `-- name: DeleteAIGatewayKey :one
 DELETE FROM ai_gateway_keys WHERE id = $1
 RETURNING id, name, secret_prefix, created_at, last_heartbeat_at

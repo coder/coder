@@ -101,3 +101,41 @@ it("redirects an organization group member reader to Spend", async () => {
 	await screen.findByText("Spend");
 	expect(router.state.location.pathname).toBe("/ai/settings/spend");
 });
+
+it("redirects an organization group manager to Agent Hours", async () => {
+	entitlements = {
+		...MockEntitlements,
+		features: withDefaultFeatures({
+			agent_runtime_hours: { enabled: true, entitlement: "entitled" },
+		}),
+	};
+	vi.spyOn(API.experimental, "getChatModels").mockRejectedValue({
+		isAxiosError: true,
+		response: { status: 403 },
+	});
+	vi.spyOn(API, "getOrganizations").mockResolvedValue([
+		MockDefaultOrganization,
+	]);
+	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+		[MockDefaultOrganization.id]: true,
+	});
+	const queryClient = new QueryClient({
+		defaultOptions: { queries: { retry: false } },
+	});
+	const router = createMemoryRouter(
+		[
+			{ path: "/ai/settings", element: <AISettingsIndexRedirect /> },
+			{ path: "/ai/settings/agent-hours", element: <div>Agent Hours</div> },
+		],
+		{ initialEntries: ["/ai/settings"] },
+	);
+
+	render(
+		<QueryClientProvider client={queryClient}>
+			<RouterProvider router={router} />
+		</QueryClientProvider>,
+	);
+
+	await screen.findByText("Agent Hours");
+	expect(router.state.location.pathname).toBe("/ai/settings/agent-hours");
+});

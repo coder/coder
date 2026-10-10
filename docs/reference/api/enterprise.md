@@ -183,6 +183,58 @@ curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id}/logs \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get Agent Hours organization allotments
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/agent-hours/allotments \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/agent-hours/allotments`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "allotment_bps": 2500,
+    "created_at": "2019-08-24T14:15:22Z",
+    "organization_display_name": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_name": "string",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                                  |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AgentHoursOrganizationAllotment](schemas.md#codersdkagenthoursorganizationallotment) |
+
+<h3 id="get-agent-hours-organization-allotments-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                          | Type              | Required | Restrictions | Description                                                |
+|-------------------------------|-------------------|----------|--------------|------------------------------------------------------------|
+| `[array item]`                | array             | false    |              |                                                            |
+| `» allotment_bps`             | integer           | false    |              | Allotment bps is the share in basis points (10000 = 100%). |
+| `» created_at`                | string(date-time) | false    |              |                                                            |
+| `» organization_display_name` | string            | false    |              |                                                            |
+| `» organization_id`           | string(uuid)      | false    |              |                                                            |
+| `» organization_name`         | string            | false    |              |                                                            |
+| `» updated_at`                | string(date-time) | false    |              |                                                            |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## List AI Gateway keys
 
 ### Code samples
@@ -967,6 +1019,84 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 | Status | Meaning                                                 | Description | Schema                                     |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Group](schemas.md#codersdkgroup) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Upsert Agent Hours group allotment
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/groups/{group}/agent-hours/allotment \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/groups/{group}/agent-hours/allotment`
+
+> Body parameter
+
+```json
+{
+  "allotment_bps": 2500
+}
+```
+
+### Parameters
+
+| Name    | In   | Type                                                                                             | Required | Description                          |
+|---------|------|--------------------------------------------------------------------------------------------------|----------|--------------------------------------|
+| `group` | path | string(uuid)                                                                                     | true     | Group ID                             |
+| `body`  | body | [codersdk.UpsertAgentHoursAllotmentRequest](schemas.md#codersdkupsertagenthoursallotmentrequest) | true     | Upsert Agent Hours allotment request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "allotment_bps": 2500,
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_display_name": "string",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "group_name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentHoursGroupAllotment](schemas.md#codersdkagenthoursgroupallotment) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete Agent Hours group allotment
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/groups/{group}/agent-hours/allotment \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/groups/{group}/agent-hours/allotment`
+
+### Parameters
+
+| Name    | In   | Type         | Required | Description |
+|---------|------|--------------|----------|-------------|
+| `group` | path | string(uuid) | true     | Group ID    |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1989,6 +2119,131 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/settings \
 | Status | Meaning                                                 | Description | Schema                                                                       |
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProviderSettings](schemas.md#codersdkoauth2providersettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Upsert Agent Hours organization allotment
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/agent-hours/allotment \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/organizations/{organization}/agent-hours/allotment`
+
+> Body parameter
+
+```json
+{
+  "allotment_bps": 2500
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                             | Required | Description                          |
+|----------------|------|--------------------------------------------------------------------------------------------------|----------|--------------------------------------|
+| `organization` | path | string(uuid)                                                                                     | true     | Organization ID                      |
+| `body`         | body | [codersdk.UpsertAgentHoursAllotmentRequest](schemas.md#codersdkupsertagenthoursallotmentrequest) | true     | Upsert Agent Hours allotment request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "allotment_bps": 2500,
+  "created_at": "2019-08-24T14:15:22Z",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                         |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentHoursOrganizationAllotment](schemas.md#codersdkagenthoursorganizationallotment) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete Agent Hours organization allotment
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/agent-hours/allotment \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/organizations/{organization}/agent-hours/allotment`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+|----------------|------|--------------|----------|-----------------|
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get Agent Hours group allotments
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/agent-hours/group-allotments \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/agent-hours/group-allotments`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+|----------------|------|--------------|----------|-----------------|
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "groups": [
+    {
+      "allotment_bps": 2500,
+      "created_at": "2019-08-24T14:15:22Z",
+      "group_display_name": "string",
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "group_name": "string",
+      "updated_at": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "organization_allotment_bps": 2500
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentHoursGroupAllotments](schemas.md#codersdkagenthoursgroupallotments) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
