@@ -4,20 +4,29 @@ import { AgentHoursAllotmentMaxBps } from "#/api/typesGenerated";
 export const formatAllotmentPercent = (bps: number): string =>
 	`${(bps / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
 
+type ParsedAllotmentPercent =
+	| { bps: number }
+	| { error: "not-a-number" | "too-many-decimals" };
+
 /**
  * Parses a percentage with at most two decimals into basis points. The digits
  * are combined as integers so values like "0.29" do not drift to 28.
  */
-export const parseAllotmentPercent = (input: string): number | undefined => {
-	const match = /^(\d*)(?:\.(\d{0,2}))?$/.exec(input.trim());
+export const parseAllotmentPercent = (
+	input: string,
+): ParsedAllotmentPercent => {
+	const match = /^(\d*)(?:\.(\d*))?$/.exec(input.trim());
 	if (!match) {
-		return undefined;
+		return { error: "not-a-number" };
 	}
 	const [, whole, fraction = ""] = match;
 	if (whole === "" && fraction === "") {
-		return undefined;
+		return { error: "not-a-number" };
 	}
-	return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+	if (fraction.length > 2) {
+		return { error: "too-many-decimals" };
+	}
+	return { bps: Number(whole) * 100 + Number(fraction.padEnd(2, "0")) };
 };
 
 export const allotmentHours = (

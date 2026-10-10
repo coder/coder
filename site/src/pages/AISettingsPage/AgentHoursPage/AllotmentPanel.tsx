@@ -1,7 +1,7 @@
 import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getErrorDetail, getErrorStatus } from "#/api/errors";
+import { DetailedError, getErrorDetail, getErrorStatus } from "#/api/errors";
 import { AgentHoursAllotmentMaxBps } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -104,15 +104,18 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 
 	// A 404 means the target was deleted or is no longer accessible, so the
 	// save can never succeed. Resolving closes the dialog.
-	const handleSave = (id: string, bps: number) =>
-		onSave(id, bps).catch((saveError: unknown) => {
-			if (getErrorStatus(saveError) !== 404) {
+	const handleSave = (target: AllotmentTarget, bps: number) =>
+		onSave(target.id, bps).catch((saveError: unknown) => {
+			const status = getErrorStatus(saveError);
+			if (status === 403) {
+				throw new DetailedError(
+					"You no longer have access to change this allotment.",
+				);
+			}
+			if (status !== 404) {
 				throw saveError;
 			}
-			const name =
-				[...allotments, ...candidates].find((target) => target.id === id)
-					?.name ?? `The ${entity}`;
-			toast.error(`${name} is no longer available.`);
+			toast.error(`${target.name} is no longer available.`);
 		});
 
 	return (

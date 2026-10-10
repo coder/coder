@@ -45,7 +45,7 @@ type AllotmentDialogProps = {
 	availableBps: number;
 	/** Undefined when the pool size is unknown. */
 	poolHours: number | undefined;
-	onSubmit: (targetId: string, bps: number) => Promise<unknown>;
+	onSubmit: (target: AllotmentTarget, bps: number) => Promise<unknown>;
 };
 
 const validatePercent = (
@@ -58,16 +58,21 @@ const validatePercent = (
 	if (Number(value) <= 0) {
 		return { error: "Enter a percentage above 0." };
 	}
-	const bps = parseAllotmentPercent(value);
-	if (bps === undefined) {
-		return { error: "Enter a number with at most two decimals." };
+	const parsed = parseAllotmentPercent(value);
+	if ("error" in parsed) {
+		return {
+			error:
+				parsed.error === "too-many-decimals"
+					? "Enter a number with at most two decimals."
+					: "Enter a number like 25 or 12.5.",
+		};
 	}
-	if (bps > availableBps) {
+	if (parsed.bps > availableBps) {
 		return {
 			error: `Only ${formatAllotmentPercent(availableBps)} is available.`,
 		};
 	}
-	return { bps };
+	return parsed;
 };
 
 /** Mounted only while open, so its state starts fresh for every edit. */
@@ -90,10 +95,14 @@ export const AllotmentDialog: React.FC<AllotmentDialogProps> = ({
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [submitError, setSubmitError] = useState<unknown>(null);
 
+	// A candidate deleted or allotted elsewhere drops out of the refetched
+	// list, which leaves nothing selected.
+	const selectedTarget =
+		target ?? candidates.find((candidate) => candidate.id === selectedId);
 	const validation = validatePercent(percent, availableBps);
 	const validationError = showValidation ? validation.error : undefined;
 	const targetError =
-		showValidation && selectedId === ""
+		showValidation && selectedTarget === undefined
 			? `Select ${entity === "group" ? "a group" : "an organization"}.`
 			: undefined;
 	const availableHours = allotmentHours(availableBps, poolHours);
@@ -102,12 +111,12 @@ export const AllotmentDialog: React.FC<AllotmentDialogProps> = ({
 	const handleSubmit = (event: React.FormEvent) => {
 		event.preventDefault();
 		setShowValidation(true);
-		if (validation.bps === undefined || selectedId === "") {
+		if (validation.bps === undefined || selectedTarget === undefined) {
 			return;
 		}
 		setIsSubmitting(true);
 		setSubmitError(null);
-		onSubmit(selectedId, validation.bps).then(
+		onSubmit(selectedTarget, validation.bps).then(
 			() => {
 				setIsSubmitting(false);
 				onClose();
@@ -149,7 +158,10 @@ export const AllotmentDialog: React.FC<AllotmentDialogProps> = ({
 					{!target && (
 						<div className="flex flex-col gap-2">
 							<Label htmlFor={targetId}>{entityLabel}</Label>
-							<Select value={selectedId} onValueChange={setSelectedId}>
+							<Select
+								value={selectedTarget?.id ?? ""}
+								onValueChange={setSelectedId}
+							>
 								<SelectTrigger
 									id={targetId}
 									aria-invalid={targetError !== undefined}

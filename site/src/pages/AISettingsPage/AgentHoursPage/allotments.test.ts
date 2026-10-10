@@ -16,11 +16,18 @@ describe("parseAllotmentPercent", () => {
 		[".5", 50],
 		["5.", 500],
 	])("parses %j as %d basis points", (input, bps) => {
-		expect(parseAllotmentPercent(input)).toBe(bps);
+		expect(parseAllotmentPercent(input)).toEqual({ bps });
 	});
 
-	it.each(["", ".", "abc", "-5", "1.234", "1e2"])("rejects %j", (input) => {
-		expect(parseAllotmentPercent(input)).toBeUndefined();
+	it.each([
+		["", "not-a-number"],
+		[".", "not-a-number"],
+		["abc", "not-a-number"],
+		["-5", "not-a-number"],
+		["1e2", "not-a-number"],
+		["1.234", "too-many-decimals"],
+	])("rejects %j as %s", (input, error) => {
+		expect(parseAllotmentPercent(input)).toEqual({ error });
 	});
 });
 

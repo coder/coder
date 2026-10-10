@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -53,18 +54,28 @@ func formatAgentHoursBps(bps int64) string {
 	return strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
 }
 
-func validAgentHoursAllotment(ctx context.Context, rw http.ResponseWriter, bps int32) bool {
-	if bps >= 1 && bps <= codersdk.AgentHoursAllotmentMaxBps {
-		return true
+// readAgentHoursAllotment reads a codersdk.UpsertAgentHoursAllotmentRequest.
+// The allotment is decoded raw so that a fractional or quoted value gets a
+// field validation error instead of a decode error naming Go types.
+func readAgentHoursAllotment(ctx context.Context, rw http.ResponseWriter, r *http.Request) (int32, bool) {
+	var req struct {
+		AllotmentBps json.RawMessage `json:"allotment_bps"`
+	}
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return 0, false
+	}
+	bps, err := strconv.ParseInt(string(req.AllotmentBps), 10, 32)
+	if err == nil && bps >= 1 && bps <= codersdk.AgentHoursAllotmentMaxBps {
+		return int32(bps), true
 	}
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message: "Invalid Agent Hours allotment.",
 		Validations: []codersdk.ValidationError{{
 			Field:  "allotment_bps",
-			Detail: fmt.Sprintf("Must be between 1 and %d.", codersdk.AgentHoursAllotmentMaxBps),
+			Detail: fmt.Sprintf("Must be an integer between 1 and %d.", codersdk.AgentHoursAllotmentMaxBps),
 		}},
 	})
-	return false
+	return 0, false
 }
 
 func overgrantDetail(e agentHoursOvergrantError) string {
@@ -156,11 +167,8 @@ func (api *API) upsertAgentHoursOrganizationAllotment(rw http.ResponseWriter, r 
 		return
 	}
 
-	var req codersdk.UpsertAgentHoursAllotmentRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-	if !validAgentHoursAllotment(ctx, rw, req.AllotmentBps) {
+	allotmentBps, ok := readAgentHoursAllotment(ctx, rw, r)
+	if !ok {
 		return
 	}
 
@@ -194,16 +202,16 @@ func (api *API) upsertAgentHoursOrganizationAllotment(rw http.ResponseWriter, r 
 			}
 			others += int64(row.AllotmentBps)
 		}
-		if hadRow && old.AllotmentBps == req.AllotmentBps {
+		if hadRow && old.AllotmentBps == allotmentBps {
 			updated = old
 			return nil
 		}
-		if err := checkAgentHoursAllotment(others, old.AllotmentBps, req.AllotmentBps); err != nil {
+		if err := checkAgentHoursAllotment(others, old.AllotmentBps, allotmentBps); err != nil {
 			return err
 		}
 		updated, err = tx.UpsertAgentHoursOrganizationAllotment(ctx, database.UpsertAgentHoursOrganizationAllotmentParams{
 			OrganizationID: org.ID,
-			AllotmentBps:   req.AllotmentBps,
+			AllotmentBps:   allotmentBps,
 		})
 		if err != nil {
 			return xerrors.Errorf("upsert organization allotment: %w", err)
@@ -364,11 +372,8 @@ func (api *API) upsertAgentHoursGroupAllotment(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	var req codersdk.UpsertAgentHoursAllotmentRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-	if !validAgentHoursAllotment(ctx, rw, req.AllotmentBps) {
+	allotmentBps, ok := readAgentHoursAllotment(ctx, rw, r)
+	if !ok {
 		return
 	}
 
@@ -402,16 +407,16 @@ func (api *API) upsertAgentHoursGroupAllotment(rw http.ResponseWriter, r *http.R
 			}
 			others += int64(row.AllotmentBps)
 		}
-		if hadRow && old.AllotmentBps == req.AllotmentBps {
+		if hadRow && old.AllotmentBps == allotmentBps {
 			updated = old
 			return nil
 		}
-		if err := checkAgentHoursAllotment(others, old.AllotmentBps, req.AllotmentBps); err != nil {
+		if err := checkAgentHoursAllotment(others, old.AllotmentBps, allotmentBps); err != nil {
 			return err
 		}
 		updated, err = tx.UpsertAgentHoursGroupAllotment(ctx, database.UpsertAgentHoursGroupAllotmentParams{
 			GroupID:      group.ID,
-			AllotmentBps: req.AllotmentBps,
+			AllotmentBps: allotmentBps,
 		})
 		if err != nil {
 			return xerrors.Errorf("upsert group allotment: %w", err)

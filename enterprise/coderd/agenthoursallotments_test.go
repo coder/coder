@@ -3,6 +3,8 @@ package coderd_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 	"testing"
@@ -62,6 +64,35 @@ func TestAgentHoursAllotmentsFeatureGate(t *testing.T) {
 	requireAgentHoursStatus(t, err, http.StatusForbidden)
 	err = client.DeleteAgentHoursGroupAllotment(ctx, group.ID)
 	requireAgentHoursStatus(t, err, http.StatusForbidden)
+}
+
+func TestAgentHoursAllotmentNonIntegerRejected(t *testing.T) {
+	t.Parallel()
+
+	client, owner := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: agentHoursLicense(1000),
+	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	//nolint:gocritic // Organization allotments are owner-only.
+	group, err := client.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{Name: "non-integer"})
+	require.NoError(t, err)
+
+	for _, path := range []string{
+		fmt.Sprintf("/api/v2/organizations/%s/agent-hours/allotment", owner.OrganizationID),
+		fmt.Sprintf("/api/v2/groups/%s/agent-hours/allotment", group.ID),
+	} {
+		for _, body := range []string{`{"allotment_bps":12.5}`, `{"allotment_bps":"5000"}`} {
+			//nolint:gocritic // Organization allotments are owner-only.
+			res, err := client.Request(ctx, http.MethodPut, path, json.RawMessage(body))
+			require.NoError(t, err)
+			sdkErr := requireAgentHoursStatus(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest)
+			_ = res.Body.Close()
+			require.Equal(t, []codersdk.ValidationError{{
+				Field:  "allotment_bps",
+				Detail: "Must be an integer between 1 and 10000.",
+			}}, sdkErr.Validations, "%s %s", path, body)
+		}
+	}
 }
 
 func TestAgentHoursOrganizationAllotments(t *testing.T) {

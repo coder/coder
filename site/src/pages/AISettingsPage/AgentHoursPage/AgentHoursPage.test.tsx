@@ -61,14 +61,16 @@ afterEach(() => {
 	access.isLicensed = true;
 });
 
-const renderPage = ({ canUpdateGroups = true } = {}) => {
-	vi.spyOn(API, "getOrganizations").mockResolvedValue([MockOrganization]);
+const renderPage = ({ canUpdateGroups = true, groups = [MockGroup] } = {}) => {
+	const getOrganizations = vi
+		.spyOn(API, "getOrganizations")
+		.mockResolvedValue([MockOrganization]);
 	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
 		[MockOrganization.id]: canUpdateGroups,
 	});
 	const getGroups = vi
 		.spyOn(API, "getGroupsByOrganization")
-		.mockResolvedValue([MockGroup]);
+		.mockResolvedValue(groups);
 	const getOrganizationAllotments = vi
 		.spyOn(API, "getAgentHoursOrganizationAllotments")
 		.mockResolvedValue([
@@ -102,8 +104,19 @@ const renderPage = ({ canUpdateGroups = true } = {}) => {
 		{ initialEntries: ["/ai/settings/agent-hours"] },
 	);
 	renderWithRouter(router);
-	return { getOrganizationAllotments, getGroupAllotments, getGroups };
+	return {
+		getOrganizationAllotments,
+		getGroupAllotments,
+		getGroups,
+		getOrganizations,
+	};
 };
+
+const refocusWindow = () =>
+	act(() => {
+		focusManager.setFocused(false);
+		focusManager.setFocused(true);
+	});
 
 const saveAllotment = async (
 	user: ReturnType<typeof userEvent.setup>,
@@ -256,11 +269,71 @@ it("offers the edited group's current share after a rejected save", async () => 
 	);
 });
 
-it("reports a group that is no longer available on save", async () => {
+it("reports a group deleted elsewhere by name on save", async () => {
 	const user = userEvent.setup();
 	server.use(
 		http.put("/api/v2/groups/:groupId/agent-hours/allotment", () =>
 			HttpResponse.json({ message: "Resource not found." }, { status: 404 }),
+		),
+	);
+	const { getGroupAllotments, getGroups } = renderPage();
+	const region = await screen.findByRole("region", {
+		name: "Group allotments",
+	});
+	await user.click(
+		await within(region).findByRole("button", {
+			name: `Edit allotment for ${MockGroup.display_name}`,
+		}),
+	);
+
+	// The refetch drops the deleted group before the save.
+	getGroupAllotments.mockResolvedValue({
+		organization_allotment_bps: 6000,
+		groups: [],
+	});
+	getGroups.mockResolvedValue([]);
+	refocusWindow();
+	await waitFor(() => expect(getGroupAllotments).toHaveBeenCalledTimes(2));
+
+	const input = screen.getByRole("textbox", { name: "Allotment" });
+	await user.clear(input);
+	await user.type(input, "25");
+	await user.click(screen.getByRole("button", { name: "Save" }));
+	await screen.findByText(`${MockGroup.display_name} is no longer available.`);
+});
+
+it("does not add an allotment for a group deleted after selection", async () => {
+	const user = userEvent.setup();
+	const upsert = vi.spyOn(API, "upsertAgentHoursGroupAllotment");
+	const { getGroups } = renderPage({ groups: [MockGroup, MockGroup2] });
+	const region = await screen.findByRole("region", {
+		name: "Group allotments",
+	});
+	const add = await within(region).findByRole("button", {
+		name: "Add allotment",
+	});
+	await waitFor(() => expect(add).toBeEnabled());
+	await user.click(add);
+	await user.click(screen.getByRole("combobox", { name: "Group" }));
+	await user.click(
+		await screen.findByRole("option", { name: MockGroup2.name }),
+	);
+	await user.type(screen.getByRole("textbox", { name: "Allotment" }), "5");
+
+	getGroups.mockResolvedValue([MockGroup]);
+	refocusWindow();
+	await waitFor(() => expect(getGroups).toHaveBeenCalledTimes(2));
+	await user.click(screen.getByRole("button", { name: "Save" }));
+
+	await screen.findByText("Select a group.");
+	expect(upsert).not.toHaveBeenCalled();
+});
+
+it("reports a lost permission to change an allotment", async () => {
+	const user = userEvent.setup();
+	server.use(
+		http.put("/api/v2/groups/:groupId/agent-hours/allotment", () =>
+			HttpResponse.json({ message: "Forbidden." }, { status: 403 }),
 		),
 	);
 	renderPage();
@@ -269,24 +342,29 @@ it("reports a group that is no longer available on save", async () => {
 	});
 
 	await saveAllotment(user, region, MockGroup.display_name, "70");
-	await screen.findByText(`${MockGroup.display_name} is no longer available.`);
+	await screen.findByText(
+		"You no longer have access to change this allotment.",
+	);
 });
 
-it("refreshes allotments when the window regains focus", async () => {
-	const { getOrganizationAllotments, getGroupAllotments, getGroups } =
-		renderPage();
+it("refreshes allotments and access when the window regains focus", async () => {
+	const {
+		getOrganizationAllotments,
+		getGroupAllotments,
+		getGroups,
+		getOrganizations,
+	} = renderPage();
 	await waitFor(() => expect(getGroupAllotments).toHaveBeenCalledTimes(1));
 	await waitFor(() => expect(getGroups).toHaveBeenCalledTimes(1));
+	expect(getOrganizations).toHaveBeenCalledTimes(1);
 
-	act(() => {
-		focusManager.setFocused(false);
-		focusManager.setFocused(true);
-	});
+	refocusWindow();
 	await waitFor(() =>
 		expect(getOrganizationAllotments).toHaveBeenCalledTimes(2),
 	);
 	await waitFor(() => expect(getGroupAllotments).toHaveBeenCalledTimes(2));
 	await waitFor(() => expect(getGroups).toHaveBeenCalledTimes(2));
+	await waitFor(() => expect(getOrganizations).toHaveBeenCalledTimes(2));
 });
 
 it("reports an allotment that is already gone as removed", async () => {

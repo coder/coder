@@ -27,10 +27,12 @@ const AgentHoursPage: React.FC = () => {
 	const licenseHours = feature.limit;
 
 	// Loaded without the license too, so everyone who could manage allotments
-	// sees the license notice instead of a permission denial.
-	const allotmentOrganizationsQuery = useQuery(
-		agentHoursAllotmentOrganizations(),
-	);
+	// sees the license notice instead of a permission denial. Refetched on
+	// focus because roles can be revoked while the page is open.
+	const allotmentOrganizationsQuery = useQuery({
+		...agentHoursAllotmentOrganizations(),
+		refetchOnWindowFocus: true,
+	});
 	const allotmentOrganizations = allotmentOrganizationsQuery.data ?? [];
 	const organizationSelection = selectModelOrganization(
 		allotmentOrganizations,
