@@ -4,8 +4,10 @@ import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import {
-	MockDefaultOrganization,
 	MockGroup,
+	MockNoPermissions,
+	MockOrganization,
+	MockOrganization2,
 	MockOrganizationSkillACL,
 	MockOrganizationSkillACLAvailable,
 	MockUserOwner,
@@ -17,13 +19,45 @@ import SkillsPage from "./SkillsPage";
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
 		user: MockUserOwner,
-		permissions: { viewAnyOrganizationSkills: true },
+		permissions: { ...MockNoPermissions, viewAnyOrganizationSkills: true },
+	}),
+}));
+vi.mock("#/modules/dashboard/useDashboard", () => ({
+	useDashboard: () => ({
+		organizations: [MockOrganization, MockOrganization2],
 	}),
 }));
 
-vi.mock("#/modules/dashboard/useDashboard", () => ({
-	useDashboard: () => ({ organizations: [MockDefaultOrganization] }),
-}));
+it("loads the chosen organization's skills when the organization changes", async () => {
+	const user = userEvent.setup();
+	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+		Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+	);
+	const getSkills = vi
+		.spyOn(API.experimental, "getOrganizationSkills")
+		.mockResolvedValue([]);
+	const router = createMemoryRouter(
+		[{ path: "/ai/settings/skills", element: <SkillsPage /> }],
+		{ initialEntries: ["/ai/settings/skills"] },
+	);
+	renderWithRouter(router);
+
+	await user.click(
+		await screen.findByRole("combobox", {
+			name: `Organization ${MockOrganization.display_name}`,
+		}),
+	);
+	await user.click(
+		await screen.findByRole("option", { name: /My Organization 2/ }),
+	);
+
+	await waitFor(() =>
+		expect(getSkills).toHaveBeenLastCalledWith(MockOrganization2.id),
+	);
+	expect(new URLSearchParams(router.state.location.search).get("org")).toBe(
+		MockOrganization2.name,
+	);
+});
 
 describe("SkillsPage Manage permissions", () => {
 	it("returns focus to the row menu button when the dialog closes", async () => {

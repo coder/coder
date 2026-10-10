@@ -2,7 +2,12 @@ import { isAxiosError } from "axios";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	useMutation,
+	useMutationState,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
@@ -10,6 +15,7 @@ import {
 	deleteSkill,
 	isSkillTogglePending,
 	organizationSkills,
+	pendingSkillToggles,
 	type SkillOwner,
 	skill,
 	toggleSkillEnabled,
@@ -251,9 +257,12 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	const downloadingSkillName = downloadMutation.isPending
 		? downloadMutation.variables
 		: undefined;
-	const togglingSkill = toggleMutation.isPending
-		? toggleMutation.variables
-		: undefined;
+	const pendingToggleArgs = useMutationState(pendingSkillToggles(owner));
+	const pendingToggles = new Map(
+		pendingToggleArgs.flatMap((toggle) =>
+			toggle ? [[toggle.name, toggle.enabled] as const] : [],
+		),
+	);
 
 	let editInitialValues: SkillFormValues | undefined;
 	let editLoadError: unknown = detailQuery.error;
@@ -420,7 +429,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 				toggleMutation.mutate({ name: skill.name, enabled });
 			}}
 			downloadingSkillName={downloadingSkillName}
-			togglingSkill={togglingSkill}
+			pendingToggles={pendingToggles}
 			isExportingAll={exportAllMutation.isPending}
 			editorState={editorState}
 			viewState={viewState}
