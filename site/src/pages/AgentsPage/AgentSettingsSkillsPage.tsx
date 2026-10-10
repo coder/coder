@@ -25,7 +25,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 			const hasEnabledSkills = Boolean(
 				query.data?.some((skill) => skill.enabled),
 			);
-			return hasEnabledSkills || query.isError
+			return hasEnabledSkills || query.isError || query.isPending
 				? [{ organization, query, hasEnabledSkills }]
 				: [];
 		},
@@ -60,7 +60,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 								organization.display_name || organization.name;
 							// The table's own observer would refetch a failed list on
 							// mount and clear its error, so a failed list renders here.
-							if (!hasEnabledSkills) {
+							if (query.isError && !hasEnabledSkills) {
 								return (
 									<div key={organization.id} className="flex flex-col gap-4">
 										<SectionHeader level="section" label={organizationName} />
@@ -70,6 +70,7 @@ const AgentSettingsSkillsPage: React.FC = () => {
 												<Button
 													size="sm"
 													variant="outline"
+													aria-label={`Retry loading ${organizationName} skills`}
 													onClick={() => {
 														void query.refetch();
 													}}

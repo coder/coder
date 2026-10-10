@@ -363,12 +363,13 @@ describe("ChatMessageInput", () => {
 			expect(inputRef.current?.getValue()).toBe("/compactor");
 		});
 
-		it("offers built-in commands when the organization list fails", async () => {
+		it("hides built-in commands when the organization list fails", async () => {
+			// With /compact hidden, Enter picks the qualified personal match.
 			const inputRef = renderWithSkills({ personal: [mockCompactorSkill] });
 			const user = await pasteTrigger("/comp");
 			await screen.findByText(/Could not load organization skills/);
 			await user.keyboard("{Enter}");
-			expect(inputRef.current?.getValue()).toBe("/compact");
+			expect(inputRef.current?.getValue()).toBe("/personal/compactor");
 		});
 
 		it("keeps triggers qualified when the organization list fails", async () => {
