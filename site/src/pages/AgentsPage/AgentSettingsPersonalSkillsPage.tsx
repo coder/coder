@@ -12,7 +12,7 @@ import {
 	userSkill,
 	userSkills,
 } from "#/api/queries/userSkills";
-import type { UserSkillMetadata } from "#/api/typesGenerated";
+import type { SkillMetadata } from "#/api/typesGenerated";
 import {
 	AgentSettingsPersonalSkillsPageView,
 	type PersonalSkillDeleteState,
@@ -34,7 +34,7 @@ const emptySkillFormValues: PersonalSkillFormValues = {
 type DialogState =
 	| { type: "create"; submittedContent?: string }
 	| { type: "edit"; name: string; submittedContent?: string }
-	| { type: "delete"; skill: UserSkillMetadata; submittedName?: string }
+	| { type: "delete"; skill: SkillMetadata; submittedName?: string }
 	| null;
 
 const personalSkillError = (
@@ -75,7 +75,7 @@ const downloadPersonalSkillFile = async (
 };
 
 const exportPersonalSkillsArchive = async (
-	skills: readonly UserSkillMetadata[],
+	skills: readonly SkillMetadata[],
 	fetchContent: (name: string) => Promise<string>,
 ): Promise<void> => {
 	const contents = await Promise.all(

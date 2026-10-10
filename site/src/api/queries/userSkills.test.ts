@@ -1,6 +1,6 @@
 import { QueryClient } from "react-query";
 import { describe, expect, it } from "vitest";
-import type { UserSkill, UserSkillMetadata } from "#/api/typesGenerated";
+import type { Skill, SkillMetadata } from "#/api/typesGenerated";
 import {
 	createUserSkill,
 	deleteUserSkill,
@@ -21,23 +21,22 @@ const createTestQueryClient = (): QueryClient =>
 		},
 	});
 
-const makeSkill = (
-	name: string,
-	overrides: Partial<UserSkill> = {},
-): UserSkill => ({
+const makeSkill = (name: string, overrides: Partial<Skill> = {}): Skill => ({
 	id: `${name}-id`,
 	name,
 	description: `${name} description`,
+	enabled: true,
 	content: `---\nname: ${name}\n---\nBody\n`,
 	created_at: "2026-05-21T00:00:00Z",
 	updated_at: "2026-05-21T00:00:00Z",
 	...overrides,
 });
 
-const toMetadata = (skill: UserSkill): UserSkillMetadata => ({
+const toMetadata = (skill: Skill): SkillMetadata => ({
 	id: skill.id,
 	name: skill.name,
 	description: skill.description,
+	enabled: skill.enabled,
 	created_at: skill.created_at,
 	updated_at: skill.updated_at,
 });
