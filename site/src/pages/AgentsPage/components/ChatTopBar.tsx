@@ -197,7 +197,6 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const isArchived = chat?.archived ?? false;
 	const isSharedChat = chat?.shared;
 	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
-	const isReadOnlyViewer = chat !== undefined && !canManage && !isArchived;
 	const hasWorkspace = Boolean(chat?.workspace_id);
 	const isArchivingThisChat = useIsMutating({ mutationKey }) > 0;
 	// The per-chat stream updates this before the global chat record catches up.
@@ -279,7 +278,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
-						{isSharedChat && canManage && (
+						{isSharedChat && (
 							<UsersIcon
 								className="size-3.5 shrink-0 text-content-secondary"
 								aria-label="Shared chat"
@@ -361,14 +360,6 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
-				{!isEmbedded && isReadOnlyViewer && (
-					<span className="inline-flex size-7 items-center justify-center text-content-secondary">
-						<UsersIcon
-							className="size-icon-sm p-0.5"
-							aria-label="Shared chat"
-						/>
-					</span>
-				)}
 				{!isEmbedded && canShareChat && canManage && chat && (
 					<ChatSharingTopBarButton
 						chatId={chat.id}
