@@ -50,11 +50,6 @@ const SkillsPage: React.FC = () => {
 	const organizationPermissions = organization
 		? organizationPermissionsQuery.data?.[organization.id]
 		: undefined;
-	const access = {
-		create: Boolean(organizationPermissions?.createOrganizationSkill),
-		update: Boolean(organizationPermissions?.updateOrganizationSkill),
-		delete: Boolean(organizationPermissions?.deleteOrganizationSkill),
-	};
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.viewAnyOrganizationSkills}>
@@ -75,7 +70,17 @@ const SkillsPage: React.FC = () => {
 							// Reset dialogs and in-flight state when the organization changes.
 							key={organization.id}
 							organization={organization}
-							access={access}
+							access={{
+								create: Boolean(
+									organizationPermissions?.createOrganizationSkill,
+								),
+								update: Boolean(
+									organizationPermissions?.updateOrganizationSkill,
+								),
+								delete: Boolean(
+									organizationPermissions?.deleteOrganizationSkill,
+								),
+							}}
 							canShare={Boolean(
 								organizationPermissions?.shareOrganizationSkill,
 							)}

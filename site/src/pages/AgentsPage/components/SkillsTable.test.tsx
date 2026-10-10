@@ -15,6 +15,7 @@ import { SkillsTable } from "./SkillsTable";
 import {
 	fullSkillAccess,
 	readOnlySkillAccess,
+	type SkillAccess,
 	type SkillsCopy,
 } from "./SkillsTableView";
 
@@ -36,7 +37,7 @@ const mockDocsSkill = {
 };
 
 const renderTable = (
-	canEdit: boolean,
+	access: SkillAccess,
 	skills = [mockReviewSkill],
 	queryClient = createTestQueryClient(),
 ) => {
@@ -49,7 +50,7 @@ const renderTable = (
 			<SkillsTable
 				owner={{ type: "organization", organizationId: MockOrganization.id }}
 				copy={copy}
-				access={canEdit ? fullSkillAccess : readOnlySkillAccess}
+				access={access}
 			/>
 		</QueryClientProvider>,
 	);
@@ -58,7 +59,7 @@ const renderTable = (
 
 describe("SkillsTable enabled toggle", () => {
 	it("sends only the enabled flag", async () => {
-		const { user, updateSkill } = renderTable(true);
+		const { user, updateSkill } = renderTable(fullSkillAccess);
 
 		await user.click(
 			await screen.findByRole("switch", { name: "Enable review-sql" }),
@@ -73,7 +74,7 @@ describe("SkillsTable enabled toggle", () => {
 	});
 
 	it("ignores a repeat click while that skill's update is pending", async () => {
-		const { user, updateSkill } = renderTable(true, [
+		const { user, updateSkill } = renderTable(fullSkillAccess, [
 			mockReviewSkill,
 			mockDocsSkill,
 		]);
@@ -92,7 +93,7 @@ describe("SkillsTable enabled toggle", () => {
 	});
 
 	it("keeps an earlier toggle pending while another skill toggles", async () => {
-		const { user, updateSkill } = renderTable(true, [
+		const { user, updateSkill } = renderTable(fullSkillAccess, [
 			mockReviewSkill,
 			mockDocsSkill,
 		]);
@@ -110,7 +111,7 @@ describe("SkillsTable enabled toggle", () => {
 	});
 
 	it("toggles the same skill again after its update settles", async () => {
-		const { user, updateSkill } = renderTable(true);
+		const { user, updateSkill } = renderTable(fullSkillAccess);
 		const toggle = await screen.findByRole("switch", {
 			name: "Enable review-sql",
 		});
@@ -123,7 +124,7 @@ describe("SkillsTable enabled toggle", () => {
 	});
 
 	it("refetches the list when the skill was deleted elsewhere", async () => {
-		const { user, updateSkill } = renderTable(true);
+		const { user, updateSkill } = renderTable(fullSkillAccess);
 		updateSkill.mockRejectedValue({
 			isAxiosError: true,
 			response: { status: 404, data: { message: "Resource not found." } },
@@ -143,7 +144,7 @@ describe("SkillsTable enabled toggle", () => {
 	});
 
 	it("does not send an update when the user cannot edit", async () => {
-		const { user, updateSkill } = renderTable(false);
+		const { user, updateSkill } = renderTable(readOnlySkillAccess);
 
 		await user.click(
 			await screen.findByRole("switch", {
@@ -160,7 +161,7 @@ describe("SkillsTable create dialog", () => {
 		const getSkills = vi
 			.spyOn(API.experimental, "getOrganizationSkills")
 			.mockRejectedValueOnce(new Error("List failed."));
-		const { user } = renderTable(true, [mockReviewSkill]);
+		const { user } = renderTable(fullSkillAccess, [mockReviewSkill]);
 		vi.spyOn(API.experimental, "createOrganizationSkill").mockResolvedValue({
 			...mockReviewSkill,
 			content: "---\nname: review-sql\n---\nBody.",
@@ -177,7 +178,7 @@ describe("SkillsTable create dialog", () => {
 	});
 
 	it("returns focus to the empty-state Add skill button on Escape", async () => {
-		const { user } = renderTable(true, []);
+		const { user } = renderTable(fullSkillAccess, []);
 
 		const emptyStateButton = await within(screen.getByRole("table")).findByRole(
 			"button",
@@ -191,7 +192,7 @@ describe("SkillsTable create dialog", () => {
 	});
 
 	it("moves focus to the header Add skill button after creating the first skill", async () => {
-		const { user } = renderTable(true, []);
+		const { user } = renderTable(fullSkillAccess, []);
 		vi.spyOn(API.experimental, "createOrganizationSkill").mockResolvedValue({
 			...mockReviewSkill,
 			content: "---\nname: review-sql\n---\nBody.",
@@ -220,7 +221,7 @@ describe("SkillsTable create dialog", () => {
 				name: `skill-${index}`,
 			}),
 		);
-		const { user } = renderTable(true, skills);
+		const { user } = renderTable(fullSkillAccess, skills);
 		vi.spyOn(API.experimental, "createOrganizationSkill").mockResolvedValue({
 			...mockReviewSkill,
 			content: "---\nname: review-sql\n---\nBody.",
@@ -239,7 +240,7 @@ describe("SkillsTable create dialog", () => {
 
 describe("SkillsTable row menu dialogs", () => {
 	it("returns focus to the row menu button when a dialog closes", async () => {
-		const { user } = renderTable(true);
+		const { user } = renderTable(fullSkillAccess);
 
 		const menuButton = await screen.findByRole("button", { name: "Open menu" });
 		await user.click(menuButton);
@@ -251,7 +252,7 @@ describe("SkillsTable row menu dialogs", () => {
 	});
 
 	it("moves focus to the Add skill button after a confirmed delete", async () => {
-		const { user } = renderTable(true);
+		const { user } = renderTable(fullSkillAccess);
 		vi.spyOn(API.experimental, "deleteOrganizationSkill").mockResolvedValue();
 
 		await user.click(await screen.findByRole("button", { name: "Open menu" }));
@@ -267,19 +268,20 @@ describe("SkillsTable row menu dialogs", () => {
 
 	it("offers Retry when reopening View fails to refresh cached content", async () => {
 		const { user } = renderTable(
-			false,
+			readOnlySkillAccess,
 			[mockReviewSkill],
+			// The shared test client's gcTime of 0 would drop the cached content.
 			new QueryClient({ defaultOptions: { queries: { retry: false } } }),
 		);
-		const detail = {
+		const mockSkillDetail = {
 			...mockReviewSkill,
 			content: "---\nname: review-sql\n---\nBody.",
 		};
 		const getSkill = vi
 			.spyOn(API.experimental, "getOrganizationSkillByName")
-			.mockResolvedValueOnce(detail)
+			.mockResolvedValueOnce(mockSkillDetail)
 			.mockRejectedValueOnce(new Error("Refresh failed."))
-			.mockResolvedValue(detail);
+			.mockResolvedValue(mockSkillDetail);
 		const openView = async () => {
 			await user.click(
 				await screen.findByRole("button", { name: "Open menu" }),
@@ -298,7 +300,7 @@ describe("SkillsTable row menu dialogs", () => {
 	});
 
 	it("closes the View dialog with its Close button", async () => {
-		const { user } = renderTable(false);
+		const { user } = renderTable(readOnlySkillAccess);
 		vi.spyOn(API.experimental, "getOrganizationSkillByName").mockResolvedValue({
 			...mockReviewSkill,
 			content: "---\nname: review-sql\n---\nBody.",
