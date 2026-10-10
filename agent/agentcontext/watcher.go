@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -123,11 +124,12 @@ func (w *Watcher) Degraded() string {
 
 // Sync replaces the set of watched directories with the fixed
 // locations that can hold recognized resources: each scan root,
-// its skill containers, and the immediate skill subdirectories.
-// Files are not watched directly; watching the parent directory
-// catches creates, renames, removes, and writes that touch any
-// recognized basename. Files that are themselves scan roots are
-// handled by watching their parent.
+// its skill containers, the immediate skill subdirectories, and for
+// ChildProjects roots the child directories that hold a repository
+// or an instruction file. Files are not watched directly; watching
+// the parent directory catches creates, renames, removes, and
+// writes that touch any recognized basename. Files that are
+// themselves scan roots are handled by watching their parent.
 //
 // Sync is idempotent and safe to call repeatedly. The lock is
 // released around the directory scan so concurrent Close,
@@ -311,12 +313,64 @@ func (w *Watcher) schedule() {
 	w.mu.Unlock()
 }
 
+// hasInstructionFile reports whether dir directly holds a recognized
+// instruction file under its exact name, so a child the resolver would not
+// publish does not take one of the watched slots.
+func hasInstructionFile(dir string) bool {
+	return len(lstatInstructionFiles(dir)) > 0
+}
+
+// hasGitMarker reports whether dir holds a .git directory or file.
+func hasGitMarker(dir string) bool {
+	_, err := os.Lstat(filepath.Join(dir, ".git"))
+	return err == nil
+}
+
+// childProjectDirs lists the immediate children of root worth watching.
+// Children with an instruction file come first, in the resolver's order and
+// under its cap, so every child the resolver publishes is watched. Children
+// with only a .git marker (a fresh clone before its files are checked out)
+// that sort before the last published child are watched under a cap of
+// their own: one of them gaining an instruction file changes the published
+// set, so its event must fire even when the published slots are full. Fixed
+// names are probed instead of listing each child, so a large non-project
+// child such as node_modules costs a few stats rather than a directory read.
+func childProjectDirs(root string) []string {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil
+	}
+	var withInstructions, gitOnly []string
+	for _, e := range entries {
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		child := filepath.Join(root, e.Name())
+		switch {
+		case hasInstructionFile(child):
+			withInstructions = append(withInstructions, child)
+		case hasGitMarker(child):
+			gitOnly = append(gitOnly, child)
+		}
+		if len(withInstructions) == maxChildProjects {
+			break
+		}
+	}
+	if len(gitOnly) > maxChildProjects {
+		gitOnly = gitOnly[:maxChildProjects]
+	}
+	return append(withInstructions, gitOnly...)
+}
+
 // collectDirs returns the set of directories to watch. Discovery
 // is fixed-location, mirroring the resolver: for each scan root we
 // watch the root directory itself (catching top-level instruction
 // and .mcp.json changes), plus every existing skill container and
 // its immediate skill subdirectories (catching skill add/remove
-// and SKILL.md writes). The watcher never recurses the tree.
+// and SKILL.md writes). ChildProjects roots also watch the children
+// childProjectDirs selects; a child that gains its first marker later
+// is picked up by the next resync or by any watched event. The
+// watcher never recurses further.
 func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, root := range roots {
@@ -337,6 +391,11 @@ func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 			continue
 		}
 		out[root.Path] = struct{}{}
+		if root.ChildProjects {
+			for _, child := range childProjectDirs(root.Path) {
+				out[child] = struct{}{}
+			}
+		}
 		for _, container := range skillContainersFor(root.Path) {
 			out[container] = struct{}{}
 			entries, err := os.ReadDir(container)

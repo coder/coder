@@ -202,8 +202,7 @@ func (*RootCmd) chatContextAddCommand(socketPath *string) *serpent.Command {
 		Use:   "add <path>",
 		Short: "Register a workspace context source",
 		Long: "Register a path as an additional context source on this workspace's agent. " +
-			"The agent treats it as an extra scan root, applying the same discovery rules " +
-			"it uses for the working directory: AGENTS.md / CLAUDE.md / .cursorrules, " +
+			"The agent treats it as an extra scan root: top-level AGENTS.md / CLAUDE.md / .cursorrules, " +
 			".agents/skills/<name>/SKILL.md, and .mcp.json are picked up now and as they " +
 			"appear. Any change to a recognized file dirties this workspace's chats until " +
 			"you refresh.\n\nA path may be a file or a directory. Must be run from inside " +
