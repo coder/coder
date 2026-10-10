@@ -30,6 +30,7 @@ import {
 } from "../utils/skills";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import {
+	type SkillAccess,
 	type SkillDeleteState,
 	type SkillEditorState,
 	type SkillsCopy,
@@ -110,14 +111,14 @@ const exportSkillsArchive = async (
 type SkillsTableProps = {
 	owner: SkillOwner;
 	copy: SkillsCopy;
-	canEdit: boolean;
+	access: SkillAccess;
 	toolbar?: React.ReactNode;
 };
 
 export const SkillsTable: React.FC<SkillsTableProps> = ({
 	owner,
 	copy,
-	canEdit,
+	access,
 	toolbar,
 }) => {
 	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
@@ -386,7 +387,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			skills={skills}
 			copy={copy}
 			limit={SKILLS_MAX_PER_OWNER}
-			canEdit={canEdit}
+			access={access}
 			toolbar={toolbar}
 			error={skillsQuery.error}
 			isLoading={skillsQuery.isLoading}
