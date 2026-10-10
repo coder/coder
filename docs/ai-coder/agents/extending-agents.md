@@ -201,10 +201,10 @@ Each organization can have up to 100 skills, and skills that are turned off coun
 Manage organization skills from **Admin settings** > **AI** > **Coder Agents** > **Skills**, and choose the organization in the organization picker.
 The page address is `/ai/settings/skills?org=<organization-name>`.
 
-| Action                                                                  | Who can do it                              |
-|-------------------------------------------------------------------------|--------------------------------------------|
-| Add, edit, delete, download, export, turn on or off, manage permissions | Site owners and organization admins        |
-| View the skills and their `SKILL.md` content                            | Site owners, organization admins, auditors |
+| Action                                                             | Who can do it                              |
+|--------------------------------------------------------------------|--------------------------------------------|
+| Add, edit, delete, turn on or off, manage permissions              | Site owners and organization admins        |
+| View, download, and export the skills and their `SKILL.md` content | Site owners, organization admins, auditors |
 
 Auditors get a read-only view of the page.
 Coder records organization skill changes, including permission changes, in the audit log.
@@ -232,7 +232,7 @@ It is experimental and might change.
 ### Find the organization skills you can use
 
 To check which organization skills you can use, open the **Agents** page and go to **Settings** > **Skills**.
-The **From your organizations** section lists, for each organization, the skills that are turned on and that you can use.
+The **From your organizations** section lists, for each organization you belong to, the skills that are turned on and that you can use.
 For site owners, organization admins, and auditors, it lists every organization skill that is turned on.
 To read a skill's `SKILL.md`, open its row menu and select **View**.
 An organization with no such skills doesn't appear in this section.
