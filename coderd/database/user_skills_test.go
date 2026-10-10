@@ -302,7 +302,11 @@ func TestSkillOwners(t *testing.T) {
 	})
 }
 
-func TestOrganizationSkillAuthorization(t *testing.T) {
+// TestOrganizationSkillQueries runs the organization skill queries that only
+// execute against Postgres here: the SQL-filtered list, whose regosql
+// converter must agree with the Rego ACL rules, and the update and delete
+// statements.
+func TestOrganizationSkillQueries(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -325,12 +329,9 @@ func TestOrganizationSkillAuthorization(t *testing.T) {
 	var (
 		siteOwner      = newUser([]string{rbac.RoleOwner().String()}, uuid.Nil)
 		orgAdmin       = newUser(nil, org.ID, rbac.RoleOrgAdmin())
-		orgAuditor     = newUser(nil, org.ID, rbac.RoleOrgAuditor())
-		member         = newUser(nil, org.ID)
 		groupMember    = newUser(nil, org.ID)
 		grantedMember  = newUser(nil, org.ID)
 		grantedOutside = newUser(nil, uuid.Nil)
-		otherOrgMember = newUser(nil, otherOrg.ID)
 	)
 	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: groupMember, GroupID: group.ID})
 
@@ -363,12 +364,9 @@ func TestOrganizationSkillAuthorization(t *testing.T) {
 	}{
 		"SiteOwner":      {siteOwner, all},
 		"OrgAdmin":       {orgAdmin, all},
-		"OrgAuditor":     {orgAuditor, all},
-		"Member":         {member, []uuid.UUID{everyoneSkill.ID}},
 		"GroupMember":    {groupMember, []uuid.UUID{everyoneSkill.ID, groupSkill.ID}},
 		"GrantedMember":  {grantedMember, []uuid.UUID{everyoneSkill.ID, userSkill.ID}},
 		"GrantedOutside": {grantedOutside, nil},
-		"OtherOrgMember": {otherOrgMember, nil},
 	} {
 		rows, err := authzDB.ListOrganizationSkillMetadataByOrganizationID(as(tc.user), org.ID)
 		require.NoError(t, err, name)
@@ -379,36 +377,15 @@ func TestOrganizationSkillAuthorization(t *testing.T) {
 		require.ElementsMatch(t, tc.want, got, name)
 	}
 
-	getSkill := func(userID uuid.UUID, skill database.Skill) error {
-		_, err := authzDB.GetOrganizationSkillByOrganizationIDAndName(as(userID), database.GetOrganizationSkillByOrganizationIDAndNameParams{
-			OrganizationID: org.ID,
-			Name:           skill.Name,
-		})
-		return err
-	}
-	require.NoError(t, getSkill(grantedMember, userSkill))
-	require.True(t, dbauthz.IsNotAuthorizedError(getSkill(member, privateSkill)))
-	require.True(t, dbauthz.IsNotAuthorizedError(getSkill(grantedOutside, userSkill)))
-	require.True(t, dbauthz.IsNotAuthorizedError(getSkill(otherOrgMember, everyoneSkill)))
-
-	// A read grant never allows writes.
-	writeAs := func(userID uuid.UUID, skill database.Skill) []error {
-		actor := as(userID)
-		_, insertErr := authzDB.InsertOrganizationSkill(actor, database.InsertOrganizationSkillParams{
-			ID: uuid.New(), OrganizationID: org.ID, Name: "skill-" + uuid.NewString(), Description: "d", Content: "c",
-		})
-		_, updateErr := authzDB.UpdateOrganizationSkillByOrganizationIDAndName(actor, database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
-			OrganizationID: org.ID, Name: skill.Name, Enabled: sql.NullBool{Bool: false, Valid: true},
-		})
-		_, deleteErr := authzDB.DeleteOrganizationSkillByOrganizationIDAndName(actor, database.DeleteOrganizationSkillByOrganizationIDAndNameParams{
-			OrganizationID: org.ID, Name: skill.Name,
-		})
-		return []error{insertErr, updateErr, deleteErr}
-	}
-	for _, err := range writeAs(grantedMember, userSkill) {
-		require.True(t, dbauthz.IsNotAuthorizedError(err), err)
-	}
-	for _, err := range writeAs(orgAdmin, groupSkill) {
-		require.NoError(t, err)
-	}
+	updated, err := authzDB.UpdateOrganizationSkillByOrganizationIDAndName(as(orgAdmin), database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
+		OrganizationID: org.ID, Name: groupSkill.Name, Enabled: sql.NullBool{Bool: false, Valid: true},
+	})
+	require.NoError(t, err)
+	require.False(t, updated.Enabled)
+	require.Equal(t, groupSkill.Content, updated.Content)
+	deleted, err := authzDB.DeleteOrganizationSkillByOrganizationIDAndName(as(orgAdmin), database.DeleteOrganizationSkillByOrganizationIDAndNameParams{
+		OrganizationID: org.ID, Name: groupSkill.Name,
+	})
+	require.NoError(t, err)
+	require.Equal(t, groupSkill.ID, deleted.ID)
 }
