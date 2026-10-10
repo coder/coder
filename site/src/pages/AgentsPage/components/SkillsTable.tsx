@@ -252,9 +252,8 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	const downloadingSkillName = downloadMutation.isPending
 		? downloadMutation.variables
 		: undefined;
-	const pendingToggleArgs = useMutationState(pendingSkillToggles(owner));
 	const pendingToggles = new Map(
-		pendingToggleArgs.flatMap((toggle) =>
+		useMutationState(pendingSkillToggles(owner)).flatMap((toggle) =>
 			toggle ? [[toggle.name, toggle.enabled] as const] : [],
 		),
 	);

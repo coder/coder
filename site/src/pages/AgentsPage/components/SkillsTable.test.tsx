@@ -265,17 +265,18 @@ describe("SkillsTable row menu dialogs", () => {
 		const { user } = renderTable(
 			false,
 			[mockReviewSkill],
+			// The shared test client's gcTime of 0 would drop the cached content.
 			new QueryClient({ defaultOptions: { queries: { retry: false } } }),
 		);
-		const detail = {
+		const mockSkillDetail = {
 			...mockReviewSkill,
 			content: "---\nname: review-sql\n---\nBody.",
 		};
 		const getSkill = vi
 			.spyOn(API.experimental, "getOrganizationSkillByName")
-			.mockResolvedValueOnce(detail)
+			.mockResolvedValueOnce(mockSkillDetail)
 			.mockRejectedValueOnce(new Error("Refresh failed."))
-			.mockResolvedValue(detail);
+			.mockResolvedValue(mockSkillDetail);
 		const openView = async () => {
 			await user.click(
 				await screen.findByRole("button", { name: "Open menu" }),
