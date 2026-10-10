@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
@@ -55,44 +54,29 @@ func (api *API) postOrganizationSkill(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceOrganizationSkill.InOrg(organization.ID)) {
-		writeOrganizationSkillForbidden(ctx, rw, "create organization skills")
+		httpapi.Write(ctx, rw, http.StatusForbidden, organizationSkillCreateErrors.forbidden)
 		return
 	}
 
-	content, parsedSkill, ok := readSkillCreate(ctx, rw, r)
+	skill, ok := createSkill(ctx, rw, r, organizationSkillCreateErrors, func(parsed skills.ParsedSkill, content string) (database.Skill, error) {
+		return api.Database.InsertOrganizationSkill(ctx, database.InsertOrganizationSkillParams{
+			ID:             uuid.New(),
+			OrganizationID: organization.ID,
+			Name:           parsed.Name,
+			Description:    parsed.Description,
+			Content:        content,
+			// The Everyone group shares the organization's ID, so new skills
+			// reach every member until an admin narrows the ACL.
+			GroupACL: database.ChatACL{
+				organization.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+			},
+			UserACL: database.ChatACL{},
+		})
+	})
 	if !ok {
 		return
 	}
-
-	skill, err := api.Database.InsertOrganizationSkill(ctx, database.InsertOrganizationSkillParams{
-		ID:             uuid.New(),
-		OrganizationID: organization.ID,
-		Name:           parsedSkill.Name,
-		Description:    parsedSkill.Description,
-		Content:        content,
-		// The Everyone group shares the organization's ID, so new skills
-		// reach every member until an admin narrows the ACL.
-		GroupACL: database.ChatACL{
-			organization.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
-		},
-		UserACL: database.ChatACL{},
-	})
-	if err != nil {
-		switch {
-		case httpapi.IsUnauthorizedError(err):
-			writeOrganizationSkillForbidden(ctx, rw, "create organization skills")
-		case database.IsCheckViolation(err, skillsPerOrganizationLimitConstraint):
-			writeOrganizationSkillLimitReached(ctx, rw)
-		case database.IsUniqueViolation(err, database.UniqueSkillsOrganizationIDNameIndex):
-			writeSkillNameConflict(ctx, rw)
-		default:
-			httpapi.InternalServerError(rw, err)
-		}
-		return
-	}
 	aReq.New = database.AuditableOrganizationSkill{Skill: skill}
-
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Skill(skill))
 }
 
 // @Summary List organization skills
@@ -163,48 +147,30 @@ func (api *API) patchOrganizationSkill(rw http.ResponseWriter, r *http.Request) 
 	defer commitAudit()
 	aReq.Old = database.AuditableOrganizationSkill{Skill: oldSkill}
 
-	update, ok := readSkillUpdate(ctx, rw, r, oldSkill.Name)
-	if !ok {
-		return
-	}
-
-	var current, skill database.Skill
-	err := api.Database.InTx(func(tx database.Store) error {
-		var err error
+	current, skill, ok := api.updateSkill(ctx, rw, r, oldSkill.Name, organizationSkillUpdateErrors, func(tx database.Store, update skillUpdate) (database.Skill, database.Skill, error) {
 		//nolint:gocritic // The update below reauthorizes the locked row for update.
-		current, err = tx.GetOrganizationSkillByIDForUpdate(dbauthz.AsSystemRestricted(ctx), oldSkill.ID)
+		locked, err := tx.GetOrganizationSkillByIDForUpdate(dbauthz.AsSystemRestricted(ctx), oldSkill.ID)
 		if err != nil {
-			return xerrors.Errorf("lock organization skill: %w", err)
+			return database.Skill{}, database.Skill{}, xerrors.Errorf("lock organization skill: %w", err)
 		}
-		skill, err = tx.UpdateOrganizationSkillByOrganizationIDAndName(ctx, database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
+		updated, err := tx.UpdateOrganizationSkillByOrganizationIDAndName(ctx, database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
 			Description:    update.Description,
 			Content:        update.Content,
 			Enabled:        update.Enabled,
-			OrganizationID: current.OrganizationID.UUID,
-			Name:           current.Name,
+			OrganizationID: locked.OrganizationID.UUID,
+			Name:           locked.Name,
 		})
 		if err != nil {
-			return xerrors.Errorf("update organization skill: %w", err)
+			return database.Skill{}, database.Skill{}, xerrors.Errorf("update organization skill: %w", err)
 		}
-		return nil
-	}, nil)
-	if err != nil {
-		switch {
-		case httpapi.IsUnauthorizedError(err):
-			writeOrganizationSkillForbidden(ctx, rw, "update this organization skill")
-		case httpapi.Is404Error(err):
-			httpapi.ResourceNotFound(rw)
-		default:
-			httpapi.InternalServerError(rw, err)
-		}
+		return locked, updated, nil
+	})
+	if !ok {
 		return
 	}
-	// Assign the locked snapshot after InTx returns so the audit log can
-	// never claim a rolled-back update was committed.
+	// The audit diff starts from the locked row, not the middleware's read.
 	aReq.Old = database.AuditableOrganizationSkill{Skill: current}
 	aReq.New = database.AuditableOrganizationSkill{Skill: skill}
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Skill(skill))
 }
 
 // @Summary Delete an organization skill
@@ -239,7 +205,7 @@ func (api *API) deleteOrganizationSkill(rw http.ResponseWriter, r *http.Request)
 	if err != nil {
 		switch {
 		case httpapi.IsUnauthorizedError(err):
-			writeOrganizationSkillForbidden(ctx, rw, "delete this organization skill")
+			httpapi.Write(ctx, rw, http.StatusForbidden, organizationSkillForbidden("delete this organization skill"))
 		case httpapi.Is404Error(err):
 			httpapi.ResourceNotFound(rw)
 		default:
@@ -252,20 +218,23 @@ func (api *API) deleteOrganizationSkill(rw http.ResponseWriter, r *http.Request)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// writeOrganizationSkillForbidden replaces httpapi.Forbidden, whose detail
-// says the caller cannot view content these callers may be able to read.
-func writeOrganizationSkillForbidden(ctx context.Context, rw http.ResponseWriter, action string) {
-	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-		Message: fmt.Sprintf("You don't have permission to %s.", action),
-	})
-}
+var (
+	// These replace httpapi.Forbidden, whose detail says the caller cannot
+	// view content these callers may be able to read.
+	organizationSkillCreateErrors = skillWriteErrors{
+		forbidden: organizationSkillForbidden("create organization skills"),
+		limit:     skillsPerOrganizationLimitConstraint,
+		limitReached: codersdk.Response{
+			Message: "Organization skill limit reached.",
+			Detail:  fmt.Sprintf("Each organization can have at most %d skills.", maxSkillsPerOrganization),
+		},
+		nameIndex: database.UniqueSkillsOrganizationIDNameIndex,
+	}
+	organizationSkillUpdateErrors = skillWriteErrors{
+		forbidden: organizationSkillForbidden("update this organization skill"),
+	}
+)
 
-func writeOrganizationSkillLimitReached(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-		Message: "Organization skill limit reached.",
-		Detail: fmt.Sprintf(
-			"Each organization can have at most %d skills.",
-			maxSkillsPerOrganization,
-		),
-	})
+func organizationSkillForbidden(action string) codersdk.Response {
+	return codersdk.Response{Message: fmt.Sprintf("You don't have permission to %s.", action)}
 }
