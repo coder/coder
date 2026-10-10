@@ -81,7 +81,10 @@ export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
 					</div>
 				)}
 				<SpendTotal report={report} />
-				<PaginationContainer query={reportQuery} paginationUnitLabel="users">
+				<PaginationContainer
+					query={reportQuery}
+					paginationUnitLabel={{ singular: "user", plural: "users" }}
+				>
 					<Table
 						aria-label="Spend by user"
 						className="table-fixed"

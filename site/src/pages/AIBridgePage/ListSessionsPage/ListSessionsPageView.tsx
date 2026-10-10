@@ -89,7 +89,10 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 		<>
 			<ListSessionsFilter {...filterProps} />
 
-			<PaginationContainer query={sessionsQuery} paginationUnitLabel="sessions">
+			<PaginationContainer
+				query={sessionsQuery}
+				paginationUnitLabel={{ singular: "session", plural: "sessions" }}
+			>
 				<Table className="text-sm font-normal">
 					<TableHeader>
 						<TableRow>

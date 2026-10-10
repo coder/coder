@@ -252,6 +252,37 @@ export const FilteredPaginationSummary: Story = {
 	},
 };
 
+export const FilteredSingleResult: Story = {
+	args: {
+		workspaces: [MockWorkspace],
+		count: 1,
+	},
+};
+
+export const UnfilteredSingleResult: Story = {
+	args: {
+		workspaces: [MockWorkspace],
+		count: 1,
+		filter: { ...defaultFilter, query: "", used: false },
+	},
+};
+
+export const LastPageWithOneResult: Story = {
+	args: {
+		workspaces: [MockWorkspace],
+		count: DEFAULT_RECORDS_PER_PAGE + 1,
+		page: 2,
+	},
+};
+
+export const UnfilteredEmptySummary: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		filter: { ...defaultFilter, query: "", used: false },
+	},
+};
+
 export const FilteredEmptySummary: Story = {
 	args: {
 		workspaces: [],
