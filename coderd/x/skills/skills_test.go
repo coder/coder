@@ -175,6 +175,7 @@ func TestMergeSkills(t *testing.T) {
 		resolved := skills.MergeSkills(
 			[]skills.Skill{{Name: "my-skill", Description: "Mine"}},
 			nil,
+			nil,
 		)
 
 		require.Equal(t, []skills.ResolvedSkill{{
@@ -191,6 +192,7 @@ func TestMergeSkills(t *testing.T) {
 		t.Parallel()
 
 		resolved := skills.MergeSkills(
+			nil,
 			nil,
 			[]skills.Skill{{Name: "my-skill", Description: "Workspace"}},
 		)
@@ -210,10 +212,18 @@ func TestMergeSkills(t *testing.T) {
 
 		resolved := skills.MergeSkills(
 			[]skills.Skill{{Name: "personal-skill"}},
+			[]skills.Skill{{Name: "org-skill"}},
 			[]skills.Skill{{Name: "workspace-skill"}},
 		)
 
 		require.Equal(t, []skills.ResolvedSkill{
+			{
+				Skill: skills.Skill{
+					Name:   "org-skill",
+					Source: skills.SourceOrganization,
+				},
+				Alias: "org-skill",
+			},
 			{
 				Skill: skills.Skill{
 					Name:   "personal-skill",
@@ -234,44 +244,65 @@ func TestMergeSkills(t *testing.T) {
 	t.Run("CollidingSkillsUseQualifiedAliases", func(t *testing.T) {
 		t.Parallel()
 
-		resolved := skills.MergeSkills(
-			[]skills.Skill{{Name: "shared-skill", Description: "Mine"}},
-			[]skills.Skill{{Name: "shared-skill", Description: "Workspace"}},
-		)
-
-		require.Equal(t, []skills.ResolvedSkill{
+		shared := []skills.Skill{{Name: "shared-skill", Description: "Shared"}}
+		for _, tc := range []struct {
+			name                              string
+			personal, organization, workspace []skills.Skill
+			wantAliases                       []string
+		}{
 			{
-				Skill: skills.Skill{
-					Name:        "shared-skill",
-					Description: "Mine",
-					Source:      skills.SourcePersonal,
-				},
-				Alias: "personal/shared-skill",
+				name:        "PersonalAndWorkspace",
+				personal:    shared,
+				workspace:   shared,
+				wantAliases: []string{"personal/shared-skill", "workspace/shared-skill"},
 			},
 			{
-				Skill: skills.Skill{
-					Name:        "shared-skill",
-					Description: "Workspace",
-					Source:      skills.SourceWorkspace,
-				},
-				Alias: "workspace/shared-skill",
+				name:         "PersonalAndOrganization",
+				personal:     shared,
+				organization: shared,
+				wantAliases:  []string{"personal/shared-skill", "org/shared-skill"},
 			},
-		}, resolved)
+			{
+				name:         "OrganizationAndWorkspace",
+				organization: shared,
+				workspace:    shared,
+				wantAliases:  []string{"org/shared-skill", "workspace/shared-skill"},
+			},
+			{
+				name:         "AllSources",
+				personal:     shared,
+				organization: shared,
+				workspace:    shared,
+				wantAliases:  []string{"personal/shared-skill", "org/shared-skill", "workspace/shared-skill"},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		personal, err := skills.Lookup(resolved, "personal/shared-skill")
-		require.NoError(t, err)
-		require.Equal(t, skills.SourcePersonal, personal.Source)
-		require.Equal(t, "shared-skill", personal.Name)
+				resolved := skills.MergeSkills(tc.personal, tc.organization, tc.workspace)
 
-		workspace, err := skills.Lookup(resolved, "workspace/shared-skill")
-		require.NoError(t, err)
-		require.Equal(t, skills.SourceWorkspace, workspace.Source)
-		require.Equal(t, "shared-skill", workspace.Name)
+				aliases := make([]string, 0, len(resolved))
+				for _, skill := range resolved {
+					aliases = append(aliases, skill.Alias)
+					require.Equal(t, "shared-skill", skill.Name)
+					require.Equal(t, "Shared", skill.Description)
+				}
+				require.Equal(t, tc.wantAliases, aliases)
 
-		_, err = skills.Lookup(resolved, "shared-skill")
-		require.ErrorIs(t, err, skills.ErrSkillAmbiguous)
-		require.ErrorContains(t, err, "personal/shared-skill")
-		require.ErrorContains(t, err, "workspace/shared-skill")
+				for _, alias := range tc.wantAliases {
+					got, err := skills.Lookup(resolved, alias)
+					require.NoError(t, err)
+					require.Equal(t, alias, skills.QualifiedAlias(got.Source, got.Name))
+				}
+
+				_, err := skills.Lookup(resolved, "shared-skill")
+				require.ErrorIs(t, err, skills.ErrSkillAmbiguous)
+				require.Equal(t, 1, strings.Count(err.Error(), skills.ErrSkillAmbiguous.Error()))
+				for _, alias := range tc.wantAliases {
+					require.ErrorContains(t, err, alias)
+				}
+			})
+		}
 	})
 
 	t.Run("DuplicatesWithinSourceKeepFirst", func(t *testing.T) {
@@ -282,6 +313,7 @@ func TestMergeSkills(t *testing.T) {
 				{Name: "duplicate-skill", Description: "First"},
 				{Name: "duplicate-skill", Description: "Second"},
 			},
+			nil,
 			[]skills.Skill{
 				{Name: "workspace-skill", Description: "Workspace"},
 				{Name: "workspace-skill", Description: "Workspace duplicate"},
@@ -317,6 +349,7 @@ func TestLookup(t *testing.T) {
 
 		resolved := skills.MergeSkills(
 			[]skills.Skill{{Name: "personal-skill"}},
+			nil,
 			[]skills.Skill{{Name: "workspace-skill"}},
 		)
 
@@ -336,6 +369,7 @@ func TestLookup(t *testing.T) {
 
 		resolved := skills.MergeSkills(
 			[]skills.Skill{{Name: "personal-skill"}},
+			[]skills.Skill{{Name: "org-skill"}},
 			[]skills.Skill{{Name: "workspace-skill"}},
 		)
 
@@ -343,6 +377,11 @@ func TestLookup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, skills.SourcePersonal, personal.Source)
 		require.Equal(t, "personal-skill", personal.Name)
+
+		org, err := skills.Lookup(resolved, "org/org-skill")
+		require.NoError(t, err)
+		require.Equal(t, skills.SourceOrganization, org.Source)
+		require.Equal(t, "org-skill", org.Name)
 
 		workspace, err := skills.Lookup(resolved, "workspace/workspace-skill")
 		require.NoError(t, err)

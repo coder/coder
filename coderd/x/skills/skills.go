@@ -32,6 +32,8 @@ type Source string
 const (
 	// SourcePersonal identifies a user-owned, DB-backed skill.
 	SourcePersonal Source = "personal"
+	// SourceOrganization identifies an organization-owned, DB-backed skill.
+	SourceOrganization Source = "org"
 	// SourceWorkspace identifies a filesystem-discovered workspace skill.
 	SourceWorkspace Source = "workspace"
 )
@@ -81,52 +83,52 @@ type ResolvedSkill struct {
 func ParsePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
 	if len(raw) > MaxPersonalSkillSizeBytes {
 		return ParsedSkill{}, xerrors.Errorf(
-			"%w: got %d bytes, maximum is %d bytes",
-			ErrSkillTooLarge,
+			"got %d bytes, maximum is %d bytes: %w",
 			len(raw),
 			MaxPersonalSkillSizeBytes,
+			ErrSkillTooLarge,
 		)
 	}
 
 	name, description, body, err := workspacesdk.ParseSkillFrontmatter(string(raw))
 	if err != nil {
 		if xerrors.Is(err, workspacesdk.ErrFrontmatterNameRequired) {
-			return ParsedSkill{}, xerrors.Errorf("%w: frontmatter must contain a 'name' field", ErrInvalidSkillName)
+			return ParsedSkill{}, xerrors.Errorf("frontmatter must contain a 'name' field: %w", ErrInvalidSkillName)
 		}
 		return ParsedSkill{}, xerrors.Errorf("parse skill frontmatter: %w", err)
 	}
 	if !workspacesdk.SkillNamePattern.MatchString(name) {
 		return ParsedSkill{}, xerrors.Errorf(
-			"%w: %q must match %s",
-			ErrInvalidSkillName,
+			"%q must match %s: %w",
 			name,
 			workspacesdk.SkillNameRegex,
+			ErrInvalidSkillName,
 		)
 	}
 	nameBytes := len(name)
 	if nameBytes > MaxPersonalSkillNameBytes {
 		return ParsedSkill{}, xerrors.Errorf(
-			"%w: %q is %d bytes, maximum is %d bytes",
-			ErrInvalidSkillName,
+			"%q is %d bytes, maximum is %d bytes: %w",
 			name,
 			nameBytes,
 			MaxPersonalSkillNameBytes,
+			ErrInvalidSkillName,
 		)
 	}
 	descriptionBytes := len(description)
 	if descriptionBytes > MaxPersonalSkillDescriptionBytes {
 		return ParsedSkill{}, xerrors.Errorf(
-			"%w: got %d bytes, maximum is %d bytes",
-			ErrSkillDescriptionTooLarge,
+			"got %d bytes, maximum is %d bytes: %w",
 			descriptionBytes,
 			MaxPersonalSkillDescriptionBytes,
+			ErrSkillDescriptionTooLarge,
 		)
 	}
 	if strings.TrimSpace(body) == "" {
 		return ParsedSkill{}, xerrors.Errorf(
-			"%w: skill %q has no content after frontmatter",
-			ErrSkillBodyRequired,
+			"skill %q has no content after frontmatter: %w",
 			name,
+			ErrSkillBodyRequired,
 		)
 	}
 
@@ -140,50 +142,43 @@ func ParsePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
 	}, nil
 }
 
-// MergeSkills combines personal and workspace skills into a deterministic list
-// with aliases for chat tool display and lookup. Skill names must already be
-// valid kebab-case names because qualified aliases use / as a separator. If a
-// source contains duplicate names, the first skill for that source wins.
-func MergeSkills(personalSkills, workspaceSkills []Skill) []ResolvedSkill {
-	personalByName := skillsByName(personalSkills, SourcePersonal)
-	workspaceByName := skillsByName(workspaceSkills, SourceWorkspace)
-
-	names := make(map[string]struct{}, len(personalByName)+len(workspaceByName))
-	for name := range personalByName {
-		names[name] = struct{}{}
+// MergeSkills combines personal, organization, and workspace skills into a
+// deterministic list with aliases for chat tool display and lookup. Skills are
+// sorted by name, then by source in that order. A name found in more than one
+// source gets a qualified alias in every source that has it, so no source
+// overrides another; a name found in one source keeps its bare alias. Skill
+// names must already be valid kebab-case names because qualified aliases use /
+// as a separator. If a source contains duplicate names, the first skill for
+// that source wins.
+func MergeSkills(personalSkills, organizationSkills, workspaceSkills []Skill) []ResolvedSkill {
+	sources := []map[string]Skill{
+		skillsByName(personalSkills, SourcePersonal),
+		skillsByName(organizationSkills, SourceOrganization),
+		skillsByName(workspaceSkills, SourceWorkspace),
 	}
-	for name := range workspaceByName {
-		names[name] = struct{}{}
+
+	names := make(map[string]struct{})
+	for _, byName := range sources {
+		for name := range byName {
+			names[name] = struct{}{}
+		}
 	}
 
-	resolved := make([]ResolvedSkill, 0, len(personalByName)+len(workspaceByName))
+	resolved := make([]ResolvedSkill, 0, len(names))
 	for _, name := range slices.Sorted(maps.Keys(names)) {
-		personal, hasPersonal := personalByName[name]
-		workspace, hasWorkspace := workspaceByName[name]
-		if hasPersonal && hasWorkspace {
-			resolved = append(resolved,
-				ResolvedSkill{
-					Skill: personal,
-					Alias: QualifiedAlias(SourcePersonal, name),
-				},
-				ResolvedSkill{
-					Skill: workspace,
-					Alias: QualifiedAlias(SourceWorkspace, name),
-				},
-			)
-			continue
+		var matches []Skill
+		for _, byName := range sources {
+			if skill, ok := byName[name]; ok {
+				matches = append(matches, skill)
+			}
 		}
-		if hasPersonal {
-			resolved = append(resolved, ResolvedSkill{
-				Skill: personal,
-				Alias: name,
-			})
-			continue
+		for _, skill := range matches {
+			alias := name
+			if len(matches) > 1 {
+				alias = QualifiedAlias(skill.Source, name)
+			}
+			resolved = append(resolved, ResolvedSkill{Skill: skill, Alias: alias})
 		}
-		resolved = append(resolved, ResolvedSkill{
-			Skill: workspace,
-			Alias: name,
-		})
 	}
 	return resolved
 }
@@ -208,15 +203,15 @@ func Lookup(resolved []ResolvedSkill, lookup string) (ResolvedSkill, error) {
 	}
 	switch len(matches) {
 	case 0:
-		return ResolvedSkill{}, xerrors.Errorf("%w: %q", ErrSkillNotFound, lookup)
+		return ResolvedSkill{}, xerrors.Errorf("%q: %w", lookup, ErrSkillNotFound)
 	case 1:
 		return bareNameMatch, nil
 	default:
 		return ResolvedSkill{}, xerrors.Errorf(
-			"%w: %q matches %s",
-			ErrSkillAmbiguous,
+			"%q matches %s: %w",
 			lookup,
 			strings.Join(matches, ", "),
+			ErrSkillAmbiguous,
 		)
 	}
 }
