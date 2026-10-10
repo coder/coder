@@ -321,6 +321,7 @@ type ChatPageInputProps = {
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
 	isReadOnly: boolean;
+	readOnlyNotice?: string;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
 	hasModelOptions: boolean;
@@ -379,6 +380,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	onInterrupt,
 	isInputDisabled,
 	isReadOnly,
+	readOnlyNotice,
 	isSendPending,
 	isInterruptPending,
 	hasModelOptions,
@@ -852,6 +854,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isReadOnly={isReadOnly}
+			readOnlyNotice={readOnlyNotice}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
