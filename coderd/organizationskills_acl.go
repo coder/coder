@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"errors"
 	"maps"
 	"net/http"
 
@@ -99,21 +100,31 @@ func (api *API) patchOrganizationSkillACL(rw http.ResponseWriter, r *http.Reques
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	userRoles, groupRoles, validations := validateOrganizationACLUpdate(ctx, api.Database, organizationID, organizationSkillACLUpdateValidator(req))
-	if len(validations) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid request to update organization skill ACL.",
-			Validations: validations,
-		})
-		return
-	}
 
 	var updated database.Skill
 	err := api.Database.InTx(func(tx database.Store) error {
+		// Lock granted users' memberships before the skill row: a member
+		// removal locks its membership row and then, through its trigger, the
+		// skill rows, so the reverse order could deadlock. Holding the lock
+		// keeps a removal from missing the grant written below.
+		if userIDs := activeACLIDs(req.UserRoles); len(userIDs) > 0 {
+			//nolint:gocritic // Validation below reports users that are not members.
+			_, err := tx.LockOrganizationMembersByUserIDsForShare(dbauthz.AsSystemRestricted(ctx), database.LockOrganizationMembersByUserIDsForShareParams{
+				OrganizationID: organizationID,
+				UserIds:        userIDs,
+			})
+			if err != nil {
+				return xerrors.Errorf("lock organization members: %w", err)
+			}
+		}
 		//nolint:gocritic // The ACL write below reauthorizes the locked row for share.
 		current, err := tx.GetOrganizationSkillByIDForUpdate(dbauthz.AsSystemRestricted(ctx), skill.ID)
 		if err != nil {
 			return xerrors.Errorf("get organization skill for update: %w", err)
+		}
+		userRoles, groupRoles, validations := validateOrganizationACLUpdate(ctx, tx, organizationID, organizationSkillACLUpdateValidator(req))
+		if len(validations) > 0 {
+			return &organizationSkillACLValidationError{validations: validations}
 		}
 		aReq.Old = database.AuditableOrganizationSkill{Skill: current}
 		userACL := maps.Clone(current.UserACL)
@@ -131,6 +142,14 @@ func (api *API) patchOrganizationSkillACL(rw http.ResponseWriter, r *http.Reques
 		return nil
 	}, nil)
 	if err != nil {
+		var validationErr *organizationSkillACLValidationError
+		if errors.As(err, &validationErr) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Invalid request to update organization skill ACL.",
+				Validations: validationErr.validations,
+			})
+			return
+		}
 		// A delete between the middleware read and the row lock stays
 		// concealed as 404, matching the update and delete handlers.
 		if httpapi.Is404Error(err) {
@@ -142,6 +161,14 @@ func (api *API) patchOrganizationSkillACL(rw http.ResponseWriter, r *http.Reques
 	}
 	aReq.New = database.AuditableOrganizationSkill{Skill: updated}
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+type organizationSkillACLValidationError struct {
+	validations []codersdk.ValidationError
+}
+
+func (*organizationSkillACLValidationError) Error() string {
+	return "invalid organization skill ACL"
 }
 
 type organizationSkillACLUpdateValidator codersdk.UpdateOrganizationSkillACLRequest
