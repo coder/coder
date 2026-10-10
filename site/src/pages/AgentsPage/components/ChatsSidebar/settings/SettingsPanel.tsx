@@ -91,9 +91,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 				)}
 				<SettingsNavItem
 					icon={ReceiptTextIcon}
-					label="Personal skills"
-					active={settingsSection === "personal-skills"}
-					to="/agents/settings/personal-skills"
+					label="Skills"
+					active={settingsSection === "skills"}
+					to="/agents/settings/skills"
 					state={location.state}
 				/>
 				<SettingsNavItem

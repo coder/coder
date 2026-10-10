@@ -19,6 +19,7 @@ import {
 	SKILLS_MAX_PER_OWNER,
 	type SkillFormValues,
 } from "../utils/skills";
+import type { SectionHeaderLevel } from "./SectionHeader";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import {
 	type SkillAccess,
@@ -103,6 +104,8 @@ type SkillsTableProps = {
 	owner: SkillOwner;
 	copy: SkillsCopy;
 	access: SkillAccess;
+	enabledOnly?: boolean;
+	headerLevel?: SectionHeaderLevel;
 	toolbar?: React.ReactNode;
 	onManagePermissions?: SkillsTableViewProps["onManagePermissions"];
 };
@@ -111,6 +114,8 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	owner,
 	copy,
 	access,
+	enabledOnly = false,
+	headerLevel,
 	toolbar,
 	onManagePermissions,
 }) => {
@@ -118,7 +123,9 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 	const queryClient = useQueryClient();
 	const [dialogState, setDialogState] = useState<DialogState>(null);
 	const skillsQuery = useQuery(skillList(owner));
-	const skills = skillsQuery.data ?? [];
+	const skills = (skillsQuery.data ?? []).filter(
+		(skill) => !enabledOnly || skill.enabled,
+	);
 	const existingNames = skills.map((skill) =>
 		skill.name.toLocaleLowerCase("en-US"),
 	);
@@ -343,6 +350,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
 			skills={skills}
 			copy={copy}
 			access={access}
+			headerLevel={headerLevel}
 			toolbar={toolbar}
 			onManagePermissions={onManagePermissions}
 			error={skillsQuery.error}

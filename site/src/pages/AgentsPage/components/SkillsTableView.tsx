@@ -29,8 +29,12 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { formatDate } from "#/utils/time";
 import { SKILLS_MAX_PER_OWNER, type SkillFormValues } from "../utils/skills";
-import { SectionHeader } from "./SectionHeader";
-import { DeleteSkillDialog, EditSkillDialog } from "./SkillDialogs";
+import { SectionHeader, type SectionHeaderLevel } from "./SectionHeader";
+import {
+	DeleteSkillDialog,
+	EditSkillDialog,
+	RetryButton,
+} from "./SkillDialogs";
 import type { SkillErrorDisplay } from "./SkillEditor";
 import { SkillEditor } from "./SkillEditor";
 import { SkillEnabledSwitch } from "./SkillEnabledSwitch";
@@ -90,11 +94,18 @@ export const fullSkillAccess: SkillAccess = {
 	delete: true,
 };
 
+export const readOnlySkillAccess: SkillAccess = {
+	create: false,
+	update: false,
+	delete: false,
+};
+
 export type SkillsTableViewProps = {
 	owner: SkillOwner;
 	skills: readonly SkillMetadata[];
 	copy: SkillsCopy;
 	access: SkillAccess;
+	headerLevel?: SectionHeaderLevel;
 	toolbar?: React.ReactNode;
 	error: unknown;
 	isLoading: boolean;
@@ -159,6 +170,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 	skills,
 	copy,
 	access,
+	headerLevel,
 	toolbar,
 	error,
 	isLoading,
@@ -235,6 +247,7 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				label={copy.title}
 				description={copy.description}
 				action={headerActions}
+				level={headerLevel}
 			/>
 
 			{toolbar}
@@ -289,14 +302,11 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 						<TableEmpty
 							message={`Failed to load ${pluralNoun}`}
 							cta={
-								<Button
+								<RetryButton
 									variant="outline"
-									onClick={onRetry}
-									disabled={isRetrying}
-								>
-									{isRetrying && <Spinner className="size-4" loading />}
-									Retry
-								</Button>
+									isRetrying={isRetrying}
+									onRetry={onRetry}
+								/>
 							}
 						/>
 					) : skills.length === 0 ? (

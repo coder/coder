@@ -1,6 +1,6 @@
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
+import { Button, type ButtonProps } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
@@ -18,6 +18,22 @@ import type {
 	SkillEditorState,
 	SkillsCopy,
 } from "./SkillsTableView";
+
+type RetryButtonProps = Pick<ButtonProps, "aria-label" | "size" | "variant"> & {
+	isRetrying: boolean;
+	onRetry: () => void;
+};
+
+export const RetryButton: React.FC<RetryButtonProps> = ({
+	isRetrying,
+	onRetry,
+	...buttonProps
+}) => (
+	<Button {...buttonProps} onClick={onRetry} disabled={isRetrying}>
+		{isRetrying && <Spinner className="size-4" loading />}
+		Retry
+	</Button>
+);
 
 type DialogFocusProps = {
 	onCloseAutoFocus: (event: Event) => void;
@@ -76,10 +92,10 @@ export const EditSkillDialog: React.FC<
 						<Button variant="outline" onClick={state.onClose}>
 							Close
 						</Button>
-						<Button onClick={state.onRetry} disabled={state.isRetrying}>
-							{state.isRetrying && <Spinner className="size-4" loading />}
-							Retry
-						</Button>
+						<RetryButton
+							isRetrying={state.isRetrying}
+							onRetry={state.onRetry}
+						/>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
