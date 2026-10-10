@@ -1,8 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { mockApiError } from "#/testHelpers/entities";
 import { MockSkill } from "#/testHelpers/skills";
 import { SKILLS_MAX_PER_OWNER } from "../utils/skills";
-import { SkillsTableView, type SkillsTableViewProps } from "./SkillsTableView";
+import {
+	SkillsTableView,
+	type SkillsTableViewProps,
+	type SkillViewState,
+} from "./SkillsTableView";
 
 const MockReviewSQLSkill = {
 	...MockSkill,
@@ -46,6 +51,16 @@ const MockDebugHTTPSkill = {
 	description: "",
 };
 
+const mockReviewSQLViewState: SkillViewState = {
+	name: "review-sql",
+	content:
+		"---\nname: review-sql\ndescription: Review SQL changes for query and index risks.\n---\nCheck query plans, missing indexes, and transaction boundaries.\n",
+	isLoading: false,
+	isRetrying: false,
+	onRetry: fn(),
+	onClose: fn(),
+};
+
 const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
 const baseArgs: SkillsTableViewProps = {
@@ -74,6 +89,7 @@ const baseArgs: SkillsTableViewProps = {
 	onDownload: fn(),
 	onExportAll: fn(),
 	onToggleEnabled: fn(),
+	pendingToggles: new Map(),
 	isExportingAll: false,
 };
 
@@ -131,7 +147,7 @@ export const DownloadingSkill: Story = {
 
 export const TogglingSkill: Story = {
 	args: {
-		togglingSkill: { name: "write-release-notes", enabled: true },
+		pendingToggles: new Map([["write-release-notes", true]]),
 	},
 };
 
@@ -161,14 +177,16 @@ export const ReadOnlyEmpty: Story = {
 export const ViewDialogOpen: Story = {
 	args: {
 		canEdit: false,
+		viewState: mockReviewSQLViewState,
+	},
+};
+
+export const ViewDialogRefreshFailed: Story = {
+	args: {
+		canEdit: false,
 		viewState: {
-			name: "review-sql",
-			content:
-				"---\nname: review-sql\ndescription: Review SQL changes for query and index risks.\n---\nCheck query plans, missing indexes, and transaction boundaries.\n",
-			isLoading: false,
-			isRetrying: false,
-			onRetry: fn(),
-			onClose: fn(),
+			...mockReviewSQLViewState,
+			loadError: mockApiError({ message: "Failed to refresh the skill." }),
 		},
 	},
 };
