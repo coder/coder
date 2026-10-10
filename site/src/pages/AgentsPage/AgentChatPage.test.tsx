@@ -35,24 +35,29 @@ const mockChat: TypesGen.Chat = {
 	last_model_config_id: MockChatModel.id,
 };
 
-const outletContext: AgentsPageOutletContext = {
-	chatErrorReasons: {},
-	setChatErrorReason: vi.fn(),
-	clearChatErrorReason: vi.fn(),
-	navigateAfterArchive: vi.fn(),
-	activeChatChildren: undefined,
-	isSidebarCollapsed: false,
-	onToggleSidebarCollapsed: vi.fn(),
-	onExpandSidebar: vi.fn(),
-	onChatReady: vi.fn(),
-};
-
 const renderChatPage = () =>
-	renderWithAuth(<Outlet context={outletContext} />, {
-		route: `/agents/${mockChat.id}`,
-		path: "/agents",
-		children: [{ path: ":agentId", element: <AgentChatPage /> }],
-	});
+	renderWithAuth(
+		<Outlet
+			context={
+				{
+					chatErrorReasons: {},
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+					navigateAfterArchive: vi.fn(),
+					activeChatChildren: undefined,
+					isSidebarCollapsed: false,
+					onToggleSidebarCollapsed: vi.fn(),
+					onExpandSidebar: vi.fn(),
+					onChatReady: vi.fn(),
+				} satisfies AgentsPageOutletContext
+			}
+		/>,
+		{
+			route: `/agents/${mockChat.id}`,
+			path: "/agents",
+			children: [{ path: ":agentId", element: <AgentChatPage /> }],
+		},
+	);
 
 const mockChatPageRequests = () => {
 	vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
