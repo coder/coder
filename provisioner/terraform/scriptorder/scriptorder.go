@@ -32,8 +32,9 @@ const (
 	coderScriptOrderResourceType = "coder_script_order"
 )
 
-// Program contains the immutable indexes of Terraform state and config
-// for script ordering. It is the input to script-order preparation.
+// Program contains the indexes of Terraform state and config for
+// script ordering. It is the input to script-order preparation.
+// Do not modify a Program or its indexes after construction.
 type Program struct {
 	stateIndex  *stateIndex
 	configIndex *configIndex

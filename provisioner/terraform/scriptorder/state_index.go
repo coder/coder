@@ -25,9 +25,9 @@ type indexedScript struct {
 	address     string
 	instanceKey cty.Value
 
-	// addressErr is used to defer resource address validation until
-	// selector expansion encounters this script. Indexing is eager,
-	// but validation remains scoped to scripts selected for ordering.
+	// addressErr records an address validation error found while
+	// building the index. The error is reported only if selector
+	// expansion encounters this script.
 	addressErr error
 }
 
@@ -54,10 +54,10 @@ type stateIndex struct {
 	scriptsByResource map[stateResourceKey][]int
 	scriptsByModule   map[moduleCallKey][]scriptSpan
 
-	// moduleLookupErrors is used to defer child-module address
-	// validation until resolving a module selector relative to its
-	// parent. Indexing is eager, but validation remains scoped to
-	// module selectors used by ordering rules.
+	// moduleLookupErrors records child-module address validation
+	// errors found while building the index. An error is reported
+	// only when resolving a module selector relative to the affected
+	// parent.
 	moduleLookupErrors map[string]error
 }
 
