@@ -121,10 +121,10 @@ func TestAgentHoursOrganizationAllotments(t *testing.T) {
 		other := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 
 		//nolint:gocritic // Organization allotments are owner-only.
-		created, err := client.UpsertAgentHoursOrganizationAllotment(ctx, owner.OrganizationID, allotmentReq(6000))
+		created, err := client.UpsertAgentHoursOrganizationAllotment(ctx, owner.OrganizationID, allotmentReq(5950))
 		require.NoError(t, err)
 		require.Equal(t, owner.OrganizationID, created.OrganizationID)
-		require.EqualValues(t, 6000, created.AllotmentBps)
+		require.EqualValues(t, 5950, created.AllotmentBps)
 		require.NotEmpty(t, created.OrganizationName)
 
 		_, err = client.UpsertAgentHoursOrganizationAllotment(ctx, other.ID, allotmentReq(0))
@@ -135,15 +135,15 @@ func TestAgentHoursOrganizationAllotments(t *testing.T) {
 				_, err := client.UpsertAgentHoursOrganizationAllotment(ctx, other.ID, allotmentReq(5000))
 				return err
 			}(), http.StatusConflict)
-		require.Equal(t, []codersdk.ValidationError{{Field: "allotment_bps", Detail: "Must not exceed 4000."}}, sdkErr.Validations)
+		require.Equal(t, []codersdk.ValidationError{{Field: "allotment_bps", Detail: "Must not exceed 4050."}}, sdkErr.Validations)
 
 		_, err = client.UpsertAgentHoursOrganizationAllotment(ctx, other.ID, allotmentReq(4000))
 		require.NoError(t, err)
 
-		// 10000 only fits once the organization's own 6000 is excluded.
+		// 10000 only fits once the organization's own 5950 is excluded.
 		_, err = client.UpsertAgentHoursOrganizationAllotment(ctx, other.ID, allotmentReq(10000))
 		sdkErr = requireAgentHoursStatus(t, err, http.StatusConflict)
-		require.Equal(t, "Only 0% is unallotted, so this allotment can be at most 40%.", sdkErr.Detail)
+		require.Equal(t, "Only 0.5% is unallotted, so this allotment can be at most 40.5%.", sdkErr.Detail)
 		require.NoError(t, client.DeleteAgentHoursOrganizationAllotment(ctx, owner.OrganizationID))
 		_, err = client.UpsertAgentHoursOrganizationAllotment(ctx, other.ID, allotmentReq(10000))
 		require.NoError(t, err)
