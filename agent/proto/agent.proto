@@ -386,15 +386,26 @@ message Connection {
 		JETBRAINS = 3;
 		RECONNECTING_PTY = 4;
 	}
+	// Prefixed because enum values share the Connection scope with Type.
+	enum Method {
+		METHOD_UNSPECIFIED = 0;
+		METHOD_SSH = 1;
+		METHOD_RECONNECTING_PTY = 2;
+		METHOD_PORT_FORWARDING = 3;
+	}
 
 	bytes id = 1;
 	Action action = 2;
-	Type type = 3;
+	// Sent only by agents before API v2.13.
+	Type type = 3 [deprecated = true];
 	google.protobuf.Timestamp timestamp = 4;
 	string ip = 5;
 	int32 status_code = 6;
 	optional string reason = 7;
 	string client_session_id = 8;
+	// The client app, such as "cursor". Empty when unknown.
+	string app_name = 9;
+	Method connection_method = 10;
 }
 
 message ReportConnectionRequest {

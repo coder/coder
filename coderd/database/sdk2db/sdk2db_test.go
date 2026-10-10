@@ -62,3 +62,50 @@ func TestConnectionLogFromAgentType(t *testing.T) {
 	_, _, err := sdk2db.ConnectionLogFromAgentType(agentproto.Connection_Type(1000))
 	require.Error(t, err)
 }
+
+func TestConnectionLogFromAgentConnection(t *testing.T) {
+	t.Parallel()
+
+	const (
+		ssh  = database.ConnectionLogMethodSSH
+		pty  = database.ConnectionLogMethodReconnectingPTY
+		port = database.ConnectionLogMethodPortForwarding
+	)
+	for _, tc := range []struct {
+		name    string
+		method  agentproto.Connection_Method
+		typ     agentproto.Connection_Type
+		appName string
+		want    database.ConnectionLogMethod
+		wantApp string
+	}{
+		{"SSHApp", agentproto.Connection_METHOD_SSH, 0, "Cursor", ssh, "cursor"},
+		{"SSHWithoutApp", agentproto.Connection_METHOD_SSH, 0, "", ssh, ""},
+		{"TypeIgnoredWithMethod", agentproto.Connection_METHOD_SSH, agentproto.Connection_VSCODE, "", ssh, ""},
+		{"PTYApp", agentproto.Connection_METHOD_RECONNECTING_PTY, 0, "Some-App", pty, "some_app"},
+		// A forward's column holds its destination, not an app.
+		{"PortForwarding", agentproto.Connection_METHOD_PORT_FORWARDING, 0, "8080", port, ""},
+		// Agents before API v2.13 send only the type.
+		{"LegacyUnspecified", agentproto.Connection_METHOD_UNSPECIFIED, agentproto.Connection_TYPE_UNSPECIFIED, "", ssh, ""},
+		{"LegacyVSCode", agentproto.Connection_METHOD_UNSPECIFIED, agentproto.Connection_VSCODE, "", ssh, "vscode"},
+		{"LegacyPTY", agentproto.Connection_METHOD_UNSPECIFIED, agentproto.Connection_RECONNECTING_PTY, "", pty, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			method, appName, err := sdk2db.ConnectionLogFromAgentConnection(&agentproto.Connection{
+				ConnectionMethod: tc.method,
+				Type:             tc.typ,
+				AppName:          tc.appName,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.want, method)
+			require.Equal(t, tc.wantApp, appName)
+		})
+	}
+
+	// Unknown methods are never recorded as SSH.
+	_, _, err := sdk2db.ConnectionLogFromAgentConnection(&agentproto.Connection{ConnectionMethod: agentproto.Connection_Method(42)})
+	require.Error(t, err)
+	_, _, err = sdk2db.ConnectionLogFromAgentConnection(&agentproto.Connection{Type: agentproto.Connection_Type(1000)})
+	require.Error(t, err)
+}

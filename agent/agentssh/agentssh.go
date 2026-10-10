@@ -455,18 +455,10 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		)
 	}
 
-	// Connection_Type is a fixed enum, stored as a database enum in the
-	// connection log, so it can only hold a family.
-	var connectionType proto.Connection_Type
-	switch family {
-	case codersdk.AppFamilySSH:
-		connectionType = proto.Connection_SSH
-	case codersdk.AppFamilyVSCode:
-		connectionType = proto.Connection_VSCODE
-	case codersdk.AppFamilyJetBrains:
-		connectionType = proto.Connection_JETBRAINS
-	default:
-		connectionType = proto.Connection_TYPE_UNSPECIFIED
+	// App-less sessions count as SSH but report no app.
+	connectionAppName := appName
+	if rawAppName == "" {
+		connectionAppName = ""
 	}
 
 	// It's not safe to assume RemoteAddr() returns a non-nil value. slog.F usage is fine because it correctly
@@ -483,8 +475,8 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		// Report connection attempt even if we couldn't accept it.
 		connReporter := s.config.ConnectionReporter.Connect(proto.ConnectEvent{
 			ID:              id,
-			Type:            connectionType,
-			AppName:         appName,
+			Method:          proto.Connection_METHOD_SSH,
+			AppName:         connectionAppName,
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
 		})
@@ -521,8 +513,8 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 		connReporter := s.config.ConnectionReporter.Connect(proto.ConnectEvent{
 			ID:              id,
-			Type:            connectionType,
-			AppName:         appName,
+			Method:          proto.Connection_METHOD_SSH,
+			AppName:         connectionAppName,
 			IP:              remoteAddrString,
 			ClientSessionID: clientSessionID,
 		})

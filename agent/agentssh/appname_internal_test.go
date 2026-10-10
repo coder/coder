@@ -30,6 +30,8 @@ func TestExtractAppName(t *testing.T) {
 		{"VSCode", envWith("vscode"), "", "vscode"},
 		{"JetBrainsLegacyCasing", envWith("JetBrains"), "", "jetbrains"},
 		{"UnknownTypeNormalized", envWith("Cursor-Nightly"), "", "cursor_nightly"},
+		// The method marks PTY connections, so this is just an app name.
+		{"WebTerminalNameKept", envWith("Reconnecting-PTY"), "", "reconnecting_pty"},
 		{"LastInstanceWins", append(envWith("vscode"), AppNameEnvironmentVariable+"=cursor"), "", "cursor"},
 		// A variable that merely starts with the same characters is a
 		// different variable, not an app name.

@@ -131,18 +131,17 @@ func (r *disconnectionReporter) Disconnect(disconnectEvent proto.DisconnectEvent
 // connection request.  Disconnect events must pass both the original connect
 // event and the disconnect event.
 func connectionRequest(connect *proto.ConnectEvent, disconnect *proto.DisconnectEvent) *proto.ReportConnectionRequest {
-	// TODO: For now, `connect.AppName` is ignored.  It needs to be added once the
-	// type and app names are separated in the database.
 	payload := &proto.ReportConnectionRequest{
 		Connection: &proto.Connection{
-			Id:              connect.ID[:],
-			Action:          proto.Connection_CONNECT,
-			Type:            connect.Type,
-			Timestamp:       timestamppb.New(time.Now()),
-			Ip:              connect.IP,
-			StatusCode:      0,
-			Reason:          nil,
-			ClientSessionId: connect.ClientSessionID,
+			Id:               connect.ID[:],
+			Action:           proto.Connection_CONNECT,
+			Timestamp:        timestamppb.New(time.Now()),
+			Ip:               connect.IP,
+			StatusCode:       0,
+			Reason:           nil,
+			ClientSessionId:  connect.ClientSessionID,
+			AppName:          connect.AppName,
+			ConnectionMethod: connect.Method,
 		},
 	}
 	if disconnect != nil {
