@@ -645,9 +645,7 @@ const AgentChatPage: React.FC = () => {
 		isSubmissionPending,
 		hasModelOptions,
 		isEditReasoningEffortDirtyRef,
-		personalSkills: personalSkillsQuery.isSuccess
-			? personalSkillsQuery.data
-			: undefined,
+		personalSkills: personalSkillsQuery.data,
 		workspaceSkills: chatWorkspaceSkills,
 		compact,
 		clearChatContext,
