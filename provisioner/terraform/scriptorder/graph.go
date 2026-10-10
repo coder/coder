@@ -82,7 +82,8 @@ func buildGraphsWithCombinationLimit(
 ) (Order, error) {
 	graphs := map[graphKey]*graphAccumulator{}
 	budget := combinationBudget{limit: combinationLimit}
-	for _, rule := range rules {
+	for i := range rules {
+		rule := &rules[i]
 		key := graphKey{
 			runtimeAddress: rule.runtimeAddress,
 			phase:          rule.phase,
@@ -119,7 +120,7 @@ func buildGraphsWithCombinationLimit(
 
 func addRuleEdges(
 	graph *graphAccumulator,
-	rule resolvedRule,
+	rule *resolvedRule,
 	budget *combinationBudget,
 ) error {
 	runSelections := uniqueAddressSelections(rule.run)
