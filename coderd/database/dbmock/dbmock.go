@@ -7001,21 +7001,6 @@ func (mr *MockStoreMockRecorder) GetUserThinkingDisplayMode(ctx, userID any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserThinkingDisplayMode", reflect.TypeOf((*MockStore)(nil).GetUserThinkingDisplayMode), ctx, userID)
 }
 
-// GetUserWorkspaceBuildParameters mocks base method.
-func (m *MockStore) GetUserWorkspaceBuildParameters(ctx context.Context, arg database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserWorkspaceBuildParameters", ctx, arg)
-	ret0, _ := ret[0].([]database.GetUserWorkspaceBuildParametersRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserWorkspaceBuildParameters indicates an expected call of GetUserWorkspaceBuildParameters.
-func (mr *MockStoreMockRecorder) GetUserWorkspaceBuildParameters(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserWorkspaceBuildParameters", reflect.TypeOf((*MockStore)(nil).GetUserWorkspaceBuildParameters), ctx, arg)
-}
-
 // GetUsers mocks base method.
 func (m *MockStore) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	m.ctrl.T.Helper()

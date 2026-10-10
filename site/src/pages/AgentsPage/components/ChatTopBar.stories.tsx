@@ -97,7 +97,7 @@ export const SharedChat: Story = {
 	},
 };
 
-/** Viewers of another user's chat get no owner actions menu. */
+/** The share permission must not bring back the share button for viewers. */
 export const SharedChatViewer: Story = {
 	args: {
 		chat: {
@@ -107,6 +107,9 @@ export const SharedChatViewer: Story = {
 			owner_name: "Sharing User",
 			shared: true,
 		},
+	},
+	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({ canShareChat: true });
 	},
 };
 

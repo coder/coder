@@ -5673,21 +5673,6 @@ func (q *querier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UU
 	return q.db.GetUserThinkingDisplayMode(ctx, userID)
 }
 
-func (q *querier) GetUserWorkspaceBuildParameters(ctx context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
-	u, err := q.db.GetUserByID(ctx, params.OwnerID)
-	if err != nil {
-		return nil, err
-	}
-	// This permission is a bit strange. Reading workspace build params should be a permission
-	// on the workspace. However, this use case is to autofill a user's last input
-	// to some parameter. So this is kind of a "user setting". For now, this will
-	// be lumped in with user personal data. Subject to change.
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return nil, err
-	}
-	return q.db.GetUserWorkspaceBuildParameters(ctx, params)
-}
-
 func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	// This does the filtering in SQL.
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceUser.Type)

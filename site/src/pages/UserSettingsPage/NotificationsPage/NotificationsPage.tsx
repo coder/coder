@@ -88,7 +88,7 @@ const NotificationsPage: React.FC = () => {
 					description: getErrorDetail(error),
 				});
 			});
-	}, [searchParams.delete, disabledId, disableMutation]);
+	}, [searchParams, disabledId, disableMutation]);
 
 	const ready =
 		disabledPreferences.data &&

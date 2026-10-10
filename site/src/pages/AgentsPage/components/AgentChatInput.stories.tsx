@@ -707,6 +707,17 @@ export const WithTwoMCPServers: Story = {
 	},
 };
 
+export const ReadOnlyNotice: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [linearMCP.id, githubMCPConnected.id],
+		isDisabled: true,
+		isReadOnly: true,
+		readOnlyNotice: "This chat is owned by Tyler. It is read-only.",
+	},
+};
+
 /** The pill lists only its active servers; Notion stays in the plus menu. */
 export const MCPGroupPopoverOpen: Story = {
 	args: {
