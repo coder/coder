@@ -30,6 +30,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	Reflect.deleteProperty(Element.prototype, "scrollTo");
 });
 
@@ -41,33 +42,39 @@ const nextFrames = () =>
 			}),
 	);
 
-it("opens a transcript that mounts after the scroller provider at the end without loading older messages", async () => {
-	const onFetchMoreMessages = vi.fn();
-	const page = (transcript: boolean) => (
-		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-			{transcript && (
-				<ChatMessageScroller
-					hasMoreMessages
-					isFetchingMoreMessages={false}
-					isHydratingMessages={false}
-					hasFetchMoreError={false}
-					hasTranscriptRows
-					onFetchMoreMessages={onFetchMoreMessages}
-				>
-					{["1", "2", "3"].map((id) => (
-						<MessageScroller.Item key={id} messageId={id}>
-							message {id}
-						</MessageScroller.Item>
-					))}
-				</ChatMessageScroller>
-			)}
-		</MessageScroller.Provider>
-	);
+it.each([true, false])(
+	"loads no older messages when a transcript mounts after its scroller provider (autoScroll: %s)",
+	async (autoScroll) => {
+		const onFetchMoreMessages = vi.fn();
+		const page = (transcript: boolean) => (
+			<MessageScroller.Provider
+				autoScroll={autoScroll}
+				defaultScrollPosition="end"
+			>
+				{transcript && (
+					<ChatMessageScroller
+						hasMoreMessages
+						isFetchingMoreMessages={false}
+						isHydratingMessages={false}
+						hasFetchMoreError={false}
+						hasTranscriptRows
+						onFetchMoreMessages={onFetchMoreMessages}
+					>
+						{["1", "2", "3"].map((id) => (
+							<MessageScroller.Item key={id} messageId={id}>
+								message {id}
+							</MessageScroller.Item>
+						))}
+					</ChatMessageScroller>
+				)}
+			</MessageScroller.Provider>
+		);
 
-	// The provider mounts while the page shows its loading view.
-	const { rerender } = render(page(false));
-	rerender(page(true));
-	await nextFrames();
+		// The provider mounts while the page shows its loading view.
+		const { rerender } = render(page(false));
+		rerender(page(true));
+		await nextFrames();
 
-	expect(onFetchMoreMessages).not.toHaveBeenCalled();
-});
+		expect(onFetchMoreMessages).not.toHaveBeenCalled();
+	},
+);
