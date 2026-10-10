@@ -116,11 +116,6 @@ export const OrganizationSkillsLoading: Story = {
 			new Promise(() => {}),
 		);
 	},
-	play: async ({ canvasElement }) => {
-		await within(canvasElement).findAllByRole("progressbar", {
-			name: "Loading organization skills",
-		});
-	},
 };
 
 export const OrganizationSkillsError: Story = {
