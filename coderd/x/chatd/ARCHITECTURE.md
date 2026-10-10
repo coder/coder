@@ -972,6 +972,8 @@ The runner maintains the following local state:
 
 Each step of a turn runs as its own goroutine, so turn-wide decisions live on the runner. The first step with MCP candidates decides `mcp-tool-search` for the chat owner and later steps reuse it, so a rule change applies from the next turn and never withdraws a `find_tools` call already issued. Steps without MCP candidates never offer `find_tools`, so they skip the rule read and cache nothing. A late result from an older turn never replaces a newer decision, because prompt row IDs only increase. Turns without a prompt row are not cached. The decision lives in memory only, so a new runner after a handoff evaluates it again.
 
+TODO: document the runner's workspace agent connection (`runnerAgentConn`). Each step still resolves its workspace agent from its own chat snapshot, and dials through the runner: the runner returns the connection it holds if it is to that workspace agent and the workspace agent is not disconnected, and otherwise acquires a new one. It also keeps that workspace agent's home directory for the plan path. A root chat's plan path lookup makes the runner forget a connection to a workspace agent other than the latest build's chat agent. The runner releases every connection it acquired when it exits, after its steps have ended.
+
 ### Event processing
 
 The main idea behind the event processing logic is that a chat's status and its history version determine the work that the runner should be performing at any given time. Let's go through an example:

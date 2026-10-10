@@ -246,6 +246,7 @@ func (server *Server) prepareGeneration(
 		chatStateMu:      &chatStateMu,
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
+		runnerAgentConn:  input.RunnerAgentConn,
 	}
 	// mcpCleanup and inlineMCPCleanup are assigned by g2 goroutines and
 	// read only after g2.Wait, so no error path can run this before
@@ -267,11 +268,7 @@ func (server *Server) prepareGeneration(
 	}()
 
 	planPathFn := func(ctx context.Context) (string, string, error) {
-		conn, err := workspaceCtx.getWorkspaceConn(ctx)
-		if err != nil {
-			return "", "", err
-		}
-		home, err := chattool.ResolveWorkspaceHome(ctx, conn)
+		home, err := workspaceCtx.workspaceHome(ctx)
 		if err != nil {
 			return "", "", err
 		}
