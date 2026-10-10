@@ -118,7 +118,7 @@ beforeAll(() => {
 	});
 });
 
-// Held commands stay in the composer, which saves a per-chat draft on unmount.
+// A held command stays in the composer as a saved draft that would prefill the next test.
 beforeEach(() => {
 	localStorage.clear();
 });
@@ -156,18 +156,12 @@ describe("AgentChatPage slash commands", () => {
 			);
 			const toastInfo = vi.spyOn(toast, "info");
 
-			const { queryClient } = renderChatPage();
-			await waitFor(() =>
-				expect(
-					queryClient.getQueryState(
-						skillsKey({
-							type: "organization",
-							organizationId: mockChat.organization_id,
-						}),
-					)?.status,
-				).toBe("error"),
-			);
-			await submitInComposer(`/${command}`);
+			renderChatPage();
+			const user = userEvent.setup();
+			await user.click(await screen.findByTestId("chat-message-input"));
+			await user.paste(`/${command}`);
+			await screen.findByText(/Could not load organization skills/);
+			await user.keyboard("{Enter}");
 
 			await waitFor(() =>
 				expect(toastInfo).toHaveBeenCalledWith(
