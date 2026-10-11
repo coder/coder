@@ -194,6 +194,13 @@ export const RBACResourceActions: Partial<
 		read: "read member",
 		update: "update an organization member",
 	},
+	organization_skill: {
+		create: "create an organization skill",
+		delete: "delete an organization skill",
+		read: "read organization skill metadata and content",
+		share: "share an organization skill with other users or groups",
+		update: "update an organization skill",
+	},
 	prebuilt_workspace: {
 		delete: "delete prebuilt workspace",
 		update: "update prebuilt workspace settings",
