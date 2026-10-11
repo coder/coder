@@ -3644,6 +3644,25 @@ export interface ChatStreamActionRequired {
 
 // From codersdk/chats.go
 /**
+ * ChatStreamCheckpoint ends every applied stream sync and reports the chat
+ * state the events before it reflect.
+ */
+export interface ChatStreamCheckpoint {
+	/**
+	 * SnapshotVersion is the chat's snapshot_version the sync applied. Every
+	 * action response with an equal or lower version is reflected.
+	 */
+	readonly snapshot_version: number;
+	/**
+	 * HistoryVersion is the chat's history_version for the message events
+	 * sent so far. It is set only on streams opened with a history_version;
+	 * a client reconnects with the value of the last checkpoint it received.
+	 */
+	readonly history_version?: number;
+}
+
+// From codersdk/chats.go
+/**
  * ChatStreamEvent represents a real-time update for chat streaming.
  */
 export interface ChatStreamEvent {
@@ -3658,19 +3677,19 @@ export interface ChatStreamEvent {
 	readonly action_required?: ChatStreamActionRequired;
 	/**
 	 * HistoryReset is set on history_reset events of streams opened with a
-	 * non-zero history_version.
+	 * history_version.
 	 */
 	readonly history_reset?: ChatStreamHistoryReset;
 	/**
-	 * PreviewReset is set on preview_reset events of streams opened with a
-	 * non-zero history_version.
+	 * Checkpoint is set on checkpoint events.
 	 */
-	readonly preview_reset?: ChatStreamPreviewReset;
+	readonly checkpoint?: ChatStreamCheckpoint;
 }
 
 // From codersdk/chats.go
 export type ChatStreamEventType =
 	| "action_required"
+	| "checkpoint"
 	| "error"
 	| "history_reset"
 	| "message"
@@ -3682,6 +3701,7 @@ export type ChatStreamEventType =
 
 export const ChatStreamEventTypes: ChatStreamEventType[] = [
 	"action_required",
+	"checkpoint",
 	"error",
 	"history_reset",
 	"message",
@@ -3716,21 +3736,6 @@ export interface ChatStreamMessagePart {
 	readonly history_version?: number;
 	readonly generation_attempt?: number;
 	readonly seq?: number;
-}
-
-// From codersdk/chats.go
-/**
- * ChatStreamPreviewReset reports the history version a stream has
- * synchronized.
- */
-export interface ChatStreamPreviewReset {
-	/**
-	 * HistoryVersion is the chat's history_version for the message events
-	 * sent before this preview_reset. Every sync that changes the history
-	 * ends with a preview_reset, so a client reconnects with the
-	 * history_version of the last one it received.
-	 */
-	readonly history_version: number;
 }
 
 // From codersdk/chats.go
@@ -9662,10 +9667,10 @@ export interface StreamChatOptions {
 	readonly AfterID: number | null;
 	/**
 	 * HistoryVersion is the history version of the caller's messages, from
-	 * ChatMessagesResponse or ChatStreamPreviewReset. When it is non-zero, the
-	 * server ignores AfterID and history resets carry
-	 * ChatStreamEvent.HistoryReset. When it is nil or zero, every connection
-	 * to a chat with a deleted message resends the whole history.
+	 * ChatMessagesResponse or ChatStreamCheckpoint. When it is set, zero
+	 * included, the server ignores AfterID and history resets carry
+	 * ChatStreamEvent.HistoryReset. When it is nil, every connection to a
+	 * chat with a deleted message resends the whole history.
 	 */
 	readonly HistoryVersion: number | null;
 }

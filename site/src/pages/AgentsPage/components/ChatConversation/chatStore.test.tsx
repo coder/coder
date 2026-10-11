@@ -3979,9 +3979,9 @@ describe("useChatStore", () => {
 		act(() => {
 			mockSocket2.emitOpen();
 			mockSocket2.emitData({
-				type: "preview_reset",
+				type: "checkpoint",
 				chat_id: chatID,
-				preview_reset: { history_version: 7 },
+				checkpoint: { snapshot_version: 1, history_version: 7 },
 			});
 		});
 
@@ -4046,9 +4046,9 @@ describe("useChatStore", () => {
 		act(() => {
 			sockets[0].emitOpen();
 			sockets[0].emitData({
-				type: "preview_reset",
+				type: "checkpoint",
 				chat_id: chatID,
-				preview_reset: { history_version: 7 },
+				checkpoint: { snapshot_version: 1, history_version: 7 },
 			});
 		});
 		first.unmount();

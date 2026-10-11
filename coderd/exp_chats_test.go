@@ -10175,7 +10175,7 @@ func TestStreamChat(t *testing.T) {
 		requireResetFrom(applied, editedID)
 		require.Equal(t, liveChatMessageIDs(ctx, t, client, chat.ID), live.sortedIDs())
 
-		// Reconnecting with the version from the last preview_reset sends
+		// Reconnecting with the version from the last checkpoint sends
 		// nothing.
 		applied, _ = live.connect(ctx, t, client, chat.ID)
 		requireNoHistory(applied)
@@ -10190,7 +10190,7 @@ func TestStreamChat(t *testing.T) {
 
 		// A client without a history version gets a full reset.
 		legacy := newChatTab(newestPage())
-		legacy.version = 0
+		legacy.withoutHistoryVersion = true
 		applied, _ = legacy.connect(ctx, t, client, chat.ID)
 		require.Equal(t, codersdk.ChatStreamEventTypeHistoryReset, applied[0].Type)
 		require.Nil(t, applied[0].HistoryReset, "a client without history_version must get the full reset")
@@ -13903,10 +13903,18 @@ func waitForChatStatus(ctx context.Context, t testing.TB, client *codersdk.Exper
 }
 
 // chatTab models the state a web client tab keeps for one chat: the IDs
-// of the messages it holds and its history version.
+// of the messages it holds, its history version, and the status, queue
+// and snapshot version the stream last reported.
 type chatTab struct {
 	ids     map[int64]bool
 	version int64
+	// withoutHistoryVersion opens the stream without history_version, as
+	// clients that predate it do.
+	withoutHistoryVersion bool
+
+	status          codersdk.ChatStatus
+	queue           []int64
+	snapshotVersion int64
 }
 
 func newChatTab(page codersdk.ChatMessagesResponse) *chatTab {
@@ -13926,21 +13934,20 @@ func (tab *chatTab) sortedIDs() []int64 {
 }
 
 // connect opens the stream with the tab's newest message ID and history
-// version, and applies events through the first status event, which every
-// initial sync sends. When that sync changes the history, its preview_reset
-// follows the status, so the next applyUntil applies its history version.
+// version, and applies events through the checkpoint that ends the initial
+// sync.
 func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent) {
 	t.Helper()
 	afterID := slices.Max(append(tab.sortedIDs(), 0))
 	opts := &codersdk.StreamChatOptions{AfterID: &afterID}
-	if tab.version > 0 {
-		opts.HistoryVersion = &tab.version
+	if !tab.withoutHistoryVersion {
+		opts.HistoryVersion = ptr.Ref(tab.version)
 	}
 	events, closer, err := client.StreamChat(ctx, chatID, opts)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = closer.Close() })
 	applied := tab.applyUntil(ctx, t, events, func(event codersdk.ChatStreamEvent) bool {
-		return event.Type == codersdk.ChatStreamEventTypeStatus
+		return event.Type == codersdk.ChatStreamEventTypeCheckpoint
 	})
 	return applied, events
 }
@@ -13975,9 +13982,19 @@ func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan 
 				maps.DeleteFunc(tab.ids, func(id int64, _ bool) bool { return id >= fromID })
 			case codersdk.ChatStreamEventTypeMessage:
 				tab.hold(*event.Message)
-			case codersdk.ChatStreamEventTypePreviewReset:
-				if event.PreviewReset != nil {
-					tab.version = event.PreviewReset.HistoryVersion
+			case codersdk.ChatStreamEventTypeStatus:
+				tab.status = event.Status.Status
+			case codersdk.ChatStreamEventTypeQueueUpdate:
+				tab.queue = make([]int64, 0, len(event.QueuedMessages))
+				for _, queued := range event.QueuedMessages {
+					tab.queue = append(tab.queue, queued.ID)
+				}
+			case codersdk.ChatStreamEventTypeCheckpoint:
+				if event.Checkpoint != nil && event.Checkpoint.HistoryVersion != nil {
+					tab.version = *event.Checkpoint.HistoryVersion
+				}
+				if event.Checkpoint != nil {
+					tab.snapshotVersion = event.Checkpoint.SnapshotVersion
 				}
 			}
 			if done(event) {
