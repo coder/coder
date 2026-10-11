@@ -1523,11 +1523,13 @@ export const chatQueueConvergence = (chatId: string) => ({
 const fetchMessagesPage = async (
 	chatId: string,
 	beforeId: number | undefined,
+	signal: AbortSignal,
 ): Promise<TypesGen.ChatMessagesResponse> => {
-	const page = await API.experimental.getChatMessages(chatId, {
-		before_id: beforeId,
-		limit: MESSAGES_PAGE_SIZE,
-	});
+	const page = await API.experimental.getChatMessages(
+		chatId,
+		{ before_id: beforeId, limit: MESSAGES_PAGE_SIZE },
+		signal,
+	);
 	const turnStartId = page.turn_start_id;
 	if (turnStartId === undefined) {
 		return page;
@@ -1540,15 +1542,19 @@ const fetchMessagesPage = async (
 			break;
 		}
 		try {
-			const older = await API.experimental.getChatMessages(chatId, {
-				// after_id is exclusive, so this keeps the prompt itself.
-				after_id: turnStartId - 1,
-				before_id: oldestId,
-				limit: Math.min(
-					MAX_MESSAGES_PER_REQUEST,
-					MAX_MESSAGES_PER_PAGE - messages.length,
-				),
-			});
+			const older = await API.experimental.getChatMessages(
+				chatId,
+				{
+					// after_id is exclusive, so this keeps the prompt itself.
+					after_id: turnStartId - 1,
+					before_id: oldestId,
+					limit: Math.min(
+						MAX_MESSAGES_PER_REQUEST,
+						MAX_MESSAGES_PER_PAGE - messages.length,
+					),
+				},
+				signal,
+			);
 			messages.push(...older.messages);
 			// An empty page cannot move the cursor, whatever has_more says.
 			if (!older.has_more || older.messages.length === 0) {
@@ -1569,8 +1575,13 @@ const fetchMessagesPage = async (
 export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
 	initialPageParam: undefined as number | undefined,
-	queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
-		fetchMessagesPage(chatId, pageParam),
+	queryFn: ({
+		pageParam,
+		signal,
+	}: {
+		pageParam: number | undefined;
+		signal: AbortSignal;
+	}) => fetchMessagesPage(chatId, pageParam, signal),
 	getNextPageParam: (lastPage: TypesGen.ChatMessagesResponse) => {
 		if (!lastPage.has_more || lastPage.messages.length === 0) {
 			return undefined;

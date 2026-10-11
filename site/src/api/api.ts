@@ -3352,6 +3352,7 @@ class ExperimentalApiMethods {
 	getChatMessages = async (
 		chatId: string,
 		opts?: { before_id?: number; after_id?: number; limit?: number },
+		signal?: AbortSignal,
 	): Promise<TypesGen.ChatMessagesResponse> => {
 		const params = new URLSearchParams();
 		if (opts?.before_id) {
@@ -3365,7 +3366,9 @@ class ExperimentalApiMethods {
 		}
 		const query = params.toString();
 		const url = `/api/v2/chats/${chatId}/messages${query ? `?${query}` : ""}`;
-		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(url);
+		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(url, {
+			signal,
+		});
 		return response.data;
 	};
 
