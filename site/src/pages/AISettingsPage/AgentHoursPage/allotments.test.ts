@@ -4,7 +4,9 @@ import {
 	allotmentTargetLabel,
 	formatAllotmentPercent,
 	formatHours,
+	notAttributedMs,
 	parseAllotmentPercent,
+	usageWithoutAllotment,
 } from "./allotments";
 
 describe("parseAllotmentPercent", () => {
@@ -95,5 +97,70 @@ describe("allotmentTargetLabel", () => {
 		},
 	])("labels $target.name as $label", ({ target, targets, label }) => {
 		expect(allotmentTargetLabel(target, targets)).toBe(label);
+	});
+});
+
+describe("usageWithoutAllotment", () => {
+	const mockEngineering = {
+		id: "1",
+		name: "eng",
+		display_name: "Engineering",
+		usedMs: 3_600_000,
+	};
+	const mockPlatform = {
+		id: "2",
+		name: "platform",
+		display_name: "Platform",
+		usedMs: 7_200_000,
+	};
+	const mockIdle = { id: "3", name: "idle", display_name: "", usedMs: 0 };
+	const mockDeleted = { id: "4", name: "", display_name: "", usedMs: 60_000 };
+	const used = [mockEngineering, mockPlatform, mockIdle, mockDeleted];
+
+	it("lists used targets without an allotment and labels deleted ones", () => {
+		expect(
+			usageWithoutAllotment(used, [{ id: mockPlatform.id }], {
+				targets: used,
+				deletedLabel: "Deleted group",
+				href: (name) => `/groups/${name}`,
+			}),
+		).toEqual([
+			{
+				id: mockEngineering.id,
+				name: "Engineering",
+				usedMs: 3_600_000,
+				href: "/groups/eng",
+			},
+			{ id: mockDeleted.id, name: "Deleted group", usedMs: 60_000 },
+		]);
+	});
+
+	it("tells apart targets that share a display name", () => {
+		const mockNamesake = { ...mockPlatform, display_name: "Engineering" };
+		expect(
+			usageWithoutAllotment([mockNamesake], [], {
+				targets: [mockEngineering, mockNamesake],
+				deletedLabel: "Deleted organization",
+			}),
+		).toEqual([
+			{
+				id: mockNamesake.id,
+				name: "Engineering (platform)",
+				usedMs: 7_200_000,
+				href: undefined,
+			},
+		]);
+	});
+});
+
+describe("notAttributedMs", () => {
+	it("is the share of the total that no organization accounts for", () => {
+		expect(
+			notAttributedMs(10_000, [{ used_ms: 6_000 }, { used_ms: 1_000 }]),
+		).toBe(3_000);
+	});
+
+	it("is zero when the organizations add up to more than the total", () => {
+		expect(notAttributedMs(10_000, [{ used_ms: 10_500 }])).toBe(0);
 	});
 });

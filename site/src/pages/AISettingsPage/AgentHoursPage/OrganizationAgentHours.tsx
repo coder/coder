@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	agentHoursGroupAllotments,
 	deleteAgentHoursGroupAllotment,
+	organizationAgentHoursUsage,
 	upsertAgentHoursGroupAllotment,
 } from "#/api/queries/agentHours";
 import { groupsByOrganization } from "#/api/queries/groups";
@@ -26,6 +27,7 @@ export const OrganizationAgentHours: React.FC<OrganizationAgentHoursProps> = ({
 		...groupsByOrganization(organization.name),
 		refetchOnWindowFocus: true,
 	});
+	const usageQuery = useQuery(organizationAgentHoursUsage(organization.id));
 	const upsertMutation = useMutation(
 		upsertAgentHoursGroupAllotment(queryClient),
 	);
@@ -35,10 +37,13 @@ export const OrganizationAgentHours: React.FC<OrganizationAgentHoursProps> = ({
 
 	return (
 		<OrganizationAgentHoursView
+			organization={organization}
 			licenseHours={licenseHours}
 			groupAllotments={groupAllotmentsQuery.data}
 			groups={groupsQuery.data}
 			error={groupAllotmentsQuery.error ?? groupsQuery.error}
+			usage={usageQuery.data}
+			usageError={usageQuery.error}
 			onSave={(groupId, allotmentBps) =>
 				upsertMutation.mutateAsync({ groupId, allotmentBps })
 			}

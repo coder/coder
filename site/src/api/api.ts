@@ -2487,6 +2487,20 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/groups/${groupId}/agent-hours/allotment`);
 	};
 
+	getAgentHoursUsage = async (): Promise<TypesGen.AgentHoursUsage> => {
+		const response = await this.axios.get("/api/v2/agent-hours/usage");
+		return response.data;
+	};
+
+	getOrganizationAgentHoursUsage = async (
+		organizationId: string,
+	): Promise<TypesGen.AgentHoursOrganizationGroupsUsage> => {
+		const response = await this.axios.get(
+			`/api/v2/organizations/${organizationId}/agent-hours/usage`,
+		);
+		return response.data;
+	};
+
 	getWorkspaceQuota = async (
 		organizationName: string,
 		username: string,
