@@ -1,4 +1,5 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
+import type { SkillOwner } from "#/api/queries/skills";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -36,61 +37,77 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { formatDate } from "#/utils/time";
-import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
-import { PersonalSkillEditor } from "./components/PersonalSkillEditor";
-import { SectionHeader } from "./components/SectionHeader";
 import {
-	PERSONAL_SKILLS_MAX_PER_USER,
-	type PersonalSkillFormValues,
-} from "./utils/personalSkills";
+	SKILLS_MAX_PER_OWNER,
+	type SkillAccess,
+	type SkillFormValues,
+	type SkillsCopy,
+} from "../utils/skills";
+import { RetryButton } from "./RetryButton";
+import { SectionHeader, type SectionHeaderLevel } from "./SectionHeader";
+import type { SkillErrorDisplay } from "./SkillEditor";
+import { SkillEditor } from "./SkillEditor";
+import { SkillEnabledSwitch } from "./SkillEnabledSwitch";
+import { useDialogFocusReturn } from "./useDialogFocusReturn";
 
-export type PersonalSkillEditorState =
+export type SkillEditorState =
 	| {
 			mode: "create";
-			initialValues: PersonalSkillFormValues;
+			initialValues: SkillFormValues;
 			existingNames: readonly string[];
-			submitError?: PersonalSkillErrorDisplay;
+			submitError?: SkillErrorDisplay;
 			isSubmitting: boolean;
-			onSubmit: (values: PersonalSkillFormValues, content: string) => void;
+			onSubmit: (values: SkillFormValues, content: string) => void;
 			onClose: () => void;
 	  }
 	| {
 			mode: "edit";
-			initialValues?: PersonalSkillFormValues;
+			readOnly?: boolean;
+			initialValues?: SkillFormValues;
 			existingNames: readonly string[];
 			loadError?: unknown;
 			isLoading: boolean;
 			isRetrying: boolean;
-			submitError?: PersonalSkillErrorDisplay;
+			submitError?: SkillErrorDisplay;
 			isSubmitting: boolean;
 			onRetry: () => void;
-			onSubmit: (values: PersonalSkillFormValues, content: string) => void;
+			onSubmit: (values: SkillFormValues, content: string) => void;
 			onClose: () => void;
 	  };
 
-export type PersonalSkillDeleteState = {
+export type SkillDeleteState = {
 	skill: SkillMetadata;
-	error?: PersonalSkillErrorDisplay;
+	error?: SkillErrorDisplay;
 	isDeleting: boolean;
 	onConfirm: () => void;
 	onClose: () => void;
 };
 
-export type AgentSettingsPersonalSkillsPageViewProps = {
+export type SkillsTableViewProps = {
+	owner: SkillOwner;
 	skills: readonly SkillMetadata[];
+	copy: SkillsCopy;
+	access: SkillAccess;
+	headerLevel?: SectionHeaderLevel;
+	toolbar?: React.ReactNode;
 	error: unknown;
 	isLoading: boolean;
 	isRetrying: boolean;
 	onRetry: () => void;
 	onCreate: () => void;
+	/** Also handles View: the editor opens read-only without update access. */
 	onEdit: (name: string) => void;
 	onDelete: (skill: SkillMetadata) => void;
 	onDownload: (skill: SkillMetadata) => void;
+	onManagePermissions?: (
+		skill: SkillMetadata,
+		onCloseAutoFocus: (event: Event) => void,
+	) => void;
 	onExportAll: () => void;
 	downloadingSkillName?: string;
 	isExportingAll: boolean;
-	editorState?: PersonalSkillEditorState;
-	deleteState?: PersonalSkillDeleteState;
+	editorState?: SkillEditorState;
+	deleteState?: SkillDeleteState;
 };
 
 const formatUpdatedAt = (value: string) => {
@@ -109,9 +126,17 @@ const formatUpdatedAt = (value: string) => {
 	});
 };
 
-const EditSkillDialog: React.FC<{
-	state: Extract<PersonalSkillEditorState, { mode: "edit" }>;
-}> = ({ state }) => {
+type DialogProps<State> = {
+	state: State;
+	onCloseAutoFocus: (event: Event) => void;
+};
+
+const EditSkillDialog: React.FC<
+	DialogProps<Extract<SkillEditorState, { mode: "edit" }>> & {
+		copy: SkillsCopy;
+	}
+> = ({ copy, state, onCloseAutoFocus }) => {
+	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
 			state.onClose();
@@ -121,9 +146,9 @@ const EditSkillDialog: React.FC<{
 	if (state.isLoading) {
 		return (
 			<Dialog open onOpenChange={handleOpenChange}>
-				<DialogContent>
+				<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
 					<DialogHeader>
-						<DialogTitle>Loading personal skill</DialogTitle>
+						<DialogTitle>Loading {lowerNoun}</DialogTitle>
 						<DialogDescription>
 							Fetching the latest SKILL.md content.
 						</DialogDescription>
@@ -137,11 +162,12 @@ const EditSkillDialog: React.FC<{
 	if (state.loadError || !state.initialValues) {
 		return (
 			<Dialog open onOpenChange={handleOpenChange}>
-				<DialogContent>
+				<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
 					<DialogHeader>
-						<DialogTitle>Unable to load personal skill</DialogTitle>
+						<DialogTitle>Unable to load {lowerNoun}</DialogTitle>
 						<DialogDescription>
-							The skill could not be loaded for editing.
+							The skill could not be loaded for{" "}
+							{state.readOnly ? "viewing" : "editing"}.
 						</DialogDescription>
 					</DialogHeader>
 					{state.loadError ? (
@@ -157,10 +183,10 @@ const EditSkillDialog: React.FC<{
 						<Button variant="outline" onClick={state.onClose}>
 							Close
 						</Button>
-						<Button onClick={state.onRetry} disabled={state.isRetrying}>
-							{state.isRetrying && <Spinner className="size-4" loading />}
-							Retry
-						</Button>
+						<RetryButton
+							isRetrying={state.isRetrying}
+							onRetry={state.onRetry}
+						/>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
@@ -168,27 +194,33 @@ const EditSkillDialog: React.FC<{
 	}
 
 	return (
-		<PersonalSkillEditor
+		<SkillEditor
 			open
 			mode="edit"
+			readOnly={state.readOnly}
+			noun={copy.noun}
+			editorDescription={copy.editorDescription}
 			initialValues={state.initialValues}
 			existingNames={state.existingNames}
 			submitError={state.submitError}
 			isSubmitting={state.isSubmitting}
 			onOpenChange={handleOpenChange}
+			onCloseAutoFocus={onCloseAutoFocus}
 			onSubmit={state.onSubmit}
 		/>
 	);
 };
 
-const DeleteSkillDialog: React.FC<{ state: PersonalSkillDeleteState }> = ({
+const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
 	state,
+	onCloseAutoFocus,
 }) => {
 	return (
 		<ConfirmDialog
 			type="delete"
 			open
 			onClose={state.onClose}
+			onCloseAutoFocus={onCloseAutoFocus}
 			title="Delete skill"
 			confirmText="Delete skill"
 			description={
@@ -213,10 +245,13 @@ const DeleteSkillDialog: React.FC<{ state: PersonalSkillDeleteState }> = ({
 	);
 };
 
-export const AgentSettingsPersonalSkillsPageView: React.FC<
-	AgentSettingsPersonalSkillsPageViewProps
-> = ({
+export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
+	owner,
 	skills,
+	copy,
+	access,
+	headerLevel,
+	toolbar,
 	error,
 	isLoading,
 	isRetrying,
@@ -225,26 +260,40 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 	onEdit,
 	onDelete,
 	onDownload,
+	onManagePermissions,
 	onExportAll,
 	downloadingSkillName,
 	isExportingAll,
 	editorState,
 	deleteState,
 }) => {
-	const isAtLimit = skills.length >= PERSONAL_SKILLS_MAX_PER_USER;
-	const addSkillAction = (
-		<Button
-			variant="outline"
-			onClick={onCreate}
-			disabled={isLoading || isAtLimit}
-		>
-			<PlusIcon />
-			Add skill
-		</Button>
-	);
+	const {
+		setPrimaryFallback,
+		setSecondaryFallback,
+		rememberTrigger,
+		restoreFocus,
+	} = useDialogFocusReturn();
+	const pluralNoun = `${copy.noun.toLocaleLowerCase("en-US")}s`;
+	const isAtLimit = skills.length >= SKILLS_MAX_PER_OWNER;
+	const addSkillAction = (ref?: React.Ref<HTMLButtonElement>) =>
+		access.create && (
+			<Button
+				ref={ref}
+				variant="outline"
+				onClick={(event) => {
+					rememberTrigger(event);
+					onCreate();
+				}}
+				disabled={isLoading || isAtLimit}
+			>
+				<PlusIcon />
+				Add skill
+			</Button>
+		);
 	const headerActions = (
 		<div className="flex items-center gap-2">
 			<Button
+				ref={setSecondaryFallback}
 				variant="outline"
 				onClick={onExportAll}
 				disabled={isLoading || isExportingAll || skills.length === 0}
@@ -252,35 +301,40 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 				{isExportingAll && <Spinner className="size-4" loading />}
 				Export all
 			</Button>
-			{addSkillAction}
+			{addSkillAction(setPrimaryFallback)}
 		</div>
 	);
 
 	return (
 		<div className="flex flex-col gap-8">
 			<SectionHeader
-				label="Personal skills"
-				description="Reusable instructions your agents can pick when they need specialized guidance. Personal skills hold a single SKILL.md file. For richer skills with supporting files, add them to your repo under `.agents/skills/` or load them from a workspace."
+				label={copy.title}
+				description={copy.description}
 				action={headerActions}
+				level={headerLevel}
 			/>
+			{toolbar}
 
-			{isAtLimit && (
+			{access.create && isAtLimit && (
 				<Alert severity="warning">
 					<AlertDescription>
-						You have reached the limit of {PERSONAL_SKILLS_MAX_PER_USER}{" "}
-						personal skills. Delete a skill before creating another one.
+						You have reached the limit of {SKILLS_MAX_PER_OWNER} {pluralNoun}.
+						Delete a skill before creating another one.
 					</AlertDescription>
 				</Alert>
 			)}
 
 			{Boolean(error) && <ErrorAlert error={error} />}
 
-			<Table aria-label="Personal skills">
+			<Table aria-label={copy.title}>
 				<TableHeader>
 					<TableRow>
 						<TableHead className="whitespace-nowrap">Name</TableHead>
 						<TableHead className="w-full">Description</TableHead>
-						<TableHead className="whitespace-nowrap">Updated</TableHead>
+						<TableHead className="whitespace-nowrap">Enabled</TableHead>
+						<TableHead className="hidden whitespace-nowrap sm:table-cell">
+							Updated
+						</TableHead>
 						<TableHead className="w-14">
 							<span className="sr-only">Actions</span>
 						</TableHead>
@@ -289,7 +343,7 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 				<TableBody size="lg">
 					{isLoading ? (
 						<TableLoaderSkeleton>
-							<TableRowSkeleton aria-label="Loading personal skills">
+							<TableRowSkeleton aria-label={`Loading ${pluralNoun}`}>
 								<TableCell>
 									<Skeleton variant="text" className="w-32" />
 								</TableCell>
@@ -297,6 +351,9 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 									<Skeleton variant="text" />
 								</TableCell>
 								<TableCell>
+									<Skeleton className="h-5 w-9" />
+								</TableCell>
+								<TableCell className="hidden sm:table-cell">
 									<Skeleton variant="text" className="w-44" />
 								</TableCell>
 								<TableCell>
@@ -306,23 +363,20 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 						</TableLoaderSkeleton>
 					) : skills.length === 0 && error ? (
 						<TableEmpty
-							message="Failed to load personal skills"
+							message={`Failed to load ${pluralNoun}`}
 							cta={
-								<Button
+								<RetryButton
 									variant="outline"
-									onClick={onRetry}
-									disabled={isRetrying}
-								>
-									{isRetrying && <Spinner className="size-4" loading />}
-									Retry
-								</Button>
+									isRetrying={isRetrying}
+									onRetry={onRetry}
+								/>
 							}
 						/>
 					) : skills.length === 0 ? (
 						<TableEmpty
-							message="No personal skills yet"
-							description="Create a personal skill to save reusable agent guidance for your workflows."
-							cta={addSkillAction}
+							message={`No ${pluralNoun} yet`}
+							description={access.create ? copy.emptyDescription : undefined}
+							cta={addSkillAction()}
 						/>
 					) : (
 						skills.map((skill) => (
@@ -340,7 +394,14 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 										</span>
 									)}
 								</TableCell>
-								<TableCell className="whitespace-nowrap">
+								<TableCell>
+									<SkillEnabledSwitch
+										owner={owner}
+										skill={skill}
+										disabled={!access.update}
+									/>
+								</TableCell>
+								<TableCell className="hidden whitespace-nowrap sm:table-cell">
 									{formatUpdatedAt(skill.updated_at)}
 								</TableCell>
 								<TableCell className="text-right">
@@ -350,6 +411,8 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 												size="icon"
 												variant="subtle"
 												aria-label="Open menu"
+												onPointerDown={rememberTrigger}
+												onKeyDown={rememberTrigger}
 											>
 												{downloadingSkillName === skill.name ? (
 													<Spinner className="size-4" loading />
@@ -365,16 +428,29 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 											>
 												Download
 											</DropdownMenuItem>
+											{onManagePermissions && (
+												<DropdownMenuItem
+													onClick={() =>
+														onManagePermissions(skill, restoreFocus)
+													}
+												>
+													Manage permissions
+												</DropdownMenuItem>
+											)}
 											<DropdownMenuItem onClick={() => onEdit(skill.name)}>
-												Edit
+												{access.update ? "Edit" : "View"}
 											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												className="text-content-destructive focus:text-content-destructive"
-												onClick={() => onDelete(skill)}
-											>
-												Delete&hellip;
-											</DropdownMenuItem>
+											{access.delete && (
+												<>
+													<DropdownMenuSeparator />
+													<DropdownMenuItem
+														className="text-content-destructive focus:text-content-destructive"
+														onClick={() => onDelete(skill)}
+													>
+														Delete&hellip;
+													</DropdownMenuItem>
+												</>
+											)}
 										</DropdownMenuContent>
 									</DropdownMenu>
 								</TableCell>
@@ -385,9 +461,11 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 			</Table>
 
 			{editorState?.mode === "create" && (
-				<PersonalSkillEditor
+				<SkillEditor
 					open
 					mode="create"
+					noun={copy.noun}
+					editorDescription={copy.editorDescription}
 					initialValues={editorState.initialValues}
 					existingNames={editorState.existingNames}
 					submitError={editorState.submitError}
@@ -398,10 +476,22 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 						}
 					}}
 					onSubmit={editorState.onSubmit}
+					onCloseAutoFocus={restoreFocus}
 				/>
 			)}
-			{editorState?.mode === "edit" && <EditSkillDialog state={editorState} />}
-			{deleteState && <DeleteSkillDialog state={deleteState} />}
+			{editorState?.mode === "edit" && (
+				<EditSkillDialog
+					copy={copy}
+					state={editorState}
+					onCloseAutoFocus={restoreFocus}
+				/>
+			)}
+			{deleteState && (
+				<DeleteSkillDialog
+					state={deleteState}
+					onCloseAutoFocus={restoreFocus}
+				/>
+			)}
 		</div>
 	);
 };

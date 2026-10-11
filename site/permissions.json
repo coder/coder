@@ -99,6 +99,10 @@
 		"object": { "resource_type": "mcp_server_config", "any_org": true },
 		"action": "read"
 	},
+	"viewAnyOrganizationSkills": {
+		"object": { "resource_type": "organization_skill", "any_org": true },
+		"action": "read"
+	},
 	"createAnyMCPServerConfig": {
 		"object": { "resource_type": "mcp_server_config", "any_org": true },
 		"action": "create"

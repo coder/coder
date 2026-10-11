@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockSkill } from "#/testHelpers/skills";
+import { fullSkillAccess, readOnlySkillAccess } from "../utils/skills";
 import {
-	AgentSettingsPersonalSkillsPageView,
-	type AgentSettingsPersonalSkillsPageViewProps,
-} from "./AgentSettingsPersonalSkillsPageView";
+	type SkillEditorState,
+	SkillsTableView,
+	type SkillsTableViewProps,
+} from "./SkillsTableView";
 
 const MockReviewSQLSkill = {
 	...MockSkill,
@@ -20,6 +22,7 @@ const MockReleaseNotesSkill = {
 	id: "skill-write-release-notes",
 	name: "write-release-notes",
 	description: "Draft concise release notes from a change list.",
+	enabled: false,
 	created_at: "2026-05-01T12:00:00.000Z",
 	updated_at: "2026-05-04T09:15:00.000Z",
 };
@@ -49,8 +52,21 @@ const MockDebugHTTPSkill = {
 
 const MockPersonalSkills = [MockReviewSQLSkill, MockReleaseNotesSkill];
 
-const baseArgs: AgentSettingsPersonalSkillsPageViewProps = {
+const baseArgs: SkillsTableViewProps = {
+	owner: { type: "user", user: "me" },
 	skills: MockPersonalSkills,
+	copy: {
+		noun: "Personal skill",
+		title: "Personal skills",
+		description:
+			"Reusable instructions your agents can pick when they need specialized guidance. Personal skills hold a single SKILL.md file. For richer skills with supporting files, add them to your repo under `.agents/skills/` or load them from a workspace.",
+		emptyDescription:
+			"Create a personal skill to save reusable agent guidance for your workflows.",
+		editorDescription:
+			"Personal skills are available to your agents and stored as a single SKILL.md file with frontmatter. For richer skills with supporting files, add them to your repo under `.agents/skills/` or load them from a workspace.",
+		archiveName: "personal-skills.zip",
+	},
+	access: fullSkillAccess,
 	error: undefined,
 	isLoading: false,
 	isRetrying: false,
@@ -64,13 +80,13 @@ const baseArgs: AgentSettingsPersonalSkillsPageViewProps = {
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsPersonalSkillsPageView",
-	component: AgentSettingsPersonalSkillsPageView,
+	title: "pages/AgentsPage/components/SkillsTableView",
+	component: SkillsTableView,
 	args: baseArgs,
-} satisfies Meta<typeof AgentSettingsPersonalSkillsPageView>;
+} satisfies Meta<typeof SkillsTableView>;
 
 export default meta;
-type Story = StoryObj<typeof AgentSettingsPersonalSkillsPageView>;
+type Story = StoryObj<typeof SkillsTableView>;
 
 export const Populated: Story = {};
 
@@ -249,23 +265,32 @@ export const UploadEmptyFile: Story = {
 	},
 };
 
+const mockReviewSQLEditorState: SkillEditorState = {
+	mode: "edit",
+	initialValues: {
+		name: "review-sql",
+		description: "Review SQL changes for query and index risks.",
+		body: "Check query plans, missing indexes, and transaction boundaries.",
+	},
+	existingNames: MockPersonalSkills.map((skill) => skill.name),
+	isLoading: false,
+	isRetrying: false,
+	isSubmitting: false,
+	onRetry: fn(),
+	onSubmit: fn(),
+	onClose: fn(),
+};
+
 export const EditDialogOpen: Story = {
 	args: {
-		editorState: {
-			mode: "edit",
-			initialValues: {
-				name: "review-sql",
-				description: "Review SQL changes for query and index risks.",
-				body: "Check query plans, missing indexes, and transaction boundaries.",
-			},
-			existingNames: MockPersonalSkills.map((skill) => skill.name),
-			isLoading: false,
-			isRetrying: false,
-			isSubmitting: false,
-			onRetry: fn(),
-			onSubmit: fn(),
-			onClose: fn(),
-		},
+		editorState: mockReviewSQLEditorState,
+	},
+};
+
+export const ViewDialogOpen: Story = {
+	args: {
+		access: readOnlySkillAccess,
+		editorState: { ...mockReviewSQLEditorState, readOnly: true },
 	},
 };
 

@@ -23,6 +23,8 @@ type AISettingsSidebarViewProps = {
 	canAccessOrganizationModels?: boolean;
 	canShareOrganizationMCPServers?: boolean;
 	canViewOrganizationInstructions: boolean;
+	/** Names of the organizations whose skills the user can read. */
+	skillOrganizationNames?: readonly string[];
 };
 
 const SubNavItem: React.FC<{ href: To; children?: React.ReactNode }> = ({
@@ -89,6 +91,7 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 	canAccessOrganizationModels = false,
 	canShareOrganizationMCPServers = false,
 	canViewOrganizationInstructions,
+	skillOrganizationNames = [],
 }) => {
 	const [searchParams] = useSearchParams();
 	const organizationName = searchParams.get(modelOrganizationSearchParam);
@@ -115,6 +118,15 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 	const instructionsPath = organizationScopedPath(
 		"/ai/settings/instructions",
 		organizationName,
+	);
+	// The Skills page denies an organization the user cannot read rather than
+	// replacing it, so only carry over an organization it will show.
+	const skillsPath = organizationScopedPath(
+		"/ai/settings/skills",
+		organizationName !== null &&
+			skillOrganizationNames.includes(organizationName)
+			? organizationName
+			: null,
 	);
 
 	return (
@@ -152,6 +164,9 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 							<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
 						)}
 						<SubNavItem href={instructionsPath}>Instructions</SubNavItem>
+						{permissions.viewAnyOrganizationSkills && (
+							<SubNavItem href={skillsPath}>Skills</SubNavItem>
+						)}
 						<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
 					</SubNavGroup>
 				)}
@@ -185,6 +200,12 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 					canViewOrganizationInstructions && (
 						<SubNavGroup>
 							<SubNavItem href={instructionsPath}>Instructions</SubNavItem>
+						</SubNavGroup>
+					)}
+				{!permissions.editDeploymentConfig &&
+					permissions.viewAnyOrganizationSkills && (
+						<SubNavGroup>
+							<SubNavItem href={skillsPath}>Skills</SubNavItem>
 						</SubNavGroup>
 					)}
 			</div>

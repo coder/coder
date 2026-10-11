@@ -1,14 +1,14 @@
 import frontMatter from "front-matter";
 
-export const PERSONAL_SKILL_MAX_SIZE_BYTES = 64 * 1024;
-const PERSONAL_SKILL_MAX_NAME_BYTES = 256;
-const PERSONAL_SKILL_MAX_DESCRIPTION_BYTES = 4096;
-export const PERSONAL_SKILLS_MAX_PER_USER = 100;
+export const SKILL_MAX_SIZE_BYTES = 64 * 1024;
+const SKILL_MAX_NAME_BYTES = 256;
+const SKILL_MAX_DESCRIPTION_BYTES = 4096;
+export const SKILLS_MAX_PER_OWNER = 100;
 
-const personalSkillNamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const skillNamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const textEncoder = new TextEncoder();
 
-export type PersonalSkillFormValues = {
+export type SkillFormValues = {
 	name: string;
 	description: string;
 	body: string;
@@ -29,17 +29,14 @@ type RankedSkill<T extends SkillSearchMetadata> = {
 	index: number;
 };
 
-export const personalSkillTriggerText = (skill: { name: string }): string =>
-	`/${skill.name}`;
-
-type PersonalSkillTriggerMatch = {
+type SkillTriggerMatch = {
 	slashOffset: number;
 	query: string;
 };
 
-export const parsePersonalSkillTrigger = (
+export const parseSkillTrigger = (
 	linePrefix: string,
-): PersonalSkillTriggerMatch | null => {
+): SkillTriggerMatch | null => {
 	const match = /(?:^|\s)\/(\S*)$/.exec(linePrefix);
 	if (!match) {
 		return null;
@@ -51,7 +48,7 @@ export const parsePersonalSkillTrigger = (
 	};
 };
 
-export const isPersonalSkillTriggerToken = (token: string): boolean =>
+export const isSkillTriggerToken = (token: string): boolean =>
 	/^\/\S*$/.test(token);
 
 /**
@@ -110,7 +107,7 @@ export const filterSkillsByQuery = <T extends SkillSearchMetadata>(
 		.map(({ skill }) => skill);
 };
 
-class PersonalSkillMarkdownError extends Error {}
+class SkillMarkdownError extends Error {}
 
 const frontmatterStringField = (
 	attributes: Record<string, unknown>,
@@ -121,30 +118,24 @@ const frontmatterStringField = (
 		return "";
 	}
 	if (typeof value !== "string") {
-		throw new PersonalSkillMarkdownError(`Skill ${key} must be a string.`);
+		throw new SkillMarkdownError(`Skill ${key} must be a string.`);
 	}
 	return value.replace(/[\r\n]+$/, "");
 };
 
 // The API re-validates on submit; this only projects content into form fields.
-export const parsePersonalSkillMarkdown = (
-	content: string,
-): PersonalSkillFormValues => {
+export const parseSkillMarkdown = (content: string): SkillFormValues => {
 	const normalizedContent = content.replace(/^\uFEFF/, "");
 	const lines = normalizedContent.split("\n");
 	if (lines[0]?.trim() !== "---") {
-		throw new PersonalSkillMarkdownError(
-			"Missing opening frontmatter delimiter.",
-		);
+		throw new SkillMarkdownError("Missing opening frontmatter delimiter.");
 	}
 
 	const closingIndex = lines.findIndex(
 		(line, index) => index > 0 && line.trim() === "---",
 	);
 	if (closingIndex < 0) {
-		throw new PersonalSkillMarkdownError(
-			"Missing closing frontmatter delimiter.",
-		);
+		throw new SkillMarkdownError("Missing closing frontmatter delimiter.");
 	}
 
 	const parseableContent = [
@@ -158,7 +149,7 @@ export const parsePersonalSkillMarkdown = (
 			return frontMatter<Record<string, unknown>>(parseableContent);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "unknown error";
-			throw new PersonalSkillMarkdownError(`Invalid frontmatter: ${message}`);
+			throw new SkillMarkdownError(`Invalid frontmatter: ${message}`);
 		}
 	})();
 
@@ -167,22 +158,20 @@ export const parsePersonalSkillMarkdown = (
 	const body = parsed.body.trim();
 
 	if (!name) {
-		throw new PersonalSkillMarkdownError("Skill name is required.");
+		throw new SkillMarkdownError("Skill name is required.");
 	}
 	if (!body) {
-		throw new PersonalSkillMarkdownError("Skill body is required.");
+		throw new SkillMarkdownError("Skill body is required.");
 	}
 
 	return { name, description, body };
 };
 
-export const tryParsePersonalSkillMarkdown = (
+export const tryParseSkillMarkdown = (
 	content: string,
-):
-	| { ok: true; values: PersonalSkillFormValues }
-	| { ok: false; error: string } => {
+): { ok: true; values: SkillFormValues } | { ok: false; error: string } => {
 	try {
-		return { ok: true, values: parsePersonalSkillMarkdown(content) };
+		return { ok: true, values: parseSkillMarkdown(content) };
 	} catch (error) {
 		return {
 			ok: false,
@@ -206,13 +195,10 @@ const frontmatterNameValue = (value: string): string => {
 	return lineValue;
 };
 
-export const isValidPersonalSkillDescription = (description: string): boolean =>
-	getPersonalSkillContentSizeBytes(description) <=
-	PERSONAL_SKILL_MAX_DESCRIPTION_BYTES;
+export const isValidSkillDescription = (description: string): boolean =>
+	getSkillContentSizeBytes(description) <= SKILL_MAX_DESCRIPTION_BYTES;
 
-export const buildPersonalSkillMarkdown = (
-	values: PersonalSkillFormValues,
-): string => {
+export const buildSkillMarkdown = (values: SkillFormValues): string => {
 	const name = frontmatterNameValue(values.name);
 	const description = frontmatterLineValue(values.description);
 	const body = values.body.trim();
@@ -225,9 +211,37 @@ export const buildPersonalSkillMarkdown = (
 	return `${frontmatter.join("\n")}\n${body}\n`;
 };
 
-export const getPersonalSkillContentSizeBytes = (content: string): number =>
+export const getSkillContentSizeBytes = (content: string): number =>
 	textEncoder.encode(content).length;
 
-export const isValidPersonalSkillName = (name: string): boolean =>
-	personalSkillNamePattern.test(name) &&
-	getPersonalSkillContentSizeBytes(name) <= PERSONAL_SKILL_MAX_NAME_BYTES;
+export const isValidSkillName = (name: string): boolean =>
+	skillNamePattern.test(name) &&
+	getSkillContentSizeBytes(name) <= SKILL_MAX_NAME_BYTES;
+
+export type SkillsCopy = {
+	/** Singular noun in sentence case, for example "Personal skill". */
+	noun: string;
+	title: string;
+	description: string;
+	emptyDescription?: string;
+	editorDescription: string;
+	archiveName: string;
+};
+
+export type SkillAccess = {
+	create: boolean;
+	update: boolean;
+	delete: boolean;
+};
+
+export const fullSkillAccess: SkillAccess = {
+	create: true,
+	update: true,
+	delete: true,
+};
+
+export const readOnlySkillAccess: SkillAccess = {
+	create: false,
+	update: false,
+	delete: false,
+};

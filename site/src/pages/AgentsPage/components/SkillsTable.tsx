@@ -6,26 +6,31 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
-	createUserSkill,
-	deleteUserSkill,
-	updateUserSkill,
-	userSkill,
-	userSkills,
-} from "#/api/queries/userSkills";
+	createSkill,
+	deleteSkill,
+	type SkillOwner,
+	skill,
+	skillList,
+	updateSkill,
+} from "#/api/queries/skills";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import {
-	AgentSettingsPersonalSkillsPageView,
-	type PersonalSkillDeleteState,
-	type PersonalSkillEditorState,
-} from "./AgentSettingsPersonalSkillsPageView";
-import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
+	parseSkillMarkdown,
+	SKILLS_MAX_PER_OWNER,
+	type SkillAccess,
+	type SkillFormValues,
+	type SkillsCopy,
+} from "../utils/skills";
+import type { SectionHeaderLevel } from "./SectionHeader";
+import type { SkillErrorDisplay } from "./SkillEditor";
 import {
-	PERSONAL_SKILLS_MAX_PER_USER,
-	type PersonalSkillFormValues,
-	parsePersonalSkillMarkdown,
-} from "./utils/personalSkills";
+	type SkillDeleteState,
+	type SkillEditorState,
+	SkillsTableView,
+	type SkillsTableViewProps,
+} from "./SkillsTableView";
 
-const emptySkillFormValues: PersonalSkillFormValues = {
+const emptySkillFormValues: SkillFormValues = {
 	name: "",
 	description: "",
 	body: "",
@@ -34,13 +39,15 @@ const emptySkillFormValues: PersonalSkillFormValues = {
 type DialogState =
 	| { type: "create"; submittedContent?: string }
 	| { type: "edit"; name: string; submittedContent?: string }
+	| { type: "view"; name: string }
 	| { type: "delete"; skill: SkillMetadata; submittedName?: string }
 	| null;
 
-const personalSkillError = (
+const skillError = (
 	error: unknown,
 	fallback: string,
-): PersonalSkillErrorDisplay | undefined => {
+	lowerNoun: string,
+): SkillErrorDisplay | undefined => {
 	if (!error) {
 		return undefined;
 	}
@@ -50,9 +57,9 @@ const personalSkillError = (
 	if (status === 400) {
 		statusFallback = "Skill content is invalid.";
 	} else if (status === 403) {
-		statusFallback = "You do not have permission to manage personal skills.";
+		statusFallback = `You do not have permission to manage ${lowerNoun}s.`;
 	} else if (status === 404) {
-		statusFallback = "That personal skill was not found.";
+		statusFallback = `That ${lowerNoun} was not found.`;
 	} else if (status === 409) {
 		statusFallback = "A skill with that name already exists.";
 	}
@@ -63,7 +70,7 @@ const personalSkillError = (
 	};
 };
 
-const downloadPersonalSkillFile = async (
+const downloadSkillFile = async (
 	name: string,
 	fetchContent: (name: string) => Promise<string>,
 ): Promise<void> => {
@@ -74,9 +81,10 @@ const downloadPersonalSkillFile = async (
 	);
 };
 
-const exportPersonalSkillsArchive = async (
+const exportSkillsArchive = async (
 	skills: readonly SkillMetadata[],
 	fetchContent: (name: string) => Promise<string>,
+	archiveName: string,
 ): Promise<void> => {
 	const contents = await Promise.all(
 		skills.map(async (skill) => ({
@@ -89,24 +97,48 @@ const exportPersonalSkillsArchive = async (
 		zip.file(`${name}/SKILL.md`, content);
 	}
 	const archive = await zip.generateAsync({ type: "blob" });
-	saveAs(archive, "personal-skills.zip");
+	saveAs(archive, archiveName);
 };
 
-const AgentSettingsPersonalSkillsPage: React.FC = () => {
+type SkillsTableProps = {
+	owner: SkillOwner;
+	copy: SkillsCopy;
+	access: SkillAccess;
+	enabledOnly?: boolean;
+	headerLevel?: SectionHeaderLevel;
+	toolbar?: React.ReactNode;
+	onManagePermissions?: SkillsTableViewProps["onManagePermissions"];
+};
+
+export const SkillsTable: React.FC<SkillsTableProps> = ({
+	owner,
+	copy,
+	access,
+	enabledOnly = false,
+	headerLevel,
+	toolbar,
+	onManagePermissions,
+}) => {
+	const lowerNoun = copy.noun.toLocaleLowerCase("en-US");
 	const queryClient = useQueryClient();
 	const [dialogState, setDialogState] = useState<DialogState>(null);
-	const skillsQuery = useQuery(userSkills());
-	const skills = skillsQuery.data ?? [];
+	const skillsQuery = useQuery(skillList(owner));
+	const skills = (skillsQuery.data ?? []).filter(
+		(skill) => !enabledOnly || skill.enabled,
+	);
 	const existingNames = skills.map((skill) =>
 		skill.name.toLocaleLowerCase("en-US"),
 	);
-	const editName = dialogState?.type === "edit" ? dialogState.name : "";
+	const editName =
+		dialogState?.type === "edit" || dialogState?.type === "view"
+			? dialogState.name
+			: "";
 	const editSkillQuery = useQuery({
-		...userSkill(editName),
+		...skill(owner, editName),
 		enabled: Boolean(editName),
 	});
 
-	const createMutationOptions = createUserSkill(queryClient);
+	const createMutationOptions = createSkill(queryClient, owner);
 	const createMutation = useMutation({
 		...createMutationOptions,
 		onSuccess: async (_skill, variables) => {
@@ -117,11 +149,11 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 					? null
 					: current,
 			);
-			toast.success("Personal skill created.");
+			toast.success(`${copy.noun} created.`);
 		},
 	});
 
-	const updateMutationOptions = updateUserSkill(queryClient);
+	const updateMutationOptions = updateSkill(queryClient, owner);
 	const updateMutation = useMutation({
 		...updateMutationOptions,
 		onSuccess: async (skill, variables) => {
@@ -133,11 +165,11 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 					? null
 					: current,
 			);
-			toast.success("Personal skill saved.");
+			toast.success(`${copy.noun} saved.`);
 		},
 		onError: (error, variables) => {
 			if (isAxiosError(error) && error.response?.status === 404) {
-				toast.info("That skill was deleted while you were editing it.");
+				toast.info(`That ${lowerNoun} was deleted while you were editing it.`);
 				setDialogState((current) =>
 					current?.type === "edit" &&
 					current.name === variables.name &&
@@ -150,7 +182,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 		},
 	});
 
-	const deleteMutationOptions = deleteUserSkill(queryClient);
+	const deleteMutationOptions = deleteSkill(queryClient, owner);
 	const deleteMutation = useMutation({
 		...deleteMutationOptions,
 		onSuccess: async (data, variables) => {
@@ -162,7 +194,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 					? null
 					: current,
 			);
-			toast.success("Personal skill deleted.");
+			toast.success(`${copy.noun} deleted.`);
 		},
 		onError: (error, variables) => {
 			if (isAxiosError(error) && error.response?.status === 404) {
@@ -179,25 +211,22 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 	});
 
 	const fetchSkillContent = (name: string): Promise<string> =>
-		queryClient.fetchQuery(userSkill(name)).then((skill) => skill.content);
+		queryClient.fetchQuery(skill(owner, name)).then((detail) => detail.content);
 
 	const downloadMutation = useMutation({
-		mutationFn: (name: string) =>
-			downloadPersonalSkillFile(name, fetchSkillContent),
+		mutationFn: (name: string) => downloadSkillFile(name, fetchSkillContent),
 		onError: (error) => {
-			toast.error(
-				getErrorMessage(error, "Failed to download personal skill."),
-				{
-					description: getErrorDetail(error),
-				},
-			);
+			toast.error(getErrorMessage(error, `Failed to download ${lowerNoun}.`), {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
 	const exportAllMutation = useMutation({
-		mutationFn: () => exportPersonalSkillsArchive(skills, fetchSkillContent),
+		mutationFn: () =>
+			exportSkillsArchive(skills, fetchSkillContent, copy.archiveName),
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to export personal skills."), {
+			toast.error(getErrorMessage(error, `Failed to export ${lowerNoun}s.`), {
 				description: getErrorDetail(error),
 			});
 		},
@@ -207,11 +236,11 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 		? downloadMutation.variables
 		: undefined;
 
-	let editInitialValues: PersonalSkillFormValues | undefined;
+	let editInitialValues: SkillFormValues | undefined;
 	let editLoadError: unknown = editSkillQuery.error;
 	if (editSkillQuery.data) {
 		try {
-			const parsed = parsePersonalSkillMarkdown(editSkillQuery.data.content);
+			const parsed = parseSkillMarkdown(editSkillQuery.data.content);
 			editInitialValues = {
 				name: editSkillQuery.data.name,
 				description: editSkillQuery.data.description,
@@ -222,7 +251,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 		}
 	}
 
-	let editorState: PersonalSkillEditorState | undefined;
+	let editorState: SkillEditorState | undefined;
 	if (dialogState?.type === "create") {
 		editorState = {
 			mode: "create",
@@ -230,9 +259,10 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 			existingNames,
 			submitError:
 				createMutation.variables?.content === dialogState.submittedContent
-					? personalSkillError(
+					? skillError(
 							createMutation.error,
-							"Failed to create personal skill.",
+							`Failed to create ${lowerNoun}.`,
+							lowerNoun,
 						)
 					: undefined,
 			isSubmitting: createMutation.isPending,
@@ -246,9 +276,12 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 			},
 			onClose: () => setDialogState(null),
 		};
-	} else if (dialogState?.type === "edit") {
+	} else if (dialogState?.type === "edit" || dialogState?.type === "view") {
+		const submittedContent =
+			dialogState.type === "edit" ? dialogState.submittedContent : undefined;
 		editorState = {
 			mode: "edit",
+			readOnly: dialogState.type === "view",
 			initialValues: editInitialValues,
 			existingNames,
 			loadError: editLoadError,
@@ -256,10 +289,11 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 			isRetrying: editSkillQuery.isFetching,
 			submitError:
 				updateMutation.variables?.name === dialogState.name &&
-				updateMutation.variables.req.content === dialogState.submittedContent
-					? personalSkillError(
+				updateMutation.variables.req.content === submittedContent
+					? skillError(
 							updateMutation.error,
-							"Failed to save personal skill.",
+							`Failed to save ${lowerNoun}.`,
+							lowerNoun,
 						)
 					: undefined,
 			isSubmitting: updateMutation.isPending,
@@ -281,16 +315,17 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 		};
 	}
 
-	let deleteState: PersonalSkillDeleteState | undefined;
+	let deleteState: SkillDeleteState | undefined;
 	if (dialogState?.type === "delete") {
 		deleteState = {
 			skill: dialogState.skill,
 			error:
 				deleteMutation.variables === dialogState.skill.name &&
 				dialogState.submittedName === dialogState.skill.name
-					? personalSkillError(
+					? skillError(
 							deleteMutation.error,
-							"Failed to delete personal skill.",
+							`Failed to delete ${lowerNoun}.`,
+							lowerNoun,
 						)
 					: undefined,
 			isDeleting:
@@ -310,8 +345,14 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 	}
 
 	return (
-		<AgentSettingsPersonalSkillsPageView
+		<SkillsTableView
+			owner={owner}
 			skills={skills}
+			copy={copy}
+			access={access}
+			headerLevel={headerLevel}
+			toolbar={toolbar}
+			onManagePermissions={onManagePermissions}
 			error={skillsQuery.error}
 			isLoading={skillsQuery.isLoading}
 			isRetrying={skillsQuery.isFetching}
@@ -319,7 +360,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 				void skillsQuery.refetch();
 			}}
 			onCreate={() => {
-				if (skills.length >= PERSONAL_SKILLS_MAX_PER_USER) {
+				if (skills.length >= SKILLS_MAX_PER_OWNER) {
 					return;
 				}
 				createMutation.reset();
@@ -327,7 +368,7 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 			}}
 			onEdit={(name) => {
 				updateMutation.reset();
-				setDialogState({ type: "edit", name });
+				setDialogState({ type: access.update ? "edit" : "view", name });
 			}}
 			onDelete={(skill) => {
 				deleteMutation.reset();
@@ -346,5 +387,3 @@ const AgentSettingsPersonalSkillsPage: React.FC = () => {
 		/>
 	);
 };
-
-export default AgentSettingsPersonalSkillsPage;
