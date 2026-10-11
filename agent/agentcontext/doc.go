@@ -14,7 +14,10 @@
 //     .mcp.json are read only at a scan root's top level, skills
 //     only from fixed container directories (skills, .agents/skills,
 //     .claude/skills, .codex/skills), and the resolver never walks
-//     the tree downward or up to a parent directory.
+//     the tree downward or up to a parent directory. The one
+//     exception is the working directory: instruction files (and
+//     only those) are also read from its immediate child
+//     directories, so a repository cloned there is covered.
 //   - A fixed-location fsnotify watcher that signals a re-resolve
 //     when any recognized file changes.
 //   - A readiness gate (Manager.SetReady). The Manager starts gated,

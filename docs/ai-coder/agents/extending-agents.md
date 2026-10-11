@@ -44,8 +44,11 @@ Declared sources contribute instruction files and skills only.
 A `.mcp.json` file inside a declared source appears in the context inventory, but the agent does not connect to the servers it lists; MCP servers load only from the workspace working directory.
 
 Discovery is shallow.
-Instruction files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and `.mcp.json` are read only at the top level of a scan root, and skills are read only from the fixed container directories described below.
-The agent never walks further down the tree and never climbs to a parent directory.
+The agent reads instruction files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and `.mcp.json` at the top level of each scan root.
+It reads skills only from the fixed container directories described below.
+It also scans up to 64 immediate, non-hidden subdirectories of the working directory that contain instruction files, such as repositories cloned during a chat.
+Only instruction files are read from these subdirectories, not skills or `.mcp.json`.
+The agent skips symlinked child directories, never scans deeper for instruction files, and never climbs to a parent directory.
 To pick up context in another directory, declare that directory as its own source.
 
 ### Snapshot limits
