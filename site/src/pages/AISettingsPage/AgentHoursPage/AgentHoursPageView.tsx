@@ -98,7 +98,8 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 		{ targets: organizationTargets, deletedLabel: "Deleted organization" },
 	);
 	// Organizations without an allotment draw from the unallotted pool, so
-	// they nest under its row instead of adding to the column total.
+	// they nest under its row and their hours aren't counted twice in the
+	// Used column.
 	const organizationUsage: AllotmentUsage | undefined = usage && {
 		remainderLabel: "Unallotted organizations",
 		remainderUsedMs: organizationsWithoutAllotment.reduce(

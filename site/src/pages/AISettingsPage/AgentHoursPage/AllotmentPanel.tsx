@@ -54,11 +54,7 @@ export type AllotmentUsage = {
 	remainderLabel: string;
 	remainderHref?: string;
 	remainderUsedMs: number;
-	/**
-	 * Targets whose usage makes up the remainder, listed under its row. The
-	 * group tier has none, because its remainder is the Everyone group's own
-	 * usage.
-	 */
+	/** Targets whose usage makes up the remainder, listed under its row. */
 	remainderEntries?: readonly Omit<UsageEntry, "href">[];
 	notAttributedMs?: number;
 };
@@ -410,8 +406,8 @@ const RemainderEntryRow: React.FC<RemainderEntryRowProps> = ({
 	remainderLabel,
 }) => (
 	<TableRow>
-		{/* Spans the empty Allotment column, so names fit on one line on
-		    narrow screens unless they are longer than both columns. */}
+		{/* Spans the empty Allotment column to give long names the width of
+		    both columns. */}
 		<TableCell
 			colSpan={2}
 			className="border-t-0 py-2 pl-6 font-normal wrap-anywhere"
