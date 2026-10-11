@@ -78,7 +78,7 @@ const TemplateParametersPage: React.FC = () => {
 								: `${template.display_name} will use dynamic parameters.`,
 						);
 					} catch {
-						// The view renders the failed mutation's error.
+						// The view shows mutation errors through its error prop.
 					}
 				}}
 				onRefresh={async () => {
@@ -102,7 +102,7 @@ const TemplateParametersPage: React.FC = () => {
 							`Template "${template.name}" data refreshed successfully.`,
 						);
 					} catch {
-						// The view renders the failed mutation's error.
+						// The view shows mutation errors through its error prop.
 					}
 				}}
 			/>

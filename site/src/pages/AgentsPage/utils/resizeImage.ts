@@ -88,33 +88,33 @@ export async function resizeImageToMaxBytes(
 	return enqueue(() => shrinkOnce(file, maxBytes));
 }
 
-// The legacy <img> fallback decodes to an element, which is drawable
-// and reports width/height like an ImageBitmap but has no close().
+// The <img> fallback decodes to an element, which is drawable and
+// reports width/height like an ImageBitmap but has no close().
 type DecodedImage = ImageBitmap | HTMLImageElement;
 
 async function shrinkOnce(file: File, maxBytes: number): Promise<File | null> {
-	let bitmap: DecodedImage | null = null;
+	let image: DecodedImage | null = null;
 	try {
-		bitmap = await decodeToBitmap(file);
+		image = await decodeImage(file);
 	} catch {
 		return null;
 	}
-	if (!bitmap) {
+	if (!image) {
 		return null;
 	}
 
 	try {
-		// decodeToBitmap already clamped to MAX_INITIAL_DIMENSION
-		// per axis, so we start the shrink loop from the bitmap's
+		// decodeImage already clamped to MAX_INITIAL_DIMENSION
+		// per axis, so we start the shrink loop from the image's
 		// reported dimensions.
-		let width = bitmap.width;
-		let height = bitmap.height;
+		let width = image.width;
+		let height = image.height;
 		if (width <= 0 || height <= 0) {
 			return null;
 		}
 
 		for (let i = 0; i < MAX_SHRINK_ITERATIONS; i++) {
-			const blob = await encodeWebP(bitmap, width, height, INITIAL_QUALITY);
+			const blob = await encodeWebP(image, width, height, INITIAL_QUALITY);
 			if (blob && blob.size <= maxBytes) {
 				return toWebPFile(file, blob);
 			}
@@ -130,7 +130,7 @@ async function shrinkOnce(file: File, maxBytes: number): Promise<File | null> {
 		// lower quality, for photographic images where dimension
 		// shrinking alone saturated.
 		const fallbackBlob = await encodeWebP(
-			bitmap,
+			image,
 			width,
 			height,
 			FALLBACK_QUALITY,
@@ -142,13 +142,13 @@ async function shrinkOnce(file: File, maxBytes: number): Promise<File | null> {
 	} catch {
 		return null;
 	} finally {
-		if ("close" in bitmap) {
-			bitmap.close();
+		if ("close" in image) {
+			image.close();
 		}
 	}
 }
 
-async function decodeToBitmap(file: File): Promise<DecodedImage | null> {
+async function decodeImage(file: File): Promise<DecodedImage | null> {
 	// createImageBitmap's HTML-spec output rules:
 	//   - both resize dims => stretch (destroys aspect ratio).
 	//   - only resizeWidth => width is exact, height proportional.
