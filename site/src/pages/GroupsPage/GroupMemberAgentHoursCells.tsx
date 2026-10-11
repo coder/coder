@@ -92,6 +92,10 @@ export const GroupMemberAgentHoursCells: React.FC<
 			break;
 	}
 
+	const badgeLabel =
+		kind === "otherGroup"
+			? `Counts toward ${effectiveGroupLabel}`
+			: effectiveGroupLabel;
 	const hours = (
 		<span>
 			<span className="text-content-primary">
@@ -115,10 +119,10 @@ export const GroupMemberAgentHoursCells: React.FC<
 				)}
 			</TableCell>
 			<TableCell>
-				<Badge size="sm">
-					{kind === "otherGroup"
-						? `Counts toward ${effectiveGroupLabel}`
-						: effectiveGroupLabel}
+				<Badge size="sm" className="max-w-48">
+					<span className="min-w-0 truncate" title={badgeLabel}>
+						{badgeLabel}
+					</span>
 				</Badge>
 			</TableCell>
 		</>

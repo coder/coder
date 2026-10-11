@@ -1123,3 +1123,49 @@ export const WithMemberAIBudgetAndAgentHours: Story = {
 		],
 	},
 };
+
+export const LongAgentHoursGroupName: Story = {
+	parameters: {
+		features: ["aibridge", "agent_runtime_hours"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({
+				users: mockAgentHoursMembers,
+				count: mockAgentHoursMembers.length,
+			}),
+			permissionsQuery({ canUpdateGroup: true }),
+			membersSpendQuery(
+				mockAgentHoursMembers.map((member) => ({
+					...mockSpend,
+					user_id: member.id,
+				})),
+			),
+			{ key: meAISpendKey, data: mockUserAISpend },
+			{
+				key: groupAIBudget(MockGroupWithoutMembers.id).queryKey,
+				data: mockGroupBudget,
+			},
+			{
+				key: groupMembersAgentHoursKey(
+					MockGroupWithoutMembers.id,
+					mockAgentHoursMembers.map((member) => member.id),
+				),
+				data: {
+					...mockMembersAgentHours,
+					members: mockMembersAgentHours.members.map((member) =>
+						member.user_id === "member-other-group"
+							? {
+									...member,
+									effective_group: {
+										...member.effective_group,
+										display_name:
+											"Evaluation and Benchmarking Infrastructure for Model Quality Ops",
+									},
+								}
+							: member,
+					),
+				},
+			},
+		],
+	},
+};
