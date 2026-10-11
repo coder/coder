@@ -55,6 +55,8 @@ An hour counts toward the license usage period that contains its start, as it do
 When you upgrade to a Coder version that tracks usage per organization, Coder attributes the Agent Time already used in each hour to the Everyone group of the chat's organization.
 Agent Time from chats that were deleted before the upgrade can't be attributed, so organization usage can add up to less than the license total.
 
+A group's members page shows each member's Agent Hours that counted toward that group, and the group their Agent Hours count toward now.
+
 ## Manage allotments
 
 1. Go to **Admin settings** > **AI** > **Coder Agents** > **Agent Hours**.

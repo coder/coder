@@ -7,6 +7,7 @@ import {
 import { API } from "#/api/api";
 import {
 	getGroupByIdQueryKey,
+	getGroupMembersAgentHoursQueryKey,
 	getGroupMembersAISpendQueryKey,
 	getGroupMembersQueryKey,
 	getGroupQueryKey,
@@ -20,6 +21,7 @@ import {
 	meAISpendKey,
 } from "#/api/queries/users";
 import type {
+	AgentHoursGroupMembersUsage,
 	GroupAIBudget,
 	GroupMemberAISpend,
 	GroupMembersAISpend,
@@ -29,6 +31,7 @@ import type {
 } from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
+	MockEveryoneGroup,
 	MockGroup,
 	MockGroup2,
 	MockGroupWithoutMembers,
@@ -992,5 +995,86 @@ export const AIBudgetShowcase: Story = {
 			name: "Manage AI budget",
 		});
 		await expect(otherGroupItem).not.toHaveAttribute("aria-disabled", "true");
+	},
+};
+
+const agentHoursMembers: ReducedUser[] = [
+	{ ...MockUserMember, id: "member-this-group", username: "alice" },
+	{ ...MockUserMember, id: "member-other-group", username: "bob" },
+	{ ...MockUserMember, id: "member-unallotted", username: "priya" },
+	{ ...MockUserMember, id: "member-no-usage", username: "jordan" },
+];
+
+/** Agent Hours that count toward this group, another group, and the unallotted share. */
+export const WithMemberAgentHours: Story = {
+	parameters: {
+		features: ["agent_runtime_hours"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({
+				users: agentHoursMembers,
+				count: agentHoursMembers.length,
+			}),
+			permissionsQuery({ canUpdateGroup: true }),
+			{
+				key: getGroupMembersAgentHoursQueryKey(
+					MockGroupWithoutMembers.id,
+					agentHoursMembers.map((member) => member.id),
+				),
+				data: {
+					usage_period: {
+						issued_at: "2026-10-01T00:00:00Z",
+						start: "2026-10-01T00:00:00Z",
+						end: "2026-11-01T00:00:00Z",
+					},
+					members: [
+						{
+							user_id: "member-this-group",
+							used_ms: 45_359_000,
+							effective_group: {
+								id: MockGroupWithoutMembers.id,
+								name: MockGroupWithoutMembers.name,
+								display_name: MockGroupWithoutMembers.display_name,
+							},
+						},
+						{
+							user_id: "member-other-group",
+							used_ms: 7_200_000,
+							effective_group: {
+								id: MockGroup2.id,
+								name: MockGroup2.name,
+								display_name: MockGroup2.display_name,
+							},
+						},
+						{
+							user_id: "member-unallotted",
+							used_ms: 0,
+							effective_group: {
+								id: MockEveryoneGroup.id,
+								name: MockEveryoneGroup.name,
+								display_name: MockEveryoneGroup.display_name,
+							},
+						},
+					],
+				} satisfies AgentHoursGroupMembersUsage,
+			},
+		],
+	},
+};
+
+/** The members list loads but the Agent Hours fetch fails. */
+export const MembersAgentHoursError: Story = {
+	beforeEach: () => {
+		spyOn(API, "getGroupMembersAgentHours").mockRejectedValue(
+			new Error("test members Agent Hours error"),
+		);
+	},
+	parameters: {
+		features: ["agent_runtime_hours"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({ users: [MockUserMember], count: 1 }),
+			permissionsQuery({ canUpdateGroup: true }),
+		],
 	},
 };

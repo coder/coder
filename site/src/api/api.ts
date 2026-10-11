@@ -350,6 +350,9 @@ async function fetchInBatches<Item, Response>(
 /** The AI spend endpoints reject requests with more than 100 IDs. */
 const aiSpendBatchSize = 100;
 
+/** The member Agent Hours endpoint rejects requests with more than 100 IDs. */
+const agentHoursMembersBatchSize = 100;
+
 const aiProviderConfigsPath = "/api/v2/ai/providers";
 const aiGatewayPath = "/api/v2/ai-gateway";
 const chatModelsPath = (organizationId: string) =>
@@ -2285,6 +2288,39 @@ class ApiMethods {
 				);
 				const response =
 					await this.axios.get<TypesGen.GroupMembersAISpend>(url);
+				return response.data;
+			},
+		);
+		return {
+			...responses[0],
+			members: responses.flatMap((r) => r.members),
+		};
+	};
+
+	/**
+	 * Per-member Agent Hours that counted toward a group in the license usage
+	 * period, with the group each member's hours count toward now. Users not
+	 * in the group, or whose usage the caller can't read, are omitted.
+	 * Fetched in batches of 100 (the backend cap) and merged. Requires at
+	 * least one ID.
+	 */
+	getGroupMembersAgentHours = async (
+		groupId: string,
+		userIds: readonly string[],
+	): Promise<TypesGen.AgentHoursGroupMembersUsage> => {
+		if (userIds.length === 0) {
+			throw new Error("userIds must not be empty");
+		}
+		const responses = await fetchInBatches(
+			userIds,
+			agentHoursMembersBatchSize,
+			async (ids) => {
+				const url = getURLWithSearchParams(
+					`/api/v2/groups/${groupId}/members/agent-hours`,
+					{ user_ids: ids.join(",") },
+				);
+				const response =
+					await this.axios.get<TypesGen.AgentHoursGroupMembersUsage>(url);
 				return response.data;
 			},
 		);
