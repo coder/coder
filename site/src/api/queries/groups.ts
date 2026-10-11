@@ -2,7 +2,6 @@ import type { QueryClient, UseQueryOptions } from "react-query";
 import { API } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import type {
-	AgentHoursGroupMembersUsage,
 	CreateGroupRequest,
 	Group,
 	GroupAIBudget,
@@ -94,21 +93,6 @@ export const groupMembersAISpend = (
 		queryKey: getGroupMembersAISpendQueryKey(groupId, userIds),
 		queryFn: () => API.getGroupMembersAISpend(groupId, userIds),
 	} satisfies UseQueryOptions<GroupMembersAISpend>;
-};
-
-export const getGroupMembersAgentHoursQueryKey = (
-	groupId: string,
-	userIds: readonly string[],
-) => ["group", groupId, "members", "agentHours", [...userIds].sort()];
-
-export const groupMembersAgentHours = (
-	groupId: string,
-	userIds: readonly string[],
-) => {
-	return {
-		queryKey: getGroupMembersAgentHoursQueryKey(groupId, userIds),
-		queryFn: () => API.getGroupMembersAgentHours(groupId, userIds),
-	} satisfies UseQueryOptions<AgentHoursGroupMembersUsage>;
 };
 
 const getPaginatedGroupsByOrganizationQueryKey = (

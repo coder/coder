@@ -3,6 +3,7 @@ import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API, withDefaultFeatures } from "#/api/api";
 import {
+	MockAgentHoursUsagePeriod,
 	MockEntitlements,
 	MockGroupWithoutMembers,
 	MockOrganization,
@@ -38,11 +39,7 @@ const renderGroupMembersPage = (agentHoursEnabled: boolean) => {
 	const getAgentHours = vi
 		.spyOn(API, "getGroupMembersAgentHours")
 		.mockResolvedValue({
-			usage_period: {
-				issued_at: "2026-10-01T00:00:00Z",
-				start: "2026-10-01T00:00:00Z",
-				end: "2026-11-01T00:00:00Z",
-			},
+			usage_period: MockAgentHoursUsagePeriod,
 			members: [],
 		});
 	renderWithAuth(<GroupPage />, {

@@ -5,9 +5,9 @@ import {
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { groupMembersAgentHoursKey } from "#/api/queries/agentHours";
 import {
 	getGroupByIdQueryKey,
-	getGroupMembersAgentHoursQueryKey,
 	getGroupMembersAISpendQueryKey,
 	getGroupMembersQueryKey,
 	getGroupQueryKey,
@@ -30,6 +30,7 @@ import type {
 	UserAISpendStatus,
 } from "#/api/typesGenerated";
 import {
+	MockAgentHoursUsagePeriod,
 	MockDefaultOrganization,
 	MockEveryoneGroup,
 	MockGroup,
@@ -998,35 +999,30 @@ export const AIBudgetShowcase: Story = {
 	},
 };
 
-const agentHoursMembers: ReducedUser[] = [
+const mockAgentHoursMembers: ReducedUser[] = [
 	{ ...MockUserMember, id: "member-this-group", username: "alice" },
 	{ ...MockUserMember, id: "member-other-group", username: "bob" },
 	{ ...MockUserMember, id: "member-unallotted", username: "priya" },
 	{ ...MockUserMember, id: "member-no-usage", username: "jordan" },
 ];
 
-/** Agent Hours that count toward this group, another group, and the unallotted share. */
 export const WithMemberAgentHours: Story = {
 	parameters: {
 		features: ["agent_runtime_hours"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
-				users: agentHoursMembers,
-				count: agentHoursMembers.length,
+				users: mockAgentHoursMembers,
+				count: mockAgentHoursMembers.length,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
 			{
-				key: getGroupMembersAgentHoursQueryKey(
+				key: groupMembersAgentHoursKey(
 					MockGroupWithoutMembers.id,
-					agentHoursMembers.map((member) => member.id),
+					mockAgentHoursMembers.map((member) => member.id),
 				),
 				data: {
-					usage_period: {
-						issued_at: "2026-10-01T00:00:00Z",
-						start: "2026-10-01T00:00:00Z",
-						end: "2026-11-01T00:00:00Z",
-					},
+					usage_period: MockAgentHoursUsagePeriod,
 					members: [
 						{
 							user_id: "member-this-group",
@@ -1062,11 +1058,26 @@ export const WithMemberAgentHours: Story = {
 	},
 };
 
-/** The members list loads but the Agent Hours fetch fails. */
 export const MembersAgentHoursError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getGroupMembersAgentHours").mockRejectedValue(
 			new Error("test members Agent Hours error"),
+		);
+	},
+	parameters: {
+		features: ["agent_runtime_hours"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({ users: [MockUserMember], count: 1 }),
+			permissionsQuery({ canUpdateGroup: true }),
+		],
+	},
+};
+
+export const LoadingMemberAgentHours: Story = {
+	beforeEach: () => {
+		spyOn(API, "getGroupMembersAgentHours").mockReturnValue(
+			new Promise(() => {}),
 		);
 	},
 	parameters: {

@@ -6,9 +6,9 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { groupMembersAgentHours } from "#/api/queries/agentHours";
 import {
 	groupAIBudget,
-	groupMembersAgentHours,
 	groupMembersAISpend,
 	removeMember,
 } from "#/api/queries/groups";
@@ -45,7 +45,10 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { formatBudgetUSD } from "#/utils/currency";
 import { SpendEstimateDocsLink } from "./AICostControl";
-import { GroupMemberAgentHoursCells } from "./GroupMemberAgentHoursCells";
+import {
+	GroupMemberAgentHoursCells,
+	GroupMemberAgentHoursHeads,
+} from "./GroupMemberAgentHoursCells";
 import {
 	effectiveBudgetGroup,
 	GroupMemberBudgetCells,
@@ -111,8 +114,7 @@ const GroupMembersPage: React.FC = () => {
 		]) ?? [],
 	);
 	// Join each member with its spend and Agent Hours (undefined when
-	// loading, failed, or omitted by the backend) so each row gets a single
-	// object.
+	// loading, failed, or omitted by the backend).
 	const membersWithUsage = members.map(
 		(member): MemberWithUsage => ({
 			...member,
@@ -187,30 +189,9 @@ const GroupMembersPage: React.FC = () => {
 								</>
 							)}
 							{agentHoursEnabled && (
-								<>
-									<TableHead>
-										<div className="flex items-center gap-1">
-											Agent hours
-											{membersAgentHoursQuery.isError ? (
-												<StatusIconTooltip
-													kind="warning"
-													message={getErrorMessage(
-														membersAgentHoursQuery.error,
-														"Unable to load Agent Hours.",
-													)}
-												/>
-											) : (
-												<StatusIconTooltip message="Agent Hours this user used that counted toward this group in the current license usage period." />
-											)}
-										</div>
-									</TableHead>
-									<TableHead>
-										<div className="flex items-center gap-1">
-											Agent Hours group
-											<StatusIconTooltip message="A user's Agent Hours count toward their group with the largest Agent Hours allotment, or toward the organization's unallotted hours when none of their groups has one." />
-										</div>
-									</TableHead>
-								</>
+								<GroupMemberAgentHoursHeads
+									error={membersAgentHoursQuery.error}
+								/>
 							)}
 							<TableHead className="w-auto" />
 						</TableRow>
@@ -228,6 +209,8 @@ const GroupMembersPage: React.FC = () => {
 									canUpdate={canUpdateGroup}
 									showAIBudget={aibridgeVisible}
 									showAgentHours={agentHoursEnabled}
+									showUsageColumns={showUsageColumns}
+									isLoadingAgentHours={membersAgentHoursQuery.isLoading}
 									onManageAIBudget={() => setBudgetUser(member)}
 									onRemove={async () => {
 										const mutation = removeMemberMutation.mutateAsync({
@@ -274,6 +257,8 @@ type GroupMemberRowProps = {
 	canUpdate: boolean;
 	showAIBudget: boolean;
 	showAgentHours: boolean;
+	showUsageColumns: boolean;
+	isLoadingAgentHours: boolean;
 	onManageAIBudget: () => void;
 	onRemove: () => void;
 };
@@ -284,10 +269,11 @@ const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 	canUpdate,
 	showAIBudget,
 	showAgentHours,
+	showUsageColumns,
+	isLoadingAgentHours,
 	onManageAIBudget,
 	onRemove,
 }) => {
-	const showUsageColumns = showAIBudget || showAgentHours;
 	const budgetFromOtherOrganization =
 		effectiveBudgetGroup(member.spend, group).kind === "otherOrg";
 
@@ -326,7 +312,12 @@ const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 				/>
 			)}
 			{showAgentHours && (
-				<GroupMemberAgentHoursCells group={group} usage={member.agentHours} />
+				<GroupMemberAgentHoursCells
+					group={group}
+					username={member.username}
+					usage={member.agentHours}
+					isLoading={isLoadingAgentHours}
+				/>
 			)}
 			<TableCell className="w-1 whitespace-nowrap">
 				{canUpdate && (

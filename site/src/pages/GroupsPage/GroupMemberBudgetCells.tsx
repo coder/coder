@@ -10,7 +10,7 @@ import { formatBudgetUSD } from "#/utils/currency";
 import { LabelWithInfo } from "./LabelWithInfo";
 import { StatusIconTooltip } from "./StatusIconTooltip";
 
-const EM_DASH = "\u2014";
+export const EM_DASH = "\u2014";
 
 /** Shown on both cells when the governing group is in another org. */
 const OTHER_ORG_MESSAGE =

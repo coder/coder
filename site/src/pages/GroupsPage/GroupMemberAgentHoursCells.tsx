@@ -1,19 +1,64 @@
+import { getErrorMessage } from "#/api/errors";
 import type { AgentHoursGroupMemberUsage, Group } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
-import { TableCell } from "#/components/Table/Table";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { TableCell, TableHead } from "#/components/Table/Table";
+import { formatUsedAgentHours } from "#/utils/agentHours";
+import { EM_DASH } from "./GroupMemberBudgetCells";
 import { LabelWithInfo } from "./LabelWithInfo";
 
-const EM_DASH = "\u2014";
+export const GroupMemberAgentHoursHeads: React.FC<{
+	error: unknown;
+}> = ({ error }) => (
+	<>
+		<TableHead>
+			{error ? (
+				<LabelWithInfo
+					label="Agent Hours"
+					kind="warning"
+					message={getErrorMessage(error, "Unable to load Agent Hours.")}
+					ariaLabel="Agent Hours couldn't be loaded"
+				/>
+			) : (
+				<LabelWithInfo
+					label="Agent Hours"
+					message="Agent Hours this user used that counted toward this group in the current license usage period."
+					ariaLabel="About Agent Hours"
+				/>
+			)}
+		</TableHead>
+		<TableHead>
+			<LabelWithInfo
+				label="Agent Hours group"
+				message="A user's Agent Hours count toward their group with the largest Agent Hours allotment, or toward the organization's unallotted hours when none of their groups has one."
+				ariaLabel="About Agent Hours groups"
+			/>
+		</TableHead>
+	</>
+);
 
 /**
- * The Agent hours and Agent Hours group cells for a group member. Hours are
- * those that counted toward the viewed group; the group is where the
- * member's hours count now.
+ * Hours are those that counted toward the viewed group; the group is where
+ * the member's hours count now.
  */
 export const GroupMemberAgentHoursCells: React.FC<{
 	group: Group;
+	username: string;
 	usage: AgentHoursGroupMemberUsage | undefined;
-}> = ({ group, usage }) => {
+	isLoading: boolean;
+}> = ({ group, username, usage, isLoading }) => {
+	if (isLoading) {
+		return (
+			<>
+				<TableCell>
+					<Spinner loading size="sm" />
+				</TableCell>
+				<TableCell>
+					<Spinner loading size="sm" />
+				</TableCell>
+			</>
+		);
+	}
 	if (!usage) {
 		return (
 			<>
@@ -42,7 +87,7 @@ export const GroupMemberAgentHoursCells: React.FC<{
 	const hours = (
 		<span>
 			<span className="text-content-primary">
-				{formatUsedHours(usage.used_ms)}
+				{formatUsedAgentHours(usage.used_ms)}
 			</span>{" "}
 			<span className="text-content-secondary">hours</span>
 		</span>
@@ -57,6 +102,7 @@ export const GroupMemberAgentHoursCells: React.FC<{
 					<LabelWithInfo
 						label={hours}
 						message={`Only hours that counted toward ${groupName} are shown. This user's hours now count toward ${effectiveGroupLabel}.`}
+						ariaLabel={`About ${username}'s Agent Hours`}
 					/>
 				)}
 			</TableCell>
@@ -71,23 +117,7 @@ export const GroupMemberAgentHoursCells: React.FC<{
 	);
 };
 
-/** Floors to tenths so a partial hour never rounds up. */
-const formatUsedHours = (usedMs: number): string =>
-	(Math.floor(usedMs / 360_000) / 10).toLocaleString("en-US", {
-		minimumFractionDigits: 1,
-		maximumFractionDigits: 1,
-	});
-
-/**
- * Classifies the group a member's Agent Hours count toward, relative to the
- * viewed group:
- *
- * - "everyone": the organization's Everyone group, which stands for the
- *   organization's unallotted hours. Takes precedence over "this" when the
- *   viewed group is Everyone.
- * - "this": the viewed group.
- * - "otherGroup": another group in this organization.
- */
+/** Everyone is checked first because a viewed Everyone group also matches "this". */
 export function agentHoursGroupKind(
 	usage: AgentHoursGroupMemberUsage,
 	group: Pick<Group, "id" | "organization_id">,

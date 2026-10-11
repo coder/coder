@@ -347,11 +347,7 @@ async function fetchInBatches<Item, Response>(
 	return Promise.all(batches);
 }
 
-/** The AI spend endpoints reject requests with more than 100 IDs. */
-const aiSpendBatchSize = 100;
-
-/** The member Agent Hours endpoint rejects requests with more than 100 IDs. */
-const agentHoursMembersBatchSize = 100;
+const idBatchSize = 100;
 
 const aiProviderConfigsPath = "/api/v2/ai/providers";
 const aiGatewayPath = "/api/v2/ai-gateway";
@@ -2247,7 +2243,7 @@ class ApiMethods {
 		}
 		const responses = await fetchInBatches(
 			groupIds,
-			aiSpendBatchSize,
+			idBatchSize,
 			async (ids) => {
 				const url = getURLWithSearchParams(
 					`/api/v2/organizations/${organization}/groups/ai/spend`,
@@ -2280,7 +2276,7 @@ class ApiMethods {
 		}
 		const responses = await fetchInBatches(
 			userIds,
-			aiSpendBatchSize,
+			idBatchSize,
 			async (ids) => {
 				const url = getURLWithSearchParams(
 					`/api/v2/groups/${groupId}/members/ai/spend`,
@@ -2298,11 +2294,8 @@ class ApiMethods {
 	};
 
 	/**
-	 * Per-member Agent Hours that counted toward a group in the license usage
-	 * period, with the group each member's hours count toward now. Users not
-	 * in the group, or whose usage the caller can't read, are omitted.
-	 * Fetched in batches of 100 (the backend cap) and merged. Requires at
-	 * least one ID.
+	 * Users not in the group, or whose usage the caller can't read, are
+	 * omitted.
 	 */
 	getGroupMembersAgentHours = async (
 		groupId: string,
@@ -2313,7 +2306,7 @@ class ApiMethods {
 		}
 		const responses = await fetchInBatches(
 			userIds,
-			agentHoursMembersBatchSize,
+			idBatchSize,
 			async (ids) => {
 				const url = getURLWithSearchParams(
 					`/api/v2/groups/${groupId}/members/agent-hours`,
