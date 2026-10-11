@@ -11,13 +11,15 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/quartz"
 )
 
 // providerOptions holds optional configuration for provider
 // construction.
 type providerOptions struct {
-	clock quartz.Clock
+	clock  quartz.Clock
+	logger slog.Logger
 }
 
 // Option configures optional behavior for a Provider.
@@ -28,6 +30,14 @@ type Option func(*providerOptions)
 func WithClock(c quartz.Clock) Option {
 	return func(o *providerOptions) {
 		o.clock = c
+	}
+}
+
+// WithLogger sets the logger used by the provider. Defaults to a
+// logger that discards all output.
+func WithLogger(l slog.Logger) Option {
+	return func(o *providerOptions) {
+		o.logger = l
 	}
 }
 
@@ -195,7 +205,7 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 	case "github":
 		return newGitHub(apiBaseURL, httpClient, o.clock)
 	case "gitlab":
-		return newGitLab(apiBaseURL, httpClient, o.clock)
+		return newGitLab(apiBaseURL, httpClient, o.clock, o.logger)
 	default:
 		// Other providers (bitbucket-cloud, etc.) will be
 		// added here as they are implemented.
