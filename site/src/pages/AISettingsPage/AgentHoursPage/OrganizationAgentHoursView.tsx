@@ -69,7 +69,7 @@ export const OrganizationAgentHoursView: React.FC<
 	// The Everyone group's usage is the organization's unallotted usage, so
 	// it fills the remainder row instead of a row of its own.
 	const groupUsage: AllotmentUsage | undefined = usedGroups && {
-		withoutAllotment: usageWithoutAllotment(
+		usageOnlyEntries: usageWithoutAllotment(
 			usedGroups.filter((used) => used.id !== organization.id),
 			allottedGroups ?? [],
 			{ targets: groupTargets, deletedLabel: "Deleted group", href: groupHref },

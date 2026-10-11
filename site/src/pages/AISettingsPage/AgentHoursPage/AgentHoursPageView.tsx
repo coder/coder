@@ -100,7 +100,6 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 	// Organizations without an allotment draw from the unallotted pool, so
 	// they nest under its row instead of adding to the column total.
 	const organizationUsage: AllotmentUsage | undefined = usage && {
-		withoutAllotment: [],
 		remainderLabel: "Unallotted organizations",
 		remainderUsedMs: organizationsWithoutAllotment.reduce(
 			(sum, entry) => sum + entry.usedMs,

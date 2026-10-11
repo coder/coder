@@ -12,8 +12,11 @@ type UsageBarProps = {
 	percent: number;
 	severity?: UsageSeverity;
 	ariaLabel: string;
-	/** Read instead of the whole-number percentage, which hides small values. */
-	valueText?: string;
+	/**
+	 * Screen readers announce this instead of aria-valuenow, which is a whole
+	 * percentage and reads 0 for small values.
+	 */
+	ariaValueText?: string;
 	/** Track overrides, e.g. height. */
 	className?: string;
 };
@@ -22,7 +25,7 @@ export const UsageBar: React.FC<UsageBarProps> = ({
 	percent,
 	severity = "normal",
 	ariaLabel,
-	valueText,
+	ariaValueText,
 	className,
 }) => {
 	const clampedPercent = clampPercentage(percent);
@@ -34,7 +37,7 @@ export const UsageBar: React.FC<UsageBarProps> = ({
 			aria-valuemin={0}
 			aria-valuemax={100}
 			aria-valuenow={Math.round(clampedPercent)}
-			aria-valuetext={valueText}
+			aria-valuetext={ariaValueText}
 			className={cn(
 				"h-1.5 overflow-hidden rounded-full bg-surface-tertiary",
 				className,
