@@ -6,6 +6,7 @@ import AISettingsSidebarView from "#/modules/management/AISettingsSidebarView";
 import { readableInstructionsOrganizations } from "#/pages/AISettingsPage/InstructionsPage/readableInstructionsOrganizations";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
+import { readableSkillsOrganizations } from "#/pages/AISettingsPage/SkillsPage/readableSkillsOrganizations";
 import { canViewAISpend } from "#/pages/AISettingsPage/SpendPage/spendAccess";
 
 /**
@@ -41,13 +42,10 @@ export const AISettingsSidebar: React.FC = () => {
 					accessibleOrgsQuery.permissionsByOrganization,
 				).length > 0
 			}
-			skillOrganizationNames={organizations
-				.filter(
-					(organization) =>
-						accessibleOrgsQuery.permissionsByOrganization?.[organization.id]
-							?.viewOrganizationSkills,
-				)
-				.map((organization) => organization.name)}
+			skillOrganizationNames={readableSkillsOrganizations(
+				organizations,
+				accessibleOrgsQuery.permissionsByOrganization,
+			).map((organization) => organization.name)}
 		/>
 	);
 };

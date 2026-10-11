@@ -3,10 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { beforeEach, expect, it, vi } from "vitest";
 import { API, withDefaultFeatures } from "#/api/api";
+import type { Permissions } from "#/modules/permissions";
 import {
 	MockEntitlements,
 	MockNoPermissions,
 	MockOrganization,
+	MockOrganization2,
 	MockUserMember,
 } from "#/testHelpers/entities";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
@@ -20,7 +22,7 @@ const mockAIGatewayEntitlements = {
 };
 
 const mockPermissions = vi.hoisted(() => ({
-	current: {} as Record<string, boolean>,
+	current: {} as Partial<Permissions>,
 }));
 
 vi.mock("#/hooks/useAuthenticated", () => ({
@@ -32,7 +34,7 @@ vi.mock("#/hooks/useAuthenticated", () => ({
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({
 		entitlements: mockAIGatewayEntitlements,
-		organizations: [MockOrganization],
+		organizations: [MockOrganization, MockOrganization2],
 	}),
 }));
 
@@ -89,7 +91,7 @@ it("links organization instruction readers to the Instructions page", async () =
 });
 
 it.each([
-	{ requested: "second", expectedSearch: "" },
+	{ requested: MockOrganization2.name, expectedSearch: "" },
 	{
 		requested: MockOrganization.name,
 		expectedSearch: `?org=${MockOrganization.name}`,

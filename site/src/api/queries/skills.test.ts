@@ -144,7 +144,9 @@ describe("organization skill ACL queries", () => {
 		const availableKey = organizationSkillACLAvailable("org", "alpha", {
 			q: "",
 		}).queryKey;
-		queryClient.setQueryData(skillList(owner).queryKey, []);
+		queryClient.setQueryData(skillList(owner).queryKey, [
+			toMetadata(makeSkill("alpha")),
+		]);
 		queryClient.setQueryData(aclKey, { users: [], groups: [] });
 		queryClient.setQueryData(availableKey, { users: [], groups: [] });
 
