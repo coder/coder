@@ -63,7 +63,7 @@ func TestStreamLoopLatePartAfterRetry(t *testing.T) {
 			WorkerID:          worker,
 		}
 		events = loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
-		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeRetry}, eventTypes(events))
+		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeRetry, codersdk.ChatStreamEventTypeCheckpoint}, eventTypes(events))
 
 		// A part produced before the failure is still buffered in the
 		// relay. It must not be delivered after the retry event.
@@ -84,7 +84,7 @@ func TestStreamLoopLatePartAfterRetry(t *testing.T) {
 		chat.RetryStateVersion = 5
 		chat.RetryState = pqtype.NullRawMessage{}
 		events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
-		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypePreviewReset}, eventTypes(events))
+		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypePreviewReset, codersdk.ChatStreamEventTypeCheckpoint}, eventTypes(events))
 
 		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 3, Part: codersdk.ChatMessageText("!")})
 		require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestStreamLoopLatePartAfterRetry(t *testing.T) {
 		chat.RetryStateVersion = 5
 		chat.RetryState = pqtype.NullRawMessage{}
 		events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
-		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus}, eventTypes(events))
+		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus, codersdk.ChatStreamEventTypeCheckpoint}, eventTypes(events))
 
 		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 2, Part: codersdk.ChatMessageText("lo")})
 		require.NoError(t, err)
@@ -145,7 +145,7 @@ func TestStreamLoopLatePartAfterClearedRetry(t *testing.T) {
 	chat.Status = database.ChatStatusInterrupting
 	chat.RetryStateVersion = 5
 	events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
-	require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus}, eventTypes(events))
+	require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus, codersdk.ChatStreamEventTypeCheckpoint}, eventTypes(events))
 
 	_, accepted, err = loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 2, Part: codersdk.ChatMessageText("lo")})
 	require.NoError(t, err)
@@ -208,6 +208,7 @@ func TestStreamLoopLatePartAfterError(t *testing.T) {
 		require.Equal(t, []codersdk.ChatStreamEventType{
 			codersdk.ChatStreamEventTypeStatus,
 			codersdk.ChatStreamEventTypeError,
+			codersdk.ChatStreamEventTypeCheckpoint,
 		}, eventTypes(events))
 		return chat
 	}
@@ -240,6 +241,7 @@ func TestStreamLoopLatePartAfterError(t *testing.T) {
 		require.Equal(t, []codersdk.ChatStreamEventType{
 			codersdk.ChatStreamEventTypeStatus,
 			codersdk.ChatStreamEventTypePreviewReset,
+			codersdk.ChatStreamEventTypeCheckpoint,
 		}, eventTypes(events))
 
 		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 2, Seq: 1, Part: codersdk.ChatMessageText("Hello")})
@@ -257,7 +259,7 @@ func TestStreamLoopLatePartAfterError(t *testing.T) {
 		chat.SnapshotVersion++
 		chat.Status = database.ChatStatusInterrupting
 		events := loop.applyDBSnapshot(streamDBSnapshot{chat: chat})
-		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus}, eventTypes(events))
+		require.Equal(t, []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus, codersdk.ChatStreamEventTypeCheckpoint}, eventTypes(events))
 
 		_, accepted, err := loop.part(StreamPart{HistoryVersion: 1, GenerationAttempt: 1, Seq: 2, Part: codersdk.ChatMessageText("lo")})
 		require.NoError(t, err)
