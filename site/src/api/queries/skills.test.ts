@@ -6,6 +6,8 @@ import {
 	deleteSkill,
 	type SkillOwner,
 	skill,
+	skillList,
+	updateOrganizationSkillACL,
 	updateSkill,
 	userSkills,
 } from "./skills";
@@ -129,5 +131,28 @@ describe("user skill queries", () => {
 		expect(
 			queryClient.getQueryData(skill(me, "alpha").queryKey),
 		).toBeUndefined();
+	});
+});
+
+describe("organization skill ACL queries", () => {
+	it("invalidates the skill list and detail after saving the ACL", async () => {
+		const queryClient = createTestQueryClient();
+		const owner: SkillOwner = { type: "organization", organizationId: "org" };
+		const alpha = makeSkill("alpha");
+		queryClient.setQueryData(skillList(owner).queryKey, [toMetadata(alpha)]);
+		queryClient.setQueryData(skill(owner, "alpha").queryKey, alpha);
+
+		await updateOrganizationSkillACL(queryClient).onSuccess(undefined, {
+			organizationId: "org",
+			name: "alpha",
+			req: {},
+		});
+
+		expect(
+			queryClient.getQueryState(skillList(owner).queryKey)?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(skill(owner, "alpha").queryKey)?.isInvalidated,
+		).toBe(true);
 	});
 });
