@@ -524,6 +524,8 @@ type PromoteQueuedResult struct {
 	// was running at promote time, the insertion is deferred to the
 	// worker's auto-promote and PromotedMessage is the zero value.
 	PromotedMessage database.ChatMessage
+	// Chat is the chat as the promote committed it.
+	Chat database.Chat
 }
 
 // forcedMCPServerConfigsForOwner filters enabled Force On configs
