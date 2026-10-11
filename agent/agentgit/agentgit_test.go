@@ -7,6 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -145,6 +149,50 @@ func TestScanReturnsRepoChanges(t *testing.T) {
 
 	// Verify the new file appears in the unified diff.
 	require.Contains(t, repo.UnifiedDiff, "new.go")
+}
+
+// recordingExecer records every command it builds and delegates to
+// agentexec.DefaultExecer.
+type recordingExecer struct {
+	agentexec.Execer
+
+	mu       sync.Mutex
+	commands []string
+}
+
+func (r *recordingExecer) CommandContext(ctx context.Context, cmd string, args ...string) *exec.Cmd {
+	r.mu.Lock()
+	r.commands = append(r.commands, strings.Join(append([]string{cmd}, args...), " "))
+	r.mu.Unlock()
+	return r.Execer.CommandContext(ctx, cmd, args...)
+}
+
+func (r *recordingExecer) recorded() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.commands)
+}
+
+func TestWithExecerRunsGit(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	logger := slogtest.Make(t, nil)
+	execer := &recordingExecer{Execer: agentexec.DefaultExecer}
+
+	h := agentgit.NewHandler(logger, agentgit.WithExecer(execer))
+
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "new.go"), []byte("package main\n"), 0o600))
+	require.True(t, h.Subscribe([]string{filepath.Join(repoDir, "new.go")}))
+	msg := h.Scan(context.Background())
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+	require.Contains(t, msg.Repositories[0].UnifiedDiff, "new.go")
+
+	commands := execer.recorded()
+	require.Contains(t, commands, "git rev-parse --show-toplevel")
+	require.Contains(t, commands, "git -C "+repoDir+" diff HEAD")
+	require.Contains(t, commands, "git -C "+repoDir+" ls-files --others --exclude-standard")
 }
 
 func TestScanRespectsGitignore(t *testing.T) {

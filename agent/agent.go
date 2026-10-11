@@ -454,7 +454,7 @@ func (a *agent) init() {
 	}
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
 	a.toolCalls = agenttoolcall.New(a.clock, a.processAPI.CancelToolCall)
-	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
+	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock), agentgit.WithExecer(a.execer)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
