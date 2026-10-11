@@ -166,7 +166,7 @@ export const SectionLabel: React.FC<React.ComponentProps<"h4">> = ({
 };
 
 type PillProps = React.ComponentProps<"div"> & {
-	// oxlint-disable-next-line no-restricted-types
+	// oxlint-disable-next-line no-restricted-types -- The icon can be any element; only its className is overridden.
 	icon: React.ReactElement<React.HTMLAttributes<HTMLElement>>;
 };
 

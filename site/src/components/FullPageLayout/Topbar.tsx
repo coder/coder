@@ -64,7 +64,7 @@ export const TopbarAvatar: React.FC<AvatarProps> = (props) => {
 	return <Avatar {...props} variant="icon" size="sm" />;
 };
 
-// oxlint-disable-next-line no-restricted-types
+// oxlint-disable-next-line no-restricted-types -- The child can be an HTML or SVG element, so no single tag applies.
 type TopbarIconProps = React.HTMLAttributes<HTMLOrSVGElement> & {
 	ref?: React.Ref<HTMLOrSVGElement>;
 };

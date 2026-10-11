@@ -77,7 +77,9 @@ const TemplateParametersPage: React.FC = () => {
 								? `${template.display_name} will use parameter compatibility mode.`
 								: `${template.display_name} will use dynamic parameters.`,
 						);
-					} catch {}
+					} catch {
+						// The view renders the failed mutation's error.
+					}
 				}}
 				onRefresh={async () => {
 					createAndBuildMutation.reset();
@@ -99,7 +101,9 @@ const TemplateParametersPage: React.FC = () => {
 						toast.success(
 							`Template "${template.name}" data refreshed successfully.`,
 						);
-					} catch {}
+					} catch {
+						// The view renders the failed mutation's error.
+					}
 				}}
 			/>
 		</>

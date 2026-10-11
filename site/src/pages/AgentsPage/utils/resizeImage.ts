@@ -88,8 +88,12 @@ export async function resizeImageToMaxBytes(
 	return enqueue(() => shrinkOnce(file, maxBytes));
 }
 
+// The legacy <img> fallback decodes to an element, which is drawable
+// and reports width/height like an ImageBitmap but has no close().
+type DecodedImage = ImageBitmap | HTMLImageElement;
+
 async function shrinkOnce(file: File, maxBytes: number): Promise<File | null> {
-	let bitmap: ImageBitmap | null = null;
+	let bitmap: DecodedImage | null = null;
 	try {
 		bitmap = await decodeToBitmap(file);
 	} catch {
@@ -138,11 +142,13 @@ async function shrinkOnce(file: File, maxBytes: number): Promise<File | null> {
 	} catch {
 		return null;
 	} finally {
-		bitmap.close?.();
+		if ("close" in bitmap) {
+			bitmap.close();
+		}
 	}
 }
 
-async function decodeToBitmap(file: File): Promise<ImageBitmap | null> {
+async function decodeToBitmap(file: File): Promise<DecodedImage | null> {
 	// createImageBitmap's HTML-spec output rules:
 	//   - both resize dims => stretch (destroys aspect ratio).
 	//   - only resizeWidth => width is exact, height proportional.
@@ -220,12 +226,12 @@ async function probeNaturalDimensions(
 	);
 }
 
-async function decodeViaImgFallback(file: File): Promise<ImageBitmap | null> {
+async function decodeViaImgFallback(file: File): Promise<HTMLImageElement> {
 	// Decode via <img> + Blob URL. Reached only on browsers
 	// without createImageBitmap (very old Safari, embedded
 	// webviews); time-bounded so a stuck decoder can't wedge the
 	// queue. No decode-time clamp on this path.
-	return await new Promise<ImageBitmap | null>((resolve, reject) => {
+	return await new Promise<HTMLImageElement>((resolve, reject) => {
 		const url = URL.createObjectURL(file);
 		const img = new Image();
 		let settled = false;
@@ -242,9 +248,7 @@ async function decodeViaImgFallback(file: File): Promise<ImageBitmap | null> {
 			if (settled) return;
 			clearTimeout(timer);
 			cleanup();
-			// HTMLImageElement is a valid CanvasImageSource;
-			// width/height are all we need downstream.
-			resolve(img as unknown as ImageBitmap);
+			resolve(img);
 		};
 		img.onerror = () => {
 			if (settled) return;
@@ -257,7 +261,7 @@ async function decodeViaImgFallback(file: File): Promise<ImageBitmap | null> {
 }
 
 async function encodeWebP(
-	source: ImageBitmap,
+	source: DecodedImage,
 	width: number,
 	height: number,
 	quality: number,
@@ -286,7 +290,7 @@ async function encodeWebP(
 	if (!ctx) {
 		return null;
 	}
-	ctx.drawImage(source as CanvasImageSource, 0, 0, width, height);
+	ctx.drawImage(source, 0, 0, width, height);
 	return await new Promise<Blob | null>((resolve) => {
 		canvas.toBlob((blob) => resolve(blob), "image/webp", quality);
 	});

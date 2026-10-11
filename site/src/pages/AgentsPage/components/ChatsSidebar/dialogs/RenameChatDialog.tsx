@@ -215,11 +215,12 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 			return;
 		}
 		setIsRenamingChat(true);
-		await onRename(chat.id, trimmedTitle)
-			.then(() => {
-				closeDialog();
-			})
-			.catch(() => {});
+		try {
+			await onRename(chat.id, trimmedTitle);
+			closeDialog();
+		} catch {
+			// onRename reports the failure; keep the dialog open for a retry.
+		}
 		setIsRenamingChat(false);
 	};
 
