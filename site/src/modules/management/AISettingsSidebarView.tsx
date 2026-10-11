@@ -23,6 +23,8 @@ type AISettingsSidebarViewProps = {
 	canAccessOrganizationModels?: boolean;
 	canShareOrganizationMCPServers?: boolean;
 	canViewOrganizationInstructions: boolean;
+	/** Names of the organizations whose skills the user can read. */
+	skillOrganizationNames?: readonly string[];
 };
 
 const SubNavItem: React.FC<{ href: To; children?: React.ReactNode }> = ({
@@ -89,6 +91,7 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 	canAccessOrganizationModels = false,
 	canShareOrganizationMCPServers = false,
 	canViewOrganizationInstructions,
+	skillOrganizationNames = [],
 }) => {
 	const [searchParams] = useSearchParams();
 	const organizationName = searchParams.get(modelOrganizationSearchParam);
@@ -116,9 +119,14 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 		"/ai/settings/instructions",
 		organizationName,
 	);
+	// The Skills page denies an organization the user cannot read rather than
+	// replacing it, so only carry over an organization it will show.
 	const skillsPath = organizationScopedPath(
 		"/ai/settings/skills",
-		organizationName,
+		organizationName !== null &&
+			skillOrganizationNames.includes(organizationName)
+			? organizationName
+			: null,
 	);
 
 	return (

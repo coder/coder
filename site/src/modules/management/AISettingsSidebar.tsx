@@ -41,6 +41,13 @@ export const AISettingsSidebar: React.FC = () => {
 					accessibleOrgsQuery.permissionsByOrganization,
 				).length > 0
 			}
+			skillOrganizationNames={organizations
+				.filter(
+					(organization) =>
+						accessibleOrgsQuery.permissionsByOrganization?.[organization.id]
+							?.viewOrganizationSkills,
+				)
+				.map((organization) => organization.name)}
 		/>
 	);
 };
