@@ -2211,6 +2211,25 @@ func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) e
 	return q.db.DeleteAPIKeysByUserID(ctx, userID)
 }
 
+func (q *querier) DeleteAgentHoursGroupAllotment(ctx context.Context, groupID uuid.UUID) (database.AgentHoursGroupAllotment, error) {
+	// Removing a group's Agent Hours allotment counts as updating the group.
+	group, err := q.db.GetGroupByID(ctx, groupID)
+	if err != nil {
+		return database.AgentHoursGroupAllotment{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, group); err != nil {
+		return database.AgentHoursGroupAllotment{}, err
+	}
+	return q.db.DeleteAgentHoursGroupAllotment(ctx, groupID)
+}
+
+func (q *querier) DeleteAgentHoursOrganizationAllotment(ctx context.Context, organizationID uuid.UUID) (database.AgentHoursOrganizationAllotment, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return database.AgentHoursOrganizationAllotment{}, err
+	}
+	return q.db.DeleteAgentHoursOrganizationAllotment(ctx, organizationID)
+}
+
 func (q *querier) DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -3172,6 +3191,31 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 		return []database.WorkspaceBuild{}, err
 	}
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
+}
+
+func (q *querier) GetAgentHoursGroupAllotmentsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.GetAgentHoursGroupAllotmentsByOrganizationIDRow, error) {
+	// One organization-level check instead of per-row filtering keeps the
+	// returned set complete, so callers can compute the allotted total.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup.InOrg(organizationID)); err != nil {
+		return nil, err
+	}
+	return q.db.GetAgentHoursGroupAllotmentsByOrganizationID(ctx, organizationID)
+}
+
+func (q *querier) GetAgentHoursOrganizationAllotment(ctx context.Context, organizationID uuid.UUID) (database.AgentHoursOrganizationAllotment, error) {
+	// Members of the organization can read its share so group managers see
+	// the base of their group allotments.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOrganization.WithID(organizationID).InOrg(organizationID)); err != nil {
+		return database.AgentHoursOrganizationAllotment{}, err
+	}
+	return q.db.GetAgentHoursOrganizationAllotment(ctx, organizationID)
+}
+
+func (q *querier) GetAgentHoursOrganizationAllotments(ctx context.Context) ([]database.GetAgentHoursOrganizationAllotmentsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetAgentHoursOrganizationAllotments(ctx)
 }
 
 func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
@@ -9326,6 +9370,25 @@ func (q *querier) UpsertAISeatState(ctx context.Context, arg database.UpsertAISe
 		return false, err
 	}
 	return q.db.UpsertAISeatState(ctx, arg)
+}
+
+func (q *querier) UpsertAgentHoursGroupAllotment(ctx context.Context, arg database.UpsertAgentHoursGroupAllotmentParams) (database.AgentHoursGroupAllotment, error) {
+	// Setting a group's Agent Hours allotment counts as updating the group.
+	group, err := q.db.GetGroupByID(ctx, arg.GroupID)
+	if err != nil {
+		return database.AgentHoursGroupAllotment{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, group); err != nil {
+		return database.AgentHoursGroupAllotment{}, err
+	}
+	return q.db.UpsertAgentHoursGroupAllotment(ctx, arg)
+}
+
+func (q *querier) UpsertAgentHoursOrganizationAllotment(ctx context.Context, arg database.UpsertAgentHoursOrganizationAllotmentParams) (database.AgentHoursOrganizationAllotment, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return database.AgentHoursOrganizationAllotment{}, err
+	}
+	return q.db.UpsertAgentHoursOrganizationAllotment(ctx, arg)
 }
 
 func (q *querier) UpsertAnnouncementBanners(ctx context.Context, value string) error {

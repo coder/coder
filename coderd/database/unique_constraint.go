@@ -6,6 +6,8 @@ type UniqueConstraint string
 
 // UniqueConstraint enums.
 const (
+	UniqueAgentHoursGroupAllotmentsPkey                          UniqueConstraint = "agent_hours_group_allotments_pkey"                               // ALTER TABLE ONLY agent_hours_group_allotments ADD CONSTRAINT agent_hours_group_allotments_pkey PRIMARY KEY (group_id);
+	UniqueAgentHoursOrganizationAllotmentsPkey                   UniqueConstraint = "agent_hours_organization_allotments_pkey"                        // ALTER TABLE ONLY agent_hours_organization_allotments ADD CONSTRAINT agent_hours_organization_allotments_pkey PRIMARY KEY (organization_id);
 	UniqueAgentStatsPkey                                         UniqueConstraint = "agent_stats_pkey"                                                // ALTER TABLE ONLY workspace_agent_stats ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 	UniqueAIGatewayKeysPkey                                      UniqueConstraint = "ai_gateway_keys_pkey"                                            // ALTER TABLE ONLY ai_gateway_keys ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 	UniqueAIModelPricesPkey                                      UniqueConstraint = "ai_model_prices_pkey"                                            // ALTER TABLE ONLY ai_model_prices ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model, source);

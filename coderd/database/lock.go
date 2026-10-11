@@ -25,6 +25,7 @@ const (
 	LockIDChatModelConfigWrites
 	LockIDChatCapacityAdmission
 	LockIDNotifyUnpricedAIModels
+	LockIDAgentHoursOrganizationAllotments
 )
 
 // Per-setting advisory lock IDs for the chat instruction settings. These
@@ -42,6 +43,12 @@ var (
 // serializes writes to one organization's chat system prompt.
 func LockIDChatOrganizationSystemPrompt(organizationID uuid.UUID) int64 {
 	return GenLockID("chat_organization_system_prompt:" + organizationID.String())
+}
+
+// LockIDAgentHoursGroupAllotments returns the advisory lock ID that
+// serializes Agent Hours group allotment writes within one organization.
+func LockIDAgentHoursGroupAllotments(organizationID uuid.UUID) int64 {
+	return GenLockID("agent_hours_group_allotments:" + organizationID.String())
 }
 
 // GenLockID generates a unique and consistent lock ID from a given string.

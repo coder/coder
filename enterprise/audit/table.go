@@ -33,18 +33,20 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AIGatewayKey":                  {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"AuditableGroupAIBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
-	"ChatProject":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"ChatProjectMemory":             {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"ChatModelConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"ChatAutomation":                {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
-	"ChatOperationalSettings":       {codersdk.AuditActionWrite},
-	"ChatOrganizationSystemPrompt":  {codersdk.AuditActionWrite},
-	"ExperimentRule":                {codersdk.AuditActionWrite},
+	"AuditableAgentHoursOrganizationAllotment": {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AuditableAgentHoursGroupAllotment":        {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Chat":                                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
+	"ChatProject":                              {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatProjectMemory":                        {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"ChatModelConfig":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatAutomation":                           {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"MCPServerConfig":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"UserSecret":                               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"UserSkill":                                {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatInstructionSettings":                  {codersdk.AuditActionWrite},
+	"ChatOperationalSettings":                  {codersdk.AuditActionWrite},
+	"ChatOrganizationSystemPrompt":             {codersdk.AuditActionWrite},
+	"ExperimentRule":                           {codersdk.AuditActionWrite},
 }
 
 type Action string
@@ -242,6 +244,22 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"group_name":         ActionIgnore, // Group name is already included in the title.
 		"created_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
 		"updated_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
+	},
+	&database.AuditableAgentHoursOrganizationAllotment{}: {
+		"organization_id":   ActionIgnore, // Organization name is already included in the title.
+		"organization_name": ActionIgnore, // Organization name is already included in the title.
+		"allotment_bps":     ActionIgnore,
+		"allotment":         ActionTrack,  // Track allotment, which is the human-readable version.
+		"created_at":        ActionIgnore, // Redundant with the audit log's own timestamp.
+		"updated_at":        ActionIgnore, // Redundant with the audit log's own timestamp.
+	},
+	&database.AuditableAgentHoursGroupAllotment{}: {
+		"group_id":      ActionIgnore, // Group name is already included in the title.
+		"group_name":    ActionIgnore, // Group name is already included in the title.
+		"allotment_bps": ActionIgnore,
+		"allotment":     ActionTrack,  // Track allotment, which is the human-readable version.
+		"created_at":    ActionIgnore, // Redundant with the audit log's own timestamp.
+		"updated_at":    ActionIgnore, // Redundant with the audit log's own timestamp.
 	},
 	&database.AuditableUserAIBudgetOverride{}: {
 		"user_id":            ActionIgnore, // Username is already included in the title.

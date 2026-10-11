@@ -145,6 +145,10 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.GroupName
 	case database.AuditableUserAIBudgetOverride:
 		return typed.Username
+	case database.AuditableAgentHoursOrganizationAllotment:
+		return typed.OrganizationName
+	case database.AuditableAgentHoursGroupAllotment:
+		return typed.GroupName
 	case database.Chat:
 		// Chat titles can contain sensitive content (secrets, internal
 		// project names), so we use a short UUID prefix as a display
@@ -270,6 +274,10 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.GroupID
 	case database.AuditableUserAIBudgetOverride:
 		return typed.UserID
+	case database.AuditableAgentHoursOrganizationAllotment:
+		return typed.OrganizationID
+	case database.AuditableAgentHoursGroupAllotment:
+		return typed.GroupID
 	case database.Chat:
 		return typed.ID
 	case database.ChatProject:
@@ -363,6 +371,10 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeGroupAIBudget
 	case database.AuditableUserAIBudgetOverride:
 		return database.ResourceTypeUserAIBudgetOverride
+	case database.AuditableAgentHoursOrganizationAllotment:
+		return database.ResourceTypeAgentHoursOrganizationAllotment
+	case database.AuditableAgentHoursGroupAllotment:
+		return database.ResourceTypeAgentHoursGroupAllotment
 	case database.Chat:
 		return database.ResourceTypeChat
 	case database.ChatProject:
@@ -464,6 +476,11 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.AuditableUserAIBudgetOverride:
 		// User AI budget overrides are org-scoped through their
 		// attributed group.
+		return true
+	case database.AuditableAgentHoursOrganizationAllotment:
+		return true
+	case database.AuditableAgentHoursGroupAllotment:
+		// Group allotments are org-scoped through their parent group.
 		return true
 	case database.Chat:
 		// Chats always have a non-null organization_id (since

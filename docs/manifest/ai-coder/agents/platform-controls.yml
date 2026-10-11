@@ -19,6 +19,10 @@ children:
     description: Cap Coder Agents spend with AI Gateway budgets and track the resulting spend.
     path: ./ai-coder/agents/platform-controls/spend-management.md
     state: [premium]
+  - title: Agent Hours allotments
+    description: Plan how licensed Agent Hours are divided between organizations and groups.
+    path: ./ai-coder/agents/platform-controls/agent-hours-allotments.md
+    state: [premium]
   - title: Git providers
     description: Configure Git providers so Coder Agents can show pull request diffs in the in-chat viewer.
     path: ./ai-coder/agents/platform-controls/git-providers.md

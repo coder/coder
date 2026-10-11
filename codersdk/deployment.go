@@ -262,6 +262,8 @@ func (n FeatureName) Humanize() string {
 		return "AI Gateway"
 	case FeatureAIGovernanceUserLimit:
 		return "AI Governance User Limit"
+	case FeatureAgentRuntimeHours:
+		return "Agent Hours"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}

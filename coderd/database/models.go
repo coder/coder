@@ -3963,51 +3963,53 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization                 ResourceType = "organization"
-	ResourceTypeTemplate                     ResourceType = "template"
-	ResourceTypeTemplateVersion              ResourceType = "template_version"
-	ResourceTypeUser                         ResourceType = "user"
-	ResourceTypeWorkspace                    ResourceType = "workspace"
-	ResourceTypeGitSshKey                    ResourceType = "git_ssh_key"
-	ResourceTypeApiKey                       ResourceType = "api_key"
-	ResourceTypeGroup                        ResourceType = "group"
-	ResourceTypeWorkspaceBuild               ResourceType = "workspace_build"
-	ResourceTypeLicense                      ResourceType = "license"
-	ResourceTypeWorkspaceProxy               ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin                 ResourceType = "convert_login"
-	ResourceTypeHealthSettings               ResourceType = "health_settings"
-	ResourceTypeOauth2ProviderApp            ResourceType = "oauth2_provider_app"
-	ResourceTypeOauth2ProviderAppSecret      ResourceType = "oauth2_provider_app_secret"
-	ResourceTypeCustomRole                   ResourceType = "custom_role"
-	ResourceTypeOrganizationMember           ResourceType = "organization_member"
-	ResourceTypeNotificationsSettings        ResourceType = "notifications_settings"
-	ResourceTypeNotificationTemplate         ResourceType = "notification_template"
-	ResourceTypeIdpSyncSettingsOrganization  ResourceType = "idp_sync_settings_organization"
-	ResourceTypeIdpSyncSettingsGroup         ResourceType = "idp_sync_settings_group"
-	ResourceTypeIdpSyncSettingsRole          ResourceType = "idp_sync_settings_role"
-	ResourceTypeWorkspaceAgent               ResourceType = "workspace_agent"
-	ResourceTypeWorkspaceApp                 ResourceType = "workspace_app"
-	ResourceTypePrebuildsSettings            ResourceType = "prebuilds_settings"
-	ResourceTypeTask                         ResourceType = "task"
-	ResourceTypeAISeat                       ResourceType = "ai_seat"
-	ResourceTypeChat                         ResourceType = "chat"
-	ResourceTypeUserSecret                   ResourceType = "user_secret"
-	ResourceTypeAIProvider                   ResourceType = "ai_provider"
-	ResourceTypeAIProviderKey                ResourceType = "ai_provider_key"
-	ResourceTypeGroupAIBudget                ResourceType = "group_ai_budget"
-	ResourceTypeUserSkill                    ResourceType = "user_skill"
-	ResourceTypeAIGatewayKey                 ResourceType = "ai_gateway_key"
-	ResourceTypeUserAIBudgetOverride         ResourceType = "user_ai_budget_override"
-	ResourceTypeOauth2ProviderSettings       ResourceType = "oauth2_provider_settings"
-	ResourceTypeChatInstructionSettings      ResourceType = "chat_instruction_settings"
-	ResourceTypeMCPServerConfig              ResourceType = "mcp_server_config"
-	ResourceTypeChatModelConfig              ResourceType = "chat_model_config"
-	ResourceTypeChatOperationalSettings      ResourceType = "chat_operational_settings"
-	ResourceTypeExperimentRule               ResourceType = "experiment_rule"
-	ResourceTypeChatProject                  ResourceType = "chat_project"
-	ResourceTypeChatAutomation               ResourceType = "chat_automation"
-	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
-	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
+	ResourceTypeOrganization                    ResourceType = "organization"
+	ResourceTypeTemplate                        ResourceType = "template"
+	ResourceTypeTemplateVersion                 ResourceType = "template_version"
+	ResourceTypeUser                            ResourceType = "user"
+	ResourceTypeWorkspace                       ResourceType = "workspace"
+	ResourceTypeGitSshKey                       ResourceType = "git_ssh_key"
+	ResourceTypeApiKey                          ResourceType = "api_key"
+	ResourceTypeGroup                           ResourceType = "group"
+	ResourceTypeWorkspaceBuild                  ResourceType = "workspace_build"
+	ResourceTypeLicense                         ResourceType = "license"
+	ResourceTypeWorkspaceProxy                  ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin                    ResourceType = "convert_login"
+	ResourceTypeHealthSettings                  ResourceType = "health_settings"
+	ResourceTypeOauth2ProviderApp               ResourceType = "oauth2_provider_app"
+	ResourceTypeOauth2ProviderAppSecret         ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeCustomRole                      ResourceType = "custom_role"
+	ResourceTypeOrganizationMember              ResourceType = "organization_member"
+	ResourceTypeNotificationsSettings           ResourceType = "notifications_settings"
+	ResourceTypeNotificationTemplate            ResourceType = "notification_template"
+	ResourceTypeIdpSyncSettingsOrganization     ResourceType = "idp_sync_settings_organization"
+	ResourceTypeIdpSyncSettingsGroup            ResourceType = "idp_sync_settings_group"
+	ResourceTypeIdpSyncSettingsRole             ResourceType = "idp_sync_settings_role"
+	ResourceTypeWorkspaceAgent                  ResourceType = "workspace_agent"
+	ResourceTypeWorkspaceApp                    ResourceType = "workspace_app"
+	ResourceTypePrebuildsSettings               ResourceType = "prebuilds_settings"
+	ResourceTypeTask                            ResourceType = "task"
+	ResourceTypeAISeat                          ResourceType = "ai_seat"
+	ResourceTypeChat                            ResourceType = "chat"
+	ResourceTypeUserSecret                      ResourceType = "user_secret"
+	ResourceTypeAIProvider                      ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey                   ResourceType = "ai_provider_key"
+	ResourceTypeGroupAIBudget                   ResourceType = "group_ai_budget"
+	ResourceTypeUserSkill                       ResourceType = "user_skill"
+	ResourceTypeAIGatewayKey                    ResourceType = "ai_gateway_key"
+	ResourceTypeUserAIBudgetOverride            ResourceType = "user_ai_budget_override"
+	ResourceTypeOauth2ProviderSettings          ResourceType = "oauth2_provider_settings"
+	ResourceTypeChatInstructionSettings         ResourceType = "chat_instruction_settings"
+	ResourceTypeMCPServerConfig                 ResourceType = "mcp_server_config"
+	ResourceTypeChatModelConfig                 ResourceType = "chat_model_config"
+	ResourceTypeChatOperationalSettings         ResourceType = "chat_operational_settings"
+	ResourceTypeExperimentRule                  ResourceType = "experiment_rule"
+	ResourceTypeChatProject                     ResourceType = "chat_project"
+	ResourceTypeChatAutomation                  ResourceType = "chat_automation"
+	ResourceTypeChatProjectMemory               ResourceType = "chat_project_memory"
+	ResourceTypeChatOrganizationSystemPrompt    ResourceType = "chat_organization_system_prompt"
+	ResourceTypeAgentHoursOrganizationAllotment ResourceType = "agent_hours_organization_allotment"
+	ResourceTypeAgentHoursGroupAllotment        ResourceType = "agent_hours_group_allotment"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -4091,7 +4093,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatProject,
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
-		ResourceTypeChatOrganizationSystemPrompt:
+		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeAgentHoursOrganizationAllotment,
+		ResourceTypeAgentHoursGroupAllotment:
 		return true
 	}
 	return false
@@ -4144,6 +4148,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatAutomation,
 		ResourceTypeChatProjectMemory,
 		ResourceTypeChatOrganizationSystemPrompt,
+		ResourceTypeAgentHoursOrganizationAllotment,
+		ResourceTypeAgentHoursGroupAllotment,
 	}
 }
 
@@ -5302,6 +5308,22 @@ type APIKey struct {
 	TokenName       string       `db:"token_name" json:"token_name"`
 	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
+}
+
+// Share of the group's organization's Agent Hours allotted to a group, in basis points. Configuration only; not enforced.
+type AgentHoursGroupAllotment struct {
+	GroupID      uuid.UUID `db:"group_id" json:"group_id"`
+	AllotmentBps int32     `db:"allotment_bps" json:"allotment_bps"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Share of the deployment's licensed Agent Hours allotted to an organization, in basis points. Configuration only; not enforced.
+type AgentHoursOrganizationAllotment struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	AllotmentBps   int32     `db:"allotment_bps" json:"allotment_bps"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type AuditLog struct {

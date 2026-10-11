@@ -45,6 +45,8 @@ type Auditable interface {
 		database.MCPServerConfig |
 		database.AuditableGroupAIBudget |
 		database.AuditableUserAIBudgetOverride |
+		database.AuditableAgentHoursOrganizationAllotment |
+		database.AuditableAgentHoursGroupAllotment |
 		database.UserSecret |
 		database.UserSkill |
 		database.ChatInstructionSettings |

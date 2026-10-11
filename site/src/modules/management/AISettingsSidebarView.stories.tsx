@@ -46,6 +46,7 @@ const aiSettingsRoutes: [RouterRoute, ...RouterRoute[]] = [
 	{ path: "/ai/settings/templates", useStoryElement: true },
 	{ path: "/ai/settings/instructions", useStoryElement: true },
 	{ path: "/ai/settings/lifecycle", useStoryElement: true },
+	{ path: "/ai/settings/agent-hours", useStoryElement: true },
 ];
 
 const atLocation = (path: string, searchParams?: Record<string, string>) =>
@@ -81,6 +82,7 @@ const meta: Meta<typeof AISettingsSidebarView> = {
 	args: {
 		permissions: MockPermissions,
 		canViewOrganizationInstructions: false,
+		canViewAgentHours: false,
 	},
 	parameters: {
 		reactRouter: atLocation("/ai/settings/coder-agents"),
@@ -407,6 +409,25 @@ export const InstructionsForOrganizationAdmin: Story = {
 	},
 	parameters: {
 		reactRouter: atLocation("/ai/settings/instructions"),
+	},
+};
+
+export const AgentHoursActive: Story = {
+	args: {
+		canViewAgentHours: true,
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/agent-hours"),
+	},
+};
+
+export const AgentHoursForGroupManager: Story = {
+	args: {
+		permissions: MockNoPermissions,
+		canViewAgentHours: true,
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/agent-hours"),
 	},
 };
 

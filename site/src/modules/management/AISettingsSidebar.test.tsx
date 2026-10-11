@@ -16,6 +16,7 @@ const mockAIGatewayEntitlements = {
 	...MockEntitlements,
 	features: withDefaultFeatures({
 		aibridge: { enabled: true, entitlement: "entitled" },
+		agent_runtime_hours: { enabled: true, entitlement: "entitled" },
 	}),
 };
 
@@ -77,5 +78,34 @@ it("links organization instruction readers to the Instructions page", async () =
 	renderWithRouter(router);
 	await user.click(await screen.findByRole("link", { name: "Instructions" }));
 	expect(router.state.location.pathname).toBe("/ai/settings/instructions");
+	expect(router.state.location.search).toBe("?org=second");
+});
+
+it("links organization group managers to the Agent Hours page", async () => {
+	const user = userEvent.setup();
+	vi.spyOn(API, "getOrganizations").mockResolvedValue([MockOrganization]);
+	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+		Object.fromEntries(
+			Object.entries(checks).map(([key, check]) => [
+				key,
+				check.object.resource_type === "group" && check.action === "update",
+			]),
+		),
+	);
+	vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
+		models: [],
+		providers: [],
+		unsupported_providers: [],
+	});
+	const router = createMemoryRouter(
+		[
+			{ path: "/ai/settings", element: <AISettingsSidebar /> },
+			{ path: "/ai/settings/agent-hours", element: <div /> },
+		],
+		{ initialEntries: ["/ai/settings?org=second"] },
+	);
+	renderWithRouter(router);
+	await user.click(await screen.findByRole("link", { name: "Agent Hours" }));
+	expect(router.state.location.pathname).toBe("/ai/settings/agent-hours");
 	expect(router.state.location.search).toBe("?org=second");
 });

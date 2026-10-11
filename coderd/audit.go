@@ -647,6 +647,14 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		// TODO: point at the user's AI budget override management page
 		// once it ships. Until then, the audit row links nowhere.
 		return ""
+	case database.ResourceTypeAgentHoursOrganizationAllotment:
+		return "/ai/settings/agent-hours"
+	case database.ResourceTypeAgentHoursGroupAllotment:
+		organization, err := api.Database.GetOrganizationByID(ctx, alog.AuditLog.OrganizationID)
+		if err != nil {
+			return ""
+		}
+		return fmt.Sprintf("/ai/settings/agent-hours?org=%s", url.QueryEscape(organization.Name))
 	default:
 		return ""
 	}
