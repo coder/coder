@@ -76,6 +76,7 @@ const (
 	CheckUserSkillsDescriptionSize                           CheckConstraint = "user_skills_description_size"                              // user_skills
 	CheckUserSkillsNameFormat                                CheckConstraint = "user_skills_name_format"                                   // user_skills
 	CheckUserSkillsNameSize                                  CheckConstraint = "user_skills_name_size"                                     // user_skills
+	CheckWorkspaceAgentScriptsDependenciesIsArray            CheckConstraint = "workspace_agent_scripts_dependencies_is_array"             // workspace_agent_scripts
 	CheckMaxLogsLength                                       CheckConstraint = "max_logs_length"                                           // workspace_agents
 	CheckSubsystemsNotNone                                   CheckConstraint = "subsystems_not_none"                                       // workspace_agents
 	CheckWorkspaceBuildOrchestrationsAttemptCountCheck       CheckConstraint = "workspace_build_orchestrations_attempt_count_check"        // workspace_build_orchestrations

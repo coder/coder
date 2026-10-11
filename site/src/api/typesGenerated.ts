@@ -12212,9 +12212,38 @@ export interface WorkspaceAgentScript {
 	readonly start_blocks_login: boolean;
 	readonly timeout: number;
 	readonly display_name: string;
+	/**
+	 * ResourceAddress is the full Terraform address of the coder_script
+	 * resource, for example "module.git_clone.coder_script.clone". It is
+	 * empty for scripts that are not coder_script resources.
+	 */
+	readonly resource_address: string;
+	/**
+	 * Dependencies lists the scripts this one waits for, as the
+	 * provisioner resolved them. It is omitted when empty.
+	 */
+	readonly dependencies?: readonly WorkspaceAgentScriptDependency[];
 	readonly exit_code?: number;
 	readonly status?: WorkspaceAgentScriptStatus;
 }
+
+// From codersdk/workspaceagents.go
+/**
+ * WorkspaceAgentScriptDependency names a prerequisite script and the
+ * outcome it must reach.
+ */
+export interface WorkspaceAgentScriptDependency {
+	readonly prerequisite_resource_address: string;
+	readonly requirement: WorkspaceAgentScriptDependencyRequirement;
+}
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentScriptDependencyRequirement =
+	| "completion"
+	| "success";
+
+export const WorkspaceAgentScriptDependencyRequirements: WorkspaceAgentScriptDependencyRequirement[] =
+	["completion", "success"];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentScriptStatus =
