@@ -107,35 +107,9 @@ func TestUserDelete(t *testing.T) {
 		stdout.ExpectMatch(ctx, "coolin")
 	})
 
-	// TODO: reenable this test case. Fetching users without perms returns a
+	// TODO: add a NoPerms test case. Fetching users without perms returns a
 	// "user "testuser@coder.com" must be a member of at least one organization"
 	// error.
-	// t.Run("NoPerms", func(t *testing.T) {
-	// 	t.Parallel()
-	// 	ctx := context.Background()
-	// 	client := coderdtest.New(t, nil)
-	// 	aUser := coderdtest.CreateFirstUser(t, client)
-
-	// 	pw, err := cryptorand.String(16)
-	// 	require.NoError(t, err)
-
-	// 	toDelete, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-	// 		Email:          "colin5@coder.com",
-	// 		Username:       "coolin",
-	// 		Password:       pw,
-	// 		UserLoginType:  codersdk.LoginTypePassword,
-	// 		OrganizationID: aUser.OrganizationID,
-	// 	})
-	// 	require.NoError(t, err)
-
-	// 	uClient, _ := coderdtest.CreateAnotherUser(t, client, aUser.OrganizationID)
-	// 	_ = uClient
-	// 	_ = toDelete
-
-	// 	inv, root := clitest.New(t, "users", "delete", "coolin")
-	// 	clitest.SetupConfig(t, uClient, root)
-	// 	require.ErrorContains(t, inv.Run(), "...")
-	// })
 
 	t.Run("DeleteSelf", func(t *testing.T) {
 		t.Parallel()

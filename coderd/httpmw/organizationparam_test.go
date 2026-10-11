@@ -179,7 +179,7 @@ func TestOrganizationParam(t *testing.T) {
 			org := httpmw.OrganizationParam(r)
 			assert.NotZero(t, org)
 			assert.NotZero(t, org.CreatedAt)
-			// assert.NotZero(t, org.Description) // not supported
+			// org.Description is not asserted because it is not supported.
 			assert.NotZero(t, org.ID)
 			assert.NotEmpty(t, org.Name)
 			orgMem := httpmw.OrganizationMemberParam(r)

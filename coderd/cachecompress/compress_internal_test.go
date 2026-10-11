@@ -89,7 +89,6 @@ func TestCompressorEncodings(t *testing.T) {
 
 			ts := httptest.NewServer(compressor)
 			defer ts.Close()
-			// ctx := testutil.Context(t, testutil.WaitShort)
 			ctx := context.Background()
 			header, respString := testRequestWithAcceptedEncodings(ctx, t, ts, "GET", tc.path, tc.acceptedEncodings...)
 			if respString != "textstring" {

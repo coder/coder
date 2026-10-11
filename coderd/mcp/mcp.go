@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	stdslog "log/slog"
+	stdslog "log/slog" //nolint:depguard // mcp.ServerOptions.Logger requires a *log/slog.Logger; slogHandler forwards to cdr.dev/slog.
 	"net/http"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"

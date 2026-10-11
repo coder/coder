@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"io/fs"
-	"log/slog"
+	"log/slog" //nolint:depguard // preview.Input.Logger requires a *log/slog.Logger.
 	"sync"
 	"time"
 

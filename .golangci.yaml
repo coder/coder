@@ -50,6 +50,11 @@ linters:
               desc:
                 aibridge code must not import coder packages outside aibridge;
                 buildinfo is the only exception
+        no_stdlib_slog:
+          list-mode: lax
+          deny:
+            - pkg: log/slog
+              desc: use cdr.dev/slog/v3 instead
     dupl:
       threshold: 412
     exhaustruct:
@@ -67,6 +72,7 @@ linters:
         - badRegexp
         - boolExprSimplify
         - builtinShadowDecl
+        - commentedOutCode
         - commentedOutImport
         - deferUnlambda
         - dupImport

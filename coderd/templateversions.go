@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	stdslog "log/slog"
+	stdslog "log/slog" //nolint:depguard // preview.Input.Logger requires a *log/slog.Logger.
 	"net/http"
 	"os"
 

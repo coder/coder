@@ -775,7 +775,7 @@ func TestAgentStats(t *testing.T) {
 				"coderd_agentstats_session_count_ssh",
 				"coderd_agentstats_session_count_vscode":
 				for _, m := range metric.Metric {
-					// username:workspace:agent:metric = value
+					// Keys have the form username:workspace:agent:metric.
 					collected[m.Label[1].GetValue()+":"+m.Label[2].GetValue()+":"+m.Label[0].GetValue()+":"+metric.GetName()] = int(m.Gauge.GetValue())
 				}
 			default:

@@ -1476,7 +1476,6 @@ func New(options *Options) *API {
 			r.Get("/regions", api.regions)
 		})
 		r.Route("/derp-map", func(r chi.Router) {
-			// r.Use(apiKeyMiddleware)
 			r.Get("/", api.derpMapUpdates)
 		})
 		r.Route("/deployment", func(r chi.Router) {

@@ -1868,12 +1868,6 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-	// if err != nil {
-	// 	httpapi.InternalServerError(rw, err)
-	// 	return
-	// }
-
 	err = api.statsReporter.ReportAgentStats(ctx, dbtime.Now(), database.WorkspaceIdentityFromWorkspace(workspace), agent.ID, agent.Name, stat, true)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

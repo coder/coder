@@ -174,65 +174,6 @@ func Test_diffValues(t *testing.T) {
 			},
 		})
 	})
-
-	// We currently don't support nested structs.
-	// t.Run("NestedStruct", func(t *testing.T) {
-	// 	t.Parallel()
-
-	// 	type bar struct {
-	// 		Baz string `json:"baz"`
-	// 	}
-
-	// 	type foo struct {
-	// 		Bar *bar `json:"bar"`
-	// 	}
-
-	// 	table := auditMap(map[any]map[string]Action{
-	// 		&foo{}: {
-	// 			"bar": ActionTrack,
-	// 		},
-	// 		&bar{}: {
-	// 			"baz": ActionTrack,
-	// 		},
-	// 	})
-
-	// 	runDiffValuesTests(t, table, []diffTest{
-	// 		{
-	// 			name: "LeftEmpty",
-	// 			left: foo{Bar: &bar{}}, right: foo{Bar: &bar{Baz: "baz"}},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{
-	// 					"baz": audit.OldNew{Old: "", New: "baz"},
-	// 				},
-	// 			},
-	// 		},
-	// 		{
-	// 			name: "RightEmpty",
-	// 			left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: &bar{}},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{
-	// 					"baz": audit.OldNew{Old: "baz", New: ""},
-	// 				},
-	// 			},
-	// 		},
-	// 		{
-	// 			name: "LeftNil",
-	// 			left: foo{Bar: nil}, right: foo{Bar: &bar{}},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{},
-	// 			},
-	// 		},
-	// 		{
-	// 			name: "RightNil",
-	// 			left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: nil},
-	// 			exp: audit.Map{
-	// 				"bar": audit.Map{
-	// 					"baz": audit.OldNew{Old: "baz", New: ""},
-	// 				},
-	// 			},
-	// 		},
-	// 	})
-	// })
 }
 
 type diffTest struct {

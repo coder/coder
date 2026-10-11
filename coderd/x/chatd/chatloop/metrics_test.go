@@ -126,6 +126,7 @@ func TestEstimatePromptSize(t *testing.T) {
 	}
 
 	size := chatloop.EstimatePromptSize(messages)
+	// The estimate sums the text lengths:
 	// "You are a helpful assistant." (28) + "Hello world" (11) +
 	// "thinking..." (11) + "filedata" (8) +
 	// "Hi there!" (9) + `{"file":"main.go"}` (18) +
