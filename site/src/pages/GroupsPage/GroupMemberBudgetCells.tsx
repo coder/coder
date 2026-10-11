@@ -7,9 +7,10 @@ import { TableCell } from "#/components/Table/Table";
 import { AIBudgetAmount } from "#/modules/groups/AIBudgetAmount";
 import { AIBudgetUsage } from "#/modules/groups/AIBudgetUsage";
 import { formatBudgetUSD } from "#/utils/currency";
+import { LabelWithInfo } from "./LabelWithInfo";
 import { StatusIconTooltip } from "./StatusIconTooltip";
 
-const EM_DASH = "\u2014";
+export const EM_DASH = "\u2014";
 
 /** Shown on both cells when the governing group is in another org. */
 const OTHER_ORG_MESSAGE =
@@ -205,13 +206,3 @@ export function effectiveBudgetGroup(
 	}
 	return { kind: "otherGroup" };
 }
-
-const LabelWithInfo: React.FC<{
-	label: React.ReactNode;
-	message: React.ReactNode;
-}> = ({ label, message }) => (
-	<span className="inline-flex items-center gap-1">
-		{label}
-		<StatusIconTooltip message={message} />
-	</span>
-);

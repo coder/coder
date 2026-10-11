@@ -347,8 +347,8 @@ async function fetchInBatches<Item, Response>(
 	return Promise.all(batches);
 }
 
-/** The AI spend endpoints reject requests with more than 100 IDs. */
-const aiSpendBatchSize = 100;
+/** The batched AI spend and Agent Hours endpoints reject requests with more than 100 IDs. */
+const idBatchSize = 100;
 
 const aiProviderConfigsPath = "/api/v2/ai/providers";
 const aiGatewayPath = "/api/v2/ai-gateway";
@@ -2244,7 +2244,7 @@ class ApiMethods {
 		}
 		const responses = await fetchInBatches(
 			groupIds,
-			aiSpendBatchSize,
+			idBatchSize,
 			async (ids) => {
 				const url = getURLWithSearchParams(
 					`/api/v2/organizations/${organization}/groups/ai/spend`,
@@ -2277,7 +2277,7 @@ class ApiMethods {
 		}
 		const responses = await fetchInBatches(
 			userIds,
-			aiSpendBatchSize,
+			idBatchSize,
 			async (ids) => {
 				const url = getURLWithSearchParams(
 					`/api/v2/groups/${groupId}/members/ai/spend`,
@@ -2285,6 +2285,36 @@ class ApiMethods {
 				);
 				const response =
 					await this.axios.get<TypesGen.GroupMembersAISpend>(url);
+				return response.data;
+			},
+		);
+		return {
+			...responses[0],
+			members: responses.flatMap((r) => r.members),
+		};
+	};
+
+	/**
+	 * Users not in the group, or whose usage the caller can't read, are
+	 * omitted.
+	 */
+	getGroupMembersAgentHours = async (
+		groupId: string,
+		userIds: readonly string[],
+	): Promise<TypesGen.AgentHoursGroupMembersUsage> => {
+		if (userIds.length === 0) {
+			throw new Error("userIds must not be empty");
+		}
+		const responses = await fetchInBatches(
+			userIds,
+			idBatchSize,
+			async (ids) => {
+				const url = getURLWithSearchParams(
+					`/api/v2/groups/${groupId}/members/agent-hours`,
+					{ user_ids: ids.join(",") },
+				);
+				const response =
+					await this.axios.get<TypesGen.AgentHoursGroupMembersUsage>(url);
 				return response.data;
 			},
 		);

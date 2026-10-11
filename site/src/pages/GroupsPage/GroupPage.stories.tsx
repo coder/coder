@@ -5,6 +5,7 @@ import {
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { groupMembersAgentHoursKey } from "#/api/queries/agentHours";
 import {
 	getGroupByIdQueryKey,
 	getGroupMembersAISpendQueryKey,
@@ -20,6 +21,7 @@ import {
 	meAISpendKey,
 } from "#/api/queries/users";
 import type {
+	AgentHoursGroupMembersUsage,
 	GroupAIBudget,
 	GroupMemberAISpend,
 	GroupMembersAISpend,
@@ -28,7 +30,9 @@ import type {
 	UserAISpendStatus,
 } from "#/api/typesGenerated";
 import {
+	MockAgentHoursUsagePeriod,
 	MockDefaultOrganization,
+	MockEveryoneGroup,
 	MockGroup,
 	MockGroup2,
 	MockGroupWithoutMembers,
@@ -992,5 +996,130 @@ export const AIBudgetShowcase: Story = {
 			name: "Manage AI budget",
 		});
 		await expect(otherGroupItem).not.toHaveAttribute("aria-disabled", "true");
+	},
+};
+
+const mockAgentHoursMembers: ReducedUser[] = [
+	{ ...MockUserMember, id: "member-this-group", username: "alice" },
+	{ ...MockUserMember, id: "member-other-group", username: "bob" },
+	{ ...MockUserMember, id: "member-unallotted", username: "priya" },
+	{ ...MockUserMember, id: "member-no-usage", username: "jordan" },
+];
+
+const mockMembersAgentHours: AgentHoursGroupMembersUsage = {
+	usage_period: MockAgentHoursUsagePeriod,
+	members: [
+		{
+			user_id: "member-this-group",
+			used_ms: 45_359_000,
+			effective_group: {
+				id: MockGroupWithoutMembers.id,
+				name: MockGroupWithoutMembers.name,
+				display_name: MockGroupWithoutMembers.display_name,
+			},
+		},
+		{
+			user_id: "member-other-group",
+			used_ms: 7_200_000,
+			effective_group: {
+				id: MockGroup2.id,
+				name: MockGroup2.name,
+				display_name: MockGroup2.display_name,
+			},
+		},
+		{
+			user_id: "member-unallotted",
+			used_ms: 0,
+			effective_group: {
+				id: MockEveryoneGroup.id,
+				name: MockEveryoneGroup.name,
+				display_name: MockEveryoneGroup.display_name,
+			},
+		},
+	],
+};
+
+export const WithMemberAgentHours: Story = {
+	parameters: {
+		features: ["agent_runtime_hours"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({
+				users: mockAgentHoursMembers,
+				count: mockAgentHoursMembers.length,
+			}),
+			permissionsQuery({ canUpdateGroup: true }),
+			{
+				key: groupMembersAgentHoursKey(
+					MockGroupWithoutMembers.id,
+					mockAgentHoursMembers.map((member) => member.id),
+				),
+				data: mockMembersAgentHours,
+			},
+		],
+	},
+};
+
+export const MembersAgentHoursError: Story = {
+	beforeEach: () => {
+		spyOn(API, "getGroupMembersAgentHours").mockRejectedValue(
+			new Error("test members Agent Hours error"),
+		);
+	},
+	parameters: {
+		features: ["agent_runtime_hours"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({ users: [MockUserMember], count: 1 }),
+			permissionsQuery({ canUpdateGroup: true }),
+		],
+	},
+};
+
+export const LoadingMemberAgentHours: Story = {
+	beforeEach: () => {
+		spyOn(API, "getGroupMembersAgentHours").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	parameters: {
+		features: ["agent_runtime_hours"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({ users: [MockUserMember], count: 1 }),
+			permissionsQuery({ canUpdateGroup: true }),
+		],
+	},
+};
+
+export const WithMemberAIBudgetAndAgentHours: Story = {
+	parameters: {
+		features: ["aibridge", "agent_runtime_hours"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({
+				users: mockAgentHoursMembers,
+				count: mockAgentHoursMembers.length,
+			}),
+			permissionsQuery({ canUpdateGroup: true }),
+			membersSpendQuery(
+				mockAgentHoursMembers.map((member) => ({
+					...mockSpend,
+					user_id: member.id,
+				})),
+			),
+			{ key: meAISpendKey, data: mockUserAISpend },
+			{
+				key: groupAIBudget(MockGroupWithoutMembers.id).queryKey,
+				data: mockGroupBudget,
+			},
+			{
+				key: groupMembersAgentHoursKey(
+					MockGroupWithoutMembers.id,
+					mockAgentHoursMembers.map((member) => member.id),
+				),
+				data: mockMembersAgentHours,
+			},
+		],
 	},
 };

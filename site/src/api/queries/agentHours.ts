@@ -41,6 +41,19 @@ export const organizationAgentHoursUsage = (organizationId: string) => ({
 	queryFn: () => API.getOrganizationAgentHoursUsage(organizationId),
 });
 
+export const groupMembersAgentHoursKey = (
+	groupId: string,
+	userIds: readonly string[],
+) => [...agentHoursKey, "groupMembers", groupId, userIds.toSorted()] as const;
+
+export const groupMembersAgentHours = (
+	groupId: string,
+	userIds: readonly string[],
+) => ({
+	queryKey: groupMembersAgentHoursKey(groupId, userIds),
+	queryFn: () => API.getGroupMembersAgentHours(groupId, userIds),
+});
+
 type OrganizationAllotmentChange = {
 	organizationId: string;
 	allotmentBps: number;

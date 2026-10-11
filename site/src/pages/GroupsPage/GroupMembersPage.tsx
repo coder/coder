@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { groupMembersAgentHours } from "#/api/queries/agentHours";
 import {
 	groupAIBudget,
 	groupMembersAISpend,
@@ -13,6 +14,7 @@ import {
 } from "#/api/queries/groups";
 import { meAISpend } from "#/api/queries/users";
 import type {
+	AgentHoursGroupMemberUsage,
 	Group,
 	GroupMemberAISpend,
 	ReducedUser,
@@ -39,9 +41,14 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { formatBudgetUSD } from "#/utils/currency";
 import { SpendEstimateDocsLink } from "./AICostControl";
+import {
+	GroupMemberAgentHoursCells,
+	GroupMemberAgentHoursHeads,
+} from "./GroupMemberAgentHoursCells";
 import {
 	effectiveBudgetGroup,
 	GroupMemberBudgetCells,
@@ -50,8 +57,9 @@ import type { GroupPageOutletContext } from "./GroupPage";
 import { StatusIconTooltip } from "./StatusIconTooltip";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
 
-type MemberWithSpend = ReducedUser & {
+type MemberWithUsage = ReducedUser & {
 	readonly spend: GroupMemberAISpend | undefined;
+	readonly agentHours: AgentHoursGroupMemberUsage | undefined;
 };
 
 const GroupMembersPage: React.FC = () => {
@@ -72,9 +80,12 @@ const GroupMembersPage: React.FC = () => {
 	// Setting a user's AI budget override updates both the user and the group
 	// its spend is charged to, so it needs permission on both.
 	const canUpdateBudgetOverride = canUpdateGroup && sitePermissions.updateUsers;
-	const [budgetUser, setBudgetUser] = useState<MemberWithSpend | null>(null);
+	const [budgetUser, setBudgetUser] = useState<MemberWithUsage | null>(null);
 
 	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
+	const { entitlements } = useDashboard();
+	const agentHoursEnabled = entitlements.features.agent_runtime_hours.enabled;
+	const showUsageColumns = aibridgeVisible || agentHoursEnabled;
 	const { data: aiSpend } = useQuery({
 		...meAISpend(),
 		enabled: aibridgeVisible,
@@ -88,16 +99,27 @@ const GroupMembersPage: React.FC = () => {
 		...groupMembersAISpend(groupData.id, memberIds),
 		enabled: aibridgeVisible && memberIds.length > 0,
 	});
+	const membersAgentHoursQuery = useQuery({
+		...groupMembersAgentHours(groupData.id, memberIds),
+		enabled: agentHoursEnabled && memberIds.length > 0,
+	});
 	const spendByUserId = new Map(
 		membersSpendQuery.data?.members.map((spend) => [spend.user_id, spend]) ??
 			[],
 	);
-	// Join each member with its spend (undefined when loading, failed, or
-	// omitted by the backend) so each row gets a single object.
-	const membersWithSpend = members.map(
-		(member): MemberWithSpend => ({
+	const agentHoursByUserId = new Map(
+		membersAgentHoursQuery.data?.members.map((usage) => [
+			usage.user_id,
+			usage,
+		]) ?? [],
+	);
+	// Join each member with its spend and Agent Hours (undefined when
+	// loading, failed, or omitted by the backend).
+	const membersWithUsage = members.map(
+		(member): MemberWithUsage => ({
 			...member,
 			spend: spendByUserId.get(member.id),
+			agentHours: agentHoursByUserId.get(member.id),
 		}),
 	);
 	const aiBudgetNote = [
@@ -131,10 +153,10 @@ const GroupMembersPage: React.FC = () => {
 				<Table aria-label="Group members">
 					<TableHeader>
 						<TableRow>
-							<TableHead className={aibridgeVisible ? undefined : "w-2/5"}>
+							<TableHead className={showUsageColumns ? undefined : "w-2/5"}>
 								User
 							</TableHead>
-							<TableHead className={aibridgeVisible ? undefined : "w-3/5"}>
+							<TableHead className={showUsageColumns ? undefined : "w-3/5"}>
 								Status
 							</TableHead>
 							{aibridgeVisible && (
@@ -166,6 +188,11 @@ const GroupMembersPage: React.FC = () => {
 									</TableHead>
 								</>
 							)}
+							{agentHoursEnabled && (
+								<GroupMemberAgentHoursHeads
+									error={membersAgentHoursQuery.error}
+								/>
+							)}
 							<TableHead className="w-auto" />
 						</TableRow>
 					</TableHeader>
@@ -174,13 +201,16 @@ const GroupMembersPage: React.FC = () => {
 						{members.length === 0 ? (
 							<TableEmpty message="No members found" />
 						) : (
-							membersWithSpend.map((member) => (
+							membersWithUsage.map((member) => (
 								<GroupMemberRow
 									member={member}
 									group={groupData}
 									key={member.id}
 									canUpdate={canUpdateGroup}
 									showAIBudget={aibridgeVisible}
+									showAgentHours={agentHoursEnabled}
+									showUsageColumns={showUsageColumns}
+									isLoadingAgentHours={membersAgentHoursQuery.isLoading}
 									onManageAIBudget={() => setBudgetUser(member)}
 									onRemove={async () => {
 										const mutation = removeMemberMutation.mutateAsync({
@@ -222,10 +252,13 @@ const GroupMembersPage: React.FC = () => {
 };
 
 type GroupMemberRowProps = {
-	member: MemberWithSpend;
+	member: MemberWithUsage;
 	group: Group;
 	canUpdate: boolean;
 	showAIBudget: boolean;
+	showAgentHours: boolean;
+	showUsageColumns: boolean;
+	isLoadingAgentHours: boolean;
 	onManageAIBudget: () => void;
 	onRemove: () => void;
 };
@@ -235,6 +268,9 @@ const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 	group,
 	canUpdate,
 	showAIBudget,
+	showAgentHours,
+	showUsageColumns,
+	isLoadingAgentHours,
 	onManageAIBudget,
 	onRemove,
 }) => {
@@ -243,7 +279,7 @@ const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 
 	return (
 		<TableRow key={member.id}>
-			<TableCell width={showAIBudget ? undefined : "59%"}>
+			<TableCell width={showUsageColumns ? undefined : "59%"}>
 				<AvatarData
 					avatar={
 						<Avatar
@@ -259,7 +295,7 @@ const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 				/>
 			</TableCell>
 			<TableCell
-				width={showAIBudget ? undefined : "40%"}
+				width={showUsageColumns ? undefined : "40%"}
 				className={cn(
 					"capitalize",
 					member.status === "suspended" ? "text-content-secondary" : "",
@@ -273,6 +309,14 @@ const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 					group={group}
 					userID={member.id}
 					spend={member.spend}
+				/>
+			)}
+			{showAgentHours && (
+				<GroupMemberAgentHoursCells
+					group={group}
+					username={member.username}
+					usage={member.agentHours}
+					isLoading={isLoadingAgentHours}
 				/>
 			)}
 			<TableCell className="w-1 whitespace-nowrap">
