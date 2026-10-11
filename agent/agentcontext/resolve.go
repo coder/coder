@@ -128,6 +128,10 @@ type Resolver struct {
 	// wires this to its MCP runner's snapshot; tests inject a
 	// closure directly.
 	MCPResources func() []Resource
+
+	// globalDirs holds the paths of the Global scan roots for the
+	// pass in progress. walk fills it on the normalized copy.
+	globalDirs map[string]struct{}
 }
 
 // ScanRoot describes a single directory or file the resolver
@@ -145,6 +149,10 @@ type ScanRoot struct {
 	// cloned below the working directory is discovered without a
 	// declared source. Set only for the working-directory root.
 	ChildProjects bool
+	// Global marks the root whose top-level instruction files apply to
+	// the whole conversation (~/.coder); a file reached through another
+	// root is still classified by the directory it sits in.
+	Global bool
 }
 
 // Resolve walks the supplied scan roots and returns a Snapshot.
@@ -246,9 +254,13 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 	// discovery requested by any occurrence is kept.
 	seenRoot := make(map[string]int, len(roots))
 	dedup := make([]ScanRoot, 0, len(roots))
+	r.globalDirs = make(map[string]struct{})
 	for _, root := range roots {
 		if root.Path == "" {
 			continue
+		}
+		if root.Global {
+			r.globalDirs[root.Path] = struct{}{}
 		}
 		if previous, ok := seenRoot[root.Path]; ok {
 			dedup[previous].ChildProjects = dedup[previous].ChildProjects || root.ChildProjects
@@ -543,10 +555,26 @@ func (r *Resolver) classifyFile(scanRoot, path string, info fs.FileInfo, userSou
 // payloads must sanitize themselves.
 func (r *Resolver) readInstructionFile(scanRoot, path string, info fs.FileInfo, userSource string) Resource {
 	res := r.readFileResource(KindInstructionFile, scanRoot, path, info, userSource)
+	res.Global = r.isGlobalDir(filepath.Dir(path))
 	if res.Status == StatusOK {
 		res.Description = firstLine(string(res.Payload))
 	}
 	return res
+}
+
+// isGlobalDir reports whether dir is a Global scan root of the pass in
+// progress, lexically or resolved: a seeded source keeps its lexical path
+// while built-in roots are canonical.
+func (r *Resolver) isGlobalDir(dir string) bool {
+	if _, ok := r.globalDirs[dir]; ok {
+		return true
+	}
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return false
+	}
+	_, ok := r.globalDirs[resolved]
+	return ok
 }
 
 // readMCPConfig reads a .mcp.json file and produces a
@@ -1069,6 +1097,9 @@ type Resource struct {
 	// SourcePath is the user-declared source that contributed
 	// the resource; empty for built-in scan roots.
 	SourcePath string
+	// Global is set for a KindInstructionFile that sits directly in
+	// a Global scan root and so applies to the whole conversation.
+	Global bool
 	// Tools is populated for KindMCPServer with the live
 	// server's tool list; empty otherwise.
 	Tools []MCPTool
