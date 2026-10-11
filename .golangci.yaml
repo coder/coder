@@ -190,7 +190,7 @@ linters:
     paths:
       - scripts/rules.go
       - node_modules
-      - .git
+      - '(^|/)\.git/'
       - third_party$
       - builtin$
       - examples$
@@ -214,7 +214,7 @@ formatters:
     paths:
       - scripts/rules.go
       - node_modules
-      - .git
+      - '(^|/)\.git/'
       - third_party$
       - builtin$
       - examples$
