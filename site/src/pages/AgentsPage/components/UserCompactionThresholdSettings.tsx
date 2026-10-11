@@ -90,11 +90,11 @@ const parseThresholdDraft = (value: string): number | null => {
 };
 
 type ContextCompactionHeaderProps = {
-	hasOrganizationCompactionOverride: boolean;
+	mayHaveOrganizationCompactionOverride: boolean;
 };
 
 const ContextCompactionHeader: React.FC<ContextCompactionHeaderProps> = ({
-	hasOrganizationCompactionOverride,
+	mayHaveOrganizationCompactionOverride,
 }) => (
 	<div className="flex flex-col gap-2">
 		<h3 className="m-0 text-sm font-semibold text-content-primary">
@@ -103,7 +103,7 @@ const ContextCompactionHeader: React.FC<ContextCompactionHeaderProps> = ({
 		<p className="mt-0.5! m-0 text-xs text-content-secondary">
 			Control when conversation context is automatically summarized for each
 			model.{" "}
-			{hasOrganizationCompactionOverride
+			{mayHaveOrganizationCompactionOverride
 				? "Setting 100% turns off that model's own compaction threshold. An organization override may still compact chats with that model."
 				: "Setting 100% turns off automatic compaction for that model."}
 		</p>
@@ -452,8 +452,6 @@ export const UserCompactionThresholdSettings: React.FC<
 		string | null
 	>(null);
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
-	const hasOrganizationCompactionOverride =
-		compactionTriggersByOrganizationID.size > 0;
 
 	const enabledModels = models.filter((config) => config.enabled);
 	const organizationNameByID = new Map(
@@ -623,7 +621,11 @@ export const UserCompactionThresholdSettings: React.FC<
 	return (
 		<div className="flex flex-col gap-4">
 			<ContextCompactionHeader
-				hasOrganizationCompactionOverride={hasOrganizationCompactionOverride}
+				mayHaveOrganizationCompactionOverride={
+					isLoadingModels ||
+					compactionTriggersByOrganizationID.size > 0 ||
+					compactionTriggerLoadErrors.length > 0
+				}
 			/>
 			{thresholdsError != null && <ErrorAlert error={thresholdsError} />}
 			{modelsError != null && <ErrorAlert error={modelsError} />}
