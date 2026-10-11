@@ -434,6 +434,14 @@ type sqlcQuerier interface {
 	// counts soft-deleted messages and messages from all chats.
 	// Owners whose runtime sums to zero add nothing to the bucket.
 	GetAgentRuntimeHourlyUsage(ctx context.Context, arg GetAgentRuntimeHourlyUsageParams) ([]GetAgentRuntimeHourlyUsageRow, error)
+	// Sums one organization's agent_runtime_hourly_usage per effective group
+	// over the buckets that start in [start_time, end_time). The Everyone
+	// group's ID is the organization ID. Deleted groups have empty names.
+	GetAgentRuntimeUsageByGroup(ctx context.Context, arg GetAgentRuntimeUsageByGroupParams) ([]GetAgentRuntimeUsageByGroupRow, error)
+	// Sums agent_runtime_hourly_usage per organization over the buckets that
+	// start in [start_time, end_time), which is how the license total counts
+	// buckets. Deleted organizations, which are soft-deleted, have empty names.
+	GetAgentRuntimeUsageByOrganization(ctx context.Context, arg GetAgentRuntimeUsageByOrganizationParams) ([]GetAgentRuntimeUsageByOrganizationRow, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
 	GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error)
@@ -730,6 +738,12 @@ type sqlcQuerier interface {
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	// Spend is aggregated for the queried group, not the user's effective group.
 	GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error)
+	// Returns each requested user who is a member of the group, with the
+	// runtime attributed to the group over the buckets that start in
+	// [start_time, end_time) and the user's current effective Agent Hours group
+	// in the group's organization. Uses group_members_expanded so the implicit
+	// Everyone group counts.
+	GetGroupMembersAgentRuntimeUsage(ctx context.Context, arg GetGroupMembersAgentRuntimeUsageParams) ([]GetGroupMembersAgentRuntimeUsageRow, error)
 	GetGroupMembersByGroupID(ctx context.Context, arg GetGroupMembersByGroupIDParams) ([]GroupMember, error)
 	GetGroupMembersByGroupIDPaginated(ctx context.Context, arg GetGroupMembersByGroupIDPaginatedParams) ([]GetGroupMembersByGroupIDPaginatedRow, error)
 	// Returns the total count of members in a group. Shows the total

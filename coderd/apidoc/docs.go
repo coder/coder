@@ -1773,6 +1773,31 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/agent-hours/usage": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get Agent Hours usage",
+                "operationId": "get-agent-hours-usage",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentHoursUsage"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/ai-gateway/clients": {
             "get": {
                 "description": "Alias: also available at /api/v2/aibridge/clients for backward compatibility.",
@@ -6045,6 +6070,49 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/groups/{group}/members/agent-hours": {
+            "get": {
+                "description": "Returns, per requested user, the Agent Hours that counted toward the group in the license usage period and the group the user's Agent Hours count toward now.\nA maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.\nUser IDs that are not members of the group, or that the caller has no read access to, are silently omitted.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group members Agent Hours usage",
+                "operationId": "get-group-members-agent-hours-usage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of user IDs (maximum 100)",
+                        "name": "user_ids",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentHoursGroupMembersUsage"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/groups/{group}/members/ai/spend": {
             "get": {
                 "description": "Returns aggregate AI spend attributed to the group per requested user.\nA maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.\nUser IDs that are not members of the group, or that the caller has no read access to, are silently omitted.",
@@ -7618,6 +7686,41 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.AgentHoursGroupAllotments"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/agent-hours/usage": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get organization Agent Hours usage",
+                "operationId": "get-organization-agent-hours-usage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentHoursOrganizationGroupsUsage"
                         }
                     }
                 },
@@ -20660,6 +20763,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentHoursEffectiveGroup": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AgentHoursGroupAllotment": {
             "type": "object",
             "properties": {
@@ -20704,6 +20822,59 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentHoursGroupMemberUsage": {
+            "type": "object",
+            "properties": {
+                "effective_group": {
+                    "description": "EffectiveGroup is the group the member's Agent Hours count toward now,\nwithin the queried group's organization.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AgentHoursEffectiveGroup"
+                        }
+                    ]
+                },
+                "used_ms": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.AgentHoursGroupMembersUsage": {
+            "type": "object",
+            "properties": {
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentHoursGroupMemberUsage"
+                    }
+                },
+                "usage_period": {
+                    "$ref": "#/definitions/codersdk.UsagePeriod"
+                }
+            }
+        },
+        "codersdk.AgentHoursGroupUsage": {
+            "type": "object",
+            "properties": {
+                "group_display_name": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "group_name": {
+                    "description": "GroupName is empty when the group was deleted.",
+                    "type": "string"
+                },
+                "used_ms": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AgentHoursOrganizationAllotment": {
             "type": "object",
             "properties": {
@@ -20729,6 +20900,60 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.AgentHoursOrganizationGroupsUsage": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentHoursGroupUsage"
+                    }
+                },
+                "usage_period": {
+                    "$ref": "#/definitions/codersdk.UsagePeriod"
+                },
+                "used_ms": {
+                    "description": "UsedMs is the organization's usage, the sum of its groups' usage.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AgentHoursOrganizationUsage": {
+            "type": "object",
+            "properties": {
+                "organization_display_name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
+                },
+                "used_ms": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AgentHoursUsage": {
+            "type": "object",
+            "properties": {
+                "organizations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentHoursOrganizationUsage"
+                    }
+                },
+                "total_ms": {
+                    "description": "TotalMs is the Agent Time the license measures for the period. It can\nexceed the sum of the organizations' usage by the hours that ran in\nchats deleted before per-organization tracking started.",
+                    "type": "integer"
+                },
+                "usage_period": {
+                    "$ref": "#/definitions/codersdk.UsagePeriod"
                 }
             }
         },

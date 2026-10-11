@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,6 +48,74 @@ type AgentHoursGroupAllotments struct {
 	// allotment and draws from the shared pool.
 	OrganizationAllotmentBps *int32                     `json:"organization_allotment_bps" example:"2500"`
 	Groups                   []AgentHoursGroupAllotment `json:"groups"`
+}
+
+// AgentHoursUsage reports the Agent Hours each organization used in the
+// license usage period. Usage updates once per hour, shortly after the hour
+// ends.
+type AgentHoursUsage struct {
+	UsagePeriod UsagePeriod `json:"usage_period"`
+	// TotalMs is the Agent Time the license measures for the period. It can
+	// exceed the sum of the organizations' usage by the hours that ran in
+	// chats deleted before per-organization tracking started.
+	TotalMs       int64                         `json:"total_ms"`
+	Organizations []AgentHoursOrganizationUsage `json:"organizations"`
+}
+
+// AgentHoursOrganizationUsage is the Agent Time an organization used in the
+// license usage period.
+type AgentHoursOrganizationUsage struct {
+	OrganizationID          uuid.UUID `json:"organization_id" format:"uuid"`
+	OrganizationName        string    `json:"organization_name"`
+	OrganizationDisplayName string    `json:"organization_display_name"`
+	UsedMs                  int64     `json:"used_ms"`
+}
+
+// AgentHoursOrganizationGroupsUsage reports the Agent Hours each group of an
+// organization used in the license usage period. Each member's hours count
+// toward one group: the member's group with the largest Agent Hours
+// allotment, or the Everyone group when no allotted group contains the
+// member.
+type AgentHoursOrganizationGroupsUsage struct {
+	UsagePeriod UsagePeriod `json:"usage_period"`
+	// UsedMs is the organization's usage, the sum of its groups' usage.
+	UsedMs int64                  `json:"used_ms"`
+	Groups []AgentHoursGroupUsage `json:"groups"`
+}
+
+// AgentHoursGroupUsage is the Agent Time that counted toward a group in the
+// license usage period. The Everyone group's ID is its organization's ID,
+// and its usage is the organization's unallotted usage.
+type AgentHoursGroupUsage struct {
+	GroupID uuid.UUID `json:"group_id" format:"uuid"`
+	// GroupName is empty when the group was deleted.
+	GroupName        string `json:"group_name"`
+	GroupDisplayName string `json:"group_display_name"`
+	UsedMs           int64  `json:"used_ms"`
+}
+
+// AgentHoursGroupMembersUsage reports Agent Hours for members of a group.
+type AgentHoursGroupMembersUsage struct {
+	UsagePeriod UsagePeriod                  `json:"usage_period"`
+	Members     []AgentHoursGroupMemberUsage `json:"members"`
+}
+
+// AgentHoursGroupMemberUsage is a group member's Agent Time that counted
+// toward the group in the license usage period.
+type AgentHoursGroupMemberUsage struct {
+	UserID uuid.UUID `json:"user_id" format:"uuid"`
+	UsedMs int64     `json:"used_ms"`
+	// EffectiveGroup is the group the member's Agent Hours count toward now,
+	// within the queried group's organization.
+	EffectiveGroup AgentHoursEffectiveGroup `json:"effective_group"`
+}
+
+// AgentHoursEffectiveGroup identifies the group a user's Agent Hours count
+// toward.
+type AgentHoursEffectiveGroup struct {
+	ID          uuid.UUID `json:"id" format:"uuid"`
+	Name        string    `json:"name"`
+	DisplayName string    `json:"display_name"`
 }
 
 // UpsertAgentHoursAllotmentRequest sets an Agent Hours allotment.
@@ -161,4 +230,65 @@ func (c *Client) DeleteAgentHoursGroupAllotment(ctx context.Context, groupID uui
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// AgentHoursUsage returns the Agent Hours each organization used in the
+// license usage period.
+func (c *Client) AgentHoursUsage(ctx context.Context) (AgentHoursUsage, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/agent-hours/usage", nil)
+	if err != nil {
+		return AgentHoursUsage{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AgentHoursUsage{}, ReadBodyAsError(res)
+	}
+	var resp AgentHoursUsage
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// OrganizationAgentHoursUsage returns the Agent Hours each group of an
+// organization used in the license usage period.
+func (c *Client) OrganizationAgentHoursUsage(ctx context.Context, organizationID uuid.UUID) (AgentHoursOrganizationGroupsUsage, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/agent-hours/usage", organizationID.String()),
+		nil,
+	)
+	if err != nil {
+		return AgentHoursOrganizationGroupsUsage{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AgentHoursOrganizationGroupsUsage{}, ReadBodyAsError(res)
+	}
+	var resp AgentHoursOrganizationGroupsUsage
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// GroupMembersAgentHoursUsage returns the Agent Hours that counted toward a
+// group for up to 100 of its members, and the group each member's hours
+// count toward now.
+func (c *Client) GroupMembersAgentHoursUsage(ctx context.Context, groupID uuid.UUID, userIDs []uuid.UUID) (AgentHoursGroupMembersUsage, error) {
+	ids := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		ids = append(ids, id.String())
+	}
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/groups/%s/members/agent-hours", groupID.String()),
+		nil,
+		func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("user_ids", strings.Join(ids, ","))
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return AgentHoursGroupMembersUsage{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AgentHoursGroupMembersUsage{}, ReadBodyAsError(res)
+	}
+	var resp AgentHoursGroupMembersUsage
+	return resp, ReadBodyAsJSON(res, &resp)
 }

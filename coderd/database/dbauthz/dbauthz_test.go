@@ -7862,6 +7862,34 @@ func (s *MethodTestSuite) TestAgentHoursAllotments() {
 		dbm.EXPECT().DeleteAgentHoursGroupAllotment(gomock.Any(), g.ID).Return(row, nil).AnyTimes()
 		check.Args(g.ID).Asserts(g, policy.ActionUpdate).Returns(row)
 	}))
+	s.Run("GetAgentRuntimeUsageByOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := testutil.Fake(s.T(), faker, database.GetAgentRuntimeUsageByOrganizationRow{})
+		arg := database.GetAgentRuntimeUsageByOrganizationParams{StartTime: dbtime.Now(), EndTime: dbtime.Now()}
+		dbm.EXPECT().GetAgentRuntimeUsageByOrganization(gomock.Any(), arg).Return([]database.GetAgentRuntimeUsageByOrganizationRow{row}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.GetAgentRuntimeUsageByOrganizationRow{row})
+	}))
+	s.Run("GetAgentRuntimeUsageByGroup", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := testutil.Fake(s.T(), faker, database.GetAgentRuntimeUsageByGroupRow{})
+		arg := database.GetAgentRuntimeUsageByGroupParams{OrganizationID: uuid.New(), StartTime: dbtime.Now(), EndTime: dbtime.Now()}
+		dbm.EXPECT().GetAgentRuntimeUsageByGroup(gomock.Any(), arg).Return([]database.GetAgentRuntimeUsageByGroupRow{row}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceGroup.InOrg(arg.OrganizationID), policy.ActionRead).Returns([]database.GetAgentRuntimeUsageByGroupRow{row})
+	}))
+	s.Run("GetGroupMembersAgentRuntimeUsage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		group := testutil.Fake(s.T(), faker, database.Group{})
+		row1 := testutil.Fake(s.T(), faker, database.GetGroupMembersAgentRuntimeUsageRow{OrganizationID: group.OrganizationID})
+		row2 := testutil.Fake(s.T(), faker, database.GetGroupMembersAgentRuntimeUsageRow{OrganizationID: group.OrganizationID})
+		arg := database.GetGroupMembersAgentRuntimeUsageParams{
+			GroupID:   group.ID,
+			UserIds:   []uuid.UUID{row1.UserID, row2.UserID},
+			StartTime: dbtime.Now(),
+			EndTime:   dbtime.Now(),
+		}
+		dbm.EXPECT().GetGroupMembersAgentRuntimeUsage(gomock.Any(), arg).
+			Return([]database.GetGroupMembersAgentRuntimeUsageRow{row1, row2}, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(row1, policy.ActionRead, row2, policy.ActionRead).
+			Returns([]database.GetGroupMembersAgentRuntimeUsageRow{row1, row2})
+	}))
 }
 
 func (s *MethodTestSuite) TestTelemetry() {

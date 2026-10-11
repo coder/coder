@@ -3228,6 +3228,24 @@ func (q *querier) GetAgentRuntimeHourlyUsage(ctx context.Context, arg database.G
 	return q.db.GetAgentRuntimeHourlyUsage(ctx, arg)
 }
 
+func (q *querier) GetAgentRuntimeUsageByGroup(ctx context.Context, arg database.GetAgentRuntimeUsageByGroupParams) ([]database.GetAgentRuntimeUsageByGroupRow, error) {
+	// Mirrors GetAgentHoursGroupAllotmentsByOrganizationID: one
+	// organization-level check keeps the per-group totals complete, so they
+	// add up to the organization's usage.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup.InOrg(arg.OrganizationID)); err != nil {
+		return nil, err
+	}
+	return q.db.GetAgentRuntimeUsageByGroup(ctx, arg)
+}
+
+func (q *querier) GetAgentRuntimeUsageByOrganization(ctx context.Context, arg database.GetAgentRuntimeUsageByOrganizationParams) ([]database.GetAgentRuntimeUsageByOrganizationRow, error) {
+	// Mirrors GetAgentHoursOrganizationAllotments.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetAgentRuntimeUsageByOrganization(ctx, arg)
+}
+
 func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err
@@ -4343,6 +4361,10 @@ func (q *querier) GetGroupMembers(ctx context.Context, includeSystem bool) ([]da
 
 func (q *querier) GetGroupMembersAISpend(ctx context.Context, arg database.GetGroupMembersAISpendParams) ([]database.GetGroupMembersAISpendRow, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupMembersAISpend)(ctx, arg)
+}
+
+func (q *querier) GetGroupMembersAgentRuntimeUsage(ctx context.Context, arg database.GetGroupMembersAgentRuntimeUsageParams) ([]database.GetGroupMembersAgentRuntimeUsageRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupMembersAgentRuntimeUsage)(ctx, arg)
 }
 
 func (q *querier) GetGroupMembersByGroupID(ctx context.Context, arg database.GetGroupMembersByGroupIDParams) ([]database.GroupMember, error) {

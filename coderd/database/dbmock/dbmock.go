@@ -2591,6 +2591,36 @@ func (mr *MockStoreMockRecorder) GetAgentRuntimeHourlyUsage(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentRuntimeHourlyUsage", reflect.TypeOf((*MockStore)(nil).GetAgentRuntimeHourlyUsage), ctx, arg)
 }
 
+// GetAgentRuntimeUsageByGroup mocks base method.
+func (m *MockStore) GetAgentRuntimeUsageByGroup(ctx context.Context, arg database.GetAgentRuntimeUsageByGroupParams) ([]database.GetAgentRuntimeUsageByGroupRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentRuntimeUsageByGroup", ctx, arg)
+	ret0, _ := ret[0].([]database.GetAgentRuntimeUsageByGroupRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentRuntimeUsageByGroup indicates an expected call of GetAgentRuntimeUsageByGroup.
+func (mr *MockStoreMockRecorder) GetAgentRuntimeUsageByGroup(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentRuntimeUsageByGroup", reflect.TypeOf((*MockStore)(nil).GetAgentRuntimeUsageByGroup), ctx, arg)
+}
+
+// GetAgentRuntimeUsageByOrganization mocks base method.
+func (m *MockStore) GetAgentRuntimeUsageByOrganization(ctx context.Context, arg database.GetAgentRuntimeUsageByOrganizationParams) ([]database.GetAgentRuntimeUsageByOrganizationRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentRuntimeUsageByOrganization", ctx, arg)
+	ret0, _ := ret[0].([]database.GetAgentRuntimeUsageByOrganizationRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentRuntimeUsageByOrganization indicates an expected call of GetAgentRuntimeUsageByOrganization.
+func (mr *MockStoreMockRecorder) GetAgentRuntimeUsageByOrganization(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentRuntimeUsageByOrganization", reflect.TypeOf((*MockStore)(nil).GetAgentRuntimeUsageByOrganization), ctx, arg)
+}
+
 // GetAllTailnetCoordinators mocks base method.
 func (m *MockStore) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	m.ctrl.T.Helper()
@@ -4644,6 +4674,21 @@ func (m *MockStore) GetGroupMembersAISpend(ctx context.Context, arg database.Get
 func (mr *MockStoreMockRecorder) GetGroupMembersAISpend(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupMembersAISpend", reflect.TypeOf((*MockStore)(nil).GetGroupMembersAISpend), ctx, arg)
+}
+
+// GetGroupMembersAgentRuntimeUsage mocks base method.
+func (m *MockStore) GetGroupMembersAgentRuntimeUsage(ctx context.Context, arg database.GetGroupMembersAgentRuntimeUsageParams) ([]database.GetGroupMembersAgentRuntimeUsageRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGroupMembersAgentRuntimeUsage", ctx, arg)
+	ret0, _ := ret[0].([]database.GetGroupMembersAgentRuntimeUsageRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGroupMembersAgentRuntimeUsage indicates an expected call of GetGroupMembersAgentRuntimeUsage.
+func (mr *MockStoreMockRecorder) GetGroupMembersAgentRuntimeUsage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupMembersAgentRuntimeUsage", reflect.TypeOf((*MockStore)(nil).GetGroupMembersAgentRuntimeUsage), ctx, arg)
 }
 
 // GetGroupMembersByGroupID mocks base method.

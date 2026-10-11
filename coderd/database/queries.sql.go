@@ -390,6 +390,221 @@ func (q *sqlQuerier) GetAgentRuntimeHourlyUsage(ctx context.Context, arg GetAgen
 	return items, nil
 }
 
+const getAgentRuntimeUsageByGroup = `-- name: GetAgentRuntimeUsageByGroup :many
+WITH usage_by_group AS (
+    SELECT
+        group_id,
+        SUM(runtime_ms)::bigint AS runtime_ms
+    FROM agent_runtime_hourly_usage
+    WHERE agent_runtime_hourly_usage.organization_id = $1
+      AND bucket_start >= $2::timestamptz
+      AND bucket_start < $3::timestamptz
+    GROUP BY group_id
+)
+SELECT
+    usage_by_group.group_id,
+    COALESCE(groups.name, '')::text AS group_name,
+    COALESCE(groups.display_name, '')::text AS group_display_name,
+    usage_by_group.runtime_ms
+FROM usage_by_group
+LEFT JOIN groups ON groups.id = usage_by_group.group_id
+ORDER BY usage_by_group.group_id
+`
+
+type GetAgentRuntimeUsageByGroupParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	StartTime      time.Time `db:"start_time" json:"start_time"`
+	EndTime        time.Time `db:"end_time" json:"end_time"`
+}
+
+type GetAgentRuntimeUsageByGroupRow struct {
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	GroupName        string    `db:"group_name" json:"group_name"`
+	GroupDisplayName string    `db:"group_display_name" json:"group_display_name"`
+	RuntimeMs        int64     `db:"runtime_ms" json:"runtime_ms"`
+}
+
+// Sums one organization's agent_runtime_hourly_usage per effective group
+// over the buckets that start in [start_time, end_time). The Everyone
+// group's ID is the organization ID. Deleted groups have empty names.
+func (q *sqlQuerier) GetAgentRuntimeUsageByGroup(ctx context.Context, arg GetAgentRuntimeUsageByGroupParams) ([]GetAgentRuntimeUsageByGroupRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAgentRuntimeUsageByGroup, arg.OrganizationID, arg.StartTime, arg.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAgentRuntimeUsageByGroupRow
+	for rows.Next() {
+		var i GetAgentRuntimeUsageByGroupRow
+		if err := rows.Scan(
+			&i.GroupID,
+			&i.GroupName,
+			&i.GroupDisplayName,
+			&i.RuntimeMs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAgentRuntimeUsageByOrganization = `-- name: GetAgentRuntimeUsageByOrganization :many
+WITH usage_by_organization AS (
+    SELECT
+        organization_id,
+        SUM(runtime_ms)::bigint AS runtime_ms
+    FROM agent_runtime_hourly_usage
+    WHERE bucket_start >= $1::timestamptz
+      AND bucket_start < $2::timestamptz
+    GROUP BY organization_id
+)
+SELECT
+    usage_by_organization.organization_id,
+    COALESCE(organizations.name, '')::text AS organization_name,
+    COALESCE(organizations.display_name, '')::text AS organization_display_name,
+    usage_by_organization.runtime_ms
+FROM usage_by_organization
+LEFT JOIN organizations
+    ON organizations.id = usage_by_organization.organization_id
+    AND NOT organizations.deleted
+ORDER BY usage_by_organization.organization_id
+`
+
+type GetAgentRuntimeUsageByOrganizationParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+type GetAgentRuntimeUsageByOrganizationRow struct {
+	OrganizationID          uuid.UUID `db:"organization_id" json:"organization_id"`
+	OrganizationName        string    `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string    `db:"organization_display_name" json:"organization_display_name"`
+	RuntimeMs               int64     `db:"runtime_ms" json:"runtime_ms"`
+}
+
+// Sums agent_runtime_hourly_usage per organization over the buckets that
+// start in [start_time, end_time), which is how the license total counts
+// buckets. Deleted organizations, which are soft-deleted, have empty names.
+func (q *sqlQuerier) GetAgentRuntimeUsageByOrganization(ctx context.Context, arg GetAgentRuntimeUsageByOrganizationParams) ([]GetAgentRuntimeUsageByOrganizationRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAgentRuntimeUsageByOrganization, arg.StartTime, arg.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAgentRuntimeUsageByOrganizationRow
+	for rows.Next() {
+		var i GetAgentRuntimeUsageByOrganizationRow
+		if err := rows.Scan(
+			&i.OrganizationID,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.RuntimeMs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGroupMembersAgentRuntimeUsage = `-- name: GetGroupMembersAgentRuntimeUsage :many
+WITH members AS (
+    SELECT DISTINCT
+        user_id,
+        organization_id,
+        agent_hours_effective_group_id(organization_id, user_id)::uuid AS effective_group_id
+    FROM group_members_expanded
+    WHERE group_members_expanded.group_id = $1
+      AND group_members_expanded.user_id = ANY($4::uuid[])
+)
+SELECT
+    members.user_id,
+    members.organization_id,
+    COALESCE((
+        SELECT SUM(hourly.runtime_ms)
+        FROM agent_runtime_hourly_usage hourly
+        WHERE hourly.group_id = $1
+          AND hourly.user_id = members.user_id
+          AND hourly.bucket_start >= $2::timestamptz
+          AND hourly.bucket_start < $3::timestamptz
+    ), 0)::bigint AS runtime_ms,
+    members.effective_group_id,
+    COALESCE(effective.name, '')::text AS effective_group_name,
+    COALESCE(effective.display_name, '')::text AS effective_group_display_name
+FROM members
+LEFT JOIN groups effective ON effective.id = members.effective_group_id
+ORDER BY members.user_id
+`
+
+type GetGroupMembersAgentRuntimeUsageParams struct {
+	GroupID   uuid.UUID   `db:"group_id" json:"group_id"`
+	StartTime time.Time   `db:"start_time" json:"start_time"`
+	EndTime   time.Time   `db:"end_time" json:"end_time"`
+	UserIds   []uuid.UUID `db:"user_ids" json:"user_ids"`
+}
+
+type GetGroupMembersAgentRuntimeUsageRow struct {
+	UserID                    uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID            uuid.UUID `db:"organization_id" json:"organization_id"`
+	RuntimeMs                 int64     `db:"runtime_ms" json:"runtime_ms"`
+	EffectiveGroupID          uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	EffectiveGroupName        string    `db:"effective_group_name" json:"effective_group_name"`
+	EffectiveGroupDisplayName string    `db:"effective_group_display_name" json:"effective_group_display_name"`
+}
+
+// Returns each requested user who is a member of the group, with the
+// runtime attributed to the group over the buckets that start in
+// [start_time, end_time) and the user's current effective Agent Hours group
+// in the group's organization. Uses group_members_expanded so the implicit
+// Everyone group counts.
+func (q *sqlQuerier) GetGroupMembersAgentRuntimeUsage(ctx context.Context, arg GetGroupMembersAgentRuntimeUsageParams) ([]GetGroupMembersAgentRuntimeUsageRow, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembersAgentRuntimeUsage,
+		arg.GroupID,
+		arg.StartTime,
+		arg.EndTime,
+		pq.Array(arg.UserIds),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupMembersAgentRuntimeUsageRow
+	for rows.Next() {
+		var i GetGroupMembersAgentRuntimeUsageRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.OrganizationID,
+			&i.RuntimeMs,
+			&i.EffectiveGroupID,
+			&i.EffectiveGroupName,
+			&i.EffectiveGroupDisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAgentRuntimeHourlyUsage = `-- name: InsertAgentRuntimeHourlyUsage :exec
 INSERT INTO agent_runtime_hourly_usage (
     bucket_start,
