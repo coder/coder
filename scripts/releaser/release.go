@@ -461,7 +461,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 				return xerrors.Errorf("reading commit log: %w", err)
 			}
 
-			prMeta := loadPRMetadata(w, ghAvailable, commits)
+			prMeta := emptyPRMetadata()
+			if ghAvailable {
+				prMeta = loadPRMetadata(w, commits)
+			}
 			breakingCommits := findBreakingCommits(commits, prMeta)
 
 			if len(breakingCommits) > 0 {
@@ -559,7 +562,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("reading commit log: %w", err)
 	}
 
-	prMeta := loadPRMetadata(w, ghAvailable, commits)
+	prMeta := emptyPRMetadata()
+	if ghAvailable {
+		prMeta = loadPRMetadata(w, commits)
+	}
 
 	type section struct {
 		Key   string
