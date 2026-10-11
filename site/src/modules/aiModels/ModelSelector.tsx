@@ -48,8 +48,6 @@ type ModelSelectorProps = {
 	 * by the selected model's display name or the placeholder.
 	 */
 	triggerAriaLabel?: string;
-	triggerAriaInvalid?: boolean;
-	triggerAriaDescribedBy?: string;
 	disabled?: boolean;
 	placeholder?: string;
 	/**
@@ -104,8 +102,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 	value,
 	onValueChange,
 	triggerAriaLabel,
-	triggerAriaInvalid,
-	triggerAriaDescribedBy,
 	disabled = false,
 	placeholder = "Select model",
 	unsetLabel,
@@ -165,8 +161,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 							? `${triggerAriaLabel}, ${triggerLabel}`
 							: triggerLabel
 					}
-					aria-invalid={triggerAriaInvalid}
-					aria-describedby={triggerAriaDescribedBy}
 					aria-expanded={open}
 					aria-haspopup="listbox"
 					aria-controls={open ? listboxId : undefined}
