@@ -3161,7 +3161,7 @@ export const chatCost = (rootChatId: string) =>
 		staleTime: GATEWAY_REQUEST_STALE_MS,
 	});
 
-const organizationChatModelOverridesKey = (organizationId: string) =>
+export const organizationChatModelOverridesKey = (organizationId: string) =>
 	[...chatConfigKey, "model-overrides", organizationId] as const;
 
 export const organizationChatModelOverrides = (organizationId: string) => ({

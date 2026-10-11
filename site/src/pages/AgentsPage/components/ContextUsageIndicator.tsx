@@ -30,6 +30,10 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { formatKiB } from "#/utils/fileSize";
 import { isMobileViewport } from "#/utils/mobile";
+import {
+	compactionThresholdLabel,
+	type ResolvedCompactionThreshold,
+} from "../compactionTriggers";
 import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 
@@ -43,8 +47,7 @@ export type AgentContextUsage = {
 	readonly cacheCreationTokens?: number;
 	// Part of outputTokens, so usedTokens does not add it.
 	readonly reasoningTokens?: number;
-	// Percentage (0-100) at which the context will be compacted.
-	readonly compressionThreshold?: number;
+	readonly compactionThreshold?: ResolvedCompactionThreshold;
 	// Pinned workspace-context state: the resources the chat is built from and
 	// whether they have drifted from the agent's latest snapshot.
 	readonly context?: ChatContext;
@@ -276,6 +279,10 @@ export const ContextUsageIndicator: React.FC<{
 	].some(hasFiniteTokenValue);
 	const percentLabel =
 		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
+	const compactionLabel =
+		usage.compactionThreshold && contextLimitTokens !== undefined
+			? compactionThresholdLabel(usage.compactionThreshold, contextLimitTokens)
+			: undefined;
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 0;
@@ -410,13 +417,9 @@ export const ContextUsageIndicator: React.FC<{
 					and tools. Replaced by measured usage after the next response.
 				</div>
 			)}
-			{hasPercent &&
-				usage.compressionThreshold !== undefined &&
-				usage.compressionThreshold > 0 && (
-					<div className="mt-1 text-content-secondary">
-						{`Compacts at ${usage.compressionThreshold}%`}
-					</div>
-				)}
+			{hasPercent && compactionLabel !== undefined && (
+				<div className="mt-1 text-content-secondary">{compactionLabel}</div>
+			)}
 			{hasContextList && (
 				<div className="mt-2 flex flex-col gap-2 text-content-secondary">
 					{fileItems.length > 0 && (

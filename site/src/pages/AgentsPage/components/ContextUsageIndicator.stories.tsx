@@ -17,6 +17,104 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 export default meta;
 type Story = StoryObj<typeof ContextUsageIndicator>;
 
+export const OrganizationCompactionPointUsesReportedLimit: Story = {
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 200_000,
+			compactionThreshold: {
+				source: "organization",
+				pointTokens: 32_000,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 32%/i }),
+		);
+	},
+};
+
+export const OrganizationCompactionPointBeyondReportedLimit: Story = {
+	args: {
+		usage: {
+			usedTokens: 5_200,
+			contextLimitTokens: 10_000,
+			compactionThreshold: {
+				source: "organization",
+				pointTokens: 16_000,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 52%/i }),
+		);
+	},
+};
+
+export const ChatModelCompactionDisabled: Story = {
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 128_000,
+			compactionThreshold: {
+				percent: 100,
+				source: "user",
+				organizationOverrideNotLoaded: false,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 50%/i }),
+		);
+	},
+};
+
+export const ChatModelCompactionDisabledOrganizationOverrideNotLoaded: Story = {
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 128_000,
+			compactionThreshold: {
+				percent: 100,
+				source: "user",
+				organizationOverrideNotLoaded: true,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 50%/i }),
+		);
+	},
+};
+
+export const ChatModelCompactionBinding: Story = {
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 128_000,
+			compactionThreshold: {
+				percent: 80,
+				source: "model",
+				organizationOverrideNotLoaded: false,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 50%/i }),
+		);
+	},
+};
+
 // A pinned resource issue flags the ring and appears under Issues.
 export const ResourceIssue: Story = {
 	args: {
