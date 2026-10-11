@@ -2200,12 +2200,31 @@ export interface Chat {
 	 * always empty for child chats.
 	 */
 	readonly children: readonly Chat[];
+	/**
+	 * SnapshotVersion is the chat's state version, bumped once by every
+	 * committed action. A stream checkpoint with an equal or higher
+	 * snapshot_version has applied this state.
+	 */
+	readonly snapshot_version: number;
 }
 
 // From codersdk/chats.go
 export interface ChatACL {
 	readonly users: readonly ChatUser[];
 	readonly groups: readonly ChatGroup[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatActionResponse is returned by chat actions that have no other result.
+ */
+export interface ChatActionResponse {
+	/**
+	 * SnapshotVersion is the chat's snapshot_version the action committed.
+	 * A stream checkpoint with an equal or higher snapshot_version reflects
+	 * it.
+	 */
+	readonly snapshot_version: number;
 }
 
 // From codersdk/chats.go
@@ -4422,6 +4441,11 @@ export interface CreateChatMessageResponse {
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
 	readonly warnings?: readonly string[];
+	/**
+	 * SnapshotVersion is the chat's snapshot_version committed by the send.
+	 * The stream has applied the send once a checkpoint reports at least it.
+	 */
+	readonly snapshot_version: number;
 }
 
 // From codersdk/chats.go
@@ -5673,6 +5697,11 @@ export interface EditChatMessageResponse {
 	 */
 	readonly deleted_message_ids?: readonly number[];
 	readonly warnings?: readonly string[];
+	/**
+	 * SnapshotVersion is the chat's snapshot_version committed by the edit.
+	 * The stream has applied the edit once a checkpoint reports at least it.
+	 */
+	readonly snapshot_version: number;
 }
 
 // From codersdk/chats.go
