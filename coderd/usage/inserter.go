@@ -28,12 +28,13 @@ type Inserter interface {
 	// safely ignored.
 	//
 	// Inserts with the same `id` must be idempotent. The database enforces this by
-	// ignoring duplicate records.
+	// ignoring duplicate records. `inserted` reports whether this call stored
+	// the event; it is false when an event with the same `id` already exists.
 	//
 	// Generators that backfill historical buckets pass the bucket start as
 	// `createdAt` rather than the insertion time. `createdAt` must be
 	// non-zero; implementations reject the zero time rather than storing it.
-	InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) error
+	InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) (inserted bool, err error)
 }
 
 // AGPLInserter is a no-op implementation of Inserter.
@@ -53,6 +54,6 @@ func (AGPLInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store
 
 // InsertHeartbeatUsageEvent is a no-op implementation of
 // InsertHeartbeatUsageEvent.
-func (AGPLInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.Store, _ string, _ time.Time, _ usagetypes.HeartbeatEvent) error {
-	return nil
+func (AGPLInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.Store, _ string, _ time.Time, _ usagetypes.HeartbeatEvent) (bool, error) {
+	return false, nil
 }

@@ -3218,6 +3218,16 @@ func (q *querier) GetAgentHoursOrganizationAllotments(ctx context.Context) ([]da
 	return q.db.GetAgentHoursOrganizationAllotments(ctx)
 }
 
+func (q *querier) GetAgentRuntimeHourlyUsage(ctx context.Context, arg database.GetAgentRuntimeHourlyUsageParams) ([]database.GetAgentRuntimeHourlyUsageRow, error) {
+	// This query exists solely to compute hb_agent_runtime_v1 usage events
+	// and their hourly rollup. It returns runtime sums with no chat content,
+	// so it is gated on usage event creation rather than on reading chats.
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUsageEvent); err != nil {
+		return nil, err
+	}
+	return q.db.GetAgentRuntimeHourlyUsage(ctx, arg)
+}
+
 func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err
@@ -5376,16 +5386,6 @@ func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTe
 	return q.db.GetAuthorizedTemplates(ctx, arg, prep)
 }
 
-func (q *querier) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg database.GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
-	// This query exists solely to compute hb_agent_runtime_v1 usage event
-	// payloads and returns a bare sum with no chat content, so it is gated
-	// on usage event creation rather than on reading chats.
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUsageEvent); err != nil {
-		return 0, err
-	}
-	return q.db.GetTotalChatMessageRuntimeMsInRange(ctx, arg)
-}
-
 func (q *querier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg database.GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
 		return 0, err
@@ -6419,6 +6419,15 @@ func (q *querier) InsertAgentContextResourcesIntoChat(ctx context.Context, arg d
 	return q.db.InsertAgentContextResourcesIntoChat(ctx, arg)
 }
 
+func (q *querier) InsertAgentRuntimeHourlyUsage(ctx context.Context, arg database.InsertAgentRuntimeHourlyUsageParams) error {
+	// The rollup is written in the same transaction as its
+	// hb_agent_runtime_v1 usage event, by the same subject.
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUsageEvent); err != nil {
+		return err
+	}
+	return q.db.InsertAgentRuntimeHourlyUsage(ctx, arg)
+}
+
 func (q *querier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	// This method creates a new group.
 	return insert(q.log, q.auth, rbac.ResourceGroup.InOrg(organizationID), q.db.InsertAllUsersGroup)(ctx, organizationID)
@@ -6891,9 +6900,9 @@ func (q *querier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg dat
 	return q.db.InsertTemplateVersionWorkspaceTag(ctx, arg)
 }
 
-func (q *querier) InsertUsageEvent(ctx context.Context, arg database.InsertUsageEventParams) error {
+func (q *querier) InsertUsageEvent(ctx context.Context, arg database.InsertUsageEventParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUsageEvent); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.InsertUsageEvent(ctx, arg)
 }

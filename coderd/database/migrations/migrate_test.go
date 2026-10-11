@@ -405,6 +405,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
 		{"Migration000602RestoreAgentsAccessDefaultRole", 602, testMigration000602RestoreAgentsAccessDefaultRole},
 		{"Migration000606ChatDiffStatusOriginCredentials", 606, testMigration000606ChatDiffStatusOriginCredentials},
+		{"Migration000616AgentRuntimeHourlyUsage", 616, testMigration000616AgentRuntimeHourlyUsage},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -488,7 +489,7 @@ func testMigration000362AggregateUsageEvents(t *testing.T, sqlDB *sql.DB, next m
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	for _, usageEvent := range usageEvents {
-		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        uuid.New().String(),
 			EventType: "dc_managed_agents_v1",
 			EventData: usageEvent.eventData,
@@ -1839,6 +1840,102 @@ func testMigration000606ChatDiffStatusOriginCredentials(t *testing.T, sqlDB *sql
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// testMigration000616AgentRuntimeHourlyUsage checks that the migration
+// backfills the rollup for hours that already have a usage event, crediting
+// every owner to the organization's Everyone group, and that it can be
+// rolled back and reapplied.
+func testMigration000616AgentRuntimeHourlyUsage(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 616
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ownerID, otherID, orgID, providerID, modelConfigID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	chatID, otherChatID := uuid.New(), uuid.New()
+	// Far from any bucket an earlier step could have created.
+	generated := time.Date(2031, 1, 1, 10, 0, 0, 0, time.UTC)
+	notGenerated := generated.Add(time.Hour)
+
+	exec := func(query string, args ...any) {
+		t.Helper()
+		_, err := sqlDB.ExecContext(ctx, query, args...)
+		require.NoError(t, err)
+	}
+	for _, userID := range []uuid.UUID{ownerID, otherID} {
+		exec("INSERT INTO users (id, username, email, hashed_password, created_at, updated_at) VALUES ($1, $2, $3, '', NOW(), NOW())",
+			userID, userID.String(), userID.String()+"@test.com")
+	}
+	exec("INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, '', '', NOW(), NOW(), '{}')",
+		orgID, orgID.String())
+	exec("INSERT INTO ai_providers (id, type, name, base_url) VALUES ($1, 'openai', $2, 'https://example.com')",
+		providerID, providerID.String())
+	exec("INSERT INTO chat_model_configs (id, model, context_limit, compression_threshold, ai_provider_id, organization_id) VALUES ($1, 'model', 1000, 50, $2, $3)",
+		modelConfigID, providerID, orgID)
+	exec("INSERT INTO chats (id, owner_id, organization_id, last_model_config_id) VALUES ($1, $2, $3, $4), ($5, $6, $3, $4)",
+		chatID, ownerID, orgID, modelConfigID, otherChatID, otherID)
+	insertMessage := func(chatID uuid.UUID, runtimeMs sql.NullInt64, createdAt time.Time, deleted bool) {
+		t.Helper()
+		exec("INSERT INTO chat_messages (chat_id, role, content_version, runtime_ms, created_at, deleted) VALUES ($1, 'assistant', 1, $2, $3, $4)",
+			chatID, runtimeMs, createdAt, deleted)
+	}
+	insertMessage(chatID, sql.NullInt64{Int64: 1000, Valid: true}, generated.Add(5*time.Minute), false)
+	// Soft-deleted runtime counts, as it does for the usage event.
+	insertMessage(chatID, sql.NullInt64{Int64: 2000, Valid: true}, generated.Add(40*time.Minute), true)
+	insertMessage(chatID, sql.NullInt64{}, generated.Add(50*time.Minute), false)
+	insertMessage(otherChatID, sql.NullInt64{Int64: 4000, Valid: true}, generated.Add(10*time.Minute), false)
+	// The generator writes hours without an event together with their rollup.
+	insertMessage(chatID, sql.NullInt64{Int64: 8000, Valid: true}, notGenerated.Add(5*time.Minute), false)
+	exec("INSERT INTO usage_events (id, event_type, event_data, created_at) VALUES ($1, 'hb_agent_runtime_v1', '{\"runtime_ms\": 7000}', $2)",
+		"hb_agent_runtime_v1:2031-01-01_10:00:00", generated)
+
+	type row struct {
+		bucket  time.Time
+		groupID uuid.UUID
+		userID  uuid.UUID
+		runtime int64
+	}
+	rollup := func() []row {
+		t.Helper()
+		rows, err := sqlDB.QueryContext(ctx, "SELECT bucket_start, group_id, user_id, runtime_ms FROM agent_runtime_hourly_usage WHERE organization_id = $1", orgID)
+		require.NoError(t, err)
+		defer rows.Close()
+		var got []row
+		for rows.Next() {
+			var r row
+			require.NoError(t, rows.Scan(&r.bucket, &r.groupID, &r.userID, &r.runtime))
+			r.bucket = r.bucket.UTC()
+			got = append(got, r)
+		}
+		require.NoError(t, rows.Err())
+		return got
+	}
+	want := []row{
+		{bucket: generated, groupID: orgID, userID: ownerID, runtime: 3000},
+		{bucket: generated, groupID: orgID, userID: otherID, runtime: 4000},
+	}
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+	require.ElementsMatch(t, want, rollup())
+
+	downSQL, err := os.ReadFile("000616_agent_runtime_hourly_usage.down.sql")
+	require.NoError(t, err)
+	exec(string(downSQL))
+	var tableGone, functionGone bool
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT to_regclass('agent_runtime_hourly_usage') IS NULL, to_regprocedure('agent_hours_effective_group_id(uuid, uuid)') IS NULL",
+	).Scan(&tableGone, &functionGone))
+	require.True(t, tableGone)
+	require.True(t, functionGone)
+
+	upSQL, err := os.ReadFile("000616_agent_runtime_hourly_usage.up.sql")
+	require.NoError(t, err)
+	exec(string(upSQL))
+	require.ElementsMatch(t, want, rollup())
+
+	// Later steps assert on every chat message, so remove this step's.
+	exec("DELETE FROM chats WHERE id IN ($1, $2)", chatID, otherChatID)
 }
 
 func TestMigration000504AIProvidersBackfill(t *testing.T) {

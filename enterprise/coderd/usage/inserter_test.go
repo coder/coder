@@ -52,13 +52,13 @@ func TestInserter(t *testing.T) {
 		for _, e := range events {
 			eventJSON := jsoninate(t, e.event)
 			db.EXPECT().InsertUsageEvent(gomock.Any(), gomock.Any()).DoAndReturn(
-				func(ctx interface{}, params database.InsertUsageEventParams) error {
+				func(ctx interface{}, params database.InsertUsageEventParams) (int64, error) {
 					_, err := uuid.Parse(params.ID)
 					assert.NoError(t, err)
 					assert.Equal(t, e.event.EventType(), usagetypes.UsageEventType(params.EventType))
 					assert.JSONEq(t, eventJSON, string(params.EventData))
 					assert.Equal(t, e.time, params.CreatedAt)
-					return nil
+					return 1, nil
 				},
 			).Times(1)
 
@@ -84,17 +84,23 @@ func TestInserter(t *testing.T) {
 		createdAt := time.Date(2025, 1, 2, 3, 0, 0, 0, time.UTC)
 
 		db.EXPECT().InsertUsageEvent(gomock.Any(), gomock.Any()).DoAndReturn(
-			func(ctx interface{}, params database.InsertUsageEventParams) error {
+			func(ctx interface{}, params database.InsertUsageEventParams) (int64, error) {
 				assert.Equal(t, id, params.ID)
 				assert.Equal(t, event.EventType(), usagetypes.UsageEventType(params.EventType))
 				assert.JSONEq(t, eventJSON, string(params.EventData))
 				assert.Equal(t, dbtime.Time(createdAt), params.CreatedAt)
-				return nil
+				return 1, nil
 			},
 		).Times(1)
+		// The query skips a duplicate ID, so the retry affects no rows.
+		db.EXPECT().InsertUsageEvent(gomock.Any(), gomock.Any()).Return(int64(0), nil).Times(1)
 
-		err := inserter.InsertHeartbeatUsageEvent(ctx, db, id, createdAt, event)
+		inserted, err := inserter.InsertHeartbeatUsageEvent(ctx, db, id, createdAt, event)
 		require.NoError(t, err)
+		require.True(t, inserted)
+		inserted, err = inserter.InsertHeartbeatUsageEvent(ctx, db, id, createdAt, event)
+		require.NoError(t, err)
+		require.False(t, inserted)
 	})
 
 	t.Run("InvalidEvent", func(t *testing.T) {
@@ -111,7 +117,7 @@ func TestInserter(t *testing.T) {
 		})
 		assert.ErrorContains(t, err, `invalid "dc_managed_agents_v1" event: count must be greater than 0`)
 
-		err = inserter.InsertHeartbeatUsageEvent(ctx, db, "some-id", time.Now(), usagetypes.HBAgentRuntime{
+		_, err = inserter.InsertHeartbeatUsageEvent(ctx, db, "some-id", time.Now(), usagetypes.HBAgentRuntime{
 			RuntimeMs: -1, // invalid
 		})
 		assert.ErrorContains(t, err, `invalid "hb_agent_runtime_v1" event: runtime_ms cannot be negative`)
@@ -127,7 +133,7 @@ func TestInserter(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 
 		inserter := usage.NewDBInserter()
-		err := inserter.InsertHeartbeatUsageEvent(ctx, db, "some-id", time.Time{}, usagetypes.HBAgentRuntime{
+		_, err := inserter.InsertHeartbeatUsageEvent(ctx, db, "some-id", time.Time{}, usagetypes.HBAgentRuntime{
 			RuntimeMs: 1,
 		})
 		assert.ErrorContains(t, err, `createdAt must be set for "hb_agent_runtime_v1" event`)

@@ -1456,6 +1456,14 @@ func (m queryMetricsStore) GetAgentHoursOrganizationAllotments(ctx context.Conte
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAgentRuntimeHourlyUsage(ctx context.Context, arg database.GetAgentRuntimeHourlyUsageParams) ([]database.GetAgentRuntimeHourlyUsageRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentRuntimeHourlyUsage(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentRuntimeHourlyUsage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentRuntimeHourlyUsage").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAllTailnetCoordinators(ctx)
@@ -3456,14 +3464,6 @@ func (m queryMetricsStore) GetTemplatesWithFilter(ctx context.Context, arg datab
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg database.GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetTotalChatMessageRuntimeMsInRange(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetTotalChatMessageRuntimeMsInRange").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTotalChatMessageRuntimeMsInRange").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg database.GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTotalUsageDCManagedAgentsV1(ctx, arg)
@@ -4400,6 +4400,14 @@ func (m queryMetricsStore) InsertAgentContextResourcesIntoChat(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) InsertAgentRuntimeHourlyUsage(ctx context.Context, arg database.InsertAgentRuntimeHourlyUsageParams) error {
+	start := time.Now()
+	r0 := m.s.InsertAgentRuntimeHourlyUsage(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAgentRuntimeHourlyUsage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAgentRuntimeHourlyUsage").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAllUsersGroup(ctx, organizationID)
@@ -4816,12 +4824,12 @@ func (m queryMetricsStore) InsertTemplateVersionWorkspaceTag(ctx context.Context
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertUsageEvent(ctx context.Context, arg database.InsertUsageEventParams) error {
+func (m queryMetricsStore) InsertUsageEvent(ctx context.Context, arg database.InsertUsageEventParams) (int64, error) {
 	start := time.Now()
-	r0 := m.s.InsertUsageEvent(ctx, arg)
+	r0, r1 := m.s.InsertUsageEvent(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertUsageEvent").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertUsageEvent").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {

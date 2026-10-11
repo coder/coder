@@ -10839,7 +10839,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.Len(t, rows, 0)
 
 		// Insert a usage event.
-		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "1",
 			EventType: "dc_managed_agents_v1",
 			EventData: []byte(`{"count": 41}`),
@@ -10859,7 +10859,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		// Insert a new usage event on the same UTC day, should increment the count.
 		locSydney, err := time.LoadLocation("Australia/Sydney")
 		require.NoError(t, err)
-		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "2",
 			EventType: "dc_managed_agents_v1",
 			EventData: []byte(`{"count": 1}`),
@@ -10882,7 +10882,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 
 		// Insert a new usage event on a different day, should create a new daily
 		// row.
-		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "3",
 			EventType: "dc_managed_agents_v1",
 			EventData: []byte(`{"count": 1}`),
@@ -10910,7 +10910,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 
 		// Insert a heartbeat event.
-		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "hb-1",
 			EventType: "hb_ai_seats_v1",
 			EventData: []byte(`{"count": 10}`),
@@ -10924,7 +10924,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.JSONEq(t, `{"count": 10}`, string(rows[0].UsageData))
 
 		// Insert a higher count on the same day. It should take the max.
-		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "hb-2",
 			EventType: "hb_ai_seats_v1",
 			EventData: []byte(`{"count": 50}`),
@@ -10937,7 +10937,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.JSONEq(t, `{"count": 50}`, string(rows[0].UsageData))
 
 		// Insert a lower count on the same day. It should keep the max (50).
-		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "hb-3",
 			EventType: "hb_ai_seats_v1",
 			EventData: []byte(`{"count": 25}`),
@@ -10950,7 +10950,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.JSONEq(t, `{"count": 50}`, string(rows[0].UsageData))
 
 		// Insert on a different day.
-		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "hb-4",
 			EventType: "hb_ai_seats_v1",
 			EventData: []byte(`{"count": 5}`),
@@ -10965,7 +10965,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 
 		// Also insert a dc_managed_agents_v1 on the same first day to
 		// verify different event types get separate daily rows.
-		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "dc-1",
 			EventType: "dc_managed_agents_v1",
 			EventData: []byte(`{"count": 7}`),
@@ -10985,7 +10985,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 
 		insert := func(id, eventType, eventData string, createdAt time.Time) {
 			t.Helper()
-			err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			_, err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 				ID:        id,
 				EventType: eventType,
 				EventData: []byte(eventData),
@@ -11036,7 +11036,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		// GetTotalUsageHBAgentRuntimeV1; the unique partial index
 		// idx_usage_events_agent_runtime rejects it loudly instead of the
 		// (id) arbiter silently dropping it.
-		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "different-id-same-bucket",
 			EventType: "hb_agent_runtime_v1",
 			EventData: []byte(`{"runtime_ms": 9999}`),
@@ -11052,7 +11052,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		// created_at must be the exact UTC hourly bucket start;
 		// usage_events_agent_runtime_hour_aligned rejects a misaligned row
 		// so it cannot skew the period a bucket is attributed to.
-		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "hb_agent_runtime_v1:misaligned",
 			EventType: "hb_agent_runtime_v1",
 			EventData: []byte(`{"runtime_ms": 100}`),
@@ -11077,7 +11077,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.NoError(t, err)
 
 		// Insert a usage event with an unknown event type.
-		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "broken",
 			EventType: "dean's cool event",
 			EventData: []byte(`{"my": "cool json"}`),
@@ -11106,7 +11106,7 @@ func TestGetUsageEventsStats(t *testing.T) {
 	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
 	insert := func(id string, createdAt time.Time) {
 		t.Helper()
-		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        id,
 			EventType: "dc_managed_agents_v1",
 			EventData: []byte(`{"count": 1}`),
@@ -11160,7 +11160,7 @@ func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
 		event := usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs}
 		eventData, err := json.Marshal(event.Fields())
 		require.NoError(t, err)
-		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        id,
 			EventType: string(event.EventType()),
 			EventData: eventData,
@@ -11212,7 +11212,7 @@ func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
 
 	// Other event types are never mixed in, even when they carry a
 	// runtime_ms key: without the event_type filter this would add 9999.
-	err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+	_, err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 		ID:        "seats-1",
 		EventType: "hb_ai_seats_v1",
 		EventData: []byte(`{"count": 1, "runtime_ms": 9999}`),
@@ -11222,7 +11222,7 @@ func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
 	require.EqualValues(t, 1757, total(hour(1, 0), hour(5, 0)))
 }
 
-func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
+func TestGetAgentRuntimeHourlyUsage(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -11230,17 +11230,26 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 
 	rangeStart := time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
 	rangeEnd := rangeStart.Add(time.Hour)
-
-	total, err := db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
+	params := database.GetAgentRuntimeHourlyUsageParams{
 		StartTime: rangeStart,
 		EndTime:   rangeEnd,
-	})
+	}
+
+	rows, err := db.GetAgentRuntimeHourlyUsage(ctx, params)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, total)
+	require.Empty(t, rows)
 
 	user := dbgen.User(t, db, database.User{})
+	other := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
-	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	org2 := dbgen.Organization(t, db, database.Organization{})
+	for _, member := range []database.OrganizationMember{
+		{UserID: user.ID, OrganizationID: org.ID},
+		{UserID: user.ID, OrganizationID: org2.ID},
+		{UserID: other.ID, OrganizationID: org.ID},
+	} {
+		_ = dbgen.OrganizationMember(t, db, member)
+	}
 	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    "openai",
 		DisplayName: "OpenAI",
@@ -11249,16 +11258,17 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 		Model:        "test-model",
 		ContextLimit: 8192,
 	})
-	chat1 := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: mc.ID,
-	})
-	chat2 := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: mc.ID,
-	})
+	newChat := func(orgID, ownerID uuid.UUID) database.Chat {
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    orgID,
+			OwnerID:           ownerID,
+			LastModelConfigID: mc.ID,
+		})
+	}
+	chat1 := newChat(org.ID, user.ID)
+	chat2 := newChat(org.ID, user.ID)
+	org2Chat := newChat(org2.ID, user.ID)
+	otherChat := newChat(org.ID, other.ID)
 
 	insertMessage := func(chatID uuid.UUID, role database.ChatMessageRole, runtimeMs int64, createdAt time.Time, deleted bool) {
 		t.Helper()
@@ -11286,13 +11296,19 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 16, rangeStart.Add(-time.Second), false)
 	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 32, rangeEnd, false)
 	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 0, rangeStart.Add(10*time.Minute), false)
+	// Runtime is split by the chat's organization and owner.
+	insertMessage(org2Chat.ID, database.ChatMessageRoleAssistant, 128, rangeStart.Add(5*time.Minute), false)
+	insertMessage(otherChat.ID, database.ChatMessageRoleAssistant, 256, rangeStart.Add(5*time.Minute), false)
 
-	total, err = db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
-		StartTime: rangeStart,
-		EndTime:   rangeEnd,
-	})
+	rows, err = db.GetAgentRuntimeHourlyUsage(ctx, params)
 	require.NoError(t, err)
-	require.EqualValues(t, 79, total)
+	// Without group allotments, every owner's runtime counts toward the
+	// organization's Everyone group, whose ID is the organization ID.
+	require.ElementsMatch(t, []database.GetAgentRuntimeHourlyUsageRow{
+		{OrganizationID: org.ID, GroupID: org.ID, UserID: user.ID, RuntimeMs: 79},
+		{OrganizationID: org2.ID, GroupID: org2.ID, UserID: user.ID, RuntimeMs: 128},
+		{OrganizationID: org.ID, GroupID: org.ID, UserID: other.ID, RuntimeMs: 256},
+	}, rows)
 }
 
 func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
@@ -11305,7 +11321,7 @@ func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
 
 	insertEvent := func(id, eventType string, eventData string, createdAt time.Time) {
 		t.Helper()
-		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		_, err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        id,
 			EventType: eventType,
 			EventData: []byte(eventData),

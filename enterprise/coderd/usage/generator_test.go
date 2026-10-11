@@ -1,6 +1,7 @@
 package usage_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"sync/atomic"
@@ -148,6 +149,50 @@ func expectedBuckets(first, last time.Time, overrides map[time.Time]int64) map[t
 	return expected
 }
 
+// rollupRow is one agent_runtime_hourly_usage row.
+type rollupRow struct {
+	Bucket         time.Time
+	OrganizationID uuid.UUID
+	GroupID        uuid.UUID
+	UserID         uuid.UUID
+	RuntimeMs      int64
+}
+
+func (h *generatorHarness) fetchRollup(ctx context.Context, t *testing.T) []rollupRow {
+	t.Helper()
+	rows, err := h.rawDB.QueryContext(ctx, `
+		SELECT bucket_start, organization_id, group_id, user_id, runtime_ms
+		FROM agent_runtime_hourly_usage
+	`)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	var rollup []rollupRow
+	for rows.Next() {
+		var row rollupRow
+		require.NoError(t, rows.Scan(&row.Bucket, &row.OrganizationID, &row.GroupID, &row.UserID, &row.RuntimeMs))
+		row.Bucket = row.Bucket.UTC()
+		rollup = append(rollup, row)
+	}
+	require.NoError(t, rows.Err())
+	return rollup
+}
+
+// requireRollupMatchesEvents asserts that every bucket's rollup rows sum to
+// its event and that no rollup row lacks an event.
+func (h *generatorHarness) requireRollupMatchesEvents(ctx context.Context, t *testing.T) {
+	t.Helper()
+	runtimes, _ := h.fetchRuntimeEvents(ctx, t)
+	sums := make(map[time.Time]int64)
+	for _, row := range h.fetchRollup(ctx, t) {
+		require.Contains(t, runtimes, row.Bucket, "rollup row without an event")
+		sums[row.Bucket] += row.RuntimeMs
+	}
+	for bucket, runtimeMs := range runtimes {
+		require.Equal(t, runtimeMs, sums[bucket], "bucket %s", bucket)
+	}
+}
+
 func TestGenerator(t *testing.T) {
 	t.Parallel()
 
@@ -211,6 +256,13 @@ func TestGenerator(t *testing.T) {
 		bucketB: 8000,
 	}), runtimes)
 	require.Equal(t, "hb_agent_runtime_v1:2025-03-10_10:00:00", ids[bucketA])
+	// Without group allotments, the owner's hours count toward the
+	// organization's Everyone group, whose ID is the organization ID.
+	org := h.chat.OrganizationID
+	require.ElementsMatch(t, []rollupRow{
+		{Bucket: bucketA, OrganizationID: org, GroupID: org, UserID: h.user.ID, RuntimeMs: 7000},
+		{Bucket: bucketB, OrganizationID: org, GroupID: org, UserID: h.user.ID, RuntimeMs: 8000},
+	}, h.fetchRollup(ctx, t))
 
 	// The next tick fires at bucket C's eligibility instant (14:05 plus
 	// jitter), in the same hour the first pass ran, rather than waiting for
@@ -261,6 +313,7 @@ func TestGenerator(t *testing.T) {
 
 	runtimes2, _ := h.fetchRuntimeEvents(ctx, t)
 	require.Equal(t, runtimes, runtimes2)
+	h.requireRollupMatchesEvents(ctx, t)
 }
 
 // TestGeneratorBackfillAfterDowntime simulates a deployment that was down
@@ -283,7 +336,7 @@ func TestGeneratorBackfillAfterDowntime(t *testing.T) {
 	// every bucket in [windowFirst, 08:00] exists with runtime 1.
 	inserter := usage.NewDBInserter()
 	for bucket := windowFirst; !bucket.After(time.Date(2025, 3, 10, 8, 0, 0, 0, time.UTC)); bucket = bucket.Add(time.Hour) {
-		err := inserter.InsertHeartbeatUsageEvent(ctx, h.db, "hb_agent_runtime_v1:"+bucket.Format("2006-01-02_15:04:05"), bucket, usagetypes.HBAgentRuntime{RuntimeMs: 1})
+		_, err := inserter.InsertHeartbeatUsageEvent(ctx, h.db, "hb_agent_runtime_v1:"+bucket.Format("2006-01-02_15:04:05"), bucket, usagetypes.HBAgentRuntime{RuntimeMs: 1})
 		require.NoError(t, err)
 	}
 
@@ -367,9 +420,134 @@ func TestGeneratorInserterArguments(t *testing.T) {
 	require.Equal(t, expected, ins.GetHeartbeatEvents())
 }
 
+// TestGeneratorEffectiveGroup verifies that each owner's runtime counts
+// toward exactly one group of the chat's organization, and that a bucket keeps
+// the attribution it was generated with.
+func TestGeneratorEffectiveGroup(t *testing.T) {
+	t.Parallel()
+
+	startTime := time.Date(2025, 3, 10, 14, 0, 0, 0, time.UTC)
+	var (
+		bucketA = time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
+		// Eligible only at the second pass.
+		bucketC = time.Date(2025, 3, 10, 13, 0, 0, 0, time.UTC)
+	)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	log := slogtest.Make(t, nil)
+	h := newGeneratorHarness(t)
+	org := h.chat.OrganizationID
+	otherOrg := dbgen.Organization(t, h.db, database.Organization{})
+
+	allot := func(groupID uuid.UUID, bps int32) {
+		t.Helper()
+		_, err := h.db.UpsertAgentHoursGroupAllotment(ctx, database.UpsertAgentHoursGroupAllotmentParams{
+			GroupID:      groupID,
+			AllotmentBps: bps,
+		})
+		require.NoError(t, err)
+	}
+	newGroup := func(orgID uuid.UUID, bps int32) database.Group {
+		t.Helper()
+		group := dbgen.Group(t, h.db, database.Group{OrganizationID: orgID})
+		allot(group.ID, bps)
+		return group
+	}
+	join := func(group database.Group, users ...database.User) {
+		t.Helper()
+		for _, user := range users {
+			dbgen.GroupMember(t, h.db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+		}
+	}
+	// newOwner returns a member of org with a chat there that ran runtimeMs
+	// in bucketA.
+	newOwner := func(runtimeMs int64) database.User {
+		t.Helper()
+		user := dbgen.User(t, h.db, database.User{})
+		dbgen.OrganizationMember(t, h.db, database.OrganizationMember{UserID: user.ID, OrganizationID: org})
+		chat := dbgen.Chat(t, h.db, database.Chat{
+			OrganizationID:    org,
+			OwnerID:           user.ID,
+			LastModelConfigID: h.modelConfig.ID,
+		})
+		h.insertRuntimeMessage(ctx, t, chat.ID, runtimeMs, bucketA.Add(10*time.Minute), false)
+		return user
+	}
+
+	var (
+		largest  = newOwner(1)
+		tied     = newOwner(2)
+		everyone = newOwner(4)
+		foreign  = newOwner(8)
+	)
+	// The harness owner has no group, and soft-deleted runtime still counts.
+	h.insertRuntimeMessage(ctx, t, h.chat.ID, 16, bucketA.Add(20*time.Minute), true)
+	h.insertRuntimeMessage(ctx, t, h.chat.ID, 32, bucketC.Add(20*time.Minute), false)
+
+	big := newGroup(org, 4000)
+	small := newGroup(org, 3000)
+	join(big, largest)
+	join(small, largest, everyone)
+
+	tieA := newGroup(org, 1000)
+	tieB := newGroup(org, 1000)
+	join(tieA, tied)
+	join(tieB, tied)
+	tieWinner := tieA.ID
+	if bytes.Compare(tieB.ID[:], tieA.ID[:]) < 0 {
+		tieWinner = tieB.ID
+	}
+
+	// Everyone is the fallback and never a candidate, even with an
+	// allotment row and an explicit membership row.
+	everyoneGroup := dbgen.Group(t, h.db, database.Group{ID: org, OrganizationID: org, Name: database.EveryoneGroup})
+	allot(everyoneGroup.ID, 5000)
+	join(everyoneGroup, everyone)
+
+	// Another organization's groups never count, whatever their allotment.
+	dbgen.OrganizationMember(t, h.db, database.OrganizationMember{UserID: foreign.ID, OrganizationID: otherOrg.ID})
+	join(newGroup(otherOrg.ID, 9000), foreign)
+
+	clock := quartz.NewMock(t)
+	clock.Set(startTime)
+	trap := clock.Trap().NewTimer(generatorTimerName)
+	defer trap.Close()
+
+	gen := usage.NewGenerator(clock, log, h.authzDB, usage.NewDBInserter())
+	gen.Start(ctx)
+	defer gen.Close()
+
+	call := trap.MustWait(ctx)
+	call.MustRelease(ctx)
+	clock.Advance(call.Duration).MustWait(ctx)
+	call = trap.MustWait(ctx)
+	call.MustRelease(ctx)
+
+	wantA := []rollupRow{
+		{Bucket: bucketA, OrganizationID: org, GroupID: big.ID, UserID: largest.ID, RuntimeMs: 1},
+		{Bucket: bucketA, OrganizationID: org, GroupID: tieWinner, UserID: tied.ID, RuntimeMs: 2},
+		{Bucket: bucketA, OrganizationID: org, GroupID: small.ID, UserID: everyone.ID, RuntimeMs: 4},
+		{Bucket: bucketA, OrganizationID: org, GroupID: org, UserID: foreign.ID, RuntimeMs: 8},
+		{Bucket: bucketA, OrganizationID: org, GroupID: org, UserID: h.user.ID, RuntimeMs: 16},
+	}
+	require.ElementsMatch(t, wantA, h.fetchRollup(ctx, t))
+	h.requireRollupMatchesEvents(ctx, t)
+
+	// A membership change applies only to buckets generated after it.
+	join(big, h.user)
+	clock.Advance(call.Duration).MustWait(ctx)
+	call = trap.MustWait(ctx)
+	call.MustRelease(ctx)
+
+	require.ElementsMatch(t, append(wantA,
+		rollupRow{Bucket: bucketC, OrganizationID: org, GroupID: big.ID, UserID: h.user.ID, RuntimeMs: 32},
+	), h.fetchRollup(ctx, t))
+	h.requireRollupMatchesEvents(ctx, t)
+}
+
 // TestGeneratorConcurrentReplicas runs two generators against the same
-// database concurrently and verifies exactly one event is produced per
-// bucket. Each replica gets its own mock clock (as real replicas have their
+// database concurrently and verifies exactly one event and one rollup are
+// produced per bucket. Each replica gets its own mock clock (as real replicas have their
 // own wall clocks) so their first passes can be fired independently and run
 // at the same time.
 func TestGeneratorConcurrentReplicas(t *testing.T) {
@@ -385,8 +563,14 @@ func TestGeneratorConcurrentReplicas(t *testing.T) {
 	log := slogtest.Make(t, nil).AppendSinks(sink)
 	h := newGeneratorHarness(t)
 
-	bucketA := time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
-	h.insertRuntimeMessage(ctx, t, h.chat.ID, 1000, bucketA.Add(10*time.Minute), false)
+	// Every bucket has runtime, so a replica that wrote the rollup of a
+	// bucket whose event it did not insert would hit the rollup's primary
+	// key and log a warning.
+	runtimeByBucket := make(map[time.Time]int64)
+	for bucket := startTime.Add(-usage.AgentRuntimeWindow); bucket.Before(startTime.Add(-time.Hour)); bucket = bucket.Add(time.Hour) {
+		h.insertRuntimeMessage(ctx, t, h.chat.ID, 1000, bucket.Add(10*time.Minute), false)
+		runtimeByBucket[bucket] = 1000
+	}
 
 	// Both replicas' first passes fire between 14:01 and 14:05, so they
 	// compute identical windows regardless of their random startup jitter.
@@ -422,11 +606,8 @@ func TestGeneratorConcurrentReplicas(t *testing.T) {
 	// proves the duplicate inserts were deduplicated rather than rejected
 	// with errors.
 	runtimes, _ := h.fetchRuntimeEvents(ctx, t)
-	require.Equal(t, expectedBuckets(
-		startTime.Add(-usage.AgentRuntimeWindow),
-		startTime.Add(-2*time.Hour),
-		map[time.Time]int64{bucketA: 1000},
-	), runtimes)
+	require.Equal(t, runtimeByBucket, runtimes)
+	h.requireRollupMatchesEvents(ctx, t)
 	require.Zero(t, sink.count.Load(), "no replica may log Warn or above during the race")
 }
 

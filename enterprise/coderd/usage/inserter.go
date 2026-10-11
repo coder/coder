@@ -59,41 +59,45 @@ func (i *dbInserter) InsertDiscreteUsageEvent(ctx context.Context, tx database.S
 
 	// Duplicate events are ignored by the query, so we don't need to check the
 	// error.
-	return tx.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+	_, err = tx.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 		// Always generate a new UUID for discrete events.
 		ID:        uuid.New().String(),
 		EventType: string(event.EventType()),
 		EventData: jsonData,
 		CreatedAt: dbtime.Time(i.clock.Now()),
 	})
+	return err
 }
 
 // InsertHeartbeatUsageEvent implements agplusage.Inserter.
-func (*dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) error {
+func (*dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) (bool, error) {
 	if !event.EventType().IsHeartbeat() {
-		return xerrors.Errorf("event type %q is not a heartbeat event", event.EventType())
+		return false, xerrors.Errorf("event type %q is not a heartbeat event", event.EventType())
 	}
 	// A zero createdAt stores the row at year 1, where bucket reconciliation
 	// can never match it again while the deterministic id turns every retry
 	// into a no-op, silently forfeiting the bucket's usage.
 	if createdAt.IsZero() {
-		return xerrors.Errorf("createdAt must be set for %q event", event.EventType())
+		return false, xerrors.Errorf("createdAt must be set for %q event", event.EventType())
 	}
 	if err := event.Valid(); err != nil {
-		return xerrors.Errorf("invalid %q event: %w", event.EventType(), err)
+		return false, xerrors.Errorf("invalid %q event: %w", event.EventType(), err)
 	}
 
 	jsonData, err := json.Marshal(event.Fields())
 	if err != nil {
-		return xerrors.Errorf("marshal event as JSON: %w", err)
+		return false, xerrors.Errorf("marshal event as JSON: %w", err)
 	}
 
-	// Duplicate events are ignored by the query, so we don't need to check the
-	// error.
-	return tx.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+	// The query ignores duplicate IDs and reports them as zero rows.
+	rows, err := tx.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 		ID:        id,
 		EventType: string(event.EventType()),
 		EventData: jsonData,
 		CreatedAt: dbtime.Time(createdAt),
 	})
+	if err != nil {
+		return false, err
+	}
+	return rows > 0, nil
 }

@@ -2,10 +2,12 @@ package usage
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -56,6 +58,11 @@ const (
 // Only the narrow speculative-insertion race, before the competing row's
 // arbiter entry exists, surfaces a bucket unique violation instead, which
 // generateBucket recognizes as the other replica winning.
+//
+// Each bucket's event and its agent_runtime_hourly_usage rows are written in
+// one transaction, and only the replica whose insert stored the event writes
+// the rows, so a bucket's rollup is a single replica's snapshot of group
+// membership and always sums to the event.
 //
 // Events are generated unconditionally in enterprise builds; the
 // publish_usage_data license flag only gates publishing to Tallyman.
@@ -226,29 +233,61 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 	return nil
 }
 
-// generateBucket computes and inserts the event for a single hourly bucket.
-func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error {
-	runtimeMs, err := g.db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
-		StartTime: bucket,
-		EndTime:   bucket.Add(AgentRuntimeInterval),
-	})
-	if err != nil {
-		return xerrors.Errorf("sum chat message runtime: %w", err)
-	}
+// errBucketExists rolls back a bucket transaction whose event another
+// replica already stored.
+var errBucketExists = xerrors.New("bucket already generated")
 
-	// The deterministic ID makes concurrent inserts of the same bucket
-	// idempotent, and created_at is the bucket start (not the insertion
-	// time) so daily rollups attribute backfilled hours to the correct day.
-	stableID := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(usageEventIDTimeFormat)
-	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
-	if database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime) {
+// generateBucket computes and inserts the event and the hourly rollup for a
+// single hourly bucket.
+func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error {
+	err := g.db.InTx(func(tx database.Store) error {
+		rows, err := tx.GetAgentRuntimeHourlyUsage(ctx, database.GetAgentRuntimeHourlyUsageParams{
+			StartTime: bucket,
+			EndTime:   bucket.Add(AgentRuntimeInterval),
+		})
+		if err != nil {
+			return xerrors.Errorf("sum chat message runtime: %w", err)
+		}
+		rollup := database.InsertAgentRuntimeHourlyUsageParams{
+			BucketStart:     bucket,
+			OrganizationIds: make([]uuid.UUID, 0, len(rows)),
+			GroupIds:        make([]uuid.UUID, 0, len(rows)),
+			UserIds:         make([]uuid.UUID, 0, len(rows)),
+			RuntimeMs:       make([]int64, 0, len(rows)),
+		}
+		var runtimeMs int64
+		for _, row := range rows {
+			runtimeMs += row.RuntimeMs
+			rollup.OrganizationIds = append(rollup.OrganizationIds, row.OrganizationID)
+			rollup.GroupIds = append(rollup.GroupIds, row.GroupID)
+			rollup.UserIds = append(rollup.UserIds, row.UserID)
+			rollup.RuntimeMs = append(rollup.RuntimeMs, row.RuntimeMs)
+		}
+
+		// The deterministic ID makes concurrent inserts of the same bucket
+		// idempotent, and created_at is the bucket start (not the insertion
+		// time) so daily rollups attribute backfilled hours to the correct day.
+		stableID := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(usageEventIDTimeFormat)
+		inserted, err := g.ins.InsertHeartbeatUsageEvent(ctx, tx, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
+		if err != nil {
+			return xerrors.Errorf("insert usage event: %w", err)
+		}
+		if !inserted {
+			return errBucketExists
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		if err := tx.InsertAgentRuntimeHourlyUsage(ctx, rollup); err != nil {
+			return xerrors.Errorf("insert agent runtime hourly usage: %w", err)
+		}
+		return nil
+	}, nil)
+	if errors.Is(err, errBucketExists) || database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime) {
 		// Another replica already created this bucket's row. The Generator
 		// doc comment explains why this race reaches the bucket unique
 		// index instead of the insert's ON CONFLICT (id) arbiter.
 		return nil
 	}
-	if err != nil {
-		return xerrors.Errorf("insert usage event: %w", err)
-	}
-	return nil
+	return err
 }

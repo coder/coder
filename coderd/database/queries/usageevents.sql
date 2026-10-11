@@ -1,6 +1,6 @@
--- name: InsertUsageEvent :exec
+-- name: InsertUsageEvent :execrows
 -- Duplicate events are ignored intentionally to allow for multiple replicas to
--- publish heartbeat events.
+-- publish heartbeat events. Returns 0 rows affected for a duplicate.
 INSERT INTO
     usage_events (
         id,

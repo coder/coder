@@ -40,9 +40,9 @@ func TestCron(t *testing.T) {
 
 		inserted := make(chan database.InsertUsageEventParams, 1)
 		db.EXPECT().InsertUsageEvent(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, params database.InsertUsageEventParams) error {
+			DoAndReturn(func(_ context.Context, params database.InsertUsageEventParams) (int64, error) {
 				inserted <- params
-				return nil
+				return 1, nil
 			}).AnyTimes()
 
 		inserter := usage.NewDBInserter(usage.InserterWithClock(clock))
