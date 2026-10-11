@@ -256,6 +256,27 @@ export const DisableCompactionWarning: Story = {
 	},
 };
 
+export const DisableCompactionWithOverridesLoadError: Story = {
+	name: "100% Disable Compaction Warning With Overrides Load Error",
+	args: {
+		compactionTriggerLoadErrors: [
+			{
+				organizationID: MockChatModel.organization_id,
+				error: new Error("Network Error"),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+
+		await userEvent.type(gpt4oInput, "100");
+		await reopenTooltip(gpt4oInput);
+	},
+};
+
 export const OrganizationCompactionTriggerWarning: Story = {
 	args: {
 		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,

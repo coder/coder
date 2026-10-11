@@ -248,6 +248,7 @@ type CompactionThresholdRowProps = {
 	provider: string;
 	organizationName: string;
 	organizationTrigger: OrganizationCompactionTrigger | undefined;
+	organizationOverrideNotLoaded: boolean;
 	onDraftChange: (value: string) => void;
 	onReset: () => void;
 };
@@ -261,6 +262,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 	provider,
 	organizationName,
 	organizationTrigger,
+	organizationOverrideNotLoaded,
 	onDraftChange,
 	onReset,
 }) => {
@@ -291,11 +293,19 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 		organizationTriggerPercent === undefined
 			? undefined
 			: formatCompactionPercent(organizationTriggerPercent);
-	const disablingCompactionWarning =
+
+	let disablingCompactionWarning =
+		"Setting 100% turns off automatic compaction for this model.";
+	if (
 		organizationTriggerPercentLabel !== undefined &&
 		!isOrganizationPointBeyondWindow
-			? `Setting 100% turns off this model's own compaction threshold. Chats still compact at about ${organizationTriggerPercentLabel}% of this model's window, set by the organization override.`
-			: "Setting 100% turns off automatic compaction for this model.";
+	) {
+		disablingCompactionWarning = `Setting 100% turns off this model's own compaction threshold. Chats still compact at about ${organizationTriggerPercentLabel}% of this model's window, set by the organization override.`;
+	} else if (organizationOverrideNotLoaded) {
+		disablingCompactionWarning =
+			"Setting 100% turns off this model's own compaction threshold. An organization override may still compact chats with this model.";
+	}
+
 	const modelName = getModelLabel(modelConfig);
 	const providerLabel = formatProviderLabel(provider);
 	const effectiveThresholdPercent =
@@ -459,6 +469,9 @@ export const UserCompactionThresholdSettings: React.FC<
 			organization.id,
 			organization.display_name || organization.name,
 		]),
+	);
+	const organizationIDsWithLoadErrors = new Set(
+		compactionTriggerLoadErrors.map(({ organizationID }) => organizationID),
 	);
 	const organizationOptions = organizations.filter((organization) =>
 		enabledModels.some((config) => config.organization_id === organization.id),
@@ -701,6 +714,9 @@ export const UserCompactionThresholdSettings: React.FC<
 										modelConfig.organization_id
 									}
 									organizationTrigger={compactionTriggersByOrganizationID.get(
+										modelConfig.organization_id,
+									)}
+									organizationOverrideNotLoaded={organizationIDsWithLoadErrors.has(
 										modelConfig.organization_id,
 									)}
 									onDraftChange={(value) => {
