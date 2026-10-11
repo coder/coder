@@ -323,6 +323,108 @@ func (q *sqlQuerier) UpsertAgentHoursOrganizationAllotment(ctx context.Context, 
 	return i, err
 }
 
+const getAgentRuntimeHourlyUsage = `-- name: GetAgentRuntimeHourlyUsage :many
+WITH chat_runtime AS (
+    SELECT
+        cm.chat_id,
+        SUM(cm.runtime_ms)::bigint AS runtime_ms
+    FROM chat_messages cm
+    WHERE cm.created_at >= $1::timestamptz
+      AND cm.created_at < $2::timestamptz
+      AND cm.runtime_ms IS NOT NULL
+    GROUP BY cm.chat_id
+)
+SELECT
+    c.organization_id,
+    agent_hours_effective_group_id(c.organization_id, c.owner_id)::uuid AS group_id,
+    c.owner_id AS user_id,
+    SUM(cr.runtime_ms)::bigint AS runtime_ms
+FROM chat_runtime cr
+JOIN chats c ON c.id = cr.chat_id
+GROUP BY c.organization_id, c.owner_id
+HAVING SUM(cr.runtime_ms) <> 0
+`
+
+type GetAgentRuntimeHourlyUsageParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+type GetAgentRuntimeHourlyUsageRow struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	GroupID        uuid.UUID `db:"group_id" json:"group_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	RuntimeMs      int64     `db:"runtime_ms" json:"runtime_ms"`
+}
+
+// Computes one bucket of agent_runtime_hourly_usage from chat messages: the
+// runtime per chat organization and owner, with the owner's current
+// effective Agent Hours group. Like the hb_agent_runtime_v1 payload, it
+// counts soft-deleted messages and messages from all chats.
+// Owners whose runtime sums to zero add nothing to the bucket.
+func (q *sqlQuerier) GetAgentRuntimeHourlyUsage(ctx context.Context, arg GetAgentRuntimeHourlyUsageParams) ([]GetAgentRuntimeHourlyUsageRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAgentRuntimeHourlyUsage, arg.StartTime, arg.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAgentRuntimeHourlyUsageRow
+	for rows.Next() {
+		var i GetAgentRuntimeHourlyUsageRow
+		if err := rows.Scan(
+			&i.OrganizationID,
+			&i.GroupID,
+			&i.UserID,
+			&i.RuntimeMs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertAgentRuntimeHourlyUsage = `-- name: InsertAgentRuntimeHourlyUsage :exec
+INSERT INTO agent_runtime_hourly_usage (
+    bucket_start,
+    organization_id,
+    group_id,
+    user_id,
+    runtime_ms
+)
+SELECT
+    $1::timestamptz,
+    unnest($2::uuid[]),
+    unnest($3::uuid[]),
+    unnest($4::uuid[]),
+    unnest($5::bigint[])
+`
+
+type InsertAgentRuntimeHourlyUsageParams struct {
+	BucketStart     time.Time   `db:"bucket_start" json:"bucket_start"`
+	OrganizationIds []uuid.UUID `db:"organization_ids" json:"organization_ids"`
+	GroupIds        []uuid.UUID `db:"group_ids" json:"group_ids"`
+	UserIds         []uuid.UUID `db:"user_ids" json:"user_ids"`
+	RuntimeMs       []int64     `db:"runtime_ms" json:"runtime_ms"`
+}
+
+func (q *sqlQuerier) InsertAgentRuntimeHourlyUsage(ctx context.Context, arg InsertAgentRuntimeHourlyUsageParams) error {
+	_, err := q.db.ExecContext(ctx, insertAgentRuntimeHourlyUsage,
+		arg.BucketStart,
+		pq.Array(arg.OrganizationIds),
+		pq.Array(arg.GroupIds),
+		pq.Array(arg.UserIds),
+		pq.Array(arg.RuntimeMs),
+	)
+	return err
+}
+
 const deleteAIGatewayKey = `-- name: DeleteAIGatewayKey :one
 DELETE FROM ai_gateway_keys WHERE id = $1
 RETURNING id, name, secret_prefix, created_at, last_heartbeat_at
@@ -12785,28 +12887,6 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 		return nil, err
 	}
 	return items, nil
-}
-
-const getTotalChatMessageRuntimeMsInRange = `-- name: GetTotalChatMessageRuntimeMsInRange :one
-SELECT COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-FROM chat_messages cm
-WHERE cm.created_at >= $1::timestamptz
-  AND cm.created_at < $2::timestamptz
-  AND cm.runtime_ms IS NOT NULL
-`
-
-type GetTotalChatMessageRuntimeMsInRangeParams struct {
-	StartTime time.Time `db:"start_time" json:"start_time"`
-	EndTime   time.Time `db:"end_time" json:"end_time"`
-}
-
-// Computes hb_agent_runtime_v1 usage event payloads. Deliberately includes
-// soft-deleted messages and messages from all chats.
-func (q *sqlQuerier) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getTotalChatMessageRuntimeMsInRange, arg.StartTime, arg.EndTime)
-	var total_runtime_ms int64
-	err := row.Scan(&total_runtime_ms)
-	return total_runtime_ms, err
 }
 
 const hydrateAgentChatsContext = `-- name: HydrateAgentChatsContext :many
@@ -32078,7 +32158,7 @@ func (q *sqlQuerier) GetUsageEventsStats(ctx context.Context, now time.Time) (Ge
 	return i, err
 }
 
-const insertUsageEvent = `-- name: InsertUsageEvent :exec
+const insertUsageEvent = `-- name: InsertUsageEvent :execrows
 INSERT INTO
     usage_events (
         id,
@@ -32102,15 +32182,18 @@ type InsertUsageEventParams struct {
 }
 
 // Duplicate events are ignored intentionally to allow for multiple replicas to
-// publish heartbeat events.
-func (q *sqlQuerier) InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) error {
-	_, err := q.db.ExecContext(ctx, insertUsageEvent,
+// publish heartbeat events. Returns 0 rows affected for a duplicate.
+func (q *sqlQuerier) InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertUsageEvent,
 		arg.ID,
 		arg.EventType,
 		arg.EventData,
 		arg.CreatedAt,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const listUsageEventCreatedAtsByTypeSince = `-- name: ListUsageEventCreatedAtsByTypeSince :many

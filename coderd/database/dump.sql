@@ -836,6 +836,22 @@ $$;
 
 COMMENT ON FUNCTION acquire_external_auth_link_refresh_lease(arg_provider_id text, arg_user_id uuid, timeout_ms bigint) IS 'Acquire a lease on the external auth link and return the row. If there is already an active lease, an exception is raised.';
 
+CREATE FUNCTION agent_hours_effective_group_id(arg_organization_id uuid, arg_user_id uuid) RETURNS uuid
+    LANGUAGE sql STABLE
+    AS $$
+    SELECT COALESCE((
+        SELECT a.group_id
+        FROM agent_hours_group_allotments a
+        JOIN groups g ON g.id = a.group_id
+        JOIN group_members gm ON gm.group_id = a.group_id
+        WHERE g.organization_id = arg_organization_id
+          AND gm.user_id = arg_user_id
+          AND a.group_id <> arg_organization_id
+        ORDER BY a.allotment_bps DESC, a.group_id ASC
+        LIMIT 1
+    ), arg_organization_id)
+$$;
+
 CREATE FUNCTION aggregate_usage_event() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1654,6 +1670,18 @@ CREATE TABLE agent_hours_organization_allotments (
 );
 
 COMMENT ON TABLE agent_hours_organization_allotments IS 'Share of the deployment''s licensed Agent Hours allotted to an organization, in basis points. Configuration only; not enforced.';
+
+CREATE TABLE agent_runtime_hourly_usage (
+    bucket_start timestamp with time zone NOT NULL,
+    organization_id uuid NOT NULL,
+    group_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    runtime_ms bigint NOT NULL,
+    CONSTRAINT agent_runtime_hourly_usage_hour_aligned CHECK ((date_trunc('hour'::text, timezone('UTC'::text, bucket_start)) = timezone('UTC'::text, bucket_start))),
+    CONSTRAINT agent_runtime_hourly_usage_runtime_ms_check CHECK ((runtime_ms >= 0))
+);
+
+COMMENT ON TABLE agent_runtime_hourly_usage IS 'Agent Runtime per hour, organization, effective Agent Hours group, and chat owner. Written with each hb_agent_runtime_v1 usage event and never purged. No foreign keys, so totals survive deleted users, groups, and organizations.';
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
@@ -4500,6 +4528,9 @@ ALTER TABLE ONLY agent_hours_group_allotments
 ALTER TABLE ONLY agent_hours_organization_allotments
     ADD CONSTRAINT agent_hours_organization_allotments_pkey PRIMARY KEY (organization_id);
 
+ALTER TABLE ONLY agent_runtime_hourly_usage
+    ADD CONSTRAINT agent_runtime_hourly_usage_pkey PRIMARY KEY (bucket_start, organization_id, group_id, user_id);
+
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
@@ -4979,6 +5010,10 @@ CREATE INDEX chat_messages_automation_idx ON chat_messages USING btree (automati
 CREATE INDEX chat_queued_messages_automation_idx ON chat_queued_messages USING btree (automation_id) WHERE (automation_id IS NOT NULL);
 
 CREATE INDEX chats_automation_idx ON chats USING btree (automation_id) WHERE (automation_id IS NOT NULL);
+
+CREATE INDEX idx_agent_runtime_hourly_usage_group_user ON agent_runtime_hourly_usage USING btree (group_id, user_id, bucket_start) INCLUDE (runtime_ms);
+
+CREATE INDEX idx_agent_runtime_hourly_usage_org ON agent_runtime_hourly_usage USING btree (organization_id, bucket_start) INCLUDE (group_id, runtime_ms);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 

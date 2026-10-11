@@ -7087,8 +7087,8 @@ func (s *MethodTestSuite) TestUsageEvents() {
 			EventData: []byte("{}"),
 			CreatedAt: dbtime.Now(),
 		}
-		db.EXPECT().InsertUsageEvent(gomock.Any(), params).Return(nil)
-		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
+		db.EXPECT().InsertUsageEvent(gomock.Any(), params).Return(int64(1), nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate).Returns(int64(1))
 	}))
 
 	s.Run("UsageEventExistsByID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -7146,15 +7146,27 @@ func (s *MethodTestSuite) TestUsageEvents() {
 		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
 
-	// GetTotalChatMessageRuntimeMsInRange exists solely to compute usage
-	// event payloads, so it asserts usage event creation rather than chat
-	// read permissions.
-	s.Run("GetTotalChatMessageRuntimeMsInRange", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		params := database.GetTotalChatMessageRuntimeMsInRangeParams{
+	// GetAgentRuntimeHourlyUsage exists solely to compute usage events and
+	// their hourly rollup, so it asserts usage event creation rather than
+	// chat read permissions.
+	s.Run("GetAgentRuntimeHourlyUsage", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.GetAgentRuntimeHourlyUsageParams{
 			StartTime: time.Time{},
 			EndTime:   time.Time{},
 		}
-		db.EXPECT().GetTotalChatMessageRuntimeMsInRange(gomock.Any(), params).Return(int64(0), nil)
+		db.EXPECT().GetAgentRuntimeHourlyUsage(gomock.Any(), params).Return([]database.GetAgentRuntimeHourlyUsageRow{}, nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
+	}))
+
+	s.Run("InsertAgentRuntimeHourlyUsage", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.InsertAgentRuntimeHourlyUsageParams{
+			BucketStart:     dbtime.Now(),
+			OrganizationIds: []uuid.UUID{uuid.New()},
+			GroupIds:        []uuid.UUID{uuid.New()},
+			UserIds:         []uuid.UUID{uuid.New()},
+			RuntimeMs:       []int64{1000},
+		}
+		db.EXPECT().InsertAgentRuntimeHourlyUsage(gomock.Any(), params).Return(nil)
 		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
 	}))
 }
@@ -7175,14 +7187,14 @@ func TestInsertAPIKey_AsPrebuildsUser(t *testing.T) {
 	require.True(t, dbauthz.IsNotAuthorizedError(err))
 }
 
-// TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied mechanically
-// checks the invariant the query's authz gate relies on: it exposes a
-// deployment-wide aggregate behind usage_event create at site scope, which no
+// TestGetAgentRuntimeHourlyUsage_HumanRolesDenied mechanically checks the
+// invariant the query's authz gate relies on: it exposes deployment-wide
+// per-user runtime behind usage_event create at site scope, which no
 // human-assignable role holds. Owner is excluded from usage_event via
 // allPermsExcept in roles.go; org roles such as org-admin do carry
 // usage_event permissions, but only at org scope, which cannot satisfy a
 // site-scoped check. If either of those ever changes, this test fails.
-func TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied(t *testing.T) {
+func TestGetAgentRuntimeHourlyUsage_HumanRolesDenied(t *testing.T) {
 	t.Parallel()
 
 	orgID := uuid.New()
@@ -7205,7 +7217,7 @@ func TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied(t *testing.T) {
 		mDB := dbmock.NewMockStore(gomock.NewController(t))
 		mDB.EXPECT().Wrappers().Times(1).Return([]string{})
 		dbz := dbauthz.New(mDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
-		_, err := dbz.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{})
+		_, err := dbz.GetAgentRuntimeHourlyUsage(ctx, database.GetAgentRuntimeHourlyUsageParams{})
 		require.True(t, dbauthz.IsNotAuthorizedError(err), "role %s must be denied", role)
 	}
 }

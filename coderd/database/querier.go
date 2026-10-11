@@ -428,6 +428,12 @@ type sqlcQuerier interface {
 	GetAgentHoursGroupAllotmentsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]GetAgentHoursGroupAllotmentsByOrganizationIDRow, error)
 	GetAgentHoursOrganizationAllotment(ctx context.Context, organizationID uuid.UUID) (AgentHoursOrganizationAllotment, error)
 	GetAgentHoursOrganizationAllotments(ctx context.Context) ([]GetAgentHoursOrganizationAllotmentsRow, error)
+	// Computes one bucket of agent_runtime_hourly_usage from chat messages: the
+	// runtime per chat organization and owner, with the owner's current
+	// effective Agent Hours group. Like the hb_agent_runtime_v1 payload, it
+	// counts soft-deleted messages and messages from all chats.
+	// Owners whose runtime sums to zero add nothing to the bucket.
+	GetAgentRuntimeHourlyUsage(ctx context.Context, arg GetAgentRuntimeHourlyUsageParams) ([]GetAgentRuntimeHourlyUsageRow, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
 	GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error)
@@ -973,9 +979,6 @@ type sqlcQuerier interface {
 	GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error)
 	GetTemplates(ctx context.Context) ([]Template, error)
 	GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error)
-	// Computes hb_agent_runtime_v1 usage event payloads. Deliberately includes
-	// soft-deleted messages and messages from all chats.
-	GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg GetTotalChatMessageRuntimeMsInRangeParams) (int64, error)
 	// Gets the total number of managed agents created between two dates. Uses the
 	// aggregate table to avoid large scans or a complex index on the usage_events
 	// table.
@@ -1218,6 +1221,7 @@ type sqlcQuerier interface {
 	// transaction) to re-pin a chat to its agent's latest snapshot from the
 	// refresh endpoint and on agent rebinding.
 	InsertAgentContextResourcesIntoChat(ctx context.Context, arg InsertAgentContextResourcesIntoChatParams) error
+	InsertAgentRuntimeHourlyUsage(ctx context.Context, arg InsertAgentRuntimeHourlyUsageParams) error
 	// We use the organization_id as the id
 	// for simplicity since all users is
 	// every member of the org.
@@ -1302,8 +1306,8 @@ type sqlcQuerier interface {
 	InsertTemplateVersionVariable(ctx context.Context, arg InsertTemplateVersionVariableParams) (TemplateVersionVariable, error)
 	InsertTemplateVersionWorkspaceTag(ctx context.Context, arg InsertTemplateVersionWorkspaceTagParams) (TemplateVersionWorkspaceTag, error)
 	// Duplicate events are ignored intentionally to allow for multiple replicas to
-	// publish heartbeat events.
-	InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) error
+	// publish heartbeat events. Returns 0 rows affected for a duplicate.
+	InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) (int64, error)
 	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
 	// InsertUserGroupsByID adds a user to all provided groups, if they exist.
 	// If there is a conflict, the user is already a member

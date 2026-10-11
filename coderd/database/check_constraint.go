@@ -8,6 +8,8 @@ type CheckConstraint string
 const (
 	CheckAgentHoursGroupAllotmentsAllotmentBpsCheck          CheckConstraint = "agent_hours_group_allotments_allotment_bps_check"          // agent_hours_group_allotments
 	CheckAgentHoursOrganizationAllotmentsAllotmentBpsCheck   CheckConstraint = "agent_hours_organization_allotments_allotment_bps_check"   // agent_hours_organization_allotments
+	CheckAgentRuntimeHourlyUsageHourAligned                  CheckConstraint = "agent_runtime_hourly_usage_hour_aligned"                   // agent_runtime_hourly_usage
+	CheckAgentRuntimeHourlyUsageRuntimeMsCheck               CheckConstraint = "agent_runtime_hourly_usage_runtime_ms_check"               // agent_runtime_hourly_usage
 	CheckAIGatewayKeysHashedSecretCheck                      CheckConstraint = "ai_gateway_keys_hashed_secret_check"                       // ai_gateway_keys
 	CheckAIGatewayKeysNameCheck                              CheckConstraint = "ai_gateway_keys_name_check"                                // ai_gateway_keys
 	CheckAIGatewayKeysSecretPrefixCheck                      CheckConstraint = "ai_gateway_keys_secret_prefix_check"                       // ai_gateway_keys
