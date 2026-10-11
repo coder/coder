@@ -89,7 +89,9 @@ service account (e.g
 for each workspace and then making the relevant secrets available via the
 cloud's secret management system.
 
-## Displaying Secrets
+<a id="displaying-secrets"></a>
+
+## Display secrets
 
 While you can inject secrets into the workspace via environment variables, you
 can also show them in the Workspace UI with

@@ -251,7 +251,9 @@ data "coder_parameter" "force_rebuild" {
 }
 ```
 
-## Validating parameters
+<a id="validating-parameters"></a>
+
+## Validate parameters
 
 Coder supports parameters with multiple validation modes: min, max,
 monotonic numbers, and regular expressions.
@@ -409,24 +411,10 @@ data "coder_parameter" "region" {
 
 ## Create Autofill
 
-When the template doesn't specify default values, Coder may still autofill
-parameters in one of two ways:
+When the template doesn't specify default values, Coder will look for URL query
+parameters with form `param.<name>=<value>` to autofill parameters.
 
-- Coder will look for URL query parameters with form `param.<name>=<value>`.
-
-  This feature enables platform teams to create pre-filled template creation links.
-
-- Coder can populate recently used parameter key-value pairs for the user.
-  This feature helps reduce repetition when filling common parameters such as
-  `dotfiles_url` or `region`.
-
-  To enable this feature, you need to set the `auto-fill-parameters` experiment flag:
-
-  ```sh
-  coder server --experiments=auto-fill-parameters
-  ```
-
-  Or set the [environment variable](../../setup/index.md), `CODER_EXPERIMENTS=auto-fill-parameters`
+This feature enables platform teams to create pre-filled template creation links.
 
 ## Dynamic Parameters
 

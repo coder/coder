@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { isMobileViewport } from "#/utils/mobile";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
-import type { PendingAttachment } from "../components/ChatPageContent";
+import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import {
 	draftInputStorageKeyPrefix,
 	type ParsedDraft,
@@ -11,26 +11,21 @@ import {
 
 export class BuiltInCommandPendingError extends Error {}
 
+export type SendChatTurnOptions = SendChatMessageOptions & {
+	editedMessageID?: number;
+};
+
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
-	chatID: string | undefined;
-	onSend: (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-		editedMessageID?: number,
-	) => Promise<void>;
+	chatID: string;
+	onSend: (options: SendChatTurnOptions) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
 }) {
 	const { chatID, onSend, chatInputRef, inputValueRef } = deps;
-	const draftStorageKey = chatID
-		? `${draftInputStorageKeyPrefix}${chatID}`
-		: null;
+	const draftStorageKey = `${draftInputStorageKeyPrefix}${chatID}`;
 	const [{ editorInitialValue, initialEditorState }, setDraftState] = useState(
 		() => {
-			if (!draftStorageKey) {
-				return { editorInitialValue: "", initialEditorState: undefined };
-			}
 			const draft = parseStoredDraft(localStorage.getItem(draftStorageKey));
 			return {
 				editorInitialValue: draft.text,
@@ -74,9 +69,9 @@ export function useConversationEditingState(deps: {
 			// Read the current serialized editor state from localStorage
 			// (kept up-to-date by handleContentChange) rather than from
 			// the stale initialEditorState React state.
-			const currentEditorState = draftStorageKey
-				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
-				: undefined;
+			const currentEditorState = parseStoredDraft(
+				localStorage.getItem(draftStorageKey),
+			).editorState;
 			setDraftBeforeHistoryEdit({
 				text: inputValueRef.current,
 				editorState: currentEditorState,
@@ -143,9 +138,7 @@ export function useConversationEditingState(deps: {
 		}
 		inputValueRef.current = "";
 		serializedEditorStateRef.current = undefined;
-		if (draftStorageKey) {
-			localStorage.removeItem(draftStorageKey);
-		}
+		localStorage.removeItem(draftStorageKey);
 		if (editedMessageID !== undefined) {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
@@ -153,13 +146,19 @@ export function useConversationEditingState(deps: {
 	};
 
 	// Wraps the parent onSend to clear local input/editing state.
-	const handleSendFromInput = async (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-	) => {
+	const handleSendFromInput = async ({
+		message,
+		attachments,
+		workspaceUploads,
+	}: SendChatMessageOptions) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
-		const sendPromise = onSend(message, attachments, editedMessageID);
+		const sendPromise = onSend({
+			message,
+			attachments,
+			workspaceUploads,
+			editedMessageID,
+		});
 
 		// For history edits, clear input immediately and prepare
 		// a rollback in case the send fails.
@@ -195,17 +194,15 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 
-		if (draftStorageKey) {
-			const shouldPersist = content.trim() || hasFileReferences;
-			if (shouldPersist) {
-				try {
-					localStorage.setItem(draftStorageKey, serializedEditorState);
-				} catch {
-					// QuotaExceededError, silently discard the draft.
-				}
-			} else {
-				localStorage.removeItem(draftStorageKey);
+		const shouldPersist = content.trim() || hasFileReferences;
+		if (shouldPersist) {
+			try {
+				localStorage.setItem(draftStorageKey, serializedEditorState);
+			} catch {
+				// QuotaExceededError, silently discard the draft.
 			}
+		} else {
+			localStorage.removeItem(draftStorageKey);
 		}
 	};
 

@@ -1,4 +1,6 @@
-# Validate your deployment
+---
+title: Validate your deployment
+---
 
 Validation proves the deployment works and holds up under load.
 Harden the deployment first, then measure it, so that the numbers reflect the configuration you will actually run.

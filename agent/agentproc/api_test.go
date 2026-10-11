@@ -45,6 +45,12 @@ func postStart(t *testing.T, handler http.Handler, req workspacesdk.StartProcess
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/start", bytes.NewReader(body))
+	addHeaders(r, headers)
+	handler.ServeHTTP(w, r)
+	return w
+}
+
+func addHeaders(r *http.Request, headers []http.Header) {
 	for _, h := range headers {
 		for k, vals := range h {
 			for _, v := range vals {
@@ -52,8 +58,6 @@ func postStart(t *testing.T, handler http.Handler, req workspacesdk.StartProcess
 			}
 		}
 	}
-	handler.ServeHTTP(w, r)
-	return w
 }
 
 // getList sends a GET /list request and returns the recorder.
@@ -101,7 +105,7 @@ func getOutputWithHeaders(t *testing.T, handler http.Handler, id string, headers
 
 // postSignal sends a POST /{id}/signal request and returns
 // the recorder.
-func postSignal(t *testing.T, handler http.Handler, id string, req workspacesdk.SignalProcessRequest) *httptest.ResponseRecorder {
+func postSignal(t *testing.T, handler http.Handler, id string, req workspacesdk.SignalProcessRequest, headers ...http.Header) *httptest.ResponseRecorder {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -112,6 +116,7 @@ func postSignal(t *testing.T, handler http.Handler, id string, req workspacesdk.
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", id), bytes.NewReader(body))
+	addHeaders(r, headers)
 	handler.ServeHTTP(w, r)
 	return w
 }
@@ -292,6 +297,43 @@ func TestStartProcess(t *testing.T) {
 		err := json.NewDecoder(w.Body).Decode(&resp)
 		require.NoError(t, err)
 		require.Contains(t, resp.Message, "Command is required")
+	})
+
+	t.Run("BackgroundWithTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		w := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:    "echo background",
+			Background: true,
+			TimeoutMs:  1000,
+		})
+		require.Equal(t, http.StatusBadRequest, w.Code)
+
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+		require.Contains(t, resp.Message, "cannot have timeout_ms")
+	})
+
+	// Through the agent, the tool call middleware responds to a repeated
+	// start, so call the process API directly to test attaching.
+	t.Run("RepeatedToolCallAttaches", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		id := uuid.NewString()
+		headers := http.Header{
+			workspacesdk.CoderChatIDHeader:     {uuid.NewString()},
+			workspacesdk.CoderToolCallIDHeader: {id},
+		}
+		req := workspacesdk.StartProcessRequest{Command: "sleep 300"}
+		require.Equal(t, http.StatusOK, postStart(t, handler, req, headers).Code)
+
+		w := postStart(t, handler, req, headers)
+		require.Equal(t, http.StatusOK, w.Code)
+		var resp workspacesdk.StartProcessResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+		require.Equal(t, id, resp.ID)
 	})
 
 	t.Run("MalformedJSON", func(t *testing.T) {
@@ -550,112 +592,6 @@ func TestListProcesses(t *testing.T) {
 		require.Empty(t, resp.Processes)
 	})
 
-	t.Run("FilterByChatID", func(t *testing.T) {
-		t.Parallel()
-
-		handler := newTestAPI(t)
-
-		chatA := uuid.New().String()
-		chatB := uuid.New().String()
-		headersA := http.Header{workspacesdk.CoderChatIDHeader: {chatA}}
-		headersB := http.Header{workspacesdk.CoderChatIDHeader: {chatB}}
-
-		// Start processes with different chat IDs.
-		id1 := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
-			Command: "echo chat-a",
-		}, headersA)
-		waitForExit(t, handler, id1)
-
-		id2 := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
-			Command: "echo chat-b",
-		}, headersB)
-		waitForExit(t, handler, id2)
-
-		id3 := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
-			Command: "echo chat-a-2",
-		}, headersA)
-		waitForExit(t, handler, id3)
-
-		// List with chat A header should return 2 processes.
-		w := getListWithChatHeader(t, handler, chatA)
-		require.Equal(t, http.StatusOK, w.Code)
-
-		var resp workspacesdk.ListProcessesResponse
-		err := json.NewDecoder(w.Body).Decode(&resp)
-		require.NoError(t, err)
-		require.Len(t, resp.Processes, 2)
-
-		ids := make(map[string]bool)
-		for _, p := range resp.Processes {
-			ids[p.ID] = true
-		}
-		require.True(t, ids[id1])
-		require.True(t, ids[id3])
-
-		// List with chat B header should return 1 process.
-		w2 := getListWithChatHeader(t, handler, chatB)
-		require.Equal(t, http.StatusOK, w2.Code)
-
-		var resp2 workspacesdk.ListProcessesResponse
-		err = json.NewDecoder(w2.Body).Decode(&resp2)
-		require.NoError(t, err)
-		require.Len(t, resp2.Processes, 1)
-		require.Equal(t, id2, resp2.Processes[0].ID)
-
-		// List without chat header should return all 3.
-		w3 := getList(t, handler)
-		require.Equal(t, http.StatusOK, w3.Code)
-
-		var resp3 workspacesdk.ListProcessesResponse
-		err = json.NewDecoder(w3.Body).Decode(&resp3)
-		require.NoError(t, err)
-		require.Len(t, resp3.Processes, 3)
-	})
-
-	t.Run("ChatIDFiltering", func(t *testing.T) {
-		t.Parallel()
-
-		handler := newTestAPI(t)
-		chatID := uuid.New().String()
-		headers := http.Header{workspacesdk.CoderChatIDHeader: {chatID}}
-
-		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
-			Command: "echo with-chat",
-		}, headers)
-		waitForExit(t, handler, id)
-
-		// Listing with the same chat header should return
-		// the process.
-		w := getListWithChatHeader(t, handler, chatID)
-		require.Equal(t, http.StatusOK, w.Code)
-
-		var resp workspacesdk.ListProcessesResponse
-		err := json.NewDecoder(w.Body).Decode(&resp)
-		require.NoError(t, err)
-		require.Len(t, resp.Processes, 1)
-		require.Equal(t, id, resp.Processes[0].ID)
-
-		// Listing with a different chat header should not
-		// return the process.
-		w2 := getListWithChatHeader(t, handler, uuid.New().String())
-		require.Equal(t, http.StatusOK, w2.Code)
-
-		var resp2 workspacesdk.ListProcessesResponse
-		err = json.NewDecoder(w2.Body).Decode(&resp2)
-		require.NoError(t, err)
-		require.Empty(t, resp2.Processes)
-
-		// Listing without a chat header should return the
-		// process (no filtering).
-		w3 := getList(t, handler)
-		require.Equal(t, http.StatusOK, w3.Code)
-
-		var resp3 workspacesdk.ListProcessesResponse
-		err = json.NewDecoder(w3.Body).Decode(&resp3)
-		require.NoError(t, err)
-		require.Len(t, resp3.Processes, 1)
-	})
-
 	t.Run("SortAndLimit", func(t *testing.T) {
 		t.Parallel()
 
@@ -868,34 +804,6 @@ func TestProcessOutput(t *testing.T) {
 		require.Contains(t, resp.Message, "not found")
 	})
 
-	t.Run("ChatIDEnforcement", func(t *testing.T) {
-		t.Parallel()
-
-		handler := newTestAPI(t)
-
-		// Start a process with chat-a.
-		chatA := uuid.New()
-		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
-			Command:    "echo secret",
-			Background: true,
-		}, http.Header{
-			workspacesdk.CoderChatIDHeader: {chatA.String()},
-		})
-		waitForExit(t, handler, id)
-
-		// Chat-b should NOT see this process.
-		chatB := uuid.New()
-		w1 := getOutputWithHeaders(t, handler, id, http.Header{
-			workspacesdk.CoderChatIDHeader: {chatB.String()},
-		})
-		require.Equal(t, http.StatusNotFound, w1.Code)
-
-		// Without any chat ID header, should return 200
-		// (backwards compatible).
-		w2 := getOutput(t, handler, id)
-		require.Equal(t, http.StatusOK, w2.Code)
-	})
-
 	t.Run("WaitForExit", func(t *testing.T) {
 		t.Parallel()
 
@@ -1006,17 +914,18 @@ func TestProcessOutput(t *testing.T) {
 	})
 }
 
-func getOutputWithWait(t *testing.T, handler http.Handler, id string) *httptest.ResponseRecorder {
+func getOutputWithWait(t *testing.T, handler http.Handler, id string, headers ...http.Header) *httptest.ResponseRecorder {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	return getOutputWithWaitCtx(ctx, t, handler, id)
+	return getOutputWithWaitCtx(ctx, t, handler, id, headers...)
 }
 
-func getOutputWithWaitCtx(ctx context.Context, t *testing.T, handler http.Handler, id string) *httptest.ResponseRecorder {
+func getOutputWithWaitCtx(ctx context.Context, t *testing.T, handler http.Handler, id string, headers ...http.Header) *httptest.ResponseRecorder {
 	t.Helper()
 	path := fmt.Sprintf("/%s/output?wait=true", id)
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+	addHeaders(req, headers)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	return w
@@ -1151,6 +1060,54 @@ func TestSignalProcess(t *testing.T) {
 			Signal: "kill",
 		})
 	})
+}
+
+func TestChatIsolation(t *testing.T) {
+	t.Parallel()
+
+	chatA := http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}}
+	chatB := http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}}
+	noChat := http.Header{}
+	tests := []struct {
+		name      string
+		owner     http.Header
+		requester http.Header
+		listed    bool
+		// The process has exited, so signaling a visible one returns 409.
+		wantOutput int
+		wantSignal int
+	}{
+		{name: "SameChat", owner: chatA, requester: chatA, listed: true, wantOutput: http.StatusOK, wantSignal: http.StatusConflict},
+		{name: "OtherChat", owner: chatA, requester: chatB, wantOutput: http.StatusNotFound, wantSignal: http.StatusNotFound},
+		{name: "RequesterWithoutChat", owner: chatA, requester: noChat, wantOutput: http.StatusNotFound, wantSignal: http.StatusNotFound},
+		{name: "OwnerWithoutChat", owner: noChat, requester: chatA, wantOutput: http.StatusNotFound, wantSignal: http.StatusNotFound},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := newTestAPI(t)
+			id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{Command: "true"}, tc.owner)
+			require.Equal(t, http.StatusOK, getOutputWithWait(t, handler, id, tc.owner).Code)
+
+			w := getListWithChatHeader(t, handler, tc.requester.Get(workspacesdk.CoderChatIDHeader))
+			require.Equal(t, http.StatusOK, w.Code)
+			var list workspacesdk.ListProcessesResponse
+			require.NoError(t, json.NewDecoder(w.Body).Decode(&list))
+			var wantIDs, gotIDs []string
+			if tc.listed {
+				wantIDs = []string{id}
+			}
+			for _, p := range list.Processes {
+				gotIDs = append(gotIDs, p.ID)
+			}
+			require.Equal(t, wantIDs, gotIDs)
+
+			require.Equal(t, tc.wantOutput, getOutputWithHeaders(t, handler, id, tc.requester).Code)
+			w = postSignal(t, handler, id, workspacesdk.SignalProcessRequest{Signal: "kill"}, tc.requester)
+			require.Equal(t, tc.wantSignal, w.Code)
+		})
+	}
 }
 
 func TestHandleStartProcess_ChatHeaders_EmptyWorkDir_StillNotifies(t *testing.T) {

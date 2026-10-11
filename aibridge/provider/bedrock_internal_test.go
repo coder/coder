@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/config"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/credential"
 )
 
 // TestBuildBedrockCredentialsValidation covers the input validation that does
@@ -556,7 +556,7 @@ func TestBedrock_CreateInterceptor_Credential(t *testing.T) {
 		// wantErr, when set, means CreateInterceptor must fail with it. The
 		// remaining expectations are then ignored.
 		wantErr            error
-		wantCredentialKind intercept.CredentialKind
+		wantCredentialKind credential.Kind
 		wantCredentialHint string
 	}{
 		{
@@ -565,7 +565,7 @@ func TestBedrock_CreateInterceptor_Credential(t *testing.T) {
 			name:               "bedrock_dynamic",
 			bedrockStatic:      false,
 			setHeaders:         map[string]string{},
-			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialKind: credential.KindCentralized,
 			wantCredentialHint: "<aws chain>",
 		},
 		{
@@ -573,21 +573,21 @@ func TestBedrock_CreateInterceptor_Credential(t *testing.T) {
 			name:               "bedrock_static",
 			bedrockStatic:      true,
 			setHeaders:         map[string]string{},
-			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialKind: credential.KindCentralized,
 			wantCredentialHint: "AKIA...MPLE",
 		},
 		{
 			name:               "byok_api_key",
 			bedrockStatic:      true,
 			setHeaders:         map[string]string{"X-Api-Key": "user-api-key"},
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...ey",
 		},
 		{
 			name:               "byok_bearer_token",
 			bedrockStatic:      true,
 			setHeaders:         map[string]string{"Authorization": "Bearer user-access-token"},
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...en",
 		},
 	}

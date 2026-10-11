@@ -111,14 +111,23 @@ Coder enforces PKCE in compliance with the OAuth 2.1 specification, for both pub
      "$CODER_URL/api/v2/users/me"
    ```
 
+   Send the access token in the `Authorization` header.
+   Coder ignores an OAuth2 access token in the URL query string, as OAuth 2.1 section 5.1 requires.
+   This endpoint requires a signed-in user, so it answers HTTP 401.
+   Refer to [HTTP 401 for an access token in the query string](./troubleshooting.md#http-401-for-an-access-token-in-the-query-string) for endpoints that behave differently.
+
 ## Discovery endpoints
 
 Coder provides OAuth2 discovery endpoints for programmatic integration:
 
 - **Authorization Server Metadata**: `GET /.well-known/oauth-authorization-server`
-- **Protected Resource Metadata**: `GET /.well-known/oauth-protected-resource`
+- **REST API protected resource metadata**: `GET /.well-known/oauth-protected-resource`
+- **MCP protected resource metadata**: `GET /.well-known/oauth-protected-resource/api/experimental/mcp/http`
 
 These endpoints return server capabilities and endpoint URLs according to [RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414) and [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728).
+The REST API metadata identifies the deployment URL as its `resource`, while the MCP metadata identifies the full MCP endpoint URL.
+Both list the deployment URL in `authorization_servers` and use the same authorization server metadata endpoint.
+OAuth2 tokens issued for the MCP resource work with MCP tools.
 
 `token_endpoint_auth_methods_supported` lists every method the token endpoint accepts, including `none`.
 It is not gated on [Dynamic Client Registration](./index.md#dynamic-client-registration), since existing public clients still exchange tokens when new registrations are disabled.

@@ -1,14 +1,6 @@
 import { cn } from "cn";
 import isEqual from "lodash/isEqual";
-import {
-	createElement,
-	type FC,
-	type HTMLProps,
-	isValidElement,
-	memo,
-	type PropsWithChildren,
-	type ReactNode,
-} from "react";
+import { createElement, isValidElement, memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
@@ -36,7 +28,7 @@ type MarkdownProps = {
 	components?: Options["components"];
 };
 
-export const Markdown: FC<MarkdownProps> = (props) => {
+export const Markdown: React.FC<MarkdownProps> = (props) => {
 	const { children, className, components = {} } = props;
 
 	return (
@@ -163,11 +155,11 @@ const githubFlavoredMarkdownAlertTypes = [
 
 type AlertContent = Readonly<{
 	type: string;
-	children: readonly ReactNode[];
+	children: readonly React.ReactNode[];
 }>;
 
 function parseChildrenAsAlertContent(
-	jsxChildren: ReactNode,
+	jsxChildren: React.ReactNode,
 ): AlertContent | null {
 	// Have no idea why the plugin parses the data by mixing node types
 	// like this. Have to do a good bit of nested filtering.
@@ -175,7 +167,9 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
-	const mainParentNode = jsxChildren.find(isValidElement<PropsWithChildren>);
+	const mainParentNode = jsxChildren.find(
+		isValidElement<React.PropsWithChildren>,
+	);
 	let parentChildren = mainParentNode?.props.children;
 	if (typeof parentChildren === "string") {
 		// Children will only be an array if the parsed text contains other
@@ -204,7 +198,7 @@ function parseChildrenAsAlertContent(
 			}
 
 			const recastProps = el.props as Record<string, unknown> & {
-				children?: ReactNode;
+				children?: React.ReactNode;
 			};
 			if (recastProps.target === "_blank") {
 				return el;
@@ -263,22 +257,24 @@ function parseChildrenAsAlertContent(
 	// but the markdown parser treats them as soft wraps (spaces).
 	// Convert embedded newlines in text nodes to <br/> elements to
 	// match GitHub's rendering behavior.
-	const withLineBreaks: ReactNode[] = remainingChildren.flatMap((child, i) => {
-		if (typeof child !== "string" || !child.includes("\n")) {
-			return [child];
-		}
-		const parts = child.split("\n");
-		const result: ReactNode[] = [];
-		for (let j = 0; j < parts.length; j++) {
-			if (j > 0) {
-				result.push(createElement("br", { key: `alert-br-${i}-${j}` }));
+	const withLineBreaks: React.ReactNode[] = remainingChildren.flatMap(
+		(child, i) => {
+			if (typeof child !== "string" || !child.includes("\n")) {
+				return [child];
 			}
-			if (parts[j]) {
-				result.push(parts[j]);
+			const parts = child.split("\n");
+			const result: React.ReactNode[] = [];
+			for (let j = 0; j < parts.length; j++) {
+				if (j > 0) {
+					result.push(createElement("br", { key: `alert-br-${i}-${j}` }));
+				}
+				if (parts[j]) {
+					result.push(parts[j]);
+				}
 			}
-		}
-		return result;
-	});
+			return result;
+		},
+	);
 
 	return {
 		type: alertType,
@@ -287,12 +283,12 @@ function parseChildrenAsAlertContent(
 }
 
 type MarkdownGfmAlertProps = Readonly<
-	HTMLProps<HTMLElement> & {
+	React.HTMLProps<HTMLElement> & {
 		alertType: string;
 	}
 >;
 
-const MarkdownGfmAlert: FC<MarkdownGfmAlertProps> = ({
+const MarkdownGfmAlert: React.FC<MarkdownGfmAlertProps> = ({
 	alertType,
 	children,
 	...delegatedProps

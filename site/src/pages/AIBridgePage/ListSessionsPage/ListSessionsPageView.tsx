@@ -1,5 +1,4 @@
 import { InfoIcon } from "lucide-react";
-import type { ComponentProps, FC, PropsWithChildren } from "react";
 import type { AIBridgeSession } from "#/api/typesGenerated";
 import {
 	PaginationContainer,
@@ -33,14 +32,22 @@ type ListSessionsPageViewProps = {
 	isAISessionsEnabled: boolean;
 	sessions?: readonly AIBridgeSession[];
 	sessionsQuery: PaginationResult;
-	filterProps: ComponentProps<typeof ListSessionsFilter>;
+	filterProps: React.ComponentProps<typeof ListSessionsFilter>;
 	onSessionRowClick?: (sessionId: string) => void;
 };
 
-const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
+const ThreadTooltip: React.FC<React.PropsWithChildren> = ({ children }) => (
 	<TooltipProvider>
 		<Tooltip>
-			<TooltipTrigger asChild>{children}</TooltipTrigger>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					aria-label="About threads"
+					className="m-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				>
+					{children}
+				</button>
+			</TooltipTrigger>
 			<TooltipContent
 				side="top"
 				align="end"
@@ -53,7 +60,7 @@ const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
 	</TooltipProvider>
 );
 
-export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
+export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 	isLoading,
 	isFetching,
 	isAISessionsEntitled,

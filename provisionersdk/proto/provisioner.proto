@@ -242,6 +242,34 @@ message Script {
   bool run_on_stop = 7;
   int32 timeout_seconds = 8;
   string log_path = 9;
+  // Terraform address of the coder_script resource, such as
+  // "module.git_clone.coder_script.clone". Empty for legacy agent
+  // startup and shutdown scripts.
+  string resource_address = 10;
+  // Direct prerequisites from coder_script_order rules, sorted by
+  // prerequisite_resource_address. Empty when the script has no prerequisites.
+  repeated ScriptDependency dependencies = 11;
+}
+
+// ScriptDependencyRequirement is the outcome a prerequisite must reach
+// before the dependent may run. It mirrors the `requires` attribute of
+// coder_script_order. The provisioner never emits UNSPECIFIED.
+enum ScriptDependencyRequirement {
+  SCRIPT_DEPENDENCY_REQUIREMENT_UNSPECIFIED = 0;
+  // The prerequisite must exit successfully.
+  SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS = 1;
+  // The prerequisite must finish with any result other than canceled.
+  SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION = 2;
+}
+
+// ScriptDependency names one prerequisite script and the outcome required
+// from it.
+message ScriptDependency {
+  // Full Terraform address of the prerequisite script, equal to that
+  // script's resource_address, such as
+  // "module.git_clone.coder_script.clone". Never module-relative.
+  string prerequisite_resource_address = 1;
+  ScriptDependencyRequirement requirement = 2;
 }
 
 message Devcontainer {

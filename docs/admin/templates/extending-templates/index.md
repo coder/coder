@@ -152,7 +152,9 @@ which is useful for building up `PATH`-style variables across modules.
 
 See [Environment variables](./environment-variables.md) for details.
 
-## Running scripts on workspace lifecycle
+<a id="running-scripts-on-workspace-lifecycle"></a>
+
+## Run scripts on workspace lifecycle events
 
 The
 [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)

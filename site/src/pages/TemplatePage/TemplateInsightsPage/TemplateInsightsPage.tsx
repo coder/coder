@@ -4,14 +4,7 @@ import {
 	CircleXIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
-import {
-	type ComponentProps,
-	type FC,
-	Fragment,
-	type PropsWithChildren,
-	type ReactNode,
-	useId,
-} from "react";
+import { Fragment, useId } from "react";
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -137,7 +130,9 @@ type TemplateInsightsControlsProps = {
 	now?: Date;
 };
 
-export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
+export const TemplateInsightsControls: React.FC<
+	TemplateInsightsControlsProps
+> = ({
 	interval,
 	dateRange,
 	setDateRange,
@@ -221,17 +216,13 @@ type TemplateInsightsPageViewProps = {
 		data: UserActivityInsightsResponse | undefined;
 		error: unknown;
 	};
-	controls: ReactNode;
+	controls: React.ReactNode;
 	interval: InsightsInterval;
 };
 
-export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
-	templateInsights,
-	userLatency,
-	userActivity,
-	controls,
-	interval,
-}) => {
+export const TemplateInsightsPageView: React.FC<
+	TemplateInsightsPageViewProps
+> = ({ templateInsights, userLatency, userActivity, controls, interval }) => {
 	return (
 		<>
 			<div className="flex items-center gap-2 mb-8">{controls}</div>
@@ -268,7 +259,7 @@ type ActiveUsersPanelProps = {
 	interval: InsightsInterval;
 } & PanelProps;
 
-const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
+const ActiveUsersPanel: React.FC<ActiveUsersPanelProps> = ({
 	data,
 	error,
 	interval,
@@ -307,7 +298,7 @@ type UsersLatencyPanelProps = {
 	error: unknown;
 } & PanelProps;
 
-const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
+const UsersLatencyPanel: React.FC<UsersLatencyPanelProps> = ({
 	data,
 	error,
 	className,
@@ -359,7 +350,7 @@ type UsersActivityPanelProps = {
 	error: unknown;
 } & PanelProps;
 
-const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
+const UsersActivityPanel: React.FC<UsersActivityPanelProps> = ({
 	data,
 	error,
 	className,
@@ -407,7 +398,7 @@ type TemplateUsagePanelProps = {
 	error: unknown;
 } & PanelProps;
 
-const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
+const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 	data,
 	error,
 	className,
@@ -486,11 +477,9 @@ type TemplateParametersUsagePanelProps = {
 	error: unknown;
 } & PanelProps;
 
-const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
-	data,
-	error,
-	...panelProps
-}) => {
+const TemplateParametersUsagePanel: React.FC<
+	TemplateParametersUsagePanelProps
+> = ({ data, error, ...panelProps }) => {
 	return (
 		<Panel {...panelProps}>
 			<PanelHeader>
@@ -567,7 +556,7 @@ type ParameterUsageLabelProps = {
 	parameter: TemplateParameterUsage;
 };
 
-const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
+const ParameterUsageLabel: React.FC<ParameterUsageLabelProps> = ({
 	usage,
 	parameter,
 }) => {
@@ -654,9 +643,9 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	return <TextValue>{usage.value}</TextValue>;
 };
 
-type PanelProps = ComponentProps<"div">;
+type PanelProps = React.ComponentProps<"div">;
 
-const Panel: FC<PanelProps> = ({ children, className, ...attrs }) => {
+const Panel: React.FC<PanelProps> = ({ children, className, ...attrs }) => {
 	return (
 		<div
 			{...attrs}
@@ -670,7 +659,7 @@ const Panel: FC<PanelProps> = ({ children, className, ...attrs }) => {
 	);
 };
 
-const PanelHeader: FC<ComponentProps<"div">> = ({
+const PanelHeader: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs
@@ -682,7 +671,7 @@ const PanelHeader: FC<ComponentProps<"div">> = ({
 	);
 };
 
-const PanelTitle: FC<ComponentProps<"div">> = ({
+const PanelTitle: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs
@@ -694,12 +683,16 @@ const PanelTitle: FC<ComponentProps<"div">> = ({
 	);
 };
 
-type PanelContentProps = ComponentProps<"div"> & {
+type PanelContentProps = React.ComponentProps<"div"> & {
 	error: unknown | undefined;
 	data: readonly unknown[] | undefined;
 };
 
-const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
+const PanelContent: React.FC<PanelContentProps> = ({
+	error,
+	data,
+	children,
+}) => {
 	return (
 		<div className="flex-1 px-6 pb-6">
 			{!error && !data ? (
@@ -713,11 +706,14 @@ const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
 	);
 };
 
-type NoDataAvailableProps = ComponentProps<"div"> & {
+type NoDataAvailableProps = React.ComponentProps<"div"> & {
 	error: unknown;
 };
 
-const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
+const NoDataAvailable: React.FC<NoDataAvailableProps> = ({
+	error,
+	...props
+}) => {
 	return (
 		<div
 			{...props}
@@ -731,7 +727,7 @@ const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
 	);
 };
 
-const TextValue: FC<PropsWithChildren> = ({ children }) => {
+const TextValue: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
 		<span className="break-all">
 			<span className="mr-0.5 text-content-secondary">&quot;</span>

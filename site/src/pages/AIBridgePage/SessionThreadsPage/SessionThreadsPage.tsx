@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useInfiniteQuery } from "react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { infiniteSessionThreads } from "#/api/queries/aiBridge";
@@ -9,7 +8,7 @@ import { pageTitle } from "#/utils/page";
 import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { SessionThreadsPageView } from "./SessionThreadsPageView";
 
-const SessionThreadsPage: FC = () => {
+const SessionThreadsPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
 	const navigate = useNavigate();

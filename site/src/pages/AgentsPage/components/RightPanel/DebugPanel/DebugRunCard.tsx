@@ -1,7 +1,6 @@
 import { cn } from "cn";
-import { saveAs } from "file-saver";
 import { ChevronDownIcon, DownloadIcon } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -38,7 +37,7 @@ type DebugRunCardProps = {
 	run: ChatDebugRunSummary;
 	chatId: string;
 	isVisible: boolean;
-	download?: DownloadDebugFile;
+	download: DownloadDebugFile;
 };
 
 // Max characters shown in the run header label before truncation.
@@ -60,11 +59,11 @@ const getMCPOutcomeBadgeVariant = (outcome: string) => {
 	}
 };
 
-export const DebugRunCard: FC<DebugRunCardProps> = ({
+export const DebugRunCard: React.FC<DebugRunCardProps> = ({
 	run,
 	chatId,
 	isVisible,
-	download = saveAs,
+	download,
 }) => {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [isExporting, setIsExporting] = useState(false);
@@ -155,7 +154,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 
 	return (
 		<Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-			<div className="overflow-hidden rounded-lg border border-solid border-border-default/40">
+			<div className="overflow-hidden rounded-lg border border-solid border-border/40">
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
@@ -224,7 +223,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 							{summaryVm.mcpConnect.length > 0 ? (
 								<section
 									aria-labelledby={mcpConnectHeadingId}
-									className="rounded-md border border-solid border-border-default/40 px-2.5 py-1.5"
+									className="rounded-md border border-solid border-border/40 px-2.5 py-1.5"
 								>
 									<h4
 										id={mcpConnectHeadingId}
@@ -281,7 +280,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 								</section>
 							) : null}
 							{steps.map((step) => (
-								<DebugStepCard key={step.id} step={step} defaultOpen={false} />
+								<DebugStepCard key={step.id} step={step} />
 							))}
 							{steps.length === 0 ? (
 								<p className="text-sm text-content-secondary">

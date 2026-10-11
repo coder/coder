@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -31,7 +31,7 @@ import { TarReader, TarWriter } from "#/utils/tar";
 import { createTemplateVersionFileTree } from "#/utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
-const TemplateVersionEditorPage: FC = () => {
+const TemplateVersionEditorPage: React.FC = () => {
 	const getLink = useLinks();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();

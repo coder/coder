@@ -4,7 +4,8 @@ title: Deploy Coder on Azure with an Application Gateway
 
 In certain enterprise environments, the [Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview) is required.
 
-These steps serve as a proof-of-concept example so that you can get Coder running with Kubernetes on Azure. Your deployment might require a separate Postgres server or signed certificates.
+These steps serve as a proof-of-concept example so that you can get Coder running with Kubernetes on Azure.
+Your deployment might require a separate Postgres server or signed certificates.
 
 The Application Gateway supports:
 
@@ -125,7 +126,8 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
    kubectl create secret generic coder-db-url -n coder --from-literal=url="postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
    ```
 
-1. Get the application gateway's public IP address. Coder uses it as the access URL:
+1. Get the application gateway's public IP address.
+   Coder uses it as the access URL:
 
    ```sh
    az network public-ip show --name myPublicIp --resource-group myResourceGroup -o tsv --query "ipAddress"

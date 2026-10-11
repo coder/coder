@@ -530,6 +530,15 @@ const (
 	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
 	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
 	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
+	ApiKeyScopeChatProject                         APIKeyScope = "chat_project:*"
+	ApiKeyScopeChatProjectCreate                   APIKeyScope = "chat_project:create"
+	ApiKeyScopeChatProjectRead                     APIKeyScope = "chat_project:read"
+	ApiKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
+	ApiKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
+	ApiKeyScopeChatProjectMemory                   APIKeyScope = "chat_project_memory:*"
+	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
+	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
+	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -811,7 +820,16 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatModelConfigRead,
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
-		ApiKeyScopeChatModelConfigShare:
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatProject,
+		ApiKeyScopeChatProjectCreate,
+		ApiKeyScopeChatProjectRead,
+		ApiKeyScopeChatProjectUpdate,
+		ApiKeyScopeChatProjectDelete,
+		ApiKeyScopeChatProjectMemory,
+		ApiKeyScopeChatProjectMemoryCreate,
+		ApiKeyScopeChatProjectMemoryRead,
+		ApiKeyScopeChatProjectMemoryDelete:
 		return true
 	}
 	return false
@@ -1062,6 +1080,15 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
 		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatProject,
+		ApiKeyScopeChatProjectCreate,
+		ApiKeyScopeChatProjectRead,
+		ApiKeyScopeChatProjectUpdate,
+		ApiKeyScopeChatProjectDelete,
+		ApiKeyScopeChatProjectMemory,
+		ApiKeyScopeChatProjectMemoryCreate,
+		ApiKeyScopeChatProjectMemoryRead,
+		ApiKeyScopeChatProjectMemoryDelete,
 	}
 }
 
@@ -1913,6 +1940,68 @@ func AllChatStatusValues() []ChatStatus {
 		ChatStatusError,
 		ChatStatusRequiresAction,
 		ChatStatusInterrupting,
+	}
+}
+
+// Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.
+type ChatTitleSource string
+
+const (
+	ChatTitleSourceFallback  ChatTitleSource = "fallback"
+	ChatTitleSourceGenerated ChatTitleSource = "generated"
+	ChatTitleSourceUser      ChatTitleSource = "user"
+)
+
+func (e *ChatTitleSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatTitleSource(s)
+	case string:
+		*e = ChatTitleSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatTitleSource: %T", src)
+	}
+	return nil
+}
+
+type NullChatTitleSource struct {
+	ChatTitleSource ChatTitleSource `json:"chat_title_source"`
+	Valid           bool            `json:"valid"` // Valid is true if ChatTitleSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatTitleSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatTitleSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatTitleSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatTitleSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatTitleSource), nil
+}
+
+func (e ChatTitleSource) Valid() bool {
+	switch e {
+	case ChatTitleSourceFallback,
+		ChatTitleSourceGenerated,
+		ChatTitleSourceUser:
+		return true
+	}
+	return false
+}
+
+func AllChatTitleSourceValues() []ChatTitleSource {
+	return []ChatTitleSource{
+		ChatTitleSourceFallback,
+		ChatTitleSourceGenerated,
+		ChatTitleSourceUser,
 	}
 }
 
@@ -3627,46 +3716,51 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization                ResourceType = "organization"
-	ResourceTypeTemplate                    ResourceType = "template"
-	ResourceTypeTemplateVersion             ResourceType = "template_version"
-	ResourceTypeUser                        ResourceType = "user"
-	ResourceTypeWorkspace                   ResourceType = "workspace"
-	ResourceTypeGitSshKey                   ResourceType = "git_ssh_key"
-	ResourceTypeApiKey                      ResourceType = "api_key"
-	ResourceTypeGroup                       ResourceType = "group"
-	ResourceTypeWorkspaceBuild              ResourceType = "workspace_build"
-	ResourceTypeLicense                     ResourceType = "license"
-	ResourceTypeWorkspaceProxy              ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin                ResourceType = "convert_login"
-	ResourceTypeHealthSettings              ResourceType = "health_settings"
-	ResourceTypeOauth2ProviderApp           ResourceType = "oauth2_provider_app"
-	ResourceTypeOauth2ProviderAppSecret     ResourceType = "oauth2_provider_app_secret"
-	ResourceTypeCustomRole                  ResourceType = "custom_role"
-	ResourceTypeOrganizationMember          ResourceType = "organization_member"
-	ResourceTypeNotificationsSettings       ResourceType = "notifications_settings"
-	ResourceTypeNotificationTemplate        ResourceType = "notification_template"
-	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
-	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
-	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
-	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
-	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
-	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
-	ResourceTypeTask                        ResourceType = "task"
-	ResourceTypeAISeat                      ResourceType = "ai_seat"
-	ResourceTypeChat                        ResourceType = "chat"
-	ResourceTypeUserSecret                  ResourceType = "user_secret"
-	ResourceTypeAIProvider                  ResourceType = "ai_provider"
-	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
-	ResourceTypeGroupAIBudget               ResourceType = "group_ai_budget"
-	ResourceTypeUserSkill                   ResourceType = "user_skill"
-	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
-	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
-	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
-	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
-	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
-	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
-	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
+	ResourceTypeOrganization                 ResourceType = "organization"
+	ResourceTypeTemplate                     ResourceType = "template"
+	ResourceTypeTemplateVersion              ResourceType = "template_version"
+	ResourceTypeUser                         ResourceType = "user"
+	ResourceTypeWorkspace                    ResourceType = "workspace"
+	ResourceTypeGitSshKey                    ResourceType = "git_ssh_key"
+	ResourceTypeApiKey                       ResourceType = "api_key"
+	ResourceTypeGroup                        ResourceType = "group"
+	ResourceTypeWorkspaceBuild               ResourceType = "workspace_build"
+	ResourceTypeLicense                      ResourceType = "license"
+	ResourceTypeWorkspaceProxy               ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin                 ResourceType = "convert_login"
+	ResourceTypeHealthSettings               ResourceType = "health_settings"
+	ResourceTypeOauth2ProviderApp            ResourceType = "oauth2_provider_app"
+	ResourceTypeOauth2ProviderAppSecret      ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeCustomRole                   ResourceType = "custom_role"
+	ResourceTypeOrganizationMember           ResourceType = "organization_member"
+	ResourceTypeNotificationsSettings        ResourceType = "notifications_settings"
+	ResourceTypeNotificationTemplate         ResourceType = "notification_template"
+	ResourceTypeIdpSyncSettingsOrganization  ResourceType = "idp_sync_settings_organization"
+	ResourceTypeIdpSyncSettingsGroup         ResourceType = "idp_sync_settings_group"
+	ResourceTypeIdpSyncSettingsRole          ResourceType = "idp_sync_settings_role"
+	ResourceTypeWorkspaceAgent               ResourceType = "workspace_agent"
+	ResourceTypeWorkspaceApp                 ResourceType = "workspace_app"
+	ResourceTypePrebuildsSettings            ResourceType = "prebuilds_settings"
+	ResourceTypeTask                         ResourceType = "task"
+	ResourceTypeAISeat                       ResourceType = "ai_seat"
+	ResourceTypeChat                         ResourceType = "chat"
+	ResourceTypeUserSecret                   ResourceType = "user_secret"
+	ResourceTypeAIProvider                   ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey                ResourceType = "ai_provider_key"
+	ResourceTypeGroupAIBudget                ResourceType = "group_ai_budget"
+	ResourceTypeUserSkill                    ResourceType = "user_skill"
+	ResourceTypeAIGatewayKey                 ResourceType = "ai_gateway_key"
+	ResourceTypeUserAIBudgetOverride         ResourceType = "user_ai_budget_override"
+	ResourceTypeOauth2ProviderSettings       ResourceType = "oauth2_provider_settings"
+	ResourceTypeChatInstructionSettings      ResourceType = "chat_instruction_settings"
+	ResourceTypeMCPServerConfig              ResourceType = "mcp_server_config"
+	ResourceTypeChatModelConfig              ResourceType = "chat_model_config"
+	ResourceTypeChatOperationalSettings      ResourceType = "chat_operational_settings"
+	ResourceTypeExperimentRule               ResourceType = "experiment_rule"
+	ResourceTypeChatProject                  ResourceType = "chat_project"
+	ResourceTypeChatAutomation               ResourceType = "chat_automation"
+	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
+	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3745,7 +3839,12 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
-		ResourceTypeChatOperationalSettings:
+		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
+		ResourceTypeChatProject,
+		ResourceTypeChatAutomation,
+		ResourceTypeChatProjectMemory,
+		ResourceTypeChatOrganizationSystemPrompt:
 		return true
 	}
 	return false
@@ -3793,6 +3892,11 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
+		ResourceTypeChatProject,
+		ResourceTypeChatAutomation,
+		ResourceTypeChatProjectMemory,
+		ResourceTypeChatOrganizationSystemPrompt,
 	}
 }
 
@@ -4820,6 +4924,10 @@ type AIBridgeTokenUsage struct {
 	CacheReadPriceMicros  sql.NullInt64         `db:"cache_read_price_micros" json:"cache_read_price_micros"`
 	CacheWritePriceMicros sql.NullInt64         `db:"cache_write_price_micros" json:"cache_write_price_micros"`
 	CostMicros            sql.NullInt64         `db:"cost_micros" json:"cost_micros"`
+	// The model reported by the upstream provider. NULL when the provider did not report one.
+	ProviderModel sql.NullString `db:"provider_model" json:"provider_model"`
+	// The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.
+	PricedModel sql.NullString `db:"priced_model" json:"priced_model"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge
@@ -5050,6 +5158,7 @@ type Chat struct {
 	LastReadMessageID        sql.NullInt64           `db:"last_read_message_id" json:"last_read_message_id"`
 	DynamicTools             pqtype.NullRawMessage   `db:"dynamic_tools" json:"dynamic_tools"`
 	OrganizationID           uuid.UUID               `db:"organization_id" json:"organization_id"`
+	ProjectID                uuid.NullUUID           `db:"project_id" json:"project_id"`
 	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
 	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
 	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
@@ -5072,6 +5181,8 @@ type Chat struct {
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
+	TitleSource              ChatTitleSource         `db:"title_source" json:"title_source"`
+	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5263,6 +5374,39 @@ type ChatOrganizationModelOverride struct {
 	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
+// Organization-scoped system prompts added after the deployment system prompt when Coder Agents chats are created.
+type ChatOrganizationSystemPrompt struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	SystemPrompt   string    `db:"system_prompt" json:"system_prompt"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Organization-scoped projects that group agent chats.
+type ChatProject struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	// Optional icon URL shown next to the project name.
+	Icon      string    `db:"icon" json:"icon"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.
+type ChatProjectMemory struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	ProjectID      uuid.UUID `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	Body           string    `db:"body" json:"body"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
+
 type ChatQueuedMessage struct {
 	ID            int64           `db:"id" json:"id"`
 	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
@@ -5330,6 +5474,12 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
+	// Optional project that groups a root chat with related chats.
+	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
+	// Rows from before this column existed are fallback regardless of who set their title.
+	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
+	// Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.
+	TitleUpdatedAt time.Time `db:"title_updated_at" json:"title_updated_at"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -5376,6 +5526,8 @@ type ConnectionLog struct {
 	DisconnectTime sql.NullTime `db:"disconnect_time" json:"disconnect_time"`
 	// The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
+	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
+	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
 type CryptoKey struct {

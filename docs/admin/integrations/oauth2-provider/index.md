@@ -5,7 +5,7 @@ title: OAuth2 provider
 > [!NOTE]
 > The OAuth2 provider is off by default.
 > Set `CODER_OAUTH2_PROVIDER_ENABLE=true` to turn it on.
-> The `oauth2` experiment has been removed, and setting `CODER_EXPERIMENTS=oauth2` now only logs a warning and does nothing.
+> The `oauth2` experiment has been removed, and adding `oauth2` to `CODER_EXPERIMENTS` now only logs a warning and does nothing.
 > Switch to `CODER_OAUTH2_PROVIDER_ENABLE=true` instead.
 
 Coder can act as an OAuth2 authorization server, allowing third-party applications to authenticate users through Coder and access the Coder API on their behalf.
@@ -214,7 +214,7 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
   - <a id="security-considerations"></a>[Security considerations](./security.md#security-considerations)
   - <a id="limitations"></a>[Limitations](./security.md#limitations)
 
-- Check [External Authentication](../../external-auth/index.md) for configuring Coder as an OAuth2 client
+- Check [External Authentication](../../external-auth.md) for configuring Coder as an OAuth2 client
 - Review the [API Reference](../../../reference/api/index.md) for complete endpoint documentation
 
 ## Feedback

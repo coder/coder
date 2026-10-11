@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
@@ -1010,71 +1011,46 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 // the process-local activeChats mechanism. Archive cleanup is now
 // best-effort; stale finalization handles any orphaned rows.
 
+// A rename is skipped only when the stored title is already this user
+// title; any other source is replaced even when the text is unchanged.
 func TestRenameChatTitle(t *testing.T) {
 	t.Parallel()
 
-	t.Run("WritesAndReturnsWroteTrue", func(t *testing.T) {
-		t.Parallel()
+	const stored = "stored title"
+	sources := []database.ChatTitleSource{
+		database.ChatTitleSourceFallback,
+		database.ChatTitleSourceGenerated,
+		database.ChatTitleSourceUser,
+	}
+	titles := []struct{ name, title string }{{"same text", stored}, {"new text", "renamed"}}
+	for _, source := range sources {
+		for _, tc := range titles {
+			wantWrite := tc.title != stored || source != database.ChatTitleSourceUser
+			t.Run(string(source)+"_"+tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				db, _ := dbtestutil.NewDB(t)
+				_, chat := seedTitleChat(t, db, stored, source)
+				server := &Server{db: db, logger: slogtest.Make(t, nil)}
 
-		chatID := uuid.New()
-		workerID := uuid.New()
-		stored := database.Chat{
-			ID:       chatID,
-			Status:   database.ChatStatusRunning,
-			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
-			Title:    "original",
+				got, wrote, err := server.RenameChatTitle(ctx, chat.ID, tc.title)
+				require.NoError(t, err)
+				require.Equal(t, wantWrite, wrote)
+				require.Equal(t, tc.title, got.Title)
+				require.Equal(t, database.ChatTitleSourceUser, got.TitleSource)
+
+				fetched, err := db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, got, fetched, "the returned row must be the stored row")
+				if wantWrite {
+					require.True(t, fetched.TitleUpdatedAt.After(chat.TitleUpdatedAt))
+				} else {
+					require.True(t, fetched.TitleUpdatedAt.Equal(chat.TitleUpdatedAt))
+				}
+			})
 		}
-		updated := stored
-		updated.Title = "renamed"
-
-		server := &Server{db: db, logger: logger}
-
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(stored, nil)
-		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
-			ID:    chatID,
-			Title: "renamed",
-		}).Return(updated, nil)
-
-		got, wrote, err := server.RenameChatTitle(ctx, stored, "renamed")
-		require.NoError(t, err)
-		require.True(t, wrote, "fresh rename must report wrote=true")
-		require.Equal(t, updated, got)
-	})
-
-	t.Run("SkipsWriteWhenAlreadyAtNewTitle", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-
-		chatID := uuid.New()
-		workerID := uuid.New()
-		stale := database.Chat{
-			ID:       chatID,
-			Status:   database.ChatStatusRunning,
-			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
-			Title:    "pre-race",
-		}
-		landed := stale
-		landed.Title = "landed-concurrently"
-
-		server := &Server{db: db, logger: logger}
-
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(landed, nil)
-
-		got, wrote, err := server.RenameChatTitle(ctx, stale, "landed-concurrently")
-		require.NoError(t, err)
-		require.False(t, wrote,
-			"must report wrote=false when the stored row already matches newTitle so the handler suppresses a redundant title_change event")
-		require.Equal(t, landed, got)
-	})
+	}
 }
 
 func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
@@ -1960,6 +1936,24 @@ func requireFieldValue(t *testing.T, entry slog.SinkEntry, name string, expected
 	t.Fatalf("field %q not found in log entry", name)
 }
 
+func TestMemoryInSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	prompt := buildSystemPrompt(
+		nil,
+		"",
+		"chat instruction",
+		nil,
+		"<memory>\n- release: Release process\n</memory>",
+		"user prompt",
+		systemPromptBehaviorContext{},
+	)
+	text := systemPromptText(t, prompt)
+	memoryIndex := strings.Index(text, "<memory>")
+	require.Greater(t, memoryIndex, strings.Index(text, "chat instruction"))
+	require.Less(t, memoryIndex, strings.Index(text, "user prompt"))
+}
+
 func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 	t.Parallel()
 
@@ -1975,6 +1969,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 			}},
 			nil,
 		),
+		"",
 		"",
 		systemPromptBehaviorContext{},
 	)
@@ -2005,6 +2000,7 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 		"",
 		"",
 		resolved,
+		"",
 		"",
 		systemPromptBehaviorContext{},
 	)
@@ -3601,6 +3597,8 @@ func TestResolveModelConfigOrganizationScope(t *testing.T) {
 func TestResolveFallbackModelConfigID(t *testing.T) {
 	t.Parallel()
 
+	db, ps := dbtestutil.NewDB(t)
+
 	newProvider := func(t *testing.T, db database.Store, enabled bool) database.AIProvider {
 		return dbgen.AIProvider(t, db, database.AIProvider{}, func(p *database.InsertAIProviderParams) {
 			p.Enabled = enabled
@@ -3622,7 +3620,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("EnabledLastModel", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3636,7 +3633,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ProviderDisabledLastModelFallsBackToDefault", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3652,7 +3648,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("NilLastModelUsesDefault", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3666,7 +3661,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("NonDefaultOrgWithoutLocalDefaultRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		otherOrgID := newModelConfigOrg(t, db)
@@ -3681,7 +3675,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("DisabledLocalDefaultRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3706,7 +3699,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("DisabledLocalDefaultProviderRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3719,7 +3711,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ProviderDisabledDefaultRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3733,7 +3724,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ExplicitEnabledModel", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3747,7 +3737,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ExplicitDefaultOrgModelRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		chatOrgID := newModelConfigOrg(t, db)
@@ -3767,7 +3756,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 
 	t.Run("ExplicitUnrelatedOrgModelRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		chatOrgID := newModelConfigOrg(t, db)
@@ -3788,7 +3776,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 	// preflight must still be rejected inside the daemon.
 	t.Run("ExplicitProviderDisabledRejected", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := newModelConfigOrg(t, db)
@@ -3803,7 +3790,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 	// inserting the chat and its initial messages.
 	t.Run("CreateChatProviderDisabledRejected", func(t *testing.T) {
 		t.Parallel()
-		db, ps := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		owner := dbgen.User(t, db, database.User{})
@@ -3830,4 +3816,29 @@ func expectLiveWorkspace(db *dbmock.MockStore, workspaceID uuid.UUID) {
 	db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).
 		Return(database.Workspace{ID: workspaceID}, nil).
 		AnyTimes()
+}
+
+func TestChatKind(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, chatloop.ChatKindRoot, chatKind(database.Chat{}))
+	require.Equal(t, chatloop.ChatKindSubagent, chatKind(database.Chat{
+		ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	}))
+}
+
+func TestWithStageIdentity(t *testing.T) {
+	t.Parallel()
+
+	tracer, recorder := newStageTestTracer(t)
+	ctx := withStageIdentity(t.Context(), chatloop.ScopeTurn, chatloop.ChatKindSubagent)
+	_, span := tracer.Start(ctx, chatloop.StageCommit)
+	span.End(nil)
+
+	ended := recorder.Ended()
+	require.Len(t, ended, 1)
+	require.Subset(t, ended[0].Attributes(), []attribute.KeyValue{
+		attribute.String(chatloop.AttrScope, string(chatloop.ScopeTurn)),
+		attribute.String(chatloop.AttrChatKind, string(chatloop.ChatKindSubagent)),
+	})
 }

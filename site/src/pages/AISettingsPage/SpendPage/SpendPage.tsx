@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import {
@@ -55,7 +55,7 @@ type SpendPageProps = {
 	now?: Date;
 };
 
-const SpendPage: FC<SpendPageProps> = ({ now }) => {
+const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
 	const { isEntitled, isEnabled } = getAIBridgePermissions(
@@ -181,7 +181,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 
 	return (
 		<>
-			<title>{pageTitle("User spend", "AI Settings")}</title>
+			<title>{pageTitle("Spend", "AI Settings")}</title>
 			<SpendPageView
 				isEntitled={isEntitled}
 				isEnabled={isEnabled}

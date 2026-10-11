@@ -14,7 +14,9 @@ Each dev container has its own agent name, derived from the workspace folder
 in your workspace dashboard, or see
 [Agent naming](./index.md#agent-naming) for details on how names are generated.
 
-### Using the Coder CLI
+<a id="using-the-coder-cli"></a>
+
+### Use the Coder CLI
 
 The simplest way to SSH into a dev container is using `coder ssh` with the
 workspace and agent name:
@@ -36,7 +38,9 @@ To SSH into the main workspace agent instead of the dev container:
 coder ssh my-workspace
 ```
 
-### Using OpenSSH (config-ssh)
+<a id="using-openssh-config-ssh"></a>
+
+### Use OpenSSH (config-ssh)
 
 You can also use standard OpenSSH tools after generating SSH config entries with
 `coder config-ssh`:
@@ -110,7 +114,9 @@ coder port-forward my-workspace.my-project --tcp 8080
 This forwards port 8080 on your local machine directly to port 8080 in the dev
 container. Coder also automatically detects ports opened inside the container.
 
-### Exposing ports on the parent workspace
+<a id="exposing-ports-on-the-parent-workspace"></a>
+
+### Expose ports on the parent workspace
 
 If you need to expose dev container ports through the parent workspace agent
 (rather than the sub-agent), you can use the
@@ -148,7 +154,9 @@ feature from the [Coder features repository](https://github.com/coder/devcontain
 }
 ```
 
-## Rebuilding dev containers
+<a id="rebuilding-dev-containers"></a>
+
+## Rebuild dev containers
 
 When you modify your `devcontainer.json`, you need to rebuild the container for
 changes to take effect. Coder detects changes and shows an **Outdated** status

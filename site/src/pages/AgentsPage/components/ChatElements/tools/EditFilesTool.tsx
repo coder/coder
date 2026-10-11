@@ -28,7 +28,7 @@ export const EditFilesTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
+	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 }> = ({ files, diffs, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
@@ -56,7 +56,7 @@ export const EditFilesTool: React.FC<{
 
 	return (
 		<ToolCall.Root
-			key={`${codeDiffDisplayMode ?? "auto"}:${EDIT_FILES_AUTO_DISPLAY_STATE}`}
+			key={`${codeDiffDisplayMode}:${EDIT_FILES_AUTO_DISPLAY_STATE}`}
 			className="w-full"
 			status={status}
 			isError={isError}
@@ -77,7 +77,7 @@ export const EditFilesTool: React.FC<{
 							<ScrollArea
 								key={files[i].path}
 								data-testid="edit-file-diff"
-								className="rounded-md border border-solid border-border-default text-2xs"
+								className="rounded-md border border-solid border-border text-2xs"
 								viewportClassName={
 									isAgentDisplayFullyExpanded(displayState)
 										? "max-h-[80vh]"

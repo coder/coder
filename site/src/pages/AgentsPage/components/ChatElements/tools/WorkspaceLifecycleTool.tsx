@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 import { WorkspaceAgentLogSection } from "./WorkspaceAgentLogSection";
@@ -11,11 +10,11 @@ type WorkspaceLifecycleToolProps = {
 	workspaceName: string;
 	isError: boolean;
 	errorMessage?: string;
-	noBuild?: boolean;
+	noBuild: boolean;
 	labelOverride?: string;
 };
 
-export const WorkspaceLifecycleTool: FC<WorkspaceLifecycleToolProps> = ({
+export const WorkspaceLifecycleTool: React.FC<WorkspaceLifecycleToolProps> = ({
 	action,
 	status,
 	buildId,

@@ -29,6 +29,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9511/badge)](https://www.bestpractices.dev/projects/9511)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/coder/coder/badge)](https://scorecard.dev/viewer/?uri=github.com%2Fcoder%2Fcoder)
 [![license](https://img.shields.io/github/license/coder/coder)](./LICENSE)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/coder/coder)
 
 </div>
 
@@ -63,7 +64,7 @@ Start the server and open [http://localhost:3000](http://localhost:3000) to crea
 coder server
 ```
 
-For a production deployment, add a PostgreSQL database (version 13 or later) and an external access URL, and see our [validated architectures](https://coder.com/docs/admin/infrastructure/validated-architectures) for sizing and infrastructure guidance:
+For a production deployment, add a PostgreSQL database (version 13 or later) and an external access URL, and see our [validated architectures](https://coder.com/docs/install/plan/sizing) for sizing and infrastructure guidance:
 
 ```shell
 coder server --postgres-url <url> --access-url <url>

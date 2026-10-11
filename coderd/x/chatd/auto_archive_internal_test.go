@@ -770,6 +770,7 @@ func TestIsExpectedAutoArchiveError(t *testing.T) {
 		chatstate.ErrChatNotRoot,
 		chatstate.ErrInvalidState,
 		chatstate.ErrTransitionNotAllowed,
+		errAutoArchiveCandidateIneligible,
 	}
 	for _, err := range expected {
 		require.True(t, isExpectedAutoArchiveError(err), "%v should be classified as expected", err)

@@ -57,8 +57,10 @@ type runner struct {
 	tasksByIndex  map[taskIndexKey]taskInstanceID
 	localLocks    *localLockSet
 	debugTurn     *runnerDebugTurn
+	turnSpan      *runnerTurnSpan
 	sessionStart  sessionStartTracker
 	stopNudges    stopNudgeTracker
+	experiments   turnExperimentDecisions
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
@@ -71,6 +73,7 @@ func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts 
 		tasksByIndex: make(map[taskIndexKey]taskInstanceID),
 		localLocks:   newLocalLockSet(),
 		debugTurn:    newRunnerDebugTurn(ctx, opts.Logger),
+		turnSpan:     newRunnerTurnSpan(mgr.server.stages, rec.takenOver),
 	}
 }
 
@@ -86,6 +89,7 @@ func (r *runner) run() {
 			r.cancelActiveTask()
 			r.waitForTasks()
 			r.closeDebugTurn()
+			r.turnSpan.End(nil)
 			return
 		}
 	}
@@ -229,8 +233,10 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 		Status:                   state.Status,
 		RequiresActionDeadlineAt: state.RequiresActionDeadlineAt,
 		DebugTurn:                r.debugTurn,
+		TurnSpan:                 r.turnSpan,
 		SessionStart:             &r.sessionStart,
 		StopNudges:               &r.stopNudges,
+		TurnExperiments:          &r.experiments,
 	}
 	go r.runTask(taskCtx, kind, key, input, done)
 }
@@ -243,6 +249,8 @@ func (r *runner) runTask(
 	done chan<- struct{},
 ) {
 	defer close(done)
+	// Runs before close(done), after every stage the task started ended.
+	defer input.TurnSpan.Release(input.TaskID)
 	taskInfo := retryWrapperTaskInfo{
 		ChatID:   input.ChatID,
 		WorkerID: input.WorkerID,

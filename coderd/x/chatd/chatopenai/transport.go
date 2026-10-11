@@ -74,3 +74,8 @@ func UsesResponsesAPI(modelID string, override *bool) bool {
 func IsGPT6Astra(modelID string) bool {
 	return strings.HasPrefix(strings.ToLower(modelID), "gpt-6-astra")
 }
+
+// IsGPT61Sol matches gpt-6.1-sol and its dated snapshots.
+func IsGPT61Sol(modelID string) bool {
+	return strings.HasPrefix(strings.ToLower(modelID), "gpt-6.1-sol")
+}

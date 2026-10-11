@@ -1009,6 +1009,9 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
 		nil,
+		nil,
+		nil,
+		StageModel{},
 	)
 
 	require.Equal(t, []string{"observer_tool", "other_tool", "denied_tool"}, observedNames,
@@ -1081,6 +1084,9 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
 		nil,
+		nil,
+		nil,
+		StageModel{},
 	)
 
 	require.Equal(t, 1, notifications, "each called observer is notified once per step")
@@ -1159,6 +1165,9 @@ func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
 		nil,
 		time.Time{},
 		nil,
+		nil,
+		nil,
+		StageModel{},
 	)
 
 	require.True(t, notified)
@@ -1227,6 +1236,9 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 		nil,
 		time.Time{},
 		nil,
+		nil,
+		nil,
+		StageModel{},
 	)
 
 	require.Equal(t, []string{"a:start", "a:end", "b:start", "b:end", "c:start", "c:end"}, events,
@@ -1316,6 +1328,9 @@ func TestExecuteToolsReturnsExecutionIntervals(t *testing.T) {
 			nil,
 			batchStart,
 			liveToolBillingRecorder{started: started, completed: completed},
+			nil,
+			nil,
+			StageModel{},
 		)
 	}()
 
@@ -1386,7 +1401,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			Input:      "{}",
 		}
 
-		result := executeSingleTool(
+		result, _ := executeSingleTool(
 			context.Background(),
 			toolMap,
 			tc,
@@ -1399,6 +1414,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
+			nil,
 			nil,
 		)
 
@@ -1436,7 +1452,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			Input:      "{}",
 		}
 
-		result := executeSingleTool(
+		result, _ := executeSingleTool(
 			context.Background(),
 			toolMap,
 			tc,
@@ -1449,6 +1465,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
+			nil,
 			nil,
 		)
 
@@ -1481,7 +1498,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			Input:      "{}",
 		}
 
-		result := executeSingleTool(
+		result, _ := executeSingleTool(
 			context.Background(),
 			toolMap,
 			tc,
@@ -1494,6 +1511,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
+			nil,
 			nil,
 		)
 
@@ -1532,7 +1550,7 @@ func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 					return fantasy.ToolResponse{Type: "media", Data: tc.data, MediaType: tc.mediaType, Content: "Ran Playwright code"}, nil
 				},
 			)
-			result := executeSingleTool(
+			result, _ := executeSingleTool(
 				context.Background(),
 				map[string]fantasy.AgentTool{"screenshot": tool},
 				fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "screenshot", Input: "{}"},
@@ -1545,6 +1563,7 @@ func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 				map[string]struct{}{},
 				nil,
 				defaultToolResultBytes,
+				nil,
 				nil,
 			)
 
@@ -1587,7 +1606,7 @@ func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
 		Input:      "{}",
 	}
 
-	result := executeSingleTool(
+	result, _ := executeSingleTool(
 		context.Background(),
 		toolMap,
 		tc,
@@ -1601,6 +1620,7 @@ func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
 		nil,
 		defaultToolResultBytes,
 		map[string]string{"close_agent": "interrupt_agent"},
+		nil,
 	)
 
 	textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)
@@ -1628,7 +1648,7 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 	// No alias provided: the deprecated name is neither active nor in the
 	// tool map, so it surfaces a clear not-active error and the model can
 	// self-correct to the advertised name.
-	result := executeSingleTool(
+	result, _ := executeSingleTool(
 		context.Background(),
 		map[string]fantasy.AgentTool{},
 		tc,
@@ -1641,6 +1661,7 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 		map[string]struct{}{},
 		nil,
 		defaultToolResultBytes,
+		nil,
 		nil,
 	)
 
@@ -1658,7 +1679,7 @@ func TestExecuteSingleTool_AllowsDeferredDirectCall(t *testing.T) {
 			return fantasy.NewTextResponse("ok"), nil
 		},
 	)
-	result := executeSingleTool(
+	result, _ := executeSingleTool(
 		context.Background(),
 		map[string]fantasy.AgentTool{"server__direct": tool},
 		fantasy.ToolCallContent{ToolCallID: "call-direct", ToolName: "server__direct", Input: "{}"},
@@ -1671,6 +1692,7 @@ func TestExecuteSingleTool_AllowsDeferredDirectCall(t *testing.T) {
 		map[string]struct{}{},
 		nil,
 		defaultToolResultBytes,
+		nil,
 		nil,
 	)
 	text, ok := result.Result.(fantasy.ToolResultOutputContentText)

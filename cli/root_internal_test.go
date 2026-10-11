@@ -15,6 +15,7 @@ import (
 	"os"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -31,6 +32,8 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	// Report multi-second pauses of the whole process, see coder/internal#1365.
+	testutil.StartStallDetector(5 * time.Second)
 	if runtime.GOOS == "windows" {
 		// Don't run goleak on windows tests, they're super flaky right now.
 		// See: https://github.com/coder/coder/issues/8954

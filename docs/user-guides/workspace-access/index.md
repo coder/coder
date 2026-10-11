@@ -45,7 +45,9 @@ Or, you can configure plain SSH on your client below.
 > SSH command. For users who need the full functionality of SSH, use the
 > configuration method below.
 
-### Running remote commands with quoting
+<a id="running-remote-commands-with-quoting"></a>
+
+### Run remote commands with quoting
 
 Arguments after `--` are joined with spaces into a single command
 string before being sent to the workspace agent (per
@@ -227,7 +229,7 @@ services or preview environments.
 > [!TIP]
 > For automatic access to all ports without manual configuration, use [Coder Desktop](../desktop/index.md).
 
-You can also [share ports](./port-forwarding.md#sharing-ports) with other users,
+You can also [share ports](./port-forwarding.md#share-ports) with other users,
 or [port-forward](./port-forwarding.md#the-coder-port-forward-command) through
 the CLI with `coder port-forward`. Read more in the
 [docs on workspace ports](./port-forwarding.md).

@@ -33,6 +33,26 @@ describe("getUserFilterOptions", () => {
 
 		expect(options.map((option) => option.value)).toEqual(["me", "bob"]);
 	});
+
+	it("matches the current user by its label when the users API does not return it", async () => {
+		const queryClient = fakeQueryClient({ users: [] });
+
+		expect(await getUserFilterOptions("ali", me, queryClient)).toHaveLength(1);
+		expect(await getUserFilterOptions("zzz", me, queryClient)).toHaveLength(0);
+	});
+
+	it("lists the current user when the users API matches it by name or email", async () => {
+		const queryClient = fakeQueryClient({
+			users: [
+				{ username: "alice", avatar_url: "/alice.png" },
+				{ username: "bob", avatar_url: "/bob.png" },
+			],
+		});
+
+		const options = await getUserFilterOptions("smith", me, queryClient);
+
+		expect(options.map((option) => option.value)).toEqual(["me", "bob"]);
+	});
 });
 
 describe("getSelfUserFilterOptions", () => {
@@ -57,10 +77,7 @@ describe("getAttributeFilterOptions", () => {
 			canFilterDormant: false,
 		});
 
-		expect(options.map((option) => option.token)).toEqual([
-			"outdated:true",
-			"shared:true",
-		]);
+		expect(options.map((option) => option.token)).toEqual(["outdated:true"]);
 	});
 
 	it("shows the dormant attribute with the entitlement", async () => {
@@ -71,7 +88,6 @@ describe("getAttributeFilterOptions", () => {
 		expect(options.map((option) => option.token)).toEqual([
 			"outdated:true",
 			"dormant:true",
-			"shared:true",
 		]);
 	});
 

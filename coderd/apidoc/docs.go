@@ -154,6 +154,37 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/projects": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat projects",
+                "operationId": "list-chat-projects",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProject"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/{chat}/stream/desktop": {
             "get": {
                 "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -185,6 +216,86 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            }
+        },
+        "/api/experimental/experiments/rules": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "List experiment rules",
+                "operationId": "list-experiment-rules",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ExperimentRuleEntry"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/experiments/rules/{experiment}": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Update experiment rule",
+                "operationId": "update-experiment-rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Experiment name",
+                        "name": "experiment",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Experiment rule",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PutExperimentRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExperimentRule"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/experimental/mcp/servers/{mcpServer}/oauth2/callback": {
@@ -317,6 +428,401 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OrganizationAISpendReport"
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat project",
+                "operationId": "create-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create chat project request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProject"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat project",
+                "operationId": "get-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProject"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat project",
+                "operationId": "delete-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat project",
+                "operationId": "update-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat project request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProject"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/memories": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project memories",
+                "operationId": "list-chat-project-memories",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProjectMemory"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat project memory",
+                "operationId": "create-chat-project-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create memory request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatProjectMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectMemory"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/memories/{memory}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat project memory",
+                "operationId": "get-chat-project-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project memory ID",
+                        "name": "memory",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectMemory"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat project memory",
+                "operationId": "delete-chat-project-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project memory ID",
+                        "name": "memory",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -1537,7 +2043,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e` + "`" + ` as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
+                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `status:\u003cwaiting\\|running\\|error\\|requires_action\\|interrupting\u003e` + "`" + ` (chat status, repeated or comma-separated), ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\\|none\u003e` + "`" + ` (none matches chats with no pull request) as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -1568,6 +2074,13 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Page offset",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Only chats in this project. Requires the chat-projects experiment.",
+                        "name": "project_id",
                         "in": "query"
                     }
                 ],
@@ -1616,6 +2129,12 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     },
                     "413": {
@@ -2633,6 +3152,12 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -2889,6 +3414,18 @@ const docTemplate = `{
                         "name": "chat",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Remote origin selecting the ref to diff",
+                        "name": "origin",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Git branch selecting the ref to diff",
+                        "name": "branch",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6417,6 +6954,80 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/chats/config/system-prompt": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get organization chat system prompt",
+                "operationId": "get-organization-chat-system-prompt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationChatSystemPromptResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update organization chat system prompt",
+                "operationId": "update-organization-chat-system-prompt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateOrganizationChatSystemPromptRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -12484,50 +13095,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/users/{user}/autofill-parameters": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Users"
-                ],
-                "summary": "Get autofill build parameters for user",
-                "operationId": "get-autofill-build-parameters-for-user",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "User ID, username, or me",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Template ID",
-                        "name": "template_id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.UserParameter"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/v2/users/{user}/convert-login": {
             "post": {
                 "consumes": [
@@ -13994,6 +14561,12 @@ const docTemplate = `{
                         "type": "boolean",
                         "description": "Return data instead of HTTP 404 if the workspace is deleted",
                         "name": "include_deleted",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of related data to include (e.g. ` + "`" + `template,latest_build.resources.agents.*` + "`" + `). Omit to include everything.",
+                        "name": "include_related",
                         "in": "query"
                     }
                 ],
@@ -17825,6 +18398,15 @@ const docTemplate = `{
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
+                "actor_header_email": {
+                    "type": "string"
+                },
+                "actor_header_id": {
+                    "type": "string"
+                },
+                "actor_header_username": {
+                    "type": "string"
+                },
                 "allow_byok": {
                     "type": "boolean"
                 },
@@ -17855,6 +18437,10 @@ const docTemplate = `{
                 "circuit_breaker_timeout": {
                     "type": "integer"
                 },
+                "disable_content_recording": {
+                    "description": "DisableContentRecording stops user prompts, tool calls and model\nreasoning from being recorded, including tool names and their arguments.\nInterceptions and token usage are still recorded, so cost controls,\nbudget enforcement and spend reporting are unaffected.",
+                    "type": "boolean"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -17876,6 +18462,10 @@ const docTemplate = `{
                 },
                 "structured_logging": {
                     "type": "boolean"
+                },
+                "structured_logging_source": {
+                    "description": "StructuredLoggingSource selects which process emits the records that\nStructuredLogging enables. See AIStructuredLoggingSource.",
+                    "type": "string"
                 }
             }
         },
@@ -18696,6 +19286,15 @@ const docTemplate = `{
                 "chat_model_config:read",
                 "chat_model_config:share",
                 "chat_model_config:update",
+                "chat_project:*",
+                "chat_project:create",
+                "chat_project:delete",
+                "chat_project:read",
+                "chat_project:update",
+                "chat_project_memory:*",
+                "chat_project_memory:create",
+                "chat_project_memory:delete",
+                "chat_project_memory:read",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -18943,6 +19542,15 @@ const docTemplate = `{
                 "APIKeyScopeChatModelConfigRead",
                 "APIKeyScopeChatModelConfigShare",
                 "APIKeyScopeChatModelConfigUpdate",
+                "APIKeyScopeChatProjectAll",
+                "APIKeyScopeChatProjectCreate",
+                "APIKeyScopeChatProjectDelete",
+                "APIKeyScopeChatProjectRead",
+                "APIKeyScopeChatProjectUpdate",
+                "APIKeyScopeChatProjectMemoryAll",
+                "APIKeyScopeChatProjectMemoryCreate",
+                "APIKeyScopeChatProjectMemoryDelete",
+                "APIKeyScopeChatProjectMemoryRead",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -19311,6 +19919,7 @@ const docTemplate = `{
                 "jetbrains",
                 "ssh",
                 "reconnecting_pty",
+                "port_forwarding",
                 "sftp",
                 "unknown"
             ],
@@ -19319,6 +19928,7 @@ const docTemplate = `{
                 "AppFamilyJetBrains",
                 "AppFamilySSH",
                 "AppFamilyReconnectingPTY",
+                "AppFamilyPortForwarding",
                 "AppFamilySFTP",
                 "AppFamilyUnknown"
             ]
@@ -19790,6 +20400,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChangedDiffStatus": {
+            "type": "object",
+            "properties": {
+                "ref": {
+                    "$ref": "#/definitions/codersdk.DiffStatusRef"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                }
+            }
+        },
         "codersdk.Chat": {
             "type": "object",
             "properties": {
@@ -19827,7 +20448,19 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "diff_status": {
-                    "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                    "description": "DiffStatus is the primary pull request. It is the ref with the\nmost recent git report.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                        }
+                    ]
+                },
+                "diff_statuses": {
+                    "description": "DiffStatuses lists every ref the chat tracks. The order is\nstable and follows the first report of each ref. DiffStatus\nmarks the primary.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                    }
                 },
                 "files": {
                     "type": "array",
@@ -19836,7 +20469,7 @@ const docTemplate = `{
                     }
                 },
                 "has_unread": {
-                    "description": "HasUnread is true when assistant messages exist beyond\nthe owner's read cursor, which updates on stream\nconnect and disconnect.",
+                    "description": "HasUnread is true when assistant messages exist beyond\nthe owner's read cursor, which updates on stream\nconnect and disconnect and via UpdateChatRequest.Read.",
                     "type": "boolean"
                 },
                 "id": {
@@ -19900,6 +20533,10 @@ const docTemplate = `{
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "queued_for_capacity": {
                     "description": "QueuedForCapacity reports that the chat is waiting for a concurrent\nagent slot. Single-chat reads derive it; list responses leave it false.",
                     "type": "boolean"
@@ -19921,6 +20558,19 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "title_source": {
+                    "description": "TitleSource is where Title came from. A title write applies only when\nthe current source ranks the same as or lower than the incoming one,\nin the order fallback, generated, user.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatTitleSource"
+                        }
+                    ]
+                },
+                "title_updated_at": {
+                    "description": "TitleUpdatedAt orders title changes. Title writes do not change\nUpdatedAt.",
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "updated_at": {
                     "type": "string",
@@ -20008,6 +20658,30 @@ const docTemplate = `{
                 },
                 "hook_url": {
                     "$ref": "#/definitions/serpent.URL"
+                },
+                "max_attachments_per_chat": {
+                    "description": "MaxAttachmentsPerChat is the maximum number of files linked to a\nchat.",
+                    "type": "integer"
+                },
+                "max_concurrent_recording_uploads": {
+                    "description": "MaxConcurrentRecordingUploads is the maximum number of virtual\ndesktop recordings that each Coder server stores at the same time.",
+                    "type": "integer"
+                },
+                "max_generation_retries": {
+                    "description": "MaxGenerationRetries is the maximum number of consecutive retries\nafter a model generation fails with a transient error.",
+                    "type": "integer"
+                },
+                "max_prompt_bytes": {
+                    "description": "MaxPromptBytes is the maximum size in bytes of the deployment system\nprompt, the plan mode instructions, and each user's custom prompt.",
+                    "type": "integer"
+                },
+                "max_queued_messages_per_chat": {
+                    "description": "MaxQueuedMessagesPerChat is the maximum number of messages that can\nbe queued in a chat.",
+                    "type": "integer"
+                },
+                "max_steps_per_turn": {
+                    "description": "MaxStepsPerTurn is the maximum number of steps in a chat turn.",
+                    "type": "integer"
                 },
                 "stream_silence_timeout": {
                     "type": "integer"
@@ -20221,6 +20895,9 @@ const docTemplate = `{
                 "deletions": {
                     "type": "integer"
                 },
+                "git_branch": {
+                    "type": "string"
+                },
                 "head_branch": {
                     "type": "string"
                 },
@@ -20239,6 +20916,9 @@ const docTemplate = `{
                 "refreshed_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "remote_origin": {
+                    "type": "string"
                 },
                 "reviewer_count": {
                     "type": "integer"
@@ -20781,6 +21461,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "reasoning_tokens": {
+                    "description": "ReasoningTokens counts reasoning, which output_tokens already\nincludes, so do not add the two.",
                     "type": "integer"
                 },
                 "total_tokens": {
@@ -20805,6 +21486,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
                     }
+                },
+                "turn_start_id": {
+                    "description": "TurnStartID is the ID of the user prompt that starts the turn\ncontaining the page's oldest message. Omitted for after_id-only polls\nand when no prompt is at or before that message.",
+                    "type": "integer"
                 }
             }
         },
@@ -21456,6 +22141,79 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatProject": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "description": "Icon is a URL, typically an emoji image under /emojis, or empty for the\ndefault folder glyph.",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "description": "Name is a display label and is not unique; ID identifies the project.",
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatProjectMemory": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "created_by_username": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.ChatPrompt": {
             "type": "object",
             "properties": {
@@ -21706,6 +22464,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatTitleSource": {
+            "type": "string",
+            "enum": [
+                "fallback",
+                "generated",
+                "user"
+            ],
+            "x-enum-varnames": [
+                "ChatTitleSourceFallback",
+                "ChatTitleSourceGenerated",
+                "ChatTitleSourceUser"
+            ]
+        },
         "codersdk.ChatUnsupportedProvider": {
             "type": "object",
             "properties": {
@@ -21754,6 +22525,14 @@ const docTemplate = `{
         "codersdk.ChatWatchEvent": {
             "type": "object",
             "properties": {
+                "changed_diff_status": {
+                    "description": "ChangedDiffStatus is set when Kind is\nChatWatchEventKindDiffStatusChange. It identifies the ref that\nchanged.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChangedDiffStatus"
+                        }
+                    ]
+                },
                 "chat": {
                     "$ref": "#/definitions/codersdk.Chat"
                 },
@@ -22154,6 +22933,42 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateChatProjectMemoryRequest": {
+            "type": "object",
+            "required": [
+                "body",
+                "description",
+                "name"
+            ],
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateChatProjectRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateChatRequest": {
             "type": "object",
             "properties": {
@@ -22161,6 +22976,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatClientType"
                 },
                 "content": {
+                    "description": "Content is the initial user message. It is optional: when\nempty, the chat is created idle with no initial user message\nand generation starts with the first message POSTed to\n/chats/{chat}/messages.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatInputPart"
@@ -22202,10 +23018,18 @@ const docTemplate = `{
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "reasoning_effort": {
                     "type": "string"
                 },
                 "system_prompt": {
+                    "type": "string"
+                },
+                "title": {
+                    "description": "Title, when set, is stored as the user title and automatic title\ngeneration does not run. It is trimmed and must then be non-empty\nand at most 200 Unicode code points (MaxChatTitleRunes), else the\nrequest fails with 400. When omitted, the title is derived from the\nfirst prompt and may later be replaced by a generated title.",
                     "type": "string"
                 },
                 "unsafe_dynamic_tools": {
@@ -22528,8 +23352,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "description": {
-                    "description": "Description is a description of what the template contains. It must be\nless than 128 bytes.",
-                    "type": "string"
+                    "description": "Description is a description of what the template contains. It must be\nno longer than 128 Unicode code points.",
+                    "type": "string",
+                    "maxLength": 128
                 },
                 "disable_everyone_group_access": {
                     "description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template.",
@@ -23682,6 +24507,17 @@ const docTemplate = `{
                 "DiagnosticSeverityWarning"
             ]
         },
+        "codersdk.DiffStatusRef": {
+            "type": "object",
+            "properties": {
+                "git_branch": {
+                    "type": "string"
+                },
+                "remote_origin": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.DisplayApp": {
             "type": "string",
             "enum": [
@@ -23865,7 +24701,6 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "example",
-                "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
                 "mcp-server-http",
@@ -23875,19 +24710,22 @@ const docTemplate = `{
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
                 "ai-gateway-reverse-proxy",
+                "chat-projects",
                 "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
-                "enable-ai-workspace-debug"
+                "enable-ai-workspace-debug",
+                "chat-stage-metrics"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
-                "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
+                "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
+                "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
@@ -23901,7 +24739,6 @@ const docTemplate = `{
             },
             "x-enum-descriptions": [
                 "This isn't used for anything.",
-                "This should not be taken out of experiments until we have redesigned the feature.",
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
                 "Enables the MCP HTTP server functionality.",
@@ -23911,15 +24748,16 @@ const docTemplate = `{
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
+                "Enables organization-scoped projects that group agent chats.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
-                "Enables debugging failed workspace builds with Coder Agents."
+                "Enables debugging failed workspace builds with Coder Agents.",
+                "Exposes chat lifecycle stage durations as Prometheus metrics."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
-                "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentMCPServerHTTP",
@@ -23929,11 +24767,78 @@ const docTemplate = `{
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentAIGatewayReverseProxy",
+                "ExperimentChatProjects",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
-                "ExperimentEnableAIWorkspaceDebug"
+                "ExperimentEnableAIWorkspaceDebug",
+                "ExperimentChatStageMetrics"
+            ]
+        },
+        "codersdk.ExperimentRule": {
+            "type": "object",
+            "properties": {
+                "condition": {
+                    "description": "Condition is the CEL expression of a condition rule.",
+                    "type": "string"
+                },
+                "mode": {
+                    "description": "Mode is one of the ExperimentRuleMode values, or empty when the\nstored rule is malformed. A malformed rule decides off until it is\nreplaced. It is a plain string so that clients can represent the\nmalformed state.",
+                    "type": "string"
+                },
+                "revision": {
+                    "description": "Revision increases on every change and starts at 1. Zero means the\nstored rule has no readable positive revision, so it is malformed.",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "updated_by": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ExperimentRuleEntry": {
+            "type": "object",
+            "properties": {
+                "experiment": {
+                    "description": "Experiment is the experiment name. Ignored entries can name\nexperiments this version does not know, so it is a plain string.",
+                    "type": "string"
+                },
+                "ignored": {
+                    "description": "Ignored is true for a stored rule of an experiment that does not\naccept runtime rules. Such a rule has no effect.",
+                    "type": "boolean"
+                },
+                "rule": {
+                    "description": "Rule is null when no rule was ever stored.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ExperimentRule"
+                        }
+                    ]
+                },
+                "static_default": {
+                    "description": "StaticDefault reports whether the experiment is in the startup\n--experiments list of the replica that answered.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ExperimentRuleMode": {
+            "type": "string",
+            "enum": [
+                "inherit",
+                "on",
+                "off",
+                "condition"
+            ],
+            "x-enum-varnames": [
+                "ExperimentRuleModeInherit",
+                "ExperimentRuleModeOn",
+                "ExperimentRuleModeOff",
+                "ExperimentRuleModeCondition"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -26448,6 +27353,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationChatSystemPromptResponse": {
+            "type": "object",
+            "properties": {
+                "system_prompt": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.OrganizationGroupAISpend": {
             "type": "object",
             "properties": {
@@ -27781,6 +28694,32 @@ const docTemplate = `{
                 "ProxyUnregistered"
             ]
         },
+        "codersdk.PutExperimentRuleRequest": {
+            "type": "object",
+            "properties": {
+                "condition": {
+                    "description": "Condition is required for the condition mode and must be empty\notherwise.",
+                    "type": "string"
+                },
+                "expected_revision": {
+                    "description": "ExpectedRevision must equal the current revision of the stored rule,\nor zero when no rule is stored or the stored rule has no readable\npositive revision. A different revision fails with 409 Conflict.",
+                    "type": "integer"
+                },
+                "mode": {
+                    "enum": [
+                        "inherit",
+                        "on",
+                        "off",
+                        "condition"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ExperimentRuleMode"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.PutExtendWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -27883,6 +28822,8 @@ const docTemplate = `{
                 "boundary_usage",
                 "chat",
                 "chat_model_config",
+                "chat_project",
+                "chat_project_memory",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -27937,6 +28878,8 @@ const docTemplate = `{
                 "ResourceBoundaryUsage",
                 "ResourceChat",
                 "ResourceChatModelConfig",
+                "ResourceChatProject",
+                "ResourceChatProjectMemory",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
@@ -28193,12 +29136,17 @@ const docTemplate = `{
                 "group_ai_budget",
                 "user_ai_budget_override",
                 "chat",
+                "chat_project",
+                "chat_project_memory",
                 "mcp_server_config",
                 "chat_model_config",
+                "chat_automation",
                 "user_secret",
                 "user_skill",
                 "chat_instruction_settings",
-                "chat_operational_settings"
+                "chat_operational_settings",
+                "chat_organization_system_prompt",
+                "experiment_rule"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -28235,12 +29183,17 @@ const docTemplate = `{
                 "ResourceTypeGroupAIBudget",
                 "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
+                "ResourceTypeChatProject",
+                "ResourceTypeChatProjectMemory",
                 "ResourceTypeMCPServerConfig",
                 "ResourceTypeChatModelConfig",
+                "ResourceTypeChatAutomation",
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill",
                 "ResourceTypeChatInstructionSettings",
-                "ResourceTypeChatOperationalSettings"
+                "ResourceTypeChatOperationalSettings",
+                "ResourceTypeChatOrganizationSystemPrompt",
+                "ResourceTypeExperimentRule"
             ]
         },
         "codersdk.Response": {
@@ -29057,7 +30010,8 @@ const docTemplate = `{
                     }
                 },
                 "description": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 128
                 },
                 "display_name": {
                     "type": "string"
@@ -30092,6 +31046,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateChatProjectRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UpdateChatRequest": {
             "type": "object",
             "properties": {
@@ -30116,7 +31084,12 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "read": {
+                    "description": "Read moves the owner's read cursor, which drives HasUnread.\n- nil: no change.\n- true: mark every existing message as read.\n- false: clear the cursor so the chat reads as unread again.\n\nThe cursor is owner-scoped, so only the chat owner may set this.\nOpening a chat's stream marks it read, so marking the chat the\nowner is currently viewing as unread does not persist.",
+                    "type": "boolean"
+                },
                 "title": {
+                    "description": "Title, when set, is stored as the user title even when its text is\nunchanged, so a generated title never replaces it afterwards. It is\nvalidated like CreateChatRequest.Title.",
                     "type": "string"
                 },
                 "workspace_id": {
@@ -30288,6 +31261,14 @@ const docTemplate = `{
                     ]
                 },
                 "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateOrganizationChatSystemPromptRequest": {
+            "type": "object",
+            "properties": {
+                "system_prompt": {
                     "type": "string"
                 }
             }
@@ -30586,6 +31567,9 @@ const docTemplate = `{
                 },
                 "code_diff_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
+                "collapse_assistant_steps": {
+                    "type": "boolean"
                 },
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
@@ -31264,17 +32248,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.UserParameter": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.UserPreferenceSettings": {
             "type": "object",
             "properties": {
@@ -31283,6 +32256,9 @@ const docTemplate = `{
                 },
                 "code_diff_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
+                "collapse_assistant_steps": {
+                    "type": "boolean"
                 },
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"

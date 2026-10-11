@@ -1,5 +1,5 @@
 import { RadioIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -27,7 +27,7 @@ type ProxyMenuProps = {
 	proxyContextValue: ProxyContextValue;
 };
 
-export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
+export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 	const [open, setOpen] = useState(false);
 	const [refetchDate, setRefetchDate] = useState<Date>();
 	const selectedProxy = proxyContextValue.proxy.proxy;
@@ -133,7 +133,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				)}
 
 				{proxyContextValue.proxies && (
-					<div className="max-h-[calc(100vh-22rem)] -mr-2 pr-2 overflow-y-auto scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+					<div className="max-h-[calc(100vh-22rem)] -mr-2 pr-2 overflow-y-auto scrollbar-thin">
 						<DropdownMenuRadioGroup value={selectedProxy?.id}>
 							{sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
 								(proxy) => (

@@ -1,0 +1,26 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder workspace-proxy edit [flags] <name|id>
+
+  Edit a workspace proxy
+
+OPTIONS:
+  -c, --column [id|name|display name|icon url|healthy|url|wildcard hostname|derp enabled|derp only|proxy status|proxy report|proxy checked at|created at|updated at|deleted|version] (default: name,url)
+          Columns to display in table output.
+
+      --display-name string
+          (Optional) Display name of the proxy. A more human friendly name to be
+          displayed.
+
+      --icon string
+          (Optional) Display icon of the proxy.
+
+      --name string
+          (Optional) Name of the proxy. This is used to identify the proxy.
+
+  -o, --output text|json|table (default: text)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

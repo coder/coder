@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useLocation } from "react-router";
 import type { AuthMethods, BuildInfoResponse } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -17,7 +17,7 @@ type LoginPageViewProps = {
 	redirectTo: string;
 };
 
-export const LoginPageView: FC<LoginPageViewProps> = ({
+export const LoginPageView: React.FC<LoginPageViewProps> = ({
 	authMethods,
 	error,
 	isLoading,

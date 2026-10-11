@@ -1,5 +1,5 @@
 ---
-title: Client Configuration
+title: Client configuration
 ---
 
 > [!NOTE]

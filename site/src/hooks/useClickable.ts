@@ -1,10 +1,4 @@
-import {
-	type KeyboardEventHandler,
-	type MouseEventHandler,
-	type RefObject,
-	type SyntheticEvent,
-	useRef,
-} from "react";
+import { useRef } from "react";
 
 // Literally any object (ideally an HTMLElement) that has a .click method
 type ClickableElement = {
@@ -24,19 +18,19 @@ export type UseClickableResult<
 	TElement extends ClickableElement = ClickableElement,
 	TRole extends ClickableAriaRole = ClickableAriaRole,
 > = Readonly<{
-	ref: RefObject<TElement | null>;
+	ref: React.RefObject<TElement | null>;
 	tabIndex: 0;
 	role: TRole;
-	onClick: MouseEventHandler<TElement>;
-	onKeyDown: KeyboardEventHandler<TElement>;
-	onKeyUp: KeyboardEventHandler<TElement>;
+	onClick: React.MouseEventHandler<TElement>;
+	onKeyDown: React.KeyboardEventHandler<TElement>;
+	onKeyUp: React.KeyboardEventHandler<TElement>;
 }>;
 
 /**
  * True when the event's target is outside `currentTarget` in the DOM, as with
  * events React bubbles from portaled dialogs and menus.
  */
-export const isFromPortal = (event: SyntheticEvent<unknown>): boolean =>
+export const isFromPortal = (event: React.SyntheticEvent<unknown>): boolean =>
 	event.currentTarget instanceof Node &&
 	event.target instanceof Node &&
 	!event.currentTarget.contains(event.target);
@@ -49,7 +43,7 @@ export const useClickable = <
 	TElement extends ClickableElement,
 	TRole extends ClickableAriaRole = ClickableAriaRole,
 >(
-	onClick: MouseEventHandler<TElement>,
+	onClick: React.MouseEventHandler<TElement>,
 	role?: TRole,
 ): UseClickableResult<TElement, TRole> => {
 	const ref = useRef<TElement>(null);

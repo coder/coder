@@ -1,0 +1,27 @@
+title: Install the control plane
+description: Choose a platform and install the Coder control plane on it.
+path: ./install/server/index.md
+icon_path: ./images/icons/download.svg
+children:
+  - title: Docker
+    description: Install and run Coder using the official Docker images for a quick single-machine deployment.
+    path: ./install/server/docker.md
+    icon_path: ./images/icons/docker.svg
+  - include: install/server/kubernetes.yml
+  - title: Rancher
+    description: Deploy Coder on Rancher as a Kubernetes workload using the Rancher UI and Helm.
+    path: ./install/server/rancher.md
+    icon_path: ./images/icons/rancher.svg
+  - title: OpenShift
+    description: Install Coder on a Red Hat OpenShift cluster using Helm, with the required security context settings.
+    path: ./install/server/openshift.md
+    icon_path: ./images/icons/openshift.svg
+  - title: RHEL-family Linux
+    description: Install the Coder control plane from an RPM package on Red Hat Enterprise Linux and other RHEL-family distributions.
+    path: ./install/server/rpm.md
+    icon_path: ./images/icons/system.svg
+  - include: install/server/cloud.yml
+  - title: Community install methods
+    description: Community-contributed methods for installing Coder on platforms Coder doesn't package itself.
+    path: ./install/server/community.md
+    icon_path: ./images/icons/generic.svg

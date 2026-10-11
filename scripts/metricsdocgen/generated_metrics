@@ -25,9 +25,9 @@ coder_ai_gateway_cost_control_blocked_users{group_id=""} 0
 # HELP coder_ai_gateway_cost_control_enforcement_duration_seconds The duration of AI budget enforcement checks, in seconds (outcome: allowed, blocked, error).
 # TYPE coder_ai_gateway_cost_control_enforcement_duration_seconds histogram
 coder_ai_gateway_cost_control_enforcement_duration_seconds{outcome=""} 0
-# HELP coder_ai_gateway_cost_control_unpriced_token_usage_records_total The number of recorded AI token-usage records for which no (provider_type, model) price was found. provider is the provider instance name, and provider_type is its configured type.
+# HELP coder_ai_gateway_cost_control_unpriced_token_usage_records_total The number of recorded AI token-usage records for which no price was found for either the requested model or the provider-reported model. provider is the provider instance name, provider_type is its configured type, model is the requested model, and provider_model is the model reported by the provider (empty when not reported).
 # TYPE coder_ai_gateway_cost_control_unpriced_token_usage_records_total counter
-coder_ai_gateway_cost_control_unpriced_token_usage_records_total{provider="",provider_type="",model=""} 0
+coder_ai_gateway_cost_control_unpriced_token_usage_records_total{provider="",provider_type="",model="",provider_model=""} 0
 # HELP coder_ai_gateway_injected_tool_invocations_total The number of times an injected MCP tool was invoked by AI Gateway.
 # TYPE coder_ai_gateway_injected_tool_invocations_total counter
 coder_ai_gateway_injected_tool_invocations_total{provider="",model="",server="",name=""} 0
@@ -46,9 +46,6 @@ coder_ai_gateway_key_pool_exhaustions_total{provider="",outcome=""} 0
 # HELP coder_ai_gateway_key_pool_failover_attempts The number of keys attempted before success or exhaustion, per interception for bridged requests and per request for passthrough requests.
 # TYPE coder_ai_gateway_key_pool_failover_attempts histogram
 coder_ai_gateway_key_pool_failover_attempts{provider=""} 0
-# HELP coder_ai_gateway_key_pool_state The number of keys currently in each state (state: valid, temporary, permanent).
-# TYPE coder_ai_gateway_key_pool_state gauge
-coder_ai_gateway_key_pool_state{provider="",state=""} 0
 # HELP coder_ai_gateway_key_pool_state_transitions_total The number of API key state transitions during failover (reason: rate_limited, unauthorized).
 # TYPE coder_ai_gateway_key_pool_state_transitions_total counter
 coder_ai_gateway_key_pool_state_transitions_total{provider="",reason=""} 0
@@ -382,9 +379,18 @@ coderd_chatd_hook_input_overrides_total{event=""} 0
 # HELP coderd_chatd_message_count Number of messages in the prompt per LLM request.
 # TYPE coderd_chatd_message_count histogram
 coderd_chatd_message_count{provider="",model=""} 0
+# HELP coderd_chatd_model_stage_duration_seconds Wall time of the stages that are a provider's work on a model: stream (open to close) and provider_attempt (one HTTP round trip, closed on response headers). Time to first token per model is ttft_seconds. Failed stream and provider_attempt windows are observed. Observed only for turn-scoped stages, which are also observed on stage_duration_seconds; background-scoped model stages appear on stage_duration_seconds only. provider_type is the configured AI provider type (for example bedrock), not the wire protocol other chatd metrics report as provider. Registered only with the chat-stage-metrics experiment.
+# TYPE coderd_chatd_model_stage_duration_seconds histogram
+coderd_chatd_model_stage_duration_seconds{stage="",provider_type="",chat_kind="",model=""} 0
 # HELP coderd_chatd_prompt_size_bytes Estimated byte size of the prompt per LLM request.
 # TYPE coderd_chatd_prompt_size_bytes histogram
 coderd_chatd_prompt_size_bytes{provider="",model=""} 0
+# HELP coderd_chatd_stage_anomalies_total Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed and inverted_window (end before start, clock skew), missing_timestamp (unset start or end), future_start (start ahead of this replica's clock, span started now), stale_anchor (trigger not after the previous turn's anchor, turn started now). Registered only with the chat-stage-metrics experiment.
+# TYPE coderd_chatd_stage_anomalies_total counter
+coderd_chatd_stage_anomalies_total{reason=""} 0
+# HELP coderd_chatd_stage_duration_seconds Wall time spent in each chat lifecycle stage. Stages overlap, so this is a stage-time profile, not a partition of the turn. scope separates latency attributable to a prompt (stages inside a chat turn, and queue_wait before it) from detached background work; chat_kind is empty without a known chat. Observed: chat_turn, queue_wait, acquisition, mcp_connect, stream, time_to_first_token, provider_attempt, tool_call, commit, retry_backoff; other stages are span-only. Failed windows are observed, except time_to_first_token, which observes only windows closed by an output part, and chat_turn, which observes only completed turns. chat_turn runs from its trigger (the prompt, a submitted client tool result, or a compaction request) to the end of its turn, includes acquisition, and excludes queue_wait and time waiting in requires_action, so a prompt that waits in requires_action is observed once per segment. Registered only with the chat-stage-metrics experiment.
+# TYPE coderd_chatd_stage_duration_seconds histogram
+coderd_chatd_stage_duration_seconds{stage="",scope="",chat_kind=""} 0
 # HELP coderd_chatd_steps_total Total agentic loop steps across all chats.
 # TYPE coderd_chatd_steps_total counter
 coderd_chatd_steps_total{provider="",model=""} 0
@@ -400,9 +406,12 @@ coderd_chatd_tool_result_size_bytes{provider="",model="",tool_name=""} 0
 # HELP coderd_chatd_tool_result_truncated_total Total tool results truncated to fit the model context window.
 # TYPE coderd_chatd_tool_result_truncated_total counter
 coderd_chatd_tool_result_truncated_total{provider="",model="",tool_name=""} 0
-# HELP coderd_chatd_ttft_seconds Time-to-first-token: wall time from LLM request to first streamed chunk.
+# HELP coderd_chatd_ttft_seconds Time-to-first-token: wall time from LLM request to the first streamed output part: any part other than warnings, finish, or error, including start markers such as text_start. Attempts that end before an output part, by failing or by finishing empty, are not observed. The time_to_first_token stage of stage_duration_seconds measures the same window without a model label and is registered only with the chat-stage-metrics experiment.
 # TYPE coderd_chatd_ttft_seconds histogram
 coderd_chatd_ttft_seconds{provider="",model=""} 0
+# HELP coderd_chatd_turn_outcomes_total Total closed chat turns by outcome: completed (the turn finished, including a turn that ends when the chat enters requires_action; the submitted tool result opens a new turn), interrupted (an interrupt request from a user, an API client, or a parent agent stopped it), error (a failure stopped it), abandoned (a newer prompt, such as a message edit, or runner exit closed it before it finished; an edit sent while the chat is interrupting can close the stopped turn as abandoned rather than interrupted). Every closed turn is counted exactly once. Registered only with the chat-stage-metrics experiment.
+# TYPE coderd_chatd_turn_outcomes_total counter
+coderd_chatd_turn_outcomes_total{outcome="",chat_kind=""} 0
 # HELP coderd_db_query_counts_total Total number of queries labelled by HTTP route, method, and query name.
 # TYPE coderd_db_query_counts_total counter
 coderd_db_query_counts_total{route="",method="",query=""} 0

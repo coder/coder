@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { expect, fn, screen, userEvent, within } from "storybook/test";
 import type { ResourceType } from "#/api/typesGenerated";
 import {
@@ -23,7 +22,7 @@ import { docs } from "#/utils/docs";
 import { useResourceTypeFilterMenu } from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
 
-type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];
+type FilterProps = React.ComponentProps<typeof AuditPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	query: "owner:me",

@@ -423,7 +423,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case "api_key":
-		if req.APIKeyHeader == "" || req.APIKeyValue == "" {
+		if strings.TrimSpace(req.APIKeyHeader) == "" || strings.TrimSpace(req.APIKeyValue) == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "API key auth type requires api_key_header and api_key_value.",
 			})
@@ -574,6 +574,8 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 }
 
 var errUserOIDCRequiresDeploymentPerms = xerrors.New("managing user_oidc MCP server configs requires deployment-level permissions")
+
+var errAPIKeyAuthRequiresHeaderAndValue = xerrors.New("api_key auth type requires api_key_header and api_key_value")
 
 var errMCPConfigSupersededDuringAuth = xerrors.New("MCP server config superseded during authorization")
 
@@ -891,6 +893,10 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		if authType == "api_key" && (apiKeyHeader == "" || apiKeyValue == "") {
+			return errAPIKeyAuthRequiresHeaderAndValue
+		}
+
 		// User grants are bound to the destination, auth flow, token and revocation
 		// endpoints, and OAuth client. Invalidate them when any of these change so
 		// stored tokens cannot be sent to another endpoint or client.
@@ -945,6 +951,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, errUserOIDCRequiresDeploymentPerms):
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: "Managing user_oidc MCP server configs requires deployment-level permissions.",
+			})
+			return
+		case errors.Is(err, errAPIKeyAuthRequiresHeaderAndValue):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "API key auth type requires api_key_header and api_key_value.",
 			})
 			return
 		case httpapi.Is404Error(err):

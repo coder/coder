@@ -72,11 +72,11 @@ Docs claims should be checked against the actual implementation, not approximati
 - Exact RBAC action names.
   Example: `template:view_insights`, not "view insights".
 - Real thresholds and defaults.
-  Example: `green < 150ms, yellow 150-300ms, red ≥300ms`, not "around 150 ms".
+  Example: `green < 150ms, yellow 150-300ms, red ≥300ms`, not "around 150&nbsp;ms".
 - Full API paths.
   Example: `/api/v2/insights/templates`, not `/insights/templates`.
 
-*Why:* Precise values are what make accuracy checkable; "roughly 5 minutes" can't drift-fail, but `300s default` can.
+*Why:* Precise values are what make accuracy checkable; "roughly 5&nbsp;minutes" can't drift-fail, but `300s default` can.
 Whether an exact value belongs on the page at all is a separate question; refer to [Evidence justifies a claim; it does not belong in the claim](#evidence-justifies-a-claim-it-does-not-belong-in-the-claim).
 
 ### Evidence justifies a claim; it does not belong in the claim
@@ -231,23 +231,29 @@ Each entry includes the reason it belongs in the docs.
 
 These govern *how* content enters the docs, for both humans and the doc-check agent.
 
-- **Every new page must be added to `docs/manifest.json`.**
-  Pages not in the manifest don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
+- **Every new page must be added to the sidebar sources in `docs/manifest/`.**
+  Pages not in the sidebar don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
+  Run `make gen/docs-manifest` to rebuild `docs/manifest.json` from the sources; don't edit the JSON directly.
 - **Never hand-edit auto-generated content.**
   Files under `docs/reference/cli/` are generated from Go code; changes go in the CLI definitions (typically under `cli/`), then regenerate.
   Generated sections are marked with `<!-- Code generated ... DO NOT EDIT -->`.
-- **Premium features are marked explicitly.**
-  Both of the following are required for a Premium page:
-  1. The H1 title takes a `(Premium)` suffix.
-     Example: `# Template
-     Insights (Premium)`.
-  2. The page's `docs/manifest.json` entry gets `"state": ["premium"]`.
+- **Feature states are marked in navigation metadata.**
+  The page's route in `docs/manifest/` must include its state, such as `state: [premium]` or `state: [beta]`.
+  Do not add a feature-state suffix to the page title or H1.
 - **Moving or renaming a page requires link updates and a redirect.**
   If a page changes its position in the directory structure:
   1. Update every link that relies on its existing location.
-  2. Add a redirect in the
-     [`coder/coder.com`](https://github.com/coder/coder.com/blob/master/redirects.json)
-     repo (`redirects.json`).
+  2. Add a rule to `docs/redirects.json` in the same PR that moves the page.
+     Each rule has a `source` and a `destination`, both full `/docs/...` paths, and an optional `permanent` flag that defaults to `true`.
+     A `destination` can also be an external `http` or `https` URL.
+     A `source` is an exact path, a path ending in `/:path*`, or a path with a `:slug(.*)` capture.
+     For example: `{"source": "/docs/about/architecture", "destination": "/docs/about"}`.
+
+  The website reads `docs/redirects.json` at build time, and a change to the file starts a website rebuild.
+  The redirect is therefore live in the build that the merge triggers.
+  Each release branch has its own copy of the file, and the unversioned docs are served from the mainline release branch.
+  Backport the move and its redirect together so the old URL keeps working there.
+  Redirects that predate this file stay where they are and keep working.
 
   Do not create a `docs/_redirects` file.
   That format isn't processed by [coder.com](https://coder.com).
@@ -360,4 +366,4 @@ Update this section as they land.
   If it becomes real, revisit loosening the screenshots policy.
   Until then, the screenshot rules in [What belongs in the docs](#what-belongs-in-the-docs) govern.
 - **doc-check redirect suggestions.**
-  When doc-check detects a moved or renamed page, it should suggest the exact `redirects.json` entry for `coder/coder.com` in a code block, so applying it is at most a copy-paste job.
+  When doc-check detects a moved or renamed page, it should suggest the exact `docs/redirects.json` entry in a code block, so applying it is at most a copy-paste job.

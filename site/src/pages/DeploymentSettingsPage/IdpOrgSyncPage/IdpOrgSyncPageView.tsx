@@ -1,6 +1,6 @@
 import { useFormik } from "formik";
 import { PlusIcon, TrashIcon } from "lucide-react";
-import { type FC, type KeyboardEventHandler, useId, useState } from "react";
+import { useId, useState } from "react";
 import * as Yup from "yup";
 import type {
 	Organization,
@@ -81,7 +81,7 @@ const validationSchema = Yup.object({
 		.default({}),
 });
 
-export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
+export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 	organizationSyncSettings,
 	claimFieldValues,
 	organizations,
@@ -131,7 +131,9 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 		form.handleSubmit();
 	};
 
-	const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
+	const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (
+		event,
+	) => {
 		if (
 			event.key === "Enter" &&
 			inputValue &&
@@ -388,7 +390,10 @@ type IdpMappingTableProps = {
 	children: React.ReactNode;
 };
 
-const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
+const IdpMappingTable: React.FC<IdpMappingTableProps> = ({
+	isEmpty,
+	children,
+}) => {
 	return (
 		<Table>
 			<TableHeader>
@@ -424,7 +429,7 @@ type OrganizationRowProps = {
 	onDelete: (idpOrg: string) => void;
 };
 
-const OrganizationRow: FC<OrganizationRowProps> = ({
+const OrganizationRow: React.FC<OrganizationRowProps> = ({
 	idpOrg,
 	exists = true,
 	coderOrgs,
@@ -457,7 +462,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 	);
 };
 
-const AssignDefaultOrgHelpPopover: FC = () => {
+const AssignDefaultOrgHelpPopover: React.FC = () => {
 	return (
 		<InfoTooltip>
 			<TooltipMessage>

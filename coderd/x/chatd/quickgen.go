@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -70,10 +71,11 @@ func generateQuickgenObject[T any](
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 ) (*fantasy.ObjectResult[T], error) {
 	call.Temperature = new(quickgenTemperature)
 	var result *fantasy.ObjectResult[T]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+	err := chatretry.Retry(ctx, maxRetries, func(retryCtx context.Context) error {
 		var genErr error
 		result, genErr = generateObject[T](retryCtx, model, call)
 		if call.Temperature != nil && isTemperatureRejectedError(genErr) {
@@ -369,6 +371,20 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		)
 		return
 	}
+	p.GenerateChatTitleForMessagesAsync(ctx, chat, messages)
+}
+
+// GenerateChatTitleForMessagesAsync is GenerateChatTitleAsync for
+// callers that already hold a message snapshot taken before any worker
+// could reply. The first-message endpoint publishes the ownership hint
+// during the send, before it can schedule title generation, so a fresh
+// history read there may already contain the assistant reply and would
+// wrongly disqualify the first-user-turn eligibility check.
+func (p *Server) GenerateChatTitleForMessagesAsync(ctx context.Context, chat database.Chat, messages []database.ChatMessage) {
+	logger := p.logger.With(
+		slog.F("chat_id", chat.ID),
+		slog.F("owner_id", chat.OwnerID),
+	)
 	pasteText, err := titlePasteText(ctx, p.db, messages)
 	if err != nil {
 		logger.Debug(ctx, "failed to load pasted-text attachments for automatic title generation",
@@ -380,7 +396,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		return
 	}
 	// Detach from request; bind to server so Close cancels it.
-	titleCtx, stopTitleCtx := p.inflightContext(ctx)
+	titleCtx, stopTitleCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopTitleCtx()
 		apiKeyID, err := p.ensureSyntheticAPIKeyID(titleCtx, chat.OwnerID)
@@ -418,9 +434,9 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
-// current title is either empty or still the fallback truncation) using
-// the resolved title generation model (see resolveQuickgenModel). It is a
-// best-effort operation that logs and swallows errors.
+// current title source is fallback) using the resolved title generation
+// model (see resolveQuickgenModel). It is a best-effort operation that
+// logs and swallows errors.
 func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
@@ -482,7 +498,7 @@ func (p *Server) maybeGenerateChatTitle(
 		)
 	}
 
-	title, err := generateTitle(candidateCtx, candidate.resolved.model.LanguageModel(), titleObjectCall(candidate.resolved), input)
+	title, err := generateTitle(candidateCtx, candidate.resolved.model.LanguageModel(), titleObjectCall(candidate.resolved), p.chatLimits.MaxGenerationRetries, input)
 	finishDebugRun(err)
 	if err != nil {
 		logger.Warn(ctx, "title model candidate failed",
@@ -493,24 +509,23 @@ func (p *Server) maybeGenerateChatTitle(
 		)
 		return
 	}
-	if title == "" || title == chat.Title {
-		return
-	}
 
-	_, err = p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-		ID:    chat.ID,
-		Title: title,
+	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+		ID:          chat.ID,
+		Title:       title,
+		TitleSource: database.ChatTitleSourceGenerated,
 	})
 	if err != nil {
-		logger.Warn(ctx, "failed to update generated chat title",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
+		if !errors.Is(err, sql.ErrNoRows) {
+			logger.Warn(ctx, "failed to update generated chat title",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		}
 		return
 	}
-	chat.Title = title
 	generatedTitle.Store(title)
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
 // Quickgen caps leave room for adaptive thinking, which counts toward the cap
@@ -613,9 +628,10 @@ func generateTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	input string,
 ) (string, error) {
-	title, err := generateStructuredTitle(ctx, model, call, titleGenerationPrompt, input)
+	title, err := generateStructuredTitle(ctx, model, call, maxRetries, titleGenerationPrompt, input)
 	if err != nil {
 		return "", err
 	}
@@ -626,6 +642,7 @@ func generateStructuredTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	systemPrompt string,
 	userInput string,
 ) (string, error) {
@@ -633,6 +650,7 @@ func generateStructuredTitle(
 		ctx,
 		model,
 		call,
+		maxRetries,
 		systemPrompt,
 		userInput,
 	)
@@ -646,6 +664,7 @@ func generateStructuredTitleWithUsage(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	systemPrompt string,
 	userInput string,
 ) (string, fantasy.Usage, error) {
@@ -655,7 +674,7 @@ func generateStructuredTitleWithUsage(
 	}
 
 	call.Prompt = quickgenPrompt(systemPrompt, userInput)
-	result, err := generateQuickgenObject[generatedTitle](ctx, model, call)
+	result, err := generateQuickgenObject[generatedTitle](ctx, model, call, maxRetries)
 	if err != nil {
 		var usage fantasy.Usage
 		var noObjErr *fantasy.NoObjectGeneratedError
@@ -682,9 +701,9 @@ func validateGeneratedTitle(title string) error {
 // titleInput returns the first user message title text and whether
 // title generation should proceed. It returns false when the chat
 // already has assistant/tool replies, has more than one visible user
-// message, or the current title doesn't look like a candidate for
-// replacement. pasteText carries resolved pasted-text attachment
-// content (see titlePasteText) so paste-only messages stay eligible.
+// message, or the current title source is not fallback. pasteText
+// carries resolved pasted-text attachment content (see titlePasteText)
+// so paste-only messages stay eligible.
 func titleInput(
 	chat database.Chat,
 	messages []database.ChatMessage,
@@ -717,12 +736,7 @@ func titleInput(
 		return "", false
 	}
 
-	currentTitle := strings.TrimSpace(chat.Title)
-	if currentTitle == "" {
-		return firstUserText, true
-	}
-
-	if currentTitle != chatprompt.FallbackTitle(firstUserText) {
+	if chat.TitleSource != database.ChatTitleSourceFallback {
 		return "", false
 	}
 
@@ -990,6 +1004,7 @@ func generateManualTitle(
 	pasteText map[uuid.UUID]string,
 	fallbackModel fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 ) (string, error) {
 	turns := extractManualTitleTurns(messages, pasteText)
 	selected := selectManualTitleTurnIndexes(turns)
@@ -1021,6 +1036,7 @@ func generateManualTitle(
 		titleCtx,
 		fallbackModel,
 		call,
+		maxRetries,
 		systemPrompt,
 		userInput,
 	)
@@ -1193,6 +1209,7 @@ func generateChatSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	transcript string,
 ) (string, fantasy.Usage, error) {
 	transcript = strings.TrimSpace(transcript)
@@ -1202,7 +1219,7 @@ func generateChatSummary(
 
 	call.Prompt = quickgenPrompt(chatSummaryGenerationPrompt, transcript)
 	var result *fantasy.ObjectResult[generatedChatSummary]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+	err := chatretry.Retry(ctx, maxRetries, func(retryCtx context.Context) error {
 		var genErr error
 		result, genErr = generateObject[generatedChatSummary](retryCtx, model, call)
 		return genErr
@@ -1468,6 +1485,7 @@ func generateTurnStatusLabel(
 	status database.ChatStatus,
 	assistantText string,
 	resolved resolvedModelCall,
+	maxRetries int,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 	triggerMessageID int64,
@@ -1511,6 +1529,7 @@ func generateTurnStatusLabel(
 		candidateCtx,
 		candidate.resolved.model.LanguageModel(),
 		turnStatusLabelObjectCall(resolved),
+		maxRetries,
 		turnStatusLabelPrompt,
 		input,
 	)
@@ -1530,6 +1549,7 @@ func generateStructuredTurnStatusLabel(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	systemPrompt string,
 	userInput string,
 ) (string, error) {
@@ -1539,7 +1559,7 @@ func generateStructuredTurnStatusLabel(
 	}
 
 	call.Prompt = quickgenPrompt(systemPrompt, userInput)
-	result, err := generateQuickgenObject[generatedTurnStatusLabel](ctx, model, call)
+	result, err := generateQuickgenObject[generatedTurnStatusLabel](ctx, model, call, maxRetries)
 	if err != nil {
 		return "", xerrors.Errorf("generate structured turn status label: %w", err)
 	}

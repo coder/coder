@@ -1,4 +1,4 @@
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -18,7 +18,7 @@ import {
 } from "../organizationParam";
 import AddMCPServerPageView from "./AddMCPServerPageView";
 
-const AddMCPServerPage: FC = () => {
+const AddMCPServerPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const [searchParams, setSearchParams] = useSearchParams();

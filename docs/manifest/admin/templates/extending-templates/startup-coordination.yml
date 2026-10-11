@@ -1,0 +1,14 @@
+title: Workspace startup coordination
+description: Coordinate workspace startup scripts with dependency management so they run in the right order.
+path: ./admin/templates/startup-coordination/index.md
+state: [early access]
+children:
+  - title: Usage
+    description: Declare units and dependencies with coder exp sync to coordinate your workspace startup scripts.
+    path: ./admin/templates/startup-coordination/usage.md
+  - title: Troubleshooting
+    description: Diagnose and resolve common problems with workspace startup coordination and coder exp sync.
+    path: ./admin/templates/startup-coordination/troubleshooting.md
+  - title: Examples
+    description: A complete, production-ready example of coordinating workspace startup scripts with sync units.
+    path: ./admin/templates/startup-coordination/example.md

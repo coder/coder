@@ -494,9 +494,15 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			lc.readyForHandshakeTimer.Stop()
 		}
 		if lc.node != nil {
-			old := lc.node.KeepAlive
-			lc.node.KeepAlive = c.nodeKeepalive(lc, status, lc.node)
-			dirty = dirty || (old != lc.node.KeepAlive)
+			// Replace rather than mutate: a stored node is shared outside c.L
+			// (log entries in a flight recorder, peer diagnostics), so it must not
+			// change after it is stored.
+			if keepAlive := c.nodeKeepalive(lc, status, lc.node); keepAlive != lc.node.KeepAlive {
+				next := lc.node.Clone()
+				next.KeepAlive = keepAlive
+				lc.node = next
+				dirty = true
+			}
 		}
 		logger.Debug(context.Background(), "peer ready for handshake")
 		// only force a reconfig if the node populated

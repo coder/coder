@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import { AnsiHtml } from "fancy-ansi/react";
-import { type FC, type ReactNode, useMemo } from "react";
+import { useMemo } from "react";
 import { type Line, LogLine, LogLinePrefix } from "#/components/Logs/LogLine";
 // Approximate height of a log line. Used to control virtualized list height.
 export const AGENT_LOG_LINE_HEIGHT = 20;
@@ -8,14 +8,14 @@ export const AGENT_LOG_LINE_HEIGHT = 20;
 type AgentLogLineProps = {
 	line: Line;
 	style?: React.CSSProperties;
-	sourceIcon: ReactNode;
+	sourceIcon: React.ReactNode;
 };
 
 /**
  * Agent log output with ANSI colors. Shows only the text after the last
  * carriage return, so a redrawn progress line shows its final state.
  */
-export const AgentLogOutput: FC<{ output: string }> = ({ output }) => {
+export const AgentLogOutput: React.FC<{ output: string }> = ({ output }) => {
 	const lastCarriageReturn = output.lastIndexOf("\r");
 	return (
 		<AnsiHtml
@@ -28,7 +28,7 @@ export const AgentLogOutput: FC<{ output: string }> = ({ output }) => {
 	);
 };
 
-export const AgentLogLine: FC<AgentLogLineProps> = ({
+export const AgentLogLine: React.FC<AgentLogLineProps> = ({
 	line,
 	sourceIcon,
 	style,

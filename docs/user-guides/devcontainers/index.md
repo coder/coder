@@ -38,7 +38,9 @@ for setup details.
 - Direct SSH access to containers
 - Automatic port detection
 
-## Getting started
+<a id="getting-started"></a>
+
+## Get started
 
 ### Add a devcontainer.json
 

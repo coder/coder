@@ -1,0 +1,19 @@
+INSERT INTO chat_project_memories (
+    id,
+    project_id,
+    organization_id,
+    name,
+    description,
+    body,
+    created_by
+)
+VALUES (
+    '59500000-0000-4000-8000-000000000001',
+    '59400000-0000-4000-8000-000000000001',
+    'bb640d07-ca8a-4869-b6bc-ae61ebb2fda1',
+    'fixture-memory',
+    'Fixture project memory.',
+    'This memory exists for migration fixtures.',
+    '0ed9befc-4911-4ccf-a8e2-559bf72daa94'
+);
+

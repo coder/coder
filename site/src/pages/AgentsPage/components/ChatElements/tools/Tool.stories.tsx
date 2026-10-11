@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { defaultUrlTransform } from "streamdown";
 import { chatModelKey } from "#/api/queries/chats";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
@@ -23,7 +24,6 @@ import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
-const executeIntentCommand = "npm test";
 const longExecuteCommand =
 	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
 
@@ -36,9 +36,15 @@ const meta: Meta<typeof Tool> = {
 	component: Tool,
 	args: {
 		organizationId: MockChatModel.organization_id,
+		mcpServers: [],
 		name: "execute",
 		args: { command: executeCommand },
 		status: "completed",
+		isError: false,
+		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		shellToolDisplayMode: "auto",
+		codeDiffDisplayMode: "auto",
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -57,7 +63,6 @@ type ToolShowcaseItem = {
 	result?: unknown;
 	isError?: boolean;
 	killedBySignal?: "kill" | "terminate";
-	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	subagentVariants?: Map<string, "general" | "explore" | "computer_use">;
 };
@@ -65,8 +70,7 @@ type ToolShowcaseItem = {
 const allToolShowcaseItems: ToolShowcaseItem[] = [
 	{
 		name: "execute",
-		args: { command: "pnpm check", model_intent: "Checking frontend" },
-		modelIntent: "Checking frontend",
+		args: { command: "pnpm check" },
 		parsedCommands: [["pnpm", "check"]],
 		result: {
 			output: "Checked 1799 files.",
@@ -312,51 +316,6 @@ export const ExecuteRunning: Story = {
 	},
 };
 
-export const ExecuteModelIntent: Story = {
-	args: {
-		status: "completed",
-		args: {
-			command: executeIntentCommand,
-			model_intent: "Running tests using npm for 5s",
-		},
-		modelIntent: "Running tests using npm for 5s",
-		result: {
-			output: "",
-			wall_duration_ms: 2300,
-		},
-	},
-};
-
-export const ExecuteModelIntentRunning: Story = {
-	args: {
-		shellToolDisplayMode: "always_expanded",
-		status: "running",
-		args: {
-			command: executeCommand,
-			model_intent: "checking repository state",
-		},
-		modelIntent: "checking repository state",
-		result: {
-			output: "",
-		},
-	},
-};
-
-export const ExecuteModelIntentLeadingUsing: Story = {
-	args: {
-		status: "completed",
-		args: {
-			command: executeCommand,
-			model_intent: "using git fetch origin",
-		},
-		modelIntent: "using git fetch origin",
-		result: {
-			output: "",
-			wall_duration_ms: 2300,
-		},
-	},
-};
-
 export const ExecuteSuccess: Story = {
 	args: {
 		shellToolDisplayMode: "auto",
@@ -564,23 +523,6 @@ export const ProcessOutputExitZeroNoBadge: Story = {
 			command: "npm start",
 			output: "dogfood complete",
 			exit_code: 0,
-		},
-	},
-};
-
-/** A model_intent result replaces the command in the label. */
-export const ProcessOutputModelIntent: Story = {
-	args: {
-		name: "process_output",
-		status: "completed",
-		args: {
-			process_id: "process-123",
-			model_intent: "Waiting for the dev server to be ready",
-		},
-		modelIntent: "Waiting for the dev server to be ready",
-		result: {
-			command: "npm start",
-			output: "> Starting Vite dev server...",
 		},
 	},
 };
@@ -2938,19 +2880,30 @@ export const AllToolIconsTranscript: Story = {
 						]}
 						tools={[]}
 						keyPrefix="all-tool-icons-thinking"
+						organizationId="organization-id"
+						mcpServers={[]}
+						urlTransform={defaultUrlTransform}
+						isStreaming={false}
+						subagentTitles={new Map()}
+						subagentVariants={new Map()}
+						hasUserResponseAfterAskQuestion={false}
+						onImageClick={fn()}
+						onTextFileClick={fn()}
 					/>
 					{allToolShowcaseItems.map((tool, index) => (
 						<Tool
 							key={`${tool.name}-${index}`}
 							name={tool.name}
+							organizationId="organization-id"
+							mcpServers={[]}
 							status={tool.status ?? "completed"}
 							args={tool.args}
 							result={tool.result}
-							isError={tool.isError}
+							isError={tool.isError ?? false}
 							killedBySignal={tool.killedBySignal}
-							modelIntent={tool.modelIntent}
 							parsedCommands={tool.parsedCommands}
-							subagentVariants={tool.subagentVariants}
+							subagentTitles={new Map()}
+							subagentVariants={tool.subagentVariants ?? new Map()}
 							shellToolDisplayMode="always_collapsed"
 							codeDiffDisplayMode="always_collapsed"
 							showDesktopPreviews={false}
@@ -3016,14 +2969,16 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 						>
 							<Tool
 								name={tool.name}
+								organizationId="organization-id"
+								mcpServers={[]}
 								status={tool.status ?? "completed"}
 								args={tool.args}
 								result={tool.result}
-								isError={tool.isError}
+								isError={tool.isError ?? false}
 								killedBySignal={tool.killedBySignal}
-								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
-								subagentVariants={tool.subagentVariants}
+								subagentTitles={new Map()}
+								subagentVariants={tool.subagentVariants ?? new Map()}
 								hookRewritten
 								shellToolDisplayMode="always_collapsed"
 								codeDiffDisplayMode="always_collapsed"

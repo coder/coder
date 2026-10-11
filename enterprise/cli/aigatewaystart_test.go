@@ -4,7 +4,9 @@ package cli_test
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net"
@@ -26,8 +28,10 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -221,13 +225,25 @@ func startAIGatewayCommand(ctx context.Context, t *testing.T, coderURL, key stri
 	return "http://" + matches[1], waiter
 }
 
-// aiGatewayStatus probes probeURL and reports transport errors.
-func aiGatewayStatus(ctx context.Context, probeURL string) (int, error) {
+// newAIGatewayTestClient returns an HTTP client with its own transport.
+// Parallel CLI tests call http.DefaultClient.CloseIdleConnections() during
+// command cleanup, which breaks in-flight requests on the shared default
+// transport, so requests to the gateway must not use http.DefaultClient.
+func newAIGatewayTestClient(t *testing.T) *http.Client {
+	t.Helper()
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	t.Cleanup(transport.CloseIdleConnections)
+	return &http.Client{Transport: transport}
+}
+
+// aiGatewayStatus probes probeURL with client and reports transport errors.
+func aiGatewayStatus(ctx context.Context, client *http.Client, probeURL string) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, probeURL, nil)
 	if err != nil {
 		return 0, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -239,7 +255,7 @@ func aiGatewayStatus(ctx context.Context, probeURL string) (int, error) {
 func requireAIGatewayStatus(ctx context.Context, t *testing.T, probeURL string, want int) {
 	t.Helper()
 
-	got, err := aiGatewayStatus(ctx, probeURL)
+	got, err := aiGatewayStatus(ctx, newAIGatewayTestClient(t), probeURL)
 	require.NoError(t, err)
 	require.Equal(t, want, got, "unexpected status for %s", probeURL)
 }
@@ -249,8 +265,9 @@ func requireAIGatewayStatus(ctx context.Context, t *testing.T, probeURL string, 
 func requireEventualAIGatewayStatus(ctx context.Context, t *testing.T, probeURL string, want int) {
 	t.Helper()
 
+	client := newAIGatewayTestClient(t)
 	require.Eventuallyf(t, func() bool {
-		got, err := aiGatewayStatus(ctx, probeURL)
+		got, err := aiGatewayStatus(ctx, client, probeURL)
 		return err == nil && got == want
 	}, testutil.WaitLong, testutil.IntervalFast, "%s never returned %d", probeURL, want)
 }
@@ -289,7 +306,7 @@ func TestAIGatewayStartE2E(t *testing.T) {
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
 	// When: a user sends an LLM request to the gateway.
-	result := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+	result := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 
 	// Then: the upstream's response reaches the caller.
@@ -311,8 +328,8 @@ func TestAIGatewayStartE2E(t *testing.T) {
 // TestAIGatewayStartE2E_ReverseProxyExperiment covers the startup mode
 // selection of the standalone gateway. The gateway process reads the
 // experiment from its own environment, and the selected mode decides which
-// handler serves LLM traffic: the reverse proxy router, whose provider routes
-// are not registered yet, or the interception pool.
+// handler serves LLM traffic: the reverse proxy router, whose bridged routes
+// return 404, or the interception pool.
 func TestAIGatewayStartE2E_ReverseProxyExperiment(t *testing.T) {
 	t.Parallel()
 
@@ -327,12 +344,11 @@ func TestAIGatewayStartE2E_ReverseProxyExperiment(t *testing.T) {
 		wantSessions       int
 	}{
 		{
-			// Proxy mode is selected, and an enabled provider has no routes
-			// yet, so its requests fall through to the router's catch-all.
+			// Proxy mode validates bridged requests but does not forward them.
 			name:               "ProxyModeWithoutMCP",
 			gatewayExperiments: string(codersdk.ExperimentAIGatewayReverseProxy),
-			wantStatus:         http.StatusNotFound,
-			wantBody:           "route not supported",
+			wantStatus:         http.StatusNotImplemented,
+			wantBody:           "bridged routes are not yet implemented in proxy mode",
 			wantUpstreamHits:   0,
 			wantSessions:       0,
 		},
@@ -394,7 +410,7 @@ func TestAIGatewayStartE2E_ReverseProxyExperiment(t *testing.T) {
 			requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
 			// When: a user sends an LLM request to the gateway.
-			result := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+			result := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 				dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 
 			// Then: the selected handler serves it.
@@ -577,11 +593,11 @@ type aiGatewayResponse struct {
 	err    error
 }
 
-// postChatCompletion sends an LLM request and returns the response with its body
-// unread. The caller owns the body.
+// postChatCompletion sends an LLM request with client and returns the response
+// with its body unread. The caller owns the body.
 //
 //nolint:bodyclose // The caller owns and closes the body.
-func postChatCompletion(ctx context.Context, endpoint, token, requestBody string) (*http.Response, error) {
+func postChatCompletion(ctx context.Context, client *http.Client, endpoint, token, requestBody string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(requestBody))
 	if err != nil {
 		return nil, err
@@ -589,13 +605,13 @@ func postChatCompletion(ctx context.Context, endpoint, token, requestBody string
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	return http.DefaultClient.Do(req)
+	return client.Do(req)
 }
 
-// postChatCompletionAndRead sends an LLM request, reads the whole response, and
-// reports transport errors.
-func postChatCompletionAndRead(ctx context.Context, endpoint, token, requestBody string) aiGatewayResponse {
-	resp, err := postChatCompletion(ctx, endpoint, token, requestBody)
+// postChatCompletionAndRead sends an LLM request with client, reads the whole
+// response, and reports transport errors.
+func postChatCompletionAndRead(ctx context.Context, client *http.Client, endpoint, token, requestBody string) aiGatewayResponse {
+	resp, err := postChatCompletion(ctx, client, endpoint, token, requestBody)
 	if err != nil {
 		return aiGatewayResponse{err: err}
 	}
@@ -646,7 +662,7 @@ func TestAIGatewayStartE2E_ReconnectAfterDisconnect(t *testing.T) {
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
 	// When: a request arrives while coderd is reachable.
-	before := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+	before := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 
 	// Then: it is served and recorded.
@@ -668,7 +684,7 @@ func TestAIGatewayStartE2E_ReconnectAfterDisconnect(t *testing.T) {
 
 	// Then: a new request is served and both interceptions are recorded, so the
 	// provider cache and the recorder recovered with the connection.
-	after := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+	after := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 	require.NoError(t, after.err)
 	require.Equal(t, http.StatusOK, after.status, "body: %s", after.body)
@@ -697,8 +713,9 @@ func TestAIGatewayStartE2E_RequestWhileDisconnected(t *testing.T) {
 
 	// When: a request arrives while the gateway has no connection to coderd.
 	responses := make(chan aiGatewayResponse, 1)
+	client := newAIGatewayTestClient(t)
 	go func() {
-		responses <- postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+		responses <- postChatCompletionAndRead(ctx, client, baseURL+aiGatewayChatCompletionPath,
 			dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 	}()
 
@@ -792,7 +809,7 @@ func TestAIGatewayStartE2E_InFlightRequestSurvivesDisconnect(t *testing.T) {
 
 	req, err := sjson.Set(aiGatewayChatCompletionRequest, "stream", true)
 	require.NoError(t, err)
-	resp, err := postChatCompletion(ctx, baseURL+aiGatewayChatCompletionPath,
+	resp, err := postChatCompletion(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -826,7 +843,8 @@ func TestAIGatewayStart_ConfigYAML(t *testing.T) {
 	coderURL := startUnreachableCoderd(t)
 	configFile := filepath.Join(t.TempDir(), "config.yaml")
 	err := os.WriteFile(configFile, []byte(
-		"introspection:\n  prometheus:\n    enable: true\n    address: 127.0.0.1:0\n",
+		"introspection:\n  prometheus:\n    enable: true\n    address: 127.0.0.1:0\n"+
+			"ai_gateway:\n  actor_header_email: Authorization\n",
 	), 0o600)
 	require.NoError(t, err)
 
@@ -837,8 +855,13 @@ func TestAIGatewayStart_ConfigYAML(t *testing.T) {
 		"--key", "test-key",
 		"--http-address", "127.0.0.1:0",
 		"--config", configFile,
+		"--ai-gateway-actor-header-email", "",
 	)
 	inv = inv.WithContext(ctx)
+	inv.Environ = append(inv.Environ, serpent.EnvVar{
+		Name:  "CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL",
+		Value: "Content-Type",
+	})
 	pty := ptytest.New(t).Attach(inv)
 	waiter := clitest.StartWithWaiter(t, inv)
 
@@ -859,18 +882,182 @@ func TestAIGatewayStart_ConfigYAML(t *testing.T) {
 func TestAIGatewayStart_ConfigYAML_Invalid(t *testing.T) {
 	t.Parallel()
 
-	configFile := filepath.Join(t.TempDir(), "config.yaml")
-	err := os.WriteFile(configFile, []byte(
-		"introspection:\n  prometheus:\n    unknown_field: true\n",
-	), 0o600)
-	require.NoError(t, err)
+	for _, tc := range []struct {
+		name    string
+		config  string
+		wantErr string
+	}{
+		{"unknown option", "introspection:\n  prometheus:\n    unknown_field: true\n", `unknown option "introspection.prometheus.unknown_field"`},
+		{"reserved actor header", "ai_gateway:\n  actor_header_id: Authorization\n", "reserved AI Gateway actor header name"},
+		{"reserved actor email header", "ai_gateway:\n  actor_header_email: User-Agent\n", "reserved AI Gateway actor header name"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			configFile := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(configFile, []byte(tc.config), 0o600))
+			inv, _ := newCLI(t, "ai-gateway", "start", "--key", "test-key", "--config", configFile)
+			require.ErrorContains(t, inv.Run(), tc.wantErr)
+		})
+	}
+}
 
-	inv, _ := newCLI(t,
-		"ai-gateway", "start",
-		"--key", "test-key",
-		"--config", configFile,
+// aiGatewayRecordLog is one structured interception record read from the
+// gateway's JSON log file.
+type aiGatewayRecordLog struct {
+	Msg    string         `json:"msg"`
+	Fields map[string]any `json:"fields"`
+}
+
+// readAIGatewayRecordLogs returns the interception records the gateway process
+// wrote to its JSON log. JSON logging is used rather than the terminal output
+// so that assertions do not depend on line wrapping.
+func readAIGatewayRecordLogs(t *testing.T, path string) []aiGatewayRecordLog {
+	t.Helper()
+
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+
+	var records []aiGatewayRecordLog
+	scanner := bufio.NewScanner(bytes.NewReader(contents))
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		var line aiGatewayRecordLog
+		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
+			continue
+		}
+		if line.Msg != recorder.InterceptionLogMarker {
+			continue
+		}
+		records = append(records, line)
+	}
+	return records
+}
+
+// requireAIGatewayRecordTypes waits until the gateway has logged an interception
+// record of each wanted type, and returns every record logged.
+func requireAIGatewayRecordTypes(ctx context.Context, t *testing.T, path string, want ...string) []aiGatewayRecordLog {
+	t.Helper()
+
+	var records []aiGatewayRecordLog
+	require.Eventuallyf(t, func() bool {
+		records = readAIGatewayRecordLogs(t, path)
+		logged := make(map[string]struct{}, len(records))
+		for _, record := range records {
+			recordType, _ := record.Fields["record_type"].(string)
+			logged[recordType] = struct{}{}
+		}
+		for _, recordType := range want {
+			if _, ok := logged[recordType]; !ok {
+				return false
+			}
+		}
+		return true
+	}, testutil.WaitLong, testutil.IntervalFast, "expected record types %v in %s", want, path)
+	_ = ctx
+	return records
+}
+
+// TestAIGatewayStartE2E_DisableContentRecording covers the deployment shape the
+// docs recommend for keeping conversation content out of the database while
+// still exporting it: the gateway process honors its own record policy, so the
+// dropped records reach its log instead of coderd's tables.
+func TestAIGatewayStartE2E_DisableContentRecording(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Given: a coderd whose database the test can read directly.
+	db, ps := dbtestutil.NewDB(t)
+	dep := setupAIGatewayDeployment(ctx, t, withAIGatewayCoderdOptions(func(opts *coderdenttest.Options) {
+		opts.Database = db
+		opts.Pubsub = ps
+	}))
+
+	// When: the gateway starts with content recording disabled and itself as
+	// the structured logging source.
+	logPath := filepath.Join(t.TempDir(), "gateway.json")
+	baseURL, waiter := startAIGatewayCommand(ctx, t, dep.client.URL.String(), dep.key,
+		withAIGatewayEnv("CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING", "true"),
+		withAIGatewayEnv("CODER_AI_GATEWAY_STRUCTURED_LOGGING", "true"),
+		withAIGatewayEnv("CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE", string(codersdk.AIStructuredLoggingSourceGateway)),
+		withAIGatewayEnv("CODER_LOGGING_JSON", logPath),
 	)
+	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
-	err = inv.Run()
-	require.ErrorContains(t, err, `unknown option "introspection.prometheus.unknown_field"`)
+	// When: a user sends an LLM request through the gateway.
+	result := postChatCompletionAndRead(ctx, newAIGatewayTestClient(t), baseURL+aiGatewayChatCompletionPath,
+		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
+
+	// Then: the request is served as usual.
+	require.NoError(t, result.err)
+	require.Equal(t, http.StatusOK, result.status, "body: %s", result.body)
+
+	// Then: coderd still records the interception, so cost control is unaffected.
+	sessions := requireAIGatewaySessions(ctx, t, dep, 1)
+	require.Equal(t, dep.user.Username, sessions[0].Initiator.Username)
+
+	interceptions, err := db.GetAIBridgeInterceptions(ctx)
+	require.NoError(t, err)
+	require.Len(t, interceptions, 1)
+
+	require.Eventually(t, func() bool {
+		tokens, err := db.GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptions[0].ID)
+		return err == nil && len(tokens) == 1
+	}, testutil.WaitLong, testutil.IntervalFast, "token usage should still be recorded")
+
+	// Then: the conversation content was not recorded.
+	prompts, err := db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptions[0].ID)
+	require.NoError(t, err)
+	require.Empty(t, prompts, "prompts must not be recorded")
+
+	// Then: the gateway exported the records coderd never received.
+	records := requireAIGatewayRecordTypes(ctx, t, logPath,
+		recorder.RecordTypeInterceptionStart,
+		recorder.RecordTypeTokenUsage,
+		recorder.RecordTypePromptUsage,
+	)
+	var loggedPrompt string
+	for _, record := range records {
+		if recordType, _ := record.Fields["record_type"].(string); recordType != recorder.RecordTypePromptUsage {
+			continue
+		}
+		loggedPrompt, _ = record.Fields["prompt"].(string)
+	}
+	require.Equal(t, "standalone gateway e2e", loggedPrompt, "the dropped prompt should be exported")
+
+	waiter.Cancel()
+	require.NoError(t, waiter.Wait())
+}
+
+// TestAIGatewayStartE2E_WarnsContentNotExported covers the misconfiguration the
+// option's documentation warns about: content records are dropped while coderd
+// is the only emitter, so they reach neither the database nor a SIEM. Nothing
+// else reports it, so the gateway must.
+func TestAIGatewayStartE2E_WarnsContentNotExported(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	dep := setupAIGatewayDeployment(ctx, t)
+
+	logPath := filepath.Join(t.TempDir(), "gateway.json")
+	baseURL, waiter := startAIGatewayCommand(ctx, t, dep.client.URL.String(), dep.key,
+		withAIGatewayEnv("CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING", "true"),
+		withAIGatewayEnv("CODER_AI_GATEWAY_STRUCTURED_LOGGING", "true"),
+		withAIGatewayEnv("CODER_LOGGING_JSON", logPath),
+	)
+	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
+
+	require.Eventually(t, func() bool {
+		contents, err := os.ReadFile(logPath)
+		return err == nil && bytes.Contains(contents, []byte("content recording is disabled"))
+	}, testutil.WaitLong, testutil.IntervalFast, "the gateway should warn that content records are exported nowhere")
+
+	// Then: the gateway does not emit the records, so coderd remains the only
+	// emitter the deployment configured.
+	require.Empty(t, readAIGatewayRecordLogs(t, logPath))
+
+	waiter.Cancel()
+	require.NoError(t, waiter.Wait())
 }

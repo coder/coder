@@ -1,6 +1,6 @@
 import isEqual from "lodash/isEqual";
 import { Trash2Icon, UserPlusIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
@@ -63,7 +63,7 @@ type SharingAutocompleteProps<Option> = {
 
 type ResourceSharingDialogProps<Role extends string, Option> = {
 	title: string;
-	description: ReactNode;
+	description: React.ReactNode;
 	loadingLabel: string;
 	emptyTitle: string;
 	tableLabel: string;
@@ -76,7 +76,9 @@ type ResourceSharingDialogProps<Role extends string, Option> = {
 	isSaving: boolean;
 	readRole: Role;
 	deletedRole: Role;
-	renderAutocomplete: (props: SharingAutocompleteProps<Option>) => ReactNode;
+	renderAutocomplete: (
+		props: SharingAutocompleteProps<Option>,
+	) => React.ReactNode;
 	getPrincipal: (option: Option) => SharingPrincipalSelection;
 	onClose: () => void;
 	onSave: (update: SharingACLUpdate<Role>) => void;
@@ -129,7 +131,7 @@ type PrincipalRowProps = {
 	onRemove: () => void;
 };
 
-const PrincipalRow: FC<PrincipalRowProps> = ({
+const PrincipalRow: React.FC<PrincipalRowProps> = ({
 	principal,
 	roleLabel,
 	isSaving,

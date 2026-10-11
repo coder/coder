@@ -115,3 +115,60 @@ func Test_parsePortForwards(t *testing.T) {
 		})
 	}
 }
+
+func TestPortForwardUsageRequest(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		// steps runs before each request. Each entry is one reporting tick.
+		steps []func(u *portForwardUsage, done *func())
+		want  []bool
+	}{
+		{
+			name:  "Idle",
+			steps: []func(*portForwardUsage, *func()){nil, nil},
+			want:  []bool{false, false},
+		},
+		{
+			name: "OpenConnection",
+			steps: []func(*portForwardUsage, *func()){
+				func(u *portForwardUsage, done *func()) { *done = u.track() },
+				nil,
+			},
+			want: []bool{true, true},
+		},
+		{
+			name: "GoesIdleAfterClose",
+			steps: []func(*portForwardUsage, *func()){
+				func(u *portForwardUsage, done *func()) { *done = u.track() },
+				nil,
+				func(_ *portForwardUsage, done *func()) { (*done)() },
+			},
+			want: []bool{true, true, false},
+		},
+		{
+			name: "OpenOnlyBetweenTicks",
+			steps: []func(*portForwardUsage, *func()){
+				func(u *portForwardUsage, _ *func()) { u.track()() },
+				nil,
+			},
+			want: []bool{true, false},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				u    portForwardUsage
+				done func()
+			)
+			for i, step := range tc.steps {
+				if step != nil {
+					step(&u, &done)
+				}
+				require.Equal(t, tc.want[i], u.inUse(), "tick %d", i)
+			}
+		})
+	}
+}

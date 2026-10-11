@@ -1,5 +1,6 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
+import isEqual from "lodash/isEqual";
+import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -7,6 +8,7 @@ import {
 	ModelSelector,
 	type ModelSelectorOption,
 } from "#/modules/aiModels/ModelSelector";
+import { getModelLabel } from "../utils/modelOptions";
 import { pickReasoningEffort } from "../utils/reasoningEffort";
 import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
 import { SectionHeader } from "./SectionHeader";
@@ -22,7 +24,7 @@ type MutationCallbacks = {
 	onError?: () => void;
 };
 
-export type SavePersonalOverride = (
+type SavePersonalOverride = (
 	req: UpdatePersonalOverrideRequest,
 	options?: MutationCallbacks,
 ) => void;
@@ -35,8 +37,6 @@ type PersonalOverrideFormValues = {
 
 type PersonalModelOverrideRowProps = {
 	context: PersonalOverrideContext;
-	title: string;
-	description: string;
 	overrideData: PersonalOverride | undefined;
 	deploymentDefault?: TypesGen.ChatModelOverrideResponse;
 	modelOptions: readonly ModelSelectorOption[];
@@ -45,9 +45,26 @@ type PersonalModelOverrideRowProps = {
 	isLoading: boolean;
 	onSave: SavePersonalOverride;
 	isSaving: boolean;
-	isSaveError: boolean;
-	saveErrorMessage: string;
 	disabled: boolean;
+};
+
+const PERSONAL_OVERRIDE_COPY: Record<
+	PersonalOverrideContext,
+	{ title: string; description: string }
+> = {
+	root: {
+		title: "Root agent model",
+		description: "Choose the model behavior for new root agents.",
+	},
+	general: {
+		title: "General subagent model",
+		description:
+			"Choose the model behavior for delegated agents with write capabilities.",
+	},
+	explore: {
+		title: "Explore subagent model",
+		description: "Choose the model behavior for read-only Explore subagents.",
+	},
 };
 
 const getDefaultMode = (
@@ -91,10 +108,6 @@ const toUpdateRequest = (
 		};
 	}
 	return { mode: values.mode, model_config_id: "" };
-};
-
-const getModelLabel = (model: TypesGen.ChatModel): string => {
-	return model.display_name.trim() || model.model || model.id;
 };
 
 const getModelLabelByID = (
@@ -157,10 +170,10 @@ const isDefaultModeOption = (
 	return value === "chat_default" || value === "deployment_default";
 };
 
-export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
+export const PersonalModelOverrideRow: React.FC<
+	PersonalModelOverrideRowProps
+> = ({
 	context,
-	title,
-	description,
 	overrideData,
 	deploymentDefault,
 	modelOptions,
@@ -169,20 +182,27 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 	isLoading,
 	onSave,
 	isSaving,
-	isSaveError,
-	saveErrorMessage,
 	disabled,
 }) => {
+	const { title, description } = PERSONAL_OVERRIDE_COPY[context];
 	const hasLoadedOverride = overrideData !== undefined;
+	const [hasDraft, setHasDraft] = useState(false);
 	const form = useFormik<PersonalOverrideFormValues>({
-		enableReinitialize: true,
+		enableReinitialize: !hasDraft,
 		initialValues: toFormValues(overrideData, context),
 		onSubmit: (values, { resetForm }) => {
 			onSave(toUpdateRequest(values), {
-				onSuccess: () => resetForm({ values }),
+				onSuccess: () => {
+					resetForm({ values });
+					setHasDraft(false);
+				},
 			});
 		},
 	});
+	const changeValues = (values: PersonalOverrideFormValues) => {
+		setHasDraft(!isEqual(values, form.initialValues));
+		void form.setValues(values);
+	};
 	const isFormDisabled =
 		disabled || isSaving || isLoading || !hasLoadedOverride;
 	const canSave = hasLoadedOverride && !disabled && form.dirty;
@@ -242,7 +262,7 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 					value={selectionValue}
 					onValueChange={(value) => {
 						if (isDefaultModeOption(value)) {
-							void form.setValues({
+							changeValues({
 								mode: value,
 								model_config_id: "",
 								reasoning_effort: "",
@@ -259,7 +279,7 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 									option.reasoningEffortDefault,
 								) ?? "";
 						}
-						void form.setValues({
+						changeValues({
 							mode: "model",
 							model_config_id: value,
 							reasoning_effort: reasoningEffort,
@@ -279,12 +299,12 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 					contentClassName="min-w-[18rem]"
 					reasoningEffort={selectedReasoningEffort}
 					onReasoningEffortChange={(value) =>
-						void form.setFieldValue("reasoning_effort", value)
+						changeValues({ ...form.values, reasoning_effort: value })
 					}
 				/>
-				{modelOptions.length === 0 && (
+				{isLoading && modelOptions.length === 0 && (
 					<p role="status" className="m-0 text-xs text-content-secondary">
-						{isLoading ? "Loading models..." : "No enabled models found."}
+						Loading models...
 					</p>
 				)}
 
@@ -312,11 +332,6 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 						Save
 					</Button>
 				</div>
-				{isSaveError && (
-					<p className="m-0 text-xs text-content-destructive">
-						{saveErrorMessage}
-					</p>
-				)}
 			</form>
 		</section>
 	);

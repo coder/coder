@@ -8,11 +8,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/sony/gobreaker/v2"
 	"github.com/stretchr/testify/assert"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/metrics"
 )
 
 func TestExecute_PerModelIsolation(t *testing.T) {
@@ -26,7 +30,7 @@ func TestExecute_PerModelIsolation(t *testing.T) {
 		Interval:         time.Minute,
 		Timeout:          time.Minute,
 		MaxRequests:      1,
-	}, func(endpoint, model string, from, to gobreaker.State) {}, nil)
+	}, slogtest.Make(t, nil), nil)
 
 	endpoint := "/v1/messages"
 	sonnetModel := "claude-sonnet-4-20250514"
@@ -75,7 +79,7 @@ func TestExecute_PerEndpointIsolation(t *testing.T) {
 		Interval:         time.Minute,
 		Timeout:          time.Minute,
 		MaxRequests:      1,
-	}, func(endpoint, model string, from, to gobreaker.State) {}, nil)
+	}, slogtest.Make(t, nil), nil)
 
 	model := "test-model"
 
@@ -125,7 +129,7 @@ func TestExecute_CustomIsFailure(t *testing.T) {
 		IsFailure: func(statusCode int) bool {
 			return statusCode == http.StatusBadGateway
 		},
-	}, func(endpoint, model string, from, to gobreaker.State) {}, nil)
+	}, slogtest.Make(t, nil), nil)
 
 	// First request returns 502, trips circuit
 	w := httptest.NewRecorder()
@@ -152,26 +156,13 @@ func TestExecute_CustomIsFailure(t *testing.T) {
 func TestExecute_OnStateChange(t *testing.T) {
 	t.Parallel()
 
-	var stateChanges []struct {
-		endpoint string
-		model    string
-		from     gobreaker.State
-		to       gobreaker.State
-	}
-
+	m := metrics.NewMetrics(prometheus.NewRegistry())
 	cbs := circuitbreaker.NewProviderCircuitBreakers("test", &config.CircuitBreaker{
 		FailureThreshold: 1,
 		Interval:         time.Minute,
 		Timeout:          time.Minute,
 		MaxRequests:      1,
-	}, func(endpoint, model string, from, to gobreaker.State) {
-		stateChanges = append(stateChanges, struct {
-			endpoint string
-			model    string
-			from     gobreaker.State
-			to       gobreaker.State
-		}{endpoint, model, from, to})
-	}, nil)
+	}, slogtest.Make(t, nil), m)
 
 	endpoint := "/v1/messages"
 	model := "claude-sonnet-4-20250514"
@@ -184,12 +175,9 @@ func TestExecute_OnStateChange(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	// Verify state change callback was called with correct parameters
-	assert.Len(t, stateChanges, 1)
-	assert.Equal(t, endpoint, stateChanges[0].endpoint)
-	assert.Equal(t, model, stateChanges[0].model)
-	assert.Equal(t, gobreaker.StateClosed, stateChanges[0].from)
-	assert.Equal(t, gobreaker.StateOpen, stateChanges[0].to)
+	// Verify the state change was recorded with the correct labels.
+	assert.Equal(t, circuitbreaker.StateToGaugeValue(gobreaker.StateOpen), promtest.ToFloat64(m.CircuitBreakerState.WithLabelValues("test", endpoint, model)))
+	assert.Equal(t, float64(1), promtest.ToFloat64(m.CircuitBreakerTrips.WithLabelValues("test", endpoint, model)))
 }
 
 func TestDefaultIsFailure(t *testing.T) {

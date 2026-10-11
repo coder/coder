@@ -1,5 +1,4 @@
 import { FolderIcon } from "lucide-react";
-import type { FC } from "react";
 import type {
 	Workspace,
 	WorkspaceAgent,
@@ -20,7 +19,7 @@ type AgentAppsProps = {
 	workspace: Workspace;
 };
 
-export const AgentApps: FC<AgentAppsProps> = ({
+export const AgentApps: React.FC<AgentAppsProps> = ({
 	section,
 	agent,
 	workspace,

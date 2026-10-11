@@ -27,7 +27,7 @@ export const WriteFileTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
+	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 }> = ({ path, diff, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
@@ -52,7 +52,7 @@ export const WriteFileTool: React.FC<{
 
 	return (
 		<ToolCall.Root
-			key={`${codeDiffDisplayMode ?? "auto"}:${WRITE_FILE_AUTO_DISPLAY_STATE}`}
+			key={`${codeDiffDisplayMode}:${WRITE_FILE_AUTO_DISPLAY_STATE}`}
 			className="w-full"
 			status={status}
 			isError={isError}
@@ -70,7 +70,7 @@ export const WriteFileTool: React.FC<{
 				{showDiff && (
 					<ScrollArea
 						data-testid="write-file-diff"
-						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+						className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 						viewportClassName={
 							isAgentDisplayFullyExpanded(displayState)
 								? "max-h-[80vh]"

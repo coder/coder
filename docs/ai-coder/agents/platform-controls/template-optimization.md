@@ -1,5 +1,5 @@
 ---
-title: Template Optimization
+title: Template optimization
 ---
 
 Not every chat with Coder Agents requires a workspace.
@@ -35,7 +35,7 @@ With this setting, platform teams can apply stricter policies to agent workloads
 The agent selects templates by reading their names and descriptions, the same metadata shown on the templates page in the Coder dashboard.
 The agent's `list_templates` tool ranks matches by query relevance first, then by an affinity score that weights the developer's own recent template usage far more heavily than organization popularity.
 It does not inspect the template's Terraform to understand what infrastructure is inside.
-For the ranking details, refer to [list_templates](../tools/index.md#how-templates-are-ranked).
+For the ranking details, refer to [list_templates](../tools.md#how-templates-are-ranked).
 
 This means the template description is the single most important factor in
 whether the agent picks the right template for a given task.
@@ -189,7 +189,7 @@ required:
   only the permissions the agent needs (e.g., read/write access to specific
   repositories, no admin access).
 - **Configure external auth at the template level.** Use Coder's
-  [external authentication](../../../admin/external-auth/index.md) to provide scoped
+  [external authentication](../../../admin/external-auth.md) to provide scoped
   git credentials. The agent uses the same external auth flow as any other
   workspace, so credentials are managed centrally.
 - **Avoid injecting long-lived secrets.** Prefer short-lived tokens or

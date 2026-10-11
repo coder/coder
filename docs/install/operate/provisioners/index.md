@@ -2,37 +2,24 @@
 title: External provisioners
 ---
 
-By default, the control plane runs
-[built-in provisioner daemons](../../../reference/cli/server.md#--provisioner-daemons),
-which execute `terraform` during workspace and template builds. However, there
-are often benefits to running external provisioner daemons:
+By default, the control plane runs [built-in provisioner daemons](../../../reference/cli/server/index.md#--provisioner-daemons), which execute `terraform` during workspace and template builds.
+However, there are often benefits to running external provisioner daemons:
 
-- **Secure build environments:** Run build jobs in isolated containers,
-  preventing malicious templates from gaining sh access to the Coder host.
+- **Secure build environments:** Run build jobs in isolated containers, preventing malicious templates from gaining sh access to the Coder host.
 
-- **Isolate APIs:** Deploy provisioners in isolated environments (on-prem, AWS,
-  Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the control
-  plane. See
-  [Provider Authentication](../../../admin/templates/extending-templates/provider-authentication.md)
-  for more details.
+- **Isolate APIs:** Deploy provisioners in isolated environments (on-prem, AWS, Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the control plane.
+  See [Provider Authentication](../../../admin/templates/extending-templates/provider-authentication.md) for more details.
 
-- **Isolate secrets**: Keep Coder unaware of cloud secrets, manage/rotate
-  secrets on provisioner servers.
+- **Isolate secrets**: Keep Coder unaware of cloud secrets, manage/rotate secrets on provisioner servers.
 
-- **Reduce control plane load**: External provisioners reduce load and build
-  queue times from the control plane. See
-  [Scaling Coder](../../validate/scale-testing.md) for more
-  details.
+- **Reduce control plane load**: External provisioners reduce load and build queue times from the control plane.
+  See [Scaling Coder](../../validate/scale-testing.md) for more details.
 
-Each provisioner runs a single
-[concurrent workspace build](../../validate/scale-testing.md#control-plane-provisionerd).
-For example, running 30 provisioner containers will allow 30 users to start
-workspaces at the same time.
+Each provisioner runs a single [concurrent workspace build](../../validate/scale-testing.md#control-plane-provisionerd).
+For example, running 30 provisioner containers will allow 30 users to start workspaces at the same time.
 
-Provisioners are started with the
-[`coder provisioner start`](../../../reference/cli/provisioner_start.md) command in
-the [full Coder binary](https://github.com/coder/coder/releases). Keep reading
-to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
+Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://github.com/coder/coder/releases).
+Keep reading to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
 
 You can use the dashboard, CLI, or API to [manage provisioners](./manage-provisioner-jobs.md).
 
@@ -44,8 +31,8 @@ The provisioner daemon must authenticate with your Coder deployment.
 
 ## Scoped Key (Recommended)
 
-We recommend creating finely-scoped keys for provisioners. Keys are scoped to an
-organization, and optionally to a specific set of tags.
+We recommend creating finely-scoped keys for provisioners.
+Keys are scoped to an organization, and optionally to a specific set of tags.
 
 1. Use `coder provisioner` to create the key:
 
@@ -80,14 +67,12 @@ organization, and optionally to a specific set of tags.
    coder provisioner start
    ```
 
-Keep reading to see instructions for running provisioners on
-Kubernetes/Docker/etc.
+Keep reading to see instructions for running provisioners on Kubernetes/Docker/etc.
 
 ## User Tokens
 
-A user account with the role `Template Admin` or `Owner` can start provisioners
-using their user account. This may be beneficial if you are running provisioners
-via [automation](../../../reference/index.md).
+A user account with the role `Template Admin` or `Owner` can start provisioners using their user account.
+This may be beneficial if you are running provisioners via [automation](../../../reference/index.md).
 
 ```sh
 coder login https://<your-coder-url>
@@ -102,9 +87,7 @@ coder provisioner start \
   --tag environment=kubernetes
 ```
 
-Note: Any user can start [user-scoped provisioners](#user-scoped-provisioners),
-but this will also require a template on your deployment with the corresponding
-tags.
+Note: Any user can start [user-scoped provisioners](#user-scoped-provisioners), but this will also require a template on your deployment with the corresponding tags.
 
 ## Global PSK (Not Recommended)
 
@@ -112,10 +95,8 @@ We do not recommend using global PSK.
 
 Global pre-shared keys (PSK) make it difficult to rotate keys or isolate provisioners.
 
-A deployment-wide PSK can be used to authenticate any provisioner. To use a
-global PSK, set a
-[provisioner daemon pre-shared key (PSK)](../../../reference/cli/server.md#--provisioner-daemon-psk)
-on the control plane.
+A deployment-wide PSK can be used to authenticate any provisioner.
+To use a global PSK, set a [provisioner daemon pre-shared key (PSK)](../../../reference/cli/server/index.md#--provisioner-daemon-psk) on the control plane.
 
 Next, start the provisioner:
 
@@ -127,16 +108,13 @@ coder provisioner start --psk <your-psk>
 
 ## Provisioner Tags
 
-You can use **provisioner tags** to control which provisioners can pick up build
-jobs from templates (and corresponding workspaces) with matching explicit tags.
+You can use **provisioner tags** to control which provisioners can pick up build jobs from templates (and corresponding workspaces) with matching explicit tags.
 
-Provisioners have two implicit tags: `scope` and `owner`. Coder sets these tags
-automatically.
+Provisioners have two implicit tags: `scope` and `owner`.
+Coder sets these tags automatically.
 
-- Organization-scoped provisioners always have the implicit tags
-  `scope=organization owner=""`
-- User-scoped provisioners always have the implicit tags
-  `scope=user owner=<uuid>`
+- Organization-scoped provisioners always have the implicit tags `scope=organization owner=""`
+- User-scoped provisioners always have the implicit tags `scope=user owner=<uuid>`
 
 For example:
 
@@ -163,45 +141,32 @@ This can also be done in the UI when building a template:
 
 ![template tags](../../../images/admin/provisioner-tags.png)
 
-Alternatively, a template can target a provisioner via
-[workspace tags](../../../../examples/workspace-tags)
-inside the Terraform. See the
-[workspace tags documentation](../../../admin/templates/extending-templates/workspace-tags.md)
-for more information.
+Alternatively, a template can target a provisioner via [workspace tags](../../../../examples/workspace-tags) inside the Terraform.
+See the [workspace tags documentation](../../../admin/templates/extending-templates/workspace-tags.md) for more information.
 
 > [!NOTE]
-> Workspace tags defined with the `coder_workspace_tags` data source
-> template **do not** automatically apply to the template import job! You may
-> need to specify the desired tags when importing the template.
+> Workspace tags defined with the `coder_workspace_tags` data source template **do not** automatically apply to the template import job!
+> You may need to specify the desired tags when importing the template.
 
 A provisioner can run a given build job if one of the below is true:
 
-1. A job with no explicit tags can only be run on a provisioner with no explicit
-   tags. This way you can introduce tagging into your deployment without
-   disrupting existing provisioners and jobs.
-1. If a job has any explicit tags, it can only run on a provisioner with those
-   explicit tags (the provisioner could have additional tags).
+1. A job with no explicit tags can only be run on a provisioner with no explicit tags.
+   This way you can introduce tagging into your deployment without disrupting existing provisioners and jobs.
+1. If a job has any explicit tags, it can only run on a provisioner with those explicit tags (the provisioner could have additional tags).
 
-The external provisioner in the above example can run build jobs in the same
-organization with tags:
+The external provisioner in the above example can run build jobs in the same organization with tags:
 
 - `environment=on_prem`
 - `datacenter=chicago`
 - `environment=on_prem datacenter=chicago`
 
-However, it will not pick up any build jobs that do not have either of the
-`environment` or `datacenter` tags set. It will also not pick up any build jobs
-from templates with the tag `scope=user` set, or build jobs from templates in
-different organizations.
+However, it will not pick up any build jobs that do not have either of the `environment` or `datacenter` tags set.
+It will also not pick up any build jobs from templates with the tag `scope=user` set, or build jobs from templates in different organizations.
 
 > [!NOTE]
-> If you only run tagged provisioners, you will need to specify a set of
-> tags that matches at least one provisioner for _all_ template import jobs and
-> workspace build jobs.
+> If you only run tagged provisioners, you will need to specify a set of tags that matches at least one provisioner for _all_ template import jobs and workspace build jobs.
 >
-> You may wish to run at least one additional provisioner with no additional
-> tags so that provisioner jobs with no additional tags defined will be picked
-> up instead of potentially remaining in the Pending state indefinitely.
+> You may wish to run at least one additional provisioner with no additional tags so that provisioner jobs with no additional tags defined will be picked up instead of potentially remaining in the Pending state indefinitely.
 
 This is illustrated in the below table:
 
@@ -230,8 +195,7 @@ This is illustrated in the below table:
 | scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ❌        | ❌            |
 
 > [!TIP]
-> To generate this table, run the following command and
-> copy the output:
+> To generate this table, run the following command and copy the output:
 >
 > ```go
 > go test -v -count=1 ./coderd/provisionerdserver/ -test.run='^TestAcquirer_MatchTags/GenTable$'
@@ -239,20 +203,14 @@ This is illustrated in the below table:
 
 ## Types of provisioners
 
-Provisioners can broadly be categorized by scope: `organization` or `user`. The
-scope of a provisioner can be specified with
-[`-tag=scope=<scope>`](../../../reference/cli/provisioner_start.md#-t---tag) when
-starting the provisioner daemon. Only users with at least the
-[Template Admin](../../../admin/users/index.md#roles) role or higher may create
-organization-scoped provisioner daemons.
+Provisioners can broadly be categorized by scope: `organization` or `user`.
+The scope of a provisioner can be specified with [`-tag=scope=<scope>`](../../../reference/cli/provisioner/start.md#-t---tag) when starting the provisioner daemon.
+Only users with at least the [Template Admin](../../../admin/users/index.md#roles) role or higher may create organization-scoped provisioner daemons.
 
 There are two exceptions:
 
-- [Built-in provisioners](../../../reference/cli/server.md#--provisioner-daemons) are
-  always organization-scoped.
-- External provisioners started using a
-  [pre-shared key (PSK)](../../../reference/cli/provisioner_start.md#--psk) are always
-  organization-scoped.
+- [Built-in provisioners](../../../reference/cli/server/index.md#--provisioner-daemons) are always organization-scoped.
+- External provisioners started using a [pre-shared key (PSK)](../../../reference/cli/provisioner/start.md#--psk) are always organization-scoped.
 
 ### Organization-Scoped Provisioners
 
@@ -263,8 +221,7 @@ These provisioners always have the implicit tags `scope=organization owner=""`.
 coder provisioner start --org <organization_name>
 ```
 
-If you omit the `--org` argument, the provisioner will be assigned to the
-default organization.
+If you omit the `--org` argument, the provisioner will be assigned to the default organization.
 
 ```sh
 coder provisioner start
@@ -272,10 +229,8 @@ coder provisioner start
 
 ### User-scoped Provisioners
 
-**User-scoped Provisioners** can only pick up build jobs created from
-user-tagged templates. Unlike the other provisioner types, any Coder user can
-run user provisioners, but they have no impact unless there exists at least one
-template with the `scope=user` provisioner tag.
+**User-scoped Provisioners** can only pick up build jobs created from user-tagged templates.
+Unlike the other provisioner types, any Coder user can run user provisioners, but they have no impact unless there exists at least one template with the `scope=user` provisioner tag.
 
 ```sh
 coder provisioner start \
@@ -289,8 +244,7 @@ coder templates push on-prem \
 
 ## Example: Running an external provisioner with Helm
 
-Coder provides a Helm chart for running external provisioner daemons, which you
-will use in concert with the Helm chart for deploying the control plane.
+Coder provides a Helm chart for running external provisioner daemons, which you will use in concert with the Helm chart for deploying the control plane.
 
 1. Create a provisioner key:
 
@@ -311,8 +265,8 @@ will use in concert with the Helm chart for deploying the control plane.
    kubectl create secret generic coder-provisioner-keys --from-literal=my-cool-key=`<key omitted>`
    ```
 
-1. Create a `provisioner-values.yaml` file for the provisioner daemons Helm
-   chart. For example:
+1. Create a `provisioner-values.yaml` file for the provisioner daemons Helm chart.
+   For example:
 
    ```yaml
    coder:
@@ -327,16 +281,11 @@ will use in concert with the Helm chart for deploying the control plane.
      keySecretKey: "my-cool-key"
    ```
 
-   This example creates a deployment of 10 provisioner daemons (for 10
-   concurrent builds) authenticating using the above key. The daemons will
-   authenticate using the provisioner key created in the previous step and
-   acquire jobs matching the tags specified when the provisioner key was
-   created. The set of tags is inferred automatically from the provisioner key.
+   This example creates a deployment of 10 provisioner daemons (for 10 concurrent builds) authenticating using the above key.
+   The daemons will authenticate using the provisioner key created in the previous step and acquire jobs matching the tags specified when the provisioner key was created.
+   The set of tags is inferred automatically from the provisioner key.
 
-   > Refer to the
-   > [values.yaml](../../../../helm/provisioner/values.yaml)
-   > file for the coder-provisioner chart for information on what values can be
-   > specified.
+   > Refer to the [values.yaml](../../../../helm/provisioner/values.yaml) file for the coder-provisioner chart for information on what values can be specified.
 
 1. Install the provisioner daemon chart
 
@@ -347,9 +296,7 @@ will use in concert with the Helm chart for deploying the control plane.
        --values provisioner-values.yaml
    ```
 
-   You can verify that your provisioner daemons have successfully connected to
-   `coderd` by looking for a debug log message that says
-   `provisioner: successfully connected to coderd` from each Pod.
+   You can verify that your provisioner daemons have successfully connected to `coderd` by looking for a debug log message that says `provisioner: successfully connected to coderd` from each Pod.
 
 ## Example: Running an external provisioner on a VM
 
@@ -374,8 +321,7 @@ docker run --rm -it \
 ## Disable built-in provisioners
 
 As mentioned above, the control plane will run built-in provisioners by default.
-This can be disabled with a server-wide
-[flag or environment variable](../../../reference/cli/server.md#--provisioner-daemons).
+This can be disabled with a server-wide [flag or environment variable](../../../reference/cli/server/index.md#--provisioner-daemons).
 
 ```sh
 coder server --provisioner-daemons=0
@@ -383,17 +329,12 @@ coder server --provisioner-daemons=0
 
 ## Prometheus metrics
 
-Coder provisioner daemon exports metrics via the HTTP endpoint, which can be
-enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the
-flag `--prometheus-enable`.
+Coder provisioner daemon exports metrics via the HTTP endpoint, which can be enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag `--prometheus-enable`.
 
-The Prometheus endpoint address is `http://localhost:2112/` by default. You can
-use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag
-`--prometheus-address <network-interface>:<port>` to select a different listen
-address.
+The Prometheus endpoint address is `http://localhost:2112/` by default.
+You can use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag `--prometheus-address <network-interface>:<port>` to select a different listen address.
 
-If you have provisioners daemons deployed as pods, it is advised to monitor them
-separately.
+If you have provisioners daemons deployed as pods, it is advised to monitor them separately.
 
 ## Next
 

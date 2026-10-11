@@ -390,6 +390,9 @@ title: Schemas
 
 ```json
 {
+  "actor_header_email": "string",
+  "actor_header_id": "string",
+  "actor_header_username": "string",
   "allow_byok": true,
   "api_dump_dir": "string",
   "budget_period": "string",
@@ -399,36 +402,43 @@ title: Schemas
   "circuit_breaker_interval": 0,
   "circuit_breaker_max_requests": 0,
   "circuit_breaker_timeout": 0,
+  "disable_content_recording": true,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
   "rate_limit": 0,
   "retention": 0,
   "send_actor_headers": true,
-  "structured_logging": true
+  "structured_logging": true,
+  "structured_logging_source": "string"
 }
 ```
 
 ### Properties
 
-| Name                                | Type    | Required | Restrictions | Description                                                                                                                                                            |
-|-------------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_byok`                        | boolean | false    |              |                                                                                                                                                                        |
-| `api_dump_dir`                      | string  | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping. |
-| `budget_period`                     | string  | false    |              |                                                                                                                                                                        |
-| `budget_policy`                     | string  | false    |              | Budget settings for AI Governance cost controls.                                                                                                                       |
-| `circuit_breaker_enabled`           | boolean | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                     |
-| `circuit_breaker_failure_threshold` | integer | false    |              |                                                                                                                                                                        |
-| `circuit_breaker_interval`          | integer | false    |              |                                                                                                                                                                        |
-| `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                        |
-| `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                        |
-| `enabled`                           | boolean | false    |              |                                                                                                                                                                        |
-| `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                           |
-| `max_concurrency`                   | integer | false    |              |                                                                                                                                                                        |
-| `rate_limit`                        | integer | false    |              |                                                                                                                                                                        |
-| `retention`                         | integer | false    |              |                                                                                                                                                                        |
-| `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                        |
-| `structured_logging`                | boolean | false    |              |                                                                                                                                                                        |
+| Name                                | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                            |
+|-------------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `actor_header_email`                | string  | false    |              |                                                                                                                                                                                                                                                                        |
+| `actor_header_id`                   | string  | false    |              |                                                                                                                                                                                                                                                                        |
+| `actor_header_username`             | string  | false    |              |                                                                                                                                                                                                                                                                        |
+| `allow_byok`                        | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `api_dump_dir`                      | string  | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.                                                                                                 |
+| `budget_period`                     | string  | false    |              |                                                                                                                                                                                                                                                                        |
+| `budget_policy`                     | string  | false    |              | Budget settings for AI Governance cost controls.                                                                                                                                                                                                                       |
+| `circuit_breaker_enabled`           | boolean | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                                                                                                                     |
+| `circuit_breaker_failure_threshold` | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `circuit_breaker_interval`          | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `disable_content_recording`         | boolean | false    |              | Disable content recording stops user prompts, tool calls and model reasoning from being recorded, including tool names and their arguments. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. |
+| `enabled`                           | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                                                                                           |
+| `max_concurrency`                   | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `rate_limit`                        | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `retention`                         | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `structured_logging`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `structured_logging_source`         | string  | false    |              | Structured logging source selects which process emits the records that StructuredLogging enables. See AIStructuredLoggingSource.                                                                                                                                       |
 
 ## codersdk.AIBridgeListSessionsResponse
 
@@ -1031,6 +1041,9 @@ title: Schemas
     "upstream_proxy_ca": "string"
   },
   "bridge": {
+    "actor_header_email": "string",
+    "actor_header_id": "string",
+    "actor_header_username": "string",
     "allow_byok": true,
     "api_dump_dir": "string",
     "budget_period": "string",
@@ -1040,13 +1053,15 @@ title: Schemas
     "circuit_breaker_interval": 0,
     "circuit_breaker_max_requests": 0,
     "circuit_breaker_timeout": 0,
+    "disable_content_recording": true,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
     "rate_limit": 0,
     "retention": 0,
     "send_actor_headers": true,
-    "structured_logging": true
+    "structured_logging": true,
+    "structured_logging_source": "string"
   },
   "chat": {
     "acquire_batch_size": 0,
@@ -1068,6 +1083,12 @@ title: Schemas
       "scheme": "string",
       "user": {}
     },
+    "max_attachments_per_chat": 0,
+    "max_concurrent_recording_uploads": 0,
+    "max_generation_retries": 0,
+    "max_prompt_bytes": 0,
+    "max_queued_messages_per_chat": 0,
+    "max_steps_per_turn": 0,
     "stream_silence_timeout": 0
   }
 }
@@ -1393,9 +1414,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_gateway_key:update`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `chat_model_config:*`, `chat_model_config:create`, `chat_model_config:delete`, `chat_model_config:read`, `chat_model_config:share`, `chat_model_config:update`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `mcp_server_config:*`, `mcp_server_config:create`, `mcp_server_config:delete`, `mcp_server_config:read`, `mcp_server_config:share`, `mcp_server_config:update`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_build_orchestration:*`, `workspace_build_orchestration:create`, `workspace_build_orchestration:delete`, `workspace_build_orchestration:read`, `workspace_build_orchestration:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_gateway_key:update`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `chat_model_config:*`, `chat_model_config:create`, `chat_model_config:delete`, `chat_model_config:read`, `chat_model_config:share`, `chat_model_config:update`, `chat_project:*`, `chat_project:create`, `chat_project:delete`, `chat_project:read`, `chat_project:update`, `chat_project_memory:*`, `chat_project_memory:create`, `chat_project_memory:delete`, `chat_project_memory:read`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `mcp_server_config:*`, `mcp_server_config:create`, `mcp_server_config:delete`, `mcp_server_config:read`, `mcp_server_config:share`, `mcp_server_config:update`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_build_orchestration:*`, `workspace_build_orchestration:create`, `workspace_build_orchestration:delete`, `workspace_build_orchestration:read`, `workspace_build_orchestration:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
 
 ## codersdk.AddLicenseRequest
 
@@ -1594,9 +1615,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                            |
-|---------------------------------------------------------------------|
-| `jetbrains`, `reconnecting_pty`, `sftp`, `ssh`, `unknown`, `vscode` |
+| Value(s)                                                                               |
+|----------------------------------------------------------------------------------------|
+| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `sftp`, `ssh`, `unknown`, `vscode` |
 
 ## codersdk.AppHostResponse
 
@@ -2208,6 +2229,47 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
+## codersdk.ChangedDiffStatus
+
+```json
+{
+  "ref": {
+    "git_branch": "string",
+    "remote_origin": "string"
+  },
+  "status": {
+    "additions": 0,
+    "approved": true,
+    "author_avatar_url": "string",
+    "author_login": "string",
+    "base_branch": "string",
+    "changed_files": 0,
+    "changes_requested": true,
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "commits": 0,
+    "deletions": 0,
+    "git_branch": "string",
+    "head_branch": "string",
+    "pr_number": 0,
+    "pull_request_draft": true,
+    "pull_request_state": "string",
+    "pull_request_title": "string",
+    "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
+    "reviewer_count": 0,
+    "stale_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  }
+}
+```
+
+### Properties
+
+| Name     | Type                                               | Required | Restrictions | Description |
+|----------|----------------------------------------------------|----------|--------------|-------------|
+| `ref`    | [codersdk.DiffStatusRef](#codersdkdiffstatusref)   | false    |              |             |
+| `status` | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus) | false    |              |             |
+
 ## codersdk.Chat
 
 ```json
@@ -2256,16 +2318,43 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
         "commits": 0,
         "deletions": 0,
+        "git_branch": "string",
         "head_branch": "string",
         "pr_number": 0,
         "pull_request_draft": true,
         "pull_request_state": "string",
         "pull_request_title": "string",
         "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
         "reviewer_count": 0,
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "diff_statuses": [
+        {
+          "additions": 0,
+          "approved": true,
+          "author_avatar_url": "string",
+          "author_login": "string",
+          "base_branch": "string",
+          "changed_files": 0,
+          "changes_requested": true,
+          "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+          "commits": 0,
+          "deletions": 0,
+          "git_branch": "string",
+          "head_branch": "string",
+          "pr_number": 0,
+          "pull_request_draft": true,
+          "pull_request_state": "string",
+          "pull_request_title": "string",
+          "refreshed_at": "2019-08-24T14:15:22Z",
+          "remote_origin": "string",
+          "reviewer_count": 0,
+          "stale_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -2322,12 +2411,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2370,16 +2462,43 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "commits": 0,
     "deletions": 0,
+    "git_branch": "string",
     "head_branch": "string",
     "pr_number": 0,
     "pull_request_draft": true,
     "pull_request_state": "string",
     "pull_request_title": "string",
     "refreshed_at": "2019-08-24T14:15:22Z",
+    "remote_origin": "string",
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
   },
+  "diff_statuses": [
+    {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "files": [
     {
       "created_at": "2019-08-24T14:15:22Z",
@@ -2436,12 +2555,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -2461,9 +2583,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
 | `context`               | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
 | `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              | Diff status is the primary pull request. It is the ref with the most recent git report.                                                                                                                                                                                    |
+| `diff_statuses`         | array of [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)     | false    |              | Diff statuses lists every ref the chat tracks. The order is stable and follows the first report of each ref. DiffStatus marks the primary.                                                                                                                                 |
 | `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
-| `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
+| `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect and via UpdateChatRequest.Read.                                                                                                            |
 | `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `inline_mcp_servers`    | array of [codersdk.InlineMCPServer](#codersdkinlinemcpserver)   | false    |              | Inline mcp servers lists the inline MCP servers declared on the chat, without headers. Only the single-chat GET sets it. Experimental.                                                                                                                                     |
 | `labels`                | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2480,12 +2603,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `parent_chat_id`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
 | `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `project_id`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `queued_for_capacity`   | boolean                                                         | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
 | `summary`               | string                                                          | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `title_source`          | [codersdk.ChatTitleSource](#codersdkchattitlesource)            | false    |              | Title source is where Title came from. A title write applies only when the current source ranks the same as or lower than the incoming one, in the order fallback, generated, user.                                                                                        |
+| `title_updated_at`      | string                                                          | false    |              | Title updated at orders title changes. Title writes do not change UpdatedAt.                                                                                                                                                                                               |
 | `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `workspace_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2609,22 +2735,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "scheme": "string",
     "user": {}
   },
+  "max_attachments_per_chat": 0,
+  "max_concurrent_recording_uploads": 0,
+  "max_generation_retries": 0,
+  "max_prompt_bytes": 0,
+  "max_queued_messages_per_chat": 0,
+  "max_steps_per_turn": 0,
   "stream_silence_timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                     | Type                       | Required | Restrictions | Description |
-|--------------------------|----------------------------|----------|--------------|-------------|
-| `acquire_batch_size`     | integer                    | false    |              |             |
-| `debug_logging_enabled`  | boolean                    | false    |              |             |
-| `hook_allow_insecure`    | boolean                    | false    |              |             |
-| `hook_enabled`           | boolean                    | false    |              |             |
-| `hook_secret`            | string                     | false    |              |             |
-| `hook_timeout`           | integer                    | false    |              |             |
-| `hook_url`               | [serpent.URL](#serpenturl) | false    |              |             |
-| `stream_silence_timeout` | integer                    | false    |              |             |
+| Name                               | Type                       | Required | Restrictions | Description                                                                                                                               |
+|------------------------------------|----------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `acquire_batch_size`               | integer                    | false    |              |                                                                                                                                           |
+| `debug_logging_enabled`            | boolean                    | false    |              |                                                                                                                                           |
+| `hook_allow_insecure`              | boolean                    | false    |              |                                                                                                                                           |
+| `hook_enabled`                     | boolean                    | false    |              |                                                                                                                                           |
+| `hook_secret`                      | string                     | false    |              |                                                                                                                                           |
+| `hook_timeout`                     | integer                    | false    |              |                                                                                                                                           |
+| `hook_url`                         | [serpent.URL](#serpenturl) | false    |              |                                                                                                                                           |
+| `max_attachments_per_chat`         | integer                    | false    |              | Max attachments per chat is the maximum number of files linked to a chat.                                                                 |
+| `max_concurrent_recording_uploads` | integer                    | false    |              | Max concurrent recording uploads is the maximum number of virtual desktop recordings that each Coder server stores at the same time.      |
+| `max_generation_retries`           | integer                    | false    |              | Max generation retries is the maximum number of consecutive retries after a model generation fails with a transient error.                |
+| `max_prompt_bytes`                 | integer                    | false    |              | Max prompt bytes is the maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. |
+| `max_queued_messages_per_chat`     | integer                    | false    |              | Max queued messages per chat is the maximum number of messages that can be queued in a chat.                                              |
+| `max_steps_per_turn`               | integer                    | false    |              | Max steps per turn is the maximum number of steps in a chat turn.                                                                         |
+| `stream_silence_timeout`           | integer                    | false    |              |                                                                                                                                           |
 
 ## codersdk.ChatContext
 
@@ -2827,12 +2965,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "commits": 0,
   "deletions": 0,
+  "git_branch": "string",
   "head_branch": "string",
   "pr_number": 0,
   "pull_request_draft": true,
   "pull_request_state": "string",
   "pull_request_title": "string",
   "refreshed_at": "2019-08-24T14:15:22Z",
+  "remote_origin": "string",
   "reviewer_count": 0,
   "stale_at": "2019-08-24T14:15:22Z",
   "url": "string"
@@ -2853,12 +2993,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `chat_id`            | string  | false    |              |             |
 | `commits`            | integer | false    |              |             |
 | `deletions`          | integer | false    |              |             |
+| `git_branch`         | string  | false    |              |             |
 | `head_branch`        | string  | false    |              |             |
 | `pr_number`          | integer | false    |              |             |
 | `pull_request_draft` | boolean | false    |              |             |
 | `pull_request_state` | string  | false    |              |             |
 | `pull_request_title` | string  | false    |              |             |
 | `refreshed_at`       | string  | false    |              |             |
+| `remote_origin`      | string  | false    |              |             |
 | `reviewer_count`     | integer | false    |              |             |
 | `stale_at`           | string  | false    |              |             |
 | `url`                | string  | false    |              |             |
@@ -3314,15 +3456,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description |
-|-------------------------|---------|----------|--------------|-------------|
-| `cache_creation_tokens` | integer | false    |              |             |
-| `cache_read_tokens`     | integer | false    |              |             |
-| `context_limit`         | integer | false    |              |             |
-| `input_tokens`          | integer | false    |              |             |
-| `output_tokens`         | integer | false    |              |             |
-| `reasoning_tokens`      | integer | false    |              |             |
-| `total_tokens`          | integer | false    |              |             |
+| Name                    | Type    | Required | Restrictions | Description                                                                                     |
+|-------------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------|
+| `cache_creation_tokens` | integer | false    |              |                                                                                                 |
+| `cache_read_tokens`     | integer | false    |              |                                                                                                 |
+| `context_limit`         | integer | false    |              |                                                                                                 |
+| `input_tokens`          | integer | false    |              |                                                                                                 |
+| `output_tokens`         | integer | false    |              |                                                                                                 |
+| `reasoning_tokens`      | integer | false    |              | Reasoning tokens counts reasoning, which output_tokens already includes, so do not add the two. |
+| `total_tokens`          | integer | false    |              |                                                                                                 |
 
 ## codersdk.ChatMessagesResponse
 
@@ -3478,17 +3620,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
     }
-  ]
+  ],
+  "turn_start_id": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                              | Required | Restrictions | Description |
-|-------------------|-------------------------------------------------------------------|----------|--------------|-------------|
-| `has_more`        | boolean                                                           | false    |              |             |
-| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
+| Name              | Type                                                              | Required | Restrictions | Description                                                                                                                                                                            |
+|-------------------|-------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `has_more`        | boolean                                                           | false    |              |                                                                                                                                                                                        |
+| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                        |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                        |
+| `turn_start_id`   | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message. |
 
 ## codersdk.ChatModel
 
@@ -4694,6 +4838,64 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |--------------------------|--------|----------|--------------|-------------|
 | `plan_mode_instructions` | string | false    |              |             |
 
+## codersdk.ChatProject
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name              | Type   | Required | Restrictions | Description                                                                                   |
+|-------------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------|
+| `created_at`      | string | false    |              |                                                                                               |
+| `description`     | string | false    |              |                                                                                               |
+| `icon`            | string | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
+| `id`              | string | false    |              |                                                                                               |
+| `name`            | string | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
+| `organization_id` | string | false    |              |                                                                                               |
+| `owner_id`        | string | false    |              |                                                                                               |
+| `updated_at`      | string | false    |              |                                                                                               |
+
+## codersdk.ChatProjectMemory
+
+```json
+{
+  "body": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+  "created_by_username": "string",
+  "description": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9"
+}
+```
+
+### Properties
+
+| Name                  | Type   | Required | Restrictions | Description |
+|-----------------------|--------|----------|--------------|-------------|
+| `body`                | string | false    |              |             |
+| `created_at`          | string | false    |              |             |
+| `created_by`          | string | false    |              |             |
+| `created_by_username` | string | false    |              |             |
+| `description`         | string | false    |              |             |
+| `id`                  | string | false    |              |             |
+| `name`                | string | false    |              |             |
+| `organization_id`     | string | false    |              |             |
+| `project_id`          | string | false    |              |             |
+
 ## codersdk.ChatPrompt
 
 ```json
@@ -5308,6 +5510,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `include_default_system_prompt` | boolean | false    |              |             |
 | `system_prompt`                 | string  | false    |              |             |
 
+## codersdk.ChatTitleSource
+
+```json
+"fallback"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                        |
+|---------------------------------|
+| `fallback`, `generated`, `user` |
+
 ## codersdk.ChatUnsupportedProvider
 
 ```json
@@ -5356,6 +5572,35 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "changed_diff_status": {
+    "ref": {
+      "git_branch": "string",
+      "remote_origin": "string"
+    },
+    "status": {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "git_branch": "string",
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  },
   "chat": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
@@ -5398,16 +5643,43 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "commits": 0,
       "deletions": 0,
+      "git_branch": "string",
       "head_branch": "string",
       "pr_number": 0,
       "pull_request_draft": true,
       "pull_request_state": "string",
       "pull_request_title": "string",
       "refreshed_at": "2019-08-24T14:15:22Z",
+      "remote_origin": "string",
       "reviewer_count": 0,
       "stale_at": "2019-08-24T14:15:22Z",
       "url": "string"
     },
+    "diff_statuses": [
+      {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "git_branch": "string",
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "remote_origin": "string",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      }
+    ],
     "files": [
       {
         "created_at": "2019-08-24T14:15:22Z",
@@ -5464,12 +5736,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
+    "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
     "summary": "string",
     "title": "string",
+    "title_source": "fallback",
+    "title_updated_at": "2019-08-24T14:15:22Z",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -5489,11 +5764,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                                                | Required | Restrictions | Description |
-|--------------|---------------------------------------------------------------------|----------|--------------|-------------|
-| `chat`       | [codersdk.Chat](#codersdkchat)                                      | false    |              |             |
-| `kind`       | [codersdk.ChatWatchEventKind](#codersdkchatwatcheventkind)          | false    |              |             |
-| `tool_calls` | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |             |
+| Name                  | Type                                                                | Required | Restrictions | Description                                                                                                     |
+|-----------------------|---------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------|
+| `changed_diff_status` | [codersdk.ChangedDiffStatus](#codersdkchangeddiffstatus)            | false    |              | Changed diff status is set when Kind is ChatWatchEventKindDiffStatusChange. It identifies the ref that changed. |
+| `chat`                | [codersdk.Chat](#codersdkchat)                                      | false    |              |                                                                                                                 |
+| `kind`                | [codersdk.ChatWatchEventKind](#codersdkchatwatcheventkind)          | false    |              |                                                                                                                 |
+| `tool_calls`          | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |                                                                                                                 |
 
 ## codersdk.ChatWatchEventKind
 
@@ -6356,6 +6632,42 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `model`                 | string                                                       | false    |              |             |
 | `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |             |
 
+## codersdk.CreateChatProjectMemoryRequest
+
+```json
+{
+  "body": "string",
+  "description": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `body`        | string | true     |              |             |
+| `description` | string | true     |              |             |
+| `name`        | string | true     |              |             |
+
+## codersdk.CreateChatProjectRequest
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `icon`        | string | false    |              |             |
+| `name`        | string | true     |              |             |
+
 ## codersdk.CreateChatRequest
 
 ```json
@@ -6406,8 +6718,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "reasoning_effort": "string",
   "system_prompt": "string",
+  "title": "string",
   "unsafe_dynamic_tools": [
     {
       "description": "string",
@@ -6423,22 +6737,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                   |
-|------------------------|-----------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)                          | false    |              |                                                                                                                                                                               |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                                                                                               |
-| `inline_mcp_servers`   | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers declares MCP servers by value on this chat, next to the org-configured servers selected by MCPServerIDs. Experimental.                                     |
-| `labels`               | object                                                                      | false    |              |                                                                                                                                                                               |
-| » `[any property]`     | string                                                                      | false    |              |                                                                                                                                                                               |
-| `mcp_server_ids`       | array of string                                                             | false    |              |                                                                                                                                                                               |
-| `model_config_id`      | string                                                                      | false    |              |                                                                                                                                                                               |
-| `organization_id`      | string                                                                      | false    |              |                                                                                                                                                                               |
-| `owner_id`             | string                                                                      | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user. |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                               |
-| `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                               |
-| `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                               |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                    |
-| `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                               |
+| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                           |
+|------------------------|-----------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)                          | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              | Content is the initial user message. It is optional: when empty, the chat is created idle with no initial user message and generation starts with the first message POSTed to /chats/{chat}/messages.                                                                                                                                 |
+| `inline_mcp_servers`   | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers declares MCP servers by value on this chat, next to the org-configured servers selected by MCPServerIDs. Experimental.                                                                                                                                                                                             |
+| `labels`               | object                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| » `[any property]`     | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `mcp_server_ids`       | array of string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `model_config_id`      | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `organization_id`      | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `owner_id`             | string                                                                      | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user.                                                                                                                                                         |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `project_id`           | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
+| `title`                | string                                                                      | false    |              | Title, when set, is stored as the user title and automatic title generation does not run. It is trimmed and must then be non-empty and at most 200 Unicode code points (MaxChatTitleRunes), else the request fails with 400. When omitted, the title is derived from the first prompt and may later be replaced by a generated title. |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                                                                                                                                                            |
+| `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                       |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -6719,7 +7035,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              | Cors behavior allows optionally specifying the CORS behavior for all shared ports.                                                                                                                                                                                                                                  |
 | `default_ttl_ms`                      | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
 | `delete_ttl_ms`                       | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
-| `description`                         | string                                                                         | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
+| `description`                         | string                                                                         | false    |              | Description is a description of what the template contains. It must be no longer than 128 Unicode code points.                                                                                                                                                                                                      |
 | `disable_everyone_group_access`       | boolean                                                                        | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template. |
 | `display_name`                        | string                                                                         | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                                                                                 |
 | `dormant_ttl_ms`                      | integer                                                                        | false    |              | Dormant ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                     |
@@ -7540,6 +7856,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "actor_header_email": "string",
+        "actor_header_id": "string",
+        "actor_header_username": "string",
         "allow_byok": true,
         "api_dump_dir": "string",
         "budget_period": "string",
@@ -7549,13 +7868,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "circuit_breaker_interval": 0,
         "circuit_breaker_max_requests": 0,
         "circuit_breaker_timeout": 0,
+        "disable_content_recording": true,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
-        "structured_logging": true
+        "structured_logging": true,
+        "structured_logging_source": "string"
       },
       "chat": {
         "acquire_batch_size": 0,
@@ -7577,6 +7898,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "scheme": "string",
           "user": {}
         },
+        "max_attachments_per_chat": 0,
+        "max_concurrent_recording_uploads": 0,
+        "max_generation_retries": 0,
+        "max_prompt_bytes": 0,
+        "max_queued_messages_per_chat": 0,
+        "max_steps_per_turn": 0,
         "stream_silence_timeout": 0
       }
     },
@@ -8167,6 +8494,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "upstream_proxy_ca": "string"
     },
     "bridge": {
+      "actor_header_email": "string",
+      "actor_header_id": "string",
+      "actor_header_username": "string",
       "allow_byok": true,
       "api_dump_dir": "string",
       "budget_period": "string",
@@ -8176,13 +8506,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "circuit_breaker_interval": 0,
       "circuit_breaker_max_requests": 0,
       "circuit_breaker_timeout": 0,
+      "disable_content_recording": true,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
       "rate_limit": 0,
       "retention": 0,
       "send_actor_headers": true,
-      "structured_logging": true
+      "structured_logging": true,
+      "structured_logging_source": "string"
     },
     "chat": {
       "acquire_batch_size": 0,
@@ -8204,6 +8536,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "scheme": "string",
         "user": {}
       },
+      "max_attachments_per_chat": 0,
+      "max_concurrent_recording_uploads": 0,
+      "max_generation_retries": 0,
+      "max_prompt_bytes": 0,
+      "max_queued_messages_per_chat": 0,
+      "max_steps_per_turn": 0,
       "stream_silence_timeout": 0
     }
   },
@@ -8754,6 +9092,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 |--------------------|
 | `error`, `warning` |
 
+## codersdk.DiffStatusRef
+
+```json
+{
+  "git_branch": "string",
+  "remote_origin": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+|-----------------|--------|----------|--------------|-------------|
+| `git_branch`    | string | false    |              |             |
+| `remote_origin` | string | false    |              |             |
+
 ## codersdk.DisplayApp
 
 ```json
@@ -9197,9 +9551,71 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                  |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                 |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+
+## codersdk.ExperimentRule
+
+```json
+{
+  "condition": "string",
+  "mode": "string",
+  "revision": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": "deea00dc-b6b6-4412-a483-26ac61e1f6fe"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description                                                                                                                                                                                                          |
+|--------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `condition`  | string  | false    |              | Condition is the CEL expression of a condition rule.                                                                                                                                                                 |
+| `mode`       | string  | false    |              | Mode is one of the ExperimentRuleMode values, or empty when the stored rule is malformed. A malformed rule decides off until it is replaced. It is a plain string so that clients can represent the malformed state. |
+| `revision`   | integer | false    |              | Revision increases on every change and starts at 1. Zero means the stored rule has no readable positive revision, so it is malformed.                                                                                |
+| `updated_at` | string  | false    |              |                                                                                                                                                                                                                      |
+| `updated_by` | string  | false    |              |                                                                                                                                                                                                                      |
+
+## codersdk.ExperimentRuleEntry
+
+```json
+{
+  "experiment": "string",
+  "ignored": true,
+  "rule": {
+    "condition": "string",
+    "mode": "string",
+    "revision": 0,
+    "updated_at": "2019-08-24T14:15:22Z",
+    "updated_by": "deea00dc-b6b6-4412-a483-26ac61e1f6fe"
+  },
+  "static_default": true
+}
+```
+
+### Properties
+
+| Name             | Type                                               | Required | Restrictions | Description                                                                                                                  |
+|------------------|----------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| `experiment`     | string                                             | false    |              | Experiment is the experiment name. Ignored entries can name experiments this version does not know, so it is a plain string. |
+| `ignored`        | boolean                                            | false    |              | Ignored is true for a stored rule of an experiment that does not accept runtime rules. Such a rule has no effect.            |
+| `rule`           | [codersdk.ExperimentRule](#codersdkexperimentrule) | false    |              | Rule is null when no rule was ever stored.                                                                                   |
+| `static_default` | boolean                                            | false    |              | Static default reports whether the experiment is in the startup --experiments list of the replica that answered.             |
+
+## codersdk.ExperimentRuleMode
+
+```json
+"inherit"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                            |
+|-------------------------------------|
+| `condition`, `inherit`, `off`, `on` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -12013,6 +12429,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `providers`             | array of [codersdk.ChatModelProviderDescriptor](#codersdkchatmodelproviderdescriptor) | false    |              |             |
 | `unsupported_providers` | array of [codersdk.ChatUnsupportedProvider](#codersdkchatunsupportedprovider)         | false    |              |             |
 
+## codersdk.OrganizationChatSystemPromptResponse
+
+```json
+{
+  "system_prompt": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+|-----------------|--------|----------|--------------|-------------|
+| `system_prompt` | string | false    |              |             |
+
 ## codersdk.OrganizationGroupAISpend
 
 ```json
@@ -13400,6 +13830,30 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |--------------------------------------------------|
 | `ok`, `unhealthy`, `unreachable`, `unregistered` |
 
+## codersdk.PutExperimentRuleRequest
+
+```json
+{
+  "condition": "string",
+  "expected_revision": 0,
+  "mode": "inherit"
+}
+```
+
+### Properties
+
+| Name                | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                              |
+|---------------------|------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `condition`         | string                                                     | false    |              | Condition is required for the condition mode and must be empty otherwise.                                                                                                                                |
+| `expected_revision` | integer                                                    | false    |              | Expected revision must equal the current revision of the stored rule, or zero when no rule is stored or the stored rule has no readable positive revision. A different revision fails with 409 Conflict. |
+| `mode`              | [codersdk.ExperimentRuleMode](#codersdkexperimentrulemode) | false    |              |                                                                                                                                                                                                          |
+
+#### Enumerated Values
+
+| Property | Value(s)                            |
+|----------|-------------------------------------|
+| `mode`   | `condition`, `inherit`, `off`, `on` |
+
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json
@@ -13462,9 +13916,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `chat_model_config`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `mcp_server_config`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `chat_model_config`, `chat_project`, `chat_project_memory`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `mcp_server_config`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy` |
 
 ## codersdk.RateLimitConfig
 
@@ -13680,9 +14134,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_memory`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -16077,6 +16531,24 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |--------------------------|--------|----------|--------------|-------------|
 | `plan_mode_instructions` | string | false    |              |             |
 
+## codersdk.UpdateChatProjectRequest
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `icon`        | string | false    |              |             |
+| `name`        | string | false    |              |             |
+
 ## codersdk.UpdateChatRequest
 
 ```json
@@ -16088,6 +16560,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   },
   "pin_order": 0,
   "plan_mode": "plan",
+  "read": true,
   "title": "string",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
@@ -16102,8 +16575,10 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | » `[any property]` | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `pin_order`        | integer                                        | false    |              | Pin order controls the chat's pinned state and position. - nil: no change to pin state. - 0: unpin the chat. - >0 (chat is unpinned): pin the chat, appending it to   the end of the pinned list. The specific value is   ignored; the server assigns the next available position. - >0 (chat is already pinned): move the chat to the   requested position, shifting neighbors as needed. The   value is clamped to [1, pinned_count]. |
 | `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode) | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                                                                                                                                                                                                                                                            |
-| `title`            | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `workspace_id`     | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|`read`|boolean|false||Read moves the owner's read cursor, which drives HasUnread. - nil: no change. - true: mark every existing message as read. - false: clear the cursor so the chat reads as unread again.
+The cursor is owner-scoped, so only the chat owner may set this. Opening a chat's stream marks it read, so marking the chat the owner is currently viewing as unread does not persist.|
+|`title`|string|false||Title, when set, is stored as the user title even when its text is unchanged, so a generated title never replaces it afterwards. It is validated like CreateChatRequest.Title.|
+|`workspace_id`|string|false|||
 
 ## codersdk.UpdateChatRetentionDaysRequest
 
@@ -16266,6 +16741,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
 | `availability` | `default_off`, `default_on`, `force_on`                    |
 | `transport`    | `sse`, `streamable_http`                                   |
+
+## codersdk.UpdateOrganizationChatSystemPromptRequest
+
+```json
+{
+  "system_prompt": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+|-----------------|--------|----------|--------------|-------------|
+| `system_prompt` | string | false    |              |             |
 
 ## codersdk.UpdateOrganizationRequest
 
@@ -16536,6 +17025,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -16547,6 +17037,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
 | `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
 | `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `collapse_assistant_steps` | boolean                                                          | false    |              |             |
 | `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
@@ -17384,28 +17875,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------------|------------------------------------------|----------|--------------|-------------|
 | `login_type` | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
 
-## codersdk.UserParameter
-
-```json
-{
-  "name": "string",
-  "value": "string"
-}
-```
-
-### Properties
-
-| Name    | Type   | Required | Restrictions | Description |
-|---------|--------|----------|--------------|-------------|
-| `name`  | string | false    |              |             |
-| `value` | string | false    |              |             |
-
 ## codersdk.UserPreferenceSettings
 
 ```json
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -17417,6 +17893,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
 | `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
 | `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `collapse_assistant_steps` | boolean                                                          | false    |              |             |
 | `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 

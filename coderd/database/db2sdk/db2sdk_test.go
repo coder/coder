@@ -897,6 +897,8 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		LastModelConfigID:   uuid.New(),
 		LastReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
 		Title:               "all-fields-test",
+		TitleSource:         database.ChatTitleSourceUser,
+		TitleUpdatedAt:      now,
 		Status:              database.ChatStatusRunning,
 		ClientType:          database.ChatClientTypeUi,
 		LastError:           pqtype.NullRawMessage{RawMessage: lastErrorRaw, Valid: true},
@@ -916,6 +918,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		},
 		// Pinned-context columns drive codersdk.Chat.Context. Set all of
 		// them so the converted sub-struct's fields are non-zero too.
+		ProjectID:            uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		ContextAggregateHash: []byte{0x01, 0x02, 0x03},
 		ContextDirtySince:    sql.NullTime{Time: now, Valid: true},
 		ContextError:         "context boom",
@@ -927,6 +930,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	diffStatus := &database.ChatDiffStatus{
 		ChatID: input.ID,
 	}
+	diffStatuses := []database.ChatDiffStatus{*diffStatus}
 
 	fileRows := []database.GetChatFileMetadataByChatIDRow{
 		{
@@ -939,7 +943,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		},
 	}
 
-	got := db2sdk.Chat(input, diffStatus, fileRows)
+	got := db2sdk.ChatWithDiffStatuses(input, diffStatus, diffStatuses, fileRows)
 
 	require.Equal(t, &lastErrorPayload, got.LastError)
 
@@ -1075,6 +1079,28 @@ func TestChat_NilFilesOmitted(t *testing.T) {
 
 	result := db2sdk.Chat(chat, nil, nil)
 	require.Empty(t, result.Files)
+}
+
+func TestPrimaryChatDiffStatus(t *testing.T) {
+	t.Parallel()
+
+	require.Nil(t, db2sdk.PrimaryChatDiffStatus(nil))
+
+	older := dbtime.Now()
+	newer := older.Add(time.Minute)
+	// The primary is not first in the list. Equal report times go to
+	// the lowest origin, then the lowest branch.
+	statuses := []database.ChatDiffStatus{
+		{GitRemoteOrigin: "https://github.com/a/r", GitBranch: "first", UpdatedAt: older},
+		{GitRemoteOrigin: "https://github.com/b/r", GitBranch: "main", UpdatedAt: newer},
+		{GitRemoteOrigin: "https://github.com/a/r", GitBranch: "z", UpdatedAt: newer},
+		{GitRemoteOrigin: "https://github.com/a/r", GitBranch: "y", UpdatedAt: newer},
+	}
+
+	primary := db2sdk.PrimaryChatDiffStatus(statuses)
+	require.NotNil(t, primary)
+	require.Equal(t, "https://github.com/a/r", primary.GitRemoteOrigin)
+	require.Equal(t, "y", primary.GitBranch)
 }
 
 func TestChat_LastErrorFallback(t *testing.T) {

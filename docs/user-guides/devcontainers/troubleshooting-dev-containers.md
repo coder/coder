@@ -38,7 +38,9 @@ docker ps  # test access
 
 If you get permission errors, your user may need to be in the `docker` group.
 
-## Finding your dev container agent
+<a id="finding-your-dev-container-agent"></a>
+
+## Find your dev container agent
 
 Use `coder show` to list all agents in your workspace, including dev container
 sub-agents:
@@ -108,7 +110,9 @@ If your dev container takes a long time to start:
    container start. Commands in `postCreateCommand` run once per build, so
    they execute again after each rebuild.
 
-## Getting more help
+<a id="getting-more-help"></a>
+
+## Get more help
 
 If you continue to experience issues:
 

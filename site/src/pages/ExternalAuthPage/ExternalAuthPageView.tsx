@@ -1,5 +1,4 @@
 import { ExternalLinkIcon, RotateCwIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import type { ApiErrorResponse } from "#/api/errors";
 import type { ExternalAuth, ExternalAuthDevice } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
@@ -24,7 +23,7 @@ type ExternalAuthPageViewProps = {
 	onReauthenticate: () => void;
 };
 
-const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
+const ExternalAuthPageView: React.FC<ExternalAuthPageViewProps> = ({
 	deviceExchangeError,
 	externalAuth,
 	externalAuthDevice,
@@ -49,7 +48,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 	const hasInstallations = externalAuth.installations.length > 0;
 
 	// We only want to wrap this with a link if an install URL is available!
-	let installTheApp: ReactNode = `install the ${externalAuth.display_name} App`;
+	let installTheApp: React.ReactNode = `install the ${externalAuth.display_name} App`;
 	if (externalAuth.app_install_url) {
 		installTheApp = (
 			<Link

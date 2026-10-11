@@ -1,5 +1,4 @@
 import { SquareTerminalIcon } from "lucide-react";
-import type { FC, MouseEvent } from "react";
 import { getTerminalHref, openAppInNewWindow } from "#/modules/apps/apps";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
@@ -18,7 +17,7 @@ type TerminalLinkProps = {
  * If no user name is provided "me" is used however it makes the link not
  * shareable.
  */
-export const TerminalLink: FC<TerminalLinkProps> = ({
+export const TerminalLink: React.FC<TerminalLinkProps> = ({
 	agentName,
 	userName = "me",
 	workspaceName,
@@ -35,7 +34,7 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
 		<AgentButton asChild>
 			<a
 				href={href}
-				onClick={(event: MouseEvent<HTMLElement>) => {
+				onClick={(event: React.MouseEvent<HTMLElement>) => {
 					event.preventDefault();
 					openAppInNewWindow(href);
 				}}

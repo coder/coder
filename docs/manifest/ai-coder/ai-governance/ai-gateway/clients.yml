@@ -1,0 +1,53 @@
+title: Client configuration
+description: Configure your AI coding tools to route their model requests through AI Gateway.
+path: ./ai-coder/ai-gateway/clients/index.md
+state: [premium]
+children:
+  - title: Claude Code
+    description: Configure Claude Code to route requests through AI Gateway using environment variables.
+    path: ./ai-coder/ai-gateway/clients/claude-code.md
+    state: [premium]
+  - title: Codex
+    description: Configure the Codex CLI to route requests through AI Gateway with a custom model provider.
+    path: ./ai-coder/ai-gateway/clients/codex.md
+    state: [premium]
+  - title: Xum
+    description: Configure Xum, the parallel coding agent tool, to route requests through AI Gateway.
+    path: ./ai-coder/ai-gateway/clients/xum.md
+    state: [premium]
+  - title: OpenCode
+    description: Configure OpenCode to route its OpenAI and Anthropic requests through AI Gateway.
+    path: ./ai-coder/ai-gateway/clients/opencode.md
+    state: [premium]
+  - title: Factory
+    description: Configure Factory's Droid agent to route its model requests through AI Gateway.
+    path: ./ai-coder/ai-gateway/clients/factory.md
+    state: [premium]
+  - title: Cline
+    description: Configure Cline to route its OpenAI and Anthropic requests through AI Gateway.
+    path: ./ai-coder/ai-gateway/clients/cline.md
+    state: [premium]
+  - title: Kilo Code
+    description: Configure Kilo Code to route its model requests through AI Gateway from the UI.
+    path: ./ai-coder/ai-gateway/clients/kilo-code.md
+    state: [premium]
+  - title: VS Code
+    description: Configure VS Code to route its AI model requests through Coder's AI Gateway.
+    path: ./ai-coder/ai-gateway/clients/vscode.md
+    state: [premium]
+  - title: JetBrains
+    description: Configure JetBrains AI Assistant to route model requests through AI Gateway.
+    path: ./ai-coder/ai-gateway/clients/jetbrains.md
+    state: [premium]
+  - title: Junie
+    description: Configure Junie CLI to route requests through AI Gateway with a custom model profile.
+    path: ./ai-coder/ai-gateway/clients/junie.md
+    state: [premium]
+  - title: Zed
+    description: Configure the Zed editor's language models to route requests through AI Gateway.
+    path: ./ai-coder/ai-gateway/clients/zed.md
+    state: [premium]
+  - title: GitHub Copilot
+    description: Route GitHub Copilot model requests through AI Gateway using the AI Gateway Proxy.
+    path: ./ai-coder/ai-gateway/clients/copilot.md
+    state: [premium]

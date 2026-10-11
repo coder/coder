@@ -2,41 +2,34 @@
 title: Install Coder via Docker
 ---
 
-You can install and run Coder using the official Docker images published on
-[GitHub Container Registry](https://github.com/coder/coder/pkgs/container/coder).
+You can install and run Coder using the official Docker images published on [GitHub Container Registry](https://github.com/coder/coder/pkgs/container/coder).
 
 ## Requirements
 
-- Docker. See the
-  [official installation documentation](https://docs.docker.com/install/).
+- Docker.
+  See the [official installation documentation](https://docs.docker.com/install/).
 
 - A Linux host.
 
-- 2 CPU cores and 4 GB memory free on your machine.
+- 2&nbsp;CPU cores and 4&nbsp;GB memory free on your machine.
 
 > [!IMPORTANT]
-> This guide is for **Linux** hosts only. The `getent` and `--group-add`
-> Docker socket patterns used below are Linux-specific and do not translate
-> cleanly to macOS Docker runtimes. For macOS, install Coder using the
-> [standalone binary](../cli.md) instead.
+> This guide is for **Linux** hosts only.
+> The `getent` and `--group-add` Docker socket patterns used below are Linux-specific and do not translate cleanly to macOS Docker runtimes.
+> For macOS, install Coder using the [standalone binary](../cli.md) instead.
 
 <div class="tabs">
 
 ## Install Coder via `docker compose`
 
-Coder publishes a
-[docker compose example](../../../compose.yaml)
-which includes a PostgreSQL container and volume.
+Coder publishes a [docker compose example](../../../compose.yaml) which includes a PostgreSQL container and volume.
 
-1. Make sure you have [Docker Compose](https://docs.docker.com/compose/install/)
-   installed.
+1. Make sure you have [Docker Compose](https://docs.docker.com/compose/install/) installed.
 
-1. Download the
-   [`docker-compose.yaml`](../../../compose.yaml)
-   file.
+1. Download the [`docker-compose.yaml`](../../../compose.yaml) file.
 
-1. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker`
-   group. You can get the `docker` group `gid` by running the below command:
+1. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker` group.
+   You can get the `docker` group `gid` by running the below command:
 
    ```sh
    getent group docker | cut -d: -f3
@@ -46,18 +39,16 @@ which includes a PostgreSQL container and volume.
 
 1. Visit the web UI via the configured url.
 
-1. Follow the on-screen instructions log in and create your first template and
-   workspace
+1. Follow the on-screen instructions log in and create your first template and workspace
 
-Coder configuration is defined via environment variables. Learn more about
-Coder's [configuration options](../../admin/setup/index.md).
+Coder configuration is defined via environment variables.
+Learn more about Coder's [configuration options](../../admin/setup/index.md).
 
 ## Install Coder via `docker run`
 
 ### Built-in database (quick)
 
-For proof-of-concept deployments, you can run a complete Coder instance with the
-following command.
+For proof-of-concept deployments, you can run a complete Coder instance with the following command.
 
 ```sh
 export CODER_DATA=$HOME/.config/coderv2-docker
@@ -72,9 +63,8 @@ docker run --rm -it \
 
 ### External database (recommended)
 
-For production deployments, we recommend using an external PostgreSQL database
-(version 13 or higher). Set `CODER_ACCESS_URL` to the external URL that users
-and workspaces will use to connect to Coder.
+For production deployments, we recommend using an external PostgreSQL database (version 13 or higher).
+Set `CODER_ACCESS_URL` to the external URL that users and workspaces will use to connect to Coder.
 
 ```sh
 export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
@@ -93,13 +83,10 @@ docker run --rm -it \
 > [!TIP]
 > We do not recommend using preview releases in production environments.
 
-You can install and test a
-[preview release of Coder](https://github.com/coder/coder/pkgs/container/coder-preview)
-by using the `coder-preview:latest` image tag.
+You can install and test a [preview release of Coder](https://github.com/coder/coder/pkgs/container/coder-preview) by using the `coder-preview:latest` image tag.
 This image is automatically updated with the latest changes from the `main` branch.
 
-Replace `ghcr.io/coder/coder:latest` in the `docker run` command in the
-[steps above](#install-coder-via-docker-run) with `ghcr.io/coder/coder-preview:latest`.
+Replace `ghcr.io/coder/coder:latest` in the `docker run` command in the [steps above](#install-coder-via-docker-run) with `ghcr.io/coder/coder-preview:latest`.
 
 ## Troubleshooting
 
@@ -111,10 +98,9 @@ If you see an error like:
 Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 ```
 
-Docker is not installed or not running on the host. Install Docker and start the
-daemon before creating a workspace from a Docker-based template. Refer to the
-[Troubleshooting section of the get started guide](../../get-started/index.md#cannot-connect-to-the-docker-daemon)
-for platform-specific steps.
+Docker is not installed or not running on the host.
+Install Docker and start the daemon before creating a workspace from a Docker-based template.
+Refer to the [Troubleshooting section of the get started guide](../../get-started/index.md#cannot-connect-to-the-docker-daemon) for platform-specific steps.
 
 If Docker is installed and running but Coder still cannot connect, the daemon may expose its socket at a path other than `/var/run/docker.sock`.
 This can happen on any operating system when Docker runs through a tool that uses a per-user socket, such as rootless Docker on Linux, or Colima, Podman, or Rancher Desktop on macOS.
@@ -137,29 +123,23 @@ Then restart the control plane.
 
 ### Docker-based workspace is stuck in "Connecting..."
 
-Ensure you have an externally-reachable `CODER_ACCESS_URL` set. See
-[troubleshooting templates](../../admin/templates/troubleshooting.md) for more
-steps.
+Ensure you have an externally-reachable `CODER_ACCESS_URL` set.
+See [troubleshooting templates](../../admin/templates/troubleshooting.md) for more steps.
 
 ### Permission denied while trying to connect to the Docker daemon socket
 
-See Docker's official documentation to
-[Manage Docker as a non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user)
+See Docker's official documentation to [Manage Docker as a non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user)
 
 ### I cannot add Docker templates
 
-Coder runs as a non-root user, we use `--group-add` to ensure Coder has
-permissions to manage Docker via `docker.sock`. If the host systems
-`/var/run/docker.sock` is not group writable or does not belong to the `docker`
-group, the above may not work as-is.
+Coder runs as a non-root user, we use `--group-add` to ensure Coder has permissions to manage Docker via `docker.sock`.
+If the host systems `/var/run/docker.sock` is not group writable or does not belong to the `docker` group, the above may not work as-is.
 
 ### I cannot add cloud-based templates
 
-In order to use cloud-based templates (e.g. Kubernetes, AWS), you must have an
-external URL that users and workspaces will use to connect to Coder. For
-proof-of-concept deployments, you can use
-[Coder's tunnel](../../admin/setup/index.md#tunnel). For production deployments, we
-recommend setting an [access URL](../../admin/setup/index.md#access-url)
+In order to use cloud-based templates (e.g. Kubernetes, AWS), you must have an external URL that users and workspaces will use to connect to Coder.
+For proof-of-concept deployments, you can use [Coder's tunnel](../../admin/setup/index.md#tunnel).
+For production deployments, we recommend setting an [access URL](../../admin/setup/index.md#access-url)
 
 ## Next steps
 
