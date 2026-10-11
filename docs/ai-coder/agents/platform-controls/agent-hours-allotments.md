@@ -96,3 +96,6 @@ Allotments use basis points in the `allotment_bps` field, where `10000` equals 1
 The [usage endpoints](../../../reference/api/enterprise.md#get-agent-hours-usage) report usage in milliseconds, for the deployment's organizations, an organization's groups, and a group's members.
 They use the same permissions as the matching allotment endpoints: listing usage for all organizations requires the access needed to list all organization allotments, and an organization's group usage requires permission to read its groups.
 Group member usage returns only the members you can read.
+
+The **Agent Hours** page is for users who can change allotments.
+Users who can only read them, such as auditors, read allotments and usage through these endpoints instead.
