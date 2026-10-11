@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"path"
 	"slices"
@@ -18,20 +19,28 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (
+	// instructionDiscoveryTimeout bounds the agent round trip so a slow
+	// workspace cannot stall the step.
+	instructionDiscoveryTimeout = 3 * time.Second
 	// instructionProbeTTL is how long a directory the agent reported empty
 	// is skipped, unless a later step makes it stale.
 	instructionProbeTTL = 10 * time.Minute
 	// maxInstructionProbeEntries bounds each probe cache across all agents;
 	// a cache is reset when it fills.
 	maxInstructionProbeEntries = 4096
+	// maxInstructionProbesPerStep bounds the directories one step asks the
+	// agent about after pinned and cached-negative ones are filtered.
+	maxInstructionProbesPerStep = 4 * workspacesdk.MaxContextInstructionDirectories
 	// maxDiscoveredInstructionBytes caps the readable discovered content a
 	// chat holds across all steps, since every pinned body is rendered into
 	// every later prompt; files past the cap are pinned as excluded.
@@ -421,6 +430,111 @@ func removedDiscoveredSources(rows []database.ChatContextResource, stale map[str
 	return out
 }
 
+func agentWorkingDirectory(agent database.WorkspaceAgent) string {
+	if agent.ExpandedDirectory != "" {
+		return agent.ExpandedDirectory
+	}
+	return agent.Directory
+}
+
+// discoverInstructionContext asks agent, over conn, for instruction files
+// in the directories the touched files and dirs imply and pins any it finds
+// for this chat. Every failure is logged and swallowed: it must never fail the step.
+func (p *Server) discoverInstructionContext(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	agent database.WorkspaceAgent,
+	chat database.Chat,
+	files, dirs []string,
+) {
+	workingDir := agentWorkingDirectory(agent)
+	if workingDir == "" {
+		return
+	}
+	files, dirs = agentTouchedPaths(files, dirs, agent.OperatingSystem)
+	candidates := candidateInstructionDirs(files, dirs, workingDir)
+	if len(candidates) == 0 {
+		return
+	}
+	logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("agent_id", agent.ID))
+
+	now := p.clock.Now()
+	stale := staleInstructionDirs(files, dirs)
+	// A directory a command ran in recently stays stale for later touches:
+	// the command may still be writing when its result returns.
+	p.instructionProbes.markPending(now, agent.ID, dirs)
+	for _, dir := range candidates {
+		if p.instructionProbes.isPending(now, agent.ID, dir) {
+			stale[pathKey(dir)] = struct{}{}
+		}
+	}
+	p.instructionProbes.forget(agent.ID, chat.ID, slices.Collect(maps.Keys(stale)))
+
+	//nolint:gocritic // Chatd reads the chat's pinned rows as the daemon subject.
+	dbCtx := dbauthz.AsChatd(ctx)
+	rows, err := p.db.ListChatContextResourcesByChatID(dbCtx, chat.ID)
+	if err != nil {
+		logger.Debug(ctx, "list pinned context for instruction discovery", slog.Error(err))
+		return
+	}
+	pinned, freed := pinnedInstructionDirs(rows)
+	// A directory re-probed because its excluded file would fit now is read
+	// as authoritatively as a stale one, or a vanished file's row would keep
+	// the slot and the probe would repeat after every negative expiry.
+	maps.Copy(stale, freed)
+	probe := selectInstructionProbes(candidates, pinned, stale, func(dir string) bool {
+		return p.instructionProbes.negative(now, agent.ID, chat.ID, dir)
+	})
+	if len(probe) == 0 {
+		return
+	}
+	if len(probe) > maxInstructionProbesPerStep {
+		probe = probe[:maxInstructionProbesPerStep]
+	}
+
+	resolved, probed := resolveInstructionDirs(ctx, logger, conn, probe)
+	if len(probed) == 0 {
+		return
+	}
+	result, err := p.applyDiscoveredInstructionFiles(ctx, chat.ID, agent.ID, rows, resolved, stale, probed)
+	if err != nil {
+		logger.Warn(ctx, "reconcile discovered instruction files", slog.Error(err))
+		return
+	}
+
+	foundDirs := make(map[string]struct{}, len(resolved))
+	for _, file := range resolved {
+		foundDirs[pathKey(agentPath(file.Directory))] = struct{}{}
+	}
+	negatives := make([]string, 0, len(probed))
+	for _, dir := range probed {
+		key := pathKey(dir)
+		if _, ok := foundDirs[key]; ok {
+			continue
+		}
+		// A stale directory is not remembered as empty: the command that made
+		// it stale may still create the file after this probe.
+		if _, ok := stale[key]; ok {
+			continue
+		}
+		negatives = append(negatives, dir)
+	}
+	p.instructionProbes.markNegative(now, agent.ID, uuid.Nil, negatives)
+	// A directory this chat's row cap kept out is not asked again for a
+	// while; the cap is the chat's, so other chats on the agent still probe it.
+	p.instructionProbes.markNegative(now, agent.ID, chat.ID, result.capped)
+	if result.pinned == 0 && result.removed == 0 {
+		return
+	}
+	logger.Debug(ctx, "reconciled discovered instruction files", slog.F("pinned", result.pinned), slog.F("removed", result.removed))
+	updated, err := p.db.GetChatByID(dbCtx, chat.ID)
+	if err != nil {
+		logger.Warn(ctx, "read chat after instruction discovery", slog.Error(err))
+		return
+	}
+	p.publishChatPubsubEvents([]database.Chat{updated}, codersdk.ChatWatchEventKindContextDirty)
+}
+
 type discoveryReconciliation struct {
 	pinned, removed int
 	// capped lists the directories whose new files the row cap kept out.
@@ -660,4 +774,22 @@ func sameDiscoveredRow(a, b database.ChatContextResource) bool {
 		a.Error == b.Error &&
 		a.SizeBytes == b.SizeBytes &&
 		bytes.Equal(a.Body, b.Body)
+}
+
+// resolveInstructionDirs asks the agent about dirs in request-sized batches
+// and returns the files reported and the directories actually asked about:
+// a failed batch (or an agent without the endpoint) ends the round early.
+func resolveInstructionDirs(ctx context.Context, logger slog.Logger, conn workspacesdk.AgentConn, dirs []string) (files []workspacesdk.ContextInstructionFile, probed []string) {
+	for batch := range slices.Chunk(dirs, workspacesdk.MaxContextInstructionDirectories) {
+		resolveCtx, cancel := context.WithTimeout(ctx, instructionDiscoveryTimeout)
+		resp, err := conn.ResolveContextInstructions(resolveCtx, workspacesdk.ResolveContextInstructionsRequest{Directories: batch})
+		cancel()
+		if err != nil {
+			logger.Debug(ctx, "resolve instruction files through agent", slog.Error(err))
+			return files, probed
+		}
+		files = append(files, resp.Files...)
+		probed = append(probed, batch...)
+	}
+	return files, probed
 }
