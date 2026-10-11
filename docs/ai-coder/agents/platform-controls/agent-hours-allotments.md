@@ -36,6 +36,25 @@ Coder shows hour figures for groups only when their organization has an allotmen
 Coder rejects any change that would push a tier above 100%, including concurrent changes from several administrators.
 The API returns `409 Conflict` with the share that is still unallotted and the largest value `allotment_bps` can take.
 
+## How usage is counted
+
+Coder tracks how many Agent Hours each organization, group, and user used in the current license usage period.
+This breakdown stays in your deployment: Coder still reports only the hourly deployment total, as described in [Licensing & usage](../licensing-usage.md#agent-time-usage-reporting).
+
+- Agent Time counts toward the chat's organization and the user who owns the chat.
+  Subagents count toward the chat that started them.
+- In each organization, a user's Agent Time counts toward one group: the user's group in that organization with the largest allotment.
+  When several of the user's groups share the largest allotment, Coder picks the one with the lowest group ID, so the choice stays stable.
+- Agent Time of users who aren't in an allotted group counts toward the **Everyone** group, which stands for the organization's unallotted share.
+- Coder attributes each UTC hour shortly after it ends, using the group memberships and allotments at that time.
+  Later changes to memberships or allotments apply only to later hours.
+
+Usage updates once an hour, so the current hour isn't included yet.
+An hour counts toward the license usage period that contains its start, as it does for the license total.
+
+When you upgrade to a Coder version that tracks usage per organization, Coder attributes the Agent Time already used in each hour to the Everyone group of the chat's organization.
+Agent Time from chats that were deleted before the upgrade can't be attributed, so organization usage can add up to less than the license total.
+
 ## Manage allotments
 
 1. Go to **Admin settings** > **AI** > **Coder Agents** > **Agent Hours**.
@@ -73,3 +92,7 @@ They can read it, because it's the base of their group allotments.
 
 The [API reference](../../../reference/api/enterprise.md#get-agent-hours-organization-allotments) documents the allotment endpoints.
 Allotments use basis points in the `allotment_bps` field, where `10000` equals 100%.
+
+The [usage endpoints](../../../reference/api/enterprise.md#get-agent-hours-usage) report usage in milliseconds, for the deployment's organizations, an organization's groups, and a group's members.
+They use the same permissions as the matching allotment endpoints: listing usage for all organizations requires the access needed to list all organization allotments, and an organization's group usage requires permission to read its groups.
+Group member usage returns only the members you can read.

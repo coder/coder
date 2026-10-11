@@ -1585,6 +1585,17 @@ export const AgentHoursAllotmentMaxBps = 10000;
 
 // From codersdk/agenthours.go
 /**
+ * AgentHoursEffectiveGroup identifies the group a user's Agent Hours count
+ * toward.
+ */
+export interface AgentHoursEffectiveGroup {
+	readonly id: string;
+	readonly name: string;
+	readonly display_name: string;
+}
+
+// From codersdk/agenthours.go
+/**
  * AgentHoursGroupAllotment is a group's share of its organization's Agent
  * Hours. Allotments are configuration only and are not enforced.
  */
@@ -1616,6 +1627,46 @@ export interface AgentHoursGroupAllotments {
 
 // From codersdk/agenthours.go
 /**
+ * AgentHoursGroupMemberUsage is a group member's Agent Time that counted
+ * toward the group in the license usage period.
+ */
+export interface AgentHoursGroupMemberUsage {
+	readonly user_id: string;
+	readonly used_ms: number;
+	/**
+	 * EffectiveGroup is the group the member's Agent Hours count toward now,
+	 * within the queried group's organization.
+	 */
+	readonly effective_group: AgentHoursEffectiveGroup;
+}
+
+// From codersdk/agenthours.go
+/**
+ * AgentHoursGroupMembersUsage reports Agent Hours for members of a group.
+ */
+export interface AgentHoursGroupMembersUsage {
+	readonly usage_period: UsagePeriod;
+	readonly members: readonly AgentHoursGroupMemberUsage[];
+}
+
+// From codersdk/agenthours.go
+/**
+ * AgentHoursGroupUsage is the Agent Time that counted toward a group in the
+ * license usage period. The Everyone group's ID is its organization's ID,
+ * and its usage is the organization's unallotted usage.
+ */
+export interface AgentHoursGroupUsage {
+	readonly group_id: string;
+	/**
+	 * GroupName is empty when the group was deleted.
+	 */
+	readonly group_name: string;
+	readonly group_display_name: string;
+	readonly used_ms: number;
+}
+
+// From codersdk/agenthours.go
+/**
  * AgentHoursOrganizationAllotment is an organization's share of the
  * deployment's licensed Agent Hours. Allotments are configuration only and
  * are not enforced.
@@ -1630,6 +1681,52 @@ export interface AgentHoursOrganizationAllotment {
 	readonly allotment_bps: number;
 	readonly created_at: string;
 	readonly updated_at: string;
+}
+
+// From codersdk/agenthours.go
+/**
+ * AgentHoursOrganizationGroupsUsage reports the Agent Hours each group of an
+ * organization used in the license usage period. Each member's hours count
+ * toward one group: the member's group with the largest Agent Hours
+ * allotment, or the Everyone group when no allotted group contains the
+ * member.
+ */
+export interface AgentHoursOrganizationGroupsUsage {
+	readonly usage_period: UsagePeriod;
+	/**
+	 * UsedMs is the organization's usage, the sum of its groups' usage.
+	 */
+	readonly used_ms: number;
+	readonly groups: readonly AgentHoursGroupUsage[];
+}
+
+// From codersdk/agenthours.go
+/**
+ * AgentHoursOrganizationUsage is the Agent Time an organization used in the
+ * license usage period.
+ */
+export interface AgentHoursOrganizationUsage {
+	readonly organization_id: string;
+	readonly organization_name: string;
+	readonly organization_display_name: string;
+	readonly used_ms: number;
+}
+
+// From codersdk/agenthours.go
+/**
+ * AgentHoursUsage reports the Agent Hours each organization used in the
+ * license usage period. Usage updates once per hour, shortly after the hour
+ * ends.
+ */
+export interface AgentHoursUsage {
+	readonly usage_period: UsagePeriod;
+	/**
+	 * TotalMs is the Agent Time the license measures for the period. It can
+	 * exceed the sum of the organizations' usage by the hours that ran
+	 * before per-organization tracking, in chats that were deleted since.
+	 */
+	readonly total_ms: number;
+	readonly organizations: readonly AgentHoursOrganizationUsage[];
 }
 
 // From codersdk/workspacebuilds.go

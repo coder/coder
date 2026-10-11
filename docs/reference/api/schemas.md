@@ -1564,6 +1564,24 @@ None
 |-----------|-----------------------------------------------------------------|----------|--------------|-------------|
 | `results` | array of [codersdk.AgentFirewallLog](#codersdkagentfirewalllog) | false    |              |             |
 
+## codersdk.AgentHoursEffectiveGroup
+
+```json
+{
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `display_name` | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `name`         | string | false    |              |             |
+
 ## codersdk.AgentHoursGroupAllotment
 
 ```json
@@ -1613,6 +1631,78 @@ None
 | `groups`                     | array of [codersdk.AgentHoursGroupAllotment](#codersdkagenthoursgroupallotment) | false    |              |                                                                                                                                                                               |
 | `organization_allotment_bps` | integer                                                                         | false    |              | Organization allotment bps is the organization's own share of the deployment's Agent Hours. It is null when the organization has no allotment and draws from the shared pool. |
 
+## codersdk.AgentHoursGroupMemberUsage
+
+```json
+{
+  "effective_group": {
+    "display_name": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  },
+  "used_ms": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                   | Required | Restrictions | Description                                                                                                      |
+|-------------------|------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------|
+| `effective_group` | [codersdk.AgentHoursEffectiveGroup](#codersdkagenthourseffectivegroup) | false    |              | Effective group is the group the member's Agent Hours count toward now, within the queried group's organization. |
+| `used_ms`         | integer                                                                | false    |              |                                                                                                                  |
+| `user_id`         | string                                                                 | false    |              |                                                                                                                  |
+
+## codersdk.AgentHoursGroupMembersUsage
+
+```json
+{
+  "members": [
+    {
+      "effective_group": {
+        "display_name": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
+      "used_ms": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ],
+  "usage_period": {
+    "end": "2019-08-24T14:15:22Z",
+    "issued_at": "2019-08-24T14:15:22Z",
+    "start": "2019-08-24T14:15:22Z"
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                | Required | Restrictions | Description |
+|----------------|-------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `members`      | array of [codersdk.AgentHoursGroupMemberUsage](#codersdkagenthoursgroupmemberusage) | false    |              |             |
+| `usage_period` | [codersdk.UsagePeriod](#codersdkusageperiod)                                        | false    |              |             |
+
+## codersdk.AgentHoursGroupUsage
+
+```json
+{
+  "group_display_name": "string",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "group_name": "string",
+  "used_ms": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                     |
+|----------------------|---------|----------|--------------|-------------------------------------------------|
+| `group_display_name` | string  | false    |              |                                                 |
+| `group_id`           | string  | false    |              |                                                 |
+| `group_name`         | string  | false    |              | Group name is empty when the group was deleted. |
+| `used_ms`            | integer | false    |              |                                                 |
+
 ## codersdk.AgentHoursOrganizationAllotment
 
 ```json
@@ -1636,6 +1726,84 @@ None
 | `organization_id`           | string  | false    |              |                                                            |
 | `organization_name`         | string  | false    |              |                                                            |
 | `updated_at`                | string  | false    |              |                                                            |
+
+## codersdk.AgentHoursOrganizationGroupsUsage
+
+```json
+{
+  "groups": [
+    {
+      "group_display_name": "string",
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "group_name": "string",
+      "used_ms": 0
+    }
+  ],
+  "usage_period": {
+    "end": "2019-08-24T14:15:22Z",
+    "issued_at": "2019-08-24T14:15:22Z",
+    "start": "2019-08-24T14:15:22Z"
+  },
+  "used_ms": 0
+}
+```
+
+### Properties
+
+| Name           | Type                                                                    | Required | Restrictions | Description                                                        |
+|----------------|-------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------|
+| `groups`       | array of [codersdk.AgentHoursGroupUsage](#codersdkagenthoursgroupusage) | false    |              |                                                                    |
+| `usage_period` | [codersdk.UsagePeriod](#codersdkusageperiod)                            | false    |              |                                                                    |
+| `used_ms`      | integer                                                                 | false    |              | Used ms is the organization's usage, the sum of its groups' usage. |
+
+## codersdk.AgentHoursOrganizationUsage
+
+```json
+{
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "used_ms": 0
+}
+```
+
+### Properties
+
+| Name                        | Type    | Required | Restrictions | Description |
+|-----------------------------|---------|----------|--------------|-------------|
+| `organization_display_name` | string  | false    |              |             |
+| `organization_id`           | string  | false    |              |             |
+| `organization_name`         | string  | false    |              |             |
+| `used_ms`                   | integer | false    |              |             |
+
+## codersdk.AgentHoursUsage
+
+```json
+{
+  "organizations": [
+    {
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "used_ms": 0
+    }
+  ],
+  "total_ms": 0,
+  "usage_period": {
+    "end": "2019-08-24T14:15:22Z",
+    "issued_at": "2019-08-24T14:15:22Z",
+    "start": "2019-08-24T14:15:22Z"
+  }
+}
+```
+
+### Properties
+
+| Name            | Type                                                                                  | Required | Restrictions | Description                                                                                                                                                                                                 |
+|-----------------|---------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organizations` | array of [codersdk.AgentHoursOrganizationUsage](#codersdkagenthoursorganizationusage) | false    |              |                                                                                                                                                                                                             |
+| `total_ms`      | integer                                                                               | false    |              | Total ms is the Agent Time the license measures for the period. It can exceed the sum of the organizations' usage by the hours that ran before per-organization tracking, in chats that were deleted since. |
+| `usage_period`  | [codersdk.UsagePeriod](#codersdkusageperiod)                                          | false    |              |                                                                                                                                                                                                             |
 
 ## codersdk.AgentScriptTiming
 

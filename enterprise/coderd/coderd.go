@@ -687,6 +687,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 					r.Put("/", api.upsertAgentHoursGroupAllotment)
 					r.Delete("/", api.deleteAgentHoursGroupAllotment)
 				})
+				r.Route("/members/agent-hours", func(r chi.Router) {
+					r.Use(api.RequireFeatureMW(codersdk.FeatureAgentRuntimeHours))
+					r.Get("/", api.groupMembersAgentHoursUsage)
+				})
 			})
 		})
 		r.Route("/agent-hours/allotments", func(r chi.Router) {
@@ -695,6 +699,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.RequireFeatureMW(codersdk.FeatureAgentRuntimeHours),
 			)
 			r.Get("/", api.agentHoursOrganizationAllotments)
+		})
+		r.Route("/agent-hours/usage", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAgentRuntimeHours),
+			)
+			r.Get("/", api.agentHoursUsage)
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(
@@ -705,6 +716,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Put("/organizations/{organization}/agent-hours/allotment", api.upsertAgentHoursOrganizationAllotment)
 			r.Delete("/organizations/{organization}/agent-hours/allotment", api.deleteAgentHoursOrganizationAllotment)
 			r.Get("/organizations/{organization}/agent-hours/group-allotments", api.agentHoursGroupAllotments)
+			r.Get("/organizations/{organization}/agent-hours/usage", api.organizationAgentHoursUsage)
 		})
 		r.Route("/workspace-quota", func(r chi.Router) {
 			r.Use(
