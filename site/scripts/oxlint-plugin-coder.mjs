@@ -22,7 +22,6 @@ const isCatchProperty = (callee) => {
 	return (
 		property.type === "TemplateLiteral" &&
 		property.expressions.length === 0 &&
-		property.quasis.length === 1 &&
 		property.quasis[0].value.cooked === "catch"
 	);
 };
@@ -70,7 +69,7 @@ const noAsUnknownAs = {
 		schema: [],
 	},
 	create(context) {
-		const checkAssertion = (node) => {
+		const checkAsUnknownAs = (node) => {
 			const inner = node.expression;
 			if (
 				(inner.type === "TSAsExpression" ||
@@ -81,8 +80,8 @@ const noAsUnknownAs = {
 			}
 		};
 		return {
-			TSAsExpression: checkAssertion,
-			TSTypeAssertion: checkAssertion,
+			TSAsExpression: checkAsUnknownAs,
+			TSTypeAssertion: checkAsUnknownAs,
 		};
 	},
 };

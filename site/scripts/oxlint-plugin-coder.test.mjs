@@ -18,6 +18,8 @@ ruleTester.run(
 			"promise.catch(handleError);",
 			"promise.then(() => {});",
 			'promise["then"](() => {});',
+			"promise[`then`](() => {});",
+			"promise[`catch${name}`](() => {});",
 		],
 		invalid: [
 			{
