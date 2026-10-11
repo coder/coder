@@ -79,6 +79,13 @@ func (m OrganizationMember) Auditable(username string) AuditableOrganizationMemb
 	}
 }
 
+// AuditableOrganizationSkill is the audit-log representation of an
+// organization skill. It is a separate type because audit decides per Go type
+// whether a resource requires an organization ID.
+type AuditableOrganizationSkill struct {
+	Skill
+}
+
 type AuditableGroup struct {
 	Group
 	Members []GroupMemberTable `json:"members"`

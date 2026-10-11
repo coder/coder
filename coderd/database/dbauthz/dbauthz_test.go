@@ -7134,6 +7134,11 @@ func (s *MethodTestSuite) TestOrganizationSkills() {
 		dbm.EXPECT().DeleteOrganizationSkillByOrganizationIDAndName(gomock.Any(), arg).Return(skill, nil).AnyTimes()
 		check.Args(arg).Asserts(skill, policy.ActionDelete).Returns(skill)
 	}))
+	s.Run("GetOrganizationSkillByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		skill := orgSkill(uuid.New(), "test")
+		dbm.EXPECT().GetOrganizationSkillByIDForUpdate(gomock.Any(), skill.ID).Return(skill, nil).AnyTimes()
+		check.Args(skill.ID).Asserts(skill, policy.ActionRead).Returns(skill)
+	}))
 }
 
 func (s *MethodTestSuite) TestUsageEvents() {
