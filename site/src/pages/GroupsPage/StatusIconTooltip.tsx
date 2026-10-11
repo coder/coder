@@ -8,8 +8,9 @@ import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 export const StatusIconTooltip: React.FC<{
 	message: React.ReactNode;
 	kind?: InfoTooltipType;
-}> = ({ message, kind = "info" }) => (
-	<InfoTooltip type={kind} size="small">
+	ariaLabel?: string;
+}> = ({ message, kind = "info", ariaLabel }) => (
+	<InfoTooltip type={kind} size="small" ariaLabel={ariaLabel}>
 		<TooltipMessage>{message}</TooltipMessage>
 	</InfoTooltip>
 );

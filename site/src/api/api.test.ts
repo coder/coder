@@ -174,7 +174,7 @@ describe("api.ts", () => {
 		);
 	});
 
-	describe("AI spend requests", () => {
+	describe("batched ID requests", () => {
 		const window = {
 			period_start: "2026-07-01T00:00:00Z",
 			period_end: "2026-08-01T00:00:00Z",
@@ -208,6 +208,28 @@ describe("api.ts", () => {
 						effective_budget: null,
 						group_budget: null,
 						group_spend_micros: 0,
+					})),
+				}),
+			},
+			{
+				name: "getGroupMembersAgentHours",
+				path: "/api/v2/groups/group-1/members/agent-hours",
+				request: (ids: string[]) =>
+					API.getGroupMembersAgentHours("group-1", ids),
+				response: (ids: string[]) => ({
+					usage_period: {
+						issued_at: "2026-07-01T00:00:00Z",
+						start: "2026-07-01T00:00:00Z",
+						end: "2026-08-01T00:00:00Z",
+					},
+					members: ids.map((id) => ({
+						user_id: id,
+						used_ms: 0,
+						effective_group: {
+							id: "group-1",
+							name: "group-1",
+							display_name: "",
+						},
 					})),
 				}),
 			},

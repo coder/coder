@@ -3359,14 +3359,14 @@ export const MockAgentHoursGroupAllotment: TypesGen.AgentHoursGroupAllotment = {
 	updated_at: "2026-10-01T00:00:00Z",
 };
 
-const mockAgentHoursUsagePeriod: TypesGen.UsagePeriod = {
+export const MockAgentHoursUsagePeriod: TypesGen.UsagePeriod = {
 	issued_at: "2026-10-01T00:00:00Z",
 	start: "2026-10-01T00:00:00Z",
 	end: "2026-11-01T00:00:00Z",
 };
 
 export const MockAgentHoursUsage: TypesGen.AgentHoursUsage = {
-	usage_period: mockAgentHoursUsagePeriod,
+	usage_period: MockAgentHoursUsagePeriod,
 	total_ms: 1_000_800_000,
 	organizations: [
 		{
@@ -3380,7 +3380,7 @@ export const MockAgentHoursUsage: TypesGen.AgentHoursUsage = {
 
 export const MockAgentHoursOrganizationGroupsUsage: TypesGen.AgentHoursOrganizationGroupsUsage =
 	{
-		usage_period: mockAgentHoursUsagePeriod,
+		usage_period: MockAgentHoursUsagePeriod,
 		used_ms: 1_000_800_000,
 		groups: [
 			{
