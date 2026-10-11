@@ -139,6 +139,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 	});
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const closeButtonRef = useRef<HTMLButtonElement>(null);
 	const [isReadingFile, setIsReadingFile] = useState(false);
 	const isBusy = isSubmitting || isReadingFile;
 	const [importContent, setImportContent] = useState("");
@@ -270,6 +271,12 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 			<DialogContent
 				className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0"
 				onCloseAutoFocus={onCloseAutoFocus}
+				onOpenAutoFocus={(event) => {
+					if (readOnly) {
+						event.preventDefault();
+						closeButtonRef.current?.focus();
+					}
+				}}
 			>
 				<form
 					className="flex min-h-0 flex-1 flex-col"
@@ -388,10 +395,12 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 									{nameError}
 								</p>
 							) : (
-								<p className="m-0 text-xs text-content-secondary">
-									Use lowercase letters, numbers, and hyphens. Names cannot be
-									changed after creation.
-								</p>
+								!readOnly && (
+									<p className="m-0 text-xs text-content-secondary">
+										Use lowercase letters, numbers, and hyphens. Names cannot be
+										changed after creation.
+									</p>
+								)
 							)}
 						</div>
 
@@ -463,6 +472,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
 
 					<DialogFooter className="border-t border-border px-6 py-4">
 						<Button
+							ref={closeButtonRef}
 							variant="outline"
 							disabled={isBusy}
 							onClick={() => onOpenChange(false)}
