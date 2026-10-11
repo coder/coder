@@ -175,7 +175,7 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
-		models: [],
+		modelCatalog: undefined,
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
 		isInputDisabled: false,

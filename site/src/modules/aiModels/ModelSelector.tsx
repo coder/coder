@@ -71,12 +71,16 @@ type ModelSelectorProps = {
 };
 
 export const formatContextLimit = (tokens: number): string => {
-	if (tokens >= 1_000_000) {
-		const m = tokens / 1_000_000;
-		return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+	const roundedTokens = Math.round(tokens);
+	if (roundedTokens < 1_000) {
+		return `${roundedTokens}`;
 	}
 	const k = Math.round(tokens / 1_000);
-	return `${k}K`;
+	if (k < 1_000) {
+		return `${k}K`;
+	}
+	const m = tokens / 1_000_000;
+	return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
 };
 
 const getProviderLabel = (
