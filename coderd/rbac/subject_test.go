@@ -37,6 +37,18 @@ func TestSubjectEqual(t *testing.T) {
 			Expected: true,
 		},
 		{
+			Name:     "DifferentType",
+			A:        rbac.Subject{ID: "id", Type: rbac.SubjectTypeUser},
+			B:        rbac.Subject{ID: "id", Type: rbac.SubjectTypeChatd},
+			Expected: false,
+		},
+		{
+			Name:     "UnspecifiedUserType",
+			A:        rbac.Subject{ID: "id"},
+			B:        rbac.Subject{ID: "id", Type: rbac.SubjectTypeUser},
+			Expected: true,
+		},
+		{
 			Name: "DifferentID",
 			A: rbac.Subject{
 				ID: "id",

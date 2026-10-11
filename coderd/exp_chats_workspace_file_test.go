@@ -982,9 +982,8 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
 		_ = createChatModel(t, adminClient)
 
-		// The chat is created by the first (owner) user. The second
-		// user has org-admin so they pass RBAC for ActionUpdate, but
-		// the owner-only check should still reject them.
+		// Org admins cannot update another user's chat, including
+		// uploading workspace files.
 		secondClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID,
 			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
 		secondClient := codersdk.NewExperimentalClient(secondClientRaw)
@@ -998,6 +997,6 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = secondClient.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "data.zip", bytes.NewReader([]byte("PK")))
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 }

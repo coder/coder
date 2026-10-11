@@ -123,6 +123,7 @@ var (
 	//  - "ActionDelete" :: delete a chat
 	//  - "ActionRead" :: read chat messages and metadata
 	//  - "ActionShare" :: share a chat with other users or groups
+	//  - "ActionWorkspaceStop" :: stop a running chat
 	//  - "ActionUpdate" :: update chat title or settings
 	ResourceChat = Object{
 		Type: "chat",

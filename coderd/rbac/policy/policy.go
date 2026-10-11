@@ -32,6 +32,11 @@ const (
 	ActionShare Action = "share"
 )
 
+// ActionChatStop shares the stop action with workspaces. Keep the alias in a
+// separate declaration so typegen retains ActionWorkspaceStop as the SDK name
+// and scans every literal action in the block above.
+const ActionChatStop Action = ActionWorkspaceStop
+
 type PermissionDefinition struct {
 	// name is optional. Used to override "Type" for function naming.
 	Name string
@@ -71,11 +76,12 @@ var workspaceActions = map[Action]ActionDefinition{
 }
 
 var chatActions = map[Action]ActionDefinition{
-	ActionCreate: "create a new chat",
-	ActionRead:   "read chat messages and metadata",
-	ActionUpdate: "update chat title or settings",
-	ActionDelete: "delete a chat",
-	ActionShare:  "share a chat with other users or groups",
+	ActionCreate:   "create a new chat",
+	ActionRead:     "read chat messages and metadata",
+	ActionUpdate:   "update chat title or settings",
+	ActionChatStop: "stop a running chat",
+	ActionDelete:   "delete a chat",
+	ActionShare:    "share a chat with other users or groups",
 }
 
 var chatAutomationActions = map[Action]ActionDefinition{

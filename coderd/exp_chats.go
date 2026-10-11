@@ -2483,6 +2483,15 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Keep ownership explicit at the handler boundary as defense in depth
+	// for personal chat settings.
+	if chat.OwnerID != httpmw.APIKey(r).UserID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner can update the chat.",
+		})
+		return
+	}
+
 	if !api.requireChatDaemon(ctx, rw) {
 		return
 	}
@@ -2516,26 +2525,11 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		planModeUpdate = &resolvedPlanMode
 	}
 
-	// The read cursor is owner-scoped, so an admin with update
-	// permission must not move another user's unread state.
-	if req.Read != nil && chat.OwnerID != httpmw.APIKey(r).UserID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner can change its read state.",
-		})
-		return
-	}
-
 	// The manage_automations switch lets the chat's agent act on the
 	// owner's automations, so only the owner may change it. Enabling it
 	// is validated before any write; disabling is always accepted so the
 	// switch can be turned off with the experiment off.
 	if req.ManageAutomationsEnabled != nil {
-		if chat.OwnerID != httpmw.APIKey(r).UserID {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "Only the chat owner can change manage_automations_enabled.",
-			})
-			return
-		}
 		if *req.ManageAutomationsEnabled {
 			if chat.ParentChatID.Valid {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -2938,12 +2932,10 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only the chat owner may send messages. Org admins pass the
-	// RBAC check above (org-level ActionUpdate), but chat
-	// processing forwards the *owner's* credentials (OIDC tokens,
-	// provider API keys) to external services. Allowing a
-	// non-owner to trigger processing would leak the owner's
-	// tokens to MCP servers the caller controls.
+	// Keep the ownership check as defense in depth: processing forwards
+	// the owner's credentials (OIDC tokens, provider API keys) to external
+	// services. A non-owner triggering processing could leak those tokens
+	// to MCP servers the caller controls.
 	if apiKey.UserID != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may send messages.",
@@ -3684,12 +3676,13 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+	if !api.Authorize(r, policy.ActionChatStop, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
-	updated, err := api.chatDaemon.InterruptChat(ctx, chat)
+	//nolint:gocritic // The stop permission above authorizes the state machine's chat updates.
+	updated, err := api.chatDaemon.InterruptChat(dbauthz.AsSystemRestricted(ctx), chat)
 	if err != nil {
 		if writeCommonChatMutationError(ctx, rw, err, "Cannot interrupt an archived chat.") {
 			return
@@ -3745,9 +3738,9 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only the chat owner may trigger compaction. Org admins pass the
-	// RBAC check above (org-level ActionUpdate), but compaction runs
-	// inference with the owner's delegated credentials.
+	// Only the chat owner may trigger compaction. See postChatMessages
+	// for the security rationale; compaction runs inference with the
+	// owner's delegated credentials.
 	if apiKey.UserID != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may compact the chat.",
@@ -4315,8 +4308,9 @@ func (api *API) resolveChatDiffContents(
 		// The agent's report creates the row. Discovery only fills in
 		// the URL, so skip until the ref was reported.
 		if found && (!strings.EqualFold(strings.TrimSpace(status.Url.String), pullRequestURL)) {
+			//nolint:gocritic // Discovery backfill is a chatd write after the caller's authorized read.
 			err := api.Database.UpdateChatDiffStatusReferenceURL(
-				ctx,
+				dbauthz.AsChatd(ctx),
 				database.UpdateChatDiffStatusReferenceURLParams{
 					ChatID:          status.ChatID,
 					GitBranch:       status.GitBranch,

@@ -314,6 +314,86 @@ func BenchmarkCacher(b *testing.B) {
 	}
 }
 
+func TestChatUpdateOwnership(t *testing.T) {
+	t.Parallel()
+	orgID := uuid.New()
+	userID := uuid.NewString()
+	otherID := uuid.NewString()
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	custom := rbac.Roles{{
+		Identifier: rbac.RoleIdentifier{Name: "chat-editor", OrganizationID: orgID},
+		ByOrgID: map[string]rbac.OrgPermissions{orgID.String(): {
+			Org: rbac.Permissions(map[string][]policy.Action{rbac.ResourceChat.Type: {policy.ActionUpdate}}),
+		}},
+	}}
+	for _, tc := range []struct {
+		name  string
+		roles rbac.ExpandableRoles
+	}{
+		{"SiteOwner", rbac.RoleIdentifiers{rbac.RoleOwner()}},
+		{"OrgAdmin", rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(orgID)}},
+		{"AgentsAccess", rbac.RoleIdentifiers{rbac.ScopedRoleAgentsAccess(orgID)}},
+		{"CustomRole", custom},
+		{"WildcardRole", rbac.Roles{{Identifier: rbac.RoleIdentifier{Name: "wildcard"}, Site: []rbac.Permission{{ResourceType: "*", Action: "*"}}}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			subject := rbac.Subject{ID: userID, Roles: tc.roles, Scope: rbac.ScopeAll}
+			prepared, err := auth.Prepare(ctx, subject, policy.ActionUpdate, rbac.ResourceChat.Type)
+			require.NoError(t, err)
+			for _, ownerID := range []string{userID, otherID, ""} {
+				obj := rbac.ResourceChat.InOrg(orgID).WithOwner(ownerID)
+				if ownerID == userID {
+					require.NoError(t, auth.Authorize(ctx, subject, policy.ActionUpdate, obj))
+					require.NoError(t, prepared.Authorize(ctx, obj))
+				} else {
+					require.Error(t, auth.Authorize(ctx, subject, policy.ActionUpdate, obj))
+					require.Error(t, prepared.Authorize(ctx, obj))
+				}
+			}
+			sql, err := prepared.CompileToSQL(ctx, rbac.ConfigChats())
+			require.NoError(t, err)
+			require.Contains(t, sql, userID)
+		})
+	}
+	t.Run("ACLDoesNotBypassOwnership", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		subject := rbac.Subject{ID: userID, Type: rbac.SubjectTypeUser, Roles: rbac.Roles{{Identifier: rbac.RoleIdentifier{Name: "org-member", OrganizationID: orgID}, ByOrgID: map[string]rbac.OrgPermissions{orgID.String(): {}}}}, Scope: rbac.ScopeAll}
+		obj := rbac.ResourceChat.InOrg(orgID).WithOwner(otherID).WithACLUserList(map[string][]policy.Action{userID: {policy.ActionUpdate}})
+		require.Error(t, auth.Authorize(ctx, subject, policy.ActionUpdate, obj))
+		prepared, err := auth.Prepare(ctx, subject, policy.ActionUpdate, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		require.Error(t, prepared.Authorize(ctx, obj))
+	})
+	t.Run("ServiceActorsAndCache", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		obj := rbac.ResourceChat.InOrg(orgID).WithOwner(otherID)
+		for _, typ := range []rbac.SubjectType{rbac.SubjectTypeChatd, rbac.SubjectTypeSystemRestricted, rbac.SubjectTypeDBPurge, rbac.SubjectTypeUser, "", "unknown"} {
+			subject := rbac.Subject{ID: userID, Type: typ, Roles: rbac.RoleIdentifiers{rbac.RoleOwner()}, Scope: rbac.ScopeAll}
+			allowed := typ == rbac.SubjectTypeChatd || typ == rbac.SubjectTypeSystemRestricted || typ == rbac.SubjectTypeDBPurge
+			prepared, err := auth.Prepare(ctx, subject, policy.ActionUpdate, rbac.ResourceChat.Type)
+			require.NoError(t, err)
+			if allowed {
+				require.NoError(t, auth.Authorize(ctx, subject, policy.ActionUpdate, obj))
+				require.NoError(t, prepared.Authorize(ctx, obj))
+			} else {
+				require.Error(t, auth.Authorize(ctx, subject, policy.ActionUpdate, obj))
+				require.Error(t, prepared.Authorize(ctx, obj))
+			}
+			subject.Scope = rbac.ScopeApplicationConnect
+			require.Error(t, auth.Authorize(ctx, subject, policy.ActionUpdate, obj))
+			subject.Scope = rbac.ScopeAll
+			subject.Roles = rbac.RoleIdentifiers{}
+			require.Error(t, auth.Authorize(ctx, subject, policy.ActionUpdate, obj))
+		}
+		subject := rbac.Subject{Roles: rbac.RoleIdentifiers{rbac.RoleOwner()}, Scope: rbac.ScopeAll}
+		require.Error(t, auth.Authorize(ctx, subject, policy.ActionUpdate, rbac.ResourceChat.InOrg(orgID)))
+	})
+}
+
 func TestCache(t *testing.T) {
 	t.Parallel()
 

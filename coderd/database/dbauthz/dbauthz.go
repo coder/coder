@@ -1604,6 +1604,11 @@ func (q *querier) customRoleEscalationCheck(ctx context.Context, actor rbac.Subj
 	}
 
 	object.Type = perm.ResourceType
+	if perm.ResourceType == rbac.ResourceChat.Type && perm.Action == policy.ActionUpdate {
+		// Human chat updates are restricted to the actor's own chats, even
+		// when the permission is granted through a custom role.
+		object.Owner = actor.ID
+	}
 	if err := q.auth.Authorize(ctx, actor, perm.Action, object); err != nil {
 		// This is a forbidden error, but we can provide more context. Since the user can create a role, just not
 		// with this perm.

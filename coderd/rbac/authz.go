@@ -110,7 +110,7 @@ type Subject struct {
 	Email string
 
 	// Type indicates what kind of subject this is (user, system, provisioner, etc.)
-	// It is not used in any functional way, only for logging.
+	// Chat update authorization distinguishes trusted service actors from users.
 	Type SubjectType
 
 	ID     string
@@ -146,6 +146,17 @@ func (s Subject) WithCachedASTValue() Subject {
 
 func (s Subject) Equal(b Subject) bool {
 	if s.ID != b.ID {
+		return false
+	}
+	// Unspecified subjects use the same ownership rules as users.
+	aType, bType := s.Type, b.Type
+	if aType == "" {
+		aType = SubjectTypeUser
+	}
+	if bType == "" {
+		bType = SubjectTypeUser
+	}
+	if aType != bType {
 		return false
 	}
 
@@ -421,10 +432,11 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 }
 
 type authSubject struct {
-	ID     string   `json:"id"`
-	Roles  []Role   `json:"roles"`
-	Groups []string `json:"groups"`
-	Scope  Scope    `json:"scope"`
+	Type   SubjectType `json:"type"`
+	ID     string      `json:"id"`
+	Roles  []Role      `json:"roles"`
+	Groups []string    `json:"groups"`
+	Scope  Scope       `json:"scope"`
 }
 
 // Authorize is the intended function to be used outside this package.

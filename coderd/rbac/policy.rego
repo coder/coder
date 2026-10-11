@@ -452,7 +452,24 @@ permission_allow if role_allow
 # A subject can be given permission by ACL
 permission_allow if acl_allow
 
+# Human chat updates are personal even when a role or ACL grants update
+# across the deployment. Internal writers still need their own permissions.
+chat_update_allowed if input.object.type != "chat"
+
+chat_update_allowed if input.action != "update"
+
+chat_update_allowed if {
+	input.subject.id != ""
+	input.subject.id = input.object.owner
+}
+
+chat_update_allowed if {
+	input.subject.type in {"chatd", "system_restricted", "dbpurge"}
+}
+
 allow if {
+	chat_update_allowed
+
 	# Must be allowed by the subject's permissions
 	permission_allow
 

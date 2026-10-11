@@ -58,6 +58,7 @@ const (
 	APIKeyScopeChatDelete                          APIKeyScope = "chat:delete"
 	APIKeyScopeChatRead                            APIKeyScope = "chat:read"
 	APIKeyScopeChatShare                           APIKeyScope = "chat:share"
+	APIKeyScopeChatStop                            APIKeyScope = "chat:stop"
 	APIKeyScopeChatUpdate                          APIKeyScope = "chat:update"
 	APIKeyScopeChatAutomationAll                   APIKeyScope = "chat_automation:*"
 	APIKeyScopeChatAutomationCreate                APIKeyScope = "chat_automation:create"

@@ -82,6 +82,10 @@ func (s Subject) regoValue() (ast.Value, error) {
 	}
 	subj := ast.NewObject(
 		[2]*ast.Term{
+			ast.StringTerm("type"),
+			ast.StringTerm(string(s.Type)),
+		},
+		[2]*ast.Term{
 			ast.StringTerm("id"),
 			ast.StringTerm(s.ID),
 		},
