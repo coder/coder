@@ -1171,6 +1171,8 @@ type PromoteQueuedResult struct {
 	// was running at promote time, the insertion is deferred to the
 	// worker's auto-promote and PromotedMessage is the zero value.
 	PromotedMessage database.ChatMessage
+	// Chat is the chat as the promote committed it.
+	Chat database.Chat
 }
 
 // forcedMCPServerConfigsForOwner filters enabled Force On configs
@@ -2140,25 +2142,36 @@ func (p *Server) setChatFamilyArchived(
 }
 
 // DeleteQueued removes a queued user message through the chatstate
-// state machine. Stream side effects are handled by chat:update
-// consumers.
+// state machine and returns the chat as committed. Stream side effects
+// are handled by chat:update consumers.
 func (p *Server) DeleteQueued(
 	ctx context.Context,
 	chatID uuid.UUID,
 	queuedMessageID int64,
-) error {
+) (database.Chat, error) {
 	if chatID == uuid.Nil {
-		return xerrors.New("chat_id is required")
+		return database.Chat{}, xerrors.New("chat_id is required")
 	}
 
+	var chat database.Chat
 	machine := p.newChatMachine(chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
-		})
-		return err
+		}); err != nil {
+			return err
+		}
+		var err error
+		chat, err = store.GetChatByID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("reload chat after delete queued: %w", err)
+		}
+		return nil
 	})
-	return err
+	if err != nil {
+		return database.Chat{}, err
+	}
+	return chat, nil
 }
 
 // PromoteQueued promotes a queued message through the chatstate state
@@ -2216,6 +2229,7 @@ func (p *Server) PromoteQueued(
 
 	p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	p.recordQueueWait(ctx, refreshChat, promotedQueuedAt)
+	result.Chat = refreshChat
 	return result, nil
 }
 
@@ -2256,27 +2270,27 @@ func (e *ToolResultStatusConflictError) Error() string {
 }
 
 // SubmitToolResults dispatches hooks before completing the
-// requires_action transition.
+// requires_action transition and returns the chat as committed.
 func (p *Server) SubmitToolResults(
 	ctx context.Context,
 	opts SubmitToolResultsOptions,
-) error {
+) (database.Chat, error) {
 	machine := p.newChatMachine(opts.ChatID)
 	var hookSuffix []chatstate.Message
 	if p.hooks.Enabled() {
 		state, err := loadDynamicPostToolUseState(ctx, machine, opts)
 		if err != nil {
-			return err
+			return database.Chat{}, err
 		}
 		for _, result := range opts.Results {
 			response, err := p.hooks.Trigger(ctx, chathooks.ChatFor(state.chat, nil), chathooks.DynamicPostToolUseMessage(result, state.toolNames[result.ToolCallID]), agenthooks.EventPostToolUse, dispatch.CapacityClassGeneration)
 			if err != nil {
 				// Leave pending calls intact so the client can resubmit after recovery.
-				return chathooks.GenerationDispatchError(agenthooks.EventPostToolUse, err)
+				return database.Chat{}, chathooks.GenerationDispatchError(agenthooks.EventPostToolUse, err)
 			}
 			responseMessages, err := chathooks.EventMessages(response, state.modelConfigID)
 			if err != nil {
-				return err
+				return database.Chat{}, err
 			}
 			hookSuffix = append(hookSuffix, responseMessages...)
 		}
@@ -2285,7 +2299,6 @@ func (p *Server) SubmitToolResults(
 	var (
 		statusConflict *ToolResultStatusConflictError
 		refreshChat    database.Chat
-		refreshedOK    bool
 	)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		locked, err := store.GetChatByID(ctx, opts.ChatID)
@@ -2329,20 +2342,17 @@ func (p *Server) SubmitToolResults(
 			return xerrors.Errorf("reload chat after tool results: %w", err)
 		}
 		refreshChat = refreshed
-		refreshedOK = true
 		return nil
 	})
 	if updateErr != nil {
 		if statusConflict != nil {
-			return statusConflict
+			return database.Chat{}, statusConflict
 		}
-		return translateToolResultValidationError(updateErr)
+		return database.Chat{}, translateToolResultValidationError(updateErr)
 	}
 
-	if refreshedOK {
-		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
-	}
-	return nil
+	p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	return refreshChat, nil
 }
 
 // translateToolResultValidationError converts a chatstate tool-result

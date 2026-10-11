@@ -8286,7 +8286,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
+		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
 
 		event := waitForChatWatchStatusChangeEvent(ctx, t, conn, chat.ID)
 		require.Equal(t, modelConfigB.ID, event.Chat.LastModelConfigID)
@@ -10129,6 +10129,7 @@ func TestStreamChat(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, resp.DeletedMessageIDs)
+			require.NotZero(t, resp.SnapshotVersion, "the response must carry the version the edit committed")
 		}
 		requireResetFrom := func(events []codersdk.ChatStreamEvent, fromID int64) {
 			t.Helper()
@@ -11967,8 +11968,13 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 			nil,
 		)
 		require.NoError(t, err)
-		res.Body.Close()
-		require.Equal(t, http.StatusNoContent, res.StatusCode)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		var deleted codersdk.ChatActionResponse
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&deleted))
+		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, after.SnapshotVersion, deleted.SnapshotVersion, "the response must carry the version the delete committed")
 
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
@@ -12057,11 +12063,11 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
+		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
 
-		var resp codersdk.Response
-		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
-		require.NotEmpty(t, resp.Message)
+		var promoteResp codersdk.ChatActionResponse
+		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&promoteResp))
+		require.Greater(t, promoteResp.SnapshotVersion, chat.SnapshotVersion, "the response must carry the version the promote committed")
 
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
@@ -12268,7 +12274,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
+		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
 	})
 
 	t.Run("ArchivedChat", func(t *testing.T) {
@@ -12389,11 +12395,11 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
+		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
 
-		var resp codersdk.Response
-		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
-		require.NotEmpty(t, resp.Message)
+		var promoteResp codersdk.ChatActionResponse
+		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&promoteResp))
+		require.Greater(t, promoteResp.SnapshotVersion, chat.SnapshotVersion, "the response must carry the version the promote committed")
 
 		messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
 			ChatID:  chat.ID,
@@ -12482,11 +12488,11 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
+		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
 
-		var resp codersdk.Response
-		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&resp))
-		require.NotEmpty(t, resp.Message)
+		var promoteResp codersdk.ChatActionResponse
+		require.NoError(t, json.NewDecoder(promoteRes.Body).Decode(&promoteResp))
+		require.Greater(t, promoteResp.SnapshotVersion, chat.SnapshotVersion, "the response must carry the version the promote committed")
 
 		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
@@ -13986,6 +13992,7 @@ func sendChatMessage(ctx context.Context, t *testing.T, client *codersdk.Experim
 	})
 	require.NoError(t, err)
 	require.False(t, resp.Queued)
+	require.NotZero(t, resp.SnapshotVersion, "the response must carry the version the send committed")
 	waitForChatStatus(ctx, t, client, chatID, codersdk.ChatStatusWaiting)
 	if len(resp.Messages) > 0 {
 		return resp.Messages
@@ -17557,77 +17564,77 @@ func TestGetChatsByWorkspace(t *testing.T) {
 	})
 }
 
+// setupRequiresAction creates a chat via the DB with dynamic tools,
+// inserts an assistant message containing tool-call parts for each
+// given toolCallID, and sets the chat status to requires_action.
+// It returns the chat row so callers can exercise the endpoint.
+//
+// Callers must build their coderd with withChatWorkerDisabled: an
+// unowned requires_action chat is a worker acquisition candidate,
+// and a takeover would synthesize tool cancellations and change the
+// chat status underneath the test.
+func setupRequiresAction(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	ownerID uuid.UUID,
+	organizationID uuid.UUID,
+	modelConfigID uuid.UUID,
+	dynamicToolName string,
+	toolCallIDs []string,
+) database.Chat {
+	t.Helper()
+
+	// Marshal dynamic tools into the chat row.
+	dynamicTools := []mcp.Tool{{
+		Name:        dynamicToolName,
+		Description: "a test dynamic tool",
+		InputSchema: map[string]any{"type": "object"},
+	}}
+	dtJSON, err := json.Marshal(dynamicTools)
+	require.NoError(t, err)
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    organizationID,
+		OwnerID:           ownerID,
+		LastModelConfigID: modelConfigID,
+		Title:             "tool-results-test",
+		DynamicTools:      pqtype.NullRawMessage{RawMessage: dtJSON, Valid: true},
+	})
+
+	// Build assistant message with tool-call parts.
+	parts := make([]codersdk.ChatMessagePart, 0, len(toolCallIDs))
+	for _, id := range toolCallIDs {
+		parts = append(parts, codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: id,
+			ToolName:   dynamicToolName,
+			Args:       json.RawMessage(`{"key":"value"}`),
+		})
+	}
+	content, err := chatprompt.MarshalParts(parts)
+	require.NoError(t, err)
+
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		Role:          database.ChatMessageRoleAssistant,
+		Content:       content,
+	})
+
+	// Transition to requires_action.
+	chat, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusRequiresAction,
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusRequiresAction, chat.Status)
+
+	return chat
+}
+
 func TestSubmitToolResults(t *testing.T) {
 	t.Parallel()
-
-	// setupRequiresAction creates a chat via the DB with dynamic tools,
-	// inserts an assistant message containing tool-call parts for each
-	// given toolCallID, and sets the chat status to requires_action.
-	// It returns the chat row so callers can exercise the endpoint.
-	//
-	// Callers must build their coderd with withChatWorkerDisabled: an
-	// unowned requires_action chat is a worker acquisition candidate,
-	// and a takeover would synthesize tool cancellations and change the
-	// chat status underneath the test.
-	setupRequiresAction := func(
-		ctx context.Context,
-		t *testing.T,
-		db database.Store,
-		ownerID uuid.UUID,
-		organizationID uuid.UUID,
-		modelConfigID uuid.UUID,
-		dynamicToolName string,
-		toolCallIDs []string,
-	) database.Chat {
-		t.Helper()
-
-		// Marshal dynamic tools into the chat row.
-		dynamicTools := []mcp.Tool{{
-			Name:        dynamicToolName,
-			Description: "a test dynamic tool",
-			InputSchema: map[string]any{"type": "object"},
-		}}
-		dtJSON, err := json.Marshal(dynamicTools)
-		require.NoError(t, err)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    organizationID,
-			OwnerID:           ownerID,
-			LastModelConfigID: modelConfigID,
-			Title:             "tool-results-test",
-			DynamicTools:      pqtype.NullRawMessage{RawMessage: dtJSON, Valid: true},
-		})
-
-		// Build assistant message with tool-call parts.
-		parts := make([]codersdk.ChatMessagePart, 0, len(toolCallIDs))
-		for _, id := range toolCallIDs {
-			parts = append(parts, codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolCall,
-				ToolCallID: id,
-				ToolName:   dynamicToolName,
-				Args:       json.RawMessage(`{"key":"value"}`),
-			})
-		}
-		content, err := chatprompt.MarshalParts(parts)
-		require.NoError(t, err)
-
-		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-			ChatID:        chat.ID,
-			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:          database.ChatMessageRoleAssistant,
-			Content:       content,
-		})
-
-		// Transition to requires_action.
-		chat, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
-			ID:     chat.ID,
-			Status: database.ChatStatusRequiresAction,
-		})
-		require.NoError(t, err)
-		require.Equal(t, database.ChatStatusRequiresAction, chat.Status)
-
-		return chat
-	}
 
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
@@ -17642,13 +17649,14 @@ func TestSubmitToolResults(t *testing.T) {
 
 		chat := setupRequiresAction(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
-		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		resp, err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_abc", Output: json.RawMessage(`"result_a"`)},
 				{ToolCallID: "call_def", Output: json.RawMessage(`"result_b"`)},
 			},
 		})
 		require.NoError(t, err)
+		require.Greater(t, resp.SnapshotVersion, chat.SnapshotVersion, "the response must carry the version the submission committed")
 
 		// Verify status is no longer requires_action. The worker is
 		// disabled, so the transition comes from SubmitToolResults
@@ -17688,7 +17696,7 @@ func TestSubmitToolResults(t *testing.T) {
 			Title:             "wrong-status-test",
 		})
 
-		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		_, err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_xyz", Output: json.RawMessage(`"nope"`)},
 			},
@@ -17710,7 +17718,7 @@ func TestSubmitToolResults(t *testing.T) {
 		chat := setupRequiresAction(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
 		// Submit only one of the two required results.
-		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		_, err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_one", Output: json.RawMessage(`"partial"`)},
 			},
@@ -17732,7 +17740,7 @@ func TestSubmitToolResults(t *testing.T) {
 		chat := setupRequiresAction(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
 		// Submit a result with a wrong tool_call_id.
-		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		_, err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_bogus", Output: json.RawMessage(`"wrong"`)},
 			},
@@ -17783,7 +17791,7 @@ func TestSubmitToolResults(t *testing.T) {
 
 		chat := setupRequiresAction(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
-		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		_, err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_dup1", Output: json.RawMessage(`"result_a"`)},
 				{ToolCallID: "call_dup1", Output: json.RawMessage(`"result_b"`)},
@@ -17806,7 +17814,7 @@ func TestSubmitToolResults(t *testing.T) {
 
 		chat := setupRequiresAction(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
-		err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		_, err := client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{},
 		})
 		requireSDKError(t, err, http.StatusBadRequest)
@@ -17832,7 +17840,7 @@ func TestSubmitToolResults(t *testing.T) {
 		)
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 
-		err := otherClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		_, err := otherClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_other", Output: json.RawMessage(`"nope"`)},
 			},
@@ -17856,7 +17864,7 @@ func TestSubmitToolResults(t *testing.T) {
 
 		chat := setupRequiresAction(ctx, t, db, member.ID, firstUser.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
-		err := memberClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		_, err := memberClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_member", Output: json.RawMessage(`"result"`)},
 			},
@@ -17881,7 +17889,7 @@ func TestSubmitToolResults(t *testing.T) {
 		_, err := db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 
-		err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		_, err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
 				{ToolCallID: "call_archived", Output: json.RawMessage(`"should fail"`)},
 			},
@@ -18261,7 +18269,7 @@ func TestPostChats_DynamicToolValidation(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, chat.ID)
 
-		err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		_, err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{{ToolCallID: "call_abc", Output: json.RawMessage(`"result"`)}},
 		})
 		sdkErr = requireSDKError(t, err, http.StatusForbidden)
@@ -19000,7 +19008,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		t.Parallel()
 
 		ctx, _, sharedClient, chat, _ := setup(t)
-		err := sharedClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		_, err := sharedClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{{
 				ToolCallID: "call_read_only",
 				Output:     json.RawMessage(`"forbidden"`),
@@ -19191,7 +19199,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
 
-		err := adminClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		_, err := adminClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{{
 				ToolCallID: "call_forbidden",
 				Output:     json.RawMessage(`"forbidden"`),
