@@ -11,6 +11,22 @@ const hasUncommentedEmptyBody = (node, sourceCode) =>
 	node.body.body.length === 0 &&
 	sourceCode.getCommentsInside(node.body).length === 0;
 
+const isCatchProperty = (callee) => {
+	const { computed, property } = callee;
+	if (!computed) {
+		return property.type === "Identifier" && property.name === "catch";
+	}
+	if (property.type === "Literal") {
+		return property.value === "catch";
+	}
+	return (
+		property.type === "TemplateLiteral" &&
+		property.expressions.length === 0 &&
+		property.quasis.length === 1 &&
+		property.quasis[0].value.cooked === "catch"
+	);
+};
+
 const noEmptyCatchCallback = {
 	meta: {
 		type: "suggestion",
@@ -28,12 +44,7 @@ const noEmptyCatchCallback = {
 		return {
 			CallExpression(node) {
 				const { callee } = node;
-				if (
-					callee.type !== "MemberExpression" ||
-					callee.computed ||
-					callee.property.type !== "Identifier" ||
-					callee.property.name !== "catch"
-				) {
+				if (callee.type !== "MemberExpression" || !isCatchProperty(callee)) {
 					return;
 				}
 				const [handler] = node.arguments;

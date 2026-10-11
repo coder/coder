@@ -17,6 +17,7 @@ ruleTester.run(
 			"promise.catch(() => {\n\t// The caller renders the error.\n});",
 			"promise.catch(handleError);",
 			"promise.then(() => {});",
+			'promise["then"](() => {});',
 		],
 		invalid: [
 			{
@@ -29,6 +30,14 @@ ruleTester.run(
 			},
 			{
 				code: "promise.catch(function () {});",
+				errors: [{ messageId: "emptyCatchCallback" }],
+			},
+			{
+				code: 'promise["catch"](() => {});',
+				errors: [{ messageId: "emptyCatchCallback" }],
+			},
+			{
+				code: "promise[`catch`](() => {});",
 				errors: [{ messageId: "emptyCatchCallback" }],
 			},
 		],
