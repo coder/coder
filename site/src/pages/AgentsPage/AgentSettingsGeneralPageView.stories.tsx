@@ -22,7 +22,6 @@ const baseArgs: AgentSettingsGeneralPageViewProps = {
 	},
 	isLoadingUserPrompt: false,
 	userPromptError: undefined,
-	onRetryUserPrompt: fn(),
 	onSaveUserPrompt: fn(),
 	isSavingUserPrompt: false,
 	isSaveUserPromptError: false,
@@ -58,7 +57,7 @@ export const PersonalInstructionsLoadError: Story = {
 	args: {
 		userPromptData: undefined,
 		userPromptError: new Error(
-			"Unable to load personal instructions. Please try again.",
+			"Unable to load personal instructions. Please reload the page.",
 		),
 	},
 };

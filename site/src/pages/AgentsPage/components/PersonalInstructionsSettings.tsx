@@ -22,7 +22,6 @@ type PersonalInstructionsSettingsProps = {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
 	isLoadingUserPrompt: boolean;
 	userPromptError: unknown;
-	onRetryUserPrompt: () => void;
 	onSaveUserPrompt: (
 		req: TypesGen.UserChatCustomPrompt,
 		options?: MutationCallbacks,
@@ -38,7 +37,6 @@ export const PersonalInstructionsSettings: React.FC<
 	userPromptData,
 	isLoadingUserPrompt,
 	userPromptError,
-	onRetryUserPrompt,
 	onSaveUserPrompt,
 	isSavingUserPrompt,
 	isSaveUserPromptError,
@@ -103,18 +101,7 @@ export const PersonalInstructionsSettings: React.FC<
 						Loading personal instructions...
 					</div>
 				) : userPromptError ? (
-					<>
-						<ErrorAlert error={userPromptError} showDebugDetail={false} />
-						<Button
-							type="button"
-							variant="outline"
-							size="xs"
-							className="self-start"
-							onClick={onRetryUserPrompt}
-						>
-							Retry
-						</Button>
-					</>
+					<ErrorAlert error={userPromptError} showDebugDetail={false} />
 				) : null)}
 			<TextareaAutosize
 				aria-labelledby={headingId}
@@ -141,7 +128,7 @@ export const PersonalInstructionsSettings: React.FC<
 			)}
 			<div className="mt-2 flex min-h-6 justify-end gap-2">
 				{(form.dirty || isSavedVisible || isSavingUserPrompt) &&
-					(isSavedVisible && !form.dirty ? (
+					(isSavedVisible ? (
 						<TemporarySavedState />
 					) : (
 						<>

@@ -16,7 +16,6 @@ export type AgentSettingsGeneralPageViewProps = {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
 	isLoadingUserPrompt: boolean;
 	userPromptError: unknown;
-	onRetryUserPrompt: () => void;
 	onSaveUserPrompt: UseMutateFunction<
 		TypesGen.UserChatCustomPrompt,
 		Error,
@@ -42,7 +41,6 @@ export const AgentSettingsGeneralPageView: React.FC<
 	userPromptData,
 	isLoadingUserPrompt,
 	userPromptError,
-	onRetryUserPrompt,
 	onSaveUserPrompt,
 	isSavingUserPrompt,
 	isSaveUserPromptError,
@@ -61,7 +59,6 @@ export const AgentSettingsGeneralPageView: React.FC<
 				userPromptData={userPromptData}
 				isLoadingUserPrompt={isLoadingUserPrompt}
 				userPromptError={userPromptError}
-				onRetryUserPrompt={onRetryUserPrompt}
 				onSaveUserPrompt={onSaveUserPrompt}
 				isSavingUserPrompt={isSavingUserPrompt}
 				isSaveUserPromptError={isSaveUserPromptError}

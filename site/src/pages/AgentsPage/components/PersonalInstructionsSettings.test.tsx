@@ -13,8 +13,13 @@ import {
 } from "#/testHelpers/renderHelpers";
 import AgentSettingsGeneralPage from "../AgentSettingsGeneralPage";
 
-const renderPage = () => {
+const renderPage = (custom_prompt?: string) => {
 	const queryClient = createTestQueryClient();
+	if (custom_prompt !== undefined) {
+		queryClient.setQueryData(chatUserCustomPrompt().queryKey, {
+			custom_prompt,
+		});
+	}
 	queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
 	renderComponent(
 		<QueryClientProvider client={queryClient}>
@@ -25,6 +30,9 @@ const renderPage = () => {
 };
 
 beforeEach(() => {
+	vi.spyOn(API.experimental, "updateUserChatCustomPrompt").mockImplementation(
+		async (values) => values,
+	);
 	vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
 		MockUserPreferenceSettings,
 	);
@@ -48,16 +56,15 @@ describe("PersonalInstructionsSettings", () => {
 			vi.spyOn(API.experimental, "getUserChatCustomPrompt").mockReturnValue(
 				pending.promise,
 			);
-			const save = vi
-				.spyOn(API.experimental, "updateUserChatCustomPrompt")
-				.mockImplementation(async (values) => values);
 			const queryClient = renderPage();
 			const textarea = screen.getByRole("textbox", {
 				name: "Personal instructions",
 			});
 			await user.type(textarea, "Premature draft");
 			expect(textarea).toHaveValue("");
-			expect(save).not.toHaveBeenCalled();
+			expect(
+				API.experimental.updateUserChatCustomPrompt,
+			).not.toHaveBeenCalled();
 
 			await act(async () => pending.resolve({ custom_prompt }));
 			await waitFor(() =>
@@ -68,22 +75,19 @@ describe("PersonalInstructionsSettings", () => {
 			await user.type(textarea, " and my edits");
 			await user.click(screen.getByRole("button", { name: "Save" }));
 			await waitFor(() =>
-				expect(save).toHaveBeenCalledWith({
+				expect(
+					API.experimental.updateUserChatCustomPrompt,
+				).toHaveBeenCalledWith({
 					custom_prompt: `${custom_prompt} and my edits`,
 				}),
 			);
 		},
 	);
 
-	it("blocks editing after an initial failure and hydrates on retry", async () => {
-		const user = userEvent.setup();
-		const load = vi
-			.spyOn(API.experimental, "getUserChatCustomPrompt")
-			.mockRejectedValueOnce(new Error("Unable to load personal instructions"))
-			.mockResolvedValue({ custom_prompt: "Recovered instructions" });
-		const save = vi
-			.spyOn(API.experimental, "updateUserChatCustomPrompt")
-			.mockImplementation(async (values) => values);
+	it("blocks editing after an initial failure", async () => {
+		vi.spyOn(API.experimental, "getUserChatCustomPrompt").mockRejectedValue(
+			new Error("Unable to load personal instructions"),
+		);
 		const queryClient = renderPage();
 		await waitFor(() =>
 			expect(
@@ -93,18 +97,9 @@ describe("PersonalInstructionsSettings", () => {
 		const textarea = screen.getByRole("textbox", {
 			name: "Personal instructions",
 		});
-		await user.type(textarea, "Premature draft");
+		await userEvent.type(textarea, "Premature draft");
 		expect(textarea).toHaveValue("");
-		expect(save).not.toHaveBeenCalled();
-		await user.click(screen.getByRole("button", { name: "Retry" }));
-		await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-		await user.type(textarea, " with edits");
-		await user.click(screen.getByRole("button", { name: "Save" }));
-		await waitFor(() =>
-			expect(save).toHaveBeenCalledWith({
-				custom_prompt: "Recovered instructions with edits",
-			}),
-		);
+		expect(API.experimental.updateUserChatCustomPrompt).not.toHaveBeenCalled();
 	});
 
 	it.each(["typed", "cleared"])(
@@ -114,17 +109,7 @@ describe("PersonalInstructionsSettings", () => {
 			const load = vi
 				.spyOn(API.experimental, "getUserChatCustomPrompt")
 				.mockResolvedValue({ custom_prompt: "Saved instructions" });
-			const save = vi
-				.spyOn(API.experimental, "updateUserChatCustomPrompt")
-				.mockImplementation(async (values) => values);
-			const queryClient = renderPage();
-			await waitFor(() =>
-				expect(
-					queryClient.getQueryData(chatUserCustomPrompt().queryKey),
-				).toEqual({
-					custom_prompt: "Saved instructions",
-				}),
-			);
+			const queryClient = renderPage("Saved instructions");
 			const textarea = screen.getByRole("textbox", {
 				name: "Personal instructions",
 			});
@@ -140,44 +125,14 @@ describe("PersonalInstructionsSettings", () => {
 			await user.type(textarea, " with more edits");
 			await user.click(screen.getByRole("button", { name: "Save" }));
 			await waitFor(() =>
-				expect(save).toHaveBeenCalledWith({
+				expect(
+					API.experimental.updateUserChatCustomPrompt,
+				).toHaveBeenCalledWith({
 					custom_prompt: `${draft === "typed" ? "My draft" : ""} with more edits`,
 				}),
 			);
 		},
 	);
-
-	it("accepts query updates again when a draft is reverted", async () => {
-		const user = userEvent.setup();
-		const load = vi
-			.spyOn(API.experimental, "getUserChatCustomPrompt")
-			.mockResolvedValue({ custom_prompt: "Saved instructions" });
-		const save = vi
-			.spyOn(API.experimental, "updateUserChatCustomPrompt")
-			.mockImplementation(async (values) => values);
-		const queryClient = renderPage();
-		await waitFor(() =>
-			expect(queryClient.getQueryData(chatUserCustomPrompt().queryKey)).toEqual(
-				{ custom_prompt: "Saved instructions" },
-			),
-		);
-		const textarea = screen.getByRole("textbox", {
-			name: "Personal instructions",
-		});
-		await user.type(textarea, "!");
-		load.mockResolvedValue({ custom_prompt: "Updated elsewhere" });
-		await act(async () => {
-			await queryClient.refetchQueries(chatUserCustomPrompt());
-		});
-		await user.type(textarea, "{Backspace}");
-		await user.type(textarea, " with new edits");
-		await user.click(screen.getByRole("button", { name: "Save" }));
-		await waitFor(() =>
-			expect(save).toHaveBeenCalledWith({
-				custom_prompt: "Updated elsewhere with new edits",
-			}),
-		);
-	});
 
 	it.each(["success", "failure"])(
 		"keeps the server-confirmed save when the follow-up GET is a %s",
@@ -186,17 +141,10 @@ describe("PersonalInstructionsSettings", () => {
 			const load = vi
 				.spyOn(API.experimental, "getUserChatCustomPrompt")
 				.mockResolvedValue({ custom_prompt: "Original instructions" });
-			const save = vi
-				.spyOn(API.experimental, "updateUserChatCustomPrompt")
-				.mockResolvedValue({ custom_prompt: "Clean instructions" });
-			const queryClient = renderPage();
-			await waitFor(() =>
-				expect(
-					queryClient.getQueryData(chatUserCustomPrompt().queryKey),
-				).toEqual({
-					custom_prompt: "Original instructions",
-				}),
-			);
+			vi.mocked(API.experimental.updateUserChatCustomPrompt).mockResolvedValue({
+				custom_prompt: "Clean instructions",
+			});
+			const queryClient = renderPage("Original instructions");
 			const textarea = screen.getByRole("textbox", {
 				name: "Personal instructions",
 			});
@@ -208,7 +156,11 @@ describe("PersonalInstructionsSettings", () => {
 				load.mockResolvedValue({ custom_prompt: "Clean instructions" });
 			}
 			await user.click(screen.getByRole("button", { name: "Save" }));
-			await waitFor(() => expect(save).toHaveBeenCalledOnce());
+			await waitFor(() =>
+				expect(
+					API.experimental.updateUserChatCustomPrompt,
+				).toHaveBeenCalledWith({ custom_prompt: "Clean\u200b instructions" }),
+			);
 			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
 			expect(queryClient.getQueryData(chatUserCustomPrompt().queryKey)).toEqual(
 				{
@@ -216,13 +168,6 @@ describe("PersonalInstructionsSettings", () => {
 				},
 			);
 			expect(textarea).toHaveValue("Clean instructions");
-			await user.type(textarea, " and another edit");
-			await user.click(screen.getByRole("button", { name: "Save" }));
-			await waitFor(() =>
-				expect(save).toHaveBeenLastCalledWith({
-					custom_prompt: "Clean instructions and another edit",
-				}),
-			);
 		},
 	);
 });

@@ -23,7 +23,6 @@ const AgentSettingsGeneralPage: React.FC = () => {
 			userPromptData={userPromptQuery.data}
 			isLoadingUserPrompt={userPromptQuery.isLoading}
 			userPromptError={userPromptQuery.error}
-			onRetryUserPrompt={() => void userPromptQuery.refetch()}
 			onSaveUserPrompt={saveUserPromptMutation.mutate}
 			isSavingUserPrompt={saveUserPromptMutation.isPending}
 			isSaveUserPromptError={saveUserPromptMutation.isError}
