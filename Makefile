@@ -813,7 +813,11 @@ lint/go:
 GO_LINT_NEW_CODE_BASE ?= origin/main
 
 # Rules the existing tree does not pass yet, applied only to changed lines.
+# golangci-lint matches changed lines against symlink-resolved file paths
+# made relative to PWD, so a checkout reached through a symlink would
+# silently report nothing; `pwd -P` resolves the working directory first.
 lint/go/new-code:
+	cd "$$(pwd -P)"
 	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --allow-serial-runners --concurrency="$(GO_LINT_CONCURRENCY)" \
 		--config=.golangci.new-code.yaml --new-from-merge-base="$(GO_LINT_NEW_CODE_BASE)"
 .PHONY: lint/go/new-code
