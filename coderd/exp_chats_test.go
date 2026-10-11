@@ -11292,6 +11292,382 @@ func TestInterruptChat(t *testing.T) {
 	})
 }
 
+// TestChatStreamObserverSeesActions checks the stream contract for a
+// viewer that did not act. For each case below, a read-only shared viewer
+// has a stream open on the chat while the owner acts over REST. The
+// viewer's stream must deliver the action's state change and a checkpoint
+// whose snapshot_version is at least the one the action returned, and the
+// viewer's state at that checkpoint must equal the chat's.
+func TestChatStreamObserverSeesActions(t *testing.T) {
+	t.Parallel()
+
+	type env struct {
+		ctx    context.Context
+		client *codersdk.ExperimentalClient
+		db     database.Store
+		user   codersdk.CreateFirstUserResponse
+		model  codersdk.ChatModel
+	}
+	// scenario is a chat set up for one action. act performs the action
+	// as the owner and returns the snapshot_version it committed. check
+	// asserts the observer's state after the checkpoint that covers it.
+	type scenario struct {
+		chatID uuid.UUID
+		act    func() int64
+		check  func(t *testing.T, tab *chatTab, before []int64, applied []codersdk.ChatStreamEvent)
+	}
+
+	text := func(s string) []codersdk.ChatInputPart {
+		return []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: s}}
+	}
+	newChat := func(t *testing.T, e env, status database.ChatStatus) database.Chat {
+		t.Helper()
+		return dbgen.Chat(t, e.db, database.Chat{
+			OrganizationID:    e.user.OrganizationID,
+			OwnerID:           e.user.UserID,
+			LastModelConfigID: e.model.ID,
+			Title:             "stream observer test",
+			Status:            status,
+		})
+	}
+	addMessage := func(t *testing.T, e env, chatID uuid.UUID, role database.ChatMessageRole, s string) database.ChatMessage {
+		t.Helper()
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(s)})
+		require.NoError(t, err)
+		msg := database.ChatMessage{
+			ChatID:        chatID,
+			ModelConfigID: uuid.NullUUID{UUID: e.model.ID, Valid: true},
+			Role:          role,
+			Content:       content,
+		}
+		if role == database.ChatMessageRoleUser {
+			msg.CreatedBy = uuid.NullUUID{UUID: e.user.UserID, Valid: true}
+		}
+		return dbgen.ChatMessage(t, e.db, msg)
+	}
+	// addTurn gives a chat a user prompt and an assistant reply, so it has
+	// something to edit, compact or clear.
+	addTurn := func(t *testing.T, e env, chatID uuid.UUID) database.ChatMessage {
+		t.Helper()
+		prompt := addMessage(t, e, chatID, database.ChatMessageRoleUser, "question")
+		_ = addMessage(t, e, chatID, database.ChatMessageRoleAssistant, "answer")
+		return prompt
+	}
+	// setRunning marks the chat as owned by a worker that does not exist,
+	// so nothing but the test changes it.
+	setRunning := func(t *testing.T, e env, chatID uuid.UUID) {
+		t.Helper()
+		_, err := e.db.UpdateChatStatus(dbauthz.AsSystemRestricted(e.ctx), database.UpdateChatStatusParams{
+			ID:          chatID,
+			Status:      database.ChatStatusRunning,
+			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			StartedAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
+			HeartbeatAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+		})
+		require.NoError(t, err)
+	}
+	queue := func(t *testing.T, e env, chatID uuid.UUID, s string) int64 {
+		t.Helper()
+		content, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText(s)})
+		require.NoError(t, err)
+		return insertTestChatQueuedMessage(e.ctx, t, e.db, chatID, content, e.model.ID).ID
+	}
+	// queueAction runs a delete or promote request and returns the
+	// snapshot_version from its response.
+	queueAction := func(t *testing.T, e env, method, path string) int64 {
+		t.Helper()
+		res, err := e.client.Request(e.ctx, method, path, nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		var resp codersdk.ChatActionResponse
+		require.NoError(t, codersdk.ReadBodyAsJSON(res, &resp))
+		return resp.SnapshotVersion
+	}
+	hasEvent := func(applied []codersdk.ChatStreamEvent, eventType codersdk.ChatStreamEventType) bool {
+		return slices.ContainsFunc(applied, func(event codersdk.ChatStreamEvent) bool { return event.Type == eventType })
+	}
+
+	for _, tt := range []struct {
+		name  string
+		setup func(t *testing.T, e env) scenario
+	}{
+		{
+			name: "SendToIdleChat",
+			setup: func(t *testing.T, e env) scenario {
+				chat := newChat(t, e, database.ChatStatusWaiting)
+				return scenario{
+					chatID: chat.ID,
+					act: func() int64 {
+						resp, err := e.client.CreateChatMessage(e.ctx, chat.ID, codersdk.CreateChatMessageRequest{Content: text("hello")})
+						require.NoError(t, err)
+						require.False(t, resp.Queued)
+						return resp.SnapshotVersion
+					},
+					check: func(t *testing.T, tab *chatTab, before []int64, _ []codersdk.ChatStreamEvent) {
+						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
+						require.Len(t, tab.ids, len(before)+1, "the sent message")
+					},
+				}
+			},
+		},
+		{
+			name: "SendToRunningChatQueues",
+			setup: func(t *testing.T, e env) scenario {
+				chat := newChat(t, e, database.ChatStatusWaiting)
+				setRunning(t, e, chat.ID)
+				var queuedID int64
+				return scenario{
+					chatID: chat.ID,
+					act: func() int64 {
+						resp, err := e.client.CreateChatMessage(e.ctx, chat.ID, codersdk.CreateChatMessageRequest{
+							Content:      text("later"),
+							BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+						})
+						require.NoError(t, err)
+						require.True(t, resp.Queued)
+						require.NotNil(t, resp.QueuedMessage)
+						queuedID = resp.QueuedMessage.ID
+						return resp.SnapshotVersion
+					},
+					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
+						require.Equal(t, []int64{queuedID}, tab.queue)
+						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
+					},
+				}
+			},
+		},
+		{
+			name: "Edit",
+			setup: func(t *testing.T, e env) scenario {
+				chat := newChat(t, e, database.ChatStatusWaiting)
+				prompt := addTurn(t, e, chat.ID)
+				var editedID int64
+				return scenario{
+					chatID: chat.ID,
+					act: func() int64 {
+						resp, err := e.client.EditChatMessage(e.ctx, chat.ID, prompt.ID, codersdk.EditChatMessageRequest{Content: text("edited question")})
+						require.NoError(t, err)
+						editedID = resp.Message.ID
+						return resp.SnapshotVersion
+					},
+					check: func(t *testing.T, tab *chatTab, _ []int64, applied []codersdk.ChatStreamEvent) {
+						require.True(t, hasEvent(applied, codersdk.ChatStreamEventTypeHistoryReset))
+						require.False(t, tab.ids[prompt.ID], "the edited message is replaced")
+						require.True(t, tab.ids[editedID], "the replacement arrives")
+						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
+					},
+				}
+			},
+		},
+		{
+			name: "DeleteQueued",
+			setup: func(t *testing.T, e env) scenario {
+				chat := newChat(t, e, database.ChatStatusError)
+				queuedID := queue(t, e, chat.ID, "to delete")
+				return scenario{
+					chatID: chat.ID,
+					act: func() int64 {
+						return queueAction(t, e, http.MethodDelete, fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, queuedID))
+					},
+					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
+						require.Empty(t, tab.queue)
+						require.Equal(t, codersdk.ChatStatusError, tab.status)
+					},
+				}
+			},
+		},
+		{
+			name: "PromoteFromRunningChat",
+			setup: func(t *testing.T, e env) scenario {
+				chat := newChat(t, e, database.ChatStatusWaiting)
+				setRunning(t, e, chat.ID)
+				first := queue(t, e, chat.ID, "first")
+				second := queue(t, e, chat.ID, "second")
+				return scenario{
+					chatID: chat.ID,
+					act: func() int64 {
+						return queueAction(t, e, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, second))
+					},
+					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
+						require.Equal(t, []int64{second, first}, tab.queue, "the promoted message moves to the head")
+						require.Equal(t, codersdk.ChatStatusInterrupting, tab.status)
+					},
+				}
+			},
+		},
+		{
+			name: "PromoteFromErrorChat",
+			setup: func(t *testing.T, e env) scenario {
+				chat := newChat(t, e, database.ChatStatusError)
+				_ = addMessage(t, e, chat.ID, database.ChatMessageRoleUser, "failed prompt")
+				queuedID := queue(t, e, chat.ID, "promoted")
+				return scenario{
+					chatID: chat.ID,
+					act: func() int64 {
+						return queueAction(t, e, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, queuedID))
+					},
+					check: func(t *testing.T, tab *chatTab, before []int64, _ []codersdk.ChatStreamEvent) {
+						require.Empty(t, tab.queue)
+						require.Len(t, tab.ids, len(before)+1, "the promoted message joins the history")
+						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
+					},
+				}
+			},
+		},
+		{
+			name: "Interrupt",
+			setup: func(t *testing.T, e env) scenario {
+				chat := newChat(t, e, database.ChatStatusWaiting)
+				setRunning(t, e, chat.ID)
+				return scenario{
+					chatID: chat.ID,
+					act: func() int64 {
+						interrupted, err := e.client.InterruptChat(e.ctx, chat.ID)
+						require.NoError(t, err)
+						return interrupted.SnapshotVersion
+					},
+					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
+						require.Equal(t, codersdk.ChatStatusInterrupting, tab.status)
+					},
+				}
+			},
+		},
+		{
+			name: "Compact",
+			setup: func(t *testing.T, e env) scenario {
+				chat := newChat(t, e, database.ChatStatusWaiting)
+				_ = addTurn(t, e, chat.ID)
+				return scenario{
+					chatID: chat.ID,
+					act: func() int64 {
+						compacted, err := e.client.CompactChat(e.ctx, chat.ID)
+						require.NoError(t, err)
+						return compacted.SnapshotVersion
+					},
+					check: func(t *testing.T, tab *chatTab, _ []int64, _ []codersdk.ChatStreamEvent) {
+						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
+					},
+				}
+			},
+		},
+		{
+			name: "Clear",
+			setup: func(t *testing.T, e env) scenario {
+				chat := newChat(t, e, database.ChatStatusWaiting)
+				_ = addTurn(t, e, chat.ID)
+				return scenario{
+					chatID: chat.ID,
+					act: func() int64 {
+						cleared, err := e.client.ClearChat(e.ctx, chat.ID)
+						require.NoError(t, err)
+						return cleared.SnapshotVersion
+					},
+					check: func(t *testing.T, tab *chatTab, before []int64, applied []codersdk.ChatStreamEvent) {
+						require.True(t, hasEvent(applied, codersdk.ChatStreamEventTypeMessage), "the clear marker")
+						require.Greater(t, len(tab.ids), len(before))
+						require.Equal(t, codersdk.ChatStatusWaiting, tab.status)
+					},
+				}
+			},
+		},
+		{
+			name: "ToolResults",
+			setup: func(t *testing.T, e env) scenario {
+				chat := setupRequiresAction(e.ctx, t, e.db, e.user.UserID, e.user.OrganizationID, e.model.ID, "my_dynamic_tool", []string{"call_observed"})
+				return scenario{
+					chatID: chat.ID,
+					act: func() int64 {
+						resp, err := e.client.SubmitToolResults(e.ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+							Results: []codersdk.ToolResult{{ToolCallID: "call_observed", Output: json.RawMessage(`"done"`)}},
+						})
+						require.NoError(t, err)
+						return resp.SnapshotVersion
+					},
+					check: func(t *testing.T, tab *chatTab, before []int64, _ []codersdk.ChatStreamEvent) {
+						require.Len(t, tab.ids, len(before)+1, "the tool result")
+						require.Equal(t, codersdk.ChatStatusRunning, tab.status)
+					},
+				}
+			},
+		},
+		{
+			// Archiving changes no field the stream carries, so the
+			// checkpoint is the only event.
+			name: "Archive",
+			setup: func(t *testing.T, e env) scenario {
+				chat := newChat(t, e, database.ChatStatusWaiting)
+				return scenario{
+					chatID: chat.ID,
+					act: func() int64 {
+						require.NoError(t, e.client.UpdateChat(e.ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
+						archived, err := e.db.GetChatByID(dbauthz.AsSystemRestricted(e.ctx), chat.ID)
+						require.NoError(t, err)
+						require.True(t, archived.Archived)
+						return archived.SnapshotVersion
+					},
+					check: func(t *testing.T, tab *chatTab, _ []int64, applied []codersdk.ChatStreamEvent) {
+						require.Len(t, applied, 1, "only a checkpoint")
+						require.Equal(t, codersdk.ChatStatusWaiting, tab.status)
+					},
+				}
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+			user := coderdtest.CreateFirstUser(t, client.Client)
+			e := env{ctx: ctx, client: client, db: db, user: user, model: createChatModel(t, client)}
+			s := tt.setup(t, e)
+
+			observerRaw, observerUser := coderdtest.CreateAnotherUser(t, client.Client, user.OrganizationID)
+			observer := codersdk.NewExperimentalClient(observerRaw)
+			err := db.UpdateChatACLByID(dbauthz.As(ctx, rbac.Subject{
+				ID:    user.UserID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
+				Scope: rbac.ScopeAll,
+			}), database.UpdateChatACLByIDParams{
+				ID: s.chatID,
+				UserACL: database.ChatACL{
+					observerUser.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+				},
+				GroupACL: database.ChatACL{},
+			})
+			require.NoError(t, err)
+
+			page, err := observer.GetChatMessages(ctx, s.chatID, nil)
+			require.NoError(t, err)
+			tab := newChatTab(page)
+			_, events := tab.connect(ctx, t, observer, s.chatID)
+			before := tab.sortedIDs()
+			beforeSnapshot := tab.snapshotVersion
+
+			w := s.act()
+			require.Greater(t, w, beforeSnapshot, "the action must commit a newer snapshot")
+			applied := tab.applyUntil(ctx, t, events, func(event codersdk.ChatStreamEvent) bool {
+				return event.Type == codersdk.ChatStreamEventTypeCheckpoint && event.Checkpoint.SnapshotVersion >= w
+			})
+			s.check(t, tab, before, applied)
+
+			// At the checkpoint the observer holds what the chat holds.
+			current, err := client.GetChatMessages(ctx, s.chatID, nil)
+			require.NoError(t, err)
+			queueIDs := make([]int64, 0, len(current.QueuedMessages))
+			for _, queued := range current.QueuedMessages {
+				queueIDs = append(queueIDs, queued.ID)
+			}
+			require.Equal(t, queueIDs, tab.queue)
+			require.ElementsMatch(t, liveChatMessageIDs(ctx, t, client, s.chatID), tab.sortedIDs())
+			chat, err := client.GetChat(ctx, s.chatID)
+			require.NoError(t, err)
+			require.Equal(t, chat.Status, tab.status)
+		})
+	}
+}
+
 func TestCompactChat(t *testing.T) {
 	t.Parallel()
 
