@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router";
 import {
 	agentHoursAllotmentOrganizations,
 	agentHoursOrganizationAllotments,
+	agentHoursUsage,
 	deleteAgentHoursOrganizationAllotment,
 	upsertAgentHoursOrganizationAllotment,
 } from "#/api/queries/agentHours";
@@ -45,6 +46,10 @@ const AgentHoursPage: React.FC = () => {
 		...agentHoursOrganizationAllotments(),
 		enabled: feature.enabled && permissions.editDeploymentConfig,
 	});
+	const usageQuery = useQuery({
+		...agentHoursUsage(),
+		enabled: feature.enabled && permissions.editDeploymentConfig,
+	});
 	// Organizations deleted elsewhere must leave the Add candidates, as
 	// deleted groups do.
 	const organizationsQuery = useQuery({
@@ -81,6 +86,8 @@ const AgentHoursPage: React.FC = () => {
 				licenseHours={licenseHours}
 				organizationAllotments={organizationAllotmentsQuery.data}
 				organizationAllotmentsError={organizationAllotmentsQuery.error}
+				usage={usageQuery.data}
+				usageError={usageQuery.error}
 				organizations={organizationsQuery.data ?? []}
 				onSaveOrganizationAllotment={(organizationId, allotmentBps) =>
 					upsertMutation.mutateAsync({ organizationId, allotmentBps })

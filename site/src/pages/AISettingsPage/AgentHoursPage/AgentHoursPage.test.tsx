@@ -9,6 +9,8 @@ import { Toaster } from "#/components/Toaster/Toaster";
 import {
 	MockAgentHoursGroupAllotment,
 	MockAgentHoursOrganizationAllotment,
+	MockAgentHoursOrganizationGroupsUsage,
+	MockAgentHoursUsage,
 	MockEntitlements,
 	MockEveryoneGroup,
 	MockGroup,
@@ -95,6 +97,12 @@ const renderPage = ({
 			organization_allotment_bps: 6000,
 			groups: groupAllotments,
 		});
+	const getUsage = vi
+		.spyOn(API, "getAgentHoursUsage")
+		.mockResolvedValue(MockAgentHoursUsage);
+	const getOrganizationUsage = vi
+		.spyOn(API, "getOrganizationAgentHoursUsage")
+		.mockResolvedValue(MockAgentHoursOrganizationGroupsUsage);
 	const router = createMemoryRouter(
 		[
 			{
@@ -106,11 +114,18 @@ const renderPage = ({
 					</>
 				),
 			},
+			{
+				path: "/organizations/:organization/groups/:groupName",
+				element: null,
+			},
 		],
 		{ initialEntries: ["/ai/settings/agent-hours"] },
 	);
 	renderWithRouter(router);
 	return {
+		router,
+		getUsage,
+		getOrganizationUsage,
 		getOrganizationAllotments,
 		getGroupAllotments,
 		getGroups,
@@ -560,6 +575,40 @@ it("reports a lost permission to remove an allotment", async () => {
 	await user.click(screen.getByRole("button", { name: "Remove" }));
 	await screen.findByText(
 		"You no longer have access to remove this allotment.",
+	);
+});
+
+it.each([
+	{ viewer: "owners", isOwner: true },
+	{ viewer: "group managers", isOwner: false },
+])("loads the usage that $viewer can see", async ({ isOwner }) => {
+	access.isOwner = isOwner;
+	const { getUsage, getOrganizationUsage } = renderPage();
+
+	await waitFor(() =>
+		expect(getOrganizationUsage).toHaveBeenCalledWith(MockOrganization.id),
+	);
+	expect(getUsage).toHaveBeenCalledTimes(isOwner ? 1 : 0);
+});
+
+it("does not load usage without the license", async () => {
+	access.isLicensed = false;
+	const { getUsage, getOrganizationUsage } = renderPage();
+
+	await screen.findByText("Your license does not include Agent Hours");
+	expect(getUsage).not.toHaveBeenCalled();
+	expect(getOrganizationUsage).not.toHaveBeenCalled();
+});
+
+it("links a group to its members page", async () => {
+	const user = userEvent.setup();
+	const { router } = renderPage();
+
+	await user.click(
+		await screen.findByRole("link", { name: MockGroup.display_name }),
+	);
+	expect(router.state.location.pathname).toBe(
+		`/organizations/${MockOrganization.name}/groups/${MockGroup.name}`,
 	);
 });
 

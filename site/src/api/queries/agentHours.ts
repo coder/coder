@@ -9,8 +9,13 @@ const agentHoursOrganizationAllotmentsKey = [
 	"organizationAllotments",
 ] as const;
 
+const agentHoursUsageKey = [...agentHoursKey, "usage"] as const;
+
 const agentHoursGroupAllotmentsKey = (organizationId: string) =>
 	[...agentHoursKey, "groupAllotments", organizationId] as const;
+
+const agentHoursOrganizationUsageKey = (organizationId: string) =>
+	[...agentHoursKey, "organizationUsage", organizationId] as const;
 
 // Other admins and other tabs change allotments and delete their targets, so
 // these refetch on focus despite the global default.
@@ -24,6 +29,16 @@ export const agentHoursGroupAllotments = (organizationId: string) => ({
 	queryKey: agentHoursGroupAllotmentsKey(organizationId),
 	queryFn: () => API.getAgentHoursGroupAllotments(organizationId),
 	refetchOnWindowFocus: true,
+});
+
+export const agentHoursUsage = () => ({
+	queryKey: agentHoursUsageKey,
+	queryFn: API.getAgentHoursUsage,
+});
+
+export const organizationAgentHoursUsage = (organizationId: string) => ({
+	queryKey: agentHoursOrganizationUsageKey(organizationId),
+	queryFn: () => API.getOrganizationAgentHoursUsage(organizationId),
 });
 
 type OrganizationAllotmentChange = {

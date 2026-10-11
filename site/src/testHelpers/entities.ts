@@ -3359,6 +3359,45 @@ export const MockAgentHoursGroupAllotment: TypesGen.AgentHoursGroupAllotment = {
 	updated_at: "2026-10-01T00:00:00Z",
 };
 
+const mockAgentHoursUsagePeriod: TypesGen.UsagePeriod = {
+	issued_at: "2026-10-01T00:00:00Z",
+	start: "2026-10-01T00:00:00Z",
+	end: "2026-11-01T00:00:00Z",
+};
+
+export const MockAgentHoursUsage: TypesGen.AgentHoursUsage = {
+	usage_period: mockAgentHoursUsagePeriod,
+	total_ms: 1_000_800_000,
+	organizations: [
+		{
+			organization_id: MockOrganization.id,
+			organization_name: MockOrganization.name,
+			organization_display_name: MockOrganization.display_name,
+			used_ms: 1_000_800_000,
+		},
+	],
+};
+
+export const MockAgentHoursOrganizationGroupsUsage: TypesGen.AgentHoursOrganizationGroupsUsage =
+	{
+		usage_period: mockAgentHoursUsagePeriod,
+		used_ms: 1_000_800_000,
+		groups: [
+			{
+				group_id: MockGroup.id,
+				group_name: MockGroup.name,
+				group_display_name: MockGroup.display_name,
+				used_ms: 720_000_000,
+			},
+			{
+				group_id: MockOrganization.id,
+				group_name: "Everyone",
+				group_display_name: "",
+				used_ms: 280_800_000,
+			},
+		],
+	};
+
 export const MockEveryoneGroup: TypesGen.Group = {
 	// The "Everyone" group must have the same ID as a the organization it belongs
 	// to.
