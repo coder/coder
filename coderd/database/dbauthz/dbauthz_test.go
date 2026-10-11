@@ -2903,6 +2903,13 @@ func (s *MethodTestSuite) TestOrganization() {
 		dbm.EXPECT().GetOrganizationByName(gomock.Any(), arg).Return(o, nil).AnyTimes()
 		check.Args(arg).Asserts(o, policy.ActionRead).Returns(o)
 	}))
+	s.Run("LockOrganizationMembersByUserIDsForShare", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		ids := []uuid.UUID{uuid.New(), uuid.New()}
+		arg := database.LockOrganizationMembersByUserIDsForShareParams{OrganizationID: o.ID, UserIds: ids}
+		dbm.EXPECT().LockOrganizationMembersByUserIDsForShare(gomock.Any(), arg).Return(ids, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead).Returns(ids)
+	}))
 	s.Run("GetOrganizationIDsByMemberIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		oa := testutil.Fake(s.T(), faker, database.Organization{})
 		ob := testutil.Fake(s.T(), faker, database.Organization{})
@@ -7138,6 +7145,20 @@ func (s *MethodTestSuite) TestOrganizationSkills() {
 		skill := orgSkill(uuid.New(), "test")
 		dbm.EXPECT().GetOrganizationSkillByIDForUpdate(gomock.Any(), skill.ID).Return(skill, nil).AnyTimes()
 		check.Args(skill.ID).Asserts(skill, policy.ActionRead).Returns(skill)
+	}))
+	s.Run("UpdateOrganizationSkillACLByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		skill := orgSkill(uuid.New(), "test")
+		arg := database.UpdateOrganizationSkillACLByIDParams{
+			ID:       skill.ID,
+			GroupACL: database.ChatACL{},
+			UserACL:  database.ChatACL{uuid.NewString(): {Permissions: []policy.Action{policy.ActionRead}}},
+		}
+		updated := skill
+		updated.GroupACL = arg.GroupACL
+		updated.UserACL = arg.UserACL
+		dbm.EXPECT().GetOrganizationSkillByIDForUpdate(gomock.Any(), skill.ID).Return(skill, nil).AnyTimes()
+		dbm.EXPECT().UpdateOrganizationSkillACLByID(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(skill, policy.ActionShare).Returns(updated)
 	}))
 }
 

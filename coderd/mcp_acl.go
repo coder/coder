@@ -44,12 +44,18 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, ok := api.mcpServerConfigACLUsers(ctx, rw, config.UserACL)
-	if !ok {
+	users, err := resolveACLUsers(ctx, api.Database, config.UserACL, func(user codersdk.MinimalUser) codersdk.MCPServerConfigUser {
+		return codersdk.MCPServerConfigUser{MinimalUser: user, Role: codersdk.MCPServerConfigRoleRead}
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
 		return
 	}
-	groups, ok := api.mcpServerConfigACLGroups(ctx, rw, config.GroupACL)
-	if !ok {
+	groups, err := resolveACLGroups(ctx, api.Database, config.GroupACL, func(group codersdk.Group) codersdk.MCPServerConfigGroup {
+		return codersdk.MCPServerConfigGroup{Group: group, Role: codersdk.MCPServerConfigRoleRead}
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.MCPServerConfigACL{
@@ -73,13 +79,20 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl/available [get]
 // @x-apidocgen {"skip": true}
 func (api *API) mcpServerConfigACLAvailable(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	config := httpmw.MCPServerConfigParam(r)
 	if !api.Authorize(r, policy.ActionShare, config.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
+	api.writeOrganizationACLAvailable(rw, r, config.OrganizationID)
+}
+
+// writeOrganizationACLAvailable writes the organization members and groups that
+// can be granted access to a resource in organizationID. Callers must have
+// authorized share on that resource.
+func (api *API) writeOrganizationACLAvailable(rw http.ResponseWriter, r *http.Request, organizationID uuid.UUID) {
+	ctx := r.Context()
 	userFilter, validations := searchquery.Users(r.URL.Query().Get("q"))
 	if len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -93,13 +106,13 @@ func (api *API) mcpServerConfigACLAvailable(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	//nolint:gocritic // The MCP server config share permission authorizes this
-	// bounded organization-scoped lookup even when the caller cannot browse the
-	// ordinary directories.
+	//nolint:gocritic // The resource share permission checked by the caller
+	// authorizes this bounded organization-scoped lookup even when the caller
+	// cannot browse the ordinary directories.
 	restrictedCtx := dbauthz.AsSystemRestricted(ctx)
 	members, err := api.Database.PaginatedOrganizationMembers(restrictedCtx, database.PaginatedOrganizationMembersParams{
 		AfterID:          pagination.AfterID,
-		OrganizationID:   config.OrganizationID,
+		OrganizationID:   organizationID,
 		Search:           userFilter.Search,
 		Name:             userFilter.Name,
 		ExactUsername:    userFilter.ExactUsername,
@@ -120,18 +133,18 @@ func (api *API) mcpServerConfigACLAvailable(rw http.ResponseWriter, r *http.Requ
 		LimitOpt: int32(pagination.Limit),
 	})
 	if err != nil {
-		httpapi.InternalServerError(rw, xerrors.Errorf("list MCP server config ACL users: %w", err))
+		httpapi.InternalServerError(rw, xerrors.Errorf("list ACL candidate users: %w", err))
 		return
 	}
 
 	groups, err := api.Database.GetGroups(restrictedCtx, database.GetGroupsParams{
-		OrganizationID: config.OrganizationID,
+		OrganizationID: organizationID,
 		Search:         userFilter.Search,
 		// #nosec G115 - Pagination limits are small and fit in int32.
 		LimitOpt: int32(pagination.Limit),
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, xerrors.Errorf("list MCP server config ACL groups: %w", err))
+		httpapi.InternalServerError(rw, xerrors.Errorf("list ACL candidate groups: %w", err))
 		return
 	}
 
@@ -139,14 +152,15 @@ func (api *API) mcpServerConfigACLAvailable(rw http.ResponseWriter, r *http.Requ
 	for i, group := range groups {
 		groupIDs[i] = group.Group.ID
 	}
-	countByGroup, ok := api.mcpServerConfigACLGroupMemberCounts(restrictedCtx, rw, groupIDs)
-	if !ok {
+	countByGroup, err := aclGroupMemberCounts(restrictedCtx, api.Database, groupIDs)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
 		return
 	}
 
 	sdkUsers := make([]codersdk.ReducedUser, 0, len(members))
 	for _, member := range members {
-		sdkUsers = append(sdkUsers, mcpServerConfigACLReducedUser(member))
+		sdkUsers = append(sdkUsers, reducedUserFromPaginatedOrganizationMember(member))
 	}
 	sdkGroups := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
@@ -194,12 +208,7 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	validations := acl.Validate(ctx, api.Database, MCPServerConfigACLUpdateValidator(req))
-	validations = append(validations, api.validateMCPServerConfigACLOrganization(ctx, config.OrganizationID, req)...)
-	userRoles, dupErrs := canonicalMCPServerConfigACLRoles("user_roles", req.UserRoles)
-	validations = append(validations, dupErrs...)
-	groupRoles, dupErrs := canonicalMCPServerConfigACLRoles("group_roles", req.GroupRoles)
-	validations = append(validations, dupErrs...)
+	userRoles, groupRoles, validations := validateOrganizationACLUpdate(ctx, api.Database, config.OrganizationID, mcpServerConfigACLUpdateValidator(req))
 	if len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update MCP server config ACL.",
@@ -218,8 +227,8 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 		aReq.Old = current
 		userACL := maps.Clone(current.UserACL)
 		groupACL := maps.Clone(current.GroupACL)
-		applyMCPServerConfigACLRoles(userACL, userRoles)
-		applyMCPServerConfigACLRoles(groupACL, groupRoles)
+		applyACLReadRoles(userACL, userRoles)
+		applyACLReadRoles(groupACL, groupRoles)
 		if err := tx.UpdateMCPServerConfigACLByID(ctx, database.UpdateMCPServerConfigACLByIDParams{
 			ID:        config.ID,
 			UserACL:   userACL,
@@ -249,34 +258,33 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) mcpServerConfigACLUsers(ctx context.Context, rw http.ResponseWriter, entries database.ChatACL) ([]codersdk.MCPServerConfigUser, bool) {
-	ids := parseMCPServerConfigACLIDs(entries)
+// resolveACLUsers resolves user ACL entries for callers that already passed
+// the resource's share check.
+func resolveACLUsers[T any](ctx context.Context, db database.Store, entries database.ChatACL, entry func(codersdk.MinimalUser) T) ([]T, error) {
+	ids := parseACLIDs(entries)
 	//nolint:gocritic // ACL managers may resolve principals after the share gate passes.
-	users, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), ids)
+	users, err := db.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), ids)
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return nil, false
+		return nil, xerrors.Errorf("get ACL users: %w", err)
 	}
-	result := make([]codersdk.MCPServerConfigUser, 0, len(users))
+	result := make([]T, 0, len(users))
 	for _, user := range users {
-		result = append(result, codersdk.MCPServerConfigUser{
-			MinimalUser: db2sdk.MinimalUser(user),
-			Role:        codersdk.MCPServerConfigRoleRead,
-		})
+		result = append(result, entry(db2sdk.MinimalUser(user)))
 	}
-	return result, true
+	return result, nil
 }
 
-func (api *API) mcpServerConfigACLGroups(ctx context.Context, rw http.ResponseWriter, entries database.ChatACL) ([]codersdk.MCPServerConfigGroup, bool) {
-	ids := parseMCPServerConfigACLIDs(entries)
+// resolveACLGroups resolves group ACL entries, including member counts, for
+// callers that already passed the resource's share check.
+func resolveACLGroups[T any](ctx context.Context, db database.Store, entries database.ChatACL, entry func(codersdk.Group) T) ([]T, error) {
+	ids := parseACLIDs(entries)
 	var groups []database.GetGroupsRow
 	if len(ids) > 0 {
 		var err error
 		//nolint:gocritic // ACL managers may resolve principals after the share gate passes.
-		groups, err = api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: ids})
+		groups, err = db.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: ids})
 		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return nil, false
+			return nil, xerrors.Errorf("get ACL groups: %w", err)
 		}
 	}
 	groupIDs := make([]uuid.UUID, 0, len(groups))
@@ -284,65 +292,57 @@ func (api *API) mcpServerConfigACLGroups(ctx context.Context, rw http.ResponseWr
 		groupIDs = append(groupIDs, group.Group.ID)
 	}
 	//nolint:gocritic // ACL managers may resolve group sizes after the share gate passes.
-	countByGroup, ok := api.mcpServerConfigACLGroupMemberCounts(dbauthz.AsSystemRestricted(ctx), rw, groupIDs)
-	if !ok {
-		return nil, false
+	countByGroup, err := aclGroupMemberCounts(dbauthz.AsSystemRestricted(ctx), db, groupIDs)
+	if err != nil {
+		return nil, err
 	}
-	result := make([]codersdk.MCPServerConfigGroup, 0, len(groups))
+	result := make([]T, 0, len(groups))
 	for _, group := range groups {
-		result = append(result, codersdk.MCPServerConfigGroup{
-			Group: db2sdk.Group(group, nil, int(countByGroup[group.Group.ID])),
-			Role:  codersdk.MCPServerConfigRoleRead,
-		})
+		result = append(result, entry(db2sdk.Group(group, nil, int(countByGroup[group.Group.ID]))))
 	}
-	return result, true
+	return result, nil
 }
 
-func (api *API) mcpServerConfigACLGroupMemberCounts(ctx context.Context, rw http.ResponseWriter, groupIDs []uuid.UUID) (map[uuid.UUID]int64, bool) {
+func aclGroupMemberCounts(ctx context.Context, db database.Store, groupIDs []uuid.UUID) (map[uuid.UUID]int64, error) {
 	countByGroup := make(map[uuid.UUID]int64, len(groupIDs))
 	if len(groupIDs) == 0 {
-		return countByGroup, true
+		return countByGroup, nil
 	}
 
-	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(ctx, database.GetGroupMembersCountByGroupIDsParams{
+	countRows, err := db.GetGroupMembersCountByGroupIDs(ctx, database.GetGroupMembersCountByGroupIDsParams{
 		GroupIds:      groupIDs,
 		IncludeSystem: false,
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, xerrors.Errorf("count MCP server config ACL group members: %w", err))
-		return nil, false
+		return nil, xerrors.Errorf("count ACL group members: %w", err)
 	}
 	for _, row := range countRows {
 		countByGroup[row.GroupID] = row.MemberCount
 	}
-	return countByGroup, true
+	return countByGroup, nil
 }
 
-func mcpServerConfigACLReducedUser(member database.PaginatedOrganizationMembersRow) codersdk.ReducedUser {
-	return codersdk.ReducedUser{
-		MinimalUser: codersdk.MinimalUser{
-			ID:        member.OrganizationMember.UserID,
-			Username:  member.Username,
-			Name:      member.Name,
-			AvatarURL: member.AvatarURL,
-		},
-		Email:            member.Email,
-		CreatedAt:        member.UserCreatedAt,
-		UpdatedAt:        member.UserUpdatedAt,
-		LastSeenAt:       member.LastSeenAt,
-		Status:           codersdk.UserStatus(member.Status),
-		LoginType:        codersdk.LoginType(member.LoginType),
-		IsServiceAccount: member.IsServiceAccount,
-	}
+// validateOrganizationACLUpdate validates a sparse ACL update for a resource
+// in organizationID and returns its roles rekeyed by canonical UUID.
+func validateOrganizationACLUpdate[R acl.Role](ctx context.Context, db database.Store, organizationID uuid.UUID, v acl.UpdateValidator[R]) (userRoles, groupRoles map[string]R, validations []codersdk.ValidationError) {
+	users, usersField := v.Users()
+	groups, groupsField := v.Groups()
+	validations = acl.Validate(ctx, db, v)
+	validations = append(validations, validateACLOrganization(ctx, db, organizationID, usersField, users, groupsField, groups)...)
+	userRoles, dupErrs := canonicalACLRoles(usersField, users)
+	validations = append(validations, dupErrs...)
+	groupRoles, dupErrs = canonicalACLRoles(groupsField, groups)
+	validations = append(validations, dupErrs...)
+	return userRoles, groupRoles, validations
 }
 
-// canonicalMCPServerConfigACLRoles rekeys the request map by canonical
-// uuid.String() values so noncanonical spellings hit the same keys RBAC
-// reads, and rejects requests where two spellings collapse to one
-// principal because map order would decide which role wins. Unparsable
-// keys are skipped; acl.Validate already reports them.
-func canonicalMCPServerConfigACLRoles(field string, roles map[string]codersdk.MCPServerConfigRole) (map[string]codersdk.MCPServerConfigRole, []codersdk.ValidationError) {
-	canonical := make(map[string]codersdk.MCPServerConfigRole, len(roles))
+// canonicalACLRoles rekeys the request map by canonical uuid.String() values
+// so noncanonical spellings hit the same keys RBAC reads, and rejects requests
+// where two spellings collapse to one principal because map order would
+// decide which role wins. Unparsable keys are skipped; acl.Validate already
+// reports them.
+func canonicalACLRoles[R acl.Role](field string, roles map[string]R) (map[string]R, []codersdk.ValidationError) {
+	canonical := make(map[string]R, len(roles))
 	var validErrs []codersdk.ValidationError
 	for rawID, role := range roles {
 		parsed, err := uuid.Parse(rawID)
@@ -362,9 +362,11 @@ func canonicalMCPServerConfigACLRoles(field string, roles map[string]codersdk.MC
 	return canonical, validErrs
 }
 
-func applyMCPServerConfigACLRoles(entries database.ChatACL, roles map[string]codersdk.MCPServerConfigRole) {
+// applyACLReadRoles applies sparse roles to entries: the empty role removes an
+// entry and every other validated role grants read.
+func applyACLReadRoles[R acl.Role](entries database.ChatACL, roles map[string]R) {
 	for id, role := range roles {
-		if role == codersdk.MCPServerConfigRoleDeleted {
+		if string(role) == "" {
 			delete(entries, id)
 			continue
 		}
@@ -372,7 +374,7 @@ func applyMCPServerConfigACLRoles(entries database.ChatACL, roles map[string]cod
 	}
 }
 
-func parseMCPServerConfigACLIDs(entries database.ChatACL) []uuid.UUID {
+func parseACLIDs(entries database.ChatACL) []uuid.UUID {
 	ids := make([]uuid.UUID, 0, len(entries))
 	for rawID := range entries {
 		if id, err := uuid.Parse(rawID); err == nil {
@@ -382,14 +384,14 @@ func parseMCPServerConfigACLIDs(entries database.ChatACL) []uuid.UUID {
 	return ids
 }
 
-func (api *API) validateMCPServerConfigACLOrganization(ctx context.Context, organizationID uuid.UUID, req codersdk.UpdateMCPServerConfigACLRequest) []codersdk.ValidationError {
+func validateACLOrganization[R acl.Role](ctx context.Context, db database.Store, organizationID uuid.UUID, usersField string, userRoles map[string]R, groupsField string, groupRoles map[string]R) []codersdk.ValidationError {
 	var validations []codersdk.ValidationError
-	userIDs := activeMCPServerConfigACLIDs(req.UserRoles)
+	userIDs := activeACLIDs(userRoles)
 	if len(userIDs) > 0 {
 		//nolint:gocritic // Principal validation requires organization membership visibility.
-		memberships, err := api.Database.GetOrganizationIDsByMemberIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
+		memberships, err := db.GetOrganizationIDsByMemberIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 		if err != nil {
-			return append(validations, codersdk.ValidationError{Field: "user_roles", Detail: err.Error()})
+			return append(validations, codersdk.ValidationError{Field: usersField, Detail: err.Error()})
 		}
 		byUser := make(map[uuid.UUID][]uuid.UUID, len(memberships))
 		for _, membership := range memberships {
@@ -398,24 +400,24 @@ func (api *API) validateMCPServerConfigACLOrganization(ctx context.Context, orga
 		for _, id := range userIDs {
 			if !slices.Contains(byUser[id], organizationID) {
 				validations = append(validations, codersdk.ValidationError{
-					Field:  "user_roles",
+					Field:  usersField,
 					Detail: "user " + id.String() + " does not belong to organization " + organizationID.String(),
 				})
 			}
 		}
 	}
 
-	groupIDs := activeMCPServerConfigACLIDs(req.GroupRoles)
+	groupIDs := activeACLIDs(groupRoles)
 	if len(groupIDs) > 0 {
 		//nolint:gocritic // Principal validation requires group organization visibility.
-		groups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
+		groups, err := db.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
 		if err != nil {
-			return append(validations, codersdk.ValidationError{Field: "group_roles", Detail: err.Error()})
+			return append(validations, codersdk.ValidationError{Field: groupsField, Detail: err.Error()})
 		}
 		for _, group := range groups {
 			if group.Group.OrganizationID != organizationID {
 				validations = append(validations, codersdk.ValidationError{
-					Field:  "group_roles",
+					Field:  groupsField,
 					Detail: "group " + group.Group.ID.String() + " does not belong to organization " + organizationID.String(),
 				})
 			}
@@ -424,10 +426,10 @@ func (api *API) validateMCPServerConfigACLOrganization(ctx context.Context, orga
 	return validations
 }
 
-func activeMCPServerConfigACLIDs(roles map[string]codersdk.MCPServerConfigRole) []uuid.UUID {
+func activeACLIDs[R acl.Role](roles map[string]R) []uuid.UUID {
 	ids := make([]uuid.UUID, 0, len(roles))
 	for rawID, role := range roles {
-		if role == codersdk.MCPServerConfigRoleDeleted {
+		if string(role) == "" {
 			continue
 		}
 		if id, err := uuid.Parse(rawID); err == nil {
@@ -437,19 +439,19 @@ func activeMCPServerConfigACLIDs(roles map[string]codersdk.MCPServerConfigRole) 
 	return ids
 }
 
-type MCPServerConfigACLUpdateValidator codersdk.UpdateMCPServerConfigACLRequest
+type mcpServerConfigACLUpdateValidator codersdk.UpdateMCPServerConfigACLRequest
 
-var _ acl.UpdateValidator[codersdk.MCPServerConfigRole] = MCPServerConfigACLUpdateValidator{}
+var _ acl.UpdateValidator[codersdk.MCPServerConfigRole] = mcpServerConfigACLUpdateValidator{}
 
-func (m MCPServerConfigACLUpdateValidator) Users() (map[string]codersdk.MCPServerConfigRole, string) {
+func (m mcpServerConfigACLUpdateValidator) Users() (map[string]codersdk.MCPServerConfigRole, string) {
 	return m.UserRoles, "user_roles"
 }
 
-func (m MCPServerConfigACLUpdateValidator) Groups() (map[string]codersdk.MCPServerConfigRole, string) {
+func (m mcpServerConfigACLUpdateValidator) Groups() (map[string]codersdk.MCPServerConfigRole, string) {
 	return m.GroupRoles, "group_roles"
 }
 
-func (MCPServerConfigACLUpdateValidator) ValidateRole(role codersdk.MCPServerConfigRole) error {
+func (mcpServerConfigACLUpdateValidator) ValidateRole(role codersdk.MCPServerConfigRole) error {
 	if role == codersdk.MCPServerConfigRoleDeleted || role == codersdk.MCPServerConfigRoleRead {
 		return nil
 	}
