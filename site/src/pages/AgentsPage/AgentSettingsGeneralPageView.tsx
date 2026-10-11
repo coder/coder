@@ -14,6 +14,9 @@ import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingS
 
 export type AgentSettingsGeneralPageViewProps = {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
+	isLoadingUserPrompt: boolean;
+	userPromptError: unknown;
+	onRetryUserPrompt: () => void;
 	onSaveUserPrompt: UseMutateFunction<
 		TypesGen.UserChatCustomPrompt,
 		Error,
@@ -37,6 +40,9 @@ export const AgentSettingsGeneralPageView: React.FC<
 	AgentSettingsGeneralPageViewProps
 > = ({
 	userPromptData,
+	isLoadingUserPrompt,
+	userPromptError,
+	onRetryUserPrompt,
 	onSaveUserPrompt,
 	isSavingUserPrompt,
 	isSaveUserPromptError,
@@ -53,6 +59,9 @@ export const AgentSettingsGeneralPageView: React.FC<
 			/>
 			<PersonalInstructionsSettings
 				userPromptData={userPromptData}
+				isLoadingUserPrompt={isLoadingUserPrompt}
+				userPromptError={userPromptError}
+				onRetryUserPrompt={onRetryUserPrompt}
 				onSaveUserPrompt={onSaveUserPrompt}
 				isSavingUserPrompt={isSavingUserPrompt}
 				isSaveUserPromptError={isSaveUserPromptError}
