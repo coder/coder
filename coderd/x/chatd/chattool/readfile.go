@@ -19,9 +19,12 @@ type ReadFileArgs struct {
 	Limit  *int64 `json:"limit,omitempty"`
 }
 
+// ReadFileToolName is the registered name of the read_file tool.
+const ReadFileToolName = "read_file"
+
 func ReadFile(options ReadFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"read_file",
+		ReadFileToolName,
 		workspacetools.ReadFileDescription,
 		func(ctx context.Context, args ReadFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
