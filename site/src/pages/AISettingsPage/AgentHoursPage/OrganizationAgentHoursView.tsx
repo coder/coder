@@ -1,4 +1,5 @@
 import type { AgentHoursGroupAllotments, Group } from "#/api/typesGenerated";
+import { isEveryoneGroup } from "#/modules/groups";
 import { AllotmentPanel } from "./AllotmentPanel";
 import {
 	allotmentHours,
@@ -73,6 +74,7 @@ export const OrganizationAgentHoursView: React.FC<
 				candidates={(groups ?? [])
 					.filter(
 						(group) =>
+							!isEveryoneGroup(group) &&
 							!allottedGroups?.some((allotted) => allotted.id === group.id),
 					)
 					.map((group) => ({

@@ -10,6 +10,7 @@ import {
 	MockAgentHoursGroupAllotment,
 	MockAgentHoursOrganizationAllotment,
 	MockEntitlements,
+	MockEveryoneGroup,
 	MockGroup,
 	MockGroup2,
 	MockNoPermissions,
@@ -332,6 +333,25 @@ it("does not add an allotment for a group deleted after selection", async () => 
 
 	await screen.findByText("Select a group.");
 	expect(upsert).not.toHaveBeenCalled();
+});
+
+it("does not offer the Everyone group for an allotment", async () => {
+	const user = userEvent.setup();
+	renderPage({ groups: [MockGroup, MockGroup2, MockEveryoneGroup] });
+	const region = await screen.findByRole("region", {
+		name: "Group allotments",
+	});
+	const add = await within(region).findByRole("button", {
+		name: "Add allotment",
+	});
+	await waitFor(() => expect(add).toBeEnabled());
+	await user.click(add);
+	await user.click(screen.getByRole("combobox", { name: "Group" }));
+
+	await screen.findByRole("option", { name: MockGroup2.name });
+	expect(
+		screen.queryByRole("option", { name: MockEveryoneGroup.name }),
+	).not.toBeInTheDocument();
 });
 
 it("does not add an allotment for an organization deleted after selection", async () => {
