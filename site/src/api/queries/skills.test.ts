@@ -4,6 +4,8 @@ import type { Skill, SkillMetadata } from "#/api/typesGenerated";
 import {
 	createSkill,
 	deleteSkill,
+	organizationSkillACL,
+	organizationSkillACLAvailable,
 	type SkillOwner,
 	skill,
 	skillList,
@@ -135,6 +137,24 @@ describe("user skill queries", () => {
 });
 
 describe("organization skill ACL queries", () => {
+	it("removes a deleted skill's ACL caches", () => {
+		const queryClient = createTestQueryClient();
+		const owner: SkillOwner = { type: "organization", organizationId: "org" };
+		const aclKey = organizationSkillACL("org", "alpha").queryKey;
+		const availableKey = organizationSkillACLAvailable("org", "alpha", {
+			q: "",
+		}).queryKey;
+		queryClient.setQueryData(skillList(owner).queryKey, []);
+		queryClient.setQueryData(aclKey, { users: [], groups: [] });
+		queryClient.setQueryData(availableKey, { users: [], groups: [] });
+
+		deleteSkill(queryClient, owner).onSuccess(undefined, "alpha");
+
+		expect(queryClient.getQueryData(aclKey)).toBeUndefined();
+		expect(queryClient.getQueryData(availableKey)).toBeUndefined();
+		expect(queryClient.getQueryData(skillList(owner).queryKey)).toEqual([]);
+	});
+
 	it("invalidates the skill list and detail after saving the ACL", async () => {
 		const queryClient = createTestQueryClient();
 		const owner: SkillOwner = { type: "organization", organizationId: "org" };

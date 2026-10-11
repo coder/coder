@@ -183,10 +183,9 @@ export const updateSkill = (queryClient: QueryClient, owner: SkillOwner) => ({
 export const deleteSkill = (queryClient: QueryClient, owner: SkillOwner) => ({
 	mutationFn: (name: string) => skillsAPI(owner).delete(name),
 	onSuccess: (_data: unknown, name: string) => {
-		queryClient.removeQueries({
-			queryKey: skillKey(owner, name),
-			exact: true,
-		});
+		// Not exact: the ACL queries are keyed under the skill, and a skill
+		// recreated with the same name must not inherit them.
+		queryClient.removeQueries({ queryKey: skillKey(owner, name) });
 		queryClient.setQueryData<TypesGen.SkillMetadata[]>(
 			skillsKey(owner),
 			(skills) => skills?.filter((skill) => skill.name !== name),
