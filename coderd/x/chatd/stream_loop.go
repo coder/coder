@@ -197,7 +197,19 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		}
 		snapshot.chat = chat
 
-		if chat.HistoryVersion > l.state.historyVersion {
+		// The chat's history version never decreases, so a client value
+		// above it was not issued for this chat and says nothing about
+		// which messages the client holds. Replace the whole history.
+		if l.state.historyVersion > chat.HistoryVersion {
+			snapshot.historyReset = true
+			snapshot.resetMessages, err = tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+				ChatID:  l.chatID,
+				AfterID: 0,
+			})
+			if err != nil {
+				return xerrors.Errorf("get chat history for reset: %w", err)
+			}
+		} else if chat.HistoryVersion > l.state.historyVersion {
 			afterRevision := l.state.historyVersion
 			if !l.state.initialMessageSyncDone && l.state.afterMessageID > 0 {
 				row, ok, err := l.initialSyncCursor(ctx, tx)
@@ -330,7 +342,7 @@ func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []data
 func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatStreamEvent {
 	chat := snapshot.chat
 	events := make([]codersdk.ChatStreamEvent, 0)
-	historyChanged := chat.HistoryVersion > l.state.historyVersion
+	historyChanged := chat.HistoryVersion > l.state.historyVersion || snapshot.historyReset
 	generationChanged := chat.GenerationAttempt != l.state.generationAttempt
 	initialSync := !l.state.initialMessageSyncDone
 

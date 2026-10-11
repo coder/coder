@@ -1435,7 +1435,7 @@ Initial null state:
 - preview part sequence is `0`;
 - `attempt_retired` is false;
 
-A client may open the stream with the `history_version` parameter, taken from the newest messages page or its last `checkpoint` event. Throughout this document, a stream opened with `history_version` means one that sent the parameter, zero included; zero is the version of a chat with no messages. The synchronized `history_version` then starts at that value, so the first sync sends only history changed after it. The endpoint then ignores `after_id`, because a client can hold a message ID without holding every message below it. It rejects a value above the chat's `history_version`, which no client can have read.
+A client may open the stream with the `history_version` parameter, taken from the newest messages page or its last `checkpoint` event. Throughout this document, a stream opened with `history_version` means one that sent the parameter, zero included; zero is the version of a chat with no messages. The synchronized `history_version` then starts at that value, so the first sync sends only history changed after it. The endpoint then ignores `after_id`, because a client can hold a message ID without holding every message below it. A value above the chat's `history_version` was never issued for the chat, so the first sync replaces the client's whole history, as for a stream opened without the parameter, and the stream then continues at the chat's `history_version`.
 
 ## Stream loop operations
 
@@ -1479,7 +1479,7 @@ The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fet
 
 Applying the database result means, in deterministic order:
 
-1. If `db.history_version > local.history_version`, run message synchronization.
+1. If `db.history_version > local.history_version`, run message synchronization. If `local.history_version > db.history_version`, which only the first sync of a stream opened with a `history_version` the chat never issued can see, run a full history reset: emit `history_reset` without `from_message_id` followed by every current message.
 2. If this is the first sync or `db.queue_version > local.queue_version`, run queue synchronization. The first sync always sends the queue, even when it is empty.
 3. If `db.status != local.status`, run status synchronization.
 4. If `db.status = error` and `db.history_version > local.error_history_version`, run error synchronization.

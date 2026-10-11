@@ -1057,6 +1057,15 @@ func TestStreamLoopHistoryVersion(t *testing.T) {
 			wantEvents: reset(4),
 			wantIDs:    []int64{1, 2, 5, 6},
 		},
+		{
+			// No client can hold version 9 of a chat at version 5, so the
+			// stream cannot know which messages it has.
+			name:       "history version above the chat's resets the whole history",
+			rows:       edited,
+			cursor:     StreamCursor{AfterMessageID: 6, HistoryVersion: 9, HasHistoryVersion: true},
+			wantEvents: reset(4),
+			wantIDs:    []int64{1, 2, 5, 6},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -1119,6 +1128,56 @@ func TestStreamLoopHistoryVersionWithoutStatusChange(t *testing.T) {
 		SnapshotVersion: 2,
 		HistoryVersion:  ptr.Ref(int64(2)),
 	}, events[2].Checkpoint, "the sync reported no version to reconnect with")
+}
+
+// TestStreamLoopHistoryVersionAboveChat covers a stream opened with a
+// history version the chat never issued: after the full reset it is a
+// stream at the chat's history version, with partial resets.
+func TestStreamLoopHistoryVersionAboveChat(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	rows := []database.ChatMessage{
+		streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "prompt", false),
+		streamMessage(t, chatID, 2, 2, database.ChatMessageRoleAssistant, "reply", false),
+	}
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusWaiting, HistoryVersion: 2, SnapshotVersion: 3}
+	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), StreamCursor{HistoryVersion: 7, HasHistoryVersion: true})
+
+	events := syncAgainst(t, loop, chat, rows)
+	requireEventTypes(t, events,
+		codersdk.ChatStreamEventTypeHistoryReset,
+		codersdk.ChatStreamEventTypeMessage,
+		codersdk.ChatStreamEventTypeMessage,
+		codersdk.ChatStreamEventTypeQueueUpdate,
+		codersdk.ChatStreamEventTypeStatus,
+		codersdk.ChatStreamEventTypePreviewReset,
+		codersdk.ChatStreamEventTypeCheckpoint,
+	)
+	require.Nil(t, events[0].HistoryReset, "the client's history is unknown, so the reset must replace all of it")
+	require.Equal(t, int64(1), events[1].Message.ID)
+	require.Equal(t, int64(2), events[2].Message.ID)
+	require.Equal(t, &codersdk.ChatStreamCheckpoint{
+		SnapshotVersion: 3,
+		HistoryVersion:  ptr.Ref(int64(2)),
+	}, events[6].Checkpoint, "the checkpoint must report the chat's history version")
+
+	// An edit that replaces the reply resets only from the reply.
+	rows[1].Deleted = true
+	rows[1].Revision = 3
+	rows = append(rows, streamMessage(t, chatID, 3, 3, database.ChatMessageRoleAssistant, "new reply", false))
+	chat.HistoryVersion = 3
+	chat.SnapshotVersion = 4
+	events = syncAgainst(t, loop, chat, rows)
+	requireEventTypes(t, events,
+		codersdk.ChatStreamEventTypeHistoryReset,
+		codersdk.ChatStreamEventTypeMessage,
+		codersdk.ChatStreamEventTypePreviewReset,
+		codersdk.ChatStreamEventTypeCheckpoint,
+	)
+	require.Equal(t, &codersdk.ChatStreamHistoryReset{FromMessageID: 2}, events[0].HistoryReset)
+	require.Equal(t, int64(3), events[1].Message.ID)
+	require.Equal(t, ptr.Ref(int64(3)), events[3].Checkpoint.HistoryVersion)
 }
 
 func requireEventTypes(t *testing.T, events []codersdk.ChatStreamEvent, types ...codersdk.ChatStreamEventType) {
