@@ -17,6 +17,7 @@ import {
 	selectOrganization,
 } from "../MCPServersPage/organizationParam";
 import { OrganizationSkillSharingDialog } from "./OrganizationSkillSharingDialog";
+import { readableSkillsOrganizations } from "./readableSkillsOrganizations";
 
 const SkillsPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
@@ -28,10 +29,9 @@ const SkillsPage: React.FC = () => {
 		),
 		enabled: permissions.viewAnyOrganizationSkills,
 	});
-	const readableOrganizations = organizations.filter(
-		(organization) =>
-			organizationPermissionsQuery.data?.[organization.id]
-				?.viewOrganizationSkills,
+	const readableOrganizations = readableSkillsOrganizations(
+		organizations,
+		organizationPermissionsQuery.data,
 	);
 	const requestedOrganizationName = searchParams.get(orgSearchParam);
 	const defaultOrganization =
