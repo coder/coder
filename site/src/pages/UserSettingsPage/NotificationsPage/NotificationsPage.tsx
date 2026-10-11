@@ -88,7 +88,7 @@ const NotificationsPage: React.FC = () => {
 					description: getErrorDetail(error),
 				});
 			});
-	}, [searchParams.delete, disabledId, disableMutation]);
+	}, [searchParams, disabledId, disableMutation]);
 
 	const ready =
 		disabledPreferences.data &&
@@ -221,10 +221,13 @@ const NotificationsPage: React.FC = () => {
 
 													<Tooltip>
 														<TooltipTrigger asChild>
-															<Icon
-																className="size-icon-sm text-content-secondary"
+															<button
+																type="button"
 																aria-label={label}
-															/>
+																className="m-0 flex items-center border-0 bg-transparent p-0 text-content-secondary rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+															>
+																<Icon className="size-icon-sm" />
+															</button>
 														</TooltipTrigger>
 														<TooltipContent side="bottom">
 															Delivery via {label}

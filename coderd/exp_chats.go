@@ -1821,10 +1821,11 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// monotonically; a DESC limit would drop rows when a burst larger
 	// than `limit` lands between polls. Fetch limit+1 in both paths to
 	// detect whether more pages exist.
+	ascending := afterID > 0 && beforeID == 0
 	var messages []database.ChatMessage
 	var err error
 	switch {
-	case afterID > 0 && beforeID == 0:
+	case ascending:
 		messages, err = api.Database.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
 			ChatID:   chatID,
 			AfterID:  afterID,
@@ -1851,6 +1852,24 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		messages = messages[:limit]
 	}
 
+	var turnStartID *int64
+	if !ascending && len(messages) > 0 {
+		id, err := api.Database.GetChatTurnStartID(ctx, database.GetChatTurnStartIDParams{
+			ChatID:    chatID,
+			MessageID: messages[len(messages)-1].ID,
+		})
+		switch {
+		case err == nil:
+			turnStartID = &id
+		case !errors.Is(err, sql.ErrNoRows):
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get chat turn start.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	// Queued messages are only meaningful for the initial top-of-history
 	// load. Suppress them whenever any cursor is set so polling callers do
 	// not receive the snapshot on every page fetch.
@@ -1870,6 +1889,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		Messages:       convertChatMessages(messages),
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
 		HasMore:        hasMore,
+		TurnStartID:    turnStartID,
 	})
 }
 

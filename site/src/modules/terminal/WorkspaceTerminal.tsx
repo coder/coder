@@ -188,9 +188,8 @@ export const WorkspaceTerminal = ({
 		try {
 			fitAddon.fit();
 			fitAddon.fit();
-		} catch (error) {
-			// biome-ignore lint/suspicious/noConsole: Expected transient fit failure while xterm initializes.
-			console.debug("Terminal fit skipped: renderer not ready", error);
+		} catch {
+			// Expected transient fit failure while xterm initializes.
 		}
 	}, []);
 
@@ -620,7 +619,7 @@ export const WorkspaceTerminal = ({
 
 				${terminalScopeSelector} .xterm-viewport::-webkit-scrollbar-thumb {
 					min-height: 20px;
-					background-color: hsl(var(--surface-quaternary));
+					background-color: hsl(var(--surface-invert-secondary));
 				}
 			`}</style>
 			<ContextMenu onOpenChange={handleContextMenuOpenChange}>

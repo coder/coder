@@ -18545,6 +18545,95 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 	})
 }
 
+func TestGetChatMessages_TurnStartID(t *testing.T) {
+	t.Parallel()
+
+	client, db := newChatClientWithDatabase(t)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModel(t, client)
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    user.OrganizationID,
+		OwnerID:           user.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "turn-start-test",
+	})
+	insert := func(role database.ChatMessageRole, visibility database.ChatMessageVisibility) int64 {
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(string(role)),
+		})
+		require.NoError(t, err)
+		return dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: user.UserID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:          role,
+			Visibility:    visibility,
+			Content:       content,
+		}).ID
+	}
+	const (
+		roleUser      = database.ChatMessageRoleUser
+		roleAssistant = database.ChatMessageRoleAssistant
+		both          = database.ChatMessageVisibilityBoth
+		modelOnly     = database.ChatMessageVisibilityModel
+	)
+
+	preamble := insert(roleAssistant, both)
+	firstPrompt := insert(roleUser, both)
+	firstStep := insert(roleAssistant, both)
+	_ = insert(roleUser, modelOnly)
+	afterModelOnly := insert(roleAssistant, both)
+	deletedPrompt := insert(roleUser, both)
+	afterDeletedPrompt := insert(roleAssistant, both)
+	lastPrompt := insert(roleUser, both)
+	lastStep := insert(roleAssistant, both)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), deletedPrompt))
+
+	tests := []struct {
+		name string
+		opts codersdk.ChatMessagesPaginationOptions
+		// oldest is the expected last ID of a newest-first page; zero
+		// means the page is empty.
+		oldest int64
+		want   *int64
+	}{
+		{"MidTurn", codersdk.ChatMessagesPaginationOptions{Limit: 1}, lastStep, &lastPrompt},
+		{"PageSpanningTurnsSkipsDeletedPrompt", codersdk.ChatMessagesPaginationOptions{BeforeID: lastStep, Limit: 2}, afterDeletedPrompt, &firstPrompt},
+		{"SkipsModelOnlyUserRow", codersdk.ChatMessagesPaginationOptions{BeforeID: deletedPrompt, Limit: 1}, afterModelOnly, &firstPrompt},
+		{"OldestIsPrompt", codersdk.ChatMessagesPaginationOptions{BeforeID: firstStep, Limit: 1}, firstPrompt, &firstPrompt},
+		{"NoPromptBeforeOldest", codersdk.ChatMessagesPaginationOptions{BeforeID: firstPrompt}, preamble, nil},
+		{"EmptyPage", codersdk.ChatMessagesPaginationOptions{BeforeID: preamble}, 0, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			resp, err := client.GetChatMessages(ctx, chat.ID, &tt.opts)
+			require.NoError(t, err)
+			if tt.oldest == 0 {
+				require.Empty(t, resp.Messages)
+			} else {
+				require.NotEmpty(t, resp.Messages)
+				require.Equal(t, tt.oldest, resp.Messages[len(resp.Messages)-1].ID)
+			}
+			require.Equal(t, tt.want, resp.TurnStartID)
+		})
+	}
+
+	t.Run("AfterIDPollingOmitsTurnStart", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{AfterID: firstStep})
+		require.NoError(t, err)
+		require.NotEmpty(t, resp.Messages)
+		require.Nil(t, resp.TurnStartID)
+	})
+}
+
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {
 	t.Helper()
 

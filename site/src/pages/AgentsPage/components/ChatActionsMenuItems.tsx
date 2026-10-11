@@ -20,6 +20,7 @@ import { getErrorMessage } from "#/api/errors";
 import {
 	archiveAndDeleteChat,
 	archiveAndDeleteChatKey,
+	chatArchiveMutationKey,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -54,6 +55,7 @@ import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import { ArchiveAndDeleteWorkspaceDialog } from "./ArchiveAndDeleteWorkspaceDialog";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
+import { ChatPRMenuItems } from "./ChatsSidebar/tree/ChatPRMenuItems";
 
 // Backend chatstate permits archive only from W, E0, and E1. Unknown status
 // stays fail-open so the server conflict response remains the backstop.
@@ -107,12 +109,13 @@ export const canManageChat = (
 type ChatActionsMenuItemsProps = {
 	readonly chat: TypesGen.Chat;
 	/**
-	 * See {@link canManageChat}. When false, only the subagents toggle and the
-	 * copy actions render.
+	 * See {@link canManageChat}. When false, only the subagents toggle, the
+	 * copy actions and the PR links render.
 	 */
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
+	readonly isUpdatingReadState?: boolean;
 	readonly isArchiveBlocked?: boolean;
 	readonly subagentCount?: number;
 	readonly isSubagentsExpanded?: boolean;
@@ -127,6 +130,8 @@ type ChatActionsMenuItemsProps = {
 	readonly onArchiveAndDeleteWorkspace: () => void;
 	/** When omitted, the "Rename chat" item is hidden. */
 	readonly onOpenRenameDialog?: () => void;
+	/** When omitted or empty, no PR links render. */
+	readonly prStatuses?: readonly TypesGen.ChatDiffStatus[];
 	readonly Item: ItemComponent;
 	readonly Separator: SeparatorComponent;
 	readonly Sub: SubComponent;
@@ -165,12 +170,12 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const [confirmation, setConfirmation] = useState<TypesGen.Workspace>();
-	const filters = { mutationKey: archiveAndDeleteChatKey(chat.id) };
-	const isDeleting = useIsMutating(filters) > 0;
+	const isArchiving =
+		useIsMutating({ mutationKey: chatArchiveMutationKey(chat.id) }) > 0;
 	const options = archiveAndDeleteChat(queryClient);
 	const mutation = useMutation({
 		...options,
-		mutationKey: filters.mutationKey,
+		mutationKey: archiveAndDeleteChatKey(chat.id),
 		onSuccess: (result, variables) => {
 			options.onSuccess(result, variables);
 			clearPersistedSidebarTabId(variables.chatId);
@@ -198,6 +203,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 		},
 	});
 
+	const filters = { mutationKey: chatArchiveMutationKey(chat.id) };
 	const requestArchiveAndDelete = async () => {
 		const workspaceId = chat.workspace_id;
 		if (chat.archived || !workspaceId || queryClient.isMutating(filters)) {
@@ -236,7 +242,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	const menuItems = (
 		<ChatActionsMenuItems
 			{...items}
-			isArchiving={items.isArchiving || isDeleting}
+			isArchiving={items.isArchiving || isArchiving}
 			onArchiveAndDeleteWorkspace={requestArchiveAndDelete}
 			Item={variant === "context" ? ContextMenuItem : DropdownMenuItem}
 			Separator={
@@ -300,6 +306,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	canManage,
 	hasWorkspace,
 	isArchiving = false,
+	isUpdatingReadState = false,
 	isArchiveBlocked = false,
 	subagentCount = 0,
 	isSubagentsExpanded = false,
@@ -312,6 +319,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
 	onOpenRenameDialog,
+	prStatuses,
 	Item,
 	Separator,
 	Sub,
@@ -354,7 +362,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	) : null;
 
 	const readToggle = showReadToggle ? (
-		<Item onSelect={chat.has_unread ? onMarkRead : onMarkUnread}>
+		<Item
+			disabled={isUpdatingReadState}
+			onSelect={chat.has_unread ? onMarkRead : onMarkUnread}
+		>
 			{chat.has_unread ? (
 				<>
 					<MailOpenIcon className="size-3.5" />
@@ -405,6 +416,18 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		) : (
 			copyItems
 		);
+	const prLinks = prStatuses && prStatuses.length > 0 && (
+		<>
+			<Separator />
+			<ChatPRMenuItems
+				prStatuses={prStatuses}
+				Item={Item}
+				Sub={Sub}
+				SubTrigger={SubTrigger}
+				SubContent={SubContent}
+			/>
+		</>
+	);
 
 	if (!canManage) {
 		return (
@@ -412,6 +435,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 				{subagentToggle}
 				{hasActionsAboveCopy && <Separator />}
 				{copyActions}
+				{prLinks}
 			</>
 		);
 	}
@@ -458,6 +482,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 			)}
 			{hasActionsAboveCopy && <Separator />}
 			{copyActions}
+			{prLinks}
 			{showArchiveActions && (
 				<>
 					<Separator />

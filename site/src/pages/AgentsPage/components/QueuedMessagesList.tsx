@@ -166,7 +166,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex w-full flex-col max-h-[40svh] overflow-y-auto scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]",
+				"flex w-full flex-col max-h-[40svh] overflow-y-auto scrollbar-gutter-stable scrollbar-thin",
 				className,
 			)}
 		>

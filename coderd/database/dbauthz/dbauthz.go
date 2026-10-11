@@ -3897,6 +3897,15 @@ func (q *querier) GetChatSystemPromptConfig(ctx context.Context) (database.GetCh
 	return q.db.GetChatSystemPromptConfig(ctx)
 }
 
+func (q *querier) GetChatTurnStartID(ctx context.Context, arg database.GetChatTurnStartIDParams) (int64, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	return q.db.GetChatTurnStartID(ctx, arg)
+}
+
 func (q *querier) GetChatUserModelOverride(ctx context.Context, arg database.GetChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
@@ -5662,21 +5671,6 @@ func (q *querier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UU
 		return "", err
 	}
 	return q.db.GetUserThinkingDisplayMode(ctx, userID)
-}
-
-func (q *querier) GetUserWorkspaceBuildParameters(ctx context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
-	u, err := q.db.GetUserByID(ctx, params.OwnerID)
-	if err != nil {
-		return nil, err
-	}
-	// This permission is a bit strange. Reading workspace build params should be a permission
-	// on the workspace. However, this use case is to autofill a user's last input
-	// to some parameter. So this is kind of a "user setting". For now, this will
-	// be lumped in with user personal data. Subject to change.
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return nil, err
-	}
-	return q.db.GetUserWorkspaceBuildParameters(ctx, params)
 }
 
 func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {

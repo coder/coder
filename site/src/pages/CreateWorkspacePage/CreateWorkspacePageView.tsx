@@ -62,7 +62,7 @@ type CreateWorkspacePageViewProps = {
 	mode: CreateWorkspaceMode;
 	parameters: PreviewParameter[];
 	permissions: CreateWorkspacePermissions;
-	presets: TypesGen.Preset[];
+	presets: readonly TypesGen.Preset[];
 	template: TypesGen.Template;
 	urlPreset?: TypesGen.Preset;
 	urlPresetError?: string;
@@ -167,6 +167,8 @@ export const CreateWorkspacePageView: React.FC<
 				onSubmit(request, owner);
 			},
 		});
+	// Formik keeps these stable across renders, unlike `form` itself.
+	const { setFieldValue, setFieldTouched } = form;
 
 	useEffect(() => {
 		if (error) {
@@ -205,7 +207,7 @@ export const CreateWorkspacePageView: React.FC<
 		if (urlPreset) {
 			const idx = presets.findIndex((p) => p.ID === urlPreset.ID) + 1;
 			setSelectedPresetIndex(idx);
-			form.setFieldValue("template_version_preset_id", urlPreset.ID);
+			setFieldValue("template_version_preset_id", urlPreset.ID);
 			return;
 		}
 
@@ -213,12 +215,12 @@ export const CreateWorkspacePageView: React.FC<
 		if (defaultPreset) {
 			const idx = presets.indexOf(defaultPreset) + 1; // +1 for "None"
 			setSelectedPresetIndex(idx);
-			form.setFieldValue("template_version_preset_id", defaultPreset.ID);
+			setFieldValue("template_version_preset_id", defaultPreset.ID);
 		} else {
 			setSelectedPresetIndex(0); // Explicitly set to "None"
-			form.setFieldValue("template_version_preset_id", undefined);
+			setFieldValue("template_version_preset_id", undefined);
 		}
-	}, [presets, form.setFieldValue, urlPreset]);
+	}, [presets, setFieldValue, urlPreset]);
 
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
@@ -319,8 +321,8 @@ export const CreateWorkspacePageView: React.FC<
 
 		if (updates.length > 0) {
 			for (const update of updates) {
-				form.setFieldValue(update.field, update.fieldValue);
-				form.setFieldTouched(update.parameter.name, true);
+				setFieldValue(update.field, update.fieldValue);
+				setFieldTouched(update.parameter.name, true);
 			}
 
 			sendDynamicParamsRequest(
@@ -334,8 +336,8 @@ export const CreateWorkspacePageView: React.FC<
 		presetOptions,
 		selectedPresetIndex,
 		presets,
-		form.setFieldValue,
-		form.setFieldTouched,
+		setFieldValue,
+		setFieldTouched,
 		parameters,
 		form.values.rich_parameter_values,
 		sendDynamicParamsRequest,

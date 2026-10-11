@@ -11302,6 +11302,35 @@ func (q *sqlQuerier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID)
 	return items, nil
 }
 
+const getChatTurnStartID = `-- name: GetChatTurnStartID :one
+SELECT
+    id
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND id <= $2::bigint
+    AND deleted = false
+    AND role = 'user'
+    AND visibility IN ('user', 'both')
+ORDER BY
+    id DESC
+LIMIT
+    1
+`
+
+type GetChatTurnStartIDParams struct {
+	ChatID    uuid.UUID `db:"chat_id" json:"chat_id"`
+	MessageID int64     `db:"message_id" json:"message_id"`
+}
+
+func (q *sqlQuerier) GetChatTurnStartID(ctx context.Context, arg GetChatTurnStartIDParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getChatTurnStartID, arg.ChatID, arg.MessageID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getChatUserPromptsByChatID = `-- name: GetChatUserPromptsByChatID :many
 SELECT
     cm.id,
@@ -39639,67 +39668,6 @@ func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Cont
 		&i.Error,
 	)
 	return i, err
-}
-
-const getUserWorkspaceBuildParameters = `-- name: GetUserWorkspaceBuildParameters :many
-SELECT name, value
-FROM (
-    SELECT DISTINCT ON (tvp.name)
-        tvp.name,
-        wbp.value,
-        wb.created_at
-    FROM
-        workspace_build_parameters wbp
-    JOIN
-        workspace_builds wb ON wb.id = wbp.workspace_build_id
-    JOIN
-        workspaces w ON w.id = wb.workspace_id
-    JOIN
-        template_version_parameters tvp ON tvp.template_version_id = wb.template_version_id
-    WHERE
-		w.owner_id = $1
-		AND wb.transition = 'start'
-		AND w.template_id = $2
-		AND tvp.ephemeral = false
-		AND tvp.name = wbp.name
-    ORDER BY
-        tvp.name, wb.created_at DESC
-) q1
-ORDER BY created_at DESC, name
-LIMIT 100
-`
-
-type GetUserWorkspaceBuildParametersParams struct {
-	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-}
-
-type GetUserWorkspaceBuildParametersRow struct {
-	Name  string `db:"name" json:"name"`
-	Value string `db:"value" json:"value"`
-}
-
-func (q *sqlQuerier) GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUserWorkspaceBuildParameters, arg.OwnerID, arg.TemplateID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetUserWorkspaceBuildParametersRow
-	for rows.Next() {
-		var i GetUserWorkspaceBuildParametersRow
-		if err := rows.Scan(&i.Name, &i.Value); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getWorkspaceBuildParameters = `-- name: GetWorkspaceBuildParameters :many

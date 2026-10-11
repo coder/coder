@@ -22,7 +22,11 @@ import {
 	SquarePenIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import { reorderPinnedChat } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatModel,
@@ -99,20 +103,12 @@ type ChatsPanelProps = {
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
 	readonly isLoadingModelConfigs: boolean;
-	readonly onArchiveAgent: (chatId: string) => void;
+	readonly onArchiveSuccess?: (chatId: string) => void;
 	readonly navigateAfterArchive: (chatId: string) => void;
-	readonly onUnarchiveAgent: (chatId: string) => void;
-	readonly onPinAgent: (chatId: string) => void;
-	readonly onUnpinAgent: (chatId: string) => void;
-	readonly onMarkChatRead: (chatId: string) => void;
-	readonly onMarkChatUnread: (chatId: string) => void;
-	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 	readonly isCreating: boolean;
-	readonly isArchiving: boolean;
-	readonly archivingChatId: string | null;
 	readonly isLoading: boolean;
 	readonly loadError?: unknown;
 	readonly onRetryLoad?: () => void;
@@ -143,20 +139,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatErrorReasons,
 	modelConfigs,
 	isLoadingModelConfigs,
-	onArchiveAgent,
+	onArchiveSuccess,
 	navigateAfterArchive,
-	onUnarchiveAgent,
-	onPinAgent,
-	onUnpinAgent,
-	onMarkChatRead,
-	onMarkChatUnread,
-	onReorderPinnedAgent,
 	onBeforeNewAgent,
 	onOpenSearchDialog,
 	onOpenRenameDialog,
 	isCreating,
-	isArchiving,
-	archivingChatId,
 	isLoading,
 	loadError,
 	onRetryLoad,
@@ -228,6 +216,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	// synchronously so there's no flash between the dnd-kit
 	// transform clearing and the server data arriving.
 	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
+	const queryClient = useQueryClient();
+	const reorderMutation = useMutation({
+		...reorderPinnedChat(queryClient),
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
+		},
+	});
 
 	// Clear the local override when fresh data arrives from
 	// the server (the mutation's onSettled invalidates queries).
@@ -295,7 +290,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
 		setLocalPinOrder(reordered);
-		onReorderPinnedAgent?.(activeId, newIndex + 1);
+		reorderMutation.mutate({ chatId: activeId, pinOrder: newIndex + 1 });
 	};
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -393,16 +388,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		chatErrorReasons,
 		activeChatId,
 		currentUserId,
-		isArchiving,
-		archivingChatId,
 		toggleExpanded,
-		onArchiveAgent,
+		onArchiveSuccess,
 		navigateAfterArchive,
-		onUnarchiveAgent,
-		onPinAgent,
-		onUnpinAgent,
-		onMarkChatRead,
-		onMarkChatUnread,
 		onOpenRenameDialog,
 	};
 

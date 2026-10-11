@@ -13622,50 +13622,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/users/{user}/autofill-parameters": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Users"
-                ],
-                "summary": "Get autofill build parameters for user",
-                "operationId": "get-autofill-build-parameters-for-user",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "User ID, username, or me",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Template ID",
-                        "name": "template_id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.UserParameter"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/v2/users/{user}/convert-login": {
             "post": {
                 "consumes": [
@@ -22271,6 +22227,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "reasoning_tokens": {
+                    "description": "ReasoningTokens counts reasoning, which output_tokens already\nincludes, so do not add the two.",
                     "type": "integer"
                 },
                 "total_tokens": {
@@ -22295,6 +22252,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
                     }
+                },
+                "turn_start_id": {
+                    "description": "TurnStartID is the ID of the user prompt that starts the turn\ncontaining the page's oldest message. Omitted for after_id-only polls\nand when no prompt is at or before that message.",
+                    "type": "integer"
                 }
             }
         },
@@ -25604,7 +25565,6 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "example",
-                "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
                 "mcp-server-http",
@@ -25627,7 +25587,6 @@ const docTemplate = `{
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
-                "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatAutomations": "Enables webhook and scheduled automations that deliver prompts to agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
@@ -25646,7 +25605,6 @@ const docTemplate = `{
             },
             "x-enum-descriptions": [
                 "This isn't used for anything.",
-                "This should not be taken out of experiments until we have redesigned the feature.",
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
                 "Enables the MCP HTTP server functionality.",
@@ -25667,7 +25625,6 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
-                "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentMCPServerHTTP",
@@ -33217,17 +33174,6 @@ const docTemplate = `{
             "properties": {
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
-                }
-            }
-        },
-        "codersdk.UserParameter": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
                 }
             }
         },

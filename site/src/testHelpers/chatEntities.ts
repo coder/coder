@@ -4,6 +4,7 @@ import type {
 	ChatContext,
 	ChatContextResource,
 	ChatCost,
+	ChatDiffStatus,
 	ChatFileMetadata,
 	ChatMessage,
 	ChatQueuedMessage,
@@ -205,4 +206,21 @@ export const MockWebhookChatAutomation: ChatAutomation = {
 	prompt: "Summarize the deploy event.",
 	schedule_cron: undefined,
 	schedule_time_zone: undefined,
+};
+
+// Spread for variants, such as a merged PR or a branch without a PR
+// yet.
+export const MockChatDiffStatus: ChatDiffStatus = {
+	chat_id: MockChat.id,
+	remote_origin: "https://github.com/coder/coder",
+	git_branch: "feat/example",
+	url: "https://github.com/coder/coder/pull/123",
+	pr_number: 123,
+	pull_request_state: "open",
+	pull_request_title: "fix: resolve race condition",
+	pull_request_draft: false,
+	changes_requested: false,
+	additions: 1,
+	deletions: 0,
+	changed_files: 1,
 };

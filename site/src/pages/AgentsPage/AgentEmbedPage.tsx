@@ -142,10 +142,6 @@ const AgentEmbedPage: React.FC = () => {
 		});
 	};
 
-	const requestArchiveAgent = (_chatId: string) => {};
-
-	const requestUnarchiveAgent = (_chatId: string) => {};
-
 	const onToggleSidebarCollapsed = () => {
 		setIsSidebarCollapsed((current) => !current);
 	};
@@ -215,13 +211,7 @@ const AgentEmbedPage: React.FC = () => {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
-		requestArchiveAgent,
 		navigateAfterArchive: () => {},
-		requestUnarchiveAgent,
-		requestPinAgent: () => {},
-		requestUnpinAgent: () => {},
-		isArchiving: false,
-		archivingChatId: undefined,
 		activeChatChildren: undefined,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
