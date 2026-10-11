@@ -108,9 +108,9 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 		return nil, g.wrapError(err, "get merge request commits")
 	}
 	if resp.TotalItems > 0 {
-		totalCommits = int32(resp.TotalItems)
+		totalCommits = clampToInt32(resp.TotalItems)
 	} else {
-		totalCommits = int32(len(commits))
+		totalCommits = clampToInt32(int64(len(commits)))
 	}
 
 	// Fetch MR diffs to compute additions/deletions.
@@ -145,7 +145,7 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 	var changedFiles int32
 	if mr.ChangesCount != "" {
 		trimmed := strings.TrimSuffix(mr.ChangesCount, "+")
-		if n, err := strconv.Atoi(trimmed); err == nil {
+		if n, err := strconv.ParseInt(trimmed, 10, 32); err == nil {
 			changedFiles = int32(n)
 		}
 	}
@@ -154,7 +154,7 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 	// provider. GitLab's "Approved" is threshold-based (not "at least one
 	// approval and no changes requested"), ChangesRequested has no GitLab
 	// equivalent, and ReviewerCount only counts approvers.
-	reviewerCount := int32(len(approvals.ApprovedBy))
+	reviewerCount := clampToInt32(int64(len(approvals.ApprovedBy)))
 
 	var authorLogin, authorAvatarURL string
 	if mr.Author != nil {
@@ -191,7 +191,7 @@ func (g *gitlabProvider) ResolveBranchPullRequest(
 	ref BranchRef,
 ) (*PRRef, error) {
 	if ref.Owner == "" || ref.Repo == "" || ref.Branch == "" {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Provider contract: nil, nil means no open PR.
 	}
 
 	pid := gitLabPID(ref.Owner, ref.Repo)
@@ -208,7 +208,7 @@ func (g *gitlabProvider) ResolveBranchPullRequest(
 		return nil, g.wrapError(err, "list merge requests by branch")
 	}
 	if len(mrs) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Provider contract: nil, nil means no open PR.
 	}
 
 	prRef, ok := g.ParsePullRequestURL(mrs[0].WebURL)
@@ -394,23 +394,23 @@ func (g *gitlabProvider) FetchBranchDiff(
 				slog.Bool("too_large", d.TooLarge),
 			)
 		}
-		fmt.Fprintf(&sb, "diff --git a/%s b/%s\n", d.OldPath, d.NewPath)
+		_, _ = fmt.Fprintf(&sb, "diff --git a/%s b/%s\n", d.OldPath, d.NewPath)
 		// Add standard unified diff file headers.
 		switch {
 		case d.NewFile:
-			sb.WriteString("--- /dev/null\n")
-			fmt.Fprintf(&sb, "+++ b/%s\n", d.NewPath)
+			_, _ = sb.WriteString("--- /dev/null\n")
+			_, _ = fmt.Fprintf(&sb, "+++ b/%s\n", d.NewPath)
 		case d.DeletedFile:
-			fmt.Fprintf(&sb, "--- a/%s\n", d.OldPath)
-			sb.WriteString("+++ /dev/null\n")
+			_, _ = fmt.Fprintf(&sb, "--- a/%s\n", d.OldPath)
+			_, _ = sb.WriteString("+++ /dev/null\n")
 		default:
-			fmt.Fprintf(&sb, "--- a/%s\n", d.OldPath)
-			fmt.Fprintf(&sb, "+++ b/%s\n", d.NewPath)
+			_, _ = fmt.Fprintf(&sb, "--- a/%s\n", d.OldPath)
+			_, _ = fmt.Fprintf(&sb, "+++ b/%s\n", d.NewPath)
 		}
-		sb.WriteString(d.Diff)
+		_, _ = sb.WriteString(d.Diff)
 		// Ensure each file diff ends with a newline.
 		if len(d.Diff) > 0 && d.Diff[len(d.Diff)-1] != '\n' {
-			sb.WriteByte('\n')
+			_ = sb.WriteByte('\n')
 		}
 	}
 
@@ -436,7 +436,7 @@ func (g *gitlabProvider) ParseRepositoryOrigin(raw string) (owner, repo, normali
 	host := g.webHost()
 
 	// Try SSH format: git@HOST:path.git or ssh://git@HOST/path.git
-	if path, matched := g.parseSSHOrigin(raw, host); matched {
+	if path, matched := parseSSHOrigin(raw, host); matched {
 		owner, repo = splitOwnerRepo(path)
 		if owner == "" || repo == "" {
 			return "", "", "", false
@@ -631,7 +631,7 @@ func splitOwnerRepo(path string) (owner, repo string) {
 
 // parseSSHOrigin attempts to parse an SSH git remote URL for the given host.
 // Returns the path (without .git suffix) and true if it matched.
-func (g *gitlabProvider) parseSSHOrigin(raw string, host string) (string, bool) {
+func parseSSHOrigin(raw string, host string) (string, bool) {
 	// Handle ssh://git@HOST/path.git format.
 	if strings.HasPrefix(raw, "ssh://") {
 		u, err := url.Parse(raw)

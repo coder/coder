@@ -210,7 +210,7 @@ func (g *githubProvider) ResolveBranchPullRequest(
 	ref BranchRef,
 ) (*PRRef, error) {
 	if ref.Owner == "" || ref.Repo == "" || ref.Branch == "" {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Provider contract: nil, nil means no open PR.
 	}
 
 	query := url.Values{}
@@ -237,12 +237,12 @@ func (g *githubProvider) ResolveBranchPullRequest(
 		return nil, err
 	}
 	if len(pulls) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Provider contract: nil, nil means no open PR.
 	}
 
 	prRef, ok := g.ParsePullRequestURL(pulls[0].HTMLURL)
 	if !ok {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Provider contract: nil, nil means no open PR.
 	}
 	return &prRef, nil
 }
@@ -568,7 +568,7 @@ func summarizeReviews(
 	}
 
 	var result reviewStats
-	result.reviewerCount = int32(len(statesByReviewer))
+	result.reviewerCount = clampToInt32(int64(len(statesByReviewer)))
 
 	hasApproval := false
 	for _, state := range statesByReviewer {

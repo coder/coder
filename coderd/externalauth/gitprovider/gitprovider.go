@@ -3,6 +3,7 @@ package gitprovider
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -242,6 +243,18 @@ func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader stri
 
 // countDiffLines counts added and deleted lines in a unified diff. It excludes
 // file header lines such as +++ b/file and --- a/file.
+// clampToInt32 saturates n to the int32 range used by the
+// database count columns.
+func clampToInt32(n int64) int32 {
+	if n > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if n < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(n)
+}
+
 func countDiffLines(diff string) (additions, deletions int32) {
 	for _, line := range strings.Split(diff, "\n") {
 		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {

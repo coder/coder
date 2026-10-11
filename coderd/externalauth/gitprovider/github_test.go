@@ -806,7 +806,7 @@ func TestResolveBranchPullRequest(t *testing.T) {
 			// matches the provider's derived web host.
 			htmlURL := fmt.Sprintf("https://%s/owner/repo/pull/42",
 				strings.TrimPrefix(strings.TrimPrefix(srvURL, "http://"), "https://"))
-			_, _ = w.Write([]byte(fmt.Sprintf(`[{"html_url":%q,"number":42}]`, htmlURL)))
+			_, _ = fmt.Fprintf(w, `[{"html_url":%q,"number":42}]`, htmlURL)
 		}))
 		defer srv.Close()
 		srvURL = srv.URL
@@ -998,7 +998,7 @@ func TestConditionalRequestReuse(t *testing.T) {
 				strings.TrimPrefix(strings.TrimPrefix(srvURL, "http://"), "https://"))
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("ETag", etag)
-			_, _ = w.Write([]byte(fmt.Sprintf(`[{"html_url":%q,"number":42}]`, htmlURL)))
+			_, _ = fmt.Fprintf(w, `[{"html_url":%q,"number":42}]`, htmlURL)
 		}))
 		defer srv.Close()
 		srvURL = srv.URL
@@ -1041,7 +1041,7 @@ func TestConditionalRequestReuse(t *testing.T) {
 				strings.TrimPrefix(strings.TrimPrefix(srvURL, "http://"), "https://"))
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("ETag", `"tok-etag"`)
-			_, _ = w.Write([]byte(fmt.Sprintf(`[{"html_url":%q,"number":7}]`, htmlURL)))
+			_, _ = fmt.Fprintf(w, `[{"html_url":%q,"number":7}]`, htmlURL)
 		}))
 		defer srv.Close()
 		srvURL = srv.URL
