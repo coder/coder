@@ -68,9 +68,13 @@ Use the edit button in a row to change an allotment, or the remove button to del
 Coder records every change in the [audit log](../../../admin/security/audit-logs.md).
 
 The **Used** column shows the hours each organization or group used in the current license usage period, with a bar that compares usage to its allotment.
-An organization or group that used hours but has no allotment now, such as a deleted group, appears in a row without an allotment.
-The last row of each table covers the unallotted share: **Unallotted organizations** sums the usage of organizations without an allotment, and **Everyone else (unallotted)** shows the usage that counted toward the organization's **Everyone** group.
-When the license total includes hours from chats deleted before Coder tracked usage per organization, a **Not attributed** row shows those hours.
+Each table ends with the unallotted share:
+
+- **Unallotted organizations** sums the usage of organizations without an allotment, and lists each of them under it.
+- **Everyone else (unallotted)** shows the usage that counted toward the organization's **Everyone** group.
+  A group that used hours but has no allotment now, such as a deleted group, appears above it in a row without an allotment.
+
+When the license total includes hours from chats deleted before Coder tracked usage per organization, a **Not attributed** row above **Unallotted organizations** shows those hours.
 
 ## Permissions
 
@@ -103,3 +107,6 @@ Allotments use basis points in the `allotment_bps` field, where `10000` equals 1
 The [usage endpoints](../../../reference/api/enterprise.md#get-agent-hours-usage) report usage in milliseconds, for the deployment's organizations, an organization's groups, and a group's members.
 They use the same permissions as the matching allotment endpoints: listing usage for all organizations requires the access needed to list all organization allotments, and an organization's group usage requires permission to read its groups.
 Group member usage returns only the members you can read.
+
+The **Agent Hours** page is for users who can change allotments.
+Users who can only read them, such as auditors, read allotments and usage through these endpoints instead.

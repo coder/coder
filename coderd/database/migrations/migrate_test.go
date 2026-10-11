@@ -1843,15 +1843,15 @@ func testMigration000606ChatDiffStatusOriginCredentials(t *testing.T, sqlDB *sql
 }
 
 // testMigration000616AgentRuntimeHourlyUsage checks that the migration
-// backfills the rollup for hours that already have a usage event, crediting
-// every owner to the organization's Everyone group, and that it can be
-// rolled back and reapplied.
+// deletes Everyone group allotments, backfills the rollup for hours that
+// already have a usage event, crediting every owner to the organization's
+// Everyone group, and that it can be rolled back and reapplied.
 func testMigration000616AgentRuntimeHourlyUsage(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 616
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	ownerID, otherID, orgID, providerID, modelConfigID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
-	chatID, otherChatID := uuid.New(), uuid.New()
+	chatID, otherChatID, groupID := uuid.New(), uuid.New(), uuid.New()
 	// Far from any bucket an earlier step could have created.
 	generated := time.Date(2031, 1, 1, 10, 0, 0, 0, time.UTC)
 	notGenerated := generated.Add(time.Hour)
@@ -1867,6 +1867,24 @@ func testMigration000616AgentRuntimeHourlyUsage(t *testing.T, sqlDB *sql.DB, nex
 	}
 	exec("INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, '', '', NOW(), NOW(), '{}')",
 		orgID, orgID.String())
+	exec("INSERT INTO groups (id, name, organization_id) VALUES ($1, 'Everyone', $1), ($2, $3, $1)",
+		orgID, groupID, groupID.String())
+	insertEveryoneAllotment := func() {
+		t.Helper()
+		exec("INSERT INTO agent_hours_group_allotments (group_id, allotment_bps) VALUES ($1, 1000)", orgID)
+	}
+	insertEveryoneAllotment()
+	exec("INSERT INTO agent_hours_group_allotments (group_id, allotment_bps) VALUES ($1, 2000)", groupID)
+	requireOnlyGroupAllotment := func() {
+		t.Helper()
+		var everyone, group int
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			"SELECT COUNT(*) FILTER (WHERE group_id = $1), COUNT(*) FILTER (WHERE group_id = $2) FROM agent_hours_group_allotments",
+			orgID, groupID,
+		).Scan(&everyone, &group))
+		require.Zero(t, everyone, "the Everyone allotment must be deleted")
+		require.Equal(t, 1, group, "other group allotments must stay")
+	}
 	exec("INSERT INTO ai_providers (id, type, name, base_url) VALUES ($1, 'openai', $2, 'https://example.com')",
 		providerID, providerID.String())
 	exec("INSERT INTO chat_model_configs (id, model, context_limit, compression_threshold, ai_provider_id, organization_id) VALUES ($1, 'model', 1000, 50, $2, $3)",
@@ -1918,6 +1936,7 @@ func testMigration000616AgentRuntimeHourlyUsage(t *testing.T, sqlDB *sql.DB, nex
 	require.NoError(t, err)
 	require.EqualValues(t, migrationVersion, version)
 	require.ElementsMatch(t, want, rollup())
+	requireOnlyGroupAllotment()
 
 	downSQL, err := os.ReadFile("000616_agent_runtime_hourly_usage.down.sql")
 	require.NoError(t, err)
@@ -1929,10 +1948,12 @@ func testMigration000616AgentRuntimeHourlyUsage(t *testing.T, sqlDB *sql.DB, nex
 	require.True(t, tableGone)
 	require.True(t, functionGone)
 
+	insertEveryoneAllotment()
 	upSQL, err := os.ReadFile("000616_agent_runtime_hourly_usage.up.sql")
 	require.NoError(t, err)
 	exec(string(upSQL))
 	require.ElementsMatch(t, want, rollup())
+	requireOnlyGroupAllotment()
 
 	// Later steps assert on every chat message, so remove this step's.
 	exec("DELETE FROM chats WHERE id IN ($1, $2)", chatID, otherChatID)
