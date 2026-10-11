@@ -2576,6 +2576,21 @@ func (mr *MockStoreMockRecorder) GetAgentHoursOrganizationAllotments(ctx any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentHoursOrganizationAllotments", reflect.TypeOf((*MockStore)(nil).GetAgentHoursOrganizationAllotments), ctx)
 }
 
+// GetAgentRuntimeHourlyUsage mocks base method.
+func (m *MockStore) GetAgentRuntimeHourlyUsage(ctx context.Context, arg database.GetAgentRuntimeHourlyUsageParams) ([]database.GetAgentRuntimeHourlyUsageRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentRuntimeHourlyUsage", ctx, arg)
+	ret0, _ := ret[0].([]database.GetAgentRuntimeHourlyUsageRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentRuntimeHourlyUsage indicates an expected call of GetAgentRuntimeHourlyUsage.
+func (mr *MockStoreMockRecorder) GetAgentRuntimeHourlyUsage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentRuntimeHourlyUsage", reflect.TypeOf((*MockStore)(nil).GetAgentRuntimeHourlyUsage), ctx, arg)
+}
+
 // GetAllTailnetCoordinators mocks base method.
 func (m *MockStore) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	m.ctrl.T.Helper()
@@ -6506,21 +6521,6 @@ func (mr *MockStoreMockRecorder) GetTemplatesWithFilter(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplatesWithFilter", reflect.TypeOf((*MockStore)(nil).GetTemplatesWithFilter), ctx, arg)
 }
 
-// GetTotalChatMessageRuntimeMsInRange mocks base method.
-func (m *MockStore) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg database.GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTotalChatMessageRuntimeMsInRange", ctx, arg)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetTotalChatMessageRuntimeMsInRange indicates an expected call of GetTotalChatMessageRuntimeMsInRange.
-func (mr *MockStoreMockRecorder) GetTotalChatMessageRuntimeMsInRange(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTotalChatMessageRuntimeMsInRange", reflect.TypeOf((*MockStore)(nil).GetTotalChatMessageRuntimeMsInRange), ctx, arg)
-}
-
 // GetTotalUsageDCManagedAgentsV1 mocks base method.
 func (m *MockStore) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg database.GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
 	m.ctrl.T.Helper()
@@ -8289,6 +8289,20 @@ func (mr *MockStoreMockRecorder) InsertAgentContextResourcesIntoChat(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAgentContextResourcesIntoChat", reflect.TypeOf((*MockStore)(nil).InsertAgentContextResourcesIntoChat), ctx, arg)
 }
 
+// InsertAgentRuntimeHourlyUsage mocks base method.
+func (m *MockStore) InsertAgentRuntimeHourlyUsage(ctx context.Context, arg database.InsertAgentRuntimeHourlyUsageParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAgentRuntimeHourlyUsage", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertAgentRuntimeHourlyUsage indicates an expected call of InsertAgentRuntimeHourlyUsage.
+func (mr *MockStoreMockRecorder) InsertAgentRuntimeHourlyUsage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAgentRuntimeHourlyUsage", reflect.TypeOf((*MockStore)(nil).InsertAgentRuntimeHourlyUsage), ctx, arg)
+}
+
 // InsertAllUsersGroup mocks base method.
 func (m *MockStore) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	m.ctrl.T.Helper()
@@ -9061,11 +9075,12 @@ func (mr *MockStoreMockRecorder) InsertTemplateVersionWorkspaceTag(ctx, arg any)
 }
 
 // InsertUsageEvent mocks base method.
-func (m *MockStore) InsertUsageEvent(ctx context.Context, arg database.InsertUsageEventParams) error {
+func (m *MockStore) InsertUsageEvent(ctx context.Context, arg database.InsertUsageEventParams) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertUsageEvent", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // InsertUsageEvent indicates an expected call of InsertUsageEvent.

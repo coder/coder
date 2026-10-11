@@ -5326,6 +5326,15 @@ type AgentHoursOrganizationAllotment struct {
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
 
+// Agent Runtime per hour, organization, effective Agent Hours group, and chat owner. Written with each hb_agent_runtime_v1 usage event and never purged. No foreign keys, so totals survive deleted users, groups, and organizations.
+type AgentRuntimeHourlyUsage struct {
+	BucketStart    time.Time `db:"bucket_start" json:"bucket_start"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	GroupID        uuid.UUID `db:"group_id" json:"group_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	RuntimeMs      int64     `db:"runtime_ms" json:"runtime_ms"`
+}
+
 type AuditLog struct {
 	ID               uuid.UUID       `db:"id" json:"id"`
 	Time             time.Time       `db:"time" json:"time"`

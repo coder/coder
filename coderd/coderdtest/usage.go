@@ -40,11 +40,11 @@ func (u *UsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.S
 	return nil
 }
 
-func (u *UsageInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) error {
+func (u *UsageInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) (bool, error) {
 	u.Lock()
 	defer u.Unlock()
 	if _, seen := u.seenHeartbeats[id]; seen {
-		return nil
+		return false, nil
 	}
 
 	u.seenHeartbeats[id] = struct{}{}
@@ -53,7 +53,7 @@ func (u *UsageInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.
 		CreatedAt: createdAt,
 		Event:     event,
 	})
-	return nil
+	return true, nil
 }
 
 func (u *UsageInserter) GetHeartbeatEvents() []HeartbeatEvent {
