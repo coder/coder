@@ -413,6 +413,7 @@ const withoutQuery = (
 // stringifying every field.
 // ---------------------------------------------------------------------------
 
+// oxlint-disable-next-line coder/no-as-unknown-as -- The comment above explains the cast.
 const EVERY_TOOL_ASSISTANT_TURN = {
 	id: 4,
 	chat_id: CHAT_ID,

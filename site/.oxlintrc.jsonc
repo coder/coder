@@ -1,6 +1,7 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
+	"jsPlugins": ["./scripts/oxlint-plugin-coder.mjs"],
 	// Turn every default-on category off so nothing runs unless explicitly
 	// enabled below.
 	"categories": { "correctness": "off" },
@@ -180,6 +181,7 @@
 		"no-unsafe-declaration-merging": "error",
 		"no-unsafe-negation": "error",
 		"no-useless-backreference": "error",
+		"no-empty": "error",
 		"no-with": "error",
 		"adjacent-overload-signatures": "error",
 		"default-case-last": "error",
@@ -199,6 +201,11 @@
 			"error",
 			{ "functions": false, "classes": false, "variables": false }
 		],
+
+		// --- coder (scripts/oxlint-plugin-coder.mjs) ---
+		"coder/no-as-unknown-as": "error",
+		"coder/no-empty-catch-callback": "error",
+		"coder/require-disable-reason": "error",
 
 		// ==========================================================
 		// Migration backlog (temporary; shrinks as we go).
@@ -343,6 +350,18 @@
 				"**/DiffViewer/parseDiff.test.ts"
 			],
 			"rules": { "no-restricted-imports": "off" }
+		},
+		{
+			// Tests and test helpers build partial fakes of browser and API
+			// types, where a double assertion is the pragmatic tool.
+			"files": [
+				"**/*.test.ts",
+				"**/*.test.tsx",
+				"src/testHelpers/**",
+				"test/**",
+				"e2e/**"
+			],
+			"rules": { "coder/no-as-unknown-as": "off" }
 		},
 		{
 			// Ambient declarations (global and module augmentation) must stay
