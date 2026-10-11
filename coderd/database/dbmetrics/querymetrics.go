@@ -1464,6 +1464,22 @@ func (m queryMetricsStore) GetAgentRuntimeHourlyUsage(ctx context.Context, arg d
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAgentRuntimeUsageByGroup(ctx context.Context, arg database.GetAgentRuntimeUsageByGroupParams) ([]database.GetAgentRuntimeUsageByGroupRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentRuntimeUsageByGroup(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentRuntimeUsageByGroup").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentRuntimeUsageByGroup").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentRuntimeUsageByOrganization(ctx context.Context, arg database.GetAgentRuntimeUsageByOrganizationParams) ([]database.GetAgentRuntimeUsageByOrganizationRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentRuntimeUsageByOrganization(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentRuntimeUsageByOrganization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentRuntimeUsageByOrganization").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAllTailnetCoordinators(ctx)
@@ -2477,6 +2493,14 @@ func (m queryMetricsStore) GetGroupMembersAISpend(ctx context.Context, arg datab
 	r0, r1 := m.s.GetGroupMembersAISpend(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetGroupMembersAISpend").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupMembersAISpend").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetGroupMembersAgentRuntimeUsage(ctx context.Context, arg database.GetGroupMembersAgentRuntimeUsageParams) ([]database.GetGroupMembersAgentRuntimeUsageRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGroupMembersAgentRuntimeUsage(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetGroupMembersAgentRuntimeUsage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupMembersAgentRuntimeUsage").Inc()
 	return r0, r1
 }
 

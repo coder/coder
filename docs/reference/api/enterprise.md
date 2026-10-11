@@ -235,6 +235,50 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get Agent Hours usage
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/agent-hours/usage \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/agent-hours/usage`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "organizations": [
+    {
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "used_ms": 0
+    }
+  ],
+  "total_ms": 0,
+  "usage_period": {
+    "end": "2019-08-24T14:15:22Z",
+    "issued_at": "2019-08-24T14:15:22Z",
+    "start": "2019-08-24T14:15:22Z"
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                         |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentHoursUsage](schemas.md#codersdkagenthoursusage) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## List AI Gateway keys
 
 ### Code samples
@@ -1317,6 +1361,63 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group}/members \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get group members Agent Hours usage
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/groups/{group}/members/agent-hours?user_ids=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/groups/{group}/members/agent-hours`
+
+Returns, per requested user, the Agent Hours that counted toward the group in the license usage period and the group the user's Agent Hours count toward now.
+A maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
+
+### Parameters
+
+| Name       | In    | Type         | Required | Description                                    |
+|------------|-------|--------------|----------|------------------------------------------------|
+| `group`    | path  | string(uuid) | true     | Group ID                                       |
+| `user_ids` | query | string       | true     | Comma-separated list of user IDs (maximum 100) |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "members": [
+    {
+      "effective_group": {
+        "display_name": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
+      "used_ms": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ],
+  "usage_period": {
+    "end": "2019-08-24T14:15:22Z",
+    "issued_at": "2019-08-24T14:15:22Z",
+    "start": "2019-08-24T14:15:22Z"
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                 |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentHoursGroupMembersUsage](schemas.md#codersdkagenthoursgroupmembersusage) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get group members AI spend
 
 ### Code samples
@@ -2244,6 +2345,56 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/agent-h
 | Status | Meaning                                                 | Description | Schema                                                                             |
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentHoursGroupAllotments](schemas.md#codersdkagenthoursgroupallotments) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get organization Agent Hours usage
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/agent-hours/usage \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/agent-hours/usage`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+|----------------|------|--------------|----------|-----------------|
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "groups": [
+    {
+      "group_display_name": "string",
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "group_name": "string",
+      "used_ms": 0
+    }
+  ],
+  "usage_period": {
+    "end": "2019-08-24T14:15:22Z",
+    "issued_at": "2019-08-24T14:15:22Z",
+    "start": "2019-08-24T14:15:22Z"
+  },
+  "used_ms": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                             |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentHoursOrganizationGroupsUsage](schemas.md#codersdkagenthoursorganizationgroupsusage) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
