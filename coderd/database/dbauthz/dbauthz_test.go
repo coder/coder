@@ -709,6 +709,12 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().MarkChatsContextDirtyByAgent(gomock.Any(), arg).Return(rows, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(rows)
 	}))
+	s.Run("SyncAgentChatsContextAddedResources", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.SyncAgentChatsContextAddedResourcesParams{AgentID: uuid.New()}
+		synced := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().SyncAgentChatsContextAddedResources(gomock.Any(), arg).Return(synced, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(synced)
+	}))
 	s.Run("SyncAgentChatsContextMCPResources", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		agentID := uuid.New()
 		synced := []uuid.UUID{uuid.New()}
