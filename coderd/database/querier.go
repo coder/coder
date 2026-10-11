@@ -440,7 +440,7 @@ type sqlcQuerier interface {
 	GetAgentRuntimeUsageByGroup(ctx context.Context, arg GetAgentRuntimeUsageByGroupParams) ([]GetAgentRuntimeUsageByGroupRow, error)
 	// Sums agent_runtime_hourly_usage per organization over the buckets that
 	// start in [start_time, end_time), which is how the license total counts
-	// buckets. Deleted organizations have empty names.
+	// buckets. Deleted organizations, which are soft-deleted, have empty names.
 	GetAgentRuntimeUsageByOrganization(ctx context.Context, arg GetAgentRuntimeUsageByOrganizationParams) ([]GetAgentRuntimeUsageByOrganizationRow, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
