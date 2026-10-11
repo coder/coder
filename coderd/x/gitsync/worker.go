@@ -127,7 +127,7 @@ func NewWorker(
 }
 
 // Start launches the background loop. It blocks until ctx is
-// cancelled, then closes w.done.
+// canceled, then closes w.done.
 func (w *Worker) Start(ctx context.Context) {
 	defer close(w.done)
 
@@ -438,20 +438,20 @@ func (w *Worker) RefreshChat(
 	}
 
 	if len(results) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Documented: nil, nil means no PR exists yet.
 	}
 	res := results[0]
 	if errors.Is(res.Error, ErrStalePullRequest) {
 		if err := w.clearStalePR(ctx, row); err != nil {
 			return nil, err
 		}
-		return nil, nil
+		return nil, nil //nolint:nilnil // Documented: nil, nil means no PR exists yet.
 	}
 	if res.Error != nil {
 		return nil, xerrors.Errorf("refresh chat diff status: %w", res.Error)
 	}
 	if res.Params == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Documented: nil, nil means no PR exists yet.
 	}
 
 	upserted, err := w.store.UpsertChatDiffStatus(ctx, *res.Params)
