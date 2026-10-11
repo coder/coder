@@ -347,6 +347,7 @@ async function fetchInBatches<Item, Response>(
 	return Promise.all(batches);
 }
 
+/** The batched AI spend and Agent Hours endpoints reject requests with more than 100 IDs. */
 const idBatchSize = 100;
 
 const aiProviderConfigsPath = "/api/v2/ai/providers";

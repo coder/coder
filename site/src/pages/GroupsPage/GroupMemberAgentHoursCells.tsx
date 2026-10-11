@@ -7,9 +7,13 @@ import { formatUsedAgentHours } from "#/utils/agentHours";
 import { EM_DASH } from "./GroupMemberBudgetCells";
 import { LabelWithInfo } from "./LabelWithInfo";
 
-export const GroupMemberAgentHoursHeads: React.FC<{
+type GroupMemberAgentHoursHeadsProps = {
 	error: unknown;
-}> = ({ error }) => (
+};
+
+export const GroupMemberAgentHoursHeads: React.FC<
+	GroupMemberAgentHoursHeadsProps
+> = ({ error }) => (
 	<>
 		<TableHead>
 			{error ? (
@@ -37,16 +41,20 @@ export const GroupMemberAgentHoursHeads: React.FC<{
 	</>
 );
 
-/**
- * Hours are those that counted toward the viewed group; the group is where
- * the member's hours count now.
- */
-export const GroupMemberAgentHoursCells: React.FC<{
+type GroupMemberAgentHoursCellsProps = {
 	group: Group;
 	username: string;
 	usage: AgentHoursGroupMemberUsage | undefined;
 	isLoading: boolean;
-}> = ({ group, username, usage, isLoading }) => {
+};
+
+/**
+ * Hours are those that counted toward the viewed group; the group is where
+ * the member's hours count now.
+ */
+export const GroupMemberAgentHoursCells: React.FC<
+	GroupMemberAgentHoursCellsProps
+> = ({ group, username, usage, isLoading }) => {
 	if (isLoading) {
 		return (
 			<>

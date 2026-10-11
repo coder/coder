@@ -1006,6 +1006,39 @@ const mockAgentHoursMembers: ReducedUser[] = [
 	{ ...MockUserMember, id: "member-no-usage", username: "jordan" },
 ];
 
+const mockMembersAgentHours: AgentHoursGroupMembersUsage = {
+	usage_period: MockAgentHoursUsagePeriod,
+	members: [
+		{
+			user_id: "member-this-group",
+			used_ms: 45_359_000,
+			effective_group: {
+				id: MockGroupWithoutMembers.id,
+				name: MockGroupWithoutMembers.name,
+				display_name: MockGroupWithoutMembers.display_name,
+			},
+		},
+		{
+			user_id: "member-other-group",
+			used_ms: 7_200_000,
+			effective_group: {
+				id: MockGroup2.id,
+				name: MockGroup2.name,
+				display_name: MockGroup2.display_name,
+			},
+		},
+		{
+			user_id: "member-unallotted",
+			used_ms: 0,
+			effective_group: {
+				id: MockEveryoneGroup.id,
+				name: MockEveryoneGroup.name,
+				display_name: MockEveryoneGroup.display_name,
+			},
+		},
+	],
+};
+
 export const WithMemberAgentHours: Story = {
 	parameters: {
 		features: ["agent_runtime_hours"],
@@ -1021,38 +1054,7 @@ export const WithMemberAgentHours: Story = {
 					MockGroupWithoutMembers.id,
 					mockAgentHoursMembers.map((member) => member.id),
 				),
-				data: {
-					usage_period: MockAgentHoursUsagePeriod,
-					members: [
-						{
-							user_id: "member-this-group",
-							used_ms: 45_359_000,
-							effective_group: {
-								id: MockGroupWithoutMembers.id,
-								name: MockGroupWithoutMembers.name,
-								display_name: MockGroupWithoutMembers.display_name,
-							},
-						},
-						{
-							user_id: "member-other-group",
-							used_ms: 7_200_000,
-							effective_group: {
-								id: MockGroup2.id,
-								name: MockGroup2.name,
-								display_name: MockGroup2.display_name,
-							},
-						},
-						{
-							user_id: "member-unallotted",
-							used_ms: 0,
-							effective_group: {
-								id: MockEveryoneGroup.id,
-								name: MockEveryoneGroup.name,
-								display_name: MockEveryoneGroup.display_name,
-							},
-						},
-					],
-				} satisfies AgentHoursGroupMembersUsage,
+				data: mockMembersAgentHours,
 			},
 		],
 	},
@@ -1086,6 +1088,38 @@ export const LoadingMemberAgentHours: Story = {
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({ users: [MockUserMember], count: 1 }),
 			permissionsQuery({ canUpdateGroup: true }),
+		],
+	},
+};
+
+export const WithMemberAIBudgetAndAgentHours: Story = {
+	parameters: {
+		features: ["aibridge", "agent_runtime_hours"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({
+				users: mockAgentHoursMembers,
+				count: mockAgentHoursMembers.length,
+			}),
+			permissionsQuery({ canUpdateGroup: true }),
+			membersSpendQuery(
+				mockAgentHoursMembers.map((member) => ({
+					...mockSpend,
+					user_id: member.id,
+				})),
+			),
+			{ key: meAISpendKey, data: mockUserAISpend },
+			{
+				key: groupAIBudget(MockGroupWithoutMembers.id).queryKey,
+				data: mockGroupBudget,
+			},
+			{
+				key: groupMembersAgentHoursKey(
+					MockGroupWithoutMembers.id,
+					mockAgentHoursMembers.map((member) => member.id),
+				),
+				data: mockMembersAgentHours,
+			},
 		],
 	},
 };
