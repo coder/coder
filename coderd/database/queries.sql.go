@@ -471,7 +471,9 @@ SELECT
     COALESCE(organizations.display_name, '')::text AS organization_display_name,
     usage_by_organization.runtime_ms
 FROM usage_by_organization
-LEFT JOIN organizations ON organizations.id = usage_by_organization.organization_id
+LEFT JOIN organizations
+    ON organizations.id = usage_by_organization.organization_id
+    AND NOT organizations.deleted
 ORDER BY usage_by_organization.organization_id
 `
 
@@ -489,7 +491,7 @@ type GetAgentRuntimeUsageByOrganizationRow struct {
 
 // Sums agent_runtime_hourly_usage per organization over the buckets that
 // start in [start_time, end_time), which is how the license total counts
-// buckets. Deleted organizations have empty names.
+// buckets. Deleted organizations, which are soft-deleted, have empty names.
 func (q *sqlQuerier) GetAgentRuntimeUsageByOrganization(ctx context.Context, arg GetAgentRuntimeUsageByOrganizationParams) ([]GetAgentRuntimeUsageByOrganizationRow, error) {
 	rows, err := q.db.QueryContext(ctx, getAgentRuntimeUsageByOrganization, arg.StartTime, arg.EndTime)
 	if err != nil {

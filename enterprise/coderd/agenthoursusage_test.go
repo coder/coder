@@ -55,6 +55,9 @@ func TestAgentHoursUsage(t *testing.T) {
 	_, other := coderdtest.CreateAnotherUser(t, client, org)
 	otherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 	_, outsider := coderdtest.CreateAnotherUser(t, client, otherOrg.ID)
+	deletedOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	//nolint:gocritic // Setup only.
+	require.NoError(t, client.DeleteOrganization(ctx, deletedOrg.ID.String()))
 
 	//nolint:gocritic // Setup only.
 	alpha, err := client.CreateGroup(ctx, org, codersdk.CreateGroupRequest{Name: "alpha"})
@@ -101,11 +104,12 @@ func TestAgentHoursUsage(t *testing.T) {
 	)
 	// One second of the bucket ran in chats deleted before the rollup
 	// existed, so no organization holds it.
-	insertBucket(inside, 4_801_000,
+	insertBucket(inside, 4_901_000,
 		database.GetAgentRuntimeHourlyUsageRow{OrganizationID: org, GroupID: alpha.ID, UserID: member.ID, RuntimeMs: 3_600_000},
 		database.GetAgentRuntimeHourlyUsageRow{OrganizationID: org, GroupID: org, UserID: other.ID, RuntimeMs: 600_000},
 		database.GetAgentRuntimeHourlyUsageRow{OrganizationID: org, GroupID: deletedGroupID, UserID: member.ID, RuntimeMs: 300_000},
 		database.GetAgentRuntimeHourlyUsageRow{OrganizationID: otherOrg.ID, GroupID: otherOrg.ID, UserID: outsider.ID, RuntimeMs: 300_000},
+		database.GetAgentRuntimeHourlyUsageRow{OrganizationID: deletedOrg.ID, GroupID: deletedOrg.ID, UserID: outsider.ID, RuntimeMs: 100_000},
 	)
 	insertBucket(after, 2000,
 		database.GetAgentRuntimeHourlyUsageRow{OrganizationID: org, GroupID: alpha.ID, UserID: member.ID, RuntimeMs: 2000},
@@ -119,10 +123,13 @@ func TestAgentHoursUsage(t *testing.T) {
 			usage, err := c.AgentHoursUsage(ctx)
 			require.NoError(t, err)
 			require.True(t, period.Start.Equal(usage.UsagePeriod.Start))
-			require.EqualValues(t, 4_801_000, usage.TotalMs)
+			require.EqualValues(t, 4_901_000, usage.TotalMs)
 			require.ElementsMatch(t, []codersdk.AgentHoursOrganizationUsage{
 				{OrganizationID: org, OrganizationName: defaultOrg.Name, OrganizationDisplayName: defaultOrg.DisplayName, UsedMs: 4_500_000},
 				{OrganizationID: otherOrg.ID, OrganizationName: otherOrg.Name, OrganizationDisplayName: otherOrg.DisplayName, UsedMs: 300_000},
+				// Organizations are soft-deleted; a deleted one keeps its
+				// usage but loses its name.
+				{OrganizationID: deletedOrg.ID, UsedMs: 100_000},
 			}, usage.Organizations)
 		}
 
