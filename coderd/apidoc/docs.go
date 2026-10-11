@@ -4558,6 +4558,9 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/queue/{queuedMessage}": {
             "delete": {
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Chats"
                 ],
@@ -4581,8 +4584,11 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "204": {
-                        "description": "No Content"
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatActionResponse"
+                        }
                     }
                 },
                 "security": [
@@ -4620,10 +4626,10 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "202": {
-                        "description": "Accepted",
+                    "200": {
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
+                            "$ref": "#/definitions/codersdk.ChatActionResponse"
                         }
                     }
                 },
@@ -4835,6 +4841,9 @@ const docTemplate = `{
                 "consumes": [
                     "application/json"
                 ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Chats"
                 ],
@@ -4860,8 +4869,11 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "204": {
-                        "description": "No Content"
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatActionResponse"
+                        }
                     }
                 },
                 "security": [
@@ -21502,6 +21514,10 @@ const docTemplate = `{
                     "description": "Shared is true when this chat's root chat has explicit user or group ACL entries.",
                     "type": "boolean"
                 },
+                "snapshot_version": {
+                    "description": "SnapshotVersion is the chat's state version, bumped once by every\ncommitted action. A stream checkpoint with an equal or higher\nsnapshot_version has applied this state.",
+                    "type": "integer"
+                },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 },
@@ -21555,6 +21571,15 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatUser"
                     }
+                }
+            }
+        },
+        "codersdk.ChatActionResponse": {
+            "type": "object",
+            "properties": {
+                "snapshot_version": {
+                    "description": "SnapshotVersion is the chat's snapshot_version the action committed.\nA stream checkpoint with an equal or higher snapshot_version reflects\nit.",
+                    "type": "integer"
                 }
             }
         },
@@ -24111,6 +24136,10 @@ const docTemplate = `{
                 "queued_message": {
                     "$ref": "#/definitions/codersdk.ChatQueuedMessage"
                 },
+                "snapshot_version": {
+                    "description": "SnapshotVersion is the chat's snapshot_version committed by the send.\nThe stream has applied the send once a checkpoint reports at least it.",
+                    "type": "integer"
+                },
                 "warnings": {
                     "type": "array",
                     "items": {
@@ -25873,6 +25902,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatMessage"
                     }
+                },
+                "snapshot_version": {
+                    "description": "SnapshotVersion is the chat's snapshot_version committed by the edit.\nThe stream has applied the edit once a checkpoint reports at least it.",
+                    "type": "integer"
                 },
                 "warnings": {
                     "type": "array",

@@ -24,6 +24,7 @@ export const MockChat: Chat = {
 	title_source: "generated",
 	title_updated_at: MOCK_TIMESTAMP,
 	status: "waiting",
+	snapshot_version: 1,
 	last_turn_summary: null,
 	summary: null,
 	created_at: MOCK_TIMESTAMP,

@@ -416,7 +416,7 @@ func TestSubmitToolResultsWrongStateReturnsConflict(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, codersdk.ChatStatusRunning, chat.Status)
 
-	err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+	_, err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 		Results: []codersdk.ToolResult{{
 			ToolCallID: "unknown-call",
 			Output:     json.RawMessage(`{}`),
@@ -451,7 +451,7 @@ func TestSubmitToolResultsRequiresActionSucceeds(t *testing.T) {
 
 	toolCallID := driveChatToRequiresAction(ctx, t, api, chat, "echo")
 
-	err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+	_, err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 		Results: []codersdk.ToolResult{{
 			ToolCallID: toolCallID,
 			Output:     json.RawMessage(`{"ok":true}`),
@@ -682,7 +682,7 @@ func TestPostChatToolResultsInvalidStateReturnsSharedResponse(t *testing.T) {
 	// than the requires_action status conflict.
 	driveChatToInvalidWaitingWithQueue(ctx, t, api, chat.ID)
 
-	err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+	_, err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 		Results: []codersdk.ToolResult{{
 			ToolCallID: "call-irrelevant",
 			Output:     json.RawMessage(`{}`),

@@ -536,23 +536,35 @@ func (p *Server) MoveChatToProject(ctx context.Context, chat database.Chat, proj
 }
 
 // DeleteQueued removes a queued user message through the chatstate
-// state machine. Stream side effects are handled by chat:update
-// consumers.
+// state machine and returns the chat as committed. Stream side effects
+// are handled by chat:update consumers.
 func (p *Server) DeleteQueued(
 	ctx context.Context,
 	chatID uuid.UUID,
 	queuedMessageID int64,
-) error {
+) (database.Chat, error) {
 	if chatID == uuid.Nil {
-		return xerrors.New("chat_id is required")
+		return database.Chat{}, xerrors.New("chat_id is required")
 	}
 
-	return p.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
+	var chat database.Chat
+	err := p.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
-		})
-		return err
+		}); err != nil {
+			return err
+		}
+		var err error
+		chat, err = store.GetChatByID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("reload chat after delete queued: %w", err)
+		}
+		return nil
 	})
+	if err != nil {
+		return database.Chat{}, err
+	}
+	return chat, nil
 }
 
 // PromoteQueued promotes a queued message through the chatstate state
@@ -599,36 +611,37 @@ func (p *Server) PromoteQueued(
 	}
 
 	p.recordQueueWait(ctx, refreshed, promotedQueuedAt)
+	result.Chat = refreshed
 	return result, nil
 }
 
 // SubmitToolResults dispatches hooks before completing the
-// requires_action transition.
+// requires_action transition and returns the chat as committed.
 func (p *Server) SubmitToolResults(
 	ctx context.Context,
 	opts SubmitToolResultsOptions,
-) error {
+) (database.Chat, error) {
 	var hookSuffix []chatstate.Message
 	if p.hooks.Enabled() {
 		state, err := loadDynamicPostToolUseState(ctx, p.newChatMachine(opts.ChatID), opts)
 		if err != nil {
-			return err
+			return database.Chat{}, err
 		}
 		for _, result := range opts.Results {
 			response, err := p.hooks.Trigger(ctx, chathooks.ChatFor(state.chat, nil), chathooks.DynamicPostToolUseMessage(result, state.toolNames[result.ToolCallID]), agenthooks.EventPostToolUse, dispatch.CapacityClassGeneration)
 			if err != nil {
 				// Leave pending calls intact so the client can resubmit after recovery.
-				return chathooks.GenerationDispatchError(agenthooks.EventPostToolUse, err)
+				return database.Chat{}, chathooks.GenerationDispatchError(agenthooks.EventPostToolUse, err)
 			}
 			responseMessages, err := chathooks.EventMessages(response, state.modelConfigID)
 			if err != nil {
-				return err
+				return database.Chat{}, err
 			}
 			hookSuffix = append(hookSuffix, responseMessages...)
 		}
 	}
 
-	_, err := p.updateChat(ctx, opts.ChatID, "tool results", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
+	refreshed, err := p.updateChat(ctx, opts.ChatID, "tool results", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
 		locked, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -667,11 +680,11 @@ func (p *Server) SubmitToolResults(
 	if err != nil {
 		var conflict *ToolResultStatusConflictError
 		if errors.As(err, &conflict) {
-			return conflict
+			return database.Chat{}, conflict
 		}
-		return translateToolResultValidationError(err)
+		return database.Chat{}, translateToolResultValidationError(err)
 	}
-	return nil
+	return refreshed, nil
 }
 
 // translateToolResultValidationError converts a chatstate tool-result

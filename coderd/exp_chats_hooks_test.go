@@ -330,7 +330,7 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 	require.NotNil(t, deniedCall)
 	require.False(t, deniedCall.HookRewritten)
 
-	err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+	_, err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 		Results: []codersdk.ToolResult{{
 			ToolCallID: allowedToolCallID,
 			Output:     json.RawMessage(`{"matches":["agent hooks"]}`),

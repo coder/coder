@@ -219,6 +219,10 @@ type Chat struct {
 	// subagents, so nesting depth is capped at 1 and this slice is
 	// always empty for child chats.
 	Children []Chat `json:"children"`
+	// SnapshotVersion is the chat's state version, bumped once by every
+	// committed action. A stream checkpoint with an equal or higher
+	// snapshot_version has applied this state.
+	SnapshotVersion int64 `json:"snapshot_version"`
 }
 
 // ChatProject groups related chats in an organization.
@@ -1030,6 +1034,17 @@ type CreateChatMessageResponse struct {
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
 	Warnings      []string           `json:"warnings,omitempty"`
+	// SnapshotVersion is the chat's snapshot_version committed by the send.
+	// The stream has applied the send once a checkpoint reports at least it.
+	SnapshotVersion int64 `json:"snapshot_version"`
+}
+
+// ChatActionResponse is returned by chat actions that have no other result.
+type ChatActionResponse struct {
+	// SnapshotVersion is the chat's snapshot_version the action committed.
+	// A stream checkpoint with an equal or higher snapshot_version reflects
+	// it.
+	SnapshotVersion int64 `json:"snapshot_version"`
 }
 
 // EditChatMessageResponse is the response from editing a message in a chat.
@@ -1044,6 +1059,9 @@ type EditChatMessageResponse struct {
 	// Clients should drop them from local caches.
 	DeletedMessageIDs []int64  `json:"deleted_message_ids,omitempty"`
 	Warnings          []string `json:"warnings,omitempty"`
+	// SnapshotVersion is the chat's snapshot_version committed by the edit.
+	// The stream has applied the edit once a checkpoint reports at least it.
+	SnapshotVersion int64 `json:"snapshot_version"`
 }
 
 // UploadChatFileResponse is the response from uploading a chat file.
@@ -3935,16 +3953,17 @@ func (c *Client) GetChatFile(ctx context.Context, fileID uuid.UUID) ([]byte, str
 
 // SubmitToolResults submits the results of dynamic tool calls for a chat
 // that is in requires_action status.
-func (c *Client) SubmitToolResults(ctx context.Context, chatID uuid.UUID, req SubmitToolResultsRequest) error {
+func (c *Client) SubmitToolResults(ctx context.Context, chatID uuid.UUID, req SubmitToolResultsRequest) (ChatActionResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/tool-results", chatID), req)
 	if err != nil {
-		return err
+		return ChatActionResponse{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
+	if res.StatusCode != http.StatusOK {
+		return ChatActionResponse{}, ReadBodyAsError(res)
 	}
-	return nil
+	var resp ChatActionResponse
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetChatsByWorkspace returns a mapping of workspace ID to the latest
