@@ -22,6 +22,11 @@ CREATE INDEX idx_agent_runtime_hourly_usage_org ON agent_runtime_hourly_usage (o
 -- Member totals within one group.
 CREATE INDEX idx_agent_runtime_hourly_usage_group_user ON agent_runtime_hourly_usage (group_id, user_id, bucket_start) INCLUDE (runtime_ms);
 
+-- The API accepted Everyone allotments before rejecting them. Everyone
+-- already stands for the unallotted share.
+DELETE FROM agent_hours_group_allotments
+WHERE group_id IN (SELECT id FROM organizations);
+
 -- agent_hours_effective_group_id returns the group a user's Agent Runtime in
 -- an organization counts toward: the user's group in that organization with
 -- the largest Agent Hours allotment, ties broken by the lowest group ID, or
