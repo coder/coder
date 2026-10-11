@@ -11,6 +11,7 @@ import {
 	allotmentTargetLabel,
 	formatAllotmentPercent,
 	formatHours,
+	usageWithoutAllotment,
 } from "./allotments";
 
 type OrganizationAgentHoursViewProps = {
@@ -65,30 +66,18 @@ export const OrganizationAgentHoursView: React.FC<
 	const groupHref = (groupName: string) =>
 		`/organizations/${organization.name}/groups/${groupName}`;
 	const everyoneGroup = groups?.find(isEveryoneGroup);
-	const everyoneUsage = usedGroups?.find(
-		(group) => group.id === organization.id,
-	);
+	// The Everyone group's usage is the organization's unallotted usage, so
+	// it fills the remainder row instead of a row of its own.
 	const groupUsage: AllotmentUsage | undefined = usedGroups && {
-		unallotted: usedGroups
-			.filter(
-				(used) =>
-					used.id !== organization.id &&
-					used.usedMs > 0 &&
-					!allottedGroups?.some((allotted) => allotted.id === used.id),
-			)
-			.map((used) =>
-				used.name
-					? {
-							id: used.id,
-							name: allotmentTargetLabel(used, groupTargets),
-							usedMs: used.usedMs,
-							href: groupHref(used.name),
-						}
-					: { id: used.id, name: "Deleted group", usedMs: used.usedMs },
-			),
+		withoutAllotment: usageWithoutAllotment(
+			usedGroups.filter((used) => used.id !== organization.id),
+			allottedGroups ?? [],
+			{ targets: groupTargets, deletedLabel: "Deleted group", href: groupHref },
+		),
 		remainderLabel: "Everyone else (unallotted)",
 		remainderHref: everyoneGroup && groupHref(everyoneGroup.name),
-		remainderUsedMs: everyoneUsage?.usedMs ?? 0,
+		remainderUsedMs:
+			usedGroups.find((used) => used.id === organization.id)?.usedMs ?? 0,
 	};
 
 	return (

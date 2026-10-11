@@ -223,7 +223,7 @@ export const UsageBeyondAllotments: Story = {
 							group_id: MockGroup.id,
 							group_name: MockGroup.name,
 							group_display_name: MockGroup.display_name,
-							used_ms: 1_440_000_000,
+							used_ms: 720_000_000,
 						},
 						{
 							group_id: MockGroup2.id,
@@ -247,7 +247,7 @@ export const UsageBeyondAllotments: Story = {
 							group_id: MockDefaultOrganization.id,
 							group_name: "Everyone",
 							group_display_name: "",
-							used_ms: 360_000_000,
+							used_ms: 32_400_000,
 						},
 					],
 				}}
@@ -257,17 +257,19 @@ export const UsageBeyondAllotments: Story = {
 	parameters: { pixel: { matrix: pixelWithPhone } },
 };
 
+const mockUsageError = mockApiError({
+	message: "Failed to load Agent Hours usage.",
+});
+
 export const UsageLoadError: Story = {
 	args: {
 		usage: undefined,
-		usageError: mockApiError({ message: "Failed to load Agent Hours usage." }),
+		usageError: mockUsageError,
 		organizationAgentHours: (
 			<OrganizationAgentHoursView
 				{...mockOrganizationSectionProps}
 				usage={undefined}
-				usageError={mockApiError({
-					message: "Failed to load Agent Hours usage.",
-				})}
+				usageError={mockUsageError}
 			/>
 		),
 	},

@@ -20,22 +20,19 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { UsageBar } from "#/components/UsageBar/UsageBar";
+import { formatUsedAgentHours, usedAgentHours } from "#/utils/agentHours";
 import { getSeverity, usageProgressPercentage } from "#/utils/budget";
 import { AllotmentDialog, type AllotmentTarget } from "./AllotmentDialog";
 import {
 	allotmentHours,
 	formatAllotmentPercent,
 	formatHours,
-	formatUsedHours,
-	remainderHours,
-	usedHours,
 } from "./allotments";
 
 type UsageEntry = {
 	id: string;
 	name: string;
 	usedMs: number;
-	/** The page that breaks this usage down further. */
 	href?: string;
 };
 
@@ -47,12 +44,10 @@ type AllotmentEntry = AllotmentTarget & {
 
 export type AllotmentUsage = {
 	/** Targets that used Agent Hours in the period without an allotment now. */
-	unallotted: readonly UsageEntry[];
+	withoutAllotment: readonly UsageEntry[];
 	remainderLabel: string;
 	remainderHref?: string;
-	/** Usage that counts toward the unallotted share of the pool. */
 	remainderUsedMs: number;
-	/** Usage that no target accounts for. */
 	notAttributedMs?: number;
 };
 
@@ -102,7 +97,7 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 	const allottedBps = allotments.reduce((sum, entry) => sum + entry.bps, 0);
 	const unallottedBps = Math.max(AgentHoursAllotmentMaxBps - allottedBps, 0);
 	const allottedHours = allotmentHours(allottedBps, poolHours);
-	const unallottedHours = remainderHours(allottedBps, poolHours);
+	const unallottedHours = allotmentHours(unallottedBps, poolHours);
 	const showUsage = usage !== undefined;
 	const notAttributedMs = usage?.notAttributedMs ?? 0;
 	const addBlockedReason =
@@ -214,32 +209,28 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 					)}
 					{usage && (
 						<>
-							{usage.unallotted.map((entry) => (
-								<TableRow key={entry.id}>
-									<TargetNameCell name={entry.name} href={entry.href} />
-									<TableCell className="text-content-secondary">None</TableCell>
-									<UsedCell usedMs={entry.usedMs} label={entry.name} />
-									<TableCell />
-								</TableRow>
+							{usage.withoutAllotment.map((entry) => (
+								<UsageOnlyRow
+									key={entry.id}
+									name={entry.name}
+									href={entry.href}
+									usedMs={entry.usedMs}
+								/>
 							))}
 							{notAttributedMs > 0 && (
-								<TableRow>
-									<TableCell className="font-medium text-content-primary">
-										<div className="flex items-center gap-1">
-											Not attributed
-											<InfoTooltip
-												size="small"
-												ariaLabel="About hours not attributed"
-											>
-												These hours ran in chats that were deleted before Coder
-												tracked usage per organization.
-											</InfoTooltip>
-										</div>
-									</TableCell>
-									<TableCell className="text-content-secondary">None</TableCell>
-									<UsedCell usedMs={notAttributedMs} label="Not attributed" />
-									<TableCell />
-								</TableRow>
+								<UsageOnlyRow
+									name="Not attributed"
+									info={
+										<InfoTooltip
+											size="small"
+											ariaLabel="About hours not attributed"
+										>
+											These hours ran in chats that were deleted before Coder
+											tracked usage per organization.
+										</InfoTooltip>
+									}
+									usedMs={notAttributedMs}
+								/>
 							)}
 							<TableRow>
 								<TargetNameCell
@@ -249,7 +240,7 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 								<AllotmentCell bps={unallottedBps} hours={unallottedHours} />
 								<UsedCell
 									usedMs={usage.remainderUsedMs}
-									label={usage.remainderLabel}
+									rowName={usage.remainderLabel}
 									allottedHours={unallottedHours}
 								/>
 								<TableCell />
@@ -340,7 +331,7 @@ const AllotmentRow: React.FC<AllotmentRowProps> = ({
 			{showUsage && (
 				<UsedCell
 					usedMs={entry.usedMs ?? 0}
-					label={entry.name}
+					rowName={entry.name}
 					allottedHours={hours}
 				/>
 			)}
@@ -368,25 +359,66 @@ const AllotmentRow: React.FC<AllotmentRowProps> = ({
 	);
 };
 
-const TargetNameCell: React.FC<{ name: string; href?: string }> = ({
+type TargetNameCellProps = {
+	name: string;
+	href?: string;
+	info?: React.ReactNode;
+};
+
+const TargetNameCell: React.FC<TargetNameCellProps> = ({
 	name,
 	href,
+	info,
+}) => {
+	const label = href ? (
+		<Link
+			asChild
+			size="sm"
+			showExternalIcon={false}
+			// The default left padding offsets linked names from the unlinked
+			// names in the other rows.
+			className="pl-0"
+		>
+			<RouterLink to={href}>{name}</RouterLink>
+		</Link>
+	) : (
+		name
+	);
+	return (
+		<TableCell className="font-medium text-content-primary wrap-anywhere">
+			{info ? (
+				<div className="flex items-center gap-1">
+					{label}
+					{info}
+				</div>
+			) : (
+				label
+			)}
+		</TableCell>
+	);
+};
+
+type UsageOnlyRowProps = TargetNameCellProps & { usedMs: number };
+
+/** Usage that no current allotment covers, so the row has no actions. */
+const UsageOnlyRow: React.FC<UsageOnlyRowProps> = ({
+	usedMs,
+	...nameProps
 }) => (
-	<TableCell className="font-medium text-content-primary wrap-anywhere">
-		{href ? (
-			<Link asChild size="sm" showExternalIcon={false} className="pl-0">
-				<RouterLink to={href}>{name}</RouterLink>
-			</Link>
-		) : (
-			name
-		)}
-	</TableCell>
+	<TableRow>
+		<TargetNameCell {...nameProps} />
+		<TableCell className="text-content-secondary">None</TableCell>
+		<UsedCell usedMs={usedMs} rowName={nameProps.name} />
+		<TableCell />
+	</TableRow>
 );
 
-const AllotmentCell: React.FC<{ bps: number; hours: number | undefined }> = ({
-	bps,
-	hours,
-}) => (
+type AllotmentCellProps = {
+	bps: number;
+	hours: number | undefined;
+};
+
+const AllotmentCell: React.FC<AllotmentCellProps> = ({ bps, hours }) => (
 	<TableCell className="text-content-primary">
 		{formatAllotmentPercent(bps)}
 		{hours !== undefined && (
@@ -397,26 +429,28 @@ const AllotmentCell: React.FC<{ bps: number; hours: number | undefined }> = ({
 
 type UsedCellProps = {
 	usedMs: number;
-	label: string;
-	/** Hours to measure the usage against; no bar when unknown. */
+	rowName: string;
+	/** Hours to measure the usage against. */
 	allottedHours?: number;
 };
 
 const UsedCell: React.FC<UsedCellProps> = ({
 	usedMs,
-	label,
+	rowName,
 	allottedHours,
 }) => {
-	const hours = usedHours(usedMs);
+	const hours = usedAgentHours(usedMs);
 	return (
 		<TableCell className="text-content-primary">
 			<div className="flex min-w-16 flex-col gap-1.5">
-				{formatUsedHours(usedMs)} hours
+				<span className="whitespace-nowrap tabular-nums">
+					{formatUsedAgentHours(usedMs)} hours
+				</span>
 				{allottedHours !== undefined && (
 					<UsageBar
 						percent={usageProgressPercentage(hours, allottedHours)}
 						severity={getSeverity(hours, allottedHours)}
-						ariaLabel={`Agent Hours used by ${label}`}
+						ariaLabel={`Agent Hours used by ${rowName}`}
 					/>
 				)}
 			</div>

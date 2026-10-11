@@ -12,6 +12,9 @@ const agentHoursOrganizationAllotmentsKey = [
 const agentHoursGroupAllotmentsKey = (organizationId: string) =>
 	[...agentHoursKey, "groupAllotments", organizationId] as const;
 
+const agentHoursOrganizationUsageKey = (organizationId: string) =>
+	[...agentHoursKey, "organizationUsage", organizationId] as const;
+
 // Other admins and other tabs change allotments and delete their targets, so
 // these refetch on focus despite the global default.
 export const agentHoursOrganizationAllotments = () => ({
@@ -32,7 +35,7 @@ export const agentHoursUsage = () => ({
 });
 
 export const organizationAgentHoursUsage = (organizationId: string) => ({
-	queryKey: [...agentHoursKey, "organizationUsage", organizationId] as const,
+	queryKey: agentHoursOrganizationUsageKey(organizationId),
 	queryFn: () => API.getOrganizationAgentHoursUsage(organizationId),
 });
 

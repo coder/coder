@@ -14,9 +14,10 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { OrganizationSettingsSection } from "#/pages/AISettingsPage/components/OrganizationSettingsSection";
 import { SettingsSection } from "#/pages/AISettingsPage/components/SettingsSection";
+import { formatUsedAgentHours } from "#/utils/agentHours";
 import { docs } from "#/utils/docs";
 import { AllotmentPanel, type AllotmentUsage } from "./AllotmentPanel";
-import { allotmentTargetLabel, formatUsedHours } from "./allotments";
+import { allotmentTargetLabel, usageWithoutAllotment } from "./allotments";
 
 type AgentHoursPageViewProps = {
 	/** False when the license does not include Agent Hours. */
@@ -87,31 +88,23 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 		...organizations,
 		...(usedOrganizations ?? []),
 	];
-	const unallottedOrganizations = (usedOrganizations ?? [])
-		.filter(
-			(used) =>
-				used.usedMs > 0 &&
-				!allottedOrganizations?.some((allotted) => allotted.id === used.id),
-		)
-		.map((used) => ({
-			id: used.id,
-			name: used.name
-				? allotmentTargetLabel(used, organizationTargets)
-				: "Deleted organization",
-			usedMs: used.usedMs,
-		}));
-	const attributedMs = (usedOrganizations ?? []).reduce(
-		(sum, used) => sum + used.usedMs,
-		0,
+	const organizationsWithoutAllotment = usageWithoutAllotment(
+		usedOrganizations ?? [],
+		allottedOrganizations ?? [],
+		{ targets: organizationTargets, deletedLabel: "Deleted organization" },
 	);
 	const organizationUsage: AllotmentUsage | undefined = usage && {
-		unallotted: unallottedOrganizations,
+		withoutAllotment: organizationsWithoutAllotment,
 		remainderLabel: "Unallotted organizations",
-		remainderUsedMs: unallottedOrganizations.reduce(
+		remainderUsedMs: organizationsWithoutAllotment.reduce(
 			(sum, entry) => sum + entry.usedMs,
 			0,
 		),
-		notAttributedMs: Math.max(usage.total_ms - attributedMs, 0),
+		notAttributedMs: Math.max(
+			usage.total_ms -
+				usage.organizations.reduce((sum, used) => sum + used.used_ms, 0),
+			0,
+		),
 	};
 
 	return (
@@ -131,8 +124,8 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 					<SettingsHeaderDescription>
 						<span className="text-content-primary">
 							{licenseHours === undefined
-								? `${formatUsedHours(usage.total_ms)} hours`
-								: `${formatUsedHours(usage.total_ms)} of ${licenseHours.toLocaleString("en-US")} hours`}
+								? `${formatUsedAgentHours(usage.total_ms)} hours`
+								: `${formatUsedAgentHours(usage.total_ms)} of ${licenseHours.toLocaleString("en-US")} hours`}
 						</span>{" "}
 						used in this license period. Usage updates hourly.
 					</SettingsHeaderDescription>
