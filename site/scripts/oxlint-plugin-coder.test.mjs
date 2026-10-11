@@ -36,10 +36,26 @@ ruleTester.run(
 );
 
 ruleTester.run("no-as-unknown-as", plugin.rules["no-as-unknown-as"], {
-	valid: ["const n = value as number;", "const u = value as unknown;"],
+	valid: [
+		"const n = value as number;",
+		"const u = value as unknown;",
+		"const u = <unknown>value;",
+	],
 	invalid: [
 		{
 			code: "const n = value as unknown as number;",
+			errors: [{ messageId: "asUnknownAs" }],
+		},
+		{
+			code: "const n = <number><unknown>value;",
+			errors: [{ messageId: "asUnknownAs" }],
+		},
+		{
+			code: "const n = <number>(value as unknown);",
+			errors: [{ messageId: "asUnknownAs" }],
+		},
+		{
+			code: "const n = (<unknown>value) as number;",
 			errors: [{ messageId: "asUnknownAs" }],
 		},
 	],

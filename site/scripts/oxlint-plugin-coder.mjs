@@ -59,16 +59,19 @@ const noAsUnknownAs = {
 		schema: [],
 	},
 	create(context) {
+		const checkAssertion = (node) => {
+			const inner = node.expression;
+			if (
+				(inner.type === "TSAsExpression" ||
+					inner.type === "TSTypeAssertion") &&
+				inner.typeAnnotation.type === "TSUnknownKeyword"
+			) {
+				context.report({ node, messageId: "asUnknownAs" });
+			}
+		};
 		return {
-			TSAsExpression(node) {
-				const inner = node.expression;
-				if (
-					inner.type === "TSAsExpression" &&
-					inner.typeAnnotation.type === "TSUnknownKeyword"
-				) {
-					context.report({ node, messageId: "asUnknownAs" });
-				}
-			},
+			TSAsExpression: checkAssertion,
+			TSTypeAssertion: checkAssertion,
 		};
 	},
 };
