@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	CornerDownRightIcon,
 	PencilIcon,
@@ -48,11 +49,16 @@ type AllotmentEntry = AllotmentTarget & {
 };
 
 export type AllotmentUsage = {
-	withoutAllotment: readonly UsageEntry[];
+	/** Targets with usage outside the remainder, each in a row of its own. */
+	usageOnlyEntries?: readonly UsageEntry[];
 	remainderLabel: string;
 	remainderHref?: string;
 	remainderUsedMs: number;
-	/** Targets whose usage makes up the remainder, listed under its row. */
+	/**
+	 * Targets whose usage makes up the remainder, listed under its row. The
+	 * group tier has none, because its remainder is the Everyone group's own
+	 * usage.
+	 */
 	remainderEntries?: readonly Omit<UsageEntry, "href">[];
 	notAttributedMs?: number;
 };
@@ -164,7 +170,7 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 				<UsageBar
 					percent={allottedBps / 100}
 					ariaLabel={`Allotted share of ${poolLabel}`}
-					valueText={`${formatAllotmentPercent(allottedBps)} allotted`}
+					ariaValueText={`${formatAllotmentPercent(allottedBps)} allotted`}
 					className="h-2"
 				/>
 				<p className="m-0 text-sm text-content-secondary">
@@ -346,7 +352,7 @@ const UsageRows: React.FC<UsageRowsProps> = ({
 	const notAttributedMs = usage.notAttributedMs ?? 0;
 	return (
 		<>
-			{usage.withoutAllotment.map((entry) => (
+			{usage.usageOnlyEntries?.map((entry) => (
 				<UsageOnlyRow
 					key={entry.id}
 					name={entry.name}
@@ -397,20 +403,20 @@ type RemainderEntryRowProps = {
 	remainderLabel: string;
 };
 
-/** Hours the remainder row above already counts, so it has no bar of its own. */
+/** These hours are already part of the remainder total, so they get no bar. */
 const RemainderEntryRow: React.FC<RemainderEntryRowProps> = ({
 	name,
 	usedMs,
 	remainderLabel,
 }) => (
 	<TableRow>
-		{/* Spans the empty Allotment column so the indented name doesn't
-		    break mid-word on narrow screens. */}
+		{/* Spans the empty Allotment column, so names fit on one line on
+		    narrow screens unless they are longer than both columns. */}
 		<TableCell
 			colSpan={2}
-			className="border-t-0 py-2 pl-6 font-normal text-content-secondary wrap-anywhere"
+			className="border-t-0 py-2 pl-6 font-normal wrap-anywhere"
 		>
-			<div className="flex items-center gap-2">
+			<div className="flex items-start gap-2">
 				<CornerDownRightIcon
 					aria-hidden
 					className="size-icon-sm shrink-0 text-content-disabled"
@@ -421,9 +427,11 @@ const RemainderEntryRow: React.FC<RemainderEntryRowProps> = ({
 				</span>
 			</div>
 		</TableCell>
-		<TableCell className="border-t-0 py-2 font-normal whitespace-nowrap tabular-nums text-content-secondary">
-			{formatUsedAgentHours(usedMs)} hours
-		</TableCell>
+		<UsedCell
+			usedMs={usedMs}
+			rowName={name}
+			className="border-t-0 py-2 font-normal text-content-secondary"
+		/>
 		<TableCell className="border-t-0 py-2" />
 	</TableRow>
 );
@@ -499,16 +507,18 @@ type UsedCellProps = {
 	usedMs: number;
 	rowName: string;
 	allottedHours?: number;
+	className?: string;
 };
 
 const UsedCell: React.FC<UsedCellProps> = ({
 	usedMs,
 	rowName,
 	allottedHours,
+	className,
 }) => {
 	const hours = usedAgentHours(usedMs);
 	return (
-		<TableCell className="text-content-primary">
+		<TableCell className={cn("text-content-primary", className)}>
 			<div className="flex min-w-16 flex-col gap-1.5">
 				<span className="whitespace-nowrap tabular-nums">
 					{formatUsedAgentHours(usedMs)} hours
@@ -518,7 +528,7 @@ const UsedCell: React.FC<UsedCellProps> = ({
 						percent={usageProgressPercentage(hours, allottedHours)}
 						severity={getSeverity(hours, allottedHours)}
 						ariaLabel={`Agent Hours used by ${rowName}`}
-						valueText={`${formatUsedAgentHours(usedMs)} of ${formatHours(allottedHours)}`}
+						ariaValueText={`${formatUsedAgentHours(usedMs)} of ${formatHours(allottedHours)}`}
 					/>
 				)}
 			</div>

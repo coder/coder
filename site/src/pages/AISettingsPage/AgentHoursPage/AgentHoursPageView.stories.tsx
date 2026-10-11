@@ -227,6 +227,12 @@ export const UsageBeyondAllotments: Story = {
 					used_ms: 1_800_000_000,
 				},
 				{
+					organization_id: "long-name-organization-id",
+					organization_name: "long-name-organization",
+					organization_display_name: longName,
+					used_ms: 36_000_000,
+				},
+				{
 					organization_id: "deleted-organization-id",
 					organization_name: "",
 					organization_display_name: "",
