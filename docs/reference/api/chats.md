@@ -87,7 +87,6 @@ curl -X GET http://coder-server:8080/api/v2/chats \
           "skill_description": "string",
           "skill_name": "string",
           "source": "string",
-          "source_path": "string",
           "status": "ok",
           "tools": [
             {
@@ -243,14 +242,13 @@ Status Code **200**
 | `»» dirty`                 | boolean                                                                            | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                                                   |
 | `»» dirty_since`           | string(date-time)                                                                  | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                                                          |
 | `»» error`                 | string                                                                             | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                                                    |
-| `»» resources`             | array                                                                              | false    |              | Resources is the chat's pinned workspace-context inventory, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight.                                                                     |
+| `»» resources`             | array                                                                              | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight.                                 |
 | `»»» error`                | string                                                                             | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
 | `»»» kind`                 | [codersdk.ChatContextResourceKind](schemas.md#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                            |
 | `»»» size_bytes`           | integer                                                                            | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
 | `»»» skill_description`    | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `»»» skill_name`           | string                                                                             | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
-| `»»» source`               | string                                                                             | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, the server name for an MCP server, or an ACP harness slug.                                                              |
-| `»»» source_path`          | string                                                                             | false    |              | Source path is the configuration directory for an ACP harness.                                                                                                                                                                                                             |
+| `»»» source`               | string                                                                             | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
 | `»»» status`               | [codersdk.ChatContextResourceStatus](schemas.md#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
 | `»»» tools`                | array                                                                              | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
 | `»»»» description`         | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                            |
@@ -356,13 +354,13 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                                                                                                                                                                                                                                         |
-|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`  | `api`, `ui`                                                                                                                                                                                                                                                                      |
-| `kind`         | `acp_harness`, `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                                          |
-| `plan_mode`    | `plan`                                                                                                                                                                                                                                                                           |
-| `title_source` | `fallback`, `generated`, `user`                                                                                                                                                                                                                                                  |
+| Property       | Value(s)                                                                                                                                                                                                                                                          |
+|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`  | `api`, `ui`                                                                                                                                                                                                                                                       |
+| `kind`         | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
+| `plan_mode`    | `plan`                                                                                                                                                                                                                                                            |
+| `title_source` | `fallback`, `generated`, `user`                                                                                                                                                                                                                                   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -391,8 +389,6 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
-      "skill_name": "string",
-      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -483,7 +479,6 @@ curl -X POST http://coder-server:8080/api/v2/chats \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
-            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -628,7 +623,6 @@ curl -X POST http://coder-server:8080/api/v2/chats \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
-        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -1557,7 +1551,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
           "skill_description": "string",
           "skill_name": "string",
           "source": "string",
-          "source_path": "string",
           "status": "ok",
           "tools": [
             {
@@ -1754,7 +1747,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
-            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -1899,7 +1891,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
-        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -2139,7 +2130,6 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
-            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -2284,7 +2274,6 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
-        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -2566,7 +2555,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
-            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -2711,7 +2699,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
-        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -2932,7 +2919,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
-          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -3015,7 +3001,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
-          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -3073,8 +3058,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
-      "skill_name": "string",
-      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -3174,7 +3157,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
-        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -3256,7 +3238,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
-          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -3339,7 +3320,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
-        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -3397,8 +3377,6 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
-      "skill_name": "string",
-      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -3483,7 +3461,6 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
-        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -3565,7 +3542,6 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
-          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -3780,7 +3756,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
-            "source_path": "string",
             "status": "ok",
             "tools": [
               {
@@ -3925,7 +3900,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
-        "source_path": "string",
         "status": "ok",
         "tools": [
           {
@@ -4081,11 +4055,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description                                                                                                        |
-|-------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------|
-| `chat`            | path  | string(uuid) | true     | Chat ID                                                                                                            |
-| `after_id`        | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when history_version is non-zero                  |
-| `history_version` | query | integer      | false    | Send only history changed after this history_version, taken from the messages page or the last preview_reset event |
+| Name              | In    | Type         | Required | Description                                                                                                                    |
+|-------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------------------|
+| `chat`            | path  | string(uuid) | true     | Chat ID                                                                                                                        |
+| `after_id`        | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when history_version is set                                   |
+| `history_version` | query | integer      | false    | Send only history changed after this history_version, taken from the messages page or the last checkpoint event. Zero is valid |
 
 ### Example responses
 
@@ -4104,6 +4078,10 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       ]
     },
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "checkpoint": {
+      "history_version": 0,
+      "snapshot_version": 0
+    },
     "error": {
       "detail": "string",
       "kind": "generic",
@@ -4164,7 +4142,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
-          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -4245,7 +4222,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
-        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -4262,9 +4238,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       },
       "role": "system",
       "seq": 0
-    },
-    "preview_reset": {
-      "history_version": 0
     },
     "queued_messages": [
       {
@@ -4316,7 +4289,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "skill_description": "string",
             "skill_dir": "string",
             "skill_name": "string",
-            "skill_source": "personal",
             "source_id": "string",
             "start_line": 0,
             "text": "string",
@@ -4373,6 +4345,9 @@ Status Code **200**
 | `»»» tool_call_id`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» tool_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» chat_id`                        | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» checkpoint`                     | [codersdk.ChatStreamCheckpoint](schemas.md#codersdkchatstreamcheckpoint)         | false    |              | Checkpoint is set on checkpoint events.                                                                                                                                                                                                                                                                                                                                                                    |
+| `»» history_version`               | integer                                                                          | false    |              | History version is the chat's history_version for the message events sent so far. It is set only on streams opened with a history_version; a client reconnects with the value of the last checkpoint it received.                                                                                                                                                                                          |
+| `»» snapshot_version`              | integer                                                                          | false    |              | Snapshot version is the chat's snapshot_version the sync applied. Every action response with an equal or lower version is reflected.                                                                                                                                                                                                                                                                       |
 | `» error`                          | [codersdk.ChatError](schemas.md#codersdkchaterror)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» detail`                        | string                                                                           | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                                                                                                                                                  |
 | `»» kind`                          | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)                       | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                                                                                                                                                 |
@@ -4380,7 +4355,7 @@ Status Code **200**
 | `»» provider`                      | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
 | `»» retryable`                     | boolean                                                                          | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                                                                                                                                                               |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
-| `» history_reset`                  | [codersdk.ChatStreamHistoryReset](schemas.md#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a non-zero history_version.                                                                                                                                                                                                                                                                                                            |
+| `» history_reset`                  | [codersdk.ChatStreamHistoryReset](schemas.md#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a history_version.                                                                                                                                                                                                                                                                                                                     |
 | `»» from_message_id`               | integer                                                                          | false    |              | From message ID is the lowest message ID the reset replaces. The client keeps its messages with lower IDs and replaces the rest with the message events that follow. A history_reset without from_message_id replaces the whole history.                                                                                                                                                                   |
 | `» message`                        | [codersdk.ChatMessage](schemas.md#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4417,8 +4392,7 @@ Status Code **200**
 | `»»» result_reset`                 | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» skill_description`            | string                                                                           | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
 | `»»» skill_dir`                    | string                                                                           | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
-| `»»» skill_name`                   | string                                                                           | false    |              | Skill name is the kebab-case name of the skill.                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» skill_source`                 | [codersdk.ChatSkillSource](schemas.md#codersdkchatskillsource)                   | false    |              | Skill source is where the invoked skill of a skill-invocation part is stored.                                                                                                                                                                                                                                                                                                                              |
+| `»»» skill_name`                   | string                                                                           | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
 | `»»» source_id`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» start_line`                   | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» text`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4452,8 +4426,6 @@ Status Code **200**
 | `»» part`                          | [codersdk.ChatMessagePart](schemas.md#codersdkchatmessagepart)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» role`                          | [codersdk.ChatMessageRole](schemas.md#codersdkchatmessagerole)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» seq`                           | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `» preview_reset`                  | [codersdk.ChatStreamPreviewReset](schemas.md#codersdkchatstreampreviewreset)     | false    |              | Preview reset is set on preview_reset events of streams opened with a non-zero history_version.                                                                                                                                                                                                                                                                                                            |
-| `»» history_version`               | integer                                                                          | false    |              | History version is the chat's history_version for the message events sent before this preview_reset. Every sync that changes the history ends with a preview_reset, so a client reconnects with the history_version of the last one it received.                                                                                                                                                           |
 | `» queued_messages`                | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4474,13 +4446,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property       | Value(s)                                                                                                                                                                                                                                                                                                                |
-|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`         | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                                |
-| `skill_source` | `org`, `personal`, `project`, `workspace`                                                                                                                                                                                                                                                                               |
-| `type`         | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `skill-invocation`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
-| `role`         | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                   |
-| `status`       | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                                        |
+| Property | Value(s)                                                                                                                                                                                                                                                                                                          |
+|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                          |
+| `type`   | `action_required`, `checkpoint`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                             |
+| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                                  |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

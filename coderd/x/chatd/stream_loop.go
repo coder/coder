@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -55,10 +56,10 @@ type streamLocalState struct {
 	afterMessageID         int64
 	initialMessageSyncDone bool
 	// openedWithHistoryVersion reports whether the client opened the stream
-	// with a non-zero history version. Only then may history_reset carry
-	// from_message_id, which older clients would read as a full reset, and
-	// preview_reset carry the history version, which on an after_id stream
-	// would claim messages the stream skipped.
+	// with a history version, zero included. Only then may history_reset
+	// carry from_message_id, which older clients would read as a full
+	// reset, and checkpoint carry the history version, which on an after_id
+	// stream would claim messages the stream skipped.
 	openedWithHistoryVersion bool
 }
 
@@ -91,18 +92,22 @@ type streamDBSnapshot struct {
 type StreamCursor struct {
 	// AfterMessageID is the newest message ID the client holds. An initial
 	// sync without a history reset skips messages at or below it. It is
-	// ignored when HistoryVersion is non-zero, because a client can hold an
+	// ignored when HasHistoryVersion is set, because a client can hold an
 	// ID without holding every earlier message.
 	AfterMessageID int64
-	// HistoryVersion is the history version of the client's messages. If it
-	// is non-zero, the stream sends only history changed after it, and a
-	// history reset starts at the lowest changed message ID.
+	// HistoryVersion is the history version of the client's messages. If
+	// HasHistoryVersion is set, the stream sends only history changed after
+	// it, and a history reset starts at the lowest changed message ID. A
+	// value above the chat's history version gets a full history reset.
 	HistoryVersion int64
+	// HasHistoryVersion reports that the client sent a history version,
+	// zero included.
+	HasHistoryVersion bool
 }
 
 func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, cursor StreamCursor) *streamLoop {
 	afterMessageID := cursor.AfterMessageID
-	if cursor.HistoryVersion > 0 {
+	if cursor.HasHistoryVersion {
 		afterMessageID = 0
 	}
 	return &streamLoop{
@@ -113,7 +118,7 @@ func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, cu
 			historyVersion:           cursor.HistoryVersion,
 			knownMessages:            make(map[int64]int64),
 			afterMessageID:           afterMessageID,
-			openedWithHistoryVersion: cursor.HistoryVersion > 0,
+			openedWithHistoryVersion: cursor.HasHistoryVersion,
 		},
 	}
 }
@@ -134,8 +139,15 @@ func streamSyncHintFromUpdate(update coderdpubsub.ChatStateUpdateMessage) stream
 }
 
 func (l *streamLoop) sync(ctx context.Context, hint streamSyncHint) ([]codersdk.ChatStreamEvent, streamRelayTarget, bool, error) {
-	if !l.shouldFetch(hint) {
+	if hint.snapshotVersion <= l.state.snapshotVersion {
 		return nil, l.currentRelayTarget(), false, nil
+	}
+	if !l.trackedFieldsChanged(hint) {
+		// The hint carries the post-commit row, so unchanged tracked fields
+		// mean the visible state at this snapshot version equals what the
+		// stream already sent. Only the checkpoint is new.
+		l.state.snapshotVersion = hint.snapshotVersion
+		return []codersdk.ChatStreamEvent{l.checkpointEvent()}, l.currentRelayTarget(), false, nil
 	}
 	return l.syncDB(ctx)
 }
@@ -151,10 +163,9 @@ func (l *streamLoop) syncDB(ctx context.Context) ([]codersdk.ChatStreamEvent, st
 	return l.applyDBSnapshot(snapshot), l.currentRelayTarget(), true, nil
 }
 
-func (l *streamLoop) shouldFetch(hint streamSyncHint) bool {
-	if hint.snapshotVersion <= l.state.snapshotVersion {
-		return false
-	}
+// trackedFieldsChanged reports whether the hint differs from the stream's
+// state in a field that decides which events a sync sends.
+func (l *streamLoop) trackedFieldsChanged(hint streamSyncHint) bool {
 	if hint.historyVersion > l.state.historyVersion {
 		return true
 	}
@@ -321,15 +332,18 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 	events := make([]codersdk.ChatStreamEvent, 0)
 	historyChanged := chat.HistoryVersion > l.state.historyVersion
 	generationChanged := chat.GenerationAttempt != l.state.generationAttempt
+	initialSync := !l.state.initialMessageSyncDone
 
 	if historyChanged {
 		events = append(events, l.messageEvents(snapshot)...)
 	}
-	if !l.state.initialMessageSyncDone {
+	if initialSync {
 		l.state.initialMessageSyncDone = true
 	}
 
-	if chat.QueueVersion > l.state.queueVersion {
+	// The first sync always sends the queue so a client never infers an
+	// empty queue from a missing event.
+	if initialSync || chat.QueueVersion > l.state.queueVersion {
 		events = append(events, codersdk.ChatStreamEvent{
 			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 			ChatID:         l.chatID,
@@ -398,16 +412,10 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 
 	if historyChanged || (generationChanged && chat.GenerationAttempt != 0) {
 		l.state.lastPartSeq = 0
-		event := codersdk.ChatStreamEvent{
+		events = append(events, codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypePreviewReset,
 			ChatID: l.chatID,
-		}
-		// Clients reconnect with this version, so this must stay the last
-		// event of a sync that changes the history.
-		if l.state.openedWithHistoryVersion {
-			event.PreviewReset = &codersdk.ChatStreamPreviewReset{HistoryVersion: chat.HistoryVersion}
-		}
-		events = append(events, event)
+		})
 	}
 
 	l.state.snapshotVersion = chat.SnapshotVersion
@@ -417,7 +425,25 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 	l.state.status = chat.Status
 	l.state.workerID = chat.WorkerID
 	l.state.generationAttempt = chat.GenerationAttempt
-	return events
+	return append(events, l.checkpointEvent())
+}
+
+// checkpointEvent reports the stream's synchronized state. Clients
+// reconnect with its history version and match action responses against
+// its snapshot version, so it must stay the last event of every applied
+// sync.
+func (l *streamLoop) checkpointEvent() codersdk.ChatStreamEvent {
+	checkpoint := &codersdk.ChatStreamCheckpoint{
+		SnapshotVersion: l.state.snapshotVersion,
+	}
+	if l.state.openedWithHistoryVersion {
+		checkpoint.HistoryVersion = ptr.Ref(l.state.historyVersion)
+	}
+	return codersdk.ChatStreamEvent{
+		Type:       codersdk.ChatStreamEventTypeCheckpoint,
+		ChatID:     l.chatID,
+		Checkpoint: checkpoint,
+	}
 }
 
 func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStreamEvent {

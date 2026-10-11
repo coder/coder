@@ -199,7 +199,7 @@ export const useChatStore = (
 	});
 
 	// The history version the stream reconnects with. It is taken from the
-	// chat's first loaded page and then advances only on preview_reset events,
+	// chat's first loaded page and then advances only on checkpoint events,
 	// because a refetched page does not remove every deleted message from the
 	// store. A first page without a version keeps the chat on after_id.
 	const historyVersionRef = useRef<
@@ -623,7 +623,10 @@ export const useChatStore = (
 					if (streamEvent.type === "preview_reset") {
 						discardBufferedParts();
 						store.clearStreamState();
-						const version = streamEvent.preview_reset?.history_version;
+						continue;
+					}
+					if (streamEvent.type === "checkpoint") {
+						const version = streamEvent.checkpoint?.history_version;
 						if (version !== undefined) {
 							historyVersionRef.current = { chatID, version };
 							syncedHistoryVersion = version;

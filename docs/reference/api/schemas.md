@@ -5314,6 +5314,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |--------------|---------------------------------------------------------------------|----------|--------------|-------------|
 | `tool_calls` | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |             |
 
+## codersdk.ChatStreamCheckpoint
+
+```json
+{
+  "history_version": 0,
+  "snapshot_version": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description                                                                                                                                                                                                       |
+|--------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `history_version`  | integer | false    |              | History version is the chat's history_version for the message events sent so far. It is set only on streams opened with a history_version; a client reconnects with the value of the last checkpoint it received. |
+| `snapshot_version` | integer | false    |              | Snapshot version is the chat's snapshot_version the sync applied. Every action response with an equal or lower version is reflected.                                                                              |
+
 ## codersdk.ChatStreamEvent
 
 ```json
@@ -5328,6 +5344,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ]
   },
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "checkpoint": {
+    "history_version": 0,
+    "snapshot_version": 0
+  },
   "error": {
     "detail": "string",
     "kind": "generic",
@@ -5487,9 +5507,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "role": "system",
     "seq": 0
   },
-  "preview_reset": {
-    "history_version": 0
-  },
   "queued_messages": [
     {
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
@@ -5579,19 +5596,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                   | Required | Restrictions | Description                                                                                     |
-|-------------------|------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                 |
-| `chat_id`         | string                                                                 | false    |              |                                                                                                 |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                 |
-| `history_reset`   | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a non-zero history_version. |
-| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                 |
-| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                 |
-| `preview_reset`   | [codersdk.ChatStreamPreviewReset](#codersdkchatstreampreviewreset)     | false    |              | Preview reset is set on preview_reset events of streams opened with a non-zero history_version. |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |                                                                                                 |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                 |
-| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                 |
-| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                 |
+| Name              | Type                                                                   | Required | Restrictions | Description                                                                            |
+|-------------------|------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------|
+| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                        |
+| `chat_id`         | string                                                                 | false    |              |                                                                                        |
+| `checkpoint`      | [codersdk.ChatStreamCheckpoint](#codersdkchatstreamcheckpoint)         | false    |              | Checkpoint is set on checkpoint events.                                                |
+| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                        |
+| `history_reset`   | [codersdk.ChatStreamHistoryReset](#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a history_version. |
+| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                        |
+| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                        |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |                                                                                        |
+| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                        |
+| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                        |
+| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                        |
 
 ## codersdk.ChatStreamEventType
 
@@ -5603,9 +5620,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                   |
-|----------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
+| Value(s)                                                                                                                                 |
+|------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `checkpoint`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
 
 ## codersdk.ChatStreamHistoryReset
 
@@ -5702,20 +5719,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `part`               | [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
 | `role`               | [codersdk.ChatMessageRole](#codersdkchatmessagerole) | false    |              |             |
 | `seq`                | integer                                              | false    |              |             |
-
-## codersdk.ChatStreamPreviewReset
-
-```json
-{
-  "history_version": 0
-}
-```
-
-### Properties
-
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                      |
-|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `history_version` | integer | false    |              | History version is the chat's history_version for the message events sent before this preview_reset. Every sync that changes the history ends with a preview_reset, so a client reconnects with the history_version of the last one it received. |
 
 ## codersdk.ChatStreamRetry
 
