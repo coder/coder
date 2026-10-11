@@ -780,7 +780,7 @@ gen/docs-manifest: fmt/docs-manifest site/node_modules/.installed | _gen
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions lint/docs-gen-filter $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/go/new-code lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions lint/docs-gen-filter $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
@@ -800,12 +800,23 @@ lint/ts: site/node_modules/.installed
 GO_LINT_CONCURRENCY := $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1); echo $$(( n < 8 ? n : 8 )))
 GO_LINT_MEMLIMIT ?= 8GiB
 
+# --allow-serial-runners makes lint/go and lint/go/new-code wait for each
+# other's golangci-lint lock when `make -j lint` starts them together.
 lint/go:
 	./scripts/check_golangci_exclusions.sh
-	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --concurrency="$(GO_LINT_CONCURRENCY)"
+	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --allow-serial-runners --concurrency="$(GO_LINT_CONCURRENCY)"
 	paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
+
+# Revision whose merge base with HEAD bounds the lines lint/go/new-code checks.
+GO_LINT_NEW_CODE_BASE ?= origin/main
+
+# Rules the existing tree does not pass yet, applied only to changed lines.
+lint/go/new-code:
+	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --allow-serial-runners --concurrency="$(GO_LINT_CONCURRENCY)" \
+		--config=.golangci.new-code.yaml --new-from-merge-base="$(GO_LINT_NEW_CODE_BASE)"
+.PHONY: lint/go/new-code
 
 lint/examples: | _gen/bin/examplegen
 	_gen/bin/examplegen -lint

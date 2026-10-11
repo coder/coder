@@ -333,8 +333,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Depth 2 makes the PR merge commit's first parent (the base
-          # branch tip) available so lint/emdash can diff against HEAD^
-          # without fetching the base branch at runtime.
+          # branch tip) available so lint/emdash and lint/go/new-code can
+          # diff against HEAD^ without fetching the base branch at runtime.
           fetch-depth: 2
           persist-credentials: false
 
@@ -387,6 +387,12 @@ jobs:
       - name: make lint
         # Bound concurrent lint targets to keep peak memory below the runner limit.
         run: make --output-sync=line -j"$(nproc)" lint
+        env:
+          # lint/go/new-code only checks lines changed since this revision.
+          # Pull requests check out the merge commit, whose first parent is
+          # the base branch tip (kept by fetch-depth: 2). Other events compare
+          # HEAD with itself, so the pass reports nothing.
+          GO_LINT_NEW_CODE_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || 'HEAD' }}
 
       - name: Save golangci-lint cache
         # Only the default branch is trusted to write the cache, so PR
