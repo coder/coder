@@ -612,6 +612,20 @@ it("links a group to its members page", async () => {
 	);
 });
 
+it("reads usage bars as hours and shares rather than rounded percentages", async () => {
+	renderPage();
+
+	const usedBar = await screen.findByRole("progressbar", {
+		name: `Agent Hours used by ${MockOrganization.display_name}`,
+	});
+	expect(usedBar).toHaveAttribute("aria-valuetext", "278.0 of 600 hours");
+	expect(
+		screen.getByRole("progressbar", {
+			name: "Allotted share of the deployment's Agent Hours",
+		}),
+	).toHaveAttribute("aria-valuetext", "70% allotted");
+});
+
 it("shows group managers that the license lacks Agent Hours", async () => {
 	access.isOwner = false;
 	access.isLicensed = false;

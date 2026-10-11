@@ -164,6 +164,7 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 				<UsageBar
 					percent={allottedBps / 100}
 					ariaLabel={`Allotted share of ${poolLabel}`}
+					valueText={`${formatAllotmentPercent(allottedBps)} allotted`}
 					className="h-2"
 				/>
 				<p className="m-0 text-sm text-content-secondary">
@@ -517,6 +518,7 @@ const UsedCell: React.FC<UsedCellProps> = ({
 						percent={usageProgressPercentage(hours, allottedHours)}
 						severity={getSeverity(hours, allottedHours)}
 						ariaLabel={`Agent Hours used by ${rowName}`}
+						valueText={`${formatUsedAgentHours(usedMs)} of ${formatHours(allottedHours)}`}
 					/>
 				)}
 			</div>
