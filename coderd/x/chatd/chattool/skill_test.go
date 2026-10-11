@@ -151,7 +151,7 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 		))
 		assert.True(t, utf8.ValidString(idx))
 		assert.Contains(t, idx, "- at-limit: "+atLimit+"\n")
-		assert.Contains(t, idx, "- over-limit: "+atLimit+"…\n")
+		assert.Contains(t, idx, "- over-limit: "+strings.Repeat("界", 1023)+"…\n")
 		assert.Contains(t, idx, "- short: Short description\n")
 		assert.NotContains(t, idx, "tail")
 	})

@@ -96,7 +96,8 @@ func truncateSkillIndexDescription(description string) string {
 	}
 	runes := 0
 	for i := range description {
-		if runes == maxSkillIndexDescriptionRunes {
+		// Reserve one rune for the ellipsis so the result stays within the limit.
+		if runes == maxSkillIndexDescriptionRunes-1 {
 			return description[:i] + "…"
 		}
 		runes++
