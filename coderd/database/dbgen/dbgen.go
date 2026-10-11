@@ -81,6 +81,37 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 	return log
 }
 
+func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) database.ChatProject {
+	t.Helper()
+
+	project, err := db.InsertChatProject(genCtx, database.InsertChatProjectParams{
+		ID:             uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
+		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
+		OwnerID:        takeFirst(seed.OwnerID, uuid.New()),
+		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
+		Description:    seed.Description,
+		Icon:           seed.Icon,
+	})
+	require.NoError(t, err, "insert chat project")
+	return project
+}
+
+func ChatProjectMemory(t testing.TB, db database.Store, seed database.ChatProjectMemory) database.ChatProjectMemory {
+	t.Helper()
+
+	memory, err := db.InsertChatProjectMemory(genCtx, database.InsertChatProjectMemoryParams{
+		ID:             uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
+		ProjectID:      takeFirst(seed.ProjectID, uuid.New()),
+		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
+		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
+		Description:    seed.Description,
+		Body:           seed.Body,
+		CreatedBy:      takeFirst(seed.CreatedBy, uuid.New()),
+	})
+	require.NoError(t, err, "insert chat project memory")
+	return memory
+}
+
 func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	t.Helper()
 
@@ -95,6 +126,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		ID:                uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
 		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
+		ProjectID:         seed.ProjectID,
 		WorkspaceID:       seed.WorkspaceID,
 		BuildID:           seed.BuildID,
 		AgentID:           seed.AgentID,
@@ -102,6 +134,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		RootChatID:        seed.RootChatID,
 		LastModelConfigID: takeFirst(seed.LastModelConfigID, uuid.New()),
 		Title:             takeFirst(seed.Title, testutil.GetRandomName(t)),
+		TitleSource:       database.NullChatTitleSource{ChatTitleSource: seed.TitleSource, Valid: seed.TitleSource != ""},
 		Mode:              seed.Mode,
 		PlanMode:          seed.PlanMode,
 		Status:            takeFirst(seed.Status, database.ChatStatusWaiting),
@@ -488,6 +521,10 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			String: takeFirst(seed.DisconnectReason.String, ""),
 			Valid:  takeFirst(seed.DisconnectReason.Valid, false),
 		},
+		ClientSessionID: sql.NullString{
+			String: takeFirst(seed.ClientSessionID.String, ""),
+			Valid:  takeFirst(seed.ClientSessionID.Valid, false),
+		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
 	}
 
@@ -514,6 +551,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
 		DisconnectReason: []string{arg.DisconnectReason.String},
 		DisconnectTime:   []time.Time{disconnectTime.Time},
+		ClientSessionID:  []string{arg.ClientSessionID.String},
 	})
 	require.NoError(t, err, "insert connection log")
 
@@ -2068,6 +2106,8 @@ func AIBridgeTokenUsage(t testing.TB, db database.Store, seed database.InsertAIB
 		CacheReadPriceMicros:  seed.CacheReadPriceMicros,
 		CacheWritePriceMicros: seed.CacheWritePriceMicros,
 		CostMicros:            seed.CostMicros,
+		ProviderModel:         seed.ProviderModel,
+		PricedModel:           seed.PricedModel,
 	})
 	require.NoError(t, err, "insert aibridge token usage")
 	return usage

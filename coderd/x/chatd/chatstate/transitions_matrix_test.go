@@ -114,16 +114,21 @@ func applySendMessageQueue(t *testing.T, f *testFixture, tx *chatstate.Tx, _ see
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-queue", f.User.ID, f.Model.ID),
 		BusyBehavior: chatstate.BusyBehaviorQueue,
+		MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 	})
 	return err
 }
 
-func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
+	if err := ownRunningChat(t, tx, seeded, from); err != nil {
+		return err
+	}
 	var err error
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-interrupt", f.User.ID, f.Model.ID),
 		BusyBehavior: chatstate.BusyBehaviorInterrupt,
+		MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 	})
 	return err
 }
@@ -166,8 +171,11 @@ func applyPromoteQueuedMessage(t *testing.T, _ *testFixture, tx *chatstate.Tx, s
 	return err
 }
 
-func applyInterrupt(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+func applyInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
+	if err := ownRunningChat(t, tx, seeded, from); err != nil {
+		return err
+	}
 	var err error
 	result.interrupt, err = tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 	return err
@@ -521,10 +529,9 @@ func remainingBodiesExcluding(bodies []string, exclude int) []string {
 
 // runPositiveCase seeds the chat, runs the transition, and asserts the
 // post-state plus case-specific effects.
-func runPositiveCase(t *testing.T, spec transitionCaseSpec) {
+func runPositiveCase(t *testing.T, f *testFixture, spec transitionCaseSpec) {
 	t.Helper()
 	require.NotNil(t, spec.apply, "case %s missing apply", spec.subtestName())
-	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	seeder := spec.seed
@@ -559,9 +566,8 @@ func runPositiveCase(t *testing.T, spec transitionCaseSpec) {
 // runDisallowedCase seeds the chat, runs the transition with default
 // inputs, and asserts that the chatstate package surfaces the right
 // sentinel error and rolled the snapshot bump back.
-func runDisallowedCase(t *testing.T, tr chatstate.Transition, from chatstate.ExecutionState) {
+func runDisallowedCase(t *testing.T, f *testFixture, tr chatstate.Transition, from chatstate.ExecutionState) {
 	t.Helper()
-	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	seeded := seedState(t, f, from)
 	if seeded.exists {
@@ -616,6 +622,8 @@ func runDisallowedCase(t *testing.T, tr chatstate.Transition, from chatstate.Exe
 func TestTransitionMatrix_AllCombinations(t *testing.T) {
 	t.Parallel()
 
+	// Each case owns its chat and publisher; dependencies are read-only.
+	fixture := newTestFixture(t)
 	cases := matrixCases()
 
 	// Detect duplicate full keys and duplicate subtest names. The
@@ -725,7 +733,9 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 					actualPositive[tc.key()] = struct{}{}
 					mu.Unlock()
 				}
-				runPositiveCase(t, tc)
+				f := *fixture
+				f.Pub = newRecordingPubsub()
+				runPositiveCase(t, &f, tc)
 			})
 		}
 	})
@@ -757,7 +767,9 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 						mu.Lock()
 						actualDisallowed[disallowedCaseKey{transition: tr, from: from}] = struct{}{}
 						mu.Unlock()
-						runDisallowedCase(t, tr, from)
+						f := *fixture
+						f.Pub = newRecordingPubsub()
+						runDisallowedCase(t, &f, tr, from)
 					})
 				}
 			})
@@ -1798,6 +1810,9 @@ func finishInterruptionRejectsOutstandingToolCallCase() transitionCaseSpec {
 				nonDynamicAssistantToolCallMessage(t, f.Model.ID, nonDynCallID))
 
 			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
+					return err
+				}
 				_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 				return err
 			}))
@@ -1994,4 +2009,15 @@ func reconcileInvalidStateCase(want chatstate.ExecutionState, shape queueShape) 
 		}
 	}
 	return spec
+}
+
+// ownRunningChat owns a seeded running chat before an interrupt so the
+// matrix covers the interrupting states. The unowned variants finish
+// the interruption inline and have their own tests.
+func ownRunningChat(t *testing.T, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState) error {
+	t.Helper()
+	if from != chatstate.StateR0 && from != chatstate.StateR1 {
+		return nil
+	}
+	return ownChat(testutil.Context(t, testutil.WaitShort), tx, tx.Store(), seeded.chatID)
 }

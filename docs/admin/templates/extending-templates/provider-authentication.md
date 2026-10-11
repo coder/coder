@@ -1,5 +1,5 @@
 ---
-title: Provider Authentication
+title: Provider authentication
 ---
 
 > [!CAUTION]

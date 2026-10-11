@@ -8,7 +8,7 @@ import {
 	SquareIcon,
 	TrashIcon,
 } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
@@ -50,7 +50,7 @@ type WorkspaceMoreActionsProps = {
 	onActionSuccess?: () => Promise<void> | void;
 };
 
-export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
+export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	workspace,
 	disabled,
 	onStop,
@@ -120,8 +120,10 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	// Reference: https://github.com/coder/coder/pull/17775#discussion_r2087273706
 	const [open, setOpen] = useState(false);
 	useEffect(() => {
-		setOpen((open) => (disabled ? false : open));
-	});
+		if (disabled) {
+			setOpen(false);
+		}
+	}, [disabled]);
 
 	return (
 		<>

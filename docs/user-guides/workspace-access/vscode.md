@@ -77,9 +77,8 @@ record:
 
 ### Storage and retention
 
-The extension stores telemetry as JSON Lines files in its VS Code global storage
-under a `telemetry` directory. Files rotate at 5 MiB, are kept for up to 30 days,
-and are capped at 100 MiB total by default.
+The extension stores telemetry as JSON Lines files in its VS Code global storage under a `telemetry` directory.
+Files rotate at 5&nbsp;MiB, are kept for up to 30&nbsp;days, and are capped at 100&nbsp;MiB total by default.
 
 You can tune local retention with the advanced `coder.telemetry.local` setting.
 Most users should keep the default values.
@@ -90,32 +89,90 @@ The extension includes commands for collecting diagnostics from VS Code:
 
 - **Coder: Export Telemetry** exports only local telemetry. Choose a date range
   and JSON or OTLP JSON zip format, then review the file before sharing it.
-- **Coder: Create Support Bundle** runs `coder support bundle` and adds a
-  `vscode-logs/` directory with recent VS Code extension diagnostics, including
-  extension logs, proxy and Remote-SSH logs, redacted VS Code settings, and
-  local telemetry files when available. The `vscode-logs/` directory is only
-  added when the bundle is created from the VS Code Coder Remote extension;
-  bundles created with the CLI alone do not include it.
-- **Coder: View Logs** opens the extension output logs in VS Code.
+- **Coder: Create Support Bundle** runs `coder support bundle` and adds local extension logs, proxy and Remote-SSH logs, selected settings, and telemetry under `vscode-logs/`.
+  Only configured values for `coder.globalFlags`, `coder.headerCommand`, and `coder.tlsCertRefreshCommand` are masked; review other settings before sharing.
+  With Coder CLI version 2.36.0 or later and a reachable workspace agent that supports file collection, it also collects remote editor server logs under `agent/workspace_files/`.
+  Bundles created with the CLI alone don't include local VS Code diagnostics.
+  Follow the [VS Code support bundle procedure](../../support/support-bundle.md#vs-code) to select a workspace, confirm collection, and save the archive.
+- **Coder: View Logs** opens SSH proxy logs in VS Code.
 
 Support bundles can contain sensitive diagnostic data. Review the generated
 bundle before sharing it. Learn more about
 [support bundles](../../support/support-bundle.md).
+
+## Connection timeouts and reconnects
+
+The Coder Remote extension sets SSH keepalive and Remote - SSH reconnection defaults for Coder workspaces.
+If your connection drops while the workspace is under heavy load, such as memory pressure, you can relax these settings.
+
+### SSH keepalives
+
+The extension writes these keepalive options to the SSH configuration it generates for Coder workspaces:
+
+| Option                | Default | Behavior                                   |
+|-----------------------|---------|--------------------------------------------|
+| `ServerAliveInterval` | `10`    | Sends a keepalive every 10&nbsp;seconds.   |
+| `ServerAliveCountMax` | `3`     | Disconnects after 3 unanswered keepalives. |
+
+With these defaults, the SSH client disconnects after about 30&nbsp;seconds without a response from the workspace.
+To tolerate longer stalls, override the options in the `coder.sshConfig` VS Code setting:
+
+```json
+{
+  "coder.sshConfig": ["ServerAliveCountMax=30"]
+}
+```
+
+This example disconnects after about 5&nbsp;minutes without a response.
+To remove a default option, set it to an empty value, such as `"ServerAliveCountMax="`.
+The new values apply the next time you connect to the workspace.
+If you're already connected, reload the window.
+
+The extension merges SSH options from these sources, from highest to lowest precedence:
+
+1. The `coder.sshConfig` VS Code setting.
+1. Options passed to `coder config-ssh --ssh-option`.
+1. Deployment-wide options that an administrator sets with [`CODER_SSH_CONFIG_OPTIONS`](../../reference/cli/server/index.md#--ssh-config-options).
+
+### Reconnection settings
+
+When you connect to a workspace, the extension writes these `remote.SSH.*` settings, in seconds, to your user settings.
+They apply to all SSH hosts, not only Coder workspaces.
+
+| Purpose                          | Setting                                                                              | Set on connect                   | Recommended              |
+|----------------------------------|--------------------------------------------------------------------------------------|----------------------------------|--------------------------|
+| Connection timeout               | `connectTimeout`                                                                     | Raised to at least `1800`        | `1800` (30&nbsp;minutes) |
+| Server lifetime after disconnect | `reconnectionGraceTime` (VS Code, Devin Desktop) or `serverShutdownTimeout` (Cursor) | `28800` (8&nbsp;hours), if unset | `86400` (24&nbsp;hours)  |
+| Reconnection attempts            | `maxReconnectionAttempts` (VS Code, Devin Desktop)                                   | `null` (8 attempts), if unset    | `null` (8 attempts)      |
+
+To apply the recommended values, run **Coder: Apply Recommended SSH Settings** from the Command Palette.
+This command overwrites any values you set for these settings.
+If you're connected to a workspace, reload the window to apply them.
+
+On Devin Desktop, the extension writes the same values to the matching `remote.devinSSH.*` settings.
+Antigravity has no equivalent settings.
+`reconnectionGraceTime` only applies to Linux workspaces, and only after the remote server restarts.
+
+These settings control how long your editor waits to connect, how long the remote server waits for you to reconnect, and how many times your editor retries.
+They don't change when the SSH connection itself times out.
+To adjust the SSH connection timeout, use `coder.sshConfig`.
 
 ## VS Code extensions
 
 There are multiple ways to add extensions to VS Code Desktop:
 
 1. Using the
-   [public extensions marketplaces](#using-the-public-extensions-marketplaces)
+   [public extensions marketplaces](#use-the-public-extensions-marketplaces)
    with Code Web (code-server)
-1. Adding [extensions to custom images](#adding-extensions-to-custom-images)
+1. Adding [extensions to custom images](#add-extensions-to-custom-images)
 1. Installing extensions
-   [using its `vsix` file at the command line](#installing-extensions-using-its-vsix-file-at-the-command-line)
+   [using its `vsix` file at the command line](#install-extensions-using-a-vsix-file-at-the-command-line)
 1. Installing extensions
-   [from a marketplace using the command line](#installing-from-a-marketplace-at-the-command-line)
+   [from a marketplace using the command line](#install-from-a-marketplace-at-the-command-line)
 
-### Using the public extensions marketplaces
+<a id="using-the-public-extensions-marketplaces"></a>
+
+### Use the public extensions marketplaces
 
 You can manually add an extension while you're working in the Code Web IDE. The
 extensions can be from Coder's public marketplace, Eclipse Open VSX's public
@@ -127,7 +184,9 @@ marketplace, or the Eclipse Open VSX _local_ marketplace.
 > Microsoft does not allow any unofficial VS Code IDE to connect to the
 > extension marketplace.
 
-### Adding extensions to custom images
+<a id="adding-extensions-to-custom-images"></a>
+
+### Add extensions to custom images
 
 You can add extensions to a custom image and install them either through Code
 Web or using the workspace's terminal.
@@ -196,7 +255,9 @@ Web or using the workspace's terminal.
 
 You will now have access to the extension in your workspace.
 
-### Installing extensions using its `vsix` file at the command line
+<a id="installing-extensions-using-its-vsix-file-at-the-command-line"></a>
+
+### Install extensions using a `vsix` file at the command line
 
 Using the workspace's terminal or the terminal available inside `code-server`,
 you can install an extension whose files you've downloaded from a marketplace:
@@ -205,7 +266,9 @@ you can install an extension whose files you've downloaded from a marketplace:
 /path/to/code-server --install-extension /vsix/GitHub.copilot.vsix
 ```
 
-### Installing from a marketplace at the command line
+<a id="installing-from-a-marketplace-at-the-command-line"></a>
+
+### Install from a marketplace at the command line
 
 Using the workspace's terminal or the terminal available inside Code Web (code
 server), run the following to install an extension (be sure to update the
@@ -221,7 +284,9 @@ Alternatively, you can install an extension from Open VSX's public marketplace:
 SERVICE_URL=https://open-vsx.org/vscode/gallery ITEM_URL=https://open-vsx.org/vscode/item /path/to/code-server --install-extension GitHub.copilot
 ```
 
-### Using VS Code Desktop
+<a id="using-vs-code-desktop"></a>
+
+### Use VS Code Desktop
 
 For your local VS Code to pickup extension files in your Coder workspace,
 include this command in your `startup_script`, or run in manually in your

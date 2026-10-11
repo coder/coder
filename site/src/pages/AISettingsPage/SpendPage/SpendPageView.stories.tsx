@@ -111,7 +111,7 @@ export const SingleOrganization: Story = {
 export const OrganizationMenu: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("button", {
+			within(canvasElement).getByRole("combobox", {
 				name: `Organization ${MockOrganization.display_name}`,
 			}),
 		);
@@ -123,7 +123,7 @@ export const RequestedOrganizationDenied: Story = {
 };
 
 export const Mobile: Story = {
-	globals: { viewport: { value: "mobile2", isRotated: false } },
+	globals: { viewport: { value: "iphone12", isRotated: false } },
 };
 
 // The content width a 1024px viewport leaves beside the settings sidebar.

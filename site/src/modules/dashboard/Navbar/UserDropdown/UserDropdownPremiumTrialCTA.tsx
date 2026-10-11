@@ -1,5 +1,4 @@
 import { BadgeCheckIcon, ClockIcon } from "lucide-react";
-import type { FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Link } from "react-router";
 import { licenses } from "#/api/queries/licenses";
@@ -78,7 +77,7 @@ type UserDropdownPremiumTrialCTAProps = {
  * Offers a premium trial, or counts down an active one. Renders under
  * DashboardProvider, and stays hidden unless the viewer can read licenses.
  */
-export const UserDropdownPremiumTrialCTA: FC<
+export const UserDropdownPremiumTrialCTA: React.FC<
 	UserDropdownPremiumTrialCTAProps
 > = ({ canViewLicenses }) => {
 	const { entitlements } = useDashboard();

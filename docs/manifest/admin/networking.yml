@@ -1,0 +1,25 @@
+title: Networking
+description: Understand Coder's networking model, including how workspaces, servers, and clients connect.
+path: ./admin/networking/index.md
+icon_path: ./images/icons/networking.svg
+children:
+  - title: Port forwarding
+    description: Learn how port forwarding works in Coder and how to expose workspace ports to users.
+    path: ./admin/networking/port-forwarding.md
+  - title: STUN and NAT
+    description: Learn how Coder uses STUN and NAT traversal to establish direct peer-to-peer workspace connections.
+    path: ./admin/networking/stun.md
+  - title: Workspace proxies
+    description: Run geo-distributed workspace proxies to give distributed teams low-latency workspace access.
+    path: ./admin/networking/workspace-proxies.md
+    state: [premium]
+  - title: High availability
+    description: Configure Coder in high availability (HA) mode for horizontal scalability and failover.
+    path: ./admin/networking/high-availability.md
+    state: [premium]
+  - title: Wildcard access URLs
+    description: Configure a wildcard access URL to enable port forwarding, web IDEs, and app previews.
+    path: ./admin/networking/wildcard-access-url.md
+  - title: Troubleshooting
+    description: Diagnose and resolve Coder networking issues using coder ping and other built-in tools.
+    path: ./admin/networking/troubleshooting.md

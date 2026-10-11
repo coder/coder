@@ -74,7 +74,7 @@ The implementation is primarily in the `coderd/workspaceapps/` directory with co
 
 ## Implementation Details
 
-The project structure separates frontend and backend concerns. React components and pages are organized in the `site/src/` directory, with Jest used for testing. The backend is primarily written in Go, with a strong emphasis on error handling patterns and test coverage.
+The project structure separates frontend and backend concerns. React components and pages are organized in the `site/src/` directory, with Vitest and Storybook used for testing. The backend is primarily written in Go, with a strong emphasis on error handling patterns and test coverage.
 
 Database interactions are carefully managed through migrations in `coderd/database/migrations/` and queries in `coderd/database/queries/`. All new queries require proper database authorization (dbauthz) implementation to ensure that only users with appropriate permissions can access specific resources.
 
@@ -113,13 +113,13 @@ Coder emphasizes clear error handling, with specific patterns required:
 
 All tests should run in parallel using `t.Parallel()` to ensure efficient testing and expose potential race conditions. The codebase is rigorously linted with golangci-lint to maintain consistent code quality.
 
-Git contributions follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). See [CONTRIBUTING.md](CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
+Git contributions follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). See [CONTRIBUTING.md](../../CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
 
 ## Development Workflow
 
 Development can be initiated using `scripts/develop.sh` to start the application after making changes. Database schema updates should be performed through the migration system using `create_migration.sh <name>` to generate migration files, with each `.up.sql` migration paired with a corresponding `.down.sql` that properly reverts all changes.
 
-If the development database gets into a bad state, it can be completely reset by removing the PostgreSQL data directory with `rm -rf .coderv2/postgres`. This will destroy all data in the development database, requiring you to recreate any test users, templates, or workspaces after restarting the application.
+If the development database gets into a bad state, reset it with `./scripts/develop.sh --db-reset`, or stop the app and remove `.coderv2/postgres`. Either way destroys all data in the development database, so you must recreate any test users, templates, or workspaces afterward. See [DEV_ISOLATION.md](DEV_ISOLATION.md).
 
 Code generation for the database layer uses `coderd/database/generate.sh`, and developers should refer to `sqlc.yaml` for the appropriate style and patterns to follow when creating new queries or tables.
 

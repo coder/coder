@@ -1,5 +1,4 @@
 import capitalize from "lodash/capitalize";
-import type { FC } from "react";
 import {
 	type ConnectionLogStatus,
 	ConnectionLogStatuses,
@@ -68,7 +67,7 @@ type ConnectionLogFilterProps = {
 	};
 };
 
-export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
+export const ConnectionLogFilter: React.FC<ConnectionLogFilterProps> = ({
 	filter,
 	error,
 	menus,
@@ -132,7 +131,7 @@ type StatusMenuProps = {
 	width?: number;
 };
 
-const StatusMenu: FC<StatusMenuProps> = ({ menu, width }) => {
+const StatusMenu: React.FC<StatusMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Filter by session status"
@@ -173,7 +172,7 @@ type TypeMenuProps = {
 	width?: number;
 };
 
-const TypeMenu: FC<TypeMenuProps> = ({ menu, width }) => {
+const TypeMenu: React.FC<TypeMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Filter by connection type"

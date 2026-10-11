@@ -1,4 +1,4 @@
-import { type FC, useId } from "react";
+import { useId } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	preferenceSettings,
@@ -10,7 +10,7 @@ import {
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../utils/agentChatSendShortcut";
 
-export const ChatSendShortcutSettings: FC = () => {
+export const ChatSendShortcutSettings: React.FC = () => {
 	const queryClient = useQueryClient();
 	const query = useQuery(preferenceSettings());
 	const mutation = useMutation(updatePreferenceSettings(queryClient));

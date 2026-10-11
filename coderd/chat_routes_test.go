@@ -33,6 +33,7 @@ func TestChatRouteMounts(t *testing.T) {
 		"/api/v2/chats",
 		"/api/v2/chats/config/system-prompt",
 		fmt.Sprintf("/api/experimental/chats/%s/debug/runs", chat.ID),
+		"/api/experimental/chats/projects",
 	} {
 		res, err := client.Request(ctx, http.MethodGet, route, nil)
 		require.NoError(t, err)
@@ -56,6 +57,8 @@ func TestChatRouteMounts(t *testing.T) {
 		{http.MethodPost, "/api/v2/chats/model-configs"},
 		{http.MethodGet, "/api/v2/chats/config/computer-use-provider"},
 		{http.MethodGet, "/api/v2/chats/config/advisor"},
+		{http.MethodGet, "/api/v2/chats/projects"},
+		{http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/chats/projects", firstUser.OrganizationID)},
 		{http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/debug/runs", chat.ID)},
 		{http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/stream/desktop", chat.ID)},
 		{http.MethodGet, "/api/v2/mcp/servers/not-a-uuid/oauth2/callback"},

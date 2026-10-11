@@ -1,9 +1,8 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
-import type { ComponentProps, FC } from "react";
 import { isAfter, subtractTime, timeFrom } from "#/utils/time";
 
-type LastSeenProps = Omit<ComponentProps<"span">, "children"> & {
+type LastSeenProps = Omit<React.ComponentProps<"span">, "children"> & {
 	at: dayjs.ConfigType;
 	exactDays?: boolean;
 	// Injectable reference time so the component is deterministic in tests.
@@ -45,7 +44,7 @@ const exactDaysFrom = (at: dayjs.ConfigType, now: dayjs.ConfigType) => {
 	return days === 1 ? "1 day ago" : `${days} days ago`;
 };
 
-export const LastSeen: FC<LastSeenProps> = ({
+export const LastSeen: React.FC<LastSeenProps> = ({
 	at,
 	exactDays = false,
 	now = new Date(),

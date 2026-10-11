@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderBases } from "#/api/queries/templateBuilder";
 import type {
@@ -95,7 +94,7 @@ export function baseParametersComplete(
 	});
 }
 
-export const BaseTemplateParametersStep: FC<
+export const BaseTemplateParametersStep: React.FC<
 	BaseTemplateParametersStepProps
 > = ({ baseId, values, onChangeValues, showErrors = false }) => {
 	const { data } = useQuery(templateBuilderBases());

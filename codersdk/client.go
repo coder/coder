@@ -876,19 +876,45 @@ func WithQueryParam(key, value string) RequestOption {
 	}
 }
 
+// HeaderProvider returns the headers to add to an outgoing request.
+// @typescript-ignore HeaderProvider
+type HeaderProvider interface {
+	Headers(ctx context.Context) (http.Header, error)
+}
+
+// StaticHeaderProvider always returns a copy of its configured headers.
+// @typescript-ignore StaticHeaderProvider
+type StaticHeaderProvider struct {
+	Header http.Header
+}
+
+// Headers returns a copy of the configured headers.
+func (p StaticHeaderProvider) Headers(context.Context) (http.Header, error) {
+	return p.Header.Clone(), nil
+}
+
 // HeaderTransport is a http.RoundTripper that adds some headers to all requests.
 // @typescript-ignore HeaderTransport
 type HeaderTransport struct {
 	Transport http.RoundTripper
-	Header    http.Header
+	Provider  HeaderProvider
 }
 
 var _ http.RoundTripper = &HeaderTransport{}
 
 func (h *HeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	for k, v := range h.Header {
-		for _, vv := range v {
-			req.Header.Add(k, vv)
+	if h.Provider != nil {
+		headers, err := h.Provider.Headers(req.Context())
+		if err != nil {
+			if req.Body != nil {
+				_ = req.Body.Close()
+			}
+			return nil, xerrors.Errorf("get headers: %w", err)
+		}
+		for k, v := range headers {
+			for _, vv := range v {
+				req.Header.Add(k, vv)
+			}
 		}
 	}
 	if h.Transport == nil {

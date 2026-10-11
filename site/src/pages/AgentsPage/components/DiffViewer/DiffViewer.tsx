@@ -10,16 +10,7 @@ import { CodeView } from "@pierre/diffs/react";
 import type { FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
 import { FileTree, useFileTree } from "@pierre/trees/react";
 import { cn } from "cn";
-import {
-	type ComponentProps,
-	type CSSProperties,
-	type FC,
-	Fragment,
-	type ReactNode,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTheme } from "#/theme/context";
@@ -30,25 +21,27 @@ import { useActiveFileTracking } from "./useActiveFileTracking";
 
 type DiffViewerProps = {
 	parsedFiles: readonly FileDiffMetadata[];
-	isExpanded?: boolean;
+	isExpanded: boolean;
 	isLoading?: boolean;
 	error?: unknown;
 	emptyMessage?: string;
 	diffStyle: DiffStyle;
-	onLineNumberClick?: (
+	onLineNumberClick: (
 		fileName: string,
 		props: { lineNumber: number; annotationSide: "additions" | "deletions" },
 	) => void;
 	/** Fires when a line selection is committed (e.g. on pointer up). */
-	onLineSelected?: (fileName: string, range: SelectedLineRange | null) => void;
+	onLineSelected: (fileName: string, range: SelectedLineRange | null) => void;
 	/** Fires continuously as the selection range changes during a drag. */
-	onLineSelectionChange?: (
+	onLineSelectionChange: (
 		fileName: string,
 		range: SelectedLineRange | null,
 	) => void;
-	getLineAnnotations?: (fileName: string) => DiffLineAnnotation<string>[];
-	getSelectedLines?: (fileName: string) => SelectedLineRange | null;
-	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
+	getLineAnnotations: (fileName: string) => DiffLineAnnotation<string>[];
+	getSelectedLines: (fileName: string) => SelectedLineRange | null;
+	renderAnnotation?: (
+		annotation: DiffLineAnnotation<string>,
+	) => React.ReactNode;
 	scrollToFile?: string | null;
 	onScrollToFileComplete?: () => void;
 };
@@ -70,7 +63,7 @@ const diffViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": `${DIFF_VIEWER_LINE_HEIGHT}px`,
-} satisfies CSSProperties;
+} satisfies React.CSSProperties;
 
 const diffViewerMetrics: Partial<VirtualFileMetrics> = {
 	diffHeaderHeight: DIFF_HEADER_HEIGHT,
@@ -94,7 +87,7 @@ const fileTreeStyle = {
 	"--trees-git-deleted-color-override": "hsl(var(--git-deleted))",
 	"--trees-git-modified-color-override": "hsl(var(--git-modified))",
 	"--trees-git-renamed-color-override": "hsl(var(--git-modified))",
-} satisfies CSSProperties;
+} satisfies React.CSSProperties;
 
 // Single full-path ordering rule shared by the sidebar tree and the flat diff
 // list so the two cannot drift apart. useFileTree applies the sort comparator
@@ -163,9 +156,9 @@ export function compareTreePaths(a: string, b: string): number {
 // count at 1 but must still re-render, so fold each annotation's side and line
 // into the version. Exported for unit tests.
 export function annotationsVersion(
-	annotations: readonly DiffLineAnnotation<string>[] | undefined,
+	annotations: readonly DiffLineAnnotation<string>[],
 ): number {
-	if (!annotations || annotations.length === 0) {
+	if (annotations.length === 0) {
 		return 0;
 	}
 	return annotations.reduce(
@@ -207,7 +200,7 @@ function gitStatusForFile(
 function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 	const { additions, deletions } = countChangedLines(fileDiff);
 	return (
-		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border-default bg-surface-secondary py-2 pr-1.5 pl-2.5 font-sans text-sm">
+		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5 font-sans text-sm">
 			<div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
 				<span
 					className={cn(
@@ -227,7 +220,7 @@ function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 				</span>
 			</div>
 			{(additions > 0 || deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border-default font-mono text-xs font-medium leading-5">
+				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
 					{deletions > 0 && (
 						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
 							&minus;{deletions}
@@ -351,9 +344,9 @@ function SkeletonLine({ width }: { width: string }) {
 function SkeletonSeparator() {
 	return (
 		<div className="flex items-center gap-3 px-2.5 py-2">
-			<div className="h-px flex-1 bg-border-default" />
+			<div className="h-px flex-1 bg-border" />
 			<Skeleton className="h-2 w-24" />
-			<div className="h-px flex-1 bg-border-default" />
+			<div className="h-px flex-1 bg-border" />
 		</div>
 	);
 }
@@ -361,7 +354,7 @@ function SkeletonSeparator() {
 function SkeletonFile({ groups }: { groups: readonly (readonly string[])[] }) {
 	return (
 		<div>
-			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border-default bg-surface-secondary py-2 pr-1.5 pl-2.5">
+			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5">
 				<div className="flex items-center gap-2">
 					<Skeleton className="size-3 rounded-[2px]" />
 					<Skeleton className="h-3 w-44" />
@@ -403,7 +396,7 @@ function DiffViewerSkeleton() {
 	);
 }
 
-export const DiffViewer: FC<DiffViewerProps> = ({
+export const DiffViewer: React.FC<DiffViewerProps> = ({
 	parsedFiles,
 	isExpanded,
 	isLoading,
@@ -445,7 +438,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			setActiveFile((current) => (current === path ? current : path)),
 	});
 
-	const options: ComponentProps<typeof CodeView<string>>["options"] = {
+	const options: React.ComponentProps<typeof CodeView<string>>["options"] = {
 		diffStyle,
 		diffIndicators: "bars",
 		overflow: "scroll",
@@ -460,22 +453,22 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		enableGutterUtility: true,
 		onLineNumberClick: (props, item) => {
 			if (item.type === "diff" && props.type === "diff-line") {
-				onLineNumberClick?.(item.item.id, props);
+				onLineNumberClick(item.item.id, props);
 			}
 		},
 		onLineSelected: (range, item) => {
 			if (item.type === "diff") {
-				onLineSelected?.(item.item.id, range);
+				onLineSelected(item.item.id, range);
 			}
 		},
 		onLineSelectionChange: (range, item) => {
 			if (item.type === "diff") {
-				onLineSelectionChange?.(item.item.id, range);
+				onLineSelectionChange(item.item.id, range);
 			}
 		},
 		onGutterUtilityClick: (range, item) => {
 			if (item.type === "diff") {
-				onLineSelected?.(item.item.id, range);
+				onLineSelected(item.item.id, range);
 			}
 		},
 	};
@@ -487,7 +480,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	);
 
 	const items: CodeViewItem<string>[] = sortedFiles.map((fileDiff) => {
-		const annotations = getLineAnnotations?.(fileDiff.name);
+		const annotations = getLineAnnotations(fileDiff.name);
 		return {
 			id: fileDiff.name,
 			type: "diff",
@@ -498,7 +491,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	});
 
 	const selectedLines = (() => {
-		if (!getSelectedLines) return undefined;
 		for (const fileDiff of sortedFiles) {
 			const range = getSelectedLines(fileDiff.name);
 			if (range) return { id: fileDiff.name, range };
@@ -545,7 +537,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			className="flex h-full min-h-0 min-w-0 overflow-hidden"
 		>
 			{showTree && (
-				<aside className="h-full min-h-0 w-72 shrink-0 border-0 border-r border-solid border-border-default">
+				<aside className="h-full min-h-0 w-72 shrink-0 border-0 border-r border-solid border-border">
 					<DiffFileTree
 						files={sortedFiles}
 						activePath={activeFile}

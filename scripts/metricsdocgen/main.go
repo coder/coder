@@ -13,6 +13,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
@@ -35,7 +36,7 @@ func main() {
 	flag.BoolVar(&dryRun, "dry-run", false, "Dry run")
 	flag.Parse()
 
-	metrics, err := readAndMergeMetrics()
+	metrics, err := readAndMergeMetrics(generatedMetricsFile, staticMetricsFile)
 	if err != nil {
 		log.Fatal("can't read metrics: ", err)
 	}
@@ -86,20 +87,18 @@ func readMetricsFromFile(path string) ([]*dto.MetricFamily, error) {
 	return metrics, nil
 }
 
-// readAndMergeMetrics reads metrics from both generated and static files,
-// merges them, and returns a sorted list. Generated metrics are produced
-// by the AST scanner that extracts metric definitions from the coder source
-// code while static metrics are manually maintained (e.g., go_*, process_*,
-// external dependencies).
-// Note: Static metrics take priority over generated metrics, allowing manual
-// overrides for metrics that can't be accurately extracted by the scanner.
-func readAndMergeMetrics() ([]*dto.MetricFamily, error) {
-	generatedMetrics, err := readMetricsFromFile(generatedMetricsFile)
+// readAndMergeMetrics returns generated metrics with any runtime-only static
+// labels added. Generated metadata is authoritative when a metric appears in
+// both inputs; static-only metrics, such as go_* and process_*, pass through.
+// The scanner emits exactly one sample per metric family, so this merge updates
+// the first sample's labels before the renderer unions labels across samples.
+func readAndMergeMetrics(generatedPath, staticPath string) ([]*dto.MetricFamily, error) {
+	generatedMetrics, err := readMetricsFromFile(generatedPath)
 	if err != nil {
 		return nil, xerrors.Errorf("reading generated metrics: %w", err)
 	}
 
-	staticMetrics, err := readMetricsFromFile(staticMetricsFile)
+	staticMetrics, err := readMetricsFromFile(staticPath)
 	if err != nil {
 		return nil, xerrors.Errorf("reading static metrics: %w", err)
 	}
@@ -112,9 +111,20 @@ func readAndMergeMetrics() ([]*dto.MetricFamily, error) {
 		metricsByName[*m.Name] = m
 	}
 
-	// Static metrics overwrite generated metrics if they exist.
+	// Static metrics override only their labels, which may depend on runtime
+	// configuration. Generated source metadata remains authoritative.
 	for _, m := range staticMetrics {
-		metricsByName[*m.Name] = m
+		generated, ok := metricsByName[*m.Name]
+		if !ok {
+			metricsByName[*m.Name] = m
+			continue
+		}
+		if len(m.Metric) == 0 || len(generated.Metric) == 0 {
+			continue
+		}
+		merged := proto.CloneOf(generated)
+		merged.Metric[0].Label = mergeLabels(generated.Metric[0].Label, m.Metric[0].Label)
+		metricsByName[*m.Name] = merged
 	}
 
 	// Convert back to slice and sort.
@@ -128,6 +138,25 @@ func readAndMergeMetrics() ([]*dto.MetricFamily, error) {
 	})
 
 	return metrics, nil
+}
+
+// mergeLabels returns labels from generated and static metadata, deduplicated
+// by name. Source-declared labels remain documented when runtime metadata adds
+// labels the scanner cannot observe.
+func mergeLabels(generated, static []*dto.LabelPair) []*dto.LabelPair {
+	labels := make([]*dto.LabelPair, 0, len(generated)+len(static))
+	seen := make(map[string]struct{}, len(generated)+len(static))
+	for _, source := range [][]*dto.LabelPair{generated, static} {
+		for _, label := range source {
+			name := label.GetName()
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			labels = append(labels, label)
+		}
+	}
+	return labels
 }
 
 func readPrometheusDoc() ([]byte, error) {

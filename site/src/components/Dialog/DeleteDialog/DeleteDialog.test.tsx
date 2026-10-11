@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { render } from "#/testHelpers/renderHelpers";
 import { DeleteDialog } from "./DeleteDialog";
 
@@ -11,7 +11,11 @@ type HarnessProps = {
 };
 
 // Callers either close the dialog after confirming or keep it open to retry.
-const Harness: FC<HarnessProps> = ({ onConfirm, onCancel, closeOnConfirm }) => {
+const Harness: React.FC<HarnessProps> = ({
+	onConfirm,
+	onCancel,
+	closeOnConfirm,
+}) => {
 	const [isOpen, setIsOpen] = useState(true);
 	return (
 		<>

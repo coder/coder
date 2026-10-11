@@ -1,7 +1,8 @@
 import { act, waitFor } from "@testing-library/react";
-import { useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { renderHookWithAuth } from "#/testHelpers/hooks";
 import {
+	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 	getAgentSidebarFilters,
 } from "./agentSidebarFilters";
@@ -10,7 +11,8 @@ const defaultFilters: AgentSidebarFilters = {
 	archiveStatus: "active",
 	groupBy: "date",
 	prStatuses: [],
-	chatStatuses: ["unread", "read"],
+	chatStatuses: AGENT_CHAT_STATUS_ORDER,
+	unread: false,
 	sources: ["created_by_me"],
 };
 
@@ -18,7 +20,8 @@ const archivedFilters: AgentSidebarFilters = {
 	archiveStatus: "archived",
 	groupBy: "chat_status",
 	prStatuses: ["draft", "merged"],
-	chatStatuses: ["unread"],
+	chatStatuses: ["running"],
+	unread: false,
 	sources: ["created_by_me", "shared_with_me"],
 };
 
@@ -26,7 +29,14 @@ const renderFilters = (route = "/agents") => {
 	return renderHookWithAuth(
 		() => {
 			const [searchParams, setSearchParams] = useSearchParams();
-			return getAgentSidebarFilters(searchParams, setSearchParams);
+			const location = useLocation();
+			const navigate = useNavigate();
+			const [filters, setFilters] = getAgentSidebarFilters(
+				searchParams,
+				setSearchParams,
+				location.state,
+			);
+			return [filters, setFilters, navigate] as const;
 		},
 		{
 			routingOptions: { path: "/agents", route },
@@ -48,12 +58,13 @@ describe(getAgentSidebarFilters.name, () => {
 		{
 			name: "parses archived, group_by, pr_status, chat_status, and source",
 			route:
-				"/agents?archived=archived&group_by=chat_status&pr_status=open,draft,closed&chat_status=unread&source=shared_with_me",
+				"/agents?archived=archived&group_by=chat_status&pr_status=open,draft,closed&chat_status=running&source=shared_with_me",
 			expected: {
 				archiveStatus: "archived",
 				groupBy: "chat_status",
 				prStatuses: ["draft", "open", "closed"],
-				chatStatuses: ["unread"],
+				chatStatuses: ["running"],
+				unread: false,
 				sources: ["shared_with_me"],
 			},
 		},
@@ -65,6 +76,14 @@ describe(getAgentSidebarFilters.name, () => {
 				prStatuses: ["draft", "merged"],
 			},
 		},
+		{
+			name: "keeps the none pull request status",
+			route: "/agents?pr_status=none,bogus,draft",
+			expected: {
+				...defaultFilters,
+				prStatuses: ["draft", "none"],
+			},
+		},
 	])("$name", async ({ route, expected }) => {
 		const { result } = await renderFilters(route);
 		expect(result.current[0]).toEqual(expected);
@@ -72,7 +91,7 @@ describe(getAgentSidebarFilters.name, () => {
 
 	it("omits default values when writing filters", async () => {
 		const { result, getLocationSnapshot } = await renderFilters(
-			"/agents?archived=archived&group_by=chat_status&pr_status=draft&chat_status=unread",
+			"/agents?archived=archived&group_by=chat_status&pr_status=draft&chat_status=running",
 		);
 
 		act(() => {
@@ -121,7 +140,66 @@ describe(getAgentSidebarFilters.name, () => {
 		expect(search.get("archived")).toBe("archived");
 		expect(search.get("group_by")).toBe("chat_status");
 		expect(search.get("pr_status")).toBe("draft,merged");
-		expect(search.get("chat_status")).toBe("unread");
+		expect(search.get("chat_status")).toBe("running");
 		expect(search.get("source")).toBe("created_by_me,shared_with_me");
+	});
+
+	it("writes a partial status selection in canonical order", async () => {
+		const { result, getLocationSnapshot } = await renderFilters();
+
+		act(() => {
+			result.current[1]({
+				...defaultFilters,
+				chatStatuses: ["running", "error"],
+			});
+		});
+		await waitFor(() =>
+			expect(result.current[0].chatStatuses).toEqual(["error", "running"]),
+		);
+
+		expect(getLocationSnapshot().search.get("chat_status")).toBe(
+			"error,running",
+		);
+	});
+
+	it("writes the unread filter without treating it as a chat status", async () => {
+		const { result, getLocationSnapshot } = await renderFilters();
+
+		act(() => {
+			result.current[1]({ ...defaultFilters, unread: true });
+		});
+		await waitFor(() => expect(result.current[0].unread).toBe(true));
+
+		const { search } = getLocationSnapshot();
+		expect(search.get("unread")).toBe("true");
+		expect(search.get("chat_status")).toBe(null);
+	});
+
+	it("reads the unread filter", async () => {
+		const { result } = await renderFilters("/agents?unread=true");
+		expect(result.current[0].unread).toBe(true);
+		expect(result.current[0].chatStatuses).toEqual(AGENT_CHAT_STATUS_ORDER);
+	});
+
+	it("ignores interrupting and other values that are not filter options", async () => {
+		const { result } = await renderFilters(
+			"/agents?chat_status=working,interrupting,done",
+		);
+		expect(result.current[0].chatStatuses).toEqual(AGENT_CHAT_STATUS_ORDER);
+	});
+
+	it("keeps the history state when writing filters", async () => {
+		const { result, getLocationSnapshot } = await renderFilters();
+		// A prompt link leaves its text in history state for the composer.
+		await act(() =>
+			result.current[2]("/agents", { replace: true, state: { prompt: "hi" } }),
+		);
+
+		act(() => {
+			result.current[1](archivedFilters);
+		});
+		await waitFor(() => expect(result.current[0]).toEqual(archivedFilters));
+
+		expect(getLocationSnapshot().state).toEqual({ prompt: "hi" });
 	});
 });

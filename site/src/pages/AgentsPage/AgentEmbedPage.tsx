@@ -1,4 +1,4 @@
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useBlocker, useParams, useSearchParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
@@ -88,7 +88,7 @@ const applyEmbedTheme = (theme: ConcreteThemeName) => {
 	root.dataset.embedTheme = theme;
 };
 
-const AgentEmbedPage: FC = () => {
+const AgentEmbedPage: React.FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	if (!agentId) {
 		throw new Error("AgentEmbedPage requires an agentId route parameter.");
@@ -141,15 +141,6 @@ const AgentEmbedPage: FC = () => {
 			return next;
 		});
 	};
-
-	const requestArchiveAgent = (_chatId: string) => {};
-
-	const requestUnarchiveAgent = (_chatId: string) => {};
-
-	const requestArchiveAndDeleteWorkspace = (
-		_chatId: string,
-		_workspaceId: string,
-	) => {};
 
 	const onToggleSidebarCollapsed = () => {
 		setIsSidebarCollapsed((current) => !current);
@@ -220,13 +211,7 @@ const AgentEmbedPage: FC = () => {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
-		requestArchiveAgent,
-		requestUnarchiveAgent,
-		requestPinAgent: () => {},
-		requestUnpinAgent: () => {},
-		requestArchiveAndDeleteWorkspace,
-		isArchiving: false,
-		archivingChatId: undefined,
+		navigateAfterArchive: () => {},
 		activeChatChildren: undefined,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,

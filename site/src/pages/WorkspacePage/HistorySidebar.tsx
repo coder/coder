@@ -1,5 +1,4 @@
 import { ArrowDownIcon } from "lucide-react";
-import type { FC } from "react";
 import { useInfiniteQuery } from "react-query";
 import { infiniteWorkspaceBuilds } from "#/api/queries/workspaceBuilds";
 import type { Workspace } from "#/api/typesGenerated";
@@ -21,7 +20,9 @@ type HistorySidebarProps = {
 	workspace: Workspace;
 };
 
-export const HistorySidebar: FC<HistorySidebarProps> = ({ workspace }) => {
+export const HistorySidebar: React.FC<HistorySidebarProps> = ({
+	workspace,
+}) => {
 	const buildsQuery = useInfiniteQuery({
 		...infiniteWorkspaceBuilds(workspace?.id ?? ""),
 		enabled: workspace !== undefined,

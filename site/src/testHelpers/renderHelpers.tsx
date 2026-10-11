@@ -3,7 +3,6 @@ import {
 	render as testingLibraryRender,
 	waitFor,
 } from "@testing-library/react";
-import type { JSX, ReactNode } from "react";
 import { QueryClient } from "react-query";
 import {
 	createMemoryRouter,
@@ -54,7 +53,7 @@ export const renderWithRouter = (
 	};
 };
 
-export const render = (element: ReactNode) => {
+export const render = (element: React.ReactNode) => {
 	return renderWithRouter(
 		createMemoryRouter(
 			[
@@ -88,7 +87,7 @@ export type RenderWithAuthOptions = {
 };
 
 export function renderWithAuth(
-	element: JSX.Element,
+	element: React.JSX.Element,
 	{
 		path = "/",
 		route = "/",
@@ -117,7 +116,7 @@ export function renderWithAuth(
 }
 
 export function renderWithTemplateSettingsLayout(
-	element: JSX.Element,
+	element: React.JSX.Element,
 	{
 		path = "/",
 		route = "/",
@@ -154,7 +153,7 @@ export function renderWithTemplateSettingsLayout(
 }
 
 export function renderWithWorkspaceSettingsLayout(
-	element: JSX.Element,
+	element: React.JSX.Element,
 	{
 		path = "/",
 		route = "/",
@@ -191,7 +190,7 @@ export function renderWithWorkspaceSettingsLayout(
 }
 
 export function renderWithOrganizationSettingsLayout(
-	element: JSX.Element,
+	element: React.JSX.Element,
 	{
 		path = "/",
 		route = "/",

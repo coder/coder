@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { SquareTerminalIcon } from "lucide-react";
-import type { FC } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
@@ -16,7 +15,7 @@ type AgentRowPreviewProps = AgentRowPreviewStyles & {
 	agent: WorkspaceAgent;
 };
 
-export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
+export const AgentRowPreview: React.FC<AgentRowPreviewProps> = ({
 	agent,
 	alignValues,
 }) => {

@@ -55,6 +55,7 @@ export type RenderBlock =
 	  }
 	| TypesGen.ChatFilePart
 	| TypesGen.ChatFileReferencePart
+	| TypesGen.ChatWorkspaceFileReferencePart
 	| {
 			type: "sources";
 			sources: Array<{ url: string; title: string }>;
@@ -119,4 +120,5 @@ export type StreamState = {
 	toolCalls: Record<string, StreamToolCall>;
 	toolResults: Record<string, StreamToolResult>;
 	sources: Array<{ url: string; title: string }>;
+	startedAt?: string;
 };

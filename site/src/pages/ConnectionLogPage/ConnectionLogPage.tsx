@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import { paginatedConnectionLogs } from "#/api/queries/connectionlog";
 import { useFilter } from "#/components/Filter/Filter";
@@ -13,7 +12,7 @@ import { pageTitle } from "#/utils/page";
 import { useStatusFilterMenu, useTypeFilterMenu } from "./ConnectionLogFilter";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
-const ConnectionLogPage: FC = () => {
+const ConnectionLogPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const feats = useFeatureVisibility();
 

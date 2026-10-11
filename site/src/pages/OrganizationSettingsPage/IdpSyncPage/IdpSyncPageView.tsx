@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import type {
 	Group,
@@ -36,7 +35,7 @@ type IdpSyncPageViewProps = {
 	onSubmitRoleSyncSettings: (data: RoleSyncSettings) => void;
 };
 
-const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
+const IdpSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 	tab,
 	groupSyncSettings,
 	roleSyncSettings,

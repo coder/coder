@@ -32,7 +32,7 @@ choose a template from the
    ```
 
    A list of available templates is shown in the
-   [templates_init](../../../../reference/cli/templates.md) reference.
+   [templates_init](../../../../reference/cli/templates/index.md) reference.
 
 1. `cd` into the directory and push the template to your Coder deployment:
 

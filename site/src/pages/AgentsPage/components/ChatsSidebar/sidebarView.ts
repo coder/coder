@@ -1,5 +1,5 @@
 type SidebarView =
-	| { panel: "chats" }
+	| { panel: "chats"; projectId?: string }
 	| { panel: "settings"; section: string | undefined };
 
 /**
@@ -9,6 +9,10 @@ export function sidebarViewFromPath(pathname: string): SidebarView {
 	const settingsMatch = pathname.match(/^\/agents\/settings(?:\/([^/]+))?/);
 	if (settingsMatch) {
 		return { panel: "settings", section: settingsMatch[1] };
+	}
+	const projectMatch = pathname.match(/^\/agents\/projects\/([^/]+)/);
+	if (projectMatch) {
+		return { panel: "chats", projectId: projectMatch[1] };
 	}
 	return { panel: "chats" };
 }

@@ -10,7 +10,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
-	"github.com/coder/coder/v2/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 )
@@ -178,14 +177,15 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Rewire request context to include actor.
-	//
-	// [NOTE]
-	// The metadata provided here must NOT be sensitive as it could be included
-	// in requests to upstream services.
-	r = r.WithContext(aibridge.AsActor(ctx, resp.GetOwnerId(), recorder.Metadata{
-		"Username": resp.GetUsername(),
-	}))
+	// Attach only the verified identity. Key secrets remain outside the
+	// request context.
+	ctx = aibridge.AsActor(ctx, aibridge.Actor{
+		ID:       id,
+		APIKeyID: resp.GetApiKeyId(),
+		Username: resp.GetUsername(),
+		Email:    resp.GetEmail(),
+	})
+	r = r.WithContext(ctx)
 
 	handler, err := s.GetRequestHandler(ctx, Request{
 		SessionKey:  key,

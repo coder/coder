@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"time"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -10,12 +11,20 @@ import (
 const (
 	defaultMaxConcurrentRootAgents = int64(5)
 	defaultMaxConcurrentSubagents  = int64(10)
+
+	// admissionLockTimeout bounds how long admission waits for the
+	// capacity admission lock. Holders keep it for milliseconds.
+	admissionLockTimeout = 5 * time.Second
 )
 
 // AgentCapacityLimiter controls chat admission and reports the current per-pool limits.
 type AgentCapacityLimiter interface {
 	// Admit runs inside the acquisition transaction so its serialization
 	// extends through the ownership write. Refused chats remain unowned.
+	// Every runnable status needs admission: an owned chat holds its slot
+	// until it releases ownership, so later transitions back to running
+	// (finishing an interruption, resolving requires_action) stay within
+	// capacity.
 	Admit(ctx context.Context, store database.Store, chat database.Chat) (bool, error)
 	Limits() (limits AgentCapacityLimits, capped bool)
 }
@@ -51,8 +60,13 @@ func newAgentCapacityLimiter(unlock AgentCapacityUnlock, staleSeconds int32) *ag
 func (a *agentCapacityLimiter) Admit(ctx context.Context, store database.Store, chat database.Chat) (bool, error) {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)
-	if a.unlocked() || chat.Status != database.ChatStatusRunning {
+	if a.unlocked() {
 		return true, nil
+	}
+	// A stalled lock holder fails this candidate, which the next
+	// acquisition pass retries, instead of blocking the pass.
+	if err := store.SetTransactionLockTimeout(ctx, admissionLockTimeout.Milliseconds()); err != nil {
+		return false, err
 	}
 	// The transaction lock remains held through the caller's ownership write,
 	// preventing replicas from over-admitting the pool.

@@ -324,6 +324,10 @@ export const parseMessageContent = (
 				}
 				break;
 			}
+			case "workspace-file-reference": {
+				parsed.blocks.push(part);
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;
@@ -338,8 +342,11 @@ const isEditableAttachmentMediaType = (mediaType: string): boolean =>
 
 const isEditableUserMessageFileBlock = (
 	block: RenderBlock,
-): block is TypesGen.ChatFilePart =>
-	block.type === "file" && isEditableAttachmentMediaType(block.media_type);
+): block is TypesGen.ChatFilePart | TypesGen.ChatWorkspaceFileReferencePart =>
+	(block.type === "file" && isEditableAttachmentMediaType(block.media_type)) ||
+	// Workspace file bytes already live in the workspace; editing
+	// preserves the reference (or drops it when the chip is removed).
+	block.type === "workspace-file-reference";
 
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
@@ -398,7 +405,8 @@ export const parseMessagesWithMergedTools = (
 	}
 
 	// Annotate execute/process_output tools whose process was
-	// later killed or terminated via process_signal.
+	// later killed or terminated via process_signal, and execute
+	// tools an interrupt canceled.
 	const signaledProcesses = new Map<string, "kill" | "terminate">();
 	for (const { parsed } of rawParsed) {
 		for (const tool of parsed.tools) {
@@ -412,19 +420,21 @@ export const parseMessagesWithMergedTools = (
 				signaledProcesses.set(pid, sig);
 		}
 	}
-	if (signaledProcesses.size > 0) {
-		for (const { parsed } of rawParsed) {
-			for (const tool of parsed.tools) {
-				if (tool.name !== "execute" && tool.name !== "process_output") continue;
-				const rec = asRecord(tool.result);
-				const args = asRecord(tool.args);
-				const pid =
-					(rec ? asString(rec.background_process_id) : "") ||
-					(rec ? asString(rec.process_id) : "") ||
-					(args ? asString(args.process_id) : "");
-				const sig = pid ? signaledProcesses.get(pid) : undefined;
-				if (sig) tool.killedBySignal = sig;
+	for (const { parsed } of rawParsed) {
+		for (const tool of parsed.tools) {
+			if (tool.name !== "execute" && tool.name !== "process_output") continue;
+			const rec = asRecord(tool.result);
+			if (tool.name === "execute" && rec?.canceled === true) {
+				tool.killedBySignal = "kill";
+				continue;
 			}
+			const args = asRecord(tool.args);
+			const pid =
+				(rec ? asString(rec.background_process_id) : "") ||
+				(rec ? asString(rec.process_id) : "") ||
+				(args ? asString(args.process_id) : "");
+			const sig = pid ? signaledProcesses.get(pid) : undefined;
+			if (sig) tool.killedBySignal = sig;
 		}
 	}
 

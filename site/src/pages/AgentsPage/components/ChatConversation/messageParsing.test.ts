@@ -155,6 +155,27 @@ describe("getEditableUserMessagePayload", () => {
 		}
 	});
 
+	it("preserves workspace file references as editable file blocks", () => {
+		const workspacePart = {
+			type: "workspace-file-reference",
+			workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+			workspace_file_name: "data.csv",
+			workspace_file_size: 42,
+			workspace_file_workspace_id: "ws-1",
+		} as const;
+		const message: ChatMessage = {
+			id: 1,
+			chat_id: "chat-1",
+			created_at: "2026-04-21T00:00:00.000Z",
+			role: "user",
+			content: [{ type: "text", text: "Please use this file." }, workspacePart],
+		};
+
+		const payload = getEditableUserMessagePayload(message);
+		expect(payload?.text).toBe("Please use this file.");
+		expect(payload?.fileBlocks).toEqual([workspacePart]);
+	});
+
 	it("preserves whitespace-only text parts when concatenating", () => {
 		// The server-side prompt-history cycle joins text parts
 		// verbatim via `string_agg(part->>'text', '' ORDER BY ordinality)`.
@@ -443,6 +464,33 @@ describe("parseMessageContent", () => {
 			end_line: 2,
 			content: "nit code content",
 		});
+	});
+
+	it("parses workspace file references without changing markdown", () => {
+		const result = parseMessageContent([
+			{ type: "text", text: "Use this file." },
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+				workspace_file_name: "data.csv",
+				workspace_file_size: 42,
+				workspace_file_workspace_id: "ws-1",
+				workspace_file_media_type: "text/csv",
+			},
+		]);
+
+		expect(result.markdown).toBe("Use this file.");
+		expect(result.blocks).toEqual([
+			{ type: "response", text: "Use this file." },
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+				workspace_file_name: "data.csv",
+				workspace_file_size: 42,
+				workspace_file_workspace_id: "ws-1",
+				workspace_file_media_type: "text/csv",
+			},
+		]);
 	});
 
 	it("skips provider_executed tool-call parts", () => {
@@ -923,6 +971,37 @@ describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 			.flatMap((e) => e.parsed.tools)
 			.find((t) => t.name === "process_output");
 		expect(procOut?.killedBySignal).toBe("terminate");
+	});
+
+	it.each([
+		{
+			name: "annotates an execute result the user canceled as killed",
+			result: {
+				success: false,
+				output: "partial",
+				exit_code: -1,
+				error: "canceled by the user",
+				canceled: true,
+			},
+			want: "kill",
+		},
+		{
+			name: "does not annotate a failed execute result that was not canceled",
+			result: { success: false, output: "partial", exit_code: 1 },
+			want: undefined,
+		},
+	])("$name", ({ result, want }) => {
+		const parsed = parseMessagesWithMergedTools([
+			msg(1, "assistant", [
+				toolCall("tc1", "execute", { command: "sleep 300" }),
+			]),
+			msg(2, "assistant", [toolResult("tc1", "execute", result)]),
+		]);
+
+		const executeTool = parsed
+			.flatMap((e) => e.parsed.tools)
+			.find((t) => t.name === "execute");
+		expect(executeTool?.killedBySignal).toBe(want);
 	});
 });
 

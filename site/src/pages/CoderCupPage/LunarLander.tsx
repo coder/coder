@@ -1,4 +1,4 @@
-import { type FC, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { ROSTER } from "./roster";
 
 // ---------------------------------------------------------------------------
@@ -1762,7 +1762,7 @@ function sidebarHitTest(
 	return null;
 }
 
-export const LunarLander: FC = () => {
+export const LunarLander: React.FC = () => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 

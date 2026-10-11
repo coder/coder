@@ -95,6 +95,19 @@ describe("applyMessagePartToStreamState", () => {
 		expect(result).toBeNull();
 	});
 
+	it("returns prev for workspace file reference parts", () => {
+		const prev = createEmptyStreamState();
+		const result = applyMessagePartToStreamState(prev, {
+			type: "workspace-file-reference",
+			workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+			workspace_file_name: "data.csv",
+			workspace_file_size: 42,
+			workspace_file_workspace_id: "ws-1",
+		});
+
+		expect(result).toBe(prev);
+	});
+
 	it("creates tool call entry from tool-call part", () => {
 		const result = applyMessagePartToStreamState(null, {
 			type: "tool-call",
@@ -851,6 +864,41 @@ describe("applyMessagePartToStreamState", () => {
 			isError: true,
 			status: "error",
 		});
+	});
+});
+
+describe("startedAt", () => {
+	it("keeps the first reasoning or tool part timestamp", () => {
+		const thinking = applyMessagePartToStreamState(null, {
+			type: "reasoning",
+			text: "Plan",
+			created_at: "2026-03-10T00:00:02.000Z",
+		});
+		const delta = applyMessagePartToStreamState(thinking, {
+			type: "reasoning",
+			text: " more",
+			created_at: "2026-03-10T00:00:02.000Z",
+		});
+
+		expect(delta?.startedAt).toBe("2026-03-10T00:00:02.000Z");
+
+		const called = applyMessagePartToStreamState(delta, {
+			type: "tool-call",
+			tool_call_id: "x",
+			tool_name: "execute",
+			args: { command: "pwd" },
+			created_at: "2026-03-10T00:00:05.000Z",
+		});
+		expect(called?.startedAt).toBe("2026-03-10T00:00:02.000Z");
+	});
+
+	it("ignores text parts", () => {
+		const state = applyMessagePartToStreamState(null, {
+			type: "text",
+			text: "Hi",
+		});
+
+		expect(state?.startedAt).toBeUndefined();
 	});
 });
 

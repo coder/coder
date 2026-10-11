@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import {
@@ -19,7 +18,7 @@ import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
 
-export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
+export const DuplicateTemplateView: React.FC<CreateTemplatePageViewProps> = ({
 	onCreateTemplate,
 	onOpenBuildLogsDrawer,
 	variablesSectionRef,

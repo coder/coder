@@ -1,5 +1,4 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
 import { NumberedPageButton, PlaceholderPageButton } from "./PageButtons";
 import { PaginationNavButton } from "./PaginationNavButton";
 import { buildPagedList } from "./utils";
@@ -18,7 +17,7 @@ export type PaginationWidgetBaseProps = {
 	totalPages?: number;
 };
 
-export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
+export const PaginationWidgetBase: React.FC<PaginationWidgetBaseProps> = ({
 	currentPage,
 	pageSize,
 	totalRecords,
@@ -40,7 +39,7 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 	);
 
 	return (
-		<div className="flex flex-row items-center justify-center px-5 gap-x-1.5">
+		<div className="@container flex flex-row items-center justify-center px-5 gap-x-1.5">
 			<PaginationNavButton
 				disabled={isPrevDisabled}
 				aria-label="Previous page"
@@ -53,14 +52,16 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 				<ChevronLeftIcon />
 			</PaginationNavButton>
 
-			<div className="contents md:hidden">
+			{/* Show only the current page when the widget is too narrow for the
+			    full row of page blocks and both arrows. */}
+			<div className="contents @sm:hidden">
 				<NumberedPageButton
 					highlighted
 					pageNumber={currentPage}
 					totalPages={totalPages}
 				/>
 			</div>
-			<div className="hidden md:contents">
+			<div className="hidden @sm:contents">
 				<PaginationRow
 					currentPage={currentPage}
 					totalPages={totalPages}
@@ -89,7 +90,7 @@ type PaginationRowProps = {
 	onChange: (newPage: number) => void;
 };
 
-const PaginationRow: FC<PaginationRowProps> = ({
+const PaginationRow: React.FC<PaginationRowProps> = ({
 	currentPage,
 	totalPages,
 	onChange,

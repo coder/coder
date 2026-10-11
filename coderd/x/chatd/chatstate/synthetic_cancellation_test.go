@@ -150,6 +150,7 @@ func testSendMessageDirectWSynthesizesToolCancellations(t *testing.T) {
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("after-cancel", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))
@@ -183,6 +184,7 @@ func testSendMessageDirectE0SynthesizesToolCancellations(t *testing.T) {
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("after-error", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))
@@ -456,6 +458,9 @@ func testFinishInterruptionI1PromotesQueueHead(t *testing.T) {
 	require.NotNil(t, queued.QueuedMessage)
 	// R1 -> I1 via Interrupt.
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
+			return err
+		}
 		_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 		return err
 	}))
@@ -498,6 +503,9 @@ func testFinishInterruptionRejectsOutstandingToolCalls(t *testing.T) {
 	// when transitioning from A0/A1, but from R0 it does NOT, so the
 	// chat keeps its outstanding dynamic call.
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
+			return err
+		}
 		_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 		return err
 	}))

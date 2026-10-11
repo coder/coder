@@ -1,5 +1,4 @@
 import { ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
 import type { AIBridgeSession } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
@@ -21,7 +20,7 @@ type ListSessionsRowProps = {
 	onClick?: () => void;
 };
 
-export const ListSessionsRow: FC<ListSessionsRowProps> = ({
+export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 	session,
 	onClick,
 }) => {

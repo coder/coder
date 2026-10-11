@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { Workspace } from "#/api/typesGenerated";
 import { MockFailedWorkspace, MockWorkspace } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
@@ -14,7 +14,7 @@ type HarnessProps = {
 };
 
 // Like WorkspaceMoreActions, the dialog stays mounted while closed.
-const Harness: FC<HarnessProps> = ({ onConfirm, onCancel, ...props }) => {
+const Harness: React.FC<HarnessProps> = ({ onConfirm, onCancel, ...props }) => {
 	const [isOpen, setIsOpen] = useState(true);
 	return (
 		<>

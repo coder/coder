@@ -68,21 +68,6 @@ export const TableBody: React.FC<TableBodyProps> = ({
 	);
 };
 
-export const TableFooter: React.FC<React.ComponentProps<"tfoot">> = ({
-	className,
-	...props
-}) => {
-	return (
-		<tfoot
-			className={cn(
-				"border-t bg-surface-secondary/50 font-medium last:[&>tr]:border-b-0",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
-
 const tableRowVariants = cva(
 	[
 		"border-0 border-b border-solid border-border transition-colors",

@@ -60,6 +60,7 @@ export type MCPServerFormValues = {
 	apiKeyHeader: string;
 	apiKeyValue: string;
 	apiKeyTouched: boolean;
+	hasSavedAPIKey: boolean;
 	availability: string;
 	enabled: boolean;
 	modelIntent: boolean;
@@ -98,9 +99,10 @@ export const buildInitialMCPServerFormValues = (
 	oauth2TokenURL: server?.oauth2_token_url ?? "",
 	oauth2RevocationURL: server?.oauth2_revocation_url ?? "",
 	oauth2Scopes: server?.oauth2_scopes ?? "",
-	apiKeyHeader: server?.api_key_header ?? "",
+	apiKeyHeader: server?.api_key_header || "Authorization",
 	apiKeyValue: server?.has_api_key ? SECRET_PLACEHOLDER : "",
 	apiKeyTouched: false,
+	hasSavedAPIKey: server?.has_api_key ?? false,
 	availability: server?.availability ?? "default_off",
 	enabled: server?.enabled ?? true,
 	modelIntent: server?.model_intent ?? false,
@@ -114,6 +116,18 @@ export const buildInitialMCPServerFormValues = (
 	customHeadersTouched: false,
 });
 
+// An untouched placeholder counts only when the server already stores a key,
+// because the secret input also restores it when a new value is cleared.
+const hasAPIKeyCredentials = (values: MCPServerFormValues): boolean => {
+	if (values.apiKeyHeader.trim() === "") {
+		return false;
+	}
+	if (!values.apiKeyTouched && values.apiKeyValue === SECRET_PLACEHOLDER) {
+		return values.hasSavedAPIKey;
+	}
+	return values.apiKeyValue.trim() !== "";
+};
+
 export const canSubmitMCPServerForm = (
 	values: MCPServerFormValues,
 	isDisabled: boolean,
@@ -121,7 +135,8 @@ export const canSubmitMCPServerForm = (
 	!isDisabled &&
 	values.displayName.trim() !== "" &&
 	values.slug.trim() !== "" &&
-	values.url.trim() !== "";
+	values.url.trim() !== "" &&
+	(values.authType !== "api_key" || hasAPIKeyCredentials(values));
 
 export const buildCreateMCPServerConfigRequest = (
 	values: MCPServerFormValues,

@@ -1,4 +1,4 @@
-import { type FC, useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { useQuery } from "react-query";
 import { workspaceById } from "#/api/queries/workspaces";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
@@ -23,10 +23,9 @@ type WorkspaceAgentLogSectionProps = {
  * the call's build is the workspace's latest build and that build has
  * started the workspace.
  */
-export const WorkspaceAgentLogSection: FC<WorkspaceAgentLogSectionProps> = ({
-	status,
-	buildId,
-}) => {
+export const WorkspaceAgentLogSection: React.FC<
+	WorkspaceAgentLogSectionProps
+> = ({ status, buildId }) => {
 	const isRunning = status === "running";
 	const {
 		workspaceId,
@@ -66,7 +65,7 @@ type AgentStartupLogsProps = {
 	isCallRunning: boolean;
 };
 
-const AgentStartupLogs: FC<AgentStartupLogsProps> = ({
+const AgentStartupLogs: React.FC<AgentStartupLogsProps> = ({
 	agent,
 	isCallRunning,
 }) => {
@@ -97,7 +96,7 @@ const AgentStartupLogs: FC<AgentStartupLogsProps> = ({
 
 	return (
 		<ScrollArea
-			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+			className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 			viewportClassName="max-h-64"
 			viewportTabIndex={0}
 			viewportAriaLabel="Workspace agent startup log"
@@ -112,7 +111,7 @@ const AgentStartupLogs: FC<AgentStartupLogsProps> = ({
 	);
 };
 
-const WaitingForAgentStartup: FC = () => (
+const WaitingForAgentStartup: React.FC = () => (
 	<LogNotice icon="loading">
 		Waiting for workspace agent startup to complete…
 	</LogNotice>

@@ -1,5 +1,4 @@
 import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
@@ -18,7 +17,7 @@ type SpendScope = "organization" | { user: string };
  * The total gets a labeled badge; user rows get only the icon so the compact
  * cells stay readable.
  */
-const CostSetupWarning: FC<{ scope: SpendScope }> = ({ scope }) => {
+const CostSetupWarning: React.FC<{ scope: SpendScope }> = ({ scope }) => {
 	if (scope === "organization") {
 		return (
 			<Tooltip>
@@ -72,7 +71,7 @@ type SpendAmountProps = {
  * sits before the amount so right-aligned figures stay lined up; the total's
  * badge follows it.
  */
-export const SpendAmount: FC<SpendAmountProps> = ({
+export const SpendAmount: React.FC<SpendAmountProps> = ({
 	costMicros,
 	unpricedUsageCount,
 	scope,

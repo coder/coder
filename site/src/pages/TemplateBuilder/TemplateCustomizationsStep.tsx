@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
 import {
@@ -37,6 +37,8 @@ export const TEMPLATE_CUSTOMIZATIONS_FORM_ID = "template-customizations-form";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
+const emptyOrgs: readonly Organization[] = [];
+
 const validationSchema = Yup.object({
 	name: nameValidator("Template ID"),
 	display_name: displayNameValidator("Display name"),
@@ -57,7 +59,7 @@ type TemplateCustomizationsStepProps = {
 	onProvisionerStatusChange: (hasProvisioners: boolean | undefined) => void;
 };
 
-export const TemplateCustomizationsStep: FC<
+export const TemplateCustomizationsStep: React.FC<
 	TemplateCustomizationsStepProps
 > = ({ state, onCreate, onProvisionerStatusChange }) => {
 	const permittedOrgsQuery = useQuery(
@@ -66,7 +68,7 @@ export const TemplateCustomizationsStep: FC<
 			action: "create",
 		}),
 	);
-	const orgOptions = permittedOrgsQuery.data ?? [];
+	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
 
 	const form = useFormik<CustomizationsFormValues>({
 		initialValues: {
@@ -217,7 +219,7 @@ export const TemplateCustomizationsStep: FC<
 	);
 };
 
-const ProvisionerWarning: FC = () => {
+const ProvisionerWarning: React.FC = () => {
 	return (
 		<Alert severity="error" prominent className="my-4">
 			This organization does not have any provisioners. Before you create a
@@ -229,7 +231,7 @@ const ProvisionerWarning: FC = () => {
 	);
 };
 
-const BaseTemplateCard: FC<{ base: SelectedBaseMeta }> = ({ base }) => {
+const BaseTemplateCard: React.FC<{ base: SelectedBaseMeta }> = ({ base }) => {
 	return (
 		<div className="w-56 shrink-0 rounded-lg bg-surface-secondary p-4 self-start">
 			{base.iconUrl && <Avatar src={base.iconUrl} size="lg" variant="icon" />}

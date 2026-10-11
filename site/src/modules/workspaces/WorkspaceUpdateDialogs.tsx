@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { ParameterValidationError } from "#/api/api";
@@ -92,7 +92,7 @@ type WorkspaceUpdateDialogsProps = {
 	updateBuildParametersDialogProps?: UpdateBuildParametersDialogProps;
 };
 
-export const WorkspaceUpdateDialogs: FC<WorkspaceUpdateDialogsProps> = ({
+export const WorkspaceUpdateDialogs: React.FC<WorkspaceUpdateDialogsProps> = ({
 	confirmUpdateDialogProps,
 	updateBuildParametersDialogProps,
 }) => {
@@ -113,7 +113,7 @@ type ConfirmUpdateDialogProps = {
 	latestVersion?: TemplateVersion;
 };
 
-const ConfirmUpdateDialog: FC<ConfirmUpdateDialogProps> = ({
+const ConfirmUpdateDialog: React.FC<ConfirmUpdateDialogProps> = ({
 	latestVersion,
 	...dialogProps
 }) => {
@@ -149,7 +149,7 @@ type UpdateBuildParametersDialogProps = {
 	onClose: () => void;
 };
 
-export const UpdateBuildParametersDialog: FC<
+export const UpdateBuildParametersDialog: React.FC<
 	UpdateBuildParametersDialogProps
 > = ({ workspace, error, onClose }) => {
 	const templateVersionId = error.versionId;

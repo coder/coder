@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { useMutation } from "react-query";
 import { Link as RouterLink, useSearchParams } from "react-router";
 import * as Yup from "yup";
@@ -14,7 +13,7 @@ import { getApplicationName } from "#/utils/appearance";
 import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
 import { pageTitle } from "#/utils/page";
 
-const RequestOTPPage: FC = () => {
+const RequestOTPPage: React.FC = () => {
 	const applicationName = getApplicationName();
 	const requestOTPMutation = useMutation(requestOneTimePassword());
 	const [searchParams] = useSearchParams();
@@ -61,7 +60,7 @@ const validationSchema = Yup.object({
 		.required("Please enter an email address."),
 });
 
-const RequestOTP: FC<RequestOTPProps> = ({
+const RequestOTP: React.FC<RequestOTPProps> = ({
 	error,
 	onRequest,
 	isRequesting,
@@ -135,7 +134,7 @@ const RequestOTP: FC<RequestOTPProps> = ({
 	);
 };
 
-const RequestOTPSuccess: FC<{ email: string }> = ({ email }) => {
+const RequestOTPSuccess: React.FC<{ email: string }> = ({ email }) => {
 	return (
 		<div className="w-full max-w-[380px] flex flex-col items-center font-medium text-sm leading-6">
 			<div>

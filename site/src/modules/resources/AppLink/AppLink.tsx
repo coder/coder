@@ -6,7 +6,7 @@ import {
 	SquareArrowOutUpRightIcon,
 	UsersIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
 import { Link } from "#/components/Link/Link";
@@ -42,7 +42,7 @@ type AppLinkProps = {
 	grouped?: boolean;
 };
 
-export const AppLink: FC<AppLinkProps> = ({
+export const AppLink: React.FC<AppLinkProps> = ({
 	app,
 	workspace,
 	agent,
@@ -59,7 +59,7 @@ export const AppLink: FC<AppLinkProps> = ({
 	// To avoid bugs in the healthcheck code locking users out of apps, we no
 	// longer block access to apps if they are unhealthy/initializing.
 	let canClick = true;
-	let primaryTooltip: ReactNode = "";
+	let primaryTooltip: React.ReactNode = "";
 	let icon = !iconError && (
 		<BaseIcon app={app} onIconPathError={() => setIconError(true)} />
 	);

@@ -15,13 +15,14 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 const (
@@ -109,9 +110,9 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 		ProviderName:     p.Name(),
 		BaseURL:          p.cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
-		SendActorHeaders: p.cfg.SendActorHeaders,
+		ActorHeaderNames: p.cfg.ActorHeaderNames,
 	}
-	cred, err := p.resolveCredential(r)
+	cred, err := p.ResolveCredential(r)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return nil, xerrors.Errorf("resolve credential: %w", err)
@@ -154,19 +155,19 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 	return interceptor, nil
 }
 
-// resolveCredential determines the upstream credential for a request. At this
-// point the request contains only LLM provider headers. Any Coder-specific
-// authentication has already been stripped. A BYOK token, if present, arrives
-// in the Authorization header. Otherwise the request uses the provider's
-// centralized key pool with failover, which must be configured.
-func (p *OpenAI) resolveCredential(r *http.Request) (intercept.Credential, error) {
-	if token := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization)); token != "" {
-		return intercept.BYOK{Secret: token, Header: intercept.AuthHeaderAuthorization}, nil
+// ResolveCredential determines the upstream credential for a request.
+// Coder authentication credentials must already have been removed from it.
+// A remaining Authorization header is interpreted as a BYOK token. Otherwise
+// the request uses the provider's centralized key pool with failover, which
+// must be configured.
+func (p *OpenAI) ResolveCredential(r *http.Request) (credential.Credential, error) {
+	if token := aibheaders.ExtractBearerToken(r.Header.Get(aibheaders.AuthHeaderAuthorization)); token != "" {
+		return credential.BYOK{Secret: token, Header: aibheaders.AuthHeaderAuthorization}, nil
 	}
 	if p.cfg.KeyPool == nil {
 		return nil, ErrNoCredential
 	}
-	return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
+	return &credential.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
 }
 
 func (p *OpenAI) BaseURL() string {

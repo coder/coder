@@ -558,3 +558,36 @@ func codersdkResponseBodyDecode(m dsl.Matcher) {
 		).
 		Report("Use codersdk.ReadBodyAsJSON to decode typed API responses so non-JSON bodies produce a structured error. For responses that are intentionally not Coder API JSON, add a nolint:gocritic comment explaining why.")
 }
+
+// userScopedExperimentStaticCheck ensures that server code decides
+// user-scoped experiments through the experiments.Evaluator, which applies
+// runtime rules per user, instead of the static startup list. SDK clients
+// may still check lists they have already resolved.
+//
+// The experiment names in the regular expressions below must equal
+// codersdk.ExperimentsUserScoped; a codersdk test enforces this. The rule
+// is syntactic: it does not prove that enforcement is complete.
+//
+//nolint:unused,deadcode,varnamelen
+func userScopedExperimentStaticCheck(m dsl.Matcher) {
+	m.Import("github.com/coder/coder/v2/codersdk")
+	m.Import("github.com/coder/coder/v2/coderd/httpmw")
+
+	m.Match(`$x.Enabled($e)`).
+		Where(
+			m["x"].Type.Is("codersdk.Experiments") &&
+				m["e"].Text.Matches(`^codersdk\.(ExperimentExample|ExperimentMCPToolSearch)$`) &&
+				m.File().PkgPath.Matches(`^github\.com/coder/coder/v2/(enterprise/)?coderd(/|$)`) &&
+				!m.File().Name.Matches(`_test\.go$`),
+		).
+		Report("$e is user-scoped: decide it with experiments.Evaluator.Enabled for the subject user, not the static experiments list.")
+
+	m.Match(`httpmw.$f($_, $*e)`).
+		Where(
+			m["f"].Text.Matches(`^RequireExperiment`) &&
+				m["e"].Text.Matches(`(^|[\s,])codersdk\.(ExperimentExample|ExperimentMCPToolSearch)\s*(,|$)`) &&
+				m.File().PkgPath.Matches(`^github\.com/coder/coder/v2/(enterprise/)?coderd(/|$)`) &&
+				!m.File().Name.Matches(`_test\.go$`),
+		).
+		Report("httpmw.$f checks the static experiments list, but a user-scoped experiment is required: decide it with experiments.Evaluator.Enabled for the request's user.")
+}

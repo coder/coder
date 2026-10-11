@@ -1,5 +1,4 @@
 import { CheckIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link } from "react-router";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
@@ -23,7 +22,7 @@ const currentSection = "/agents";
  * sidebar header. The sidebar only renders under /agents, so that
  * section is always the checked one.
  */
-export const SectionSwitcher: FC = () => {
+export const SectionSwitcher: React.FC = () => {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>

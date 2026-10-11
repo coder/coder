@@ -4,7 +4,6 @@ import {
 	MonitorPauseIcon,
 	MonitorXIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	type DisplayWorkspaceStatusType,
@@ -13,7 +12,7 @@ import {
 
 const iconMap: Record<
 	DisplayWorkspaceStatusType,
-	FC<{ className?: string }>
+	React.FC<{ className?: string }>
 > = {
 	success: MonitorIcon,
 	active: MonitorDotIcon,
@@ -23,7 +22,7 @@ const iconMap: Record<
 	warning: MonitorXIcon,
 };
 
-export const StatusIcon: FC<{
+export const StatusIcon: React.FC<{
 	type: DisplayWorkspaceStatusType;
 	className?: string;
 }> = ({ type, className = "size-3" }) => {

@@ -30,20 +30,13 @@ You can configure OpenCode to connect to AI Gateway by setting the following con
 }
 ```
 
-To authenticate with AI Gateway, get your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and replace `<your-coder-api-token>` in `~/.local/share/opencode/auth.json`
+To authenticate with AI Gateway, get your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**, then run:
 
-```json
-{
-  "anthropic": {
-    "type": "api",
-    "key": "<your-coder-api-token>"
-  },
-  "openai": {
-    "type": "api",
-    "key": "<your-coder-api-token>"
-  }
-}
+```sh
+opencode auth login
 ```
+
+Select `anthropic` (and repeat for `openai` if needed), then paste your Coder API token when prompted for the API key.
 
 ## BYOK (Personal API Key)
 
@@ -73,20 +66,13 @@ Set the following in `~/.config/opencode/opencode.json`, including the `X-Coder-
 }
 ```
 
-Set your personal API keys in `~/.local/share/opencode/auth.json`:
+Set your personal API keys by running:
 
-```json
-{
-  "anthropic": {
-    "type": "api",
-    "key": "<your-anthropic-api-key>"
-  },
-  "openai": {
-    "type": "api",
-    "key": "<your-openai-api-key>"
-  }
-}
+```sh
+opencode auth login
 ```
+
+Select `anthropic` (and repeat for `openai` if needed), then paste the corresponding API key you obtained earlier when prompted.
 
 ## Custom models through Bedrock Mantle
 

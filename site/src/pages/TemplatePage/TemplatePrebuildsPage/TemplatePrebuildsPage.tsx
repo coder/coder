@@ -1,5 +1,4 @@
 import { RefreshCwIcon } from "lucide-react";
-import type { FC } from "react";
 import { useMutation } from "react-query";
 import { toast } from "sonner";
 import { API } from "#/api/api";
@@ -9,7 +8,7 @@ import { Button } from "#/components/Button/Button";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { pageTitle } from "#/utils/page";
 
-const TemplatePrebuildsPage: FC = () => {
+const TemplatePrebuildsPage: React.FC = () => {
 	const { template } = useTemplateLayoutContext();
 
 	return (
@@ -24,9 +23,9 @@ type TemplatePrebuildsPageViewProps = {
 	templateId: string;
 };
 
-export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
-	templateId,
-}) => {
+export const TemplatePrebuildsPageView: React.FC<
+	TemplatePrebuildsPageViewProps
+> = ({ templateId }) => {
 	const invalidateMutation = useMutation({
 		mutationFn: () => API.invalidateTemplatePresets(templateId),
 		onSuccess: (data: InvalidatePresetsResponse) => {

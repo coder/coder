@@ -1,5 +1,5 @@
 import { PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type {
 	CreateUserSecretRequest,
 	ImportUserSecretsRequest,
@@ -46,7 +46,7 @@ type SecretDialogState =
 	| { mode: "add"; open: boolean }
 	| { mode: "edit"; open: boolean; secret: UserSecret };
 
-export const SecretsPageView: FC<SecretsPageViewProps> = ({
+export const SecretsPageView: React.FC<SecretsPageViewProps> = ({
 	secrets = [],
 	filePathEnabled,
 	isLoading,

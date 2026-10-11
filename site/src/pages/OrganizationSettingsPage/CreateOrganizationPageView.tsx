@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
-import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -49,7 +48,7 @@ type CreateOrganizationPageViewProps = {
 	permissions: Permissions;
 };
 
-export const CreateOrganizationPageView: FC<
+export const CreateOrganizationPageView: React.FC<
 	CreateOrganizationPageViewProps
 > = ({ isEntitled, permissions }) => {
 	const navigate = useNavigate();

@@ -1,15 +1,15 @@
 import { cn } from "cn";
-import { type FC, type HTMLProps, useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { formatTime } from "./utils";
 
 const XAxisMinWidth = 130;
 
-type XAxisProps = HTMLProps<HTMLDivElement> & {
+type XAxisProps = React.HTMLProps<HTMLDivElement> & {
 	ticks: number[];
 	scale: number;
 };
 
-export const XAxis: FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
+export const XAxis: React.FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
 	const rootRef = useRef<HTMLDivElement>(null);
 
 	// The X axis should occupy all available space. If there is extra space,
@@ -48,7 +48,7 @@ export const XAxis: FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
 	);
 };
 
-const XAxisLabels: FC<HTMLProps<HTMLUListElement>> = (props) => {
+const XAxisLabels: React.FC<React.HTMLProps<HTMLUListElement>> = (props) => {
 	return (
 		<ul
 			{...props}
@@ -66,7 +66,7 @@ const XAxisLabels: FC<HTMLProps<HTMLUListElement>> = (props) => {
 	);
 };
 
-const XAxisLabel: FC<HTMLProps<HTMLLIElement>> = (props) => {
+const XAxisLabel: React.FC<React.HTMLProps<HTMLLIElement>> = (props) => {
 	return (
 		<li
 			{...props}
@@ -85,7 +85,9 @@ const XAxisLabel: FC<HTMLProps<HTMLLIElement>> = (props) => {
 	);
 };
 
-export const XAxisSection: FC<HTMLProps<HTMLDivElement>> = (props) => {
+export const XAxisSection: React.FC<React.HTMLProps<HTMLDivElement>> = (
+	props,
+) => {
 	return (
 		<section
 			{...props}
@@ -108,11 +110,14 @@ export const XAxisSection: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	);
 };
 
-type XAxisRowProps = HTMLProps<HTMLDivElement> & {
+type XAxisRowProps = React.HTMLProps<HTMLDivElement> & {
 	yAxisLabelId: string;
 };
 
-export const XAxisRow: FC<XAxisRowProps> = ({ yAxisLabelId, ...htmlProps }) => {
+export const XAxisRow: React.FC<XAxisRowProps> = ({
+	yAxisLabelId,
+	...htmlProps
+}) => {
 	const syncYAxisLabelHeightToXAxisRow = (rowEl: HTMLDivElement | null) => {
 		if (!rowEl) {
 			return;
@@ -140,11 +145,11 @@ export const XAxisRow: FC<XAxisRowProps> = ({ yAxisLabelId, ...htmlProps }) => {
 	);
 };
 
-type XGridProps = HTMLProps<HTMLDivElement> & {
+type XGridProps = React.HTMLProps<HTMLDivElement> & {
 	columns: number;
 };
 
-const XGrid: FC<XGridProps> = ({ columns, ...htmlProps }) => {
+const XGrid: React.FC<XGridProps> = ({ columns, ...htmlProps }) => {
 	const borderDefault =
 		typeof document === "undefined"
 			? "hsl(var(--border-default))"

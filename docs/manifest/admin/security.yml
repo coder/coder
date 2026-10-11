@@ -1,0 +1,16 @@
+title: Security
+description: Secure your Coder deployment with audit logs, secrets management, and database encryption.
+path: ./admin/security/index.md
+icon_path: ./images/icons/lock.svg
+children:
+  - title: Audit logs
+    description: Track user and administrator actions across your Coder deployment with audit logs.
+    path: ./admin/security/audit-logs.md
+    state: [premium]
+  - title: Secrets
+    description: Learn the recommended ways to get secrets into your Coder workspaces securely.
+    path: ./admin/security/secrets.md
+  - title: Database encryption
+    description: Encrypt sensitive values in the Coder database to protect tokens and secrets at rest.
+    path: ./admin/security/database-encryption.md
+    state: [premium]

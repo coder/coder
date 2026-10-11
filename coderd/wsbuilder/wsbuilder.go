@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -911,6 +912,20 @@ func (b *Builder) getClassicParameters() (names, values []string, err error) {
 
 		names = append(names, templateVersionParameter.Name)
 		values = append(values, value)
+	}
+
+	// An alternate stop version may omit parameters that the next start
+	// still needs. Only start builds should narrow the stored parameter set.
+	// Delete builds also keep them so a failed delete doesn't leave the
+	// workspace with a truncated set, matching the dynamic parameter path.
+	if b.trans != database.WorkspaceTransitionStart {
+		for _, parameter := range lastBuildParameters {
+			if slices.Contains(names, parameter.Name) {
+				continue
+			}
+			names = append(names, parameter.Name)
+			values = append(values, parameter.Value)
+		}
 	}
 
 	b.parameterNames = &names

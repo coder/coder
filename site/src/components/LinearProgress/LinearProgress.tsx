@@ -1,13 +1,12 @@
 import { cn } from "cn";
 import type React from "react";
-import type { FC } from "react";
 
 type LinearProgressProps = React.ComponentProps<"div"> & {
 	value: number;
 	variant: "determinate" | "indeterminate";
 };
 
-const LinearProgress: FC<LinearProgressProps> = ({
+const LinearProgress: React.FC<LinearProgressProps> = ({
 	value,
 	className,
 	variant,

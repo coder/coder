@@ -17,4 +17,4 @@ export const getDefaultOrganizationName = (
 
 export const getDefaultOrganizationId = (
 	organizations: DashboardValue["organizations"],
-): string => organizations.find((org) => org.is_default)?.id ?? "";
+): string | undefined => organizations.find((org) => org.is_default)?.id;

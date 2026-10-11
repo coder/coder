@@ -732,6 +732,7 @@ func (q *sqlQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg 
 			&i.ConnectionLog.ConnectionID,
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
+			&i.ConnectionLog.ClientSessionID,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -844,11 +845,13 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 		arg.SharedWithUserID,
 		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,
+		arg.ProjectID,
 		arg.AfterID,
 		arg.LabelFilter,
 		arg.DiffURL,
 		arg.TitleQuery,
 		arg.HasUnread,
+		pq.Array(arg.ChatStatuses),
 		pq.Array(arg.PullRequestStatuses),
 		arg.PrNumber,
 		arg.RepoQuery,
@@ -890,6 +893,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.LastReadMessageID,
 			&i.Chat.DynamicTools,
 			&i.Chat.OrganizationID,
+			&i.Chat.ProjectID,
 			&i.Chat.PlanMode,
 			&i.Chat.ClientType,
 			&i.Chat.LastTurnSummary,
@@ -912,6 +916,8 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.ContextDirtyResources,
 			&i.Chat.ContextError,
 			&i.Chat.CompactionRequestedAt,
+			&i.Chat.TitleSource,
+			&i.Chat.TitleUpdatedAt,
 			&i.HasUnread); err != nil {
 			return nil, err
 		}
@@ -972,6 +978,7 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 			&i.LastReadMessageID,
 			&i.DynamicTools,
 			&i.OrganizationID,
+			&i.ProjectID,
 			&i.PlanMode,
 			&i.ClientType,
 			&i.LastTurnSummary,
@@ -993,7 +1000,9 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 			&i.ContextDirtySince,
 			&i.ContextDirtyResources,
 			&i.ContextError,
-			&i.CompactionRequestedAt); err != nil {
+			&i.CompactionRequestedAt,
+			&i.TitleSource,
+			&i.TitleUpdatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

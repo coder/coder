@@ -1510,6 +1510,7 @@ func (api *API) logTunnelConnection(agentID uuid.UUID, statusCode int32, userID 
 		ConnectionID:     uuid.NullUUID{},
 		DisconnectReason: sql.NullString{},
 		ConnectionStatus: database.ConnectionStatusConnected,
+		ClientSessionID:  sql.NullString{},
 	})
 	if err != nil {
 		api.Logger.Error(ctx, "upsert tunnel connection log",

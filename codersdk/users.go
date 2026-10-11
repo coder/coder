@@ -279,17 +279,19 @@ type UpdateUserAppearanceSettingsRequest struct {
 }
 
 type UserPreferenceSettings struct {
-	ThinkingDisplayMode   ThinkingDisplayMode   `json:"thinking_display_mode"`
-	ShellToolDisplayMode  AgentDisplayMode      `json:"shell_tool_display_mode"`
-	CodeDiffDisplayMode   AgentDisplayMode      `json:"code_diff_display_mode"`
-	AgentChatSendShortcut AgentChatSendShortcut `json:"agent_chat_send_shortcut"`
+	ThinkingDisplayMode    ThinkingDisplayMode   `json:"thinking_display_mode"`
+	ShellToolDisplayMode   AgentDisplayMode      `json:"shell_tool_display_mode"`
+	CodeDiffDisplayMode    AgentDisplayMode      `json:"code_diff_display_mode"`
+	CollapseAssistantSteps bool                  `json:"collapse_assistant_steps"`
+	AgentChatSendShortcut  AgentChatSendShortcut `json:"agent_chat_send_shortcut"`
 }
 
 type UpdateUserPreferenceSettingsRequest struct {
-	ThinkingDisplayMode   ThinkingDisplayMode   `json:"thinking_display_mode,omitempty"`
-	ShellToolDisplayMode  AgentDisplayMode      `json:"shell_tool_display_mode,omitempty"`
-	CodeDiffDisplayMode   AgentDisplayMode      `json:"code_diff_display_mode,omitempty"`
-	AgentChatSendShortcut AgentChatSendShortcut `json:"agent_chat_send_shortcut,omitempty"`
+	ThinkingDisplayMode    ThinkingDisplayMode   `json:"thinking_display_mode,omitempty"`
+	ShellToolDisplayMode   AgentDisplayMode      `json:"shell_tool_display_mode,omitempty"`
+	CodeDiffDisplayMode    AgentDisplayMode      `json:"code_diff_display_mode,omitempty"`
+	CollapseAssistantSteps *bool                 `json:"collapse_assistant_steps,omitempty"`
+	AgentChatSendShortcut  AgentChatSendShortcut `json:"agent_chat_send_shortcut,omitempty"`
 }
 
 type AgentChatSendShortcut string
@@ -449,27 +451,6 @@ type OIDCClaimsResponse struct {
 	// are the union of the ID token claims and the userinfo claims,
 	// where userinfo claims take precedence on conflict.
 	Claims map[string]interface{} `json:"claims"`
-}
-
-type UserParameter struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
-// UserAutofillParameters returns all recently used parameters for the given user.
-func (c *Client) UserAutofillParameters(ctx context.Context, user string, templateID uuid.UUID) ([]UserParameter, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/autofill-parameters?template_id=%s", user, templateID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-
-	var params []UserParameter
-	return params, ReadBodyAsJSON(res, &params)
 }
 
 // HasFirstUser returns whether the first user has been created.

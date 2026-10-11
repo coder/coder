@@ -124,6 +124,8 @@ Key differences:
   `workspace_id` instead.
 - Optionally pass `model_config_id` to override the default model, or
   `mcp_server_ids` to attach MCP servers.
+- Optionally pass `title` to set the chat's title.
+  A title you set is kept; automatic title generation runs only when `title` is omitted.
 
 ### 3. Update follow-up message calls
 
@@ -632,17 +634,17 @@ curl -s -X PATCH \
 
 ### Quick checklist
 
-Use this checklist to confirm each part of your integration:
+Use this list to confirm each part of your integration:
 
-- [ ] At least one LLM model is configured in the organization and returned by `/organizations/{organization}/chats/models`
-- [ ] `POST /chats` creates a chat and returns a valid `Chat` object
-- [ ] WebSocket stream at `/chats/{chat}/stream` delivers events
-- [ ] Follow-up messages via `/chats/{chat}/messages` are accepted
-- [ ] Chat attached to a workspace from the converted template runs
-      tools against that workspace
-- [ ] `POST /chats/{chat}/interrupt` stops the agent and returns to `waiting`
-- [ ] Archive and restore via `PATCH /chats/{chat}` works
-- [ ] (If applicable) GitHub Actions workflow creates chats successfully
+- At least one LLM model is configured in the organization and returned by `/organizations/{organization}/chats/models`
+- `POST /chats` creates a chat and returns a valid `Chat` object
+- WebSocket stream at `/chats/{chat}/stream` delivers events
+- Follow-up messages via `/chats/{chat}/messages` are accepted
+- Chat attached to a workspace from the converted template runs
+  tools against that workspace
+- `POST /chats/{chat}/interrupt` stops the agent and returns to `waiting`
+- Archive and restore via `PATCH /chats/{chat}` works
+- (If applicable) GitHub Actions workflow creates chats successfully
 
 ## Features available only in the Chats API
 

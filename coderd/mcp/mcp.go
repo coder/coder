@@ -22,8 +22,8 @@ const (
 	// MCPServerInstructions is the instructions text for the MCP server.
 	MCPServerInstructions = "Coder MCP Server providing workspace and template management tools"
 
-	// Used in tests and aibridge.
-	MCPEndpoint = "/api/experimental/mcp/http"
+	// MCPEndpoint is the remote MCP HTTP endpoint path.
+	MCPEndpoint = codersdk.MCPEndpoint
 )
 
 // Server represents an MCP HTTP server instance

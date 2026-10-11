@@ -3,11 +3,9 @@ title: Manage provisioner jobs
 ---
 
 [Provisioners](./index.md) start and run provisioner jobs to create or delete workspaces.
-Each time a workspace is built, rebuilt, or destroyed, it generates a new job and assigns
-the job to an available provisioner daemon for execution.
+Each time a workspace is built, rebuilt, or destroyed, it generates a new job and assigns the job to an available provisioner daemon for execution.
 
-While most jobs complete smoothly, issues with templates, cloud resources, or misconfigured
-provisioners can cause jobs to fail or hang indefinitely (these are in a `Pending` state).
+While most jobs complete smoothly, issues with templates, cloud resources, or misconfigured provisioners can cause jobs to fail or hang indefinitely (these are in a `Pending` state).
 
 ![Provisioner jobs in the dashboard](../../../images/admin/provisioners/provisioner-jobs.png)
 
@@ -21,7 +19,8 @@ Use the dashboard, CLI, or API:
 
    Select **Admin settings** > **Organizations** > **Provisioner Jobs**
 
-   Provisioners are organization-specific. If you have more than one organization, select it first.
+   Provisioners are organization-specific.
+   If you have more than one organization, select it first.
 
 - **CLI**: `coder provisioner jobs list`
 - **API**: `/api/v2/provisioner/jobs`
@@ -58,7 +57,8 @@ The following diagram shows how a provisioner job transitions between lifecycle 
 
 A job might need to be cancelled when:
 
-- It has been stuck in **Pending** for too long. This can be due to misconfigured tags or unavailable provisioners.
+- It has been stuck in **Pending** for too long.
+  This can be due to misconfigured tags or unavailable provisioners.
 - It is **Running** indefinitely, often caused by external system failures or buggy templates.
 - An admin wants to abort a failed attempt, fix the root cause, and retry provisioning.
 - A workspace was deleted in the UI but the underlying cloud resource wasn’t cleaned up, causing a hanging delete job.

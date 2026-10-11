@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { ItemsBadge } from "./ItemsBadge";
 import { AIBridgeProviderIcon } from "./icons/AIBridgeProviderIcon";
 import { getProviderDisplayName } from "./utils";
@@ -7,7 +6,9 @@ type ProvidersBadgeProps = {
 	providers: readonly string[];
 };
 
-export const ProvidersBadge: FC<ProvidersBadgeProps> = ({ providers }) => (
+export const ProvidersBadge: React.FC<ProvidersBadgeProps> = ({
+	providers,
+}) => (
 	<ItemsBadge
 		noun="providers"
 		items={providers.map((provider) => ({

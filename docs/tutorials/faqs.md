@@ -19,7 +19,7 @@ Visit <https://coder.com/trial> or contact
 
 <summary>You can add a license through the UI or CLI</summary>
 
-<!-- copied from docs/admin/licensing/index.md -->
+<!-- copied from docs/install/prepare/licensing.md -->
 
 <div class="tabs">
 
@@ -90,11 +90,11 @@ to establish these direct connections.
 Setting the following flags as shown disables this logic to simplify
 troubleshooting.
 
-| Flag                                                                                          | Value       | Meaning                               |
-|-----------------------------------------------------------------------------------------------|-------------|---------------------------------------|
-| [`CODER_BLOCK_DIRECT`](../reference/cli/server.md#--block-direct-connections)                 | `true`      | Blocks direct connections             |
-| [`CODER_DERP_SERVER_STUN_ADDRESSES`](../reference/cli/server.md#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
-| [`CODER_DERP_FORCE_WEBSOCKETS`](../reference/cli/server.md#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
+| Flag                                                                                                | Value       | Meaning                               |
+|-----------------------------------------------------------------------------------------------------|-------------|---------------------------------------|
+| [`CODER_BLOCK_DIRECT`](../reference/cli/server/index.md#--block-direct-connections)                 | `true`      | Blocks direct connections             |
+| [`CODER_DERP_SERVER_STUN_ADDRESSES`](../reference/cli/server/index.md#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
+| [`CODER_DERP_FORCE_WEBSOCKETS`](../reference/cli/server/index.md#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
 
 ## How do I configure NGINX as the reverse proxy in front of Coder?
 
@@ -518,11 +518,9 @@ Host coder-jetbrains--*
   ServerAliveInterval 5
 ```
 
-This will make SSH check that it can contact the server every five seconds. If
-it fails to do so `ServerAliveCountMax` times (3 by default for a total of 15
-seconds) then it will close the connection which forces JetBrains to recreate
-the hung session. You can tweak `ServerAliveInterval` and `ServerAliveCountMax`
-to increase or decrease the total timeout.
+This will make SSH check that it can contact the server every five seconds.
+If it fails to do so `ServerAliveCountMax` times (3 by default for a total of 15&nbsp;seconds) then it will close the connection which forces JetBrains to recreate the hung session.
+You can tweak `ServerAliveInterval` and `ServerAliveCountMax` to increase or decrease the total timeout.
 
 Note that the JetBrains Gateway configuration blocks for each host in your SSH
 config file will be overwritten by the JetBrains Gateway client when it
@@ -538,7 +536,7 @@ like `scp` or `rsync`.
 To achieve this, template admins can use the environment variable
 `CODER_AGENT_BLOCK_FILE_TRANSFER` to enable additional SSH command controls.
 This variable allows the system to check if the executed application is on the
-block list, which includes `scp`, `rsync`, `ftp`, and `nc`.
+block list, which includes `nc`, `rsync`, `scp`, and `sftp`.
 
 ```tf
 resource "docker_container" "workspace" {
@@ -562,6 +560,14 @@ confidential resources to their local machines.
 Agent API capabilities, such as file operations performed by AI agents in
 Coder Agents chat (including chat file uploads into the workspace), are not
 affected by this setting because they do not go through the SSH transfer path.
+
+The `sftp` subsystem is blocked in full, not just the `sftp` command, so any workflow that moves files over SFTP stops working.
+This includes IDE remote file browsers that rely on it.
+
+[Coder Desktop file sync](../user-guides/desktop/desktop-connect-sync.md) also stops working, though for a different reason.
+File sync runs Mutagen over SSH, and Mutagen installs its remote agent binary with `scp`, which is on the block list.
+
+Confirm which workflows your developers depend on before you enable this setting.
 
 For more advanced security needs, consider adopting an endpoint security
 solution.

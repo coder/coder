@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
 import type { ShareableWorkspaceOwners } from "#/api/typesGenerated";
@@ -23,7 +22,7 @@ type DisableWorkspaceSharingDialogProps = {
 	isLoading?: boolean;
 };
 
-export const DisableWorkspaceSharingDialog: FC<
+export const DisableWorkspaceSharingDialog: React.FC<
 	DisableWorkspaceSharingDialogProps
 > = ({
 	isOpen,
