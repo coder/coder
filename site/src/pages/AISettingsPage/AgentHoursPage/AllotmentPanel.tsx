@@ -43,7 +43,6 @@ type AllotmentEntry = AllotmentTarget & {
 };
 
 export type AllotmentUsage = {
-	/** Targets that used Agent Hours in the period without an allotment now. */
 	withoutAllotment: readonly UsageEntry[];
 	remainderLabel: string;
 	remainderHref?: string;
@@ -99,7 +98,6 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 	const allottedHours = allotmentHours(allottedBps, poolHours);
 	const unallottedHours = allotmentHours(unallottedBps, poolHours);
 	const showUsage = usage !== undefined;
-	const notAttributedMs = usage?.notAttributedMs ?? 0;
 	const addBlockedReason =
 		unallottedBps === 0
 			? `All of ${poolLabel} are allotted.`
@@ -208,44 +206,11 @@ export const AllotmentPanel: React.FC<AllotmentPanelProps> = ({
 						))
 					)}
 					{usage && (
-						<>
-							{usage.withoutAllotment.map((entry) => (
-								<UsageOnlyRow
-									key={entry.id}
-									name={entry.name}
-									href={entry.href}
-									usedMs={entry.usedMs}
-								/>
-							))}
-							{notAttributedMs > 0 && (
-								<UsageOnlyRow
-									name="Not attributed"
-									info={
-										<InfoTooltip
-											size="small"
-											ariaLabel="About hours not attributed"
-										>
-											These hours ran in chats that were deleted before Coder
-											tracked usage per organization.
-										</InfoTooltip>
-									}
-									usedMs={notAttributedMs}
-								/>
-							)}
-							<TableRow>
-								<TargetNameCell
-									name={usage.remainderLabel}
-									href={usage.remainderHref}
-								/>
-								<AllotmentCell bps={unallottedBps} hours={unallottedHours} />
-								<UsedCell
-									usedMs={usage.remainderUsedMs}
-									rowName={usage.remainderLabel}
-									allottedHours={unallottedHours}
-								/>
-								<TableCell />
-							</TableRow>
-						</>
+						<UsageRows
+							usage={usage}
+							unallottedBps={unallottedBps}
+							unallottedHours={unallottedHours}
+						/>
 					)}
 				</TableBody>
 			</Table>
@@ -359,6 +324,57 @@ const AllotmentRow: React.FC<AllotmentRowProps> = ({
 	);
 };
 
+type UsageRowsProps = {
+	usage: AllotmentUsage;
+	unallottedBps: number;
+	unallottedHours: number | undefined;
+};
+
+const UsageRows: React.FC<UsageRowsProps> = ({
+	usage,
+	unallottedBps,
+	unallottedHours,
+}) => {
+	const notAttributedMs = usage.notAttributedMs ?? 0;
+	return (
+		<>
+			{usage.withoutAllotment.map((entry) => (
+				<UsageOnlyRow
+					key={entry.id}
+					name={entry.name}
+					href={entry.href}
+					usedMs={entry.usedMs}
+				/>
+			))}
+			{notAttributedMs > 0 && (
+				<UsageOnlyRow
+					name="Not attributed"
+					info={
+						<InfoTooltip size="small" ariaLabel="About hours not attributed">
+							These hours ran in chats that were deleted before Coder tracked
+							usage per organization.
+						</InfoTooltip>
+					}
+					usedMs={notAttributedMs}
+				/>
+			)}
+			<TableRow>
+				<TargetNameCell
+					name={usage.remainderLabel}
+					href={usage.remainderHref}
+				/>
+				<AllotmentCell bps={unallottedBps} hours={unallottedHours} />
+				<UsedCell
+					usedMs={usage.remainderUsedMs}
+					rowName={usage.remainderLabel}
+					allottedHours={unallottedHours}
+				/>
+				<TableCell />
+			</TableRow>
+		</>
+	);
+};
+
 type TargetNameCellProps = {
 	name: string;
 	href?: string;
@@ -400,7 +416,6 @@ const TargetNameCell: React.FC<TargetNameCellProps> = ({
 
 type UsageOnlyRowProps = TargetNameCellProps & { usedMs: number };
 
-/** Usage that no current allotment covers, so the row has no actions. */
 const UsageOnlyRow: React.FC<UsageOnlyRowProps> = ({
 	usedMs,
 	...nameProps
@@ -430,7 +445,6 @@ const AllotmentCell: React.FC<AllotmentCellProps> = ({ bps, hours }) => (
 type UsedCellProps = {
 	usedMs: number;
 	rowName: string;
-	/** Hours to measure the usage against. */
 	allottedHours?: number;
 };
 

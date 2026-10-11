@@ -4,6 +4,7 @@ import {
 	allotmentTargetLabel,
 	formatAllotmentPercent,
 	formatHours,
+	notAttributedMs,
 	parseAllotmentPercent,
 	usageWithoutAllotment,
 } from "./allotments";
@@ -149,5 +150,17 @@ describe("usageWithoutAllotment", () => {
 				href: undefined,
 			},
 		]);
+	});
+});
+
+describe("notAttributedMs", () => {
+	it("is the share of the total that no organization accounts for", () => {
+		expect(
+			notAttributedMs(10_000, [{ used_ms: 6_000 }, { used_ms: 1_000 }]),
+		).toBe(3_000);
+	});
+
+	it("is zero when the organizations add up to more than the total", () => {
+		expect(notAttributedMs(10_000, [{ used_ms: 10_500 }])).toBe(0);
 	});
 });

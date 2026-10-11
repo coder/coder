@@ -10,6 +10,7 @@ import {
 	MockAgentHoursOrganizationGroupsUsage,
 	MockAgentHoursUsage,
 	MockDefaultOrganization,
+	MockEveryoneGroup,
 	MockGroup,
 	MockGroup2,
 	MockGroup3,
@@ -49,13 +50,17 @@ const mockGroupAllotments: AgentHoursGroupAllotments = {
 	],
 };
 
+const mockUsageError = mockApiError({
+	message: "Failed to load Agent Hours usage.",
+});
+
 const mockOrganizationSectionProps: React.ComponentProps<
 	typeof OrganizationAgentHoursView
 > = {
 	organization: MockDefaultOrganization,
 	licenseHours: 1000,
 	groupAllotments: mockGroupAllotments,
-	groups: [MockGroup, MockGroup2, MockGroup3],
+	groups: [MockGroup, MockGroup2, MockGroup3, MockEveryoneGroup],
 	error: null,
 	usage: MockAgentHoursOrganizationGroupsUsage,
 	usageError: null,
@@ -117,6 +122,22 @@ export const NoAllotments: Story = {
 			<OrganizationAgentHoursView
 				{...mockOrganizationSectionProps}
 				groupAllotments={{ organization_allotment_bps: null, groups: [] }}
+			/>
+		),
+	},
+};
+
+export const NoAllotmentsWithoutUsage: Story = {
+	args: {
+		organizationAllotments: [],
+		usage: undefined,
+		usageError: mockUsageError,
+		organizationAgentHours: (
+			<OrganizationAgentHoursView
+				{...mockOrganizationSectionProps}
+				groupAllotments={{ organization_allotment_bps: null, groups: [] }}
+				usage={undefined}
+				usageError={mockUsageError}
 			/>
 		),
 	},
@@ -256,10 +277,6 @@ export const UsageBeyondAllotments: Story = {
 	},
 	parameters: { pixel: { matrix: pixelWithPhone } },
 };
-
-const mockUsageError = mockApiError({
-	message: "Failed to load Agent Hours usage.",
-});
 
 export const UsageLoadError: Story = {
 	args: {

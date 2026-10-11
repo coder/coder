@@ -72,8 +72,8 @@ type UsageWithoutAllotmentOptions = {
 };
 
 /**
- * Targets that used Agent Hours without a current allotment. A target with
- * an empty name was deleted, so it has neither a label of its own nor a page.
+ * A target with an empty name was deleted, so it has neither a label of its
+ * own nor a page.
  */
 export const usageWithoutAllotment = (
 	used: readonly UsedAllotmentTarget[],
@@ -96,3 +96,14 @@ export const usageWithoutAllotment = (
 					}
 				: { id: target.id, name: deletedLabel, usedMs: target.usedMs },
 		);
+
+export const notAttributedMs = (
+	totalMs: number,
+	organizations: readonly { used_ms: number }[],
+): number =>
+	// The total and the organization rows come from separate queries, so an
+	// hour recorded between them can briefly push the sum above the total.
+	Math.max(
+		totalMs - organizations.reduce((sum, used) => sum + used.used_ms, 0),
+		0,
+	);

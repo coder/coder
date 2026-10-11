@@ -17,7 +17,11 @@ import { SettingsSection } from "#/pages/AISettingsPage/components/SettingsSecti
 import { formatUsedAgentHours } from "#/utils/agentHours";
 import { docs } from "#/utils/docs";
 import { AllotmentPanel, type AllotmentUsage } from "./AllotmentPanel";
-import { allotmentTargetLabel, usageWithoutAllotment } from "./allotments";
+import {
+	allotmentTargetLabel,
+	notAttributedMs,
+	usageWithoutAllotment,
+} from "./allotments";
 
 type AgentHoursPageViewProps = {
 	/** False when the license does not include Agent Hours. */
@@ -100,11 +104,7 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 			(sum, entry) => sum + entry.usedMs,
 			0,
 		),
-		notAttributedMs: Math.max(
-			usage.total_ms -
-				usage.organizations.reduce((sum, used) => sum + used.used_ms, 0),
-			0,
-		),
+		notAttributedMs: notAttributedMs(usage.total_ms, usage.organizations),
 	};
 
 	return (

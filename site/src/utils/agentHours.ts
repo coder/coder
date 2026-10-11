@@ -1,6 +1,6 @@
 /**
- * Floored like the license usage card so these figures never read higher
- * than the license total.
+ * Floored to tenths like the license usage card, so a partial hour never
+ * rounds up.
  */
 export const usedAgentHours = (ms: number): number =>
 	Number.isFinite(ms) ? Math.floor(ms / 360_000) / 10 : 0;

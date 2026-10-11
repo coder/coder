@@ -9,6 +9,8 @@ const agentHoursOrganizationAllotmentsKey = [
 	"organizationAllotments",
 ] as const;
 
+const agentHoursUsageKey = [...agentHoursKey, "usage"] as const;
+
 const agentHoursGroupAllotmentsKey = (organizationId: string) =>
 	[...agentHoursKey, "groupAllotments", organizationId] as const;
 
@@ -30,7 +32,7 @@ export const agentHoursGroupAllotments = (organizationId: string) => ({
 });
 
 export const agentHoursUsage = () => ({
-	queryKey: [...agentHoursKey, "usage"] as const,
+	queryKey: agentHoursUsageKey,
 	queryFn: API.getAgentHoursUsage,
 });
 
