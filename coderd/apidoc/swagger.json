@@ -18852,7 +18852,7 @@
 					}
 				},
 				"total_ms": {
-					"description": "TotalMs is the Agent Time the license measures for the period. It can\nexceed the sum of the organizations' usage by the hours that ran\nbefore per-organization tracking, in chats that were deleted since.",
+					"description": "TotalMs is the Agent Time the license measures for the period. It can\nexceed the sum of the organizations' usage by the hours that ran in\nchats deleted before per-organization tracking started.",
 					"type": "integer"
 				},
 				"usage_period": {

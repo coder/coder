@@ -56,8 +56,8 @@ type AgentHoursGroupAllotments struct {
 type AgentHoursUsage struct {
 	UsagePeriod UsagePeriod `json:"usage_period"`
 	// TotalMs is the Agent Time the license measures for the period. It can
-	// exceed the sum of the organizations' usage by the hours that ran
-	// before per-organization tracking, in chats that were deleted since.
+	// exceed the sum of the organizations' usage by the hours that ran in
+	// chats deleted before per-organization tracking started.
 	TotalMs       int64                         `json:"total_ms"`
 	Organizations []AgentHoursOrganizationUsage `json:"organizations"`
 }
