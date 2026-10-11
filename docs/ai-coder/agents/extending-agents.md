@@ -278,7 +278,7 @@ Instead, each copy gets a qualified alias that names its source:
 A bare name that matches more than one source is ambiguous, so `read_skill` rejects it.
 The agent must pass the qualified alias instead, for example `org/code-review`.
 
-The list of available skills in the agent's system prompt shortens a description longer than 1,024 characters to its first 1,024 characters and ends it with an ellipsis.
+The list of available skills in the agent's system prompt shortens a description longer than 1,024 characters to its first 1,023 characters followed by an ellipsis.
 The stored description keeps the full text.
 The `read_skill` result returns the skill body without the frontmatter, so it doesn't include the description.
 
