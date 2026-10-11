@@ -181,9 +181,9 @@ func TestSuccessfulChildChatOutcomeStoresReportSummaryWithoutPush(t *testing.T) 
 
 	const report = "Completed the delegated task."
 	insertAssistantMessage(t, db, child.ID, modelCfg.ID, report)
-	// Message inserts bump history_version via trigger; the finalize
-	// hook receives the post-turn chat, so mirror that here or the
-	// fenced summary write would be skipped as stale.
+	// dbgen.ChatMessage commits the insert, which advances history_version;
+	// the finalize hook receives the post-turn chat, so mirror that here or
+	// the fenced summary write would be skipped as stale.
 	child, err = db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
 

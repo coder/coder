@@ -56,6 +56,11 @@ func AllowedExecutionTransitionOutputs(from ExecutionState, tr Transition) []Exe
 // ChatID returns the chat ID this machine is scoped to.
 func (m *ChatMachine) ChatID() uuid.UUID { return m.chatID }
 
+// MarkCommitWrite counts a commit write without issuing one, so a test
+// can run any transition where it would follow another transition's
+// commit write in the same Update.
+func (tx *Tx) MarkCommitWrite() { tx.commits++ }
+
 // snapshotPending returns a snapshot of the buffered messages for
 // tests via [PublishBuffer.BufferedChannels]. The returned slice is a
 // copy and safe to inspect without holding the buffer lock.

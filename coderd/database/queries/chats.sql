@@ -881,6 +881,9 @@ ORDER BY
     chats_expanded.id DESC;
 
 -- name: InsertChat :one
+-- A new chat starts at snapshot_version 0: the creating transaction inserts
+-- the initial history (stamped with version 1 by the revision trigger) and
+-- then commits with BumpChatSnapshotVersion, landing on version 1.
 WITH inserted_chat AS (
 INSERT INTO chats (
     id,
@@ -902,7 +905,8 @@ INSERT INTO chats (
     labels,
     dynamic_tools,
     client_type,
-    manage_automations_enabled
+    manage_automations_enabled,
+    snapshot_version
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
@@ -923,7 +927,8 @@ INSERT INTO chats (
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
     sqlc.narg('dynamic_tools')::jsonb,
     @client_type::chat_client_type,
-    @manage_automations_enabled::boolean
+    @manage_automations_enabled::boolean,
+    0
 )
 RETURNING *
 ),
@@ -1864,7 +1869,7 @@ locked AS (
     SELECT id FROM chats
     WHERE id IN (SELECT id FROM changed)
     ORDER BY id
-    FOR UPDATE
+    FOR NO KEY UPDATE
 ),
 deleted AS (
     DELETE FROM chat_context_resources
@@ -2217,21 +2222,6 @@ SET
 RETURNING
     *;
 
--- name: InsertChatQueuedMessage :one
--- Legacy queue insertion path. When no caller-supplied creator exists,
--- preserve the created_by invariant by attributing the queued row to the
--- chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
-SELECT
-    @chat_id::uuid,
-    @content::jsonb,
-    sqlc.narg('model_config_id')::uuid,
-    sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    chats.owner_id
-FROM chats
-WHERE chats.id = @chat_id::uuid
-RETURNING *;
-
 -- name: GetChatQueuedMessages :many
 -- Returns the queue in promotion order (position ASC, id ASC), the same
 -- order chatstate uses to pick the head. Clients read the queue through
@@ -2241,33 +2231,6 @@ RETURNING *;
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
 ORDER BY position ASC, id ASC;
-
--- name: DeleteChatQueuedMessage :exec
-DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
-
--- name: DeleteAllChatQueuedMessages :exec
-DELETE FROM chat_queued_messages WHERE chat_id = @chat_id;
-
--- name: PopNextQueuedMessage :one
-DELETE FROM chat_queued_messages
-WHERE id = (
-    SELECT cqm.id FROM chat_queued_messages cqm
-    WHERE cqm.chat_id = @chat_id
-    ORDER BY cqm.created_at ASC, cqm.id ASC
-    LIMIT 1
-)
-RETURNING *;
-
--- name: ReorderChatQueuedMessageToFront :execrows
--- Mutates only created_at on the target row; ids are unchanged so
--- consumers can keep tracking queued messages by id.
-UPDATE chat_queued_messages AS target
-SET created_at = (
-    SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'
-    FROM chat_queued_messages AS inner_cqm
-    WHERE inner_cqm.chat_id = @chat_id
-)
-WHERE target.id = @target_id AND target.chat_id = @chat_id;
 
 -- name: GetLastChatMessageByRole :one
 -- The returned id becomes both an AfterID cursor and last_read_message_id, so
@@ -2289,14 +2252,14 @@ LIMIT
 SELECT id
 FROM chats
 WHERE id = @id::uuid
-FOR UPDATE;
+FOR NO KEY UPDATE;
 
 -- name: GetChatByIDForUpdate :one
 WITH locked_chat AS (
     SELECT *
     FROM chats
     WHERE id = @id::uuid
-    FOR UPDATE
+    FOR NO KEY UPDATE
 ),
 chats_expanded AS (
     SELECT
@@ -2640,12 +2603,6 @@ WHERE agent_id = @agent_id::uuid
     AND status IN ('waiting', 'running', 'requires_action')
 ORDER BY updated_at DESC;
 
--- name: SoftDeleteContextFileMessages :exec
-UPDATE chat_messages SET deleted = true
-WHERE chat_id = @chat_id::uuid
-    AND deleted = false
-    AND content::jsonb @> '[{"type": "context-file"}]';
-
 -- name: GetChatWorkerAcquisitionCandidates :many
 -- Returns a bounded, pool-interleaved set of chats that workers may acquire.
 -- Within each pool, interrupting chats finish active work first, and
@@ -2800,92 +2757,105 @@ WHERE
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz;
 
 
--- name: LockChatAndBumpSnapshotVersion :one
--- Locks the chat row with FOR UPDATE and atomically increments its
--- snapshot_version, returning the post-bump chat. This is the single
--- entry point ChatMachine.Update uses to acquire the row lock and
--- allocate a new snapshot version in one round trip.
-WITH bumped_chat AS (
-    UPDATE chats
-    SET snapshot_version = snapshot_version + 1
-    WHERE id = (
-        SELECT id FROM chats
-        WHERE id = @id::uuid
-        FOR UPDATE
-    )
-    RETURNING *
+-- name: LockChatForTransition :one
+-- Locks the chat row with FOR NO KEY UPDATE without writing it and returns
+-- the current chat. ChatMachine.Update uses this to start a transition; the
+-- transition's single commit write (UpdateChatExecutionState,
+-- BumpChatSnapshotVersion, IncrementChatGenerationAttempt, or
+-- UpdateChatRetryState) advances snapshot_version. Keeping the lock free of
+-- writes matters: Postgres re-runs every foreign key check on an UPDATE
+-- whose old row version was written by the same transaction, and those
+-- checks take FOR KEY SHARE on parent rows shared by many chats.
+--
+-- FOR NO KEY UPDATE (rather than FOR UPDATE) is sufficient because the
+-- transition never changes chats.id, and it stays compatible with the
+-- FOR KEY SHARE locks that foreign-key child writes (chat_heartbeats,
+-- messages, queued messages) take on the chat row, so those writers do
+-- not convoy against transitions. Concurrent transitions still serialize
+-- because FOR NO KEY UPDATE conflicts with itself.
+--
+-- The queue count is a separate statement: after a lock wait, Postgres
+-- re-reads only the locked row, and subqueries here would still see the
+-- queue as of before the wait.
+WITH locked_chat AS (
+    SELECT *
+    FROM chats
+    WHERE id = @id::uuid
+    FOR NO KEY UPDATE
 ),
 chats_expanded AS (
     SELECT
-        bumped_chat.id,
-        bumped_chat.owner_id,
-        bumped_chat.workspace_id,
-        bumped_chat.title,
-        bumped_chat.status,
-        bumped_chat.worker_id,
-        bumped_chat.started_at,
-        bumped_chat.heartbeat_at,
-        bumped_chat.created_at,
-        bumped_chat.updated_at,
-        bumped_chat.parent_chat_id,
-        bumped_chat.root_chat_id,
-        bumped_chat.last_model_config_id,
-        bumped_chat.last_reasoning_effort,
-        bumped_chat.archived,
-        bumped_chat.last_error,
-        bumped_chat.mode,
-        bumped_chat.mcp_server_ids,
-        bumped_chat.labels,
-        bumped_chat.build_id,
-        bumped_chat.agent_id,
-        bumped_chat.pin_order,
-        bumped_chat.last_read_message_id,
-        bumped_chat.dynamic_tools,
-        bumped_chat.organization_id,
-        bumped_chat.project_id,
-        bumped_chat.plan_mode,
-        bumped_chat.client_type,
-        bumped_chat.last_turn_summary,
-        bumped_chat.summary,
-        bumped_chat.summary_generated_at,
-        bumped_chat.snapshot_version,
-        bumped_chat.history_version,
-        bumped_chat.queue_version,
-        bumped_chat.generation_attempt,
-        bumped_chat.retry_state,
-        bumped_chat.retry_state_version,
-        bumped_chat.runner_id,
-        bumped_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, bumped_chat.user_acl) AS user_acl,
-        COALESCE(root.group_acl, bumped_chat.group_acl) AS group_acl,
+        locked_chat.id,
+        locked_chat.owner_id,
+        locked_chat.workspace_id,
+        locked_chat.title,
+        locked_chat.status,
+        locked_chat.worker_id,
+        locked_chat.started_at,
+        locked_chat.heartbeat_at,
+        locked_chat.created_at,
+        locked_chat.updated_at,
+        locked_chat.parent_chat_id,
+        locked_chat.root_chat_id,
+        locked_chat.last_model_config_id,
+        locked_chat.last_reasoning_effort,
+        locked_chat.archived,
+        locked_chat.last_error,
+        locked_chat.mode,
+        locked_chat.mcp_server_ids,
+        locked_chat.labels,
+        locked_chat.build_id,
+        locked_chat.agent_id,
+        locked_chat.pin_order,
+        locked_chat.last_read_message_id,
+        locked_chat.dynamic_tools,
+        locked_chat.organization_id,
+        locked_chat.project_id,
+        locked_chat.plan_mode,
+        locked_chat.client_type,
+        locked_chat.last_turn_summary,
+        locked_chat.summary,
+        locked_chat.summary_generated_at,
+        locked_chat.snapshot_version,
+        locked_chat.history_version,
+        locked_chat.queue_version,
+        locked_chat.generation_attempt,
+        locked_chat.retry_state,
+        locked_chat.retry_state_version,
+        locked_chat.runner_id,
+        locked_chat.requires_action_deadline_at,
+        COALESCE(root.user_acl, locked_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, locked_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
-        bumped_chat.context_aggregate_hash,
-        bumped_chat.context_dirty_since,
-        bumped_chat.context_dirty_resources,
-        bumped_chat.context_error,
-        bumped_chat.compaction_requested_at,
-        bumped_chat.title_source,
-        bumped_chat.title_updated_at,
-        bumped_chat.automation_id,
-        bumped_chat.manage_automations_enabled
-    FROM bumped_chat
-    LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
-    JOIN visible_users owner ON owner.id = bumped_chat.owner_id
+        locked_chat.context_aggregate_hash,
+        locked_chat.context_dirty_since,
+        locked_chat.context_dirty_resources,
+        locked_chat.context_error,
+        locked_chat.compaction_requested_at,
+        locked_chat.title_source,
+        locked_chat.title_updated_at,
+        locked_chat.automation_id,
+        locked_chat.manage_automations_enabled
+    FROM locked_chat
+    LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = locked_chat.owner_id
 )
 SELECT *
 FROM chats_expanded;
 
 -- name: UpdateChatExecutionState :one
--- Atomically updates the execution-state-managed fields on a chat:
--- status, archived, last_error, ownership identifiers, the
--- requires-action deadline, and the manual compaction request marker.
--- Callers compose this with transition mutations inside a single
--- ChatMachine.Update transaction.
+-- The commit write of a transition that changes execution state. It
+-- advances snapshot_version because the transition lock no longer does,
+-- and it must be the only UPDATE of the chats row in its transaction so
+-- Postgres does not re-run the chat's foreign key checks (see
+-- LockChatForTransition).
 --
--- grant_history_epoch gives a turn that inserts no history the same
--- fresh retry budget and message part episode keys a history change
--- would grant, mirroring the chat_messages trigger postcondition.
+-- history_changed records that the transaction inserted or materially
+-- updated chat_messages, or that a turn without history changes is granted
+-- the same fresh retry budget and message part episode keys: history_version
+-- moves to the committed snapshot_version and the generation attempt state
+-- resets. queue_changed records a chat_queued_messages change the same way.
 --
 -- retry_state is a pending retry of a running turn, so it is cleared
 -- whenever the chat leaves running. Otherwise an interrupted or failed
@@ -2893,6 +2863,7 @@ FROM chats_expanded;
 WITH updated_chat AS (
     UPDATE chats
     SET
+        snapshot_version = snapshot_version + 1,
         status = @status::chat_status,
         archived = @archived::boolean,
         worker_id = sqlc.narg('worker_id')::uuid,
@@ -2900,12 +2871,13 @@ WITH updated_chat AS (
         last_error = sqlc.narg('last_error')::jsonb,
         requires_action_deadline_at = sqlc.narg('requires_action_deadline_at')::timestamptz,
         compaction_requested_at = sqlc.narg('compaction_requested_at')::timestamptz,
-        history_version = CASE WHEN @grant_history_epoch::boolean THEN snapshot_version ELSE history_version END,
-        generation_attempt = CASE WHEN @grant_history_epoch::boolean THEN 0 ELSE generation_attempt END,
+        history_version = CASE WHEN @history_changed::boolean THEN snapshot_version + 1 ELSE history_version END,
+        generation_attempt = CASE WHEN @history_changed::boolean THEN 0 ELSE generation_attempt END,
         retry_state = CASE
-            WHEN @grant_history_epoch::boolean OR @status::chat_status <> 'running'::chat_status THEN NULL
+            WHEN @history_changed::boolean OR @status::chat_status <> 'running'::chat_status THEN NULL
             ELSE retry_state
         END,
+        queue_version = CASE WHEN @queue_changed::boolean THEN snapshot_version + 1 ELSE queue_version END,
         pin_order = CASE WHEN @archived::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
     WHERE id = @id::uuid
@@ -2972,12 +2944,92 @@ chats_expanded AS (
 SELECT *
 FROM chats_expanded;
 
--- name: UpdateChatRetryState :one
--- Stores the client-visible retry payload. retry_state_version is
--- assigned by trigger from the current snapshot_version.
+-- name: BumpChatSnapshotVersion :one
+-- The commit write of a transition that changes no execution state (for
+-- example CommitStep, or a metadata-only Update callback): advances
+-- snapshot_version and records history and queue changes exactly like
+-- UpdateChatExecutionState. It must be the only UPDATE of the chats row in
+-- its transaction (see LockChatForTransition).
 WITH updated_chat AS (
     UPDATE chats
     SET
+        snapshot_version = snapshot_version + 1,
+        history_version = CASE WHEN @history_changed::boolean THEN snapshot_version + 1 ELSE history_version END,
+        generation_attempt = CASE WHEN @history_changed::boolean THEN 0 ELSE generation_attempt END,
+        retry_state = CASE WHEN @history_changed::boolean THEN NULL ELSE retry_state END,
+        queue_version = CASE WHEN @queue_changed::boolean THEN snapshot_version + 1 ELSE queue_version END
+    WHERE id = @id::uuid
+    RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.project_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
+        updated_chat.snapshot_version,
+        updated_chat.history_version,
+        updated_chat.queue_version,
+        updated_chat.generation_attempt,
+        updated_chat.retry_state,
+        updated_chat.retry_state_version,
+        updated_chat.runner_id,
+        updated_chat.requires_action_deadline_at,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name,
+        updated_chat.context_aggregate_hash,
+        updated_chat.context_dirty_since,
+        updated_chat.context_dirty_resources,
+        updated_chat.context_error,
+        updated_chat.compaction_requested_at,
+        updated_chat.title_source,
+        updated_chat.title_updated_at,
+        updated_chat.automation_id,
+        updated_chat.manage_automations_enabled
+    FROM updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
+
+-- name: UpdateChatRetryState :one
+-- The commit write of RecordRetryState, so it also advances
+-- snapshot_version (see LockChatForTransition). retry_state_version is
+-- assigned by trigger from the committed snapshot_version.
+WITH updated_chat AS (
+    UPDATE chats
+    SET
+        snapshot_version = snapshot_version + 1,
         retry_state = @retry_state::jsonb,
         updated_at = NOW()
     WHERE id = @id::uuid
@@ -3045,9 +3097,13 @@ SELECT *
 FROM chats_expanded;
 
 -- name: IncrementChatGenerationAttempt :one
--- Increments generation_attempt and returns the resulting value.
+-- The commit write of RecordGenerationAttempt, so it also advances
+-- snapshot_version (see LockChatForTransition).
 UPDATE chats
-SET generation_attempt = generation_attempt + 1, updated_at = NOW()
+SET
+    snapshot_version = snapshot_version + 1,
+    generation_attempt = generation_attempt + 1,
+    updated_at = NOW()
 WHERE id = @id::uuid
 RETURNING generation_attempt;
 
