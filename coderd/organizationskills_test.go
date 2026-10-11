@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"testing"
 
@@ -168,6 +169,22 @@ func TestOrganizationSkillAccess(t *testing.T) {
 			_, err := scopedClient(scope).OrganizationSkillByName(ctx, orgID, everyone.Name)
 			requireSDKErrorStatus(t, err, http.StatusNotFound, scope)
 		}
+
+		// A PATCH response carries the skill's content, so an update-only key
+		// must not reach the handler.
+		updater := scopedClient("organization_skill:update")
+		res, err := updater.Request(ctx, http.MethodPatch,
+			fmt.Sprintf("/api/experimental/organizations/%s/skills/%s", orgID, everyone.Name),
+			codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		assert.NotContains(t, string(body), everyone.Content)
+		got, err := admin.OrganizationSkillByName(ctx, orgID, everyone.Name)
+		require.NoError(t, err)
+		assert.True(t, got.Enabled, "denied PATCH must not apply")
 	})
 }
 
