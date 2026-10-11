@@ -7,12 +7,13 @@ import { SkillEditor } from "./SkillEditor";
 const markdown =
 	"---\nname: imported-skill\ndescription: Imported guidance.\n---\n\nUse imported instructions.";
 
-const renderEditor = (mode: "create" | "edit" = "create") => {
+const renderEditor = (mode: "create" | "edit" = "create", readOnly = false) => {
 	const onSubmit = vi.fn();
 	render(
 		<SkillEditor
 			open
 			mode={mode}
+			readOnly={readOnly}
 			noun="Personal skill"
 			editorDescription="Personal skill guidance."
 			initialValues={
@@ -32,6 +33,15 @@ const renderEditor = (mode: "create" | "edit" = "create") => {
 	);
 	return { user: userEvent.setup(), onSubmit };
 };
+
+describe("SkillEditor", () => {
+	it("starts focus on Close when read-only", async () => {
+		renderEditor("edit", true);
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
+		);
+	});
+});
 
 describe("SkillEditor file import", () => {
 	it.each(["create", "edit"] as const)(
