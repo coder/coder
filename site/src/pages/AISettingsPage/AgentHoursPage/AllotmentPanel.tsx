@@ -1,4 +1,9 @@
-import { PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
+import {
+	CornerDownRightIcon,
+	PencilIcon,
+	PlusIcon,
+	TrashIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
@@ -47,6 +52,8 @@ export type AllotmentUsage = {
 	remainderLabel: string;
 	remainderHref?: string;
 	remainderUsedMs: number;
+	/** Targets whose usage makes up the remainder, listed under its row. */
+	remainderEntries?: readonly Omit<UsageEntry, "href">[];
 	notAttributedMs?: number;
 };
 
@@ -371,9 +378,54 @@ const UsageRows: React.FC<UsageRowsProps> = ({
 				/>
 				<TableCell />
 			</TableRow>
+			{usage.remainderEntries?.map((entry) => (
+				<RemainderEntryRow
+					key={entry.id}
+					name={entry.name}
+					usedMs={entry.usedMs}
+					remainderLabel={usage.remainderLabel}
+				/>
+			))}
 		</>
 	);
 };
+
+type RemainderEntryRowProps = {
+	name: string;
+	usedMs: number;
+	remainderLabel: string;
+};
+
+/** Hours the remainder row above already counts, so it has no bar of its own. */
+const RemainderEntryRow: React.FC<RemainderEntryRowProps> = ({
+	name,
+	usedMs,
+	remainderLabel,
+}) => (
+	<TableRow>
+		{/* Spans the empty Allotment column so the indented name doesn't
+		    break mid-word on narrow screens. */}
+		<TableCell
+			colSpan={2}
+			className="border-t-0 py-2 pl-6 font-normal text-content-secondary wrap-anywhere"
+		>
+			<div className="flex items-center gap-2">
+				<CornerDownRightIcon
+					aria-hidden
+					className="size-icon-sm shrink-0 text-content-disabled"
+				/>
+				<span>
+					{name}
+					<span className="sr-only">, included in {remainderLabel}</span>
+				</span>
+			</div>
+		</TableCell>
+		<TableCell className="border-t-0 py-2 font-normal whitespace-nowrap tabular-nums text-content-secondary">
+			{formatUsedAgentHours(usedMs)} hours
+		</TableCell>
+		<TableCell className="border-t-0 py-2" />
+	</TableRow>
+);
 
 type TargetNameCellProps = {
 	name: string;

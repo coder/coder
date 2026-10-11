@@ -97,13 +97,16 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 		allottedOrganizations ?? [],
 		{ targets: organizationTargets, deletedLabel: "Deleted organization" },
 	);
+	// Organizations without an allotment draw from the unallotted pool, so
+	// they nest under its row instead of adding to the column total.
 	const organizationUsage: AllotmentUsage | undefined = usage && {
-		withoutAllotment: organizationsWithoutAllotment,
+		withoutAllotment: [],
 		remainderLabel: "Unallotted organizations",
 		remainderUsedMs: organizationsWithoutAllotment.reduce(
 			(sum, entry) => sum + entry.usedMs,
 			0,
 		),
+		remainderEntries: organizationsWithoutAllotment,
 		notAttributedMs: notAttributedMs(usage.total_ms, usage.organizations),
 	};
 
