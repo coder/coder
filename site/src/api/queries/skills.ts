@@ -121,10 +121,22 @@ export const updateOrganizationSkillACL = (queryClient: QueryClient) => ({
 		_data: unknown,
 		{ organizationId, name }: UpdateOrganizationSkillACLArgs,
 	) => {
-		await queryClient.invalidateQueries({
-			queryKey: organizationSkillACLKey(organizationId, name),
-			exact: true,
-		});
+		const owner: SkillOwner = { type: "organization", organizationId };
+		// Saving an ACL bumps the skill's updated_at, so its metadata is stale.
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: organizationSkillACLKey(organizationId, name),
+				exact: true,
+			}),
+			queryClient.invalidateQueries({
+				queryKey: skillsKey(owner),
+				exact: true,
+			}),
+			queryClient.invalidateQueries({
+				queryKey: skillKey(owner, name),
+				exact: true,
+			}),
+		]);
 	},
 });
 
