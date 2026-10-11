@@ -207,6 +207,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
+    "snapshot_version": 0,
     "status": "waiting",
     "summary": "string",
     "title": "string",
@@ -601,6 +602,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
+      "snapshot_version": 0,
       "status": "waiting",
       "summary": "string",
       "title": "string",
@@ -746,6 +748,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
+  "snapshot_version": 0,
   "status": "waiting",
   "summary": "string",
   "title": "string",
@@ -1751,6 +1754,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
+    "snapshot_version": 0,
     "status": "waiting",
     "summary": "string",
     "title": "string",
@@ -1948,6 +1952,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
+      "snapshot_version": 0,
       "status": "waiting",
       "summary": "string",
       "title": "string",
@@ -2093,6 +2098,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
+  "snapshot_version": 0,
   "status": "waiting",
   "summary": "string",
   "title": "string",
@@ -2386,6 +2392,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
+      "snapshot_version": 0,
       "status": "waiting",
       "summary": "string",
       "title": "string",
@@ -2531,6 +2538,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
+  "snapshot_version": 0,
   "status": "waiting",
   "summary": "string",
   "title": "string",
@@ -2816,6 +2824,7 @@ If the chat has nothing to interrupt, for example because its turn already ended
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
+      "snapshot_version": 0,
       "status": "waiting",
       "summary": "string",
       "title": "string",
@@ -2961,6 +2970,7 @@ If the chat has nothing to interrupt, for example because its turn already ended
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
+  "snapshot_version": 0,
   "status": "waiting",
   "summary": "string",
   "title": "string",
@@ -3449,6 +3459,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "reasoning_effort": "string"
   },
+  "snapshot_version": 0,
   "warnings": [
     "string"
   ]
@@ -3670,6 +3681,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       }
     }
   ],
+  "snapshot_version": 0,
   "warnings": [
     "string"
   ]
@@ -3740,6 +3752,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage} \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -3752,11 +3765,21 @@ curl -X DELETE http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage
 | `chat`          | path | string(uuid) | true     | Chat ID           |
 | `queuedMessage` | path | integer      | true     | Queued message ID |
 
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "snapshot_version": 0
+}
+```
+
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatActionResponse](schemas.md#codersdkchatactionresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3839,26 +3862,19 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}/
 
 ### Example responses
 
-> 202 Response
+> 200 Response
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+  "snapshot_version": 0
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                       | Description | Schema                                           |
-|--------|---------------------------------------------------------------|-------------|--------------------------------------------------|
-| 202    | [Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3) | Accepted    | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatActionResponse](schemas.md#codersdkchatactionresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4029,6 +4045,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
+      "snapshot_version": 0,
       "status": "waiting",
       "summary": "string",
       "title": "string",
@@ -4174,6 +4191,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
+  "snapshot_version": 0,
   "status": "waiting",
   "summary": "string",
   "title": "string",
@@ -4679,6 +4697,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
   -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -4705,11 +4724,21 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
 | `chat` | path | string(uuid)                                                                     | true     | Chat ID      |
 | `body` | body | [codersdk.SubmitToolResultsRequest](schemas.md#codersdksubmittoolresultsrequest) | true     | Request body |
 
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "snapshot_version": 0
+}
+```
+
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatActionResponse](schemas.md#codersdkchatactionresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

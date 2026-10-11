@@ -3339,7 +3339,7 @@ func (api *API) sendChatMessage(
 		)
 	}
 
-	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
+	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued, SnapshotVersion: sendResult.Chat.SnapshotVersion}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
 			response.QueuedMessage = new(db2sdk.ChatQueuedMessage(*sendResult.QueuedMessage))
@@ -3555,7 +3555,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := codersdk.EditChatMessageResponse{Message: db2sdk.ChatMessage(editResult.Message)}
+	response := codersdk.EditChatMessageResponse{Message: db2sdk.ChatMessage(editResult.Message), SnapshotVersion: editResult.Chat.SnapshotVersion}
 	// Synthetic cancellations precede the replacement with lower IDs;
 	// clients that seed their transcript cache from this response need
 	// all user-visible inserted rows, or a stream reconnect with
@@ -3576,7 +3576,8 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param queuedMessage path int true "Queued message ID"
-// @Success 204
+// @Produce json
+// @Success 200 {object} codersdk.ChatActionResponse
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage} [delete]
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3612,7 +3613,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err = api.chatDaemon.DeleteQueued(ctx, chatID, queuedMessageID)
+	updatedChat, err := api.chatDaemon.DeleteQueued(ctx, chatID, queuedMessageID)
 	if err != nil {
 		switch {
 		case xerrors.Is(err, chatd.ErrChatArchived):
@@ -3643,7 +3644,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	rw.WriteHeader(http.StatusNoContent)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatActionResponse{SnapshotVersion: updatedChat.SnapshotVersion})
 }
 
 // @Summary Promote chat queued message
@@ -3653,7 +3654,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param queuedMessage path int true "Queued message ID"
 // @Produce json
-// @Success 202 {object} codersdk.Response
+// @Success 200 {object} codersdk.ChatActionResponse
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage}/promote [post]
 func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3698,7 +3699,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+	promoteResult, txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chatID,
 		QueuedMessageID: queuedMessageID,
 	})
@@ -3733,9 +3734,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.Response{
-		Message: "Queued message promotion accepted.",
-	})
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatActionResponse{SnapshotVersion: promoteResult.Chat.SnapshotVersion})
 }
 
 // @Summary Edit chat queued message
@@ -9539,7 +9538,8 @@ var (
 // @Param chat path string true "Chat ID" format(uuid)
 // @Accept json
 // @Param request body codersdk.SubmitToolResultsRequest true "Request body"
-// @Success 204
+// @Produce json
+// @Success 200 {object} codersdk.ChatActionResponse
 // @Router /api/v2/chats/{chat}/tool-results [post]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -9602,7 +9602,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// invalid-state response for chats that are not in a valid
 	// execution state at all.
 
-	err := api.chatDaemon.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+	updatedChat, err := api.chatDaemon.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        apiKey.UserID,
 		ModelConfigID: chat.LastModelConfigID,
@@ -9651,7 +9651,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rw.WriteHeader(http.StatusNoContent)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatActionResponse{SnapshotVersion: updatedChat.SnapshotVersion})
 }
 
 // getChatDebugRuns returns a list of debug run summaries for a chat.
