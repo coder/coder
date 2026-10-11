@@ -24,29 +24,17 @@ const (
 
 var errInvalidModelOverrideMetadata = xerrors.New("invalid model override metadata")
 
-// providerLookupError marks linked-provider row lookup failures so they
-// classify under providerFailure rather than configFailure.
-type providerLookupError struct{ err error }
-
-func (e providerLookupError) Error() string { return e.err.Error() }
-func (e providerLookupError) Unwrap() error { return e.err }
-
-type modelOverrideFailureMode int
-
-const (
-	modelOverrideFailureModeSoft modelOverrideFailureMode = iota
-	modelOverrideFailureModeHard
-)
-
 type modelOverrideSpec struct {
 	context        string
 	ownerID        uuid.UUID
 	organizationID uuid.UUID
-	queryFailure   modelOverrideFailureMode
-	configFailure  modelOverrideFailureMode
-	// providerFailure governs linked-provider failures: provider row lookup
-	// errors and unusable credentials.
-	providerFailure modelOverrideFailureMode
+	// failIfUnavailable returns an error, instead of no override, when the
+	// model config or its provider is missing, disabled, not visible to the
+	// owner, or invalid.
+	failIfUnavailable bool
+	// failIfNoProviderKey returns an error, instead of no override, when
+	// the owner has no usable key for the override's provider.
+	failIfNoProviderKey bool
 }
 
 type resolvedModelOverride struct {
@@ -58,6 +46,7 @@ type resolvedModelOverride struct {
 }
 
 func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpec) (resolvedModelOverride, error) {
+	label := modelOverrideErrorLabel(spec.context)
 	//nolint:gocritic // Chatd reads organization-scoped runtime configuration.
 	override, err := p.db.GetChatOrganizationModelOverride(
 		dbauthz.AsChatd(ctx),
@@ -66,24 +55,11 @@ func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpe
 			Context:        spec.context,
 		},
 	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return resolvedModelOverride{}, nil
+	}
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return resolvedModelOverride{}, nil
-		}
-		if spec.queryFailure == modelOverrideFailureModeSoft {
-			p.logger.Warn(ctx,
-				"failed to load model override, ignoring",
-				slog.F("override_context", spec.context),
-				slog.F("organization_id", spec.organizationID),
-				slog.Error(err),
-			)
-			return resolvedModelOverride{}, nil
-		}
-		return resolvedModelOverride{}, xerrors.Errorf(
-			"get %s model override: %w",
-			modelOverrideErrorLabel(spec.context),
-			err,
-		)
+		return resolvedModelOverride{}, xerrors.Errorf("get %s model override: %w", label, err)
 	}
 
 	resolved := resolvedModelOverride{
@@ -96,60 +72,27 @@ func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpe
 		override.ModelConfigID,
 	)
 	if err != nil {
-		mode := spec.configFailure
-		var lookupErr providerLookupError
-		if errors.As(err, &lookupErr) {
-			mode = spec.providerFailure
-		}
-		if mode == modelOverrideFailureModeHard {
-			label := modelOverrideErrorLabel(spec.context)
-			switch {
-			case errors.Is(err, sql.ErrNoRows):
-				return resolved, xerrors.Errorf(
-					"%s model override is unavailable: %s",
-					label,
-					override.ModelConfigID,
-				)
-			case errors.Is(err, errInvalidModelOverrideMetadata):
-				return resolved, xerrors.Errorf(
-					"%s model override metadata is invalid for %s: %w",
-					label,
-					override.ModelConfigID,
-					err,
-				)
-			default:
-				return resolved, xerrors.Errorf(
-					"resolve %s model override %s: %w",
-					label,
-					override.ModelConfigID,
-					err,
-				)
-			}
-		}
-
 		switch {
-		case errors.Is(err, sql.ErrNoRows):
+		case !modelConfigUnavailable(err):
+			return resolved, xerrors.Errorf("resolve %s model override %s: %w", label, override.ModelConfigID, err)
+		case !spec.failIfUnavailable:
 			p.logger.Info(ctx,
-				"model override is unavailable, ignoring",
-				slog.F("override_context", spec.context),
-				slog.F("model_config_id", override.ModelConfigID),
-			)
-		case errors.Is(err, errInvalidModelOverrideMetadata):
-			p.logger.Info(ctx,
-				"model override metadata is invalid, ignoring",
+				"model override is unavailable, using default model",
 				slog.F("override_context", spec.context),
 				slog.F("model_config_id", override.ModelConfigID),
 				slog.Error(err),
+			)
+			return resolvedModelOverride{}, nil
+		case errors.Is(err, errInvalidModelOverrideMetadata):
+			return resolved, xerrors.Errorf(
+				"%s model override metadata is invalid for %s: %w",
+				label,
+				override.ModelConfigID,
+				err,
 			)
 		default:
-			p.logger.Warn(ctx,
-				"failed to resolve model override, ignoring",
-				slog.F("override_context", spec.context),
-				slog.F("model_config_id", override.ModelConfigID),
-				slog.Error(err),
-			)
+			return resolved, xerrors.Errorf("%s model override is unavailable: %s", label, override.ModelConfigID)
 		}
-		return resolvedModelOverride{}, nil
 	}
 
 	providerKeys, err := p.resolveUserProviderAPIKeys(ctx, spec.ownerID, modelConfigAIProviderID(modelConfig))
@@ -157,15 +100,15 @@ func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpe
 		return resolvedModelOverride{}, xerrors.Errorf("resolve provider API keys: %w", err)
 	}
 	if !userCanUseProviderKeys(providerKeys, providerName) {
-		if spec.providerFailure == modelOverrideFailureModeHard {
+		if spec.failIfNoProviderKey {
 			return resolved, xerrors.Errorf(
 				"%s model override credentials are unavailable for provider %q",
-				modelOverrideErrorLabel(spec.context),
+				label,
 				providerName,
 			)
 		}
 		p.logger.Info(ctx,
-			"model override credentials are unavailable, ignoring",
+			"model override credentials are unavailable, using default model",
 			slog.F("override_context", spec.context),
 			slog.F("model_config_id", override.ModelConfigID),
 			slog.F("provider", providerName),
@@ -175,12 +118,20 @@ func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpe
 
 	resolvedProvider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(modelConfig.Model, providerName)
 	if err != nil {
-		return resolved, xerrors.Errorf("resolve %s model override identity: %w", modelOverrideErrorLabel(spec.context), err)
+		return resolved, xerrors.Errorf("resolve %s model override identity: %w", label, err)
 	}
 	resolved.Config = modelConfig
 	resolved.ResolvedProvider = resolvedProvider
 	resolved.ResolvedModel = resolvedModel
 	return resolved, nil
+}
+
+// modelConfigUnavailable reports whether err from a model config lookup means
+// the config cannot be used, as opposed to a failed lookup.
+func modelConfigUnavailable(err error) bool {
+	return errors.Is(err, sql.ErrNoRows) ||
+		errors.Is(err, errInvalidModelOverrideMetadata) ||
+		dbauthz.IsNotAuthorizedError(err)
 }
 
 func modelOverrideErrorLabel(overrideContext string) string {
@@ -228,10 +179,7 @@ func (p *Server) resolveNormalizedProviderForModelConfig(
 		//nolint:gocritic // Provider configuration remains a privileged Chatd read.
 		provider, err := p.db.GetAIProviderByID(dbauthz.AsChatd(ctx), modelConfig.AIProviderID.UUID)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return database.ChatModelConfig{}, "", err
-			}
-			return database.ChatModelConfig{}, "", providerLookupError{err}
+			return database.ChatModelConfig{}, "", err
 		}
 		if !provider.Enabled {
 			return database.ChatModelConfig{}, "", sql.ErrNoRows
