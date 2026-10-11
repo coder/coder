@@ -1124,47 +1124,40 @@ export const WithMemberAIBudgetAndAgentHours: Story = {
 	},
 };
 
+const mockLongAgentHoursGroupMember: ReducedUser = {
+	...MockUserMember,
+	id: "member-long-group-name",
+	username: "bob",
+};
+
+const mockLongAgentHoursGroupMembersUsage: AgentHoursGroupMembersUsage = {
+	usage_period: MockAgentHoursUsagePeriod,
+	members: [
+		{
+			user_id: mockLongAgentHoursGroupMember.id,
+			used_ms: 7_200_000,
+			effective_group: {
+				id: MockGroup2.id,
+				name: MockGroup2.name,
+				display_name:
+					"Evaluation and Benchmarking Infrastructure for Model Quality Ops",
+			},
+		},
+	],
+};
+
 export const LongAgentHoursGroupName: Story = {
 	parameters: {
-		features: ["aibridge", "agent_runtime_hours"],
+		features: ["agent_runtime_hours"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
-			groupMembersQuery({
-				users: mockAgentHoursMembers,
-				count: mockAgentHoursMembers.length,
-			}),
+			groupMembersQuery({ users: [mockLongAgentHoursGroupMember], count: 1 }),
 			permissionsQuery({ canUpdateGroup: true }),
-			membersSpendQuery(
-				mockAgentHoursMembers.map((member) => ({
-					...mockSpend,
-					user_id: member.id,
-				})),
-			),
-			{ key: meAISpendKey, data: mockUserAISpend },
 			{
-				key: groupAIBudget(MockGroupWithoutMembers.id).queryKey,
-				data: mockGroupBudget,
-			},
-			{
-				key: groupMembersAgentHoursKey(
-					MockGroupWithoutMembers.id,
-					mockAgentHoursMembers.map((member) => member.id),
-				),
-				data: {
-					...mockMembersAgentHours,
-					members: mockMembersAgentHours.members.map((member) =>
-						member.user_id === "member-other-group"
-							? {
-									...member,
-									effective_group: {
-										...member.effective_group,
-										display_name:
-											"Evaluation and Benchmarking Infrastructure for Model Quality Ops",
-									},
-								}
-							: member,
-					),
-				},
+				key: groupMembersAgentHoursKey(MockGroupWithoutMembers.id, [
+					mockLongAgentHoursGroupMember.id,
+				]),
+				data: mockLongAgentHoursGroupMembersUsage,
 			},
 		],
 	},
