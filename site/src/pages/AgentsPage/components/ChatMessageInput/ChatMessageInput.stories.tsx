@@ -229,13 +229,6 @@ const mockOrganizationSkills: TypesGen.SkillMetadata[] = [
 		name: "reviewer",
 		description: "Organization review checklist.",
 	},
-	{
-		...MockSkill,
-		id: "skill-org-disabled",
-		name: "legacy-deploy",
-		description: "Disabled skills stay out of the menu.",
-		enabled: false,
-	},
 ];
 
 export const OpensWithAllSkillSources: Story = {

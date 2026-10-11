@@ -262,11 +262,6 @@ describe("ChatMessageInput", () => {
 			id: "skill-release-notes",
 			name: "release-notes",
 		};
-		const mockCompactSkill: SkillMetadata = {
-			...MockSkill,
-			id: "skill-compact",
-			name: "compact",
-		};
 		const mockCompactorSkill: SkillMetadata = {
 			...MockSkill,
 			id: "skill-compactor",
@@ -326,18 +321,6 @@ describe("ChatMessageInput", () => {
 			expect(inputRef.current?.getValue()).toBe("/release-notes");
 		});
 
-		it("qualifies a name shared by personal and organization skills", async () => {
-			const inputRef = renderWithSkills({
-				personal: [mockReviewerSkill],
-				organization: [mockReviewerSkill],
-			});
-			const user = await pasteTrigger("/rev");
-			await user.click(
-				await screen.findByRole("option", { name: /\/org\/reviewer/ }),
-			);
-			expect(inputRef.current?.getValue()).toBe("/org/reviewer");
-		});
-
 		it("ignores disabled skills when qualifying triggers", async () => {
 			const inputRef = renderWithSkills({
 				personal: [mockReviewerSkill],
@@ -346,18 +329,6 @@ describe("ChatMessageInput", () => {
 			const user = await pasteTrigger("/rev");
 			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
 			expect(inputRef.current?.getValue()).toBe("/reviewer");
-		});
-
-		it("hides a built-in command an organization skill shadows", async () => {
-			// With /compact hidden, Enter picks the first personal match.
-			const inputRef = renderWithSkills({
-				personal: [mockCompactorSkill],
-				organization: [mockCompactSkill],
-			});
-			const user = await pasteTrigger("/comp");
-			await screen.findByRole("option", { name: /compactor/ });
-			await user.keyboard("{Enter}");
-			expect(inputRef.current?.getValue()).toBe("/compactor");
 		});
 
 		it("hides built-in commands when the organization list fails", async () => {

@@ -97,28 +97,12 @@ const meta: Meta<typeof SkillsTriggerMenu> = {
 export default meta;
 type Story = StoryObj<typeof SkillsTriggerMenu>;
 
-export const PersonalOnly: Story = {};
-
-export const BothGroups: Story = {
-	args: {
-		workspaceSkills: mockWorkspaceSkillItems,
-		workspaceSkillsEnabled: true,
-	},
-};
-
 export const AllSkillGroups: Story = {
 	args: {
 		organizationSkills: mockOrganizationSkillItems,
 		workspaceSkills: mockWorkspaceSkillItems,
 		organizationSkillsEnabled: true,
 		workspaceSkillsEnabled: true,
-	},
-};
-
-export const OrganizationLoading: Story = {
-	args: {
-		organizationSkillsEnabled: true,
-		isOrganizationLoading: true,
 	},
 };
 
@@ -133,23 +117,6 @@ export const Loading: Story = {
 	args: {
 		isPersonalLoading: true,
 		personalSkills: [],
-	},
-};
-
-export const WorkspaceLoading: Story = {
-	args: {
-		personalSkills: [],
-		workspaceSkills: [],
-		workspaceSkillsEnabled: true,
-		isWorkspaceLoading: true,
-	},
-};
-
-export const EmptyWithWorkspace: Story = {
-	args: {
-		personalSkills: [],
-		workspaceSkills: [],
-		workspaceSkillsEnabled: true,
 	},
 };
 
@@ -231,14 +198,6 @@ export const SelectsByClick: Story = {
 	},
 };
 
-// Built-in commands render in a separate "Commands" group above
-// personal skills and stay selectable alongside them.
-export const WithCommands: Story = {
-	args: {
-		commands: [compactCommandItem],
-	},
-};
-
 // With no skills configured, the menu still opens to offer the
 // built-in commands without any skills group or empty message.
 export const CommandsOnly: Story = {
@@ -248,6 +207,8 @@ export const CommandsOnly: Story = {
 	},
 };
 
+// Built-in commands render in a separate "Commands" group above
+// personal skills and stay selectable alongside them.
 export const SelectsCommandByClick: Story = {
 	args: {
 		commands: [compactCommandItem],

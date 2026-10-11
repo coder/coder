@@ -149,24 +149,42 @@ describe("submitChatTurn", () => {
 		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
-	it("throws BuiltInCommandPendingError while slash-command skills are unresolved", async () => {
-		const compact = vi.fn();
+	it.each([
+		["compact", "personalSkills"],
+		["clear", "organizationSkills"],
+	] as const)(
+		"throws BuiltInCommandPendingError for /%s while %s is unresolved",
+		async (command, unknownList) => {
+			const compact = vi.fn();
+			const clearChatContext = vi.fn();
+			const sendMessage = vi.fn();
+			await expect(
+				submitChatTurn(
+					buildParams({
+						message: `/${command}`,
+						[unknownList]: undefined,
+						compact,
+						clearChatContext,
+						sendMessage,
+					}),
+				),
+			).rejects.toBeInstanceOf(BuiltInCommandPendingError);
+			expect(toast.info).toHaveBeenCalledWith(
+				`Checking whether /${command} is available. Try again in a moment.`,
+			);
+			expect(compact).not.toHaveBeenCalled();
+			expect(clearChatContext).not.toHaveBeenCalled();
+			expect(sendMessage).not.toHaveBeenCalled();
+		},
+	);
+
+	it("clears instead of sending when every skill list is known", async () => {
+		const clearChatContext = vi.fn().mockResolvedValue(undefined);
 		const sendMessage = vi.fn();
-		await expect(
-			submitChatTurn(
-				buildParams({
-					message: "/compact",
-					personalSkills: undefined,
-					workspaceSkills: [],
-					compact,
-					sendMessage,
-				}),
-			),
-		).rejects.toBeInstanceOf(BuiltInCommandPendingError);
-		expect(toast.info).toHaveBeenCalledWith(
-			"Checking whether /compact is available. Try again in a moment.",
+		await submitChatTurn(
+			buildParams({ message: "/clear", clearChatContext, sendMessage }),
 		);
-		expect(compact).not.toHaveBeenCalled();
+		expect(clearChatContext).toHaveBeenCalledTimes(1);
 		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
