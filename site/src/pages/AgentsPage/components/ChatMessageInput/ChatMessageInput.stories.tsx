@@ -2,6 +2,7 @@ import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect } from "react";
 import { flushSync } from "react-dom";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { skillList } from "#/api/queries/skills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockSkill, MockSkills } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
@@ -210,6 +211,43 @@ export const ArrowDownSelectsWorkspaceSkill: Story = {
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "/");
 		await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{Enter}");
+	},
+};
+
+const mockOrganizationId = "organization-skills-story";
+
+export const OpensWithAllSkillSources: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+		organizationId: mockOrganizationId,
+	},
+	parameters: {
+		queries: [
+			{
+				key: skillList({
+					type: "organization",
+					organizationId: mockOrganizationId,
+				}).queryKey,
+				data: [
+					{
+						...MockSkill,
+						id: "skill-release-notes",
+						name: "release-notes",
+						description: "Write release notes in the organization style.",
+					},
+					{
+						...MockSkill,
+						id: "skill-org-reviewer",
+						name: "reviewer",
+						description: "Organization review checklist.",
+					},
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
 	},
 };
 

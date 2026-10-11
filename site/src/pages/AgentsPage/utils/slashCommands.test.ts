@@ -1,63 +1,98 @@
 import { describe, expect, it } from "vitest";
+import type { SkillSourceList } from "./skillAliases";
 import {
 	CLEAR_SLASH_COMMAND,
 	COMPACT_SLASH_COMMAND,
 	resolveChatSlashCommandAvailability,
 } from "./slashCommands";
 
-describe("resolveChatSlashCommandAvailability", () => {
-	it("stays pending until both skill sources resolve", () => {
-		expect(
-			resolveChatSlashCommandAvailability(COMPACT_SLASH_COMMAND, undefined, []),
-		).toBe("pending");
-		expect(
-			resolveChatSlashCommandAvailability(COMPACT_SLASH_COMMAND, [], undefined),
-		).toBe("pending");
-	});
+const skillLists = (
+	personal: readonly { name: string }[] | undefined,
+	org: readonly { name: string }[] | undefined,
+	workspace: readonly { name: string }[] | undefined,
+): SkillSourceList<{ name: string }>[] => [
+	{ source: "personal", skills: personal },
+	{ source: "org", skills: org },
+	{ source: "workspace", skills: workspace },
+];
 
-	it("is unavailable when either skill source defines the command", () => {
+describe("resolveChatSlashCommandAvailability", () => {
+	it("stays pending until every skill source resolves", () => {
 		expect(
 			resolveChatSlashCommandAvailability(
 				COMPACT_SLASH_COMMAND,
-				[{ name: "compact" }],
-				[],
+				skillLists(undefined, [], []),
+			),
+		).toBe("pending");
+		expect(
+			resolveChatSlashCommandAvailability(
+				COMPACT_SLASH_COMMAND,
+				skillLists([], undefined, []),
+			),
+		).toBe("pending");
+		expect(
+			resolveChatSlashCommandAvailability(
+				COMPACT_SLASH_COMMAND,
+				skillLists([], [], undefined),
+			),
+		).toBe("pending");
+	});
+
+	it("is unavailable when any skill source defines the command", () => {
+		expect(
+			resolveChatSlashCommandAvailability(
+				COMPACT_SLASH_COMMAND,
+				skillLists([{ name: "compact" }], [], []),
 			),
 		).toBe("unavailable");
 		expect(
 			resolveChatSlashCommandAvailability(
 				COMPACT_SLASH_COMMAND,
-				[],
-				[{ name: "compact" }],
+				skillLists([], [{ name: "compact" }], []),
+			),
+		).toBe("unavailable");
+		expect(
+			resolveChatSlashCommandAvailability(
+				COMPACT_SLASH_COMMAND,
+				skillLists([], [], [{ name: "compact" }]),
 			),
 		).toBe("unavailable");
 	});
 
 	it("resolves clear availability and skill collisions", () => {
 		expect(
-			resolveChatSlashCommandAvailability(CLEAR_SLASH_COMMAND, undefined, []),
+			resolveChatSlashCommandAvailability(
+				CLEAR_SLASH_COMMAND,
+				skillLists(undefined, [], []),
+			),
 		).toBe("pending");
 		expect(
 			resolveChatSlashCommandAvailability(
 				CLEAR_SLASH_COMMAND,
-				[{ name: "clear" }],
-				[],
+				skillLists([], [{ name: "clear" }], []),
 			),
 		).toBe("unavailable");
 		expect(
 			resolveChatSlashCommandAvailability(
 				CLEAR_SLASH_COMMAND,
-				[{ name: "review" }],
-				[{ name: "test" }],
+				skillLists(
+					[{ name: "review" }],
+					[{ name: "lint" }],
+					[{ name: "test" }],
+				),
 			),
 		).toBe("available");
 	});
 
-	it("is available when both skill sources resolve without a collision", () => {
+	it("is available when every skill source resolves without a collision", () => {
 		expect(
 			resolveChatSlashCommandAvailability(
 				COMPACT_SLASH_COMMAND,
-				[{ name: "review" }],
-				[{ name: "test" }],
+				skillLists(
+					[{ name: "review" }],
+					[{ name: "lint" }],
+					[{ name: "test" }],
+				),
 			),
 		).toBe("available");
 	});

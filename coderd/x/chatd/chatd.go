@@ -3738,10 +3738,12 @@ func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skills
 
 func mergeTurnSkills(
 	personalSkills []skillspkg.Skill,
+	organizationSkills []skillspkg.Skill,
 	workspaceSkills []chattool.SkillMeta,
 ) []skillspkg.ResolvedSkill {
 	return skillspkg.MergeSkills(
 		personalSkills,
+		organizationSkills,
 		workspaceSkillsForResolution(workspaceSkills),
 	)
 }
@@ -3863,6 +3865,9 @@ func (p *Server) fetchPersonalSkillMetadata(
 
 	personalSkills := make([]skillspkg.Skill, 0, len(rows))
 	for _, row := range rows {
+		if !row.Enabled {
+			continue
+		}
 		personalSkills = append(personalSkills, skillspkg.Skill{
 			Name:        row.Name,
 			Description: row.Description,
@@ -3895,6 +3900,9 @@ func (p *Server) loadPersonalSkillBody(
 		)
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("load personal skill body: %w", err)
 	}
+	if !row.Enabled {
+		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+	}
 
 	parsed, err := skillspkg.ParsePersonalSkillMarkdown([]byte(row.Content))
 	if err != nil {
@@ -3905,6 +3913,94 @@ func (p *Server) loadPersonalSkillBody(
 		)
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("parse personal skill body: %w", err)
 	}
+	return parsed, nil
+}
+
+// chatOwnerSubject returns the chat owner's real RBAC subject, with their
+// roles and groups, so organization skill reads honor per-skill ACLs.
+// userSkillContext has no organization membership, so no grant matches it.
+func (p *Server) chatOwnerSubject(ctx context.Context, ownerID uuid.UUID) (rbac.Subject, error) {
+	ownerCtx, err := p.callerModelConfigContext(ctx, ownerID)
+	if err != nil {
+		return rbac.Subject{}, xerrors.Errorf("load chat owner subject: %w", err)
+	}
+	actor, ok := dbauthz.ActorFromContext(ownerCtx)
+	if !ok || actor.Type != rbac.SubjectTypeUser || actor.ID != ownerID.String() {
+		return rbac.Subject{}, xerrors.New("chat owner subject is unavailable")
+	}
+	return actor, nil
+}
+
+func (p *Server) fetchOrganizationSkillMetadata(
+	ctx context.Context,
+	owner rbac.Subject,
+	organizationID uuid.UUID,
+	logger slog.Logger,
+) []skillspkg.Skill {
+	//nolint:gocritic // Org skill ACLs are evaluated against the chat owner.
+	rows, err := p.db.ListOrganizationSkillMetadataByOrganizationID(dbauthz.As(ctx, owner), organizationID)
+	if err != nil {
+		logger.Warn(ctx, "failed to load organization skill metadata",
+			slog.F("organization_id", organizationID),
+			slog.Error(err),
+		)
+		return nil
+	}
+
+	organizationSkills := make([]skillspkg.Skill, 0, len(rows))
+	for _, row := range rows {
+		if !row.Enabled {
+			continue
+		}
+		organizationSkills = append(organizationSkills, skillspkg.Skill{
+			Name:        row.Name,
+			Description: row.Description,
+			Source:      skillspkg.SourceOrganization,
+		})
+	}
+	return organizationSkills
+}
+
+func (p *Server) loadOrganizationSkillBody(
+	ctx context.Context,
+	owner rbac.Subject,
+	organizationID uuid.UUID,
+	name string,
+) (skillspkg.ParsedSkill, error) {
+	//nolint:gocritic // Org skill ACLs are evaluated against the chat owner.
+	row, err := p.db.GetOrganizationSkillByOrganizationIDAndName(
+		dbauthz.As(ctx, owner),
+		database.GetOrganizationSkillByOrganizationIDAndNameParams{
+			OrganizationID: organizationID,
+			Name:           name,
+		},
+	)
+	if err != nil {
+		// A skill that is no longer shared with the owner is not authorized.
+		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+			return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+		}
+		p.logger.Error(ctx, "load organization skill body failed",
+			slog.F("organization_id", organizationID),
+			slog.F("name", name),
+			slog.Error(err),
+		)
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("load organization skill body: %w", err)
+	}
+	if !row.Enabled {
+		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+	}
+
+	parsed, err := skillspkg.ParsePersonalSkillMarkdown([]byte(row.Content))
+	if err != nil {
+		p.logger.Error(ctx, "parse organization skill body failed",
+			slog.F("organization_id", organizationID),
+			slog.F("name", name),
+			slog.Error(err),
+		)
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("parse organization skill body: %w", err)
+	}
+	parsed.Source = skillspkg.SourceOrganization
 	return parsed, nil
 }
 

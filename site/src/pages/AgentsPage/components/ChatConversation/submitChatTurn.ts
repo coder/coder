@@ -43,6 +43,7 @@ export type SubmitChatTurnParams = {
 	hasModelOptions: boolean;
 	isEditReasoningEffortDirtyRef: { current: boolean };
 	personalSkills: readonly { name: string }[] | undefined;
+	organizationSkills: readonly { name: string }[] | undefined;
 	workspaceSkills: readonly { name: string }[] | undefined;
 	compact: () => Promise<unknown>;
 	clearChatContext: () => Promise<unknown>;
@@ -118,8 +119,8 @@ const findBuiltInChatCommand = (
 	content: readonly TypesGen.ChatInputPart[],
 	editedMessageID: number | undefined,
 ): (typeof CHAT_SLASH_COMMANDS)[number] | undefined => {
-	// Built-ins only intercept new, text-only sends. A personal or workspace
-	// skill with the same name takes precedence at availability resolution.
+	// Built-ins only intercept new, text-only sends. A skill with the same
+	// name takes precedence at availability resolution.
 	if (editedMessageID !== undefined || content.length !== 1) {
 		return undefined;
 	}
@@ -255,6 +256,7 @@ export async function submitChatTurn(
 		isSubmissionPending,
 		hasModelOptions,
 		personalSkills,
+		organizationSkills,
 		workspaceSkills,
 		compact,
 		clearChatContext,
@@ -292,11 +294,11 @@ export async function submitChatTurn(
 
 	const builtInCommand = findBuiltInChatCommand(content, editedMessageID);
 	const builtInCommandResolution = builtInCommand
-		? resolveChatSlashCommandAvailability(
-				builtInCommand,
-				personalSkills,
-				workspaceSkills,
-			)
+		? resolveChatSlashCommandAvailability(builtInCommand, [
+				{ source: "personal", skills: personalSkills },
+				{ source: "org", skills: organizationSkills },
+				{ source: "workspace", skills: workspaceSkills },
+			])
 		: undefined;
 	if (builtInCommandResolution === "pending" && builtInCommand) {
 		const triggerText = chatSlashCommandTriggerText(builtInCommand);

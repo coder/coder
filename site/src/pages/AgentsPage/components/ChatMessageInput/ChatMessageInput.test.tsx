@@ -3,9 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { AgentChatSendShortcut } from "#/api/typesGenerated";
+import { API } from "#/api/api";
+import { skillList, userSkills } from "#/api/queries/skills";
+import type {
+	AgentChatSendShortcut,
+	SkillMetadata,
+} from "#/api/typesGenerated";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { MockSkill } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
+import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
 const requiredProps = () => ({
@@ -240,6 +247,99 @@ describe("ChatMessageInput", () => {
 
 		await waitFor(() => {
 			expect(inputRef.current?.getValue()).toBe("typed content");
+		});
+	});
+
+	describe("slash menu skill sources", () => {
+		const organizationId = "org-1";
+		const mockReviewerSkill: SkillMetadata = {
+			...MockSkill,
+			id: "skill-reviewer",
+			name: "reviewer",
+		};
+
+		const renderWithSkills = ({
+			personal,
+			organization,
+		}: {
+			personal: SkillMetadata[];
+			organization?: SkillMetadata[];
+		}) => {
+			const queryClient = createTestQueryClient();
+			queryClient.setQueryData(userSkills().queryKey, personal);
+			if (organization) {
+				queryClient.setQueryData(
+					skillList({ type: "organization", organizationId }).queryKey,
+					organization,
+				);
+			} else {
+				vi.spyOn(API.experimental, "getOrganizationSkills").mockRejectedValue(
+					new Error("Failed to load organization skills."),
+				);
+			}
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+					organizationId={organizationId}
+					slashCommands={[COMPACT_SLASH_COMMAND]}
+				/>,
+				queryClient,
+			);
+			return inputRef;
+		};
+
+		const pasteTrigger = async (text: string) => {
+			const user = userEvent.setup();
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			await user.paste(text);
+			return user;
+		};
+
+		it("inserts the bare trigger of an organization skill chosen with arrow keys", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [
+					{ ...MockSkill, id: "skill-release-notes", name: "release-notes" },
+				],
+			});
+			const user = await pasteTrigger("/");
+			await screen.findByRole("option", { name: /release-notes/ });
+			await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/release-notes");
+		});
+
+		it("ignores disabled skills when qualifying triggers", async () => {
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [{ ...mockReviewerSkill, enabled: false }],
+			});
+			const user = await pasteTrigger("/rev");
+			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
+			expect(inputRef.current?.getValue()).toBe("/reviewer");
+		});
+
+		it("hides built-in commands when the organization list fails", async () => {
+			// With /compact hidden, Enter picks the qualified personal match.
+			const inputRef = renderWithSkills({
+				personal: [{ ...MockSkill, id: "skill-compactor", name: "compactor" }],
+			});
+			const user = await pasteTrigger("/comp");
+			await screen.findByText(/Could not load organization skills/);
+			await user.keyboard("{Enter}");
+			expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+		});
+
+		it("keeps triggers qualified when the organization list fails", async () => {
+			const inputRef = renderWithSkills({ personal: [mockReviewerSkill] });
+			const user = await pasteTrigger("/rev");
+			await screen.findByText(/Could not load organization skills/);
+			await user.click(screen.getByRole("option", { name: /reviewer/ }));
+			expect(inputRef.current?.getValue()).toBe("/personal/reviewer");
 		});
 	});
 });
