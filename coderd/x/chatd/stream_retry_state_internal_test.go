@@ -330,7 +330,7 @@ func TestStreamSyncObservesTransitionCommittedDuringRead(t *testing.T) {
 	rows, err := db.GetChatStreamSyncRows(ctx, []uuid.UUID{chat.ID})
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
-	require.True(t, loop.shouldFetch(streamSyncHintFromPollRow(rows[0])))
+	require.True(t, loop.trackedFieldsChanged(streamSyncHintFromPollRow(rows[0])))
 	events, _, changed, err := loop.sync(ctx, hint)
 	require.NoError(t, err)
 	require.True(t, changed)

@@ -3939,8 +3939,8 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when history_version is non-zero"
-// @Param history_version query int false "Send only history changed after this history_version, taken from the messages page or the last preview_reset event"
+// @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when history_version is set"
+// @Param history_version query int false "Send only history changed after this history_version, taken from the messages page or the last checkpoint event. Zero is valid"
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
@@ -3968,6 +3968,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	if v := r.URL.Query().Get("history_version"); v != "" {
 		var err error
 		cursor.HistoryVersion, err = strconv.ParseInt(v, 10, 64)
+		cursor.HasHistoryVersion = true
 		if err != nil || cursor.HistoryVersion < 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid history_version parameter.",
@@ -3980,7 +3981,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		if cursor.HistoryVersion > chat.HistoryVersion {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid history_version parameter.",
-				Detail: fmt.Sprintf("history_version %d is above the chat's history_version %d. Send the history_version of the chat's newest messages page or its last preview_reset event.",
+				Detail: fmt.Sprintf("history_version %d is above the chat's history_version %d. Send the history_version of the chat's newest messages page or its last checkpoint event.",
 					cursor.HistoryVersion, chat.HistoryVersion),
 			})
 			return

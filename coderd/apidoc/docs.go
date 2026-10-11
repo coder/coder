@@ -4736,13 +4736,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Skip snapshot messages with id at or before this cursor. Ignored when history_version is non-zero",
+                        "description": "Skip snapshot messages with id at or before this cursor. Ignored when history_version is set",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Send only history changed after this history_version, taken from the messages page or the last preview_reset event",
+                        "description": "Send only history changed after this history_version, taken from the messages page or the last checkpoint event. Zero is valid",
                         "name": "history_version",
                         "in": "query"
                     }
@@ -23576,6 +23576,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatStreamCheckpoint": {
+            "type": "object",
+            "properties": {
+                "history_version": {
+                    "description": "HistoryVersion is the chat's history_version for the message events\nsent so far. It is set only on streams opened with a history_version;\na client reconnects with the value of the last checkpoint it received.",
+                    "type": "integer"
+                },
+                "snapshot_version": {
+                    "description": "SnapshotVersion is the chat's snapshot_version the sync applied. Every\naction response with an equal or lower version is reflected.",
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.ChatStreamEvent": {
             "type": "object",
             "properties": {
@@ -23586,11 +23599,19 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "checkpoint": {
+                    "description": "Checkpoint is set on checkpoint events.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatStreamCheckpoint"
+                        }
+                    ]
+                },
                 "error": {
                     "$ref": "#/definitions/codersdk.ChatError"
                 },
                 "history_reset": {
-                    "description": "HistoryReset is set on history_reset events of streams opened with a\nnon-zero history_version.",
+                    "description": "HistoryReset is set on history_reset events of streams opened with a\nhistory_version.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatStreamHistoryReset"
@@ -23602,14 +23623,6 @@ const docTemplate = `{
                 },
                 "message_part": {
                     "$ref": "#/definitions/codersdk.ChatStreamMessagePart"
-                },
-                "preview_reset": {
-                    "description": "PreviewReset is set on preview_reset events of streams opened with a\nnon-zero history_version.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatStreamPreviewReset"
-                        }
-                    ]
                 },
                 "queued_messages": {
                     "type": "array",
@@ -23639,7 +23652,8 @@ const docTemplate = `{
                 "retry",
                 "action_required",
                 "preview_reset",
-                "history_reset"
+                "history_reset",
+                "checkpoint"
             ],
             "x-enum-varnames": [
                 "ChatStreamEventTypeMessagePart",
@@ -23650,7 +23664,8 @@ const docTemplate = `{
                 "ChatStreamEventTypeRetry",
                 "ChatStreamEventTypeActionRequired",
                 "ChatStreamEventTypePreviewReset",
-                "ChatStreamEventTypeHistoryReset"
+                "ChatStreamEventTypeHistoryReset",
+                "ChatStreamEventTypeCheckpoint"
             ]
         },
         "codersdk.ChatStreamHistoryReset": {
@@ -23678,15 +23693,6 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatMessageRole"
                 },
                 "seq": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.ChatStreamPreviewReset": {
-            "type": "object",
-            "properties": {
-                "history_version": {
-                    "description": "HistoryVersion is the chat's history_version for the message events\nsent before this preview_reset. Every sync that changes the history\nends with a preview_reset, so a client reconnects with the\nhistory_version of the last one it received.",
                     "type": "integer"
                 }
             }

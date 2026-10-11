@@ -2081,6 +2081,7 @@ const (
 	ChatStreamEventTypeActionRequired ChatStreamEventType = "action_required"
 	ChatStreamEventTypePreviewReset   ChatStreamEventType = "preview_reset"
 	ChatStreamEventTypeHistoryReset   ChatStreamEventType = "history_reset"
+	ChatStreamEventTypeCheckpoint     ChatStreamEventType = "checkpoint"
 )
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
@@ -2343,11 +2344,10 @@ type ChatStreamEvent struct {
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
 	// HistoryReset is set on history_reset events of streams opened with a
-	// non-zero history_version.
+	// history_version.
 	HistoryReset *ChatStreamHistoryReset `json:"history_reset,omitempty"`
-	// PreviewReset is set on preview_reset events of streams opened with a
-	// non-zero history_version.
-	PreviewReset *ChatStreamPreviewReset `json:"preview_reset,omitempty"`
+	// Checkpoint is set on checkpoint events.
+	Checkpoint *ChatStreamCheckpoint `json:"checkpoint,omitempty"`
 }
 
 // ChatStreamHistoryReset describes which messages a history_reset replaces.
@@ -2359,14 +2359,16 @@ type ChatStreamHistoryReset struct {
 	FromMessageID int64 `json:"from_message_id"`
 }
 
-// ChatStreamPreviewReset reports the history version a stream has
-// synchronized.
-type ChatStreamPreviewReset struct {
+// ChatStreamCheckpoint ends every applied stream sync and reports the chat
+// state the events before it reflect.
+type ChatStreamCheckpoint struct {
+	// SnapshotVersion is the chat's snapshot_version the sync applied. Every
+	// action response with an equal or lower version is reflected.
+	SnapshotVersion int64 `json:"snapshot_version"`
 	// HistoryVersion is the chat's history_version for the message events
-	// sent before this preview_reset. Every sync that changes the history
-	// ends with a preview_reset, so a client reconnects with the
-	// history_version of the last one it received.
-	HistoryVersion int64 `json:"history_version"`
+	// sent so far. It is set only on streams opened with a history_version;
+	// a client reconnects with the value of the last checkpoint it received.
+	HistoryVersion *int64 `json:"history_version,omitempty"`
 }
 
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.
@@ -3333,10 +3335,10 @@ type StreamChatOptions struct {
 	// full message history.
 	AfterID *int64
 	// HistoryVersion is the history version of the caller's messages, from
-	// ChatMessagesResponse or ChatStreamPreviewReset. When it is non-zero, the
-	// server ignores AfterID and history resets carry
-	// ChatStreamEvent.HistoryReset. When it is nil or zero, every connection
-	// to a chat with a deleted message resends the whole history.
+	// ChatMessagesResponse or ChatStreamCheckpoint. When it is set, zero
+	// included, the server ignores AfterID and history resets carry
+	// ChatStreamEvent.HistoryReset. When it is nil, every connection to a
+	// chat with a deleted message resends the whole history.
 	HistoryVersion *int64
 }
 
