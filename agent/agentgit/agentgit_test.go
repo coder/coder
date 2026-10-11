@@ -1477,7 +1477,7 @@ func TestE2E_RepoDeletionEmitsRemoved(t *testing.T) {
 }
 
 // TestRunLoopExitsPromptlyOnCancel_DuringPoll pins that RunLoop
-// returns quickly when its context is cancelled while it is blocked
+// returns quickly when its context is canceled while it is blocked
 // on the fallback poll ticker. Regression guard for the fallback
 // interval: if a future change introduces a non-cancellable wait
 // here, this test will hang and fail.
@@ -1519,7 +1519,7 @@ func TestRunLoopExitsPromptlyOnCancel_DuringPoll(t *testing.T) {
 }
 
 // TestRunLoopExitsPromptlyOnCancel_DuringCooldown pins that RunLoop
-// returns quickly when its context is cancelled while a
+// returns quickly when its context is canceled while a
 // rateLimitedScan is sleeping out the cooldown between scans.
 // Regression guard: all waits inside the cooldown path must select
 // on ctx.Done().
@@ -1592,7 +1592,7 @@ func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 	// Release the trap; rateLimitedScan then enters the select on
 	// the cooldown timer vs. ctx.Done(), and ctx.Done() is already
 	// ready so it wins. MustRelease uses Background because the
-	// test ctx is the one we just cancelled.
+	// test ctx is the one we just canceled.
 	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer releaseCancel()
 	cancel()
