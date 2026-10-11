@@ -7,6 +7,8 @@ import type {
 import {
 	MockAgentHoursGroupAllotment,
 	MockAgentHoursOrganizationAllotment,
+	MockAgentHoursOrganizationGroupsUsage,
+	MockAgentHoursUsage,
 	MockDefaultOrganization,
 	MockGroup,
 	MockGroup2,
@@ -50,10 +52,13 @@ const mockGroupAllotments: AgentHoursGroupAllotments = {
 const mockOrganizationSectionProps: React.ComponentProps<
 	typeof OrganizationAgentHoursView
 > = {
+	organization: MockDefaultOrganization,
 	licenseHours: 1000,
 	groupAllotments: mockGroupAllotments,
 	groups: [MockGroup, MockGroup2, MockGroup3],
 	error: null,
+	usage: MockAgentHoursOrganizationGroupsUsage,
+	usageError: null,
 	onSave: fn(async () => undefined),
 	onRemove: fn(async () => undefined),
 };
@@ -71,6 +76,8 @@ const meta = {
 			mockAgentHoursOrganization2Allotment,
 		],
 		organizationAllotmentsError: null,
+		usage: MockAgentHoursUsage,
+		usageError: null,
 		organizations,
 		onSaveOrganizationAllotment: fn(async () => undefined),
 		onRemoveOrganizationAllotment: fn(async () => undefined),
@@ -177,6 +184,93 @@ export const LongNamesAndSmallShares: Story = {
 		),
 	},
 	parameters: { pixel: { matrix: pixelWithPhone } },
+};
+
+export const UsageBeyondAllotments: Story = {
+	args: {
+		usage: {
+			...MockAgentHoursUsage,
+			total_ms: 3_960_000_000,
+			organizations: [
+				...MockAgentHoursUsage.organizations,
+				{
+					organization_id: MockOrganization2.id,
+					organization_name: MockOrganization2.name,
+					organization_display_name: MockOrganization2.display_name,
+					used_ms: 900_000_000,
+				},
+				{
+					organization_id: MockOrganization3.id,
+					organization_name: MockOrganization3.name,
+					organization_display_name: MockOrganization3.display_name,
+					used_ms: 1_800_000_000,
+				},
+				{
+					organization_id: "deleted-organization-id",
+					organization_name: "",
+					organization_display_name: "",
+					used_ms: 72_000_000,
+				},
+			],
+		},
+		organizationAgentHours: (
+			<OrganizationAgentHoursView
+				{...mockOrganizationSectionProps}
+				usage={{
+					...MockAgentHoursOrganizationGroupsUsage,
+					groups: [
+						{
+							group_id: MockGroup.id,
+							group_name: MockGroup.name,
+							group_display_name: MockGroup.display_name,
+							used_ms: 1_440_000_000,
+						},
+						{
+							group_id: MockGroup2.id,
+							group_name: MockGroup2.name,
+							group_display_name: MockGroup2.display_name,
+							used_ms: 194_400_000,
+						},
+						{
+							group_id: MockGroup3.id,
+							group_name: MockGroup3.name,
+							group_display_name: MockGroup3.display_name,
+							used_ms: 36_000_000,
+						},
+						{
+							group_id: "deleted-group-id",
+							group_name: "",
+							group_display_name: "",
+							used_ms: 18_000_000,
+						},
+						{
+							group_id: MockDefaultOrganization.id,
+							group_name: "Everyone",
+							group_display_name: "",
+							used_ms: 360_000_000,
+						},
+					],
+				}}
+			/>
+		),
+	},
+	parameters: { pixel: { matrix: pixelWithPhone } },
+};
+
+export const UsageLoadError: Story = {
+	args: {
+		usage: undefined,
+		usageError: mockApiError({ message: "Failed to load Agent Hours usage." }),
+		organizationAgentHours: (
+			<OrganizationAgentHoursView
+				{...mockOrganizationSectionProps}
+				usage={undefined}
+				usageError={mockApiError({
+					message: "Failed to load Agent Hours usage.",
+				})}
+			/>
+		),
+	},
 };
 
 export const Unlicensed: Story = {

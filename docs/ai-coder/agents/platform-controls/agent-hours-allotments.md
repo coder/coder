@@ -65,6 +65,11 @@ The gauge above each table shows how much of the pool is allotted.
 Use the edit button in a row to change an allotment, or the remove button to delete it after you confirm.
 Coder records every change in the [audit log](../../../admin/security/audit-logs.md).
 
+The **Used** column shows the hours each organization or group used in the current license usage period, with a bar that compares usage to its allotment.
+An organization or group that used hours but has no allotment now, such as a deleted group, appears in a row without an allotment.
+The last row of each table covers the unallotted share: **Unallotted organizations** sums the usage of organizations without an allotment, and **Everyone else (unallotted)** shows the usage that counted toward the organization's **Everyone** group.
+When the license total includes hours from chats deleted before Coder tracked usage per organization, a **Not attributed** row shows those hours.
+
 ## Permissions
 
 | Action                                       | Who can perform it                                                                                     |

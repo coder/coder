@@ -1,6 +1,11 @@
-import type { AgentHoursGroupAllotments, Group } from "#/api/typesGenerated";
+import type {
+	AgentHoursGroupAllotments,
+	AgentHoursOrganizationGroupsUsage,
+	Group,
+	Organization,
+} from "#/api/typesGenerated";
 import { isEveryoneGroup } from "#/modules/groups";
-import { AllotmentPanel } from "./AllotmentPanel";
+import { AllotmentPanel, type AllotmentUsage } from "./AllotmentPanel";
 import {
 	allotmentHours,
 	allotmentTargetLabel,
@@ -9,18 +14,31 @@ import {
 } from "./allotments";
 
 type OrganizationAgentHoursViewProps = {
+	organization: Organization;
 	/** Licensed Agent Hours, undefined when unlimited. */
 	licenseHours: number | undefined;
 	groupAllotments: AgentHoursGroupAllotments | undefined;
 	groups: readonly Group[] | undefined;
 	error: unknown;
+	usage: AgentHoursOrganizationGroupsUsage | undefined;
+	usageError: unknown;
 	onSave: (groupId: string, bps: number) => Promise<unknown>;
 	onRemove: (groupId: string) => Promise<unknown>;
 };
 
 export const OrganizationAgentHoursView: React.FC<
 	OrganizationAgentHoursViewProps
-> = ({ licenseHours, groupAllotments, groups, error, onSave, onRemove }) => {
+> = ({
+	organization,
+	licenseHours,
+	groupAllotments,
+	groups,
+	error,
+	usage,
+	usageError,
+	onSave,
+	onRemove,
+}) => {
 	const organizationBps =
 		groupAllotments?.organization_allotment_bps ?? undefined;
 	const organizationHours =
@@ -33,7 +51,45 @@ export const OrganizationAgentHoursView: React.FC<
 		display_name: allotment.group_display_name,
 		bps: allotment.allotment_bps,
 	}));
-	const groupTargets = [...(allottedGroups ?? []), ...(groups ?? [])];
+	const usedGroups = usage?.groups.map((group) => ({
+		id: group.group_id,
+		name: group.group_name,
+		display_name: group.group_display_name,
+		usedMs: group.used_ms,
+	}));
+	const groupTargets = [
+		...(allottedGroups ?? []),
+		...(groups ?? []),
+		...(usedGroups ?? []),
+	];
+	const groupHref = (groupName: string) =>
+		`/organizations/${organization.name}/groups/${groupName}`;
+	const everyoneGroup = groups?.find(isEveryoneGroup);
+	const everyoneUsage = usedGroups?.find(
+		(group) => group.id === organization.id,
+	);
+	const groupUsage: AllotmentUsage | undefined = usedGroups && {
+		unallotted: usedGroups
+			.filter(
+				(used) =>
+					used.id !== organization.id &&
+					used.usedMs > 0 &&
+					!allottedGroups?.some((allotted) => allotted.id === used.id),
+			)
+			.map((used) =>
+				used.name
+					? {
+							id: used.id,
+							name: allotmentTargetLabel(used, groupTargets),
+							usedMs: used.usedMs,
+							href: groupHref(used.name),
+						}
+					: { id: used.id, name: "Deleted group", usedMs: used.usedMs },
+			),
+		remainderLabel: "Everyone else (unallotted)",
+		remainderHref: everyoneGroup && groupHref(everyoneGroup.name),
+		remainderUsedMs: everyoneUsage?.usedMs ?? 0,
+	};
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -69,6 +125,8 @@ export const OrganizationAgentHoursView: React.FC<
 						id: allotted.id,
 						name: allotmentTargetLabel(allotted, groupTargets),
 						bps: allotted.bps,
+						usedMs: usedGroups?.find((used) => used.id === allotted.id)?.usedMs,
+						href: groupHref(allotted.name),
 					}))
 				}
 				candidates={(groups ?? [])
@@ -83,6 +141,8 @@ export const OrganizationAgentHoursView: React.FC<
 					}))}
 				poolHours={organizationHours}
 				error={error}
+				usage={groupUsage}
+				usageError={usageError}
 				onSave={onSave}
 				onRemove={onRemove}
 			/>

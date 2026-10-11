@@ -26,6 +26,16 @@ export const agentHoursGroupAllotments = (organizationId: string) => ({
 	refetchOnWindowFocus: true,
 });
 
+export const agentHoursUsage = () => ({
+	queryKey: [...agentHoursKey, "usage"] as const,
+	queryFn: API.getAgentHoursUsage,
+});
+
+export const organizationAgentHoursUsage = (organizationId: string) => ({
+	queryKey: [...agentHoursKey, "organizationUsage", organizationId] as const,
+	queryFn: () => API.getOrganizationAgentHoursUsage(organizationId),
+});
+
 type OrganizationAllotmentChange = {
 	organizationId: string;
 	allotmentBps: number;

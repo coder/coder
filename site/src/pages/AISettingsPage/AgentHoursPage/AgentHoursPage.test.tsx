@@ -9,6 +9,8 @@ import { Toaster } from "#/components/Toaster/Toaster";
 import {
 	MockAgentHoursGroupAllotment,
 	MockAgentHoursOrganizationAllotment,
+	MockAgentHoursOrganizationGroupsUsage,
+	MockAgentHoursUsage,
 	MockEntitlements,
 	MockEveryoneGroup,
 	MockGroup,
@@ -24,7 +26,13 @@ import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import AgentHoursPage from "./AgentHoursPage";
 
-const access = vi.hoisted(() => ({ isOwner: true, isLicensed: true }));
+const access = vi.hoisted(
+	(): {
+		isOwner: boolean;
+		isLicensed: boolean;
+		licenseHours: number | undefined;
+	} => ({ isOwner: true, isLicensed: true, licenseHours: 1000 }),
+);
 
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
@@ -46,7 +54,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 							agent_runtime_hours: {
 								enabled: true,
 								entitlement: "entitled",
-								limit: 1000,
+								limit: access.licenseHours,
 							},
 						}
 					: {},
@@ -60,6 +68,7 @@ afterEach(() => {
 	focusManager.setFocused(undefined);
 	access.isOwner = true;
 	access.isLicensed = true;
+	access.licenseHours = 1000;
 });
 
 const renderPage = ({
@@ -67,6 +76,8 @@ const renderPage = ({
 	groups = [MockGroup],
 	groupAllotments = [MockAgentHoursGroupAllotment],
 	organizations = [MockOrganization],
+	usage = MockAgentHoursUsage,
+	organizationUsage = MockAgentHoursOrganizationGroupsUsage,
 } = {}) => {
 	const getOrganizations = vi
 		.spyOn(API, "getOrganizations")
@@ -95,6 +106,10 @@ const renderPage = ({
 			organization_allotment_bps: 6000,
 			groups: groupAllotments,
 		});
+	vi.spyOn(API, "getAgentHoursUsage").mockResolvedValue(usage);
+	vi.spyOn(API, "getOrganizationAgentHoursUsage").mockResolvedValue(
+		organizationUsage,
+	);
 	const router = createMemoryRouter(
 		[
 			{
@@ -106,11 +121,16 @@ const renderPage = ({
 					</>
 				),
 			},
+			{
+				path: "/organizations/:organization/groups/:groupName",
+				element: null,
+			},
 		],
 		{ initialEntries: ["/ai/settings/agent-hours"] },
 	);
 	renderWithRouter(router);
 	return {
+		router,
 		getOrganizationAllotments,
 		getGroupAllotments,
 		getGroups,
@@ -123,6 +143,21 @@ const refocusWindow = () =>
 		focusManager.setFocused(false);
 		focusManager.setFocused(true);
 	});
+
+// Allotment cells hold the percentage and the hours without a separator.
+const findTableCells = async (name: string) => {
+	const table = await screen.findByRole("table", { name });
+	await within(table).findAllByRole("columnheader", { name: "Used" });
+	return within(table)
+		.getAllByRole("row")
+		.slice(1)
+		.map((row) =>
+			within(row)
+				.getAllByRole("cell")
+				.slice(0, 3)
+				.map((cell) => cell.textContent),
+		);
+};
 
 const saveAllotment = async (
 	user: ReturnType<typeof userEvent.setup>,
@@ -560,6 +595,87 @@ it("reports a lost permission to remove an allotment", async () => {
 	await user.click(screen.getByRole("button", { name: "Remove" }));
 	await screen.findByText(
 		"You no longer have access to remove this allotment.",
+	);
+});
+
+it("shows organization usage against allotments", async () => {
+	renderPage({
+		organizations: [MockOrganization, MockOrganization2, MockOrganization3],
+		usage: {
+			...MockAgentHoursUsage,
+			// 330 hours, more than the organizations account for.
+			total_ms: 1_188_000_000,
+			organizations: [
+				...MockAgentHoursUsage.organizations,
+				{
+					organization_id: MockOrganization3.id,
+					organization_name: MockOrganization3.name,
+					organization_display_name: MockOrganization3.display_name,
+					used_ms: 144_360_000,
+				},
+				{
+					organization_id: "deleted-organization-id",
+					organization_name: "",
+					organization_display_name: "",
+					used_ms: 1_000_000,
+				},
+			],
+		},
+	});
+
+	expect(await findTableCells("Organization allotments")).toEqual([
+		[MockOrganization.display_name, "60%600 hours", "278.0 hours"],
+		[MockOrganization2.display_name, "10%100 hours", "0.0 hours"],
+		[MockOrganization3.display_name, "None", "40.1 hours"],
+		["Deleted organization", "None", "0.2 hours"],
+		["Not attributed", "None", "11.6 hours"],
+		["Unallotted organizations", "30%300 hours", "40.3 hours"],
+	]);
+	expect(screen.getByText(/used in this license period/).textContent).toBe(
+		"330.0 of 1,000 hours used in this license period. Usage updates hourly.",
+	);
+});
+
+it("shows group usage with the Everyone group as the unallotted share", async () => {
+	const user = userEvent.setup();
+	const { router } = renderPage({
+		organizationUsage: {
+			...MockAgentHoursOrganizationGroupsUsage,
+			groups: [
+				...MockAgentHoursOrganizationGroupsUsage.groups,
+				{
+					group_id: "deleted-group-id",
+					group_name: "",
+					group_display_name: "",
+					used_ms: 3_600_000,
+				},
+			],
+		},
+	});
+
+	expect(await findTableCells("Group allotments")).toEqual([
+		[MockGroup.display_name, "50%300 hours", "200.0 hours"],
+		["Deleted group", "None", "1.0 hours"],
+		["Everyone else (unallotted)", "50%300 hours", "78.0 hours"],
+	]);
+
+	await user.click(screen.getByRole("link", { name: MockGroup.display_name }));
+	expect(router.state.location.pathname).toBe(
+		`/organizations/${MockOrganization.name}/groups/${MockGroup.name}`,
+	);
+});
+
+it("shows usage in hours only for an unlimited license", async () => {
+	access.licenseHours = undefined;
+	renderPage();
+
+	expect(await findTableCells("Organization allotments")).toEqual([
+		[MockOrganization.display_name, "60%", "278.0 hours"],
+		[MockOrganization2.display_name, "10%", "0.0 hours"],
+		["Unallotted organizations", "30%", "0.0 hours"],
+	]);
+	expect(screen.getByText(/used in this license period/).textContent).toBe(
+		"278.0 hours used in this license period. Usage updates hourly.",
 	);
 });
 

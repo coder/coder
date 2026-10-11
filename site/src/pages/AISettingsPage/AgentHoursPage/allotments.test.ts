@@ -4,7 +4,9 @@ import {
 	allotmentTargetLabel,
 	formatAllotmentPercent,
 	formatHours,
+	formatUsedHours,
 	parseAllotmentPercent,
+	remainderHours,
 } from "./allotments";
 
 describe("parseAllotmentPercent", () => {
@@ -65,6 +67,32 @@ describe("formatHours", () => {
 
 	it("formats no hours as zero", () => {
 		expect(formatHours(0)).toBe("0 hours");
+	});
+});
+
+describe("formatUsedHours", () => {
+	it.each([
+		[0, "0.0"],
+		[359_999, "0.0"],
+		[360_000, "0.1"],
+		[4_499_999_999, "1,249.9"],
+		[Number.NaN, "0.0"],
+	])("formats %d ms as %s hours", (ms, text) => {
+		expect(formatUsedHours(ms)).toBe(text);
+	});
+});
+
+describe("remainderHours", () => {
+	it("is the share of a finite pool that no allotment claims", () => {
+		expect(remainderHours(6000, 1000)).toBe(400);
+	});
+
+	it("is zero for a pool allotted beyond 100%", () => {
+		expect(remainderHours(10500, 1000)).toBe(0);
+	});
+
+	it("has no hours for an unknown pool", () => {
+		expect(remainderHours(6000, undefined)).toBeUndefined();
 	});
 });
 

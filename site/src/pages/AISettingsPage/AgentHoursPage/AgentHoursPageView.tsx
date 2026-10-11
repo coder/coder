@@ -1,5 +1,6 @@
 import type {
 	AgentHoursOrganizationAllotment,
+	AgentHoursUsage,
 	Organization,
 } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -14,8 +15,8 @@ import {
 import { OrganizationSettingsSection } from "#/pages/AISettingsPage/components/OrganizationSettingsSection";
 import { SettingsSection } from "#/pages/AISettingsPage/components/SettingsSection";
 import { docs } from "#/utils/docs";
-import { AllotmentPanel } from "./AllotmentPanel";
-import { allotmentTargetLabel } from "./allotments";
+import { AllotmentPanel, type AllotmentUsage } from "./AllotmentPanel";
+import { allotmentTargetLabel, formatUsedHours } from "./allotments";
 
 type AgentHoursPageViewProps = {
 	/** False when the license does not include Agent Hours. */
@@ -29,6 +30,8 @@ type AgentHoursPageViewProps = {
 		| readonly AgentHoursOrganizationAllotment[]
 		| undefined;
 	organizationAllotmentsError: unknown;
+	usage: AgentHoursUsage | undefined;
+	usageError: unknown;
 	/** Every organization, for picking a new organization allotment. */
 	organizations: readonly Organization[];
 	onSaveOrganizationAllotment: (
@@ -53,6 +56,8 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 	licenseHours,
 	organizationAllotments,
 	organizationAllotmentsError,
+	usage,
+	usageError,
 	organizations,
 	onSaveOrganizationAllotment,
 	onRemoveOrganizationAllotment,
@@ -71,10 +76,43 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 		display_name: allotment.organization_display_name,
 		bps: allotment.allotment_bps,
 	}));
+	const usedOrganizations = usage?.organizations.map((organization) => ({
+		id: organization.organization_id,
+		name: organization.organization_name,
+		display_name: organization.organization_display_name,
+		usedMs: organization.used_ms,
+	}));
 	const organizationTargets = [
 		...(allottedOrganizations ?? []),
 		...organizations,
+		...(usedOrganizations ?? []),
 	];
+	const unallottedOrganizations = (usedOrganizations ?? [])
+		.filter(
+			(used) =>
+				used.usedMs > 0 &&
+				!allottedOrganizations?.some((allotted) => allotted.id === used.id),
+		)
+		.map((used) => ({
+			id: used.id,
+			name: used.name
+				? allotmentTargetLabel(used, organizationTargets)
+				: "Deleted organization",
+			usedMs: used.usedMs,
+		}));
+	const attributedMs = (usedOrganizations ?? []).reduce(
+		(sum, used) => sum + used.usedMs,
+		0,
+	);
+	const organizationUsage: AllotmentUsage | undefined = usage && {
+		unallotted: unallottedOrganizations,
+		remainderLabel: "Unallotted organizations",
+		remainderUsedMs: unallottedOrganizations.reduce(
+			(sum, entry) => sum + entry.usedMs,
+			0,
+		),
+		notAttributedMs: Math.max(usage.total_ms - attributedMs, 0),
+	};
 
 	return (
 		<div className="flex max-w-4xl flex-col gap-10">
@@ -89,6 +127,16 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 						)}
 					/>
 				</SettingsHeaderDescription>
+				{isLicensed && usage && (
+					<SettingsHeaderDescription>
+						<span className="text-content-primary">
+							{licenseHours === undefined
+								? `${formatUsedHours(usage.total_ms)} hours`
+								: `${formatUsedHours(usage.total_ms)} of ${licenseHours.toLocaleString("en-US")} hours`}
+						</span>{" "}
+						used in this license period. Usage updates hourly.
+					</SettingsHeaderDescription>
+				)}
 			</SettingsHeader>
 
 			{showLicenseNotice && (
@@ -116,6 +164,8 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 							id: allotted.id,
 							name: allotmentTargetLabel(allotted, organizationTargets),
 							bps: allotted.bps,
+							usedMs: usedOrganizations?.find((used) => used.id === allotted.id)
+								?.usedMs,
 						}))}
 						candidates={organizations
 							.filter(
@@ -130,6 +180,8 @@ export const AgentHoursPageView: React.FC<AgentHoursPageViewProps> = ({
 							}))}
 						poolHours={licenseHours}
 						error={organizationAllotmentsError}
+						usage={organizationUsage}
+						usageError={usageError}
 						onSave={onSaveOrganizationAllotment}
 						onRemove={onRemoveOrganizationAllotment}
 					/>
