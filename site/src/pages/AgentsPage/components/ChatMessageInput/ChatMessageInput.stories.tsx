@@ -216,21 +216,6 @@ export const ArrowDownSelectsWorkspaceSkill: Story = {
 
 const mockOrganizationId = "organization-skills-story";
 
-const mockOrganizationSkills: TypesGen.SkillMetadata[] = [
-	{
-		...MockSkill,
-		id: "skill-release-notes",
-		name: "release-notes",
-		description: "Write release notes in the organization style.",
-	},
-	{
-		...MockSkill,
-		id: "skill-org-reviewer",
-		name: "reviewer",
-		description: "Organization review checklist.",
-	},
-];
-
 export const OpensWithAllSkillSources: Story = {
 	args: {
 		hasWorkspace: true,
@@ -244,7 +229,20 @@ export const OpensWithAllSkillSources: Story = {
 					type: "organization",
 					organizationId: mockOrganizationId,
 				}).queryKey,
-				data: mockOrganizationSkills,
+				data: [
+					{
+						...MockSkill,
+						id: "skill-release-notes",
+						name: "release-notes",
+						description: "Write release notes in the organization style.",
+					},
+					{
+						...MockSkill,
+						id: "skill-org-reviewer",
+						name: "reviewer",
+						description: "Organization review checklist.",
+					},
+				],
 			},
 		],
 	},

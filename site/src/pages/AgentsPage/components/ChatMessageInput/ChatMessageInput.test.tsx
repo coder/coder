@@ -257,16 +257,6 @@ describe("ChatMessageInput", () => {
 			id: "skill-reviewer",
 			name: "reviewer",
 		};
-		const mockReleaseNotesSkill: SkillMetadata = {
-			...MockSkill,
-			id: "skill-release-notes",
-			name: "release-notes",
-		};
-		const mockCompactorSkill: SkillMetadata = {
-			...MockSkill,
-			id: "skill-compactor",
-			name: "compactor",
-		};
 
 		const renderWithSkills = ({
 			personal,
@@ -313,7 +303,9 @@ describe("ChatMessageInput", () => {
 		it("inserts the bare trigger of an organization skill chosen with arrow keys", async () => {
 			const inputRef = renderWithSkills({
 				personal: [mockReviewerSkill],
-				organization: [mockReleaseNotesSkill],
+				organization: [
+					{ ...MockSkill, id: "skill-release-notes", name: "release-notes" },
+				],
 			});
 			const user = await pasteTrigger("/");
 			await screen.findByRole("option", { name: /release-notes/ });
@@ -333,7 +325,9 @@ describe("ChatMessageInput", () => {
 
 		it("hides built-in commands when the organization list fails", async () => {
 			// With /compact hidden, Enter picks the qualified personal match.
-			const inputRef = renderWithSkills({ personal: [mockCompactorSkill] });
+			const inputRef = renderWithSkills({
+				personal: [{ ...MockSkill, id: "skill-compactor", name: "compactor" }],
+			});
 			const user = await pasteTrigger("/comp");
 			await screen.findByText(/Could not load organization skills/);
 			await user.keyboard("{Enter}");

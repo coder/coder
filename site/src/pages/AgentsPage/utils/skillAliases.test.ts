@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveSkillTriggers, type SkillSourceList } from "./skillAliases";
+import { resolveSkillTriggers } from "./skillAliases";
 
 const skills = (...names: string[]) =>
 	names.map((name) => ({ name, description: `${name} description` }));
@@ -10,23 +10,15 @@ type Lists = {
 	workspace?: readonly string[];
 };
 
-const triggersFor = (lists: Lists) => {
-	const sourceLists: SkillSourceList<{ name: string; description: string }>[] =
-		[
-			{
-				source: "personal",
-				skills: lists.personal && skills(...lists.personal),
-			},
-			{ source: "org", skills: lists.org && skills(...lists.org) },
-			{
-				source: "workspace",
-				skills: lists.workspace && skills(...lists.workspace),
-			},
-		];
-	return resolveSkillTriggers(sourceLists).map(
-		(trigger) => trigger.triggerText,
-	);
-};
+const triggersFor = (lists: Lists) =>
+	resolveSkillTriggers([
+		{ source: "personal", skills: lists.personal && skills(...lists.personal) },
+		{ source: "org", skills: lists.org && skills(...lists.org) },
+		{
+			source: "workspace",
+			skills: lists.workspace && skills(...lists.workspace),
+		},
+	]).map((trigger) => trigger.triggerText);
 
 describe("resolveSkillTriggers", () => {
 	it.each<{ name: string; lists: Lists; expected: string[] }>([

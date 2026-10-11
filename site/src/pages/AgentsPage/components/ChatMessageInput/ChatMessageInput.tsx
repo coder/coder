@@ -699,8 +699,9 @@ const ChatMessageInput = ({
 		: [];
 	const loadedWorkspaceSkills =
 		workspaceSkills ?? (hasWorkspace ? undefined : []);
-	// Lists stay undefined until fetched, even after an error, which keeps
-	// triggers qualified and built-in commands hidden.
+	// A list stays undefined until its source loads, even after an error,
+	// which keeps triggers qualified and built-in commands hidden. A chat
+	// without an organization or workspace has a known empty list.
 	const skillLists: SkillSourceList<SkillMetadata>[] = [
 		{ source: "personal", skills: personalSkills },
 		{ source: "org", skills: loadedOrganizationSkills },
@@ -711,28 +712,20 @@ const ChatMessageInput = ({
 			resolveChatSlashCommandAvailability(command, skillLists) === "available",
 	);
 	const hasSlashCommands = availableSlashCommands.length > 0;
-	// A stale empty cache with a refetch in flight must not dismiss the menu.
-	const isResolvedEmptyPersonalSkills =
+	// Unknown skills, or a stale empty cache with a refetch in flight, must
+	// not close the menu: the trigger plugin records a closed trigger as
+	// dismissed, so skills arriving later could never reopen it.
+	const isResolvedEmptySkills =
 		personalSkills?.length === 0 &&
-		(hasPersonalSkillsOverride || !skillsQuery.isFetching);
-	const isResolvedEmptyOrganizationSkills =
+		(hasPersonalSkillsOverride || !skillsQuery.isFetching) &&
 		loadedOrganizationSkills?.length === 0 &&
-		!organizationSkillsQuery.isFetching;
-	// Unknown skills must not close the menu: the trigger plugin records a
-	// closed trigger as dismissed, so skills arriving later could never
-	// reopen it.
-	const isResolvedEmptyWorkspaceSkills = loadedWorkspaceSkills?.length === 0;
+		!organizationSkillsQuery.isFetching &&
+		loadedWorkspaceSkills?.length === 0;
 	// Without built-in commands, "/" is plain text when every skills
 	// list resolves empty. When only the filtered result is empty,
 	// keep the menu open for the no-match message.
 	const skillsMenuOpen =
-		hasSkillsTrigger &&
-		(hasSlashCommands ||
-			!(
-				isResolvedEmptyPersonalSkills &&
-				isResolvedEmptyOrganizationSkills &&
-				isResolvedEmptyWorkspaceSkills
-			));
+		hasSkillsTrigger && (hasSlashCommands || !isResolvedEmptySkills);
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
 	const commandMenuItems: readonly SkillMenuItem[] = filterSkillsByQuery(
 		availableSlashCommands.map(createCommandMenuItem),

@@ -34,8 +34,8 @@ export const CHAT_SLASH_COMMANDS: readonly ChatSlashCommand[] = [
 type ChatSlashCommandResolution = "pending" | "available" | "unavailable";
 
 /**
- * A skill from any source with a command's name owns the bare trigger,
- * so the command is unavailable. Pending until every list is known.
+ * A skill from any source with a command's name makes the command
+ * unavailable. Pending until every list is known.
  */
 export const resolveChatSlashCommandAvailability = (
 	command: ChatSlashCommand,
