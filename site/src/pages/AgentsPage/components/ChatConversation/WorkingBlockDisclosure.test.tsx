@@ -82,8 +82,11 @@ describe("WorkingBlockDisclosure", () => {
 	});
 });
 
-const BlockRow: React.FC<{ expandedHeight: number }> = ({ expandedHeight }) => {
-	const [expanded, setExpanded] = useState(false);
+const BlockRow: React.FC<{
+	expandedHeight: number;
+	defaultExpanded?: boolean;
+}> = ({ expandedHeight, defaultExpanded = false }) => {
+	const [expanded, setExpanded] = useState(defaultExpanded);
 	return (
 		<MessageScroller.Item
 			messageId="block"
@@ -149,6 +152,33 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		await update([history, prompt, block, nextRow]);
 
 		expect(await visibleRowsAfterLayout()).toContain("next");
+	});
+
+	it("follows new output after the last block of an anchored turn expands in view", async () => {
+		const user = userEvent.setup();
+		const update = renderTranscript([history]);
+		const block = <BlockRow key="block" expandedHeight={200} />;
+		await update([history, prompt, block]);
+
+		await user.click(summary());
+		// The turn grows past the tail spacer but stays in the handoff band.
+		const reply = row("reply", 140);
+		await update([history, prompt, block, reply]);
+		await visibleRowsAfterLayout();
+		await update([history, prompt, block, reply, nextRow]);
+
+		expect(await visibleRowsAfterLayout()).toContain("next");
+	});
+
+	it("keeps the reader in place when the last block collapses", async () => {
+		const user = userEvent.setup();
+		const block = <BlockRow key="block" expandedHeight={600} defaultExpanded />;
+		const update = renderTranscript([history, block]);
+
+		await user.click(summary());
+		await update([history, block, nextRow]);
+
+		expect(await visibleRowsAfterLayout()).not.toContain("next");
 	});
 });
 
