@@ -94,7 +94,7 @@ The revocation endpoint must use HTTPS.
 Loopback URLs may use HTTP for local development and tests.
 
 When `oauth2_resource` is set, Coder sends it as the RFC 8707 `resource` parameter on authorization, token, and refresh requests.
-The value must be an absolute URI without a fragment.
+The value must be an absolute URI without a fragment or user information.
 A manual configuration sends no `resource` parameter unless you set this field.
 Leave it empty for providers that reject the parameter, such as Microsoft Entra ID.
 

@@ -1377,6 +1377,9 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 		"https://mcp.example.com/mcp?tenant=%zz",
 		"https://mcp.example.com/a[b]",
 		"https://a]b.example.com/mcp",
+		"https://[x]/mcp",
+		"https://[::1][x]/mcp",
+		"https://[fe80::1%25en0]/mcp",
 		"https://user@mcp.example.com/mcp",
 	} {
 		_, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{

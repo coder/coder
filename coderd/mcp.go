@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strings"
@@ -1792,9 +1793,12 @@ func parseMCPOAuth2Resource(resource string) (*url.URL, error) {
 		return nil, xerrors.New("oauth2_resource must be a valid URI")
 	}
 	// url.Parse validates an IP literal host, but it also accepts "[" and
-	// "]" elsewhere, where RFC 3986 does not allow them.
+	// "]" elsewhere and a zone identifier in an IP literal, neither of
+	// which RFC 3986 allows.
+	ipLiteral := strings.HasPrefix(parsed.Host, "[")
 	if strings.ContainsAny(parsed.Opaque+parsed.EscapedPath()+parsed.RawQuery, "[]") ||
-		(!strings.HasPrefix(parsed.Host, "[") && strings.ContainsAny(parsed.Host, "[]")) {
+		(!ipLiteral && strings.ContainsAny(parsed.Host, "[]")) ||
+		(ipLiteral && strings.Contains(parsed.Host, "%")) {
 		return nil, xerrors.New("oauth2_resource must be a valid URI")
 	}
 	if !parsed.IsAbs() {
@@ -1902,13 +1906,14 @@ func mcpOAuth2ResourceBinding(resource string) string {
 // an MCP server: the most specific advertised Protected Resource
 // Metadata resource that covers the server URL, stored verbatim, else
 // the server URL in canonical form, or "" when that is not a valid
-// resource indicator. As in the MCP Python SDK, a resource
-// covers URLs on its origin under its path. Paths and queries compare in
-// RFC 3986 normal form, where "%2F" does not end a segment. Unlike the
-// SDK, a resource with a query, even an empty one, covers only URLs with
-// the same query, which can select a tenant.
+// resource indicator. As in the MCP SDKs, a resource covers URLs on its
+// origin at or under its path, so "/mcp" covers "/mcp/" but "/mcp/" does
+// not cover "/mcp". Paths and queries compare in RFC 3986 normal form,
+// where "%2F" does not end a segment, and IP addresses compare by value.
+// Unlike the SDKs, a resource with a query, even an empty one, covers
+// only URLs with the same query, which can select a tenant.
 func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string {
-	serverPath := withTrailingSlash(comparableURIPath(serverURL))
+	serverPath := comparableURIPath(serverURL)
 	serverQuery, serverHasQuery := comparableURIQuery(serverURL)
 	best := ""
 	bestPathLen := -1
@@ -1926,8 +1931,8 @@ func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string 
 		if hasQuery && (!serverHasQuery || query != serverQuery) {
 			continue
 		}
-		entryPath := withTrailingSlash(comparableURIPath(parsed))
-		if !strings.HasPrefix(serverPath, entryPath) {
+		entryPath := comparableURIPath(parsed)
+		if entryPath != serverPath && !strings.HasPrefix(serverPath, withTrailingSlash(entryPath)) {
 			continue
 		}
 		if len(entryPath) > bestPathLen || (len(entryPath) == bestPathLen && hasQuery && !bestHasQuery) {
@@ -1957,13 +1962,18 @@ func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string 
 
 // comparableURIPath returns u's escaped path with percent-encodings
 // normalized and then dot segments removed, so "%2E%2E" is a dot segment.
+// An empty path after an authority is "/" (RFC 3986 section 6.2.3).
 func comparableURIPath(u *url.URL) string {
 	normalized := *u
 	// Normalizing escapes leaves the unescaped Path unchanged, so this
 	// RawPath stays a valid encoding of it.
 	normalized.RawPath = normalizePercentEncoding(u.EscapedPath())
 	// Resolving a URL against itself removes dot segments and keeps escapes.
-	return normalized.ResolveReference(&normalized).EscapedPath()
+	path := normalized.ResolveReference(&normalized).EscapedPath()
+	if path == "" && u.Host != "" {
+		return "/"
+	}
+	return path
 }
 
 // comparableURIQuery returns u's query with percent-encodings normalized
@@ -1977,8 +1987,19 @@ func comparableURIQuery(u *url.URL) (string, bool) {
 // port, where an omitted port is the scheme's default.
 func sameOrigin(a, b *url.URL) bool {
 	return strings.EqualFold(a.Scheme, b.Scheme) &&
-		strings.EqualFold(a.Hostname(), b.Hostname()) &&
+		sameHost(a.Hostname(), b.Hostname()) &&
 		portOrDefault(a) == portOrDefault(b)
+}
+
+// sameHost compares IP addresses by value, so "::1" equals
+// "0:0:0:0:0:0:0:1", and other hosts case-insensitively.
+func sameHost(a, b string) bool {
+	addrA, errA := netip.ParseAddr(a)
+	addrB, errB := netip.ParseAddr(b)
+	if errA == nil && errB == nil {
+		return addrA == addrB
+	}
+	return strings.EqualFold(a, b)
 }
 
 func portOrDefault(u *url.URL) string {

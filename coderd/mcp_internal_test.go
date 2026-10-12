@@ -303,6 +303,18 @@ func TestMCPOAuth2ResourceIndicator(t *testing.T) {
 			want:       "https://mcp.example.com/mcp",
 		},
 		{
+			name:       "TrailingSlashResourceDoesNotCoverBarePath",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"https://mcp.example.com/mcp/"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:       "EmptyPathEqualsSlash",
+			serverURL:  "https://mcp.example.com",
+			advertised: []string{"https://mcp.example.com/"},
+			want:       "https://mcp.example.com/",
+		},
+		{
 			name:       "PathPrefixIsNotSegment",
 			serverURL:  "https://mcp.example.com/mcp2",
 			advertised: []string{"https://mcp.example.com/mcp"},
@@ -415,6 +427,12 @@ func TestMCPOAuth2ResourceIndicator(t *testing.T) {
 			serverURL:  "https://[::1]:8443/mcp",
 			advertised: []string{"https://[::1]:8443/"},
 			want:       "https://[::1]:8443/",
+		},
+		{
+			name:       "EquivalentIPv6Literal",
+			serverURL:  "https://[0:0:0:0:0:0:0:1]/mcp",
+			advertised: []string{"https://[::1]/mcp"},
+			want:       "https://[::1]/mcp",
 		},
 		{
 			name:      "NoEntriesFallsBack",
