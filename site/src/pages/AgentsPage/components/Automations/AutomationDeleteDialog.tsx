@@ -67,8 +67,10 @@ export const AutomationDeleteDialog: React.FC<AutomationDeleteDialogProps> = ({
 							? "Its schedule stops, and no more runs start."
 							: "Its webhook endpoint stops accepting events."}{" "}
 						Messages it queued that have not started yet are removed from their
-						chats. Chats it created and messages it already sent stay.
+						chats. Chats it created and messages it already sent stay, so its
+						past runs stay in those chats.
 					</p>
+					<p>You cannot undo this.</p>
 					{Boolean(error) && (
 						<div className="mt-4">
 							<ErrorAlert error={error} />

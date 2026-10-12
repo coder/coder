@@ -586,6 +586,7 @@ describe("AgentAutomationsPage", () => {
 		const dialog = await screen.findByRole("dialog", {
 			name: `Delete ${mockAutomation.name}?`,
 		});
+		expect(dialog).toHaveTextContent("You cannot undo this.");
 		expect(requestPaths(requests)).not.toContain(`DELETE ${deletePath}`);
 		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
 
