@@ -172,7 +172,7 @@ Seen while a board assistant worked, as of this experiment:
 
 - No tool writes labels or titles; label edits need the API.
 - `coder_get_chat` and `coder_list_chats` lack `created_at`, `summary`,
-  `diff_status` and cost.
+  `diff_statuses` and cost.
 - `coder_get_chat_messages` applies `limit` before dropping tool-only
   messages, so busy chats return empty pages, and it omits tool calls, so a
   running chat's activity is invisible.
