@@ -2283,15 +2283,13 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	count, err := db.CountChatProjectsByOwnerID(ctx, owner.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, 2, count)
-	for _, list := range []func(context.Context, uuid.UUID) ([]database.ChatProject, error){db.GetChatProjectsOwnedOrSharedWithUserID} {
-		projects, err := list(ctx, owner.ID)
-		require.NoError(t, err)
-		listed := make([]uuid.UUID, 0, len(projects))
-		for _, p := range projects {
-			listed = append(listed, p.ID)
-		}
-		require.ElementsMatch(t, []uuid.UUID{otherProject.ID, emptyProject.ID}, listed)
+	projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, owner.ID)
+	require.NoError(t, err)
+	listedProjects := make([]uuid.UUID, 0, len(projects))
+	for _, p := range projects {
+		listedProjects = append(listedProjects, p.ID)
 	}
+	require.ElementsMatch(t, []uuid.UUID{otherProject.ID, emptyProject.ID}, listedProjects)
 
 	for _, archived := range []sql.NullBool{{}, {Bool: true, Valid: true}} {
 		rows, err := db.GetChats(ctx, database.GetChatsParams{Archived: archived})

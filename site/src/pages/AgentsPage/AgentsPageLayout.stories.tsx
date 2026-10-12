@@ -912,7 +912,7 @@ export const ArchiveWatchEventKeepsOpenChatMounted: Story = {
 	},
 };
 
-export const HardDeleteWatchEventRemovesOpenChat: Story = {
+export const RemovedWatchEventRemovesOpenChat: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		spyOn(API.experimental, "getChats")
@@ -930,7 +930,7 @@ export const HardDeleteWatchEventRemovesOpenChat: Story = {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
 			if (canvas.queryByText("Watched agent")) {
-				throw new Error("hard-deleted chat is still shown");
+				throw new Error("removed chat is still shown");
 			}
 		});
 	},

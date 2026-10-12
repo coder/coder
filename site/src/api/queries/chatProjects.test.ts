@@ -76,7 +76,12 @@ describe("chat project mutations", () => {
 	it("resets only the deleted project's chats once the delete succeeds", async () => {
 		const queryClient = createTestQueryClient();
 		const root = { ...MockChat, id: "root", project_id: MockChatProject.id };
-		const child = { ...MockChat, id: "child", root_chat_id: root.id };
+		const child = {
+			...MockChat,
+			id: "child",
+			root_chat_id: root.id,
+			project_id: MockChatProject.id,
+		};
 		const other = { ...MockChat, id: "other", project_id: "other-project" };
 		for (const chat of [root, child, other]) {
 			queryClient.setQueryData(chatEntityKey(chat.id), chat);

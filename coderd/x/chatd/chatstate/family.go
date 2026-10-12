@@ -90,13 +90,13 @@ func SetFamilyArchived(
 		// A family archived by its project delete must stay archived; the
 		// root lock serializes this check with that delete.
 		if !input.Archived && root.ProjectID.Valid {
-			//nolint:gocritic // The caller authorized the root chat; the query requires reading every chat.
-			inDeletedProject, err := tx.IsChatInDeletedChatProject(dbauthz.AsChatd(ctx), root.ID)
+			//nolint:gocritic // The caller authorized the root chat, not its project.
+			_, err := tx.GetChatProjectByID(dbauthz.AsChatd(ctx), root.ProjectID.UUID)
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrChatNotFound
+			}
 			if err != nil {
 				return xerrors.Errorf("check root chat project: %w", err)
-			}
-			if inDeletedProject {
-				return ErrChatNotFound
 			}
 		}
 		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)
@@ -170,8 +170,8 @@ func SetFamilyArchived(
 type DeletedChatProject struct {
 	// Before holds the chats as they were before the archive.
 	Before []database.Chat
-	// Archived holds the same chats after the archive.
-	Archived []database.Chat
+	// After holds the same chats after the archive.
+	After []database.Chat
 }
 
 // DeleteChatProject tombstones a project and archives every user's chats
@@ -228,7 +228,7 @@ func deleteChatProjectTx(ctx context.Context, store database.Store, publisher Pu
 			return xerrors.Errorf("lock project root chats: %w", err)
 		}
 		var err error
-		deleted.Before, err = tx.GetChatProjectChatFamilies(chatdCtx, projectID)
+		deleted.Before, err = tx.GetChatsByProjectID(chatdCtx, projectID)
 		if err != nil {
 			return xerrors.Errorf("get project chats: %w", err)
 		}
@@ -238,11 +238,11 @@ func deleteChatProjectTx(ctx context.Context, store database.Store, publisher Pu
 		if err := tx.DeleteChatQueuedMessagesOfDeletedChatProject(chatdCtx, projectID); err != nil {
 			return xerrors.Errorf("clear project chat queues: %w", err)
 		}
-		deleted.Archived, err = tx.GetChatProjectChatFamilies(chatdCtx, projectID)
+		deleted.After, err = tx.GetChatsByProjectID(chatdCtx, projectID)
 		if err != nil {
 			return xerrors.Errorf("reload project chats: %w", err)
 		}
-		for _, chat := range deleted.Archived {
+		for _, chat := range deleted.After {
 			if err := buffer.Publish(coderdpubsub.ChatStateUpdateChannel(chat.ID), buildChatUpdateMessage(chat)); err != nil {
 				return xerrors.Errorf("buffer chat update: %w", err)
 			}

@@ -14,21 +14,30 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// DeleteChatProject runs [chatstate.DeleteChatProject], publishes a removed
-// watch event per chat, and schedules the chats' debug-data cleanup. It
-// returns a nil error once the delete commits; a failed chat:update
-// publish is logged, and those chats' runners stop at their next heartbeat
-// renewal.
-func (p *Server) DeleteChatProject(ctx context.Context, projectID uuid.UUID) (chatstate.DeletedChatProject, error) {
-	deleted, err := chatstate.DeleteChatProject(ctx, p.db, p.pubsub, projectID)
+// DeleteChatProject runs [chatstate.DeleteChatProject] for callers without a
+// [Server]. It returns a nil error once the delete commits; a failed
+// chat:update publish is logged, and those chats' runners stop at their
+// next heartbeat renewal.
+func DeleteChatProject(ctx context.Context, logger slog.Logger, db database.Store, publisher chatstate.Publisher, projectID uuid.UUID) (chatstate.DeletedChatProject, error) {
+	deleted, err := chatstate.DeleteChatProject(ctx, db, publisher, projectID)
 	if errors.Is(err, chatstate.ErrChatUpdatePublishFailed) {
-		p.logger.Warn(ctx, "publish chat:update for deleted project chats failed; their runners stop at the next heartbeat renewal",
+		logger.Warn(ctx, "publish chat:update for deleted project chats failed; their runners stop at the next heartbeat renewal",
 			slog.F("project_id", projectID), slog.Error(err))
-	} else if err != nil {
+		return deleted, nil
+	}
+	return deleted, err
+}
+
+// DeleteChatProject runs the package-level [DeleteChatProject], publishes a
+// removed watch event per chat, and schedules the chats' debug-data
+// cleanup.
+func (p *Server) DeleteChatProject(ctx context.Context, projectID uuid.UUID) (chatstate.DeletedChatProject, error) {
+	deleted, err := DeleteChatProject(ctx, p.logger, p.db, p.pubsub, projectID)
+	if err != nil {
 		return chatstate.DeletedChatProject{}, err
 	}
-	p.publishChatPubsubEvents(deleted.Archived, codersdk.ChatWatchEventKindRemoved)
-	p.scheduleArchiveDebugCleanup(ctx, deleted.Archived)
+	p.publishChatPubsubEvents(deleted.After, codersdk.ChatWatchEventKindRemoved)
+	p.scheduleArchiveDebugCleanup(ctx, deleted.After)
 	return deleted, nil
 }
 

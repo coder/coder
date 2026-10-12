@@ -75,8 +75,8 @@ func TestDeleteChatProjectCommitsWhenPublishFails(t *testing.T) {
 
 	deleted, err := newUnstartedServer(t, chatUpdateFailingPubsub{Pubsub: f.pubsub}, f.db).DeleteChatProject(ctx, project.ID)
 	require.NoError(t, err, "a committed delete succeeds even if chat:update fails")
-	require.Len(t, deleted.Archived, 1)
-	require.True(t, deleted.Archived[0].Archived)
+	require.Len(t, deleted.After, 1)
+	require.True(t, deleted.After[0].Archived)
 	archived, err := f.db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.True(t, archived.Archived)

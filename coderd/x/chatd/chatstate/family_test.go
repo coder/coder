@@ -346,6 +346,9 @@ func TestCreateChatInChatProject(t *testing.T) {
 	child, err := create(uuid.NullUUID{}, uuid.NullUUID{UUID: root.ID, Valid: true})
 	require.NoError(t, err, "sub-chats of a live project's chat are allowed")
 	require.Equal(t, inProject, child.ProjectID, "a sub-chat takes its root's project")
+	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+	_, err = create(uuid.NullUUID{UUID: otherProject.ID, Valid: true}, uuid.NullUUID{UUID: root.ID, Valid: true})
+	require.Error(t, err, "a sub-chat cannot name another project")
 
 	require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
 	_, err = create(inProject, uuid.NullUUID{})
@@ -520,7 +523,8 @@ func TestDeleteChatProjectConcurrentDeletes(t *testing.T) {
 	require.Equal(t, deletes-1, notFound)
 }
 
-// deadlockingStore fails its first failures transactions with a deadlock.
+// deadlockingStore returns a deadlock error, without running fn, from its
+// first failures InTx calls.
 type deadlockingStore struct {
 	database.Store
 	failures int
@@ -585,9 +589,9 @@ func TestDeleteChatProjectReturnsCommittedChatsWhenPublishFails(t *testing.T) {
 
 	deleted, err := chatstate.DeleteChatProject(ctx, db, failingPublisher{}, project.ID)
 	require.ErrorIs(t, err, chatstate.ErrChatUpdatePublishFailed)
-	require.Len(t, deleted.Archived, 1)
-	require.Equal(t, chat.ID, deleted.Archived[0].ID)
-	require.True(t, deleted.Archived[0].Archived)
+	require.Len(t, deleted.After, 1)
+	require.Equal(t, chat.ID, deleted.After[0].ID)
+	require.True(t, deleted.After[0].Archived)
 	require.False(t, deleted.Before[0].Archived)
 }
 

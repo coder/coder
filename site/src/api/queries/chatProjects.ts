@@ -92,15 +92,12 @@ const resetDeletedProjectChats = (
 				queryKey.length === chatEntitiesFamilyKey.length + 1,
 		})
 		.flatMap(([, chat]) => (chat ? [chat] : []));
-	const deleted = new Set(
-		chats.filter((chat) => chat.project_id === projectId).map((c) => c.id),
-	);
 	for (const chat of chats) {
-		if (chat.root_chat_id && deleted.has(chat.root_chat_id)) {
-			deleted.add(chat.id);
+		if (chat.project_id === projectId) {
+			void queryClient.resetQueries({
+				queryKey: chatEntityKey(chat.id),
+				exact: true,
+			});
 		}
-	}
-	for (const id of deleted) {
-		void queryClient.resetQueries({ queryKey: chatEntityKey(id), exact: true });
 	}
 };

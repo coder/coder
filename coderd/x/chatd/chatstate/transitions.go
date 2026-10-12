@@ -23,7 +23,8 @@ import (
 type CreateChatInput struct {
 	OrganizationID uuid.UUID
 	OwnerID        uuid.UUID
-	// ProjectID is ignored for sub-chats, which take their root's project.
+	// ProjectID must be unset or the root's project for sub-chats, which
+	// take their root's project.
 	ProjectID         uuid.NullUUID
 	WorkspaceID       uuid.NullUUID
 	BuildID           uuid.NullUUID
@@ -151,13 +152,19 @@ func insertChat(
 			if root.Archived {
 				return ErrChatFamilyArchived
 			}
-			// A project delete locks the project's roots, so the root lock
-			// also covers the project.
+			if projectID.Valid && projectID != root.ProjectID {
+				return xerrors.New("a sub-chat must be in its root chat's project")
+			}
+			// A project delete locks every root in the project FOR UPDATE,
+			// which waits for this FOR SHARE lock. Either the delete
+			// committed first and the archived check above refuses the
+			// child, or the delete archives the child after this commit, so
+			// no project lock is needed.
 			projectID = root.ProjectID
 		} else if projectID.Valid {
 			// Held until commit so a concurrent project delete, which locks
-			// the project FOR UPDATE, either archives this chat or is seen
-			// here as a missing project.
+			// the project row, either archives this chat or is seen here as
+			// a missing project.
 			if _, err := store.GetChatProjectByIDForShare(ctx, projectID.UUID); err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					return ErrChatProjectNotFound
