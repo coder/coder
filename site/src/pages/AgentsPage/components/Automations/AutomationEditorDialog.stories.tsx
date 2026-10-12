@@ -112,6 +112,8 @@ const meta: Meta<typeof AutomationEditorDialog> = {
 		isSubmitting: false,
 		rotateSecretError: undefined,
 		isRotatingSecret: false,
+		isUpdatingEnabled: false,
+		onToggleEnabled: fn(),
 		onCreate: fn(),
 		onUpdate: fn(),
 		onRotateSecret: fn(),
@@ -677,7 +679,13 @@ export const EditWebhook: Story = {
 };
 
 export const ViewWebhookAsNonOwner: Story = {
-	args: { automation: mockWebhookAutomation, currentUserId: "another-user" },
+	args: {
+		automation: {
+			...mockWebhookAutomation,
+			owner: { id: MockUserOwner.id, username: "alice", name: "Alice" },
+		},
+		currentUserId: "another-user",
+	},
 	parameters: {
 		queries: [
 			{
@@ -707,6 +715,62 @@ export const ViewNewChatAsNonOwner: Story = {
 				data: mockModelCatalog,
 			},
 		],
+	},
+};
+
+// An admin can turn off another owner's automation but not turn it back on.
+export const ViewDisabledAsNonOwner: Story = {
+	args: {
+		automation: {
+			...mockAutomation,
+			enabled: false,
+			owner: { id: MockUserOwner.id, username: "alice", name: "Alice" },
+			target_chat: { id: MockChat.id, title: MockChat.title },
+		},
+		currentUserId: "another-user",
+	},
+	// Focus opens the tooltip that says who can turn it back on.
+	play: async () => {
+		(await screen.findByRole("switch", { name: /Enable/ })).focus();
+	},
+};
+
+export const EditDisabled: Story = {
+	args: { automation: { ...mockAutomation, enabled: false } },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+};
+
+// The model popover fits the viewport and the effort select stays next to it.
+export const NewChatModelPopover: Story = {
+	args: { automation: mockNewChatAutomation },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [mockProject] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("combobox", { name: /^Model,/ }),
+		);
 	},
 };
 

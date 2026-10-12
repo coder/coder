@@ -1,24 +1,29 @@
-import { PlayIcon, Trash2Icon } from "lucide-react";
-import { memo, useEffect, useState } from "react";
-import { useQuery } from "react-query";
+import {
+	EllipsisVerticalIcon,
+	MessageSquareIcon,
+	MessagesSquareIcon,
+	PlayIcon,
+} from "lucide-react";
+import { memo, useRef } from "react";
 import { Link as RouterLink } from "react-router";
-import { getErrorMessage, getErrorStatus } from "#/api/errors";
-import { chat } from "#/api/queries/chats";
-import { organizationMember } from "#/api/queries/organizations";
-import type { Chat, ChatAutomation } from "#/api/typesGenerated";
+import type { ChatAutomation } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { Link, type LinkProps } from "#/components/Link/Link";
-import { Skeleton } from "#/components/Skeleton/Skeleton";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Switch } from "#/components/Switch/Switch";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { formatDate } from "#/utils/time";
+	AutomationEnabledSwitch,
+	AutomationNextRun,
+	AutomationTriggerSummary,
+	ChatTitleLink,
+} from "./AutomationStatus";
 
 type AutomationRowProps = {
 	automation: ChatAutomation;
@@ -36,199 +41,128 @@ type AutomationRowProps = {
 	onDelete: (automation: ChatAutomation) => void;
 };
 
-/** Returns the first run after now, or undefined when none is scheduled. */
-const findNextRun = (
-	automation: ChatAutomation,
-	now: number,
-): Date | undefined => {
-	if (automation.kind !== "schedule") {
-		return undefined;
-	}
-	// The server computed the list when it last loaded, so its first entry
-	// can already be in the past.
-	return automation.next_run_times
-		.map((runTime) => new Date(runTime))
-		.find((runTime) => runTime.getTime() > now);
-};
+/** True when an existing-chat automation has no chat it can run in. */
+export const isTargetMissing = (automation: ChatAutomation) =>
+	automation.target_mode === "existing_chat" &&
+	(!automation.target_chat_id ||
+		Boolean(automation.paused_reasons?.includes("target_unavailable")));
 
-// setTimeout fires at once for delays above this.
-const maxTimeoutDelay = 2 ** 31 - 1;
-
-type NextRunProps = {
+type AutomationChatsButtonProps = {
 	automation: ChatAutomation;
+	onViewChats: (automation: ChatAutomation) => void;
 };
 
-const NextRun: React.FC<NextRunProps> = ({ automation }) => {
-	const [now, setNow] = useState(Date.now);
-	const nextRun = findNextRun(automation, now);
-	const nextRunTime = nextRun?.getTime();
-	// One timer per row, fired when the shown run starts, instead of polling.
-	useEffect(() => {
-		if (nextRunTime === undefined) {
-			return;
-		}
-		const delay = nextRunTime - Date.now();
-		// Runs this far out need no timer while the page is open.
-		if (delay > maxTimeoutDelay) {
-			return;
-		}
-		// Never earlier than the run, even if the timer fires a little early.
-		const handle = setTimeout(
-			() => setNow(Math.max(Date.now(), nextRunTime)),
-			Math.max(delay, 0),
-		);
-		return () => clearTimeout(handle);
-	}, [nextRunTime]);
-	if (!nextRun) {
-		return "Not scheduled";
-	}
-	return formatDate(nextRun, {
-		locale: "en-US",
-		timeZone: automation.schedule_time_zone || "UTC",
-		timeZoneName: "short",
-		month: "short",
-		day: "numeric",
-		year: undefined,
-		hour: "numeric",
-		minute: "2-digit",
-		second: undefined,
-	});
-};
-
-type ChatTitleLinkProps = {
-	chatId: string;
-	title: string | undefined;
-	size?: LinkProps["size"];
-	className?: string;
-};
-
-/** Links to a chat by its title, falling back to "Untitled". */
-export const ChatTitleLink: React.FC<ChatTitleLinkProps> = ({
-	chatId,
-	title,
-	size = "lg",
-	className,
+/**
+ * An existing-chat automation always writes to one chat, so it links straight
+ * to that chat. A new-chat automation creates many, so it opens their list.
+ */
+export const AutomationChatsButton: React.FC<AutomationChatsButtonProps> = ({
+	automation,
+	onViewChats,
 }) => {
+	if (automation.target_mode === "existing_chat") {
+		const targetChat = automation.target_chat;
+		if (!targetChat || isTargetMissing(automation)) {
+			return null;
+		}
+		return (
+			<Button
+				asChild
+				size="sm"
+				variant="outline"
+				aria-label={`Open chat of ${automation.name}`}
+			>
+				<RouterLink to={`/agents/${targetChat.id}`}>
+					<MessageSquareIcon />
+					Open chat
+				</RouterLink>
+			</Button>
+		);
+	}
 	return (
-		<Link asChild showExternalIcon={false} size={size} className={className}>
-			<RouterLink to={`/agents/${chatId}`}>{title || "Untitled"}</RouterLink>
-		</Link>
+		<Button
+			size="sm"
+			variant="outline"
+			aria-label={`View chats of ${automation.name}`}
+			onClick={() => onViewChats(automation)}
+		>
+			<MessagesSquareIcon />
+			View chats
+		</Button>
 	);
 };
 
-type ChatTitleProps = {
-	chat: Chat | undefined;
-	chatId: string;
-	isLoading: boolean;
-	error: unknown;
-	size?: LinkProps["size"];
-	className?: string;
+type TargetCellProps = {
+	automation: ChatAutomation;
+	isOwner: boolean;
 };
 
-const ChatTitle: React.FC<ChatTitleProps> = ({
-	chat,
-	chatId,
-	isLoading,
-	error,
-	size,
-	className,
-}) => {
-	if (isLoading) {
-		return <Skeleton className="inline-block h-4 w-32 align-middle" />;
+const TargetCell: React.FC<TargetCellProps> = ({ automation, isOwner }) => {
+	if (automation.target_mode === "new_chat") {
+		return <span className="text-content-secondary">New chat each run</span>;
 	}
-	if (error) {
+	if (isTargetMissing(automation)) {
+		return (
+			<Badge variant="warning" size="sm">
+				Missing target
+			</Badge>
+		);
+	}
+	// The API includes the chat only when the viewer can open it.
+	if (!automation.target_chat) {
 		return (
 			<span className="text-content-secondary">
-				{getErrorMessage(error, "Chat unavailable")}
+				{isOwner ? "Unavailable chat" : "Existing chat"}
 			</span>
 		);
 	}
 	return (
 		<ChatTitleLink
-			chatId={chatId}
-			title={chat?.title}
-			size={size}
-			className={className}
+			chatId={automation.target_chat.id}
+			title={automation.target_chat.title}
+			size="sm"
 		/>
 	);
 };
 
-type CreatingChatProps = {
-	chatId: string;
-};
-
-// Inline text, not flex, so a long title wraps as part of one sentence.
-const CreatingChat: React.FC<CreatingChatProps> = ({ chatId }) => {
-	const chatQuery = useQuery(chat(chatId));
-	return (
-		<span className="text-xs text-content-secondary">
-			Created by the agent in{" "}
-			{getErrorStatus(chatQuery.error) === 404 ? (
-				"a deleted chat"
-			) : (
-				<ChatTitle
-					chat={chatQuery.data}
-					chatId={chatId}
-					isLoading={chatQuery.isLoading}
-					error={chatQuery.error}
-					size="sm"
-					className="inline"
-				/>
-			)}
-		</span>
-	);
-};
-
-type OwnerNameProps = {
-	organizationId: string;
-	userId: string;
-};
-
-const OwnerName: React.FC<OwnerNameProps> = ({ organizationId, userId }) => {
-	const memberQuery = useQuery(organizationMember(organizationId, userId));
-	if (memberQuery.isLoading) {
-		return <Skeleton className="h-3 w-24" />;
-	}
-	if (!memberQuery.data) {
-		return (
-			<span className="text-xs text-content-secondary">Owner unavailable</span>
-		);
-	}
-	return (
-		<span className="text-xs text-content-secondary">
-			Owned by {memberQuery.data.name || memberQuery.data.username}
-		</span>
-	);
-};
-
-type TriggerCellProps = {
+type NameDetailsProps = {
 	automation: ChatAutomation;
+	isOwner: boolean;
 };
 
-const TriggerCell: React.FC<TriggerCellProps> = ({ automation }) => {
-	if (automation.kind === "schedule") {
-		return (
-			<div className="flex flex-col gap-0.5">
-				<code className="text-xs text-content-primary">
-					{automation.schedule_cron}
-				</code>
-				<span className="text-xs text-content-secondary">
-					{automation.schedule_time_zone}
-				</span>
-			</div>
-		);
-	}
+const NameDetails: React.FC<NameDetailsProps> = ({ automation, isOwner }) => {
+	const owner = automation.owner;
 	return (
-		<div className="flex flex-col gap-0.5">
-			<span>
-				{automation.webhook_use === "single"
-					? "Webhook, single-use"
-					: "Webhook, multi-use"}
+		<>
+			<span className="font-medium text-content-primary wrap-anywhere">
+				{automation.name}
 			</span>
-			{automation.webhook_consumed_at && (
-				<span className="text-xs text-content-secondary">Used</span>
+			{!isOwner && (
+				<span className="text-xs text-content-secondary">
+					{owner
+						? `Owned by ${owner.name || owner.username}`
+						: "Owner unavailable"}
+				</span>
 			)}
-		</div>
+			{automation.created_by_chat ? (
+				// Inline text, not flex, so a long title wraps as one sentence.
+				<span className="text-xs text-content-secondary">
+					Created by the agent in{" "}
+					<ChatTitleLink
+						chatId={automation.created_by_chat.id}
+						title={automation.created_by_chat.title}
+						size="sm"
+						className="inline"
+					/>
+				</span>
+			) : (
+				automation.created_by_chat_id && (
+					<span className="text-xs text-content-secondary">
+						Created by the agent
+					</span>
+				)
+			)}
+		</>
 	);
 };
 
@@ -248,86 +182,36 @@ export const AutomationRow = memo<AutomationRowProps>(
 		onEdit,
 		onDelete,
 	}) => {
-		const isConsumed = Boolean(automation.webhook_consumed_at);
-		const targetChatId =
-			automation.target_mode === "existing_chat"
-				? automation.target_chat_id
-				: undefined;
-		// Chat titles are looked up only for the viewer's own automations:
-		// the per-owner cap bounds the requests, and other owners' chats are
-		// usually unreadable, which would look like a missing target.
-		const targetQuery = useQuery({
-			...chat(targetChatId ?? ""),
-			enabled: isOwner && Boolean(targetChatId),
-		});
-		// A deleted target clears target_chat_id; an archived one refuses runs.
-		const isTargetMissing =
-			automation.target_mode === "existing_chat" &&
-			(!targetChatId ||
-				getErrorStatus(targetQuery.error) === 404 ||
-				Boolean(targetQuery.data?.archived));
-
-		const nameDetails = (
-			<>
-				<span className="font-medium text-content-primary wrap-anywhere">
-					{automation.name}
-				</span>
-				{!isOwner && (
-					<OwnerName
-						organizationId={automation.organization_id}
-						userId={automation.owner_id}
-					/>
-				)}
-				{automation.created_by_chat_id &&
-					(isOwner ? (
-						<CreatingChat chatId={automation.created_by_chat_id} />
-					) : (
-						<span className="text-xs text-content-secondary">
-							Created by the agent
-						</span>
-					))}
-			</>
-		);
-		const target =
-			automation.target_mode === "new_chat" ? (
-				<span className="text-content-secondary">New chat each run</span>
-			) : isTargetMissing || !targetChatId ? (
-				<Badge variant="warning" size="sm">
-					Missing target
-				</Badge>
-			) : !isOwner ? (
-				<span className="text-content-secondary">Existing chat</span>
-			) : (
-				<ChatTitle
-					chat={targetQuery.data}
-					chatId={targetChatId}
-					isLoading={targetQuery.isLoading}
-					error={targetQuery.error}
-					size="sm"
-				/>
-			);
+		const moreButtonRef = useRef<HTMLButtonElement>(null);
+		// Runs once the menu closed and focused its trigger, so the dialog
+		// the action opens returns focus there instead of to a removed item.
+		const pendingActionRef = useRef<(() => void) | null>(null);
 		const enabledSwitch = (
-			<Switch
-				// A used single-use webhook rejects every delivery, so
-				// it shows as off and the switch cannot change that.
-				checked={automation.enabled && !isConsumed}
-				// Only the owner can re-enable an automation.
-				disabled={isConsumed || isUpdating || (!isOwner && !automation.enabled)}
-				aria-label={`Enable ${automation.name}`}
-				onCheckedChange={(enabled) => onToggleEnabled(automation, enabled)}
+			<AutomationEnabledSwitch
+				automation={automation}
+				isOwner={isOwner}
+				isUpdating={isUpdating}
+				onToggle={(enabled) => onToggleEnabled(automation, enabled)}
 			/>
 		);
 		const actions = (
 			<div
 				className={
-					compact ? "flex flex-col items-end gap-2" : "flex justify-end gap-2"
+					compact
+						? "flex flex-col items-end gap-2"
+						: "flex items-center justify-end gap-2"
 				}
 			>
 				{automation.kind === "schedule" && isOwner && (
 					<Button
 						size="sm"
 						variant="outline"
-						disabled={!automation.enabled || isTargetMissing || isAnyRunPending}
+						disabled={
+							!automation.enabled ||
+							Boolean(automation.paused_reasons?.length) ||
+							isTargetMissing(automation) ||
+							isAnyRunPending
+						}
 						aria-label={`Run now ${automation.name}`}
 						onClick={() => onRunNow(automation)}
 					>
@@ -338,38 +222,56 @@ export const AutomationRow = memo<AutomationRowProps>(
 					</Button>
 				)}
 				{isOwner && (
-					<Button
-						size="sm"
-						variant="outline"
-						aria-label={`View chats ${automation.name}`}
-						onClick={() => onViewChats(automation)}
+					<AutomationChatsButton
+						automation={automation}
+						onViewChats={onViewChats}
+					/>
+				)}
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							ref={moreButtonRef}
+							size="icon"
+							variant="subtle"
+							aria-label={`More actions for ${automation.name}`}
+						>
+							<EllipsisVerticalIcon aria-hidden />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent
+						align="end"
+						onCloseAutoFocus={(event) => {
+							const action = pendingActionRef.current;
+							pendingActionRef.current = null;
+							if (action) {
+								event.preventDefault();
+								moreButtonRef.current?.focus();
+								action();
+							}
+						}}
 					>
-						View chats
-					</Button>
-				)}
-				<Button
-					size="sm"
-					variant="outline"
-					aria-label={`${isOwner ? "Edit" : "View"} ${automation.name}`}
-					onClick={() => onEdit(automation)}
-				>
-					{isOwner ? "Edit" : "View"}
-				</Button>
-				{isOwner && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								size="icon"
-								variant="outline"
-								aria-label={`Delete ${automation.name}`}
-								onClick={() => onDelete(automation)}
-							>
-								<Trash2Icon />
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Delete</TooltipContent>
-					</Tooltip>
-				)}
+						<DropdownMenuItem
+							onSelect={() => {
+								pendingActionRef.current = () => onEdit(automation);
+							}}
+						>
+							{isOwner ? "Edit" : "View"}
+						</DropdownMenuItem>
+						{isOwner && (
+							<>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onSelect={() => {
+										pendingActionRef.current = () => onDelete(automation);
+									}}
+								>
+									Delete&hellip;
+								</DropdownMenuItem>
+							</>
+						)}
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</div>
 		);
 
@@ -378,21 +280,19 @@ export const AutomationRow = memo<AutomationRowProps>(
 				<TableRow>
 					<TableCell className="align-top">
 						<div className="flex flex-col gap-1 wrap-anywhere">
-							{nameDetails}
-							{/* The Trigger and Target headers are hidden in this layout. */}
+							<NameDetails automation={automation} isOwner={isOwner} />
+							{/* The Trigger and Runs in headers are hidden in this layout. */}
 							<div>
 								<span className="sr-only">Trigger: </span>
-								<TriggerCell automation={automation} />
+								<AutomationTriggerSummary automation={automation} />
 							</div>
 							<div>
-								<span className="sr-only">Target: </span>
-								{target}
+								<span className="sr-only">Runs in: </span>
+								<TargetCell automation={automation} isOwner={isOwner} />
 							</div>
-							{automation.kind === "schedule" && (
-								<span>
-									Next run: <NextRun automation={automation} />
-								</span>
-							)}
+							<span>
+								Next: <AutomationNextRun automation={automation} />
+							</span>
 						</div>
 					</TableCell>
 					<TableCell className="align-top">{enabledSwitch}</TableCell>
@@ -404,14 +304,18 @@ export const AutomationRow = memo<AutomationRowProps>(
 		return (
 			<TableRow>
 				<TableCell>
-					<div className="flex flex-col gap-0.5">{nameDetails}</div>
+					<div className="flex flex-col gap-0.5">
+						<NameDetails automation={automation} isOwner={isOwner} />
+					</div>
 				</TableCell>
 				<TableCell>
-					<TriggerCell automation={automation} />
+					<AutomationTriggerSummary automation={automation} />
 				</TableCell>
-				<TableCell>{target}</TableCell>
+				<TableCell>
+					<TargetCell automation={automation} isOwner={isOwner} />
+				</TableCell>
 				<TableCell className="whitespace-nowrap">
-					<NextRun automation={automation} />
+					<AutomationNextRun automation={automation} />
 				</TableCell>
 				<TableCell>{enabledSwitch}</TableCell>
 				<TableCell>{actions}</TableCell>

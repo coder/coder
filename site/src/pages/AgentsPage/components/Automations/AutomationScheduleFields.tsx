@@ -141,6 +141,25 @@ export const matchRepeatShortcut = (
 	return undefined;
 };
 
+/**
+ * Describes a cron string in words when a Repeat shortcut wrote it, such as
+ * "Weekdays at 09:00". Other cron strings come back unchanged.
+ */
+export const describeSchedule = (cron: string): string => {
+	const shortcut = matchRepeatShortcut(cron);
+	const option = repeatOptions.find(({ value }) => value === shortcut?.repeat);
+	if (!shortcut || !option) {
+		return cron.trim();
+	}
+	if (shortcut.minute === undefined) {
+		return option.label;
+	}
+	if (shortcut.hour === undefined) {
+		return `${option.label} at :${String(shortcut.minute).padStart(2, "0")}`;
+	}
+	return `${option.label} at ${formatTime({ hour: shortcut.hour, minute: shortcut.minute })}`;
+};
+
 // Unlike a cron field, the Minute input accepts a leading zero ("05").
 const parseMinuteInput = (text: string): number | undefined => {
 	const trimmed = text.trim();

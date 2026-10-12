@@ -35,7 +35,6 @@ const MODEL_DEFAULT_EFFORT = "model-default";
 type AutomationTargetFieldProps = {
 	organizationId: string;
 	isCreate: boolean;
-	isReadOnly: boolean;
 	form: FormikContextType<AutomationFormValues>;
 	getFieldHelpers: (name: keyof AutomationFormValues) => FormHelpers;
 	/** Shows the Project field for new chat targets. */
@@ -47,7 +46,6 @@ type AutomationTargetFieldProps = {
 export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 	organizationId,
 	isCreate,
-	isReadOnly,
 	form,
 	getFieldHelpers,
 	showProjectField,
@@ -116,26 +114,20 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 				/>
 			</RadioGroup>
 			{form.values.target_mode === "existing_chat" ? (
-				<div className="grid grid-cols-2 gap-4">
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 					<FormField
 						field={getFieldHelpers("target_chat_id")}
 						label="Chat"
-						// Other owners' chats are usually unreadable to the viewer, so
-						// the read-only view shows the ID instead of looking it up.
-						control={
-							isReadOnly
-								? undefined
-								: (props) => (
-										<AutomationChatPicker
-											{...props}
-											organizationId={organizationId}
-											value={form.values.target_chat_id}
-											onChange={(chatId) =>
-												form.setFieldValue("target_chat_id", chatId)
-											}
-										/>
-									)
-						}
+						control={(props) => (
+							<AutomationChatPicker
+								{...props}
+								organizationId={organizationId}
+								value={form.values.target_chat_id}
+								onChange={(chatId) =>
+									form.setFieldValue("target_chat_id", chatId)
+								}
+							/>
+						)}
 					/>
 					<SelectField
 						field={getFieldHelpers("when_busy")}
@@ -153,7 +145,7 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 				</div>
 			) : (
 				<div className="flex flex-col gap-2">
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div className="flex flex-col gap-2">
 							<span className="flex items-center gap-1 text-sm font-medium text-content-primary">
 								Model
@@ -163,23 +155,22 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 							</span>
 							<div>
 								<ModelSelector
-									className="w-full"
+									// Matches the Select next to it instead of the composer pill.
+									className="h-10 w-full justify-between rounded-md border border-solid border-border bg-transparent px-3 text-sm shadow-xs hover:bg-surface-secondary"
+									// Fits the popover into the viewport below or above the
+									// trigger, and makes it as wide as the trigger.
+									contentClassName="flex max-h-[min(24rem,var(--radix-popover-content-available-height))] w-[max(18rem,var(--radix-popover-trigger-width))] flex-col"
 									triggerAriaLabel="Model"
 									triggerAriaInvalid={modelField.error}
 									triggerAriaDescribedBy={
 										modelField.error ? modelErrorId : undefined
 									}
-									// The viewer's catalog can lack the owner's model.
-									placeholder={
-										isReadOnly
-											? "Set by the owner"
-											: getModelSelectorPlaceholder(
-													modelOptions,
-													isModelCatalogLoading,
-													hasConfiguredModels,
-													modelCatalog,
-												)
-									}
+									placeholder={getModelSelectorPlaceholder(
+										modelOptions,
+										isModelCatalogLoading,
+										hasConfiguredModels,
+										modelCatalog,
+									)}
 									options={modelOptions}
 									value={form.values.new_chat_model_config_id}
 									onValueChange={(modelId) => {

@@ -1411,6 +1411,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					automationReferences={automationReferences}
 					onDelete={(id) => onDeleteQueuedMessage?.(id)}
 					onPromote={(id) => onPromoteQueuedMessage?.(id)}
+					readOnly={isReadOnlyView}
 					className="mb-2"
 				/>
 			)}

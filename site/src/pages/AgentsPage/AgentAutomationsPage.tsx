@@ -5,7 +5,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
 import {
@@ -80,6 +80,7 @@ const AutomationsList: React.FC = () => {
 		useDashboard();
 	const queryClient = useQueryClient();
 	const { user } = useAuthenticated();
+	const navigate = useNavigate();
 	// Senders must reach the configured URL, not the address this tab uses.
 	const webhookOrigin = new URL(buildInfo.dashboard_url).origin;
 	const [selectedOrgId, setSelectedOrgId] = useState(() =>
@@ -266,8 +267,13 @@ const AutomationsList: React.FC = () => {
 	const handleRunNow = (automation: ChatAutomation) => {
 		setRunError(undefined);
 		runMutation.mutate(automation.id, {
-			onSuccess: () => {
-				toast.success(`${automation.name} accepted the run.`);
+			onSuccess: ({ chat_id }) => {
+				toast.success(`${automation.name} accepted the run.`, {
+					action: {
+						label: "Open chat",
+						onClick: () => navigate(`/agents/${chat_id}`),
+					},
+				});
 			},
 			onError: (error) => {
 				setRunError({ automation, error, organizationId });
@@ -341,6 +347,15 @@ const AutomationsList: React.FC = () => {
 						onUpdate={(req) => {
 							if (editor.mode === "edit") {
 								handleUpdate(editor.automation, req);
+							}
+						}}
+						isUpdatingEnabled={
+							updateMutation.isPending &&
+							updateMutation.variables?.automationId === editedAutomation?.id
+						}
+						onToggleEnabled={(enabled) => {
+							if (editedAutomation) {
+								handleToggleEnabled(editedAutomation, enabled);
 							}
 						}}
 						rotateSecretError={rotateMutation.error}

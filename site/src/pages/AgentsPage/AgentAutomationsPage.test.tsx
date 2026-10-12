@@ -31,7 +31,6 @@ import {
 	MockBuildInfo,
 	MockDefaultOrganization,
 	MockOrganization2,
-	MockOrganizationMember2,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
@@ -64,6 +63,15 @@ const mockWebhookAutomation: ChatAutomation = {
 	...MockWebhookChatAutomation,
 	organization_id: MockDefaultOrganization.id,
 	target_chat_id: MockChat.id,
+};
+
+// A new chat automation creates many chats, so its row opens their list.
+const mockNewChatListAutomation: ChatAutomation = {
+	...mockAutomation,
+	target_mode: "new_chat",
+	target_chat_id: undefined,
+	when_busy: undefined,
+	new_chat_model_config_id: "model-1",
 };
 
 const automationsPath = (organizationId: string) =>
@@ -111,6 +119,25 @@ const requestPaths = (requests: readonly Request[]) =>
 		const url = new URL(request.url);
 		return `${request.method} ${url.pathname}${url.search}`;
 	});
+
+// The editor's submit button reads Create for a new automation.
+const saveButtonName = /(Create|Save changes)$/;
+
+/** Opens a row's More menu and picks Edit, View or Delete. */
+const openRowAction = async (
+	user: ReturnType<typeof userEvent.setup>,
+	automationName: string,
+	action: "Edit" | "View" | "Delete",
+) => {
+	await user.click(
+		await screen.findByRole("button", {
+			name: `More actions for ${automationName}`,
+		}),
+	);
+	await user.click(
+		await screen.findByRole("menuitem", { name: new RegExp(`^${action}`) }),
+	);
+};
 
 afterEach(() => {
 	localStorage.clear();
@@ -186,23 +213,24 @@ describe("AgentAutomationsPage", () => {
 		},
 	);
 
-	it("looks up the owner of another user's automation", async () => {
-		const memberPath = `/api/v2/organizations/${MockDefaultOrganization.id}/members/${MockOrganizationMember2.user_id}`;
-		const { requests } = setup({
+	it("opens the target chat of an existing chat automation", async () => {
+		const user = userEvent.setup();
+		const { router } = setup({
 			automations: [
-				{ ...mockAutomation, owner_id: MockOrganizationMember2.user_id },
+				{
+					...mockAutomation,
+					target_chat: { id: MockChat.id, title: MockChat.title },
+				},
 			],
 		});
-		server.use(
-			http.get(memberPath, ({ request }) => {
-				requests.push(request);
-				return HttpResponse.json(MockOrganizationMember2);
+
+		await user.click(
+			await screen.findByRole("link", {
+				name: `Open chat of ${mockAutomation.name}`,
 			}),
 		);
 
-		await waitFor(() => {
-			expect(requestPaths(requests)).toContain(`GET ${memberPath}`);
-		});
+		expect(router.state.location.pathname).toBe(`/agents/${MockChat.id}`);
 	});
 
 	it("disables an automation with the enabled switch", async () => {
@@ -366,11 +394,7 @@ describe("AgentAutomationsPage", () => {
 			),
 		);
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Delete ${mockAutomation.name}`,
-			}),
-		);
+		await openRowAction(user, mockAutomation.name, "Delete");
 		const dialog = await screen.findByRole("dialog", {
 			name: `Delete ${mockAutomation.name}?`,
 		});
@@ -388,7 +412,7 @@ describe("AgentAutomationsPage", () => {
 		// The deleted row's button is gone, so focus moves to a stable control.
 		await waitFor(() => {
 			expect(
-				screen.getByRole("button", { name: "New automation" }),
+				screen.getByRole("button", { name: "Create automation" }),
 			).toHaveFocus();
 		});
 	});
@@ -415,11 +439,7 @@ describe("AgentAutomationsPage", () => {
 			),
 		);
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Delete ${mockAutomation.name}`,
-			}),
-		);
+		await openRowAction(user, mockAutomation.name, "Delete");
 		const dialog = await screen.findByRole("dialog", {
 			name: `Delete ${mockAutomation.name}?`,
 		});
@@ -431,7 +451,7 @@ describe("AgentAutomationsPage", () => {
 		// when the row disappears and hands it to a stable control.
 		await waitFor(() => {
 			expect(
-				screen.getByRole("button", { name: "New automation" }),
+				screen.getByRole("button", { name: "Create automation" }),
 			).toHaveFocus();
 		});
 	});
@@ -440,17 +460,17 @@ describe("AgentAutomationsPage", () => {
 		const user = userEvent.setup();
 		const { requests } = setup();
 
-		const deleteButton = await screen.findByRole("button", {
-			name: `Delete ${mockAutomation.name}`,
+		const moreButton = await screen.findByRole("button", {
+			name: `More actions for ${mockAutomation.name}`,
 		});
-		await user.click(deleteButton);
+		await openRowAction(user, mockAutomation.name, "Delete");
 		const dialog = await screen.findByRole("dialog", {
 			name: `Delete ${mockAutomation.name}?`,
 		});
 		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
 		await waitFor(() => {
-			expect(deleteButton).toHaveFocus();
+			expect(moreButton).toHaveFocus();
 		});
 		expect(
 			requestPaths(requests).filter((path) => path.startsWith("DELETE")),
@@ -479,11 +499,7 @@ describe("AgentAutomationsPage", () => {
 			),
 		);
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Delete ${mockAutomation.name}`,
-			}),
-		);
+		await openRowAction(user, mockAutomation.name, "Delete");
 		const dialog = await screen.findByRole("dialog", {
 			name: `Delete ${mockAutomation.name}?`,
 		});
@@ -496,7 +512,7 @@ describe("AgentAutomationsPage", () => {
 		});
 		await waitFor(() => {
 			expect(
-				screen.getByRole("button", { name: "New automation" }),
+				screen.getByRole("button", { name: "Create automation" }),
 			).toHaveFocus();
 		});
 	});
@@ -551,11 +567,11 @@ describe("AgentAutomationsPage", () => {
 
 	it("requests an automation's archived and active chats", async () => {
 		const user = userEvent.setup();
-		const { requests } = setup();
+		const { requests } = setup({ automations: [mockNewChatListAutomation] });
 
 		await user.click(
 			await screen.findByRole("button", {
-				name: `View chats ${mockAutomation.name}`,
+				name: `View chats of ${mockAutomation.name}`,
 			}),
 		);
 
@@ -581,10 +597,10 @@ describe("AgentAutomationsPage", () => {
 		"closes the chats dialog with $via and returns focus to View chats",
 		async ({ close }) => {
 			const user = userEvent.setup();
-			setup();
+			setup({ automations: [mockNewChatListAutomation] });
 
 			const viewChats = await screen.findByRole("button", {
-				name: `View chats ${mockAutomation.name}`,
+				name: `View chats of ${mockAutomation.name}`,
 			});
 			viewChats.focus();
 			await user.keyboard("{Enter}");
@@ -601,7 +617,7 @@ describe("AgentAutomationsPage", () => {
 
 	it("loads more of an automation's chats", async () => {
 		const user = userEvent.setup();
-		const { requests } = setup();
+		const { requests } = setup({ automations: [mockNewChatListAutomation] });
 		const mockChatPage = Array.from({ length: 25 }, (_, index) => ({
 			...MockChat,
 			id: `chat-${index}`,
@@ -627,7 +643,7 @@ describe("AgentAutomationsPage", () => {
 
 		await user.click(
 			await screen.findByRole("button", {
-				name: `View chats ${mockAutomation.name}`,
+				name: `View chats of ${mockAutomation.name}`,
 			}),
 		);
 		await user.click(await screen.findByRole("button", { name: "Load more" }));
@@ -741,7 +757,7 @@ const setupEditor = (options?: Parameters<typeof setup>[0]) => {
 
 const openCreateDialog = async (user: ReturnType<typeof userEvent.setup>) => {
 	await user.click(
-		await screen.findByRole("button", { name: "New automation" }),
+		await screen.findByRole("button", { name: "Create automation" }),
 	);
 	const dialog = await screen.findByRole("dialog");
 	await user.click(within(dialog).getByLabelText(/^Name/));
@@ -819,7 +835,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await user.click(
 			await screen.findByRole("option", { name: mockOtherChat.title }),
 		);
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 
 		await waitFor(() => {
 			expect(createBodies).toEqual([
@@ -860,7 +878,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 					await screen.findByRole("option", { name: effortLabel }),
 				);
 			}
-			await user.click(within(dialog).getByRole("button", { name: "Save" }));
+			await user.click(
+				within(dialog).getByRole("button", { name: saveButtonName }),
+			);
 
 			await waitFor(() => {
 				expect(createBodies).toEqual([
@@ -898,7 +918,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await user.click(
 			await screen.findByRole("option", { name: mockProject.name }),
 		);
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 
 		await waitFor(() => {
 			expect(createBodies).toEqual([
@@ -930,17 +952,15 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			),
 		);
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Edit ${MockChatAutomation.name}`,
-			}),
-		);
+		await openRowAction(user, MockChatAutomation.name, "Edit");
 		const dialog = await screen.findByRole("dialog");
 		const project = within(dialog).getByRole("combobox", { name: /^Project/ });
 		await waitFor(() => expect(project).toBeEnabled());
 		await user.click(project);
 		await user.click(await screen.findByRole("option", { name: "No project" }));
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 
 		await waitFor(() => {
 			expect(updateBodies).toEqual([
@@ -953,11 +973,13 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		const user = userEvent.setup();
 		const { createBodies } = setupEditor();
 		await user.click(
-			await screen.findByRole("button", { name: "New automation" }),
+			await screen.findByRole("button", { name: "Create automation" }),
 		);
 		const dialog = await screen.findByRole("dialog");
 
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 
 		await waitFor(() => {
 			expect(
@@ -1006,7 +1028,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		).toHaveLength(1);
 
 		await pickChat(user, dialog, MockChat.title);
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 		await waitFor(() => {
 			expect(cron).toHaveAccessibleDescription(
 				expect.stringContaining("Must be a valid cron expression."),
@@ -1048,7 +1072,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		const user = userEvent.setup();
 		const { createBodies } = setupEditor();
 		await user.click(
-			await screen.findByRole("button", { name: "New automation" }),
+			await screen.findByRole("button", { name: "Create automation" }),
 		);
 		const dialog = await screen.findByRole("dialog");
 		const name = "\u{1F600}".repeat(65) + "x".repeat(63);
@@ -1057,7 +1081,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await user.click(within(dialog).getByLabelText(/^Prompt/));
 		await user.paste("Summarize yesterday.");
 		await pickChat(user, dialog, mockTargetChat.title);
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 
 		await waitFor(() => {
 			expect(createBodies).toEqual([expect.objectContaining({ name })]);
@@ -1116,11 +1142,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			automations: [{ ...mockAutomation, schedule_cron: "30 9 * * 1-5" }],
 		});
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Edit ${MockChatAutomation.name}`,
-			}),
-		);
+		await openRowAction(user, MockChatAutomation.name, "Edit");
 		const dialog = await screen.findByRole("dialog");
 		const repeat = within(dialog).getByRole("combobox", { name: "Repeat" });
 		const time = within(dialog).getByLabelText("Time");
@@ -1145,7 +1167,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await user.clear(minute);
 		await user.type(minute, "15");
 		expect(cron).toHaveValue("15 * * * *");
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 
 		await waitFor(() => {
 			expect(updateBodies).toEqual([{ schedule_cron: "15 * * * *" }]);
@@ -1158,11 +1182,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			automations: [{ ...mockAutomation, schedule_cron: "30 9 * * 1-5" }],
 		});
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Edit ${MockChatAutomation.name}`,
-			}),
-		);
+		await openRowAction(user, MockChatAutomation.name, "Edit");
 		const dialog = await screen.findByRole("dialog");
 		const repeat = within(dialog).getByRole("combobox", { name: "Repeat" });
 		const cron = within(dialog).getByLabelText(/^Cron expression/);
@@ -1174,7 +1194,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await user.type(minute, "60");
 		expect(cron).toHaveValue("");
 		expect(minute).toHaveAccessibleDescription("Enter a minute from 0 to 59.");
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 		await within(dialog).findByText("Cron expression is required.");
 		expect(updateBodies).toEqual([]);
 		await user.clear(minute);
@@ -1193,7 +1215,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 
 		await user.type(time, "07:45");
 		expect(cron).toHaveValue("45 7 * * 1-5");
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 		await waitFor(() => {
 			expect(updateBodies).toEqual([{ schedule_cron: "45 7 * * 1-5" }]);
 		});
@@ -1231,7 +1255,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			]);
 		});
 		await pickChat(user, dialog, mockTargetChat.title);
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 
 		await waitFor(() => {
 			expect(createBodies).toEqual([
@@ -1246,11 +1272,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			automations: [{ ...mockAutomation, schedule_time_zone: "Mars/Olympus" }],
 		});
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Edit ${MockChatAutomation.name}`,
-			}),
-		);
+		await openRowAction(user, MockChatAutomation.name, "Edit");
 		const dialog = await screen.findByRole("dialog");
 		await waitFor(() => {
 			expect(
@@ -1282,7 +1304,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			const dialog = await openCreateDialog(user);
 			await user.click(within(dialog).getByRole("radio", { name: trigger }));
 			await pickChat(user, dialog, mockTargetChat.title);
-			await user.click(within(dialog).getByRole("button", { name: "Save" }));
+			await user.click(
+				within(dialog).getByRole("button", { name: saveButtonName }),
+			);
 
 			await waitFor(() => {
 				expect(
@@ -1314,11 +1338,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			],
 		});
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Edit ${MockChatAutomation.name}`,
-			}),
-		);
+		await openRowAction(user, MockChatAutomation.name, "Edit");
 		const dialog = await screen.findByRole("dialog");
 		await user.click(
 			await within(dialog).findByRole("combobox", {
@@ -1330,7 +1350,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				name: new RegExp(mockModel.display_name),
 			}),
 		);
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 
 		await waitFor(() => {
 			expect(screen.queryByRole("dialog")).toBeNull();
@@ -1352,11 +1374,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			],
 		});
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Edit ${MockChatAutomation.name}`,
-			}),
-		);
+		await openRowAction(user, MockChatAutomation.name, "Edit");
 		const dialog = await screen.findByRole("dialog");
 		await user.click(
 			await within(dialog).findByRole("combobox", { name: "Reasoning effort" }),
@@ -1364,7 +1382,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await user.click(
 			await screen.findByRole("option", { name: "Model default" }),
 		);
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 
 		await waitFor(() => {
 			expect(updateBodies).toEqual([{ reasoning_effort: "" }]);
@@ -1380,12 +1400,12 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			const user = userEvent.setup();
 			const { updateBodies } = setupEditor({ automations: [automation] });
 
-			await user.click(
-				await screen.findByRole("button", { name: `Edit ${automation.name}` }),
-			);
+			await openRowAction(user, automation.name, "Edit");
 			const dialog = await screen.findByRole("dialog");
 			await pickChat(user, dialog, mockOtherChat.title);
-			await user.click(within(dialog).getByRole("button", { name: "Save" }));
+			await user.click(
+				within(dialog).getByRole("button", { name: saveButtonName }),
+			);
 
 			await waitFor(() => {
 				expect(updateBodies).toEqual([{ target_chat_id: mockOtherChat.id }]);
@@ -1407,11 +1427,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				),
 			);
 
-			await user.click(
-				await screen.findByRole("button", {
-					name: `Edit ${MockChatAutomation.name}`,
-				}),
-			);
+			await openRowAction(user, MockChatAutomation.name, "Edit");
 			const dialog = await screen.findByRole("dialog");
 			await waitFor(() => {
 				expect(
@@ -1457,16 +1473,14 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				),
 			);
 
-			await user.click(
-				await screen.findByRole("button", {
-					name: `Edit ${MockChatAutomation.name}`,
-				}),
-			);
+			await openRowAction(user, MockChatAutomation.name, "Edit");
 			const dialog = await screen.findByRole("dialog");
 			const name = within(dialog).getByLabelText(/^Name/);
 			await user.clear(name);
 			await user.type(name, "Renamed");
-			await user.click(within(dialog).getByRole("button", { name: "Save" }));
+			await user.click(
+				within(dialog).getByRole("button", { name: saveButtonName }),
+			);
 
 			const alert = await within(dialog).findByRole("alert");
 			expect(alert.textContent).toBe(alertText);
@@ -1491,19 +1505,21 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				}),
 			);
 
-			const view = await screen.findByRole("button", {
-				name: `View ${automation.name}`,
+			await screen.findByRole("button", {
+				name: `More actions for ${automation.name}`,
 			});
 			expect(
 				screen.queryByRole("button", { name: `Run now ${automation.name}` }),
 			).toBeNull();
-			await user.click(view);
+			await openRowAction(user, automation.name, "View");
 			const dialog = await screen.findByRole("dialog", {
-				name: "View automation",
+				name: automation.name,
 			});
-			expect(within(dialog).getByLabelText(/^Name/)).toBeDisabled();
-			expect(within(dialog).getByLabelText(/^Prompt/)).toBeDisabled();
-			expect(within(dialog).queryByRole("button", { name: "Save" })).toBeNull();
+			// The viewer reads a summary, so there is nothing to edit or save.
+			expect(within(dialog).queryByRole("textbox")).toBeNull();
+			expect(
+				within(dialog).queryByRole("button", { name: saveButtonName }),
+			).toBeNull();
 			expect(
 				within(dialog).queryByRole("button", { name: "Rotate secret" }),
 			).toBeNull();
@@ -1517,11 +1533,65 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		},
 	);
 
+	it("turns an automation off from the editor without saving the form", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor();
+
+		await openRowAction(user, MockChatAutomation.name, "Edit");
+		const dialog = await screen.findByRole("dialog");
+		await user.click(
+			within(dialog).getByRole("switch", {
+				name: `Enable ${MockChatAutomation.name}`,
+			}),
+		);
+
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ enabled: false }]);
+		});
+	});
+
+	it("lets a viewer turn another owner's automation off but not back on", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [
+				{ ...mockAutomation, owner_id: "another-user", enabled: false },
+			],
+		});
+
+		await openRowAction(user, mockAutomation.name, "View");
+		const dialog = await screen.findByRole("dialog");
+		await user.click(
+			within(dialog).getByRole("switch", {
+				name: `Enable ${mockAutomation.name}`,
+			}),
+		);
+
+		expect(updateBodies).toEqual([]);
+	});
+
+	it("asks before Escape discards an edited form", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+
+		await openRowAction(user, MockChatAutomation.name, "Edit");
+		const dialog = await screen.findByRole("dialog");
+		await user.type(within(dialog).getByLabelText(/^Name/), " v2");
+		await user.keyboard("{Escape}");
+		const confirm = await screen.findByRole("dialog", {
+			name: "Discard unsaved changes?",
+		});
+		await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
+
+		expect(within(dialog).getByLabelText(/^Name/)).toHaveValue(
+			`${MockChatAutomation.name} v2`,
+		);
+	});
+
 	it("returns focus to the button that opened the editor", async () => {
 		const user = userEvent.setup();
 		setupEditor();
 		const newButton = await screen.findByRole("button", {
-			name: "New automation",
+			name: "Create automation",
 		});
 
 		await user.click(newButton);
@@ -1572,11 +1642,7 @@ const dismissSecret = async (
 };
 
 const openWebhookEditor = async (user: ReturnType<typeof userEvent.setup>) => {
-	await user.click(
-		await screen.findByRole("button", {
-			name: `Edit ${mockWebhookAutomation.name}`,
-		}),
-	);
+	await openRowAction(user, mockWebhookAutomation.name, "Edit");
 	return screen.findByRole("dialog");
 };
 
@@ -1612,7 +1678,9 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
 		await user.click(within(dialog).getByRole("radio", { name: "Single-use" }));
 		await pickChat(user, dialog, MockChat.title);
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 
 		const secretDialog = await screen.findByRole("dialog", {
 			name: "Copy the webhook secret",
@@ -1631,6 +1699,11 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		expect(
 			within(secretDialog).getByRole("button", { name: "Done" }),
 		).toHaveFocus();
+		// Escape would lose the only copy of the secret.
+		await user.keyboard("{Escape}");
+		expect(
+			screen.getByRole("dialog", { name: "Copy the webhook secret" }),
+		).toBe(secretDialog);
 		const writeText = vi
 			.spyOn(navigator.clipboard, "writeText")
 			.mockResolvedValue();
@@ -1661,7 +1734,7 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		await dismissSecret(user, secretDialog, queryClient, mutationStates);
 		await waitFor(() => {
 			expect(
-				screen.getByRole("button", { name: "New automation" }),
+				screen.getByRole("button", { name: "Create automation" }),
 			).toHaveFocus();
 		});
 	});
@@ -1708,7 +1781,9 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 				await user.click(within(dialog).getByRole("radio", { name: trigger }));
 			}
 			await pickChat(user, dialog, MockChat.title);
-			await user.click(within(dialog).getByRole("button", { name: "Save" }));
+			await user.click(
+				within(dialog).getByRole("button", { name: saveButtonName }),
+			);
 
 			await waitFor(() => {
 				expect(createBodies).toEqual([
@@ -1742,11 +1817,13 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		const dialog = await openCreateDialog(user);
 		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
 		await pickChat(user, dialog, MockChat.title);
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 		// The name includes the spinner's title while saving.
 		await waitFor(() => {
 			expect(
-				within(dialog).getByRole("button", { name: /Save/ }),
+				within(dialog).getByRole("button", { name: saveButtonName }),
 			).toBeDisabled();
 		});
 
@@ -1785,14 +1862,18 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		);
 		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
 		await pickChat(user, dialog, MockChat.title);
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 
 		await waitFor(() => {
 			expect(
 				within(dialog).getByLabelText(/^Name/),
 			).toHaveAccessibleDescription("Name is taken.");
 		});
-		expect(within(dialog).getByRole("button", { name: "Save" })).toBeEnabled();
+		expect(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		).toBeEnabled();
 		const unload = new Event("beforeunload", { cancelable: true });
 		window.dispatchEvent(unload);
 		expect(unload.defaultPrevented).toBe(false);
@@ -1831,7 +1912,9 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 			within(dialog).queryByRole("button", { name: "Rotate secret" }),
 		).toBeNull();
 		expect(name).toHaveValue("Renamed");
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
 
 		await waitFor(() => {
 			expect(updateBodies).toEqual([{ name: "Renamed" }]);

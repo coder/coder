@@ -1,4 +1,4 @@
-import { ArchiveIcon } from "lucide-react";
+import { ArchiveIcon, PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
@@ -31,10 +31,8 @@ import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { useRestoreFocusOnClose } from "#/hooks/useRestoreFocusOnClose";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
-import {
-	AutomationRow,
-	ChatTitleLink,
-} from "./components/Automations/AutomationRow";
+import { AutomationRow } from "./components/Automations/AutomationRow";
+import { ChatTitleLink } from "./components/Automations/AutomationStatus";
 import { SectionHeader } from "./components/SectionHeader";
 
 export type AutomationRunError = {
@@ -298,7 +296,8 @@ export const AgentAutomationsPageView: React.FC<
 									size="sm"
 									onClick={onCreateAutomation}
 								>
-									New automation
+									<PlusIcon />
+									Create automation
 								</Button>
 							</div>
 						}
@@ -341,7 +340,7 @@ export const AgentAutomationsPageView: React.FC<
 									{!isMobile && (
 										<>
 											<TableHead>Trigger</TableHead>
-											<TableHead>Target</TableHead>
+											<TableHead>Runs in</TableHead>
 											<TableHead>Next run</TableHead>
 										</>
 									)}

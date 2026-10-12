@@ -13,6 +13,7 @@ import type {
 } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
 	DialogContent,
@@ -29,6 +30,8 @@ import { getFormHelpers } from "#/utils/formUtils";
 import { getPreferredTimezone } from "#/utils/timeZones";
 import { NIL_UUID } from "../../utils/modelOptions";
 import { NO_PROJECT } from "./AutomationProjectField";
+import { AutomationEnabledSwitch } from "./AutomationStatus";
+import { AutomationSummary } from "./AutomationSummary";
 import { AutomationTargetField } from "./AutomationTargetField";
 import { AutomationTriggerField } from "./AutomationTriggerField";
 
@@ -180,6 +183,10 @@ type AutomationEditorDialogProps = {
 	isSubmitting: boolean;
 	rotateSecretError: unknown;
 	isRotatingSecret: boolean;
+	/** True while the enabled switch's own update is pending. */
+	isUpdatingEnabled: boolean;
+	/** Turns the automation on or off at once, apart from Save. */
+	onToggleEnabled: (enabled: boolean) => void;
 	onCreate: (req: CreateChatAutomationRequest) => void;
 	onUpdate: (req: UpdateChatAutomationRequest) => void;
 	/** Receives the Rotate secret button so focus can return to it later. */
@@ -197,6 +204,8 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	isSubmitting,
 	rotateSecretError,
 	isRotatingSecret,
+	isUpdatingEnabled,
+	onToggleEnabled,
 	onCreate,
 	onUpdate,
 	onRotateSecret,
@@ -212,6 +221,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const restoreFocus = useRestoreFocusOnClose();
 	const [submittedValues, setSubmittedValues] =
 		useState<AutomationFormValues>();
+	const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
 	// Frozen at open, so a list refetch that refreshes `automation` neither
 	// resets the user's input nor changes the PATCH baseline.
@@ -308,6 +318,21 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			serverErrorApplies(validation.field),
 	);
 	const isPending = isSubmitting || isRotatingSecret;
+	// Escape, an outside click and Cancel all ask first, so a stray key
+	// does not throw away a long prompt.
+	const requestClose = () => {
+		if (isPending) {
+			return;
+		}
+		if (form.dirty && !isReadOnly) {
+			setConfirmingDiscard(true);
+			return;
+		}
+		onClose();
+	};
+	const ownerName = automation?.owner
+		? automation.owner.name || automation.owner.username
+		: "the owner";
 	const showAlert =
 		Boolean(error) &&
 		(!apiError?.validations?.length || alertValidations.length > 0);
@@ -316,35 +341,62 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		<Dialog
 			open
 			onOpenChange={(open) => {
-				if (!open && !isPending) {
-					onClose();
+				if (!open) {
+					requestClose();
 				}
 			}}
 		>
 			<DialogContent
 				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
 				onCloseAutoFocus={restoreFocus}
+				// The enabled switch applies at once, so the first field gets
+				// focus instead of it: a stray Space must not turn the
+				// automation off.
+				onOpenAutoFocus={(event) => {
+					const content = event.currentTarget;
+					const field =
+						content instanceof HTMLElement
+							? content.querySelector<HTMLElement>(
+									"input:not([type=hidden]), textarea",
+								)
+							: null;
+					if (field) {
+						event.preventDefault();
+						field.focus();
+					}
+				}}
 			>
 				<form
 					className="flex min-h-0 flex-1 flex-col"
 					onSubmit={form.handleSubmit}
 					noValidate
 				>
-					<DialogHeader className="px-6 pt-6">
-						<DialogTitle>
-							{isCreate
-								? "New automation"
-								: isReadOnly
-									? "View automation"
-									: "Edit automation"}
-						</DialogTitle>
-						<DialogDescription>
-							{isCreate
-								? "Create a schedule or webhook that sends a prompt to an agent."
-								: isReadOnly
-									? "Only the owner of this automation can change it."
-									: "Changes apply to the next run."}
-						</DialogDescription>
+					<DialogHeader className="flex-row flex-wrap items-start justify-between gap-4 space-y-0 px-6 pt-6">
+						<div className="flex min-w-0 flex-col gap-1.5">
+							<DialogTitle className="wrap-anywhere">
+								{isCreate
+									? "New automation"
+									: isReadOnly
+										? automation?.name
+										: "Edit automation"}
+							</DialogTitle>
+							<DialogDescription>
+								{isCreate
+									? "Create a schedule or webhook that sends a prompt to an agent."
+									: isReadOnly
+										? `Runs use the permissions of ${ownerName}. Only ${ownerName} can change it or turn it back on. You can turn it off.`
+										: "Runs use your permissions. Changes apply to the next run."}
+							</DialogDescription>
+						</div>
+						{automation && (
+							<AutomationEnabledSwitch
+								automation={automation}
+								isOwner={!isReadOnly}
+								isUpdating={isUpdatingEnabled}
+								onToggle={onToggleEnabled}
+								showLabel
+							/>
+						)}
 					</DialogHeader>
 					{/* Browser and Radix constraints on this layout:
 					    - Chrome does not scroll a flex-sized fieldset, so the div scrolls.
@@ -376,117 +428,132 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 							}
 						}}
 					>
-						<fieldset
-							disabled={isSubmitting || isReadOnly}
-							className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0 [&_button:disabled]:pointer-events-none"
-						>
-							{showAlert && (
-								<Alert severity="error" prominent>
-									<AlertTitle>
-										{getErrorMessage(error, "Could not save the automation.")}
-									</AlertTitle>
-									{(apiError?.detail || alertValidations.length > 0) && (
-										<AlertDescription>
-											{apiError?.detail}
-											{alertValidations.map((validation) => (
-												<span key={validation.field} className="block">
-													{SERVER_FIELDS[validation.field]
-														? `${SERVER_FIELDS[validation.field].label}: ${validation.detail}`
-														: validation.detail}
-												</span>
-											))}
-										</AlertDescription>
-									)}
-								</Alert>
-							)}
-							<FormField
-								field={getFieldHelpers("name")}
-								label="Name"
-								required
-							/>
-							<FormField
-								field={getFieldHelpers("prompt", {
-									helperText: [
-										isSchedule
-											? "Sent as the message for every run."
-											: "Sent as the message for every run. The webhook request body is attached below it as untrusted event data. Say what to check, when to act, and when to do nothing.",
-										// Queued messages keep the prompt they were sent with.
-										!isCreate &&
-											"Changes apply to future runs. Messages already queued keep the previous prompt.",
-									]
-										.filter(Boolean)
-										.join(" "),
-								})}
-								label="Prompt"
-								required
-								control={(props) => (
-									<Textarea
-										{...props}
-										{...form.getFieldProps("prompt")}
-										rows={4}
-									/>
+						{automation && isReadOnly ? (
+							<AutomationSummary automation={automation} origin={origin} />
+						) : (
+							<fieldset
+								disabled={isSubmitting}
+								className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0 [&_button:disabled]:pointer-events-none"
+							>
+								{showAlert && (
+									<Alert severity="error" prominent>
+										<AlertTitle>
+											{getErrorMessage(error, "Could not save the automation.")}
+										</AlertTitle>
+										{(apiError?.detail || alertValidations.length > 0) && (
+											<AlertDescription>
+												{apiError?.detail}
+												{alertValidations.map((validation) => (
+													<span key={validation.field} className="block">
+														{SERVER_FIELDS[validation.field]
+															? `${SERVER_FIELDS[validation.field].label}: ${validation.detail}`
+															: validation.detail}
+													</span>
+												))}
+											</AlertDescription>
+										)}
+									</Alert>
 								)}
-							/>
-							<AutomationTriggerField
-								isCreate={isCreate}
-								kind={form.values.kind}
-								onKindChange={(kind) => {
-									if (!whenBusyChosen) {
-										form.setFieldValue("when_busy", defaultWhenBusy(kind));
-									}
-									form.setFieldValue("kind", kind);
-								}}
-								scheduleFieldsProps={{
-									organizationId,
-									cronField: getFieldHelpers("schedule_cron"),
-									timeZoneField: getFieldHelpers("schedule_time_zone"),
-									onCronChange: (cron) =>
-										form.setFieldValue("schedule_cron", cron),
-									onTimeZoneChange: (timeZone) =>
-										form.setFieldValue("schedule_time_zone", timeZone),
-								}}
-								webhookFieldsProps={{
-									automation,
-									origin,
-									webhookUse: form.values.webhook_use,
-									onWebhookUseChange: (webhookUse) =>
-										form.setFieldValue("webhook_use", webhookUse),
-									rotateSecretError,
-									isRotatingSecret,
-									isSubmitting,
-									canRotateSecret: !isReadOnly,
-									onRotateSecret,
-								}}
-							/>
-							<AutomationTargetField
-								organizationId={organizationId}
-								isCreate={isCreate}
-								isReadOnly={isReadOnly}
-								form={form}
-								getFieldHelpers={getFieldHelpers}
-								showProjectField={showProjectField}
-								onWhenBusyChange={() => setWhenBusyChosen(true)}
-							/>
-						</fieldset>
+								<FormField
+									field={getFieldHelpers("name")}
+									label="Name"
+									required
+								/>
+								<FormField
+									field={getFieldHelpers("prompt", {
+										helperText: [
+											isSchedule
+												? "Sent as the message for every run."
+												: "Sent as the message for every run. The webhook request body is attached below it as untrusted event data. Say what to check, when to act, and when to do nothing.",
+											// Queued messages keep the prompt they were sent with.
+											!isCreate &&
+												"Changes apply to future runs. Messages already queued keep the previous prompt.",
+										]
+											.filter(Boolean)
+											.join(" "),
+									})}
+									label="Prompt"
+									required
+									control={(props) => (
+										<Textarea
+											{...props}
+											{...form.getFieldProps("prompt")}
+											rows={4}
+										/>
+									)}
+								/>
+								<AutomationTriggerField
+									isCreate={isCreate}
+									kind={form.values.kind}
+									onKindChange={(kind) => {
+										if (!whenBusyChosen) {
+											form.setFieldValue("when_busy", defaultWhenBusy(kind));
+										}
+										form.setFieldValue("kind", kind);
+									}}
+									scheduleFieldsProps={{
+										organizationId,
+										cronField: getFieldHelpers("schedule_cron"),
+										timeZoneField: getFieldHelpers("schedule_time_zone"),
+										onCronChange: (cron) =>
+											form.setFieldValue("schedule_cron", cron),
+										onTimeZoneChange: (timeZone) =>
+											form.setFieldValue("schedule_time_zone", timeZone),
+									}}
+									webhookFieldsProps={{
+										automation,
+										origin,
+										webhookUse: form.values.webhook_use,
+										onWebhookUseChange: (webhookUse) =>
+											form.setFieldValue("webhook_use", webhookUse),
+										rotateSecretError,
+										isRotatingSecret,
+										isSubmitting,
+										canRotateSecret: true,
+										onRotateSecret,
+									}}
+								/>
+								<AutomationTargetField
+									organizationId={organizationId}
+									isCreate={isCreate}
+									form={form}
+									getFieldHelpers={getFieldHelpers}
+									showProjectField={showProjectField}
+									onWhenBusyChange={() => setWhenBusyChosen(true)}
+								/>
+							</fieldset>
+						)}
 					</div>
 					<DialogFooter className="border-0 border-t border-solid border-border px-6 py-4">
 						<Button
 							type="button"
 							variant="outline"
 							disabled={isPending}
-							onClick={onClose}
+							onClick={requestClose}
 						>
 							{isReadOnly ? "Close" : "Cancel"}
 						</Button>
 						{!isReadOnly && (
 							<Button type="submit" disabled={isPending}>
 								<Spinner loading={isSubmitting} />
-								Save
+								{isCreate ? "Create" : "Save changes"}
 							</Button>
 						)}
 					</DialogFooter>
 				</form>
 			</DialogContent>
+			<ConfirmDialog
+				open={confirmingDiscard}
+				type="delete"
+				title="Discard unsaved changes?"
+				description="Your changes to this automation are not saved."
+				confirmText="Discard"
+				onClose={() => setConfirmingDiscard(false)}
+				onConfirm={() => {
+					setConfirmingDiscard(false);
+					onClose();
+				}}
+			/>
 		</Dialog>
 	);
 };

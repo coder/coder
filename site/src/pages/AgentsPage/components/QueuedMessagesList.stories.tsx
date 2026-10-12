@@ -50,6 +50,14 @@ export const SingleMessage: Story = {
 	},
 };
 
+// A viewer who can read the chat but not change it sees no queue actions.
+export const ReadOnly: Story = {
+	args: {
+		messages: [buildMessage(1, textContent("Run the test suite"))],
+		readOnly: true,
+	},
+};
+
 // Several messages queued up at once. The phone viewport hides the
 // Enter-to-send hint below the sm breakpoint.
 export const SeveralMessages: Story = {

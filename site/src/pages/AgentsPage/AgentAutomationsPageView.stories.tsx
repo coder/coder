@@ -1,14 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { chatEntityKey } from "#/api/queries/chats";
-import { organizationMemberKey } from "#/api/queries/organizations";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { MockChat, MockChatAutomation } from "#/testHelpers/chatEntities";
-import {
-	MockOrganizationMember,
-	MockUserOwner,
-	mockApiError,
-} from "#/testHelpers/entities";
+import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
 import { AgentAutomationsPageView } from "./AgentAutomationsPageView";
 
 const mockTargetChat: Chat = {
@@ -33,6 +27,7 @@ const mockScheduleAutomation: ChatAutomation = {
 	id: "automation-schedule",
 	name: "Nightly build check",
 	target_chat_id: mockTargetChat.id,
+	target_chat: { id: mockTargetChat.id, title: mockTargetChat.title },
 	schedule_cron: "0 9 * * 1-5",
 	schedule_time_zone: "Europe/Berlin",
 	// The first entry has passed, so the row shows the second one.
@@ -43,7 +38,9 @@ const mockHeartbeatAutomation: ChatAutomation = {
 	id: "automation-heartbeat",
 	name: "CI heartbeat",
 	created_by_chat_id: mockCreatingChat.id,
+	created_by_chat: { id: mockCreatingChat.id, title: mockCreatingChat.title },
 	target_chat_id: mockCreatingChat.id,
+	target_chat: { id: mockCreatingChat.id, title: mockCreatingChat.title },
 	schedule_cron: "*/5 * * * *",
 	schedule_time_zone: "UTC",
 	next_run_times: ["2099-09-30T12:05:00Z"],
@@ -62,6 +59,40 @@ const mockWebhookAutomation: ChatAutomation = {
 	schedule_cron: undefined,
 	schedule_time_zone: undefined,
 };
+const mockDigestAutomation: ChatAutomation = {
+	...MockChatAutomation,
+	id: "automation-digest",
+	name: "Morning digest",
+	target_mode: "new_chat",
+	target_chat_id: undefined,
+	when_busy: undefined,
+	new_chat_model_config_id: "model-1",
+	schedule_cron: "30 8 * * *",
+	schedule_time_zone: "America/New_York",
+	next_run_times: ["2099-10-01T12:30:00Z"],
+};
+const mockListeningWebhook: ChatAutomation = {
+	...mockWebhookAutomation,
+	id: "automation-listening",
+	name: "PR opened",
+	enabled: true,
+	webhook_use: "multi",
+	webhook_consumed_at: undefined,
+};
+const mockDisabledSchedule: ChatAutomation = {
+	...mockScheduleAutomation,
+	id: "automation-disabled",
+	name: "Weekly report",
+	enabled: false,
+	schedule_cron: "0 9 * * 1",
+};
+const mockPausedSchedule: ChatAutomation = {
+	...mockDigestAutomation,
+	id: "automation-paused",
+	name: "Release notes",
+	paused_reasons: ["model_unavailable"],
+	next_run_times: [],
+};
 
 const meta: Meta<typeof AgentAutomationsPageView> = {
 	title: "pages/AgentsPage/AgentAutomationsPageView",
@@ -71,7 +102,11 @@ const meta: Meta<typeof AgentAutomationsPageView> = {
 		automations: [
 			mockScheduleAutomation,
 			mockHeartbeatAutomation,
+			mockDigestAutomation,
+			mockListeningWebhook,
 			mockWebhookAutomation,
+			mockDisabledSchedule,
+			mockPausedSchedule,
 		],
 		isLoading: false,
 		error: undefined,
@@ -83,13 +118,6 @@ const meta: Meta<typeof AgentAutomationsPageView> = {
 		onEditAutomation: fn(),
 		onDeleteAutomation: fn(),
 	},
-	parameters: {
-		queries: [
-			{ key: chatEntityKey(mockTargetChat.id), data: mockTargetChat },
-			{ key: chatEntityKey(mockCreatingChat.id), data: mockCreatingChat },
-			{ key: chatEntityKey(mockArchivedChat.id), data: mockArchivedChat },
-		],
-	},
 };
 
 export default meta;
@@ -98,16 +126,18 @@ type Story = StoryObj<typeof AgentAutomationsPageView>;
 export const WithAutomations: Story = {};
 
 export const OtherOwner: Story = {
-	args: { currentUserId: "another-user-id" },
-	parameters: {
-		queries: [
+	args: {
+		currentUserId: "another-user-id",
+		automations: [
 			{
-				key: organizationMemberKey(
-					MockChatAutomation.organization_id,
-					MockChatAutomation.owner_id,
-				),
-				data: MockOrganizationMember,
+				...mockScheduleAutomation,
+				owner: { id: MockUserOwner.id, username: "alice", name: "Alice" },
 			},
+			{
+				...mockDisabledSchedule,
+				owner: { id: MockUserOwner.id, username: "alice", name: "Alice" },
+			},
+			mockWebhookAutomation,
 		],
 	},
 };
@@ -130,12 +160,16 @@ export const MissingTarget: Story = {
 				id: "automation-no-target",
 				name: "Deleted target",
 				target_chat_id: undefined,
+				target_chat: undefined,
 			},
 			{
 				...mockScheduleAutomation,
 				id: "automation-archived-target",
 				name: "Archived target",
 				target_chat_id: mockArchivedChat.id,
+				target_chat: { id: mockArchivedChat.id, title: mockArchivedChat.title },
+				paused_reasons: ["target_unavailable"],
+				next_run_times: [],
 			},
 		],
 	},
