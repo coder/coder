@@ -2014,13 +2014,15 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		// A saved automation shows no kind choice, only the badge.
 		const trigger = within(form).getByRole("region", { name: "Trigger" });
 		expect(trigger).toHaveAccessibleDescription(
-			"What starts a run. Fixed at creation",
+			"What starts a run. Schedule trigger, fixed at creation",
 		);
 		expect(
 			within(trigger).queryByRole("radio", { name: "Webhook" }),
 		).toBeNull();
 		const runsIn = within(form).getByRole("radiogroup", { name: "Runs in" });
-		expect(runsIn).toHaveAccessibleDescription("Fixed at creation");
+		expect(runsIn).toHaveAccessibleDescription(
+			"Existing chat, fixed at creation",
+		);
 		expect(
 			within(runsIn).getByRole("radio", { name: "Existing chat" }),
 		).toBeDisabled();

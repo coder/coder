@@ -171,7 +171,12 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 					>
 						Runs in
 					</h3>
-					{!isCreate && <FixedAtCreationBadge id={fixedId} />}
+					{!isCreate && (
+						<FixedAtCreationBadge
+							id={fixedId}
+							choice={isExistingChat ? "Existing chat" : "New chat each run"}
+						/>
+					)}
 				</div>
 				<RadioCards
 					aria-labelledby={headingId}

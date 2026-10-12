@@ -64,7 +64,12 @@ export const AutomationTriggerField: React.FC<AutomationTriggerFieldProps> = ({
 						onValueChange={onKindChange}
 					/>
 				) : (
-					<FixedAtCreationBadge id={fixedId} />
+					<FixedAtCreationBadge
+						id={fixedId}
+						choice={
+							kind === "schedule" ? "Schedule trigger" : "Webhook trigger"
+						}
+					/>
 				)}
 			</div>
 			<div className="flex flex-col gap-4 rounded-lg border border-solid border-border p-4">
