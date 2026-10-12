@@ -2159,31 +2159,12 @@ export interface Chat {
 	 * always empty for child chats.
 	 */
 	readonly children: readonly Chat[];
-	/**
-	 * SnapshotVersion is the chat's state version, bumped once by every
-	 * committed action. A stream checkpoint with an equal or higher
-	 * snapshot_version has applied this state.
-	 */
-	readonly snapshot_version: number;
 }
 
 // From codersdk/chats.go
 export interface ChatACL {
 	readonly users: readonly ChatUser[];
 	readonly groups: readonly ChatGroup[];
-}
-
-// From codersdk/chats.go
-/**
- * ChatActionResponse is returned by chat actions that have no other result.
- */
-export interface ChatActionResponse {
-	/**
-	 * SnapshotVersion is the chat's snapshot_version the action committed.
-	 * A stream checkpoint with an equal or higher snapshot_version reflects
-	 * it.
-	 */
-	readonly snapshot_version: number;
 }
 
 // From codersdk/chats.go
@@ -2326,9 +2307,9 @@ export interface ChatContext {
 	 */
 	readonly error?: string;
 	/**
-	 * Resources is the chat's pinned workspace-context inventory,
-	 * metadata only (no bodies). It is populated only on the single-chat
-	 * GET response; list and watch
+	 * Resources is the chat's pinned context (instruction files and
+	 * skills) the prompt is built from, metadata only (no bodies). It is
+	 * populated only on the single-chat GET response; list and watch
 	 * payloads leave it nil to stay lightweight.
 	 */
 	readonly resources?: readonly ChatContextResource[];
@@ -2358,22 +2339,18 @@ export interface ChatContextFilePart {
 
 // From codersdk/chats.go
 /**
- * ChatContextResource is one resource in the chat's pinned workspace-context
- * inventory. It is metadata only; bodies are omitted. Reported
+ * ChatContextResource is one pinned workspace-context resource the chat's
+ * prompt is built from. It is metadata only; bodies are omitted. Reported
  * only on the single-chat GET response.
  */
 export interface ChatContextResource {
 	/**
 	 * Source is the resource locator: the canonical file path for an
 	 * instruction file, the skill directory for a skill, the file path for
-	 * an MCP config, the server name for an MCP server, or an ACP harness slug.
+	 * an MCP config, or the server name for an MCP server.
 	 */
 	readonly source: string;
 	readonly kind: ChatContextResourceKind;
-	/**
-	 * SourcePath is the configuration directory for an ACP harness.
-	 */
-	readonly source_path?: string;
 	/**
 	 * SizeBytes is the original payload size in bytes.
 	 */
@@ -2404,14 +2381,12 @@ export interface ChatContextResource {
 
 // From codersdk/chats.go
 export type ChatContextResourceKind =
-	| "acp_harness"
 	| "instruction_file"
 	| "mcp_config"
 	| "mcp_server"
 	| "skill";
 
 export const ChatContextResourceKinds: ChatContextResourceKind[] = [
-	"acp_harness",
 	"instruction_file",
 	"mcp_config",
 	"mcp_server",
@@ -2885,27 +2860,18 @@ export interface ChatInputPart {
 	 * currently bound workspace.
 	 */
 	readonly workspace_file_workspace_id?: string;
-	/**
-	 * The following fields are only set when Type is
-	 * ChatInputPartTypeSkillInvocation. The server loads the skill
-	 * as the chat owner when the message is sent.
-	 */
-	readonly skill_source?: ChatSkillSource;
-	readonly skill_name?: string;
 }
 
 // From codersdk/chats.go
 export type ChatInputPartType =
 	| "file"
 	| "file-reference"
-	| "skill-invocation"
 	| "text"
 	| "workspace-file-reference";
 
 export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file",
 	"file-reference",
-	"skill-invocation",
 	"text",
 	"workspace-file-reference",
 ];
@@ -2978,7 +2944,6 @@ export type ChatMessagePart =
 	| ChatContextFilePart
 	| ChatSkillPart
 	| ChatWorkspaceFileReferencePart
-	| ChatSkillInvocationPart
 	| ChatHookNoticePart;
 
 // From codersdk/chats.go
@@ -2990,7 +2955,6 @@ export type ChatMessagePartType =
 	| "hook-notice"
 	| "reasoning"
 	| "skill"
-	| "skill-invocation"
 	| "source"
 	| "text"
 	| "tool-call"
@@ -3005,7 +2969,6 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"hook-notice",
 	"reasoning",
 	"skill",
-	"skill-invocation",
 	"source",
 	"text",
 	"tool-call",
@@ -3716,24 +3679,11 @@ export type ChatRole = "" | "read";
 export const ChatRoles: ChatRole[] = ["", "read"];
 
 // From codersdk/chats.go
-export interface ChatSkillInvocationPart {
-	readonly type: "skill-invocation";
-	/**
-	 * SkillName is the kebab-case name of the skill.
-	 */
-	readonly skill_name: string;
-	/**
-	 * SkillSource is where the invoked skill of a skill-invocation
-	 * part is stored.
-	 */
-	readonly skill_source: ChatSkillSource;
-}
-
-// From codersdk/chats.go
 export interface ChatSkillPart {
 	readonly type: "skill";
 	/**
-	 * SkillName is the kebab-case name of the skill.
+	 * SkillName is the kebab-case name of a discovered skill
+	 * from the workspace's .agents/skills/ directory.
 	 */
 	readonly skill_name: string;
 	/**
@@ -3744,14 +3694,12 @@ export interface ChatSkillPart {
 }
 
 // From codersdk/chats.go
-export type ChatSkillSource = "org" | "personal" | "project" | "workspace";
-
-export const ChatSkillSources: ChatSkillSource[] = [
-	"org",
-	"personal",
-	"project",
-	"workspace",
-];
+/**
+ * ChatSnapshotVersionHeader is the response header in which a chat action
+ * reports the chat's snapshot_version it committed. A stream checkpoint at
+ * or above it reflects the action.
+ */
+export const ChatSnapshotVersionHeader = "Coder-Chat-Snapshot-Version";
 
 // From codersdk/chats.go
 export interface ChatSourcePart {
@@ -3792,9 +3740,10 @@ export interface ChatStreamActionRequired {
  */
 export interface ChatStreamCheckpoint {
 	/**
-	 * SnapshotVersion is the chat's snapshot_version the sync applied. Every
-	 * action response with an equal or lower version is reflected. A client
-	 * reconnects with the value of the last checkpoint it received.
+	 * SnapshotVersion is the chat's snapshot_version the sync applied. It
+	 * reflects every action whose ChatSnapshotVersionHeader is at or below
+	 * it. A client reconnects with the value of the last checkpoint it
+	 * received.
 	 */
 	readonly snapshot_version: number;
 	/**
@@ -3863,8 +3812,7 @@ export interface ChatStreamHistoryReset {
 	/**
 	 * FromMessageID is the lowest message ID the reset replaces. The client
 	 * keeps its messages with lower IDs and replaces the rest with the
-	 * message events that follow. A history_reset without from_message_id
-	 * replaces the whole history.
+	 * message events that follow.
 	 */
 	readonly from_message_id: number;
 }
@@ -4413,11 +4361,6 @@ export interface CreateChatMessageResponse {
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
 	readonly warnings?: readonly string[];
-	/**
-	 * SnapshotVersion is the chat's snapshot_version committed by the send.
-	 * The stream has applied the send once a checkpoint reports at least it.
-	 */
-	readonly snapshot_version: number;
 }
 
 // From codersdk/chats.go
@@ -4879,8 +4822,7 @@ export interface CreateUserRequest {
 	 */
 	readonly login_type: LoginType;
 	/**
-	 * UserStatus defaults to UserStatusDormant. Service accounts default to
-	 * UserStatusActive and can't be dormant.
+	 * UserStatus defaults to UserStatusDormant.
 	 */
 	readonly user_status: UserStatus | null;
 	/**
@@ -5661,11 +5603,6 @@ export interface EditChatMessageResponse {
 	 */
 	readonly deleted_message_ids?: readonly number[];
 	readonly warnings?: readonly string[];
-	/**
-	 * SnapshotVersion is the chat's snapshot_version committed by the edit.
-	 * The stream has applied the edit once a checkpoint reports at least it.
-	 */
-	readonly snapshot_version: number;
 }
 
 // From codersdk/externalauth.go
@@ -5717,7 +5654,6 @@ export type Experiment =
 	| "ai-gateway-reverse-proxy"
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
-	| "chat-acp-subagents"
 	| "chat-advisor"
 	| "chat-inline-mcp-servers"
 	| "chat-projects"
@@ -5798,7 +5734,6 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-reverse-proxy",
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
-	"chat-acp-subagents",
 	"chat-advisor",
 	"chat-inline-mcp-servers",
 	"chat-projects",

@@ -2416,7 +2416,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
-      "snapshot_version": 0,
       "status": "waiting",
       "summary": "string",
       "title": "string",
@@ -2562,7 +2561,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
-  "snapshot_version": 0,
   "status": "waiting",
   "summary": "string",
   "title": "string",
@@ -2611,7 +2609,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `queued_for_capacity`   | boolean                                                         | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
-| `snapshot_version`      | integer                                                         | false    |              | Snapshot version is the chat's state version, bumped once by every committed action. A stream checkpoint with an equal or higher snapshot_version has applied this state.                                                                                                  |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
 | `summary`               | string                                                          | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2674,20 +2671,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------|---------------------------------------------------|----------|--------------|-------------|
 | `groups` | array of [codersdk.ChatGroup](#codersdkchatgroup) | false    |              |             |
 | `users`  | array of [codersdk.ChatUser](#codersdkchatuser)   | false    |              |             |
-
-## codersdk.ChatActionResponse
-
-```json
-{
-  "snapshot_version": 0
-}
-```
-
-### Properties
-
-| Name               | Type    | Required | Restrictions | Description                                                                                                                                     |
-|--------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `snapshot_version` | integer | false    |              | Snapshot version is the chat's snapshot_version the action committed. A stream checkpoint with an equal or higher snapshot_version reflects it. |
 
 ## codersdk.ChatAutoArchiveDaysResponse
 
@@ -5382,10 +5365,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name               | Type                                               | Required | Restrictions | Description                                                                                                                                                                                                 |
-|--------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `snapshot_version` | integer                                            | false    |              | Snapshot version is the chat's snapshot_version the sync applied. Every action response with an equal or lower version is reflected. A client reconnects with the value of the last checkpoint it received. |
-| `turn`             | [codersdk.ChatStreamTurn](#codersdkchatstreamturn) | false    |              | Turn is the chat's turn at SnapshotVersion. It replaces the turn the client holds.                                                                                                                          |
+| Name               | Type                                               | Required | Restrictions | Description                                                                                                                                                                                                          |
+|--------------------|----------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `snapshot_version` | integer                                            | false    |              | Snapshot version is the chat's snapshot_version the sync applied. It reflects every action whose ChatSnapshotVersionHeader is at or below it. A client reconnects with the value of the last checkpoint it received. |
+| `turn`             | [codersdk.ChatStreamTurn](#codersdkchatstreamturn) | false    |              | Turn is the chat's turn at SnapshotVersion. It replaces the turn the client holds.                                                                                                                                   |
 
 ## codersdk.ChatStreamEvent
 
@@ -5710,9 +5693,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                                              |
-|-------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `from_message_id` | integer | false    |              | From message ID is the lowest message ID the reset replaces. The client keeps its messages with lower IDs and replaces the rest with the message events that follow. A history_reset without from_message_id replaces the whole history. |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                          |
+|-------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `from_message_id` | integer | false    |              | From message ID is the lowest message ID the reset replaces. The client keeps its messages with lower IDs and replaces the rest with the message events that follow. |
 
 ## codersdk.ChatStreamMessagePart
 
@@ -6136,7 +6119,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
-    "snapshot_version": 0,
     "status": "waiting",
     "summary": "string",
     "title": "string",
@@ -6848,7 +6830,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
   },
-  "snapshot_version": 0,
   "warnings": [
     "string"
   ]
@@ -6857,14 +6838,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name               | Type                                                     | Required | Restrictions | Description                                                                                                                                                                                        |
-|--------------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `message`          | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                    |
-| `messages`         | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages contains all user-visible messages inserted by the send, in insertion order. A queued send on an errored chat may promote the previous queue head, so clients must upsert the full batch. |
-| `queued`           | boolean                                                  | false    |              |                                                                                                                                                                                                    |
-| `queued_message`   | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                    |
-| `snapshot_version` | integer                                                  | false    |              | Snapshot version is the chat's snapshot_version committed by the send. The stream has applied the send once a checkpoint reports at least it.                                                      |
-| `warnings`         | array of string                                          | false    |              |                                                                                                                                                                                                    |
+| Name             | Type                                                     | Required | Restrictions | Description                                                                                                                                                                                        |
+|------------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                    |
+| `messages`       | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages contains all user-visible messages inserted by the send, in insertion order. A queued send on an errored chat may promote the previous queue head, so clients must upsert the full batch. |
+| `queued`         | boolean                                                  | false    |              |                                                                                                                                                                                                    |
+| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                    |
+| `warnings`       | array of string                                          | false    |              |                                                                                                                                                                                                    |
 
 ## codersdk.CreateChatModelRequest
 
@@ -9898,7 +9878,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       }
     }
   ],
-  "snapshot_version": 0,
   "warnings": [
     "string"
   ]
@@ -9912,7 +9891,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `deleted_message_ids` | array of integer                                      | false    |              | Deleted message ids holds the IDs of previously visible messages the edit removed, including stale hook notices from the edited turn. Clients should drop them from local caches. |
 | `message`             | [codersdk.ChatMessage](#codersdkchatmessage)          | false    |              |                                                                                                                                                                                   |
 | `messages`            | array of [codersdk.ChatMessage](#codersdkchatmessage) | false    |              | Messages holds every user-visible message inserted by the edit, in insertion order. Hook-generated suffix messages may follow Message, so clients must upsert the full batch.     |
-| `snapshot_version`    | integer                                               | false    |              | Snapshot version is the chat's snapshot_version committed by the edit. The stream has applied the edit once a checkpoint reports at least it.                                     |
 | `warnings`            | array of string                                       | false    |              |                                                                                                                                                                                   |
 
 ## codersdk.Entitlement

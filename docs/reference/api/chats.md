@@ -206,7 +206,6 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
-    "snapshot_version": 0,
     "status": "waiting",
     "summary": "string",
     "title": "string",
@@ -344,7 +343,6 @@ Status Code **200**
 | `» queued_for_capacity`    | boolean                                                                            | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
 | `» root_chat_id`           | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» shared`                 | boolean                                                                            | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
-| `» snapshot_version`       | integer                                                                            | false    |              | Snapshot version is the chat's state version, bumped once by every committed action. A stream checkpoint with an equal or higher snapshot_version has applied this state.                                                                                                  |
 | `» status`                 | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
 | `» summary`                | string                                                                             | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `» title`                  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
@@ -600,7 +598,6 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
-      "snapshot_version": 0,
       "status": "waiting",
       "summary": "string",
       "title": "string",
@@ -745,7 +742,6 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
-  "snapshot_version": 0,
   "status": "waiting",
   "summary": "string",
   "title": "string",
@@ -1674,7 +1670,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
-    "snapshot_version": 0,
     "status": "waiting",
     "summary": "string",
     "title": "string",
@@ -1871,7 +1866,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
-      "snapshot_version": 0,
       "status": "waiting",
       "summary": "string",
       "title": "string",
@@ -2016,7 +2010,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
-  "snapshot_version": 0,
   "status": "waiting",
   "summary": "string",
   "title": "string",
@@ -2256,7 +2249,6 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
-      "snapshot_version": 0,
       "status": "waiting",
       "summary": "string",
       "title": "string",
@@ -2401,7 +2393,6 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
-  "snapshot_version": 0,
   "status": "waiting",
   "summary": "string",
   "title": "string",
@@ -2683,7 +2674,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
-      "snapshot_version": 0,
       "status": "waiting",
       "summary": "string",
       "title": "string",
@@ -2828,7 +2818,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
-  "snapshot_version": 0,
   "status": "waiting",
   "summary": "string",
   "title": "string",
@@ -2847,6 +2836,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
 | Status | Meaning                                                 | Description | Schema                                   |
 |--------|---------------------------------------------------------|-------------|------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Chat](schemas.md#codersdkchat) |
+
+### Response Headers
+
+| Status | Header                      | Type    | Format | Description                                        |
+|--------|-----------------------------|---------|--------|----------------------------------------------------|
+| 200    | Coder-Chat-Snapshot-Version | integer |        | The chat's snapshot_version this request committed |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3370,7 +3365,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
   },
-  "snapshot_version": 0,
   "warnings": [
     "string"
   ]
@@ -3382,6 +3376,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 | Status | Meaning                                                 | Description | Schema                                                                             |
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.CreateChatMessageResponse](schemas.md#codersdkcreatechatmessageresponse) |
+
+### Response Headers
+
+| Status | Header                      | Type    | Format | Description                                        |
+|--------|-----------------------------|---------|--------|----------------------------------------------------|
+| 200    | Coder-Chat-Snapshot-Version | integer |        | The chat's snapshot_version this request committed |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3606,7 +3606,6 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       }
     }
   ],
-  "snapshot_version": 0,
   "warnings": [
     "string"
   ]
@@ -3618,6 +3617,12 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
 | Status | Meaning                                                 | Description | Schema                                                                         |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.EditChatMessageResponse](schemas.md#codersdkeditchatmessageresponse) |
+
+### Response Headers
+
+| Status | Header                      | Type    | Format | Description                                        |
+|--------|-----------------------------|---------|--------|----------------------------------------------------|
+| 200    | Coder-Chat-Snapshot-Version | integer |        | The chat's snapshot_version this request committed |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3677,7 +3682,6 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage} \
-  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -3690,21 +3694,17 @@ curl -X DELETE http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage
 | `chat`          | path | string(uuid) | true     | Chat ID           |
 | `queuedMessage` | path | integer      | true     | Queued message ID |
 
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "snapshot_version": 0
-}
-```
-
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                               |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatActionResponse](schemas.md#codersdkchatactionresponse) |
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+### Response Headers
+
+| Status | Header                      | Type    | Format | Description                                        |
+|--------|-----------------------------|---------|--------|----------------------------------------------------|
+| 204    | Coder-Chat-Snapshot-Version | integer |        | The chat's snapshot_version this request committed |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3730,19 +3730,32 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}/
 
 ### Example responses
 
-> 200 Response
+> 202 Response
 
 ```json
 {
-  "snapshot_version": 0
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                               |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatActionResponse](schemas.md#codersdkchatactionresponse) |
+| Status | Meaning                                                       | Description | Schema                                           |
+|--------|---------------------------------------------------------------|-------------|--------------------------------------------------|
+| 202    | [Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3) | Accepted    | [codersdk.Response](schemas.md#codersdkresponse) |
+
+### Response Headers
+
+| Status | Header                      | Type    | Format | Description                                        |
+|--------|-----------------------------|---------|--------|----------------------------------------------------|
+| 202    | Coder-Chat-Snapshot-Version | integer |        | The chat's snapshot_version this request committed |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3912,7 +3925,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
-      "snapshot_version": 0,
       "status": "waiting",
       "summary": "string",
       "title": "string",
@@ -4057,7 +4069,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
-  "snapshot_version": 0,
   "status": "waiting",
   "summary": "string",
   "title": "string",
@@ -4076,6 +4087,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
 | Status | Meaning                                                 | Description | Schema                                   |
 |--------|---------------------------------------------------------|-------------|------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Chat](schemas.md#codersdkchat) |
+
+### Response Headers
+
+| Status | Header                      | Type    | Format | Description                                        |
+|--------|-----------------------------|---------|--------|----------------------------------------------------|
+| 200    | Coder-Chat-Snapshot-Version | integer |        | The chat's snapshot_version this request committed |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4404,7 +4421,7 @@ Status Code **200**
 | `»»» tool_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» chat_id`                        | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» checkpoint`                     | [codersdk.ChatStreamCheckpoint](schemas.md#codersdkchatstreamcheckpoint)         | false    |              | Checkpoint is set on checkpoint events.                                                                                                                                                                                                                                                                                                                                                                    |
-| `»» snapshot_version`              | integer                                                                          | false    |              | Snapshot version is the chat's snapshot_version the sync applied. Every action response with an equal or lower version is reflected. A client reconnects with the value of the last checkpoint it received.                                                                                                                                                                                                |
+| `»» snapshot_version`              | integer                                                                          | false    |              | Snapshot version is the chat's snapshot_version the sync applied. It reflects every action whose ChatSnapshotVersionHeader is at or below it. A client reconnects with the value of the last checkpoint it received.                                                                                                                                                                                       |
 | `»» turn`                          | [codersdk.ChatStreamTurn](schemas.md#codersdkchatstreamturn)                     | false    |              | Turn is the chat's turn at SnapshotVersion. It replaces the turn the client holds.                                                                                                                                                                                                                                                                                                                         |
 | `»»» error`                        | [codersdk.ChatError](schemas.md#codersdkchaterror)                               | false    |              | Error is set while the status is error.                                                                                                                                                                                                                                                                                                                                                                    |
 | `»»»» detail`                      | string                                                                           | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                                                                                                                                                  |
@@ -4430,7 +4447,7 @@ Status Code **200**
 | `»» retryable`                     | boolean                                                                          | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                                                                                                                                                               |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
 | `» history_reset`                  | [codersdk.ChatStreamHistoryReset](schemas.md#codersdkchatstreamhistoryreset)     | false    |              | History reset is set on history_reset events of streams opened with a snapshot_version.                                                                                                                                                                                                                                                                                                                    |
-| `»» from_message_id`               | integer                                                                          | false    |              | From message ID is the lowest message ID the reset replaces. The client keeps its messages with lower IDs and replaces the rest with the message events that follow. A history_reset without from_message_id replaces the whole history.                                                                                                                                                                   |
+| `»» from_message_id`               | integer                                                                          | false    |              | From message ID is the lowest message ID the reset replaces. The client keeps its messages with lower IDs and replaces the rest with the message events that follow.                                                                                                                                                                                                                                       |
 | `» message`                        | [codersdk.ChatMessage](schemas.md#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4622,7 +4639,6 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -4651,21 +4667,17 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
 | `chat` | path | string(uuid)                                                                     | true     | Chat ID      |
 | `body` | body | [codersdk.SubmitToolResultsRequest](schemas.md#codersdksubmittoolresultsrequest) | true     | Request body |
 
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "snapshot_version": 0
-}
-```
-
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                               |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatActionResponse](schemas.md#codersdkchatactionresponse) |
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+### Response Headers
+
+| Status | Header                      | Type    | Format | Description                                        |
+|--------|-----------------------------|---------|--------|----------------------------------------------------|
+| 204    | Coder-Chat-Snapshot-Version | integer |        | The chat's snapshot_version this request committed |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
