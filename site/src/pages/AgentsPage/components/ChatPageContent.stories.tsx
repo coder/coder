@@ -133,8 +133,8 @@ const StoryChatPageInput: React.FC<{
 			]}
 			modelSelectorPlaceholder="Select model"
 			canConfigureAgentSetup={false}
-			isEditing={false}
-			onCancelHistoryEdit={fn()}
+			editingTarget={null}
+			onCancelEdit={fn()}
 			isReadOnly={false}
 			onReasoningEffortChange={fn()}
 			unsupportedProviderNames={[]}
@@ -478,8 +478,8 @@ const CompactionChatPageInput: React.FC = () => {
 				modelOptions={[]}
 				modelSelectorPlaceholder="Select model"
 				canConfigureAgentSetup={false}
-				isEditing={false}
-				onCancelHistoryEdit={fn()}
+				editingTarget={null}
+				onCancelEdit={fn()}
 				isReadOnly={false}
 				onReasoningEffortChange={fn()}
 				unsupportedProviderNames={[]}
