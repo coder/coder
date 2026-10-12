@@ -504,9 +504,15 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 					{automation && !isOwner ? (
 						<>
 							<p className="m-0 text-sm text-content-secondary">
-								{automation.enabled
-									? `Only ${ownerName} can change this automation. You can turn it off, but only ${ownerName} can turn it back on.`
-									: `Only ${ownerName} can change this automation or turn it back on.`}
+								{[
+									automation.enabled
+										? `Only ${ownerName} can change this automation. You can turn it off, but only ${ownerName} can turn it back on.`
+										: `Only ${ownerName} can change this automation or turn it back on.`,
+									// Matches the Delete button that admins see above.
+									canDelete && "You can also delete it.",
+								]
+									.filter(Boolean)
+									.join(" ")}
 							</p>
 							<AutomationSummary automation={automation} origin={origin} />
 							<AutomationRunsAsCard

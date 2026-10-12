@@ -271,6 +271,10 @@ describe("AgentAutomationsPage", () => {
 			}),
 		);
 
+		// The notice names every action an admin has, Delete included.
+		await screen.findByText(
+			"Only Bob can change this automation. You can turn it off, but only Bob can turn it back on. You can also delete it.",
+		);
 		await user.click(
 			await screen.findByRole("button", {
 				name: `Delete ${mockAutomation.name}`,
