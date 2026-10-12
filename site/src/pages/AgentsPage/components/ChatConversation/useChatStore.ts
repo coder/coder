@@ -264,15 +264,21 @@ export const useChatStore = (
 
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ChatStreamEvent[]>,
+			socket: { close: () => void },
 		) => {
 			if (disposed) {
 				return;
 			}
 			if (payload.parseError || !payload.parsedMessage) {
+				// A later checkpoint would advance the reconnect version past
+				// the lost events, so resync from the last applied one instead.
+				syncEvents.length = 0;
+				discardBufferedParts();
 				store.setStreamError({
 					kind: "generic",
 					message: "Failed to parse chat stream update.",
 				});
+				socket.close();
 				return;
 			}
 
@@ -310,7 +316,9 @@ export const useChatStore = (
 			connect() {
 				// The server sends only changes made after this version.
 				const socket = watchChat(chatID, store.getSyncedSnapshotVersion());
-				socket.addEventListener("message", handleMessage);
+				socket.addEventListener("message", (payload) =>
+					handleMessage(payload, socket),
+				);
 				return socket;
 			},
 			onOpen() {
