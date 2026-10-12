@@ -804,8 +804,8 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectBetaValues:    []string{"interleaved-thinking-2025-05-14", "thinking-binding-controls-2026-08-01"},
 		},
 		{
-			name:                "opus_5_5_strips_thinking_block_binding_without_beta_flag",
-			bedrockModel:        "anthropic.claude-opus-5-5",
+			name:                "opus_4_7_strips_thinking_block_binding_without_beta_flag",
+			bedrockModel:        "anthropic.claude-opus-4-7",
 			requestBody:         `{"max_tokens":10000,"thinking":{"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"drop_block"}}}`,
 			expectThinkingType:  "adaptive",
 			expectKeptFields:    []string{"thinking"},
