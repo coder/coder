@@ -24,6 +24,7 @@ const (
 	CheckBoundaryLogsSequenceNumberCheck                     CheckConstraint = "boundary_logs_sequence_number_check"                       // boundary_logs
 	CheckChatAutomationsKindShape                            CheckConstraint = "chat_automations_kind_shape"                               // chat_automations
 	CheckChatAutomationsNameLength                           CheckConstraint = "chat_automations_name_length"                              // chat_automations
+	CheckChatAutomationsProjectTargetMode                    CheckConstraint = "chat_automations_project_target_mode"                      // chat_automations
 	CheckChatAutomationsTargetShape                          CheckConstraint = "chat_automations_target_shape"                             // chat_automations
 	CheckChatModelConfigsAIProviderRequiredWhenActive        CheckConstraint = "chat_model_configs_ai_provider_required_when_active"       // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck           CheckConstraint = "chat_model_configs_compression_threshold_check"            // chat_model_configs

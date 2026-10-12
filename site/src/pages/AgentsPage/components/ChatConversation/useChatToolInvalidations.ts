@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import { useQueryClient } from "react-query";
 import {
 	invalidateAutomationChats,
+	invalidateChatAutomationReferences,
 	invalidateChatAutomations,
 } from "#/api/queries/chatAutomations";
 import {
@@ -163,9 +164,10 @@ export function useChatToolInvalidations({
 		}
 
 		// Tool results carry no organization ID, so every organization's
-		// automations refetch.
+		// automations refetch. A renamed automation can label any chat.
 		if (shouldInvalidateAutomations) {
 			void invalidateChatAutomations(queryClient);
+			void invalidateChatAutomationReferences(queryClient);
 		}
 
 		// A run can start a new chat, which the chat lists must show.

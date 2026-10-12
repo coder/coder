@@ -421,6 +421,61 @@ WHERE
 ORDER BY
     id ASC;
 
+-- name: GetChatMessagesForAutomationTurnTrigger :many
+-- Returns the user rows of the chat's current turn: every user row after the
+-- latest non-user row that precedes the latest user prompt. It reads the same
+-- rows as GetChatMessagesByChatID (visibility user or both, not deleted), so
+-- the manage_automations reached-turn check gives the same result over these
+-- rows as over the full history without loading it. A user prompt is a user
+-- row that is not compressed, and a compressed row never ends the turn. A
+-- chat without a user prompt returns no rows.
+WITH prompt AS (
+    SELECT
+        id
+    FROM
+        chat_messages
+    WHERE
+        chat_id = @chat_id::uuid
+        AND role = 'user'
+        AND visibility IN ('user', 'both')
+        AND deleted = false
+        AND compressed = false
+    ORDER BY
+        id DESC
+    LIMIT 1
+), boundary AS (
+    SELECT
+        COALESCE((
+            SELECT
+                prior.id
+            FROM
+                chat_messages AS prior, prompt
+            WHERE
+                prior.chat_id = @chat_id::uuid
+                AND prior.id < prompt.id
+                AND prior.role <> 'user'
+                AND prior.visibility IN ('user', 'both')
+                AND prior.deleted = false
+                AND prior.compressed = false
+            ORDER BY
+                prior.id DESC
+            LIMIT 1
+        ), 0)::bigint AS id
+)
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND role = 'user'
+    AND visibility IN ('user', 'both')
+    AND deleted = false
+    AND EXISTS (SELECT 1 FROM prompt)
+    AND id > (SELECT boundary.id FROM boundary)
+ORDER BY
+    id ASC;
+
 -- name: GetDeletedChatMessagesFromLastAssistant :many
 -- Returns the last deleted assistant message and the deleted rows after it.
 -- Every visibility is included: a model-only row can hold a tool call's result.
@@ -646,6 +701,10 @@ WHERE
         ELSE true
     END
     AND CASE
+        WHEN @organization_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats_expanded.organization_id = @organization_id::uuid
+        ELSE true
+    END
+    AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
@@ -683,10 +742,12 @@ WHERE
         )
         ELSE true
     END
-    -- Filter by title substring (case-insensitive). Applied when the
-    -- caller provides a non-empty title_query.
+    -- Filter by literal title substring (case-insensitive). Applied when
+    -- the caller provides a non-empty title_query. The query escapes
+    -- backslash, '%' and '_' so they match literally instead of acting
+    -- as ILIKE wildcards.
     AND CASE
-        WHEN @title_query :: text != '' THEN chats_expanded.title ILIKE '%' || @title_query || '%'
+        WHEN @title_query :: text != '' THEN chats_expanded.title ILIKE '%' || replace(replace(replace(@title_query :: text, '\', '\\'), '%', '\%'), '_', '\_') || '%' ESCAPE '\'
         ELSE true
     END
     AND CASE
@@ -2709,6 +2770,13 @@ ORDER BY
 LIMIT @limit_count::int;
 
 -- name: GetChatsByIDsForRunnerSync :many
+SELECT *
+FROM chats_expanded
+WHERE id = ANY(@ids::uuid[])
+ORDER BY id ASC;
+
+-- name: GetChatsByIDs :many
+-- Returns the given chats. Missing ids are not returned.
 SELECT *
 FROM chats_expanded
 WHERE id = ANY(@ids::uuid[])

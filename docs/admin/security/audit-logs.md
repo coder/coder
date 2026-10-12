@@ -268,9 +268,11 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>new_chat_model_config_id</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
 <tr><td><code>owner_id</code></td><td>Yes</td></tr>
+<tr><td><code>project_id</code></td><td>Yes</td></tr>
 <tr><td><code>prompt</code></td><td>Yes</td></tr>
 <tr><td><code>queue_generation</code></td><td>No</td></tr>
 <tr><td><code>reasoning_effort</code></td><td>Yes</td></tr>
+<tr><td><code>schedule_claimed_until</code></td><td>No</td></tr>
 <tr><td><code>schedule_cron</code></td><td>Yes</td></tr>
 <tr><td><code>schedule_next_run_at</code></td><td>No</td></tr>
 <tr><td><code>schedule_revision</code></td><td>No</td></tr>

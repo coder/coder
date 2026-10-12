@@ -342,3 +342,196 @@ func TestStandard(t *testing.T) {
 		})
 	}
 }
+
+func TestStandardDaylightSaving(t *testing.T) {
+	t.Parallel()
+
+	utc := func(year int, month time.Month, day, hour, minute int) time.Time {
+		return time.Date(year, month, day, hour, minute, 0, 0, time.UTC)
+	}
+	testCases := []struct {
+		name     string
+		spec     string
+		timeZone string
+		from     time.Time
+		expected []time.Time
+	}{
+		{
+			// 01:30 occurs at 05:30Z (EDT) and 06:30Z (EST) on 2026-11-01.
+			name:     "fall back runs a repeated time once",
+			spec:     "30 1 * * *",
+			timeZone: "America/New_York",
+			from:     utc(2026, 10, 31, 12, 0),
+			expected: []time.Time{utc(2026, 11, 1, 5, 30), utc(2026, 11, 2, 6, 30)},
+		},
+		{
+			// 06:00Z is 01:00 EST, the second occurrence of 01:00.
+			name:     "fall back hourly skips the repeated hour",
+			spec:     "0 * * * *",
+			timeZone: "America/New_York",
+			from:     utc(2026, 11, 1, 3, 30),
+			expected: []time.Time{utc(2026, 11, 1, 4, 0), utc(2026, 11, 1, 5, 0), utc(2026, 11, 1, 7, 0), utc(2026, 11, 1, 8, 0)},
+		},
+		{
+			// 02:30 does not exist on 2027-03-14; 03:00 EDT is 07:00Z.
+			name:     "spring forward runs a skipped time after the gap",
+			spec:     "30 2 * * *",
+			timeZone: "America/New_York",
+			from:     utc(2027, 3, 13, 12, 0),
+			expected: []time.Time{utc(2027, 3, 14, 7, 0), utc(2027, 3, 15, 6, 30)},
+		},
+		{
+			name:     "spring forward merges skipped times into one run",
+			spec:     "*/15 2 * * *",
+			timeZone: "America/New_York",
+			from:     utc(2027, 3, 13, 12, 0),
+			expected: []time.Time{utc(2027, 3, 14, 7, 0), utc(2027, 3, 15, 6, 0), utc(2027, 3, 15, 6, 15)},
+		},
+		{
+			name:     "spring forward runs the gap end once",
+			spec:     "0 3 * * *",
+			timeZone: "America/New_York",
+			from:     utc(2027, 3, 13, 12, 0),
+			expected: []time.Time{utc(2027, 3, 14, 7, 0), utc(2027, 3, 15, 7, 0)},
+		},
+		{
+			name:     "spring forward merges a skipped time with the gap end",
+			spec:     "0 2,3 * * *",
+			timeZone: "America/New_York",
+			from:     utc(2027, 3, 13, 12, 0),
+			expected: []time.Time{utc(2027, 3, 14, 7, 0), utc(2027, 3, 15, 6, 0), utc(2027, 3, 15, 7, 0)},
+		},
+		{
+			// 02:30 occurs at 00:30Z (CEST) and 01:30Z (CET) on 2026-10-25.
+			name:     "berlin fall back",
+			spec:     "30 2 * * *",
+			timeZone: "Europe/Berlin",
+			from:     utc(2026, 10, 24, 12, 0),
+			expected: []time.Time{utc(2026, 10, 25, 0, 30), utc(2026, 10, 26, 1, 30)},
+		},
+		{
+			// 03:00 CEST is 01:00Z on 2027-03-28.
+			name:     "berlin spring forward",
+			spec:     "30 2 * * *",
+			timeZone: "Europe/Berlin",
+			from:     utc(2027, 3, 27, 12, 0),
+			expected: []time.Time{utc(2027, 3, 28, 1, 0), utc(2027, 3, 29, 0, 30)},
+		},
+		{
+			// Lord Howe shifts by 30 minutes. 01:45 occurs at +11:00
+			// (14:45Z) and +10:30 (15:15Z) on 2027-04-04 local.
+			name:     "lord howe fall back",
+			spec:     "45 1 * * *",
+			timeZone: "Australia/Lord_Howe",
+			from:     utc(2027, 4, 3, 0, 0),
+			expected: []time.Time{utc(2027, 4, 3, 14, 45), utc(2027, 4, 4, 15, 15)},
+		},
+		{
+			// 02:15 does not exist on 2026-10-04 local; 02:30 +11:00 is
+			// 15:30Z.
+			name:     "lord howe spring forward",
+			spec:     "15 2 * * *",
+			timeZone: "Australia/Lord_Howe",
+			from:     utc(2026, 10, 3, 0, 0),
+			expected: []time.Time{utc(2026, 10, 3, 15, 30), utc(2026, 10, 4, 15, 15)},
+		},
+		{
+			name:     "utc",
+			spec:     "0 9 * * *",
+			timeZone: "UTC",
+			from:     utc(2026, 10, 31, 12, 0),
+			expected: []time.Time{utc(2026, 11, 1, 9, 0), utc(2026, 11, 2, 9, 0)},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			sched, err := cron.Standard(testCase.spec, testCase.timeZone)
+			require.NoError(t, err)
+			got := make([]time.Time, 0, len(testCase.expected))
+			next := testCase.from
+			for range testCase.expected {
+				next = sched.Next(next)
+				got = append(got, next.UTC())
+			}
+			require.Equal(t, testCase.expected, got)
+		})
+	}
+}
+
+func TestStandardNextIsStrictlyIncreasing(t *testing.T) {
+	t.Parallel()
+
+	for _, timeZone := range []string{"America/New_York", "Europe/Berlin", "Australia/Lord_Howe", "UTC"} {
+		t.Run(timeZone, func(t *testing.T) {
+			t.Parallel()
+			loc := mustLocation(t, timeZone)
+			sched, err := cron.Standard("*/15 * * * *", timeZone)
+			require.NoError(t, err)
+
+			// Over a year of runs, every run is after the previous one
+			// and no wall time runs twice.
+			start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+			end := start.AddDate(1, 0, 0)
+			walls := make(map[string]time.Time)
+			prev := start
+			for {
+				next := sched.Next(prev)
+				require.True(t, next.After(prev), "Next(%s) = %s", prev, next)
+				if next.After(end) {
+					break
+				}
+				wall := next.In(loc).Format("2006-01-02 15:04")
+				first, ok := walls[wall]
+				require.False(t, ok, "wall time %s runs at %s and %s", wall, first, next)
+				walls[wall] = next
+				prev = next
+			}
+		})
+	}
+
+	// Next(t) is after t when t is inside the repeated hour (either
+	// occurrence) or at the end of the gap.
+	sched, err := cron.Standard("*/15 * * * *", "America/New_York")
+	require.NoError(t, err)
+	for _, at := range []time.Time{
+		time.Date(2026, 11, 1, 5, 10, 0, 0, time.UTC),
+		time.Date(2026, 11, 1, 6, 10, 0, 0, time.UTC),
+		time.Date(2027, 3, 14, 6, 59, 59, 0, time.UTC),
+		time.Date(2027, 3, 14, 7, 0, 0, 0, time.UTC),
+	} {
+		require.True(t, sched.Next(at).After(at), "Next(%s) = %s", at, sched.Next(at))
+	}
+}
+
+func TestShortestInterval(t *testing.T) {
+	t.Parallel()
+
+	from := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+	testCases := []struct {
+		spec     string
+		expected time.Duration
+		ok       bool
+	}{
+		{spec: "* * * * *", expected: time.Minute, ok: true},
+		{spec: "*/5 * * * *", expected: 5 * time.Minute, ok: true},
+		{spec: "0,1 9 * * *", expected: time.Minute, ok: true},
+		{spec: "0 9 * * *", expected: 24 * time.Hour, ok: true},
+		{spec: "0,59 0,23 * * *", expected: time.Minute, ok: true},
+		{spec: "0 9 * * 1", expected: 7 * 24 * time.Hour, ok: true},
+		{spec: "0 9 29 2 *", ok: false},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.spec, func(t *testing.T) {
+			t.Parallel()
+			sched, err := cron.Standard(testCase.spec, "America/New_York")
+			require.NoError(t, err)
+			got, ok := sched.ShortestInterval(from)
+			require.Equal(t, testCase.ok, ok)
+			if ok {
+				require.Equal(t, testCase.expected, got)
+			}
+		})
+	}
+}

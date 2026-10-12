@@ -73,6 +73,7 @@ When the experiment is off for a user:
   Otherwise the occurrence counts as missed and the schedule continues from its next time.
   To avoid depending on this recovery, turn the experiment back on before the occurrence is due.
 - Agents in that user's chats aren't offered the `manage_automations` tool, and turning on **Manage automations** for a chat fails.
+- The chat list's `automation_id` filter returns `400` for that user.
 - Messages that automations already queued in a chat stay queued and still run.
   To remove them, turn off or delete the automation before you turn the experiment off, or select **Remove from queue** on each message in the chat.
 
@@ -85,6 +86,8 @@ Users with the Owner role can read every automation, and organization admins can
 Only the automation's owner can edit it, turn it back on, rotate its secret, or run it.
 Other users who can update an automation, such as an organization admin, can only turn it off.
 Users with delete permission can delete it.
+On the **Automations** page, only the owner sees the delete button on the automation's row.
+Deleting an automation removes the messages it queued that haven't started yet.
 
 ## Create a webhook automation
 
@@ -98,11 +101,12 @@ You can create an automation on the **Automations** page or with the API.
 1. Enter a **Name**.
 1. Enter a **Prompt**.
 1. Under **Trigger**, select **Webhook**.
-1. Under **Use**, select **Single-use** or **Multi-use**.
-1. Under **Target**, select **Existing chat** or **New chat each run**.
+1. Under **Use**, select **Multi-use** or **Single-use**.
+1. Under **Runs in**, select **Existing chat** or **New chat each run**.
 1. For an existing chat, select a **Chat**.
 1. For an existing chat, select a **When busy** option.
 1. For a new chat, select a **Model**.
+1. For a new chat, optionally select a **Project**.
 1. Select **Save**.
 
 The **Copy the webhook secret** dialog shows the **Publish endpoint**, the **Secret**, and an **Example request**.
@@ -145,6 +149,7 @@ The request takes these fields:
 | `when_busy`                | `queue` or `skip`                                             | `existing_chat` only. Defaults to `queue` for webhooks and `skip` for schedules. |
 | `new_chat_model_config_id` | Model configuration ID                                        | Required for `new_chat`.                                                         |
 | `reasoning_effort`         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max` | `new_chat` only. Optional.                                                       |
+| `project_id`               | Project ID                                                    | `new_chat` only. Optional. Requires the `chat-projects` experiment.              |
 
 The response returns `201` with the automation and a `webhook_secret` field.
 The secret starts with `coder_automation_`.
@@ -160,7 +165,29 @@ Other management requests use the same base path:
 | `GET /api/experimental/organizations/{organization}/chat-automations`                 | List the automations you can read.                                   |
 | `GET /api/experimental/organizations/{organization}/chat-automations/{automation}`    | Get one automation.                                                  |
 | `PATCH /api/experimental/organizations/{organization}/chat-automations/{automation}`  | Change fields. Send `{"enabled": false}` to turn the automation off. |
-| `DELETE /api/experimental/organizations/{organization}/chat-automations/{automation}` | Delete the automation. The dashboard has no delete control.          |
+| `DELETE /api/experimental/organizations/{organization}/chat-automations/{automation}` | Delete the automation.                                               |
+
+Changing the prompt doesn't change messages that the automation already queued: they keep the prompt they were sent with.
+To remove those messages, turn the automation off or delete it.
+
+### Read why an automation can't run
+
+List and get responses include `paused_reasons` when a condition stops an automation from running while it's turned on.
+Coder refuses its scheduled runs, **Run now**, and webhook deliveries until the condition clears.
+
+| Value                 | Meaning                                                                                                                                       |
+|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `owner_inactive`      | The owner is suspended, dormant, or deleted.                                                                                                  |
+| `experiment_disabled` | The `chat-automations` experiment is off for the owner.                                                                                       |
+| `target_unavailable`  | The target chat is deleted or archived.                                                                                                       |
+| `model_unavailable`   | The model of a new-chat automation is deleted, turned off, or not available to the owner. Coder doesn't check it while the owner is inactive. |
+
+The field is a snapshot, not a guarantee.
+A response without `paused_reasons` can still be refused, for example when the target chat is busy or its queue is full.
+
+Responses also include `target_chat` and `created_by_chat` with the `id` and `title` of the target chat and of the chat that created the automation.
+They're included only when you can read that chat, so they're missing for deleted chats and for chats you can't read.
+Responses include `owner` with the `id`, `username`, `name`, and `avatar_url` of the automation owner when you can read that user's membership in the organization.
 
 ## Send an event to a webhook
 
@@ -177,6 +204,8 @@ The endpoint path carries the `/api/experimental` prefix.
 Experimental API paths can change in a later release, so keep the URL configurable in your senders.
 
 The body must be valid JSON of at most 256&nbsp;KiB.
+The event data must also be at most 256&nbsp;KiB after escaping.
+Coder escapes each `<`, `>`, `&`, U+2028, and U+2029 in a JSON string as a six-byte `\u` sequence, so a body with many of these characters can exceed the limit.
 Any JSON value is accepted.
 A successful delivery returns `202` with the ID of the saved input and the chat that received it:
 
@@ -191,7 +220,9 @@ A `202` means Coder saved the message.
 It doesn't mean the agent has run the turn yet.
 
 The chat receives the saved prompt, then a separate text part that wraps the body as untrusted event data.
-The message shows an **Automation run** badge with the automation name.
+An **Automation run** card above the message shows the automation name and its trigger kind, for example `Deploy hook (webhook)`.
+Anyone who can read the chat sees the name, even without access to the automation.
+If the automation was deleted, the card shows its ID instead of the name and trigger kind.
 
 ### Webhook responses
 
@@ -203,7 +234,7 @@ The message shows an **Automation run** badge with the automation name.
 | `403`  | The automation is turned off, its owner isn't active, its owner can't send messages to the target chat or create chats, or a [chat lifecycle hook](../../admin/setup/chat-lifecycle-hooks.md) denied it. |
 | `404`  | The experiment is off for the automation owner.                                                                                                                                                          |
 | `409`  | A single-use webhook was already used, the target chat is unavailable, the chat is busy and **When busy** is set to **Skip the run**, or the model is unavailable.                                       |
-| `413`  | The body is larger than 256&nbsp;KiB.                                                                                                                                                                    |
+| `413`  | The body is larger than 256&nbsp;KiB, or the event data is larger than 256&nbsp;KiB after escaping.                                                                                                      |
 | `429`  | Automations already fill their share of the chat's queue, the chat's queue is full, or the sender hit the rate limit.                                                                                    |
 | `502`  | Coder couldn't reach a chat lifecycle hook.                                                                                                                                                              |
 
@@ -247,13 +278,15 @@ Create a new automation instead.
 1. Under **Trigger**, select **Schedule**.
 1. Select a **Repeat** option.
 1. If the **Repeat** option runs at a time of day, select a **Time**.
+1. For **Hourly**, enter the **Minute** past each hour.
 1. To write the schedule yourself, enter a **Cron expression** instead.
 1. Select a **Time zone**.
 1. Check the times under **Upcoming runs**.
-1. Under **Target**, select **Existing chat** or **New chat each run**.
+1. Under **Runs in**, select **Existing chat** or **New chat each run**.
 1. For an existing chat, select a **Chat**.
 1. For an existing chat, select a **When busy** option.
 1. For a new chat, select a **Model**.
+1. For a new chat, optionally select a **Project**.
 1. Select **Save**.
 
 With the API, send `"kind": "schedule"` with `schedule_cron` and `schedule_time_zone` in the create request.
@@ -269,6 +302,19 @@ Coder also rejects a schedule that never runs.
 
 When you restrict both the day of month and the day of week, the schedule runs on days that match either field.
 Schedules follow wall-clock time in their time zone, so a `0 9 * * *` schedule runs at 9:00 AM local time before and after a daylight saving time change.
+When clocks go back, a time that occurs twice runs once, at its first occurrence.
+For example, in `America/New_York` a `30 1 * * *` schedule runs once on the night clocks go back, at the first 1:30 AM.
+When clocks go forward, a time that the change skips runs at the first valid time after the change.
+For example, in `America/New_York` a `30 2 * * *` schedule runs at 3:00 AM on the night clocks go forward.
+Several skipped times in one change run once, together with a run scheduled at the end of the change.
+
+A schedule must leave at least the deployment's minimum interval between two runs, 5&nbsp;minutes by default.
+Coder rejects a new or changed schedule that runs more often with a `400` error on `schedule_cron`.
+Administrators set the minimum with `--chat-min-automation-schedule-interval`.
+Schedules that already run more often keep running, and their responses include `"schedule_interval_below_minimum": true`.
+To change the cron expression or time zone of such a schedule, the new schedule must meet the minimum.
+Coder measures the interval on the wall clock of the schedule's time zone.
+On the night clocks go forward, two runs can be closer together than the minimum, because the clock jumps forward between them.
 
 ### Check upcoming runs
 
@@ -276,14 +322,24 @@ The control plane computes the next runs of a schedule:
 
 - The editor lists them under **Upcoming runs** while you type.
 - Responses for turned-on schedules include `next_run_times`, up to five times in UTC.
+  The list is empty while the schedule has [`paused_reasons`](#read-why-an-automation-cant-run).
 - `POST /api/experimental/organizations/{organization}/chat-automations/schedule-preview` evaluates an unsaved schedule.
   Send `schedule_cron` and `schedule_time_zone`, and the response contains `next_run_times`.
+  When the time zone changes its clocks within a year, the response also contains `clock_change_note`, which explains how the schedule runs across the change.
+  The editor shows the note under **Upcoming runs**.
+  When the schedule runs more often than the minimum interval, the response still lists its runs and also contains `interval_warning`.
+  The editor shows the warning under **Upcoming runs**, and saving a new or changed schedule like this fails.
 
 ### When a schedule runs
 
 Coder checks for due schedules every 30&nbsp;seconds and accepts an occurrence up to 60&nbsp;seconds late.
 An occurrence that is older than that is missed and never replayed.
+When a check finds a missed occurrence, it still runs the next occurrence that is less than 60&nbsp;seconds late.
 After a server outage, schedules continue from their next time and don't catch up on missed runs.
+With several Coder replicas, each occurrence's prompt reaches [chat lifecycle hooks](../../admin/setup/chat-lifecycle-hooks.md) once.
+If a replica stops while it sends an occurrence's prompt, that occurrence is missed.
+A hook that fails is called again when Coder retries the occurrence within the 60&nbsp;seconds.
+An edit to the automation while the hooks run also calls them again, with the edited prompt, and only the edited prompt is sent.
 
 When you turn a schedule back on, it continues from its next future time.
 When you change its cron expression or time zone, Coder recomputes its next run.
@@ -306,9 +362,26 @@ Messages to an existing chat use that chat's own model and tools.
 
 A new chat target starts a chat for every run with the model you pick.
 You can also set a reasoning effort.
-Each new chat is titled with the automation name and the run time.
-Schedules use the schedule's time zone, and webhooks use UTC.
+Each new chat is titled with the automation name and the run time, for example `Nightly report · 16 Sep 09:00 CEST`.
+Scheduled runs and **Run now** use the schedule's time zone, and webhooks use UTC.
+When the time zone has no abbreviation, the title shows its UTC offset, such as `UTC-03`.
 New chats get only the MCP servers with the `force_on` [availability policy](./platform-controls/mcp-servers.md#availability-policies) that the owner can access.
+
+A new chat target can also put its chats into a project.
+This requires the `chat-projects` experiment.
+Select the project in the **Project** field of the editor, or set `project_id` in the API.
+The project must be one of yours, in the automation's organization.
+To remove the project, select **No project**, or send `project_id` as `00000000-0000-0000-0000-000000000000` in a `PATCH` request.
+A `PATCH` request that omits `project_id` or sends `null` leaves the project unchanged.
+A change applies to the chats that later runs create.
+
+Coder creates the chat without a project, and the run still happens, in these cases:
+
+- The project was deleted.
+  Deleting a project also removes it from the automation.
+- The `chat-projects` experiment is off.
+  The automation keeps the project and uses it again when the experiment is on.
+- The owner can no longer use the project.
 
 To find the chats an automation created or sent messages to, select **View chats** on its row.
 
@@ -361,6 +434,8 @@ The agent can create, update, enable, or run only automations that stay close to
 
 - An existing chat automation must target the calling chat.
 - A new chat automation must use the chat's model, or a model without provider tools such as web search.
+- A new chat automation must use the chat's project or no project.
+  When the agent creates one, it uses the chat's project by default if the `chat-projects` experiment is on.
 
 Coder checks these rules again when it applies the change.
 
@@ -382,9 +457,10 @@ To set one up, turn on **Manage automations** and ask the agent to check in on t
 | Limit                         | Value                                                                                                                          |
 |-------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
 | Automations per owner         | 50 by default, counted across all organizations. Creating one more returns `409`. Set with `--chat-max-automations-per-owner`. |
+| Time between schedule runs    | At least 5&nbsp;minutes by default. Set with `--chat-min-automation-schedule-interval`.                                        |
 | Queued messages per chat      | 20 by default. Set with `--chat-max-queued-messages-per-chat`.                                                                 |
 | Automation share of the queue | Half of the queue limit, rounded down and at least one.                                                                        |
-| Webhook body                  | 256&nbsp;KiB of valid JSON.                                                                                                    |
+| Webhook body                  | 256&nbsp;KiB of valid JSON, also after escaping `<`, `>`, `&`, U+2028, and U+2029.                                             |
 | Name                          | 1 to 128 characters.                                                                                                           |
 
 Refer to the [configuration reference](../../admin/setup/configuration-reference.md#max-automations-per-owner) for the `coder server` options.
@@ -397,7 +473,7 @@ Review these risks before you turn the experiment on for many users.
 ### Spend
 
 The per-owner limit caps how many automations exist, not how many turns or chats they start.
-Coder doesn't limit how often a schedule runs, so a schedule that runs every minute can start a turn every minute.
+A schedule that runs as often as the minimum interval allows can start a turn every 5&nbsp;minutes by default.
 A leaked multi-use secret for a new chat target lets anyone with the secret start chats as the owner until you act.
 
 To stop the spend, rotate the secret or turn the automation off.

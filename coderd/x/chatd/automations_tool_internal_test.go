@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -15,8 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -58,7 +62,7 @@ func TestAutomationTurnTriggerFromHistory(t *testing.T) {
 		AutomationID: uuid.NullUUID{UUID: automationID, Valid: true},
 		InputID:      uuid.NullUUID{UUID: inputID, Valid: true},
 	}
-	for _, tc := range []struct {
+	cases := []struct {
 		name     string
 		messages []database.ChatMessage
 		want     automationTurnTrigger
@@ -102,6 +106,17 @@ func TestAutomationTurnTriggerFromHistory(t *testing.T) {
 			want: reached,
 		},
 		{
+			// Compaction ran before the automation message got a response,
+			// then a human sent a message. Compressed rows do not end the
+			// turn.
+			name: "CompactionBeforeResponse",
+			messages: []database.ChatMessage{
+				assistant, fromAutomation(automationID, inputID),
+				compressed(assistant), compressed(tool), replayed, human(),
+			},
+			want: reached,
+		},
+		{
 			// Editing an automation message deletes it and inserts a human
 			// message in its place.
 			name:     "EditedAutomationMessage",
@@ -112,12 +127,68 @@ func TestAutomationTurnTriggerFromHistory(t *testing.T) {
 			messages: []database.ChatMessage{fromAutomation(automationID, inputID), deleted(assistant), human()},
 			want:     reached,
 		},
-	} {
+	}
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tc.want, automationTurnTriggerFromHistory(tc.messages))
 		})
 	}
+
+	// The tool reads only the current turn's user rows. Over every case,
+	// those rows must give the same trigger as the full history.
+	t.Run("CurrentTurnQuery", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		owner := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
+		// insert stores messages in a new chat and returns its ID.
+		insert := func(t *testing.T, messages []database.ChatMessage) uuid.UUID {
+			t.Helper()
+			chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: model.ID})
+			for _, m := range messages {
+				m.ChatID = chat.ID
+				row := dbgen.ChatMessage(t, db, m)
+				if m.Deleted {
+					require.NoError(t, db.SoftDeleteChatMessageByID(testutil.Context(t, testutil.WaitShort), row.ID))
+				}
+			}
+			return chat.ID
+		}
+		// load returns the rows of the tool's query and the full history.
+		load := func(t *testing.T, chatID uuid.UUID) (turn, history []database.ChatMessage) {
+			t.Helper()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			turn, err := db.GetChatMessagesForAutomationTurnTrigger(ctx, chatID)
+			require.NoError(t, err)
+			history, err = db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID})
+			require.NoError(t, err)
+			return turn, history
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				turn, history := load(t, insert(t, tc.messages))
+				require.Equal(t, tc.want, automationTurnTriggerFromHistory(turn))
+				require.Equal(t, automationTurnTriggerFromHistory(history), automationTurnTriggerFromHistory(turn))
+			})
+		}
+
+		t.Run("ReadsOnlyCurrentTurn", func(t *testing.T) {
+			t.Parallel()
+			var messages []database.ChatMessage
+			for range 20 {
+				messages = append(messages, fromAutomation(automationID, inputID), assistant, tool, assistant)
+			}
+			messages = append(messages, human())
+			turn, history := load(t, insert(t, messages))
+			require.Len(t, history, len(messages))
+			require.Len(t, turn, 1)
+			require.Equal(t, automationTurnTrigger{}, automationTurnTriggerFromHistory(turn))
+		})
+	})
 }
 
 func TestManageAutomationsNotOfferedInPlanOrExploreTurns(t *testing.T) {
@@ -405,7 +476,11 @@ func TestManageAutomationsTool(t *testing.T) {
 
 				chatID := tc.revoke(ctx, t, f)
 				for _, action := range []string{"list", "disable", "delete"} {
-					content, isError := f.call(ctx, t, chatID, action, automation.ID)
+					id := automation.ID
+					if action == "list" {
+						id = uuid.Nil
+					}
+					content, isError := f.call(ctx, t, chatID, action, id)
 					require.True(t, isError, "%s: %s", action, content)
 					require.Contains(t, content, "not available for this chat")
 				}
@@ -632,7 +707,7 @@ func TestManageAutomationsTool(t *testing.T) {
 
 		// enable follows the same rules.
 		for _, row := range []database.ChatAutomation{heartbeat, elsewhere} {
-			_, err := f.server.UpdateAutomation(f.asOwner(ctx, t), f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+			_, _, err := f.server.UpdateAutomation(f.asOwner(ctx, t), f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
 			require.NoError(t, err)
 		}
 		content, isError = f.call(ctx, t, f.chat.ID, "enable", elsewhere.ID)
@@ -654,6 +729,103 @@ func TestManageAutomationsTool(t *testing.T) {
 			require.Equal(t, heartbeat.ID, log.ResourceID)
 			requireAuditFields(t, log, map[string]string{"chat_id": f.chat.ID.String()})
 		}
+	})
+
+	t.Run("ProjectContainment", func(t *testing.T) {
+		t.Parallel()
+		f := newManageAutomationsFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+		otherProject := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+		_, err := f.sqlDB.ExecContext(ctx, "UPDATE chats SET project_id = $1 WHERE id = $2", project.ID, f.chat.ID)
+		require.NoError(t, err)
+		newChatArgs := func(projectID *string) manageAutomationsArgs {
+			args := heartbeatArgs()
+			args.TargetMode = ptr.Ref("new_chat")
+			args.ProjectID = projectID
+			return args
+		}
+
+		// New chats default to this chat's project, and an empty value
+		// means no project.
+		defaulted, _ := f.mustCreate(ctx, t, f.chat.ID, newChatArgs(nil))
+		require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, defaulted.ProjectID)
+		withoutProject, _ := f.mustCreate(ctx, t, f.chat.ID, newChatArgs(ptr.Ref("")))
+		require.False(t, withoutProject.ProjectID.Valid)
+
+		content, isError := f.callArgs(ctx, t, f.chat.ID, newChatArgs(ptr.Ref(otherProject.ID.String())))
+		require.True(t, isError, content)
+		require.Contains(t, content, errNotContained)
+		// An existing_chat target has no project, so even an empty value
+		// is rejected rather than dropped.
+		heartbeat := heartbeatArgs()
+		heartbeat.ProjectID = ptr.Ref("")
+		content, isError = f.callArgs(ctx, t, f.chat.ID, heartbeat)
+		require.True(t, isError, content)
+		require.Contains(t, content, "project_id")
+		require.Len(t, f.ownerAutomations(ctx, t), 2)
+
+		// Created through the management API, so it already uses another
+		// project.
+		elsewhere, _, err := f.server.CreateAutomation(f.asOwner(ctx, t), CreateAutomationParams{
+			OrganizationID: f.org.ID,
+			OwnerID:        f.owner.ID,
+			Request: codersdk.CreateChatAutomationRequest{
+				Name:                 "Elsewhere",
+				Kind:                 codersdk.ChatAutomationKindSchedule,
+				TargetMode:           codersdk.ChatAutomationTargetModeNewChat,
+				NewChatModelConfigID: &f.model.ID,
+				ProjectID:            &otherProject.ID,
+				Prompt:               "Report.",
+				ScheduleCron:         ptr.Ref("0 9 * * *"),
+				ScheduleTimeZone:     ptr.Ref("UTC"),
+			},
+		})
+		require.NoError(t, err)
+		for _, tc := range []struct {
+			name string
+			args manageAutomationsArgs
+			row  database.ChatAutomation
+		}{
+			{"MovesToOtherProject", manageAutomationsArgs{AutomationID: defaulted.ID.String(), ProjectID: ptr.Ref(otherProject.ID.String())}, defaulted},
+			{"StoredInOtherProject", manageAutomationsArgs{AutomationID: elsewhere.ID.String(), Prompt: ptr.Ref("Changed.")}, elsewhere},
+		} {
+			tc.args.Action = "update"
+			content, isError := f.callArgs(ctx, t, f.chat.ID, tc.args)
+			require.True(t, isError, "%s: %s", tc.name, content)
+			require.Contains(t, content, errNotContained, tc.name)
+			f.requireUnchanged(ctx, t, tc.row)
+		}
+		content, isError = f.call(ctx, t, f.chat.ID, "run_now", elsewhere.ID)
+		require.True(t, isError, content)
+		require.Contains(t, content, errNotContained)
+
+		content, isError = f.callArgs(ctx, t, f.chat.ID, manageAutomationsArgs{
+			Action: "update", AutomationID: defaulted.ID.String(), ProjectID: ptr.Ref(""),
+		})
+		require.False(t, isError, content)
+		cleared, err := f.db.GetChatAutomationByID(ctx, defaulted.ID)
+		require.NoError(t, err)
+		require.False(t, cleared.ProjectID.Valid)
+	})
+
+	t.Run("ProjectDefaultNeedsExperiment", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, time.Date(2026, 1, 5, 8, 0, 0, 0, time.UTC))
+		f.experiments = slices.DeleteFunc(slices.Clone(codersdk.ExperimentsKnown), func(e codersdk.Experiment) bool {
+			return e == codersdk.ExperimentChatProjects
+		})
+		f.setSwitch(t, f.chat.ID, true)
+		mf := manageAutomationsFixture{scheduleFixture: f, server: f.newServer(t, Limits{})}
+		ctx := testutil.Context(t, testutil.WaitLong)
+		project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+		_, err := f.sqlDB.ExecContext(ctx, "UPDATE chats SET project_id = $1 WHERE id = $2", project.ID, f.chat.ID)
+		require.NoError(t, err)
+
+		args := heartbeatArgs()
+		args.TargetMode = ptr.Ref("new_chat")
+		row, _ := mf.mustCreate(ctx, t, f.chat.ID, args)
+		require.False(t, row.ProjectID.Valid)
 	})
 
 	t.Run("RunNowContainment", func(t *testing.T) {
@@ -731,6 +903,7 @@ func TestManageAutomationsTool(t *testing.T) {
 			want string
 		}{
 			{createWithID, "create does not take automation_id"},
+			{manageAutomationsArgs{Action: "list", AutomationID: heartbeat.ID.String()}, "list does not take automation_id"},
 			{manageAutomationsArgs{Action: "update", AutomationID: heartbeat.ID.String()}, "update needs at least one field to change"},
 			{manageAutomationsArgs{Action: "enable", AutomationID: heartbeat.ID.String(), Prompt: ptr.Ref("Changed.")}, "enable does not take prompt"},
 		} {
@@ -741,6 +914,52 @@ func TestManageAutomationsTool(t *testing.T) {
 		f.requireUnchanged(ctx, t, heartbeat)
 		require.Len(t, f.ownerAutomations(ctx, t), 1)
 		require.Empty(t, f.auditor.AuditLogs())
+	})
+
+	t.Run("RunNowQueueFull", func(t *testing.T) {
+		t.Parallel()
+		// A queue of 2 leaves automations a share of 1, so admission
+		// accepts the run while human messages fill the whole queue.
+		f := newScheduleFixture(t, database.ChatStatusRunning, time.Date(2026, 1, 5, 8, 0, 0, 0, time.UTC))
+		f.setSwitch(t, f.chat.ID, true)
+		server := f.newServer(t, Limits{MaxQueuedMessagesPerChat: 2})
+		sink := testutil.NewFakeSink(t)
+		server.logger = sink.Logger()
+		mf := manageAutomationsFixture{scheduleFixture: f, server: server}
+		ctx := testutil.Context(t, testutil.WaitLong)
+		heartbeat := f.existingChat(ctx, t, server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		for range 2 {
+			sent, err := server.SendMessage(f.asOwner(ctx, t), SendMessageOptions{
+				ChatID:    f.chat.ID,
+				CreatedBy: f.owner.ID,
+				Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("from a person")},
+			})
+			require.NoError(t, err)
+			require.True(t, sent.Queued)
+		}
+		inputs := f.inputs(ctx, t)
+
+		content, isError := mf.call(ctx, t, f.chat.ID, "run_now", heartbeat.ID)
+		require.True(t, isError, content)
+		require.Equal(t, "the target chat's message queue is full: try again after the chat sends its queued messages", content)
+		require.Equal(t, inputs, f.inputs(ctx, t))
+		require.Empty(t, sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "manage_automations action failed"
+		}))
+	})
+
+	t.Run("RejectsScheduleBelowMinimumInterval", func(t *testing.T) {
+		t.Parallel()
+		f := newManageAutomationsFixture(t)
+		f.server = f.newServer(t, Limits{MinAutomationScheduleInterval: codersdk.DefaultChatMinAutomationScheduleInterval})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		args := heartbeatArgs()
+		args.ScheduleCron = ptr.Ref("*/2 * * * *")
+		content, isError := f.callArgs(ctx, t, f.chat.ID, args)
+		require.True(t, isError, content)
+		require.Contains(t, content, "runs as often as every 2 minutes; this deployment allows at most one run every 5 minutes")
+		require.Empty(t, f.ownerAutomations(ctx, t))
 	})
 
 	t.Run("WebhookSecrets", func(t *testing.T) {
@@ -888,7 +1107,7 @@ func TestManageAutomationsToolConcurrentRetarget(t *testing.T) {
 			}
 			if tc.disabled {
 				var err error
-				row, err = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+				_, row, err = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
 				require.NoError(t, err)
 			}
 
@@ -897,7 +1116,7 @@ func TestManageAutomationsToolConcurrentRetarget(t *testing.T) {
 				retargetErr error
 			)
 			reads.arm(row.ID, func() {
-				retargeted, retargetErr = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, retarget, nil)
+				_, retargeted, retargetErr = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, retarget, nil)
 			})
 			chats := len(f.createdChats(ctx, t))
 			inputs := f.ownerInputs(ctx, t)
@@ -919,6 +1138,87 @@ func TestManageAutomationsToolConcurrentRetarget(t *testing.T) {
 			require.Len(t, f.createdChats(ctx, t), chats)
 			require.Equal(t, inputs, f.ownerInputs(ctx, t))
 			require.Empty(t, f.auditor.AuditLogs())
+		})
+	}
+}
+
+// TestManageAutomationsToolAuditsLockedRow renames the automation, as the
+// owner through the service, after the tool has read it and before the
+// service locks it. The tool's change still succeeds, and its audit entry
+// must diff against the row the service locked, so the rename, which
+// belongs to the owner's own change, is not attributed to the tool.
+func TestManageAutomationsToolAuditsLockedRow(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		action   string
+		disabled bool
+		// changed is the field the tool's change must show in the diff.
+		changed string
+	}{
+		{action: "update", changed: "prompt"},
+		{action: "enable", disabled: true, changed: "enabled"},
+		{action: "disable", changed: "enabled"},
+	} {
+		t.Run(tc.action, func(t *testing.T) {
+			t.Parallel()
+			sf := newScheduleFixture(t, database.ChatStatusWaiting, time.Date(2026, 1, 5, 8, 0, 0, 0, time.UTC))
+			sf.setSwitch(t, sf.chat.ID, true)
+			// The default mock records an empty diff, so record the fields
+			// this test compares.
+			sf.auditor = audit.NewMockWithDiffFn(func(old, newVal any) audit.Map {
+				oldRow, oldOK := old.(database.ChatAutomation)
+				newRow, newOK := newVal.(database.ChatAutomation)
+				if !oldOK || !newOK {
+					return audit.Map{}
+				}
+				diff := audit.Map{}
+				if oldRow.Name != newRow.Name {
+					diff["name"] = audit.OldNew{Old: oldRow.Name, New: newRow.Name}
+				}
+				if oldRow.Prompt != newRow.Prompt {
+					diff["prompt"] = audit.OldNew{Old: "", New: "", Secret: true}
+				}
+				if oldRow.Enabled != newRow.Enabled {
+					diff["enabled"] = audit.OldNew{Old: oldRow.Enabled, New: newRow.Enabled}
+				}
+				return diff
+			})
+			reads := &automationReadHook{}
+			f := manageAutomationsFixture{scheduleFixture: sf, server: sf.newServerWithStore(t, Limits{}, func(store database.Store) database.Store {
+				reads.Store = store
+				return reads
+			})}
+			ctx := testutil.Context(t, testutil.WaitLong)
+			ownerCtx := f.asOwner(ctx, t)
+
+			row := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+			if tc.disabled {
+				var err error
+				_, row, err = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}, nil)
+				require.NoError(t, err)
+			}
+			var renameErr error
+			reads.arm(row.ID, func() {
+				_, _, renameErr = f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")}, nil)
+			})
+			f.auditor.ResetLogs()
+
+			args := manageAutomationsArgs{Action: tc.action, AutomationID: row.ID.String()}
+			if tc.action == "update" {
+				args.Prompt = ptr.Ref("Changed.")
+			}
+			content, isError := f.callArgs(ctx, t, f.chat.ID, args)
+			reads.requireFired(t)
+			require.NoError(t, renameErr)
+			require.False(t, isError, content)
+
+			logs := f.auditor.AuditLogs()
+			require.Len(t, logs, 1)
+			var diff audit.Map
+			require.NoError(t, json.Unmarshal(logs[0].Diff, &diff))
+			require.Contains(t, diff, tc.changed)
+			require.NotContains(t, diff, "name", "the rename happened before the lock")
 		})
 	}
 }
@@ -952,7 +1252,7 @@ func TestAutomationGuard(t *testing.T) {
 		row := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
 
 		var seen []uuid.NullUUID
-		_, err := f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID},
+		_, _, err := f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID},
 			func(_ database.Store, automation database.ChatAutomation) error {
 				seen = append(seen, automation.TargetChatID)
 				if automation.TargetChatID.UUID == other.ID {
@@ -979,7 +1279,7 @@ func TestAutomationGuard(t *testing.T) {
 			seen = append(seen, automation.TargetChatID)
 			if len(seen) == 1 {
 				// Retarget after the read before the send.
-				_, err := f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID}, nil)
+				_, _, err := f.server.UpdateAutomation(ownerCtx, f.owner.ID, row.ID, codersdk.UpdateChatAutomationRequest{TargetChatID: &other.ID}, nil)
 				return err
 			}
 			return errRefused

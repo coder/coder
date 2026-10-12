@@ -19,6 +19,7 @@ INSERT INTO chat_automations (
     schedule_cron,
     schedule_time_zone,
     schedule_next_run_at,
+    project_id,
     created_at,
     updated_at
 ) VALUES (
@@ -43,6 +44,7 @@ INSERT INTO chat_automations (
     @schedule_cron,
     @schedule_time_zone,
     @schedule_next_run_at,
+    @project_id,
     @created_at,
     @updated_at
 )
@@ -77,6 +79,33 @@ ORDER BY
     id
 FOR UPDATE;
 
+-- name: GetChatAutomationRunStatusesByIDs :many
+-- Returns, for each given automation, whether its owner is active and
+-- whether its existing_chat target chat is usable, with the same rules
+-- that GetDueChatAutomationSchedules and publishing apply. Missing ids
+-- are not returned.
+SELECT
+    chat_automations.id,
+    chat_automations.organization_id,
+    chat_automations.owner_id,
+    (users.id IS NOT NULL AND users.status = 'active' AND NOT users.deleted)::boolean AS owner_active,
+    (
+        chat_automations.target_mode <> 'existing_chat'
+        OR (
+            chats.id IS NOT NULL
+            AND NOT chats.archived
+            AND chats.organization_id = chat_automations.organization_id
+            AND chats.owner_id = chat_automations.owner_id
+            AND chats.parent_chat_id IS NULL
+        )
+    )::boolean AS target_available
+FROM
+    chat_automations
+    LEFT JOIN users ON users.id = chat_automations.owner_id
+    LEFT JOIN chats ON chats.id = chat_automations.target_chat_id
+WHERE
+    chat_automations.id = ANY(@ids::uuid[]);
+
 -- name: GetChatAutomationsByOrganizationID :many
 SELECT
     *
@@ -84,6 +113,9 @@ FROM
     chat_automations
 WHERE
     organization_id = @organization_id::uuid
+    -- Authorize Filter clause will be injected below in
+    -- GetAuthorizedChatAutomationsByOrganizationID.
+    -- @authorize_filter
 ORDER BY
     created_at DESC,
     id DESC;
@@ -125,6 +157,7 @@ SET
     schedule_next_run_at = @schedule_next_run_at,
     enabled = @enabled,
     queue_generation = @queue_generation,
+    project_id = @project_id,
     updated_at = @updated_at
 WHERE
     id = @id::uuid
@@ -164,9 +197,10 @@ WHERE
 -- Returns enabled schedule automations whose cursor is at or before now,
 -- oldest cursor first, starting after the (after_next_run_at, after_id)
 -- keyset so callers can page through every due row. Automations of
--- inactive owners and existing_chat automations whose target chat is gone
--- or archived are left out. It takes no locks: publishing rechecks each
--- row under the chat and automation locks.
+-- inactive owners, existing_chat automations whose target chat is gone
+-- or archived, and occurrences another instance holds an unexpired claim
+-- on are left out. It takes no locks: publishing rechecks each row under
+-- the chat and automation locks.
 SELECT
     chat_automations.*
 FROM
@@ -178,6 +212,10 @@ WHERE
     AND chat_automations.enabled
     AND chat_automations.schedule_next_run_at <= @now::timestamptz
     AND (chat_automations.schedule_next_run_at, chat_automations.id) > (@after_next_run_at::timestamptz, @after_id::uuid)
+    AND (
+        chat_automations.schedule_claimed_until IS NULL
+        OR chat_automations.schedule_claimed_until <= @now::timestamptz
+    )
     AND users.status = 'active'
     AND NOT users.deleted
     AND (
@@ -195,7 +233,8 @@ LIMIT
 -- observed occurrence to next_run_at. It affects no row when the schedule
 -- revision or the cursor changed since they were observed, so exactly one
 -- caller moves the cursor past each occurrence. A NULL next_run_at means
--- no occurrence is pending.
+-- no occurrence is pending. Moving the cursor also drops the claim on the
+-- observed occurrence (trigger_clear_chat_automation_schedule_claim).
 UPDATE
     chat_automations
 SET
@@ -207,3 +246,87 @@ WHERE
     AND enabled
     AND schedule_revision = @schedule_revision::bigint
     AND schedule_next_run_at = @observed_next_run_at::timestamptz;
+
+-- name: ClaimChatAutomationScheduleOccurrence :execrows
+-- Claims the observed occurrence of an enabled schedule automation until
+-- claimed_until, so only the claimer runs its prompt hooks and publishes
+-- it. It affects no row when the schedule revision or the cursor changed
+-- since they were observed, the cursor is after now or before
+-- earliest_next_run_at (the occurrence expired), or another caller holds a
+-- claim that has not expired at now.
+UPDATE
+    chat_automations
+SET
+    schedule_claimed_until = @claimed_until::timestamptz
+WHERE
+    id = @id::uuid
+    AND kind = 'schedule'
+    AND enabled
+    AND schedule_revision = @schedule_revision::bigint
+    AND schedule_next_run_at = @observed_next_run_at::timestamptz
+    AND schedule_next_run_at <= @now::timestamptz
+    AND schedule_next_run_at >= @earliest_next_run_at::timestamptz
+    AND (schedule_claimed_until IS NULL OR schedule_claimed_until <= @now::timestamptz);
+
+-- name: ReleaseChatAutomationScheduleClaim :execrows
+-- Drops the caller's claim on the observed occurrence, so a later scan can
+-- retry it. It affects no row when the schedule revision or the cursor
+-- changed, or the claim is no longer the one the caller set.
+UPDATE
+    chat_automations
+SET
+    schedule_claimed_until = NULL
+WHERE
+    id = @id::uuid
+    AND schedule_revision = @schedule_revision::bigint
+    AND schedule_next_run_at = @observed_next_run_at::timestamptz
+    AND schedule_claimed_until = @claimed_until::timestamptz;
+
+-- name: GetChatAutomationReferencesByChatID :many
+-- Returns the id, name and kind of each automation that delivered into
+-- the chat: the automation that created the chat, the automations of its
+-- visible non-deleted user messages and the automations of its queued
+-- messages. Only automations in the chat's organization are returned, and
+-- deleted automations are absent.
+WITH referenced AS (
+    SELECT
+        chats.automation_id
+    FROM
+        chats
+    WHERE
+        chats.id = @chat_id::uuid
+        AND chats.automation_id IS NOT NULL
+    UNION
+    -- The role, deleted and visibility predicates match
+    -- idx_chat_messages_user_prompts so the index applies.
+    SELECT
+        chat_messages.automation_id
+    FROM
+        chat_messages
+    WHERE
+        chat_messages.chat_id = @chat_id::uuid
+        AND chat_messages.deleted = false
+        AND chat_messages.role = 'user'
+        AND chat_messages.visibility IN ('user', 'both')
+        AND chat_messages.automation_id IS NOT NULL
+    UNION
+    SELECT
+        chat_queued_messages.automation_id
+    FROM
+        chat_queued_messages
+    WHERE
+        chat_queued_messages.chat_id = @chat_id::uuid
+        AND chat_queued_messages.automation_id IS NOT NULL
+)
+SELECT
+    chat_automations.id,
+    chat_automations.name,
+    chat_automations.kind
+FROM
+    referenced
+    JOIN chat_automations ON chat_automations.id = referenced.automation_id
+    JOIN chats ON chats.id = @chat_id::uuid
+WHERE
+    chat_automations.organization_id = chats.organization_id
+ORDER BY
+    chat_automations.id;

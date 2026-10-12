@@ -447,7 +447,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 							<SearchIcon />
 						</Button>
 					)}
-					<AutomationsMobileLink />
+					<AutomationsMobileLink locationSearch={locationSearch} />
 					<FilterPopover
 						filters={sidebarFilters}
 						onFiltersChange={onSidebarFiltersChange}

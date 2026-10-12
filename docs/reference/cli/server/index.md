@@ -1877,6 +1877,17 @@ Maximum number of virtual desktop recordings that each Coder server stores at th
 
 Maximum number of chat automations one user can own across all organizations. Creating one more fails with HTTP 409. Must be at least 1.
 
+### --chat-min-automation-schedule-interval
+
+|             |                                                           |
+|-------------|-----------------------------------------------------------|
+| Type        | <code>duration</code>                                     |
+| Environment | <code>$CODER_CHAT_MIN_AUTOMATION_SCHEDULE_INTERVAL</code> |
+| YAML        | <code>chat.minAutomationScheduleInterval</code>           |
+| Default     | <code>5m0s</code>                                         |
+
+Minimum time between two runs of a chat schedule automation. Creating a schedule, or changing one, that runs more often fails with HTTP 400. Existing schedules that run more often keep running, and the API marks them. Must be between 1m and 24h.
+
 ### --chat-stream-silence-timeout
 
 |             |                                                 |

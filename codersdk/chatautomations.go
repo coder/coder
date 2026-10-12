@@ -43,38 +43,103 @@ const (
 	ChatAutomationWhenBusySkip  ChatAutomationWhenBusy = "skip"
 )
 
+// ChatAutomationPausedReason is a condition that stops an automation from
+// running even while it is enabled.
+type ChatAutomationPausedReason string
+
+const (
+	// ChatAutomationPausedReasonOwnerInactive means the owner is suspended,
+	// dormant, or deleted.
+	ChatAutomationPausedReasonOwnerInactive ChatAutomationPausedReason = "owner_inactive"
+	// ChatAutomationPausedReasonExperimentDisabled means the owner's
+	// chat-automations experiment is off.
+	ChatAutomationPausedReasonExperimentDisabled ChatAutomationPausedReason = "experiment_disabled"
+	// ChatAutomationPausedReasonTargetUnavailable means the target chat of an
+	// existing_chat automation is deleted, archived, or is no longer a root
+	// chat of the owner in the automation's organization.
+	ChatAutomationPausedReasonTargetUnavailable ChatAutomationPausedReason = "target_unavailable"
+	// ChatAutomationPausedReasonModelUnavailable means the model config of a
+	// new_chat automation is unset, deleted, disabled, in another
+	// organization, or not readable by the owner, or its provider is
+	// disabled or deleted. It is not evaluated while the owner is inactive.
+	ChatAutomationPausedReasonModelUnavailable ChatAutomationPausedReason = "model_unavailable"
+)
+
+// ChatAutomationChat identifies a chat that a chat automation refers to.
+type ChatAutomationChat struct {
+	ID    uuid.UUID `json:"id" format:"uuid"`
+	Title string    `json:"title"`
+}
+
 // ChatAutomation is a webhook or scheduled automation that delivers a
 // prompt to an agent chat. It never carries the webhook secret or its
-// hash.
+// hash. ProjectID is the project of the chats a new_chat automation
+// creates; it is cleared when the project is deleted.
 type ChatAutomation struct {
-	ID                   uuid.UUID                 `json:"id" format:"uuid"`
-	OrganizationID       uuid.UUID                 `json:"organization_id" format:"uuid"`
-	OwnerID              uuid.UUID                 `json:"owner_id" format:"uuid"`
-	Name                 string                    `json:"name"`
-	CreatedByChatID      *uuid.UUID                `json:"created_by_chat_id,omitempty" format:"uuid"`
-	Kind                 ChatAutomationKind        `json:"kind" enums:"webhook,schedule"`
-	Enabled              bool                      `json:"enabled"`
-	TargetMode           ChatAutomationTargetMode  `json:"target_mode" enums:"existing_chat,new_chat"`
-	TargetChatID         *uuid.UUID                `json:"target_chat_id,omitempty" format:"uuid"`
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	OwnerID        uuid.UUID `json:"owner_id" format:"uuid"`
+	// Owner is the display data of the automation owner. It is set by the
+	// chat automations API only when the caller can read the owner's
+	// membership in the automation's organization, the same check as
+	// GET /api/v2/organizations/{organization}/members/{user}. It is absent
+	// otherwise, including for deleted owners and owners who left the
+	// organization.
+	Owner           *MinimalUser `json:"owner,omitempty"`
+	Name            string       `json:"name"`
+	CreatedByChatID *uuid.UUID   `json:"created_by_chat_id,omitempty" format:"uuid"`
+	// CreatedByChat is the chat that created the automation. It is set by
+	// the chat automations API only when the caller can read that chat, so
+	// it is absent for automations created outside a chat, for deleted
+	// chats, and for chats the caller cannot read.
+	CreatedByChat *ChatAutomationChat      `json:"created_by_chat,omitempty"`
+	Kind          ChatAutomationKind       `json:"kind" enums:"webhook,schedule"`
+	Enabled       bool                     `json:"enabled"`
+	TargetMode    ChatAutomationTargetMode `json:"target_mode" enums:"existing_chat,new_chat"`
+	TargetChatID  *uuid.UUID               `json:"target_chat_id,omitempty" format:"uuid"`
+	// TargetChat is the target chat of an existing_chat automation. Like
+	// CreatedByChat, it is set only when the caller can read that chat.
+	TargetChat           *ChatAutomationChat       `json:"target_chat,omitempty"`
 	NewChatModelConfigID *uuid.UUID                `json:"new_chat_model_config_id,omitempty" format:"uuid"`
 	ReasoningEffort      *string                   `json:"reasoning_effort,omitempty"`
 	WhenBusy             *ChatAutomationWhenBusy   `json:"when_busy,omitempty" enums:"queue,skip"`
+	ProjectID            *uuid.UUID                `json:"project_id,omitempty" format:"uuid"`
 	WebhookUse           *ChatAutomationWebhookUse `json:"webhook_use,omitempty" enums:"single,multi"`
 	WebhookSecretVersion int64                     `json:"webhook_secret_version"`
 	WebhookConsumedAt    *time.Time                `json:"webhook_consumed_at,omitempty" format:"date-time"`
 	Prompt               string                    `json:"prompt"`
 	ScheduleCron         *string                   `json:"schedule_cron,omitempty"`
 	ScheduleTimeZone     *string                   `json:"schedule_time_zone,omitempty"`
-	ScheduleNextRunAt    *time.Time                `json:"schedule_next_run_at,omitempty" format:"date-time"`
+	// ScheduleNextRunAt is the scheduler cursor, not a promise that a run
+	// happens then. While the automation is paused it can stay in the past,
+	// or keep moving past occurrences that are refused, for example while
+	// its model is unavailable.
+	ScheduleNextRunAt *time.Time `json:"schedule_next_run_at,omitempty" format:"date-time"`
 	// NextRunTimes lists up to five upcoming runs of an enabled schedule.
-	// It is empty for webhooks and disabled schedules.
+	// It is empty for webhooks, disabled schedules, and schedules with any
+	// paused reason.
 	NextRunTimes []time.Time `json:"next_run_times" format:"date-time"`
-	CreatedAt    time.Time   `json:"created_at" format:"date-time"`
-	UpdatedAt    time.Time   `json:"updated_at" format:"date-time"`
+	// PausedReasons lists conditions that stop the automation from running
+	// even while it is enabled: schedule occurrences, Run now, and webhook
+	// deliveries are refused. It is set by the chat automations API and
+	// absent when none was found. It is computed independently of Enabled.
+	// It is an advisory snapshot: admission stays authoritative, and an
+	// empty list does not guarantee that a run is accepted, because lost
+	// chat permissions, busy chats, and full queues are not reported.
+	PausedReasons []ChatAutomationPausedReason `json:"paused_reasons,omitempty" enums:"owner_inactive,experiment_disabled,target_unavailable,model_unavailable"`
+	// ScheduleIntervalBelowMinimum is true when the schedule runs more
+	// often than the deployment's minimum interval between runs. Such
+	// automations keep running, but a change to their schedule must meet
+	// the minimum.
+	ScheduleIntervalBelowMinimum bool      `json:"schedule_interval_below_minimum"`
+	CreatedAt                    time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt                    time.Time `json:"updated_at" format:"date-time"`
 }
 
 // CreateChatAutomationRequest creates a chat automation owned by the
-// caller.
+// caller. ProjectID applies to new_chat automations only, requires the
+// chat-projects experiment, and puts the chats the automation creates into
+// that project.
 type CreateChatAutomationRequest struct {
 	Name                 string                    `json:"name"`
 	Kind                 ChatAutomationKind        `json:"kind" enums:"webhook,schedule"`
@@ -83,6 +148,7 @@ type CreateChatAutomationRequest struct {
 	NewChatModelConfigID *uuid.UUID                `json:"new_chat_model_config_id,omitempty" format:"uuid"`
 	ReasoningEffort      *string                   `json:"reasoning_effort,omitempty"`
 	WhenBusy             *ChatAutomationWhenBusy   `json:"when_busy,omitempty" enums:"queue,skip"`
+	ProjectID            *uuid.UUID                `json:"project_id,omitempty" format:"uuid"`
 	WebhookUse           *ChatAutomationWebhookUse `json:"webhook_use,omitempty" enums:"single,multi"`
 	Prompt               string                    `json:"prompt"`
 	// ScheduleCron is a standard five-field cron expression. As in standard
@@ -118,6 +184,11 @@ type UpdateChatAutomationRequest struct {
 	WhenBusy             *ChatAutomationWhenBusy `json:"when_busy,omitempty" enums:"queue,skip"`
 	TargetChatID         *uuid.UUID              `json:"target_chat_id,omitempty" format:"uuid"`
 	NewChatModelConfigID *uuid.UUID              `json:"new_chat_model_config_id,omitempty" format:"uuid"`
+	// ProjectID applies to new_chat automations only. A project ID moves the
+	// chats the automation creates later into that project. The all-zero
+	// UUID removes the project. Omitted or null leaves it unchanged. Chats
+	// created earlier keep their project.
+	ProjectID *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
 }
 
 // RotateChatAutomationSecretResponse is returned when a webhook
@@ -139,6 +210,15 @@ type ChatAutomationSchedulePreviewRequest struct {
 // schedule.
 type ChatAutomationSchedulePreviewResponse struct {
 	NextRunTimes []time.Time `json:"next_run_times" format:"date-time"`
+	// ClockChangeNote explains how the schedule runs across daylight
+	// saving changes. It is set when the schedule's time zone changes its
+	// UTC offset within a year.
+	ClockChangeNote string `json:"clock_change_note,omitempty"`
+	// IntervalWarning is set when the schedule runs more often than the
+	// deployment's minimum interval. Creating such a schedule, or changing
+	// an automation's schedule to it, fails, but an automation that
+	// already has it keeps running.
+	IntervalWarning string `json:"interval_warning,omitempty"`
 }
 
 // ChatAutomationEventResponse is returned when a webhook automation
@@ -155,6 +235,15 @@ type ChatAutomationEventResponse struct {
 type ChatAutomationRunResponse struct {
 	InputID uuid.UUID `json:"input_id" format:"uuid"`
 	ChatID  uuid.UUID `json:"chat_id" format:"uuid"`
+}
+
+// ChatAutomationReference names an automation that delivered into a chat.
+// Anyone who can read the chat can read its references, so it carries no
+// other automation fields.
+type ChatAutomationReference struct {
+	ID   uuid.UUID          `json:"id" format:"uuid"`
+	Name string             `json:"name"`
+	Kind ChatAutomationKind `json:"kind" enums:"webhook,schedule"`
 }
 
 func chatAutomationsPath(organizationID uuid.UUID) string {
@@ -276,4 +365,19 @@ func (c *ExperimentalClient) ChatAutomationSchedulePreview(ctx context.Context, 
 	}
 	var resp ChatAutomationSchedulePreviewResponse
 	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// ChatAutomationReferences lists the automations that delivered into a
+// chat. The caller needs only read access to the chat.
+func (c *ExperimentalClient) ChatAutomationReferences(ctx context.Context, chatID uuid.UUID) ([]ChatAutomationReference, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/automations", chatID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var references []ChatAutomationReference
+	return references, ReadBodyAsJSON(res, &references)
 }

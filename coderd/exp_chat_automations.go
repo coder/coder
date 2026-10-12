@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -12,6 +13,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -29,10 +33,141 @@ import (
 // returned with each automation.
 const chatAutomationNextRunCount = 5
 
-// chatAutomationResponse converts row to its SDK form with its upcoming
-// schedule runs after now.
-func chatAutomationResponse(row database.ChatAutomation, now time.Time) codersdk.ChatAutomation {
-	return db2sdk.ChatAutomation(row, chatd.AutomationNextRuns(row, now, chatAutomationNextRunCount))
+// chatAutomationResponses converts rows to their SDK form with their
+// paused reasons, upcoming schedule runs, owners, and the chats they refer
+// to. A paused automation lists no upcoming runs. ctx must carry the
+// caller's authorization: only chats and owner memberships the caller can
+// read are included.
+func (api *API) chatAutomationResponses(ctx context.Context, rows []database.ChatAutomation) ([]codersdk.ChatAutomation, error) {
+	reasons, err := api.chatDaemon.AutomationPausedReasons(ctx, rows)
+	if err != nil {
+		return nil, xerrors.Errorf("get chat automation paused reasons: %w", err)
+	}
+	chats, err := api.chatAutomationChats(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
+	owners, err := api.chatAutomationOwners(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
+	now := api.Clock.Now()
+	automations := make([]codersdk.ChatAutomation, 0, len(rows))
+	for _, row := range rows {
+		var nextRuns []time.Time
+		if len(reasons[row.ID]) == 0 {
+			nextRuns = chatd.AutomationNextRuns(row, now, chatAutomationNextRunCount)
+		}
+		automation := db2sdk.ChatAutomation(row, nextRuns)
+		automation.PausedReasons = reasons[row.ID]
+		automation.ScheduleIntervalBelowMinimum = chatd.AutomationScheduleBelowMinimum(row, now, api.minChatAutomationScheduleInterval())
+		automation.Owner = owners[row.OrganizationID][row.OwnerID]
+		if row.TargetChatID.Valid {
+			automation.TargetChat = chats[row.TargetChatID.UUID]
+		}
+		if row.CreatedByChatID.Valid {
+			automation.CreatedByChat = chats[row.CreatedByChatID.UUID]
+		}
+		automations = append(automations, automation)
+	}
+	return automations, nil
+}
+
+// chatAutomationChats reads the target and creating chats of rows in one
+// query as the caller, so chats the caller cannot read are left out.
+func (api *API) chatAutomationChats(ctx context.Context, rows []database.ChatAutomation) (map[uuid.UUID]*codersdk.ChatAutomationChat, error) {
+	seen := make(map[uuid.UUID]bool)
+	var ids []uuid.UUID
+	for _, row := range rows {
+		for _, id := range []uuid.NullUUID{row.TargetChatID, row.CreatedByChatID} {
+			if id.Valid && !seen[id.UUID] {
+				seen[id.UUID] = true
+				ids = append(ids, id.UUID)
+			}
+		}
+	}
+	chats := make(map[uuid.UUID]*codersdk.ChatAutomationChat, len(ids))
+	if len(ids) == 0 {
+		return chats, nil
+	}
+	found, err := api.Database.GetChatsByIDs(ctx, ids)
+	if err != nil {
+		return nil, xerrors.Errorf("get chat automation chats: %w", err)
+	}
+	for _, chat := range found {
+		chats[chat.ID] = &codersdk.ChatAutomationChat{ID: chat.ID, Title: chat.Title}
+	}
+	return chats, nil
+}
+
+// chatAutomationOwners reads the owners of rows as the caller with one
+// query per organization, keyed by organization and user ID. Owners whose
+// organization membership the caller cannot read are left out, as are
+// deleted owners and owners who are no longer members.
+func (api *API) chatAutomationOwners(ctx context.Context, rows []database.ChatAutomation) (map[uuid.UUID]map[uuid.UUID]*codersdk.MinimalUser, error) {
+	ownerIDs := make(map[uuid.UUID][]uuid.UUID)
+	seen := make(map[[2]uuid.UUID]bool)
+	for _, row := range rows {
+		key := [2]uuid.UUID{row.OrganizationID, row.OwnerID}
+		if !seen[key] {
+			seen[key] = true
+			ownerIDs[row.OrganizationID] = append(ownerIDs[row.OrganizationID], row.OwnerID)
+		}
+	}
+	owners := make(map[uuid.UUID]map[uuid.UUID]*codersdk.MinimalUser, len(ownerIDs))
+	for orgID, userIDs := range ownerIDs {
+		members, err := api.Database.GetOrganizationMembersByUserIDs(ctx, database.GetOrganizationMembersByUserIDsParams{
+			OrganizationID: orgID,
+			UserIds:        userIDs,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("get chat automation owners: %w", err)
+		}
+		byUser := make(map[uuid.UUID]*codersdk.MinimalUser, len(members))
+		for _, member := range members {
+			byUser[member.OrganizationMember.UserID] = &codersdk.MinimalUser{
+				ID:        member.OrganizationMember.UserID,
+				Username:  member.Username,
+				Name:      member.Name,
+				AvatarURL: member.AvatarURL,
+			}
+		}
+		owners[orgID] = byUser
+	}
+	return owners, nil
+}
+
+// chatAutomationWriteResponse is chatAutomationResponse for a row that a
+// create or update already committed. A failed read of the derived fields
+// must not report the committed write, or a new webhook secret that is
+// returned only once, as an error. It then logs the failure and returns
+// the row without paused reasons, owner, or referenced chats.
+func (api *API) chatAutomationWriteResponse(ctx context.Context, row database.ChatAutomation) codersdk.ChatAutomation {
+	automation, err := api.chatAutomationResponse(ctx, row)
+	if err == nil {
+		return automation
+	}
+	api.Logger.Warn(ctx, "read chat automation status after write", slog.F("automation_id", row.ID), slog.Error(err))
+	now := api.Clock.Now()
+	automation = db2sdk.ChatAutomation(row, chatd.AutomationNextRuns(row, now, chatAutomationNextRunCount))
+	automation.ScheduleIntervalBelowMinimum = chatd.AutomationScheduleBelowMinimum(row, now, api.minChatAutomationScheduleInterval())
+	return automation
+}
+
+// chatAutomationResponse is chatAutomationResponses for one row.
+func (api *API) chatAutomationResponse(ctx context.Context, row database.ChatAutomation) (codersdk.ChatAutomation, error) {
+	automations, err := api.chatAutomationResponses(ctx, []database.ChatAutomation{row})
+	if err != nil {
+		return codersdk.ChatAutomation{}, err
+	}
+	return automations[0], nil
+}
+
+// minChatAutomationScheduleInterval is the deployment's minimum interval
+// between schedule runs, with the default for an unset value as the chat
+// daemon applies it.
+func (api *API) minChatAutomationScheduleInterval() time.Duration {
+	return cmp.Or(api.chatLimits.MinAutomationScheduleInterval, codersdk.DefaultChatMinAutomationScheduleInterval)
 }
 
 // requireChatAutomations returns 404 unless the chat-automations
@@ -69,10 +204,10 @@ func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	now := api.Clock.Now()
-	automations := make([]codersdk.ChatAutomation, 0, len(rows))
-	for _, row := range rows {
-		automations = append(automations, chatAutomationResponse(row, now))
+	automations, err := api.chatAutomationResponses(ctx, rows)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, automations)
 }
@@ -121,8 +256,9 @@ func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = automation
 
+	response := api.chatAutomationWriteResponse(ctx, automation)
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateChatAutomationResponse{
-		Automation:    chatAutomationResponse(automation, api.Clock.Now()),
+		Automation:    response,
 		WebhookSecret: secret,
 	})
 }
@@ -145,13 +281,18 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, chatAutomationResponse(automation, api.Clock.Now()))
+	response, err := api.chatAutomationResponse(ctx, automation)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Update chat automation
-// @Description Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.
+// @Description Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.
 // @ID update-chat-automation
 // @Security CoderSessionToken
 // @Accept json
@@ -202,14 +343,18 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	updated, err := api.chatDaemon.UpdateAutomation(ctx, apiKey.UserID, automation.ID, req.UpdateChatAutomationRequest, nil)
+	old, updated, err := api.chatDaemon.UpdateAutomation(ctx, apiKey.UserID, automation.ID, req.UpdateChatAutomationRequest, nil)
 	if err != nil {
 		api.writeChatAutomationError(ctx, rw, err)
 		return
 	}
+	// The row read under the update's lock is the accurate before-image;
+	// the row read above stays Old only for failed requests.
+	aReq.Old = old
 	aReq.New = updated
 
-	httpapi.Write(ctx, rw, http.StatusOK, chatAutomationResponse(updated, api.Clock.Now()))
+	response := api.chatAutomationWriteResponse(ctx, updated)
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -356,12 +501,16 @@ func (api *API) postChatAutomationSchedulePreview(rw http.ResponseWriter, r *htt
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	runs, err := chatd.PreviewAutomationSchedule(req.ScheduleCron, req.ScheduleTimeZone, api.Clock.Now(), chatAutomationNextRunCount)
+	preview, err := chatd.PreviewAutomationSchedule(req.ScheduleCron, req.ScheduleTimeZone, api.Clock.Now(), chatAutomationNextRunCount, api.minChatAutomationScheduleInterval())
 	if err != nil {
 		api.writeChatAutomationError(ctx, rw, err)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatAutomationSchedulePreviewResponse{NextRunTimes: runs})
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatAutomationSchedulePreviewResponse{
+		NextRunTimes:    preview.NextRuns,
+		ClockChangeNote: preview.ClockChangeNote,
+		IntervalWarning: preview.IntervalWarning,
+	})
 }
 
 // chatAutomationParam loads the {automation} path parameter as the caller.
@@ -448,14 +597,14 @@ func (api *API) writeChatAutomationRunError(ctx context.Context, rw http.Respons
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Deliver chat automation webhook event
-// @Description Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.
+// @Description Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The event data must also be at most 256 KiB after HTML escaping, which counts each <, >, &, U+2028, and U+2029 in a JSON string as six bytes. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.
 // @ID deliver-chat-automation-event
 // @Accept json
 // @Produce json
 // @Tags Chats
 // @Param automation path string true "Automation ID" format(uuid)
 // @Param Authorization header string true "Bearer followed by the webhook secret"
-// @Param request body interface{} true "Event data: any JSON value up to 256 KiB"
+// @Param request body interface{} true "Event data: any JSON value up to 256 KiB, also after HTML escaping"
 // @Success 202 {object} codersdk.ChatAutomationEventResponse
 // @Failure 400 {object} codersdk.Response
 // @Failure 401 {object} codersdk.Response
@@ -632,7 +781,11 @@ func writeChatAutomationEventError(ctx context.Context, rw http.ResponseWriter, 
 	case errors.Is(err, chatd.ErrAutomationQueueShareFull):
 		detail := ""
 		if shareFull, ok := errors.AsType[*chatd.AutomationQueueShareFullError](err); ok {
-			detail = fmt.Sprintf("At most %d automation messages can be queued in a chat.", shareFull.Max)
+			noun := "messages"
+			if shareFull.Max == 1 {
+				noun = "message"
+			}
+			detail = fmt.Sprintf("Automations can queue at most %d %s in a chat.", shareFull.Max, noun)
 		}
 		httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
 			Message: "Too many automation messages are queued in the target chat.",
@@ -640,6 +793,15 @@ func writeChatAutomationEventError(ctx context.Context, rw http.ResponseWriter, 
 		})
 	case errors.Is(err, chatstate.ErrMessageQueueFull):
 		httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{Message: "Message queue is full."})
+	case errors.Is(err, chatd.ErrAutomationEventTooLarge):
+		detail := ""
+		if tooLarge, ok := errors.AsType[*chatd.AutomationEventTooLargeError](err); ok {
+			detail = fmt.Sprintf("The escaped event data is %d bytes; the maximum is %d bytes. Escaping counts each <, >, &, U+2028, and U+2029 in a JSON string as six bytes.", tooLarge.Size, tooLarge.Max)
+		}
+		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+			Message: "Event data too large.",
+			Detail:  detail,
+		})
 	case errors.Is(err, chatd.ErrNoDefaultChatModelConfig):
 		// The same response as a person's message gets; it is not a
 		// server error, so senders should not retry it.

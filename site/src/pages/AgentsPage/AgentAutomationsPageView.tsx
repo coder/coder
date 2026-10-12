@@ -1,13 +1,18 @@
-import { useState } from "react";
+import { ArchiveIcon } from "lucide-react";
+import { useRef, useState } from "react";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
+import { ExperimentalBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
+	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
@@ -23,6 +28,9 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { useRestoreFocusOnClose } from "#/hooks/useRestoreFocusOnClose";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import {
 	AutomationRow,
 	ChatTitleLink,
@@ -45,10 +53,17 @@ type AutomationChatsDialogState = {
 	onClose: () => void;
 };
 
+type AutomationDeleteDialogState = {
+	automation: ChatAutomation;
+	isDeleting: boolean;
+	error: unknown;
+	onConfirm: () => void;
+	onClose: () => void;
+};
+
 type AgentAutomationsPageViewProps = {
 	header?: React.ReactNode;
 	currentUserId: string;
-	organizationName: string | undefined;
 	organizationSelector?: React.ReactNode;
 	automations: readonly ChatAutomation[] | undefined;
 	isLoading: boolean;
@@ -62,9 +77,12 @@ type AgentAutomationsPageViewProps = {
 	onViewChats: (automation: ChatAutomation) => void;
 	onCreateAutomation: () => void;
 	onEditAutomation: (automation: ChatAutomation) => void;
+	onDeleteAutomation: (automation: ChatAutomation) => void;
 	chatsDialog?: AutomationChatsDialogState;
+	deleteDialog?: AutomationDeleteDialogState;
 	editorDialog?: React.ReactNode;
 	webhookSecretDialog?: React.ReactNode;
+	leavePrompt?: React.ReactNode;
 };
 
 type AutomationChatsDialogProps = {
@@ -74,10 +92,7 @@ type AutomationChatsDialogProps = {
 const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 	state,
 }) => {
-	// The dialog opens from a row button rather than a DialogTrigger, so Radix
-	// has no trigger to return focus to on close. It mounts right after the
-	// View chats button is activated, so the focused element is the opener.
-	const [opener] = useState(() => document.activeElement);
+	const restoreFocus = useRestoreFocusOnClose();
 	let body: React.ReactNode;
 	if (state.isLoading) {
 		body = <Loader />;
@@ -94,8 +109,14 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 		body = (
 			<ul className="m-0 flex list-none flex-col gap-2 p-0">
 				{state.chats.map((chat) => (
-					<li key={chat.id}>
+					<li key={chat.id} className="flex items-center gap-2">
 						<ChatTitleLink chatId={chat.id} title={chat.title} />
+						{chat.archived && (
+							<Badge size="sm">
+								<ArchiveIcon />
+								Archived
+							</Badge>
+						)}
 					</li>
 				))}
 				{Boolean(state.error) && (
@@ -128,23 +149,79 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 				}
 			}}
 		>
-			<DialogContent
-				onCloseAutoFocus={(event) => {
-					if (opener instanceof HTMLElement && opener.isConnected) {
-						event.preventDefault();
-						opener.focus();
-					}
-				}}
-			>
+			<DialogContent onCloseAutoFocus={restoreFocus}>
 				<DialogHeader>
 					<DialogTitle>Chats for {state.automation.name}</DialogTitle>
 					<DialogDescription>
 						Chats this automation created or sent messages to.
 					</DialogDescription>
 				</DialogHeader>
-				{body}
+				{/* Keeps Close in view when many chats are loaded. */}
+				<div className="max-h-[60vh] overflow-y-auto">{body}</div>
+				<DialogFooter>
+					<Button variant="outline" onClick={state.onClose}>
+						Close
+					</Button>
+				</DialogFooter>
 			</DialogContent>
 		</Dialog>
+	);
+};
+
+type AutomationDeleteDialogProps = {
+	state: AutomationDeleteDialogState;
+	/** Receives focus when a successful delete removed the opener's row. */
+	fallbackFocusRef: React.RefObject<HTMLButtonElement | null>;
+};
+
+const AutomationDeleteDialog: React.FC<AutomationDeleteDialogProps> = ({
+	state,
+	fallbackFocusRef,
+}) => {
+	// Like the chats dialog, this opens from a row button, so the focused
+	// element at mount is the Delete button to return to on cancel.
+	const [opener] = useState(() => document.activeElement);
+	const { automation } = state;
+	return (
+		<ConfirmDialog
+			open
+			type="delete"
+			title={`Delete ${automation.name}?`}
+			confirmLoading={state.isDeleting}
+			onConfirm={state.onConfirm}
+			// Closing mid-request would hand focus to a row that may vanish.
+			onClose={() => {
+				if (!state.isDeleting) {
+					state.onClose();
+				}
+			}}
+			onCloseAutoFocus={(event) => {
+				const target =
+					opener instanceof HTMLElement && opener.isConnected
+						? opener
+						: fallbackFocusRef.current;
+				if (target) {
+					event.preventDefault();
+					target.focus();
+				}
+			}}
+			description={
+				<>
+					<p>
+						{automation.kind === "schedule"
+							? "Its schedule stops, and no more runs start."
+							: "Its webhook endpoint stops accepting events."}{" "}
+						Messages it queued that have not started yet are removed from their
+						chats. Chats it created and messages it already sent stay.
+					</p>
+					{Boolean(state.error) && (
+						<div className="mt-4">
+							<ErrorAlert error={state.error} />
+						</div>
+					)}
+				</>
+			}
+		/>
 	);
 };
 
@@ -153,7 +230,6 @@ export const AgentAutomationsPageView: React.FC<
 > = ({
 	header,
 	currentUserId,
-	organizationName,
 	organizationSelector,
 	automations,
 	isLoading,
@@ -167,10 +243,15 @@ export const AgentAutomationsPageView: React.FC<
 	onViewChats,
 	onCreateAutomation,
 	onEditAutomation,
+	onDeleteAutomation,
 	chatsDialog,
+	deleteDialog,
 	editorDialog,
 	webhookSecretDialog,
+	leavePrompt,
 }) => {
+	const isMobile = useMediaQuery(mobileViewportMediaQuery);
+	const newAutomationRef = useRef<HTMLButtonElement>(null);
 	let rows: React.ReactNode;
 	if (isLoading) {
 		rows = <TableLoader />;
@@ -187,6 +268,7 @@ export const AgentAutomationsPageView: React.FC<
 				key={automation.id}
 				automation={automation}
 				isOwner={automation.owner_id === currentUserId}
+				compact={isMobile}
 				isUpdating={updatingAutomationId === automation.id}
 				isRunning={runningAutomationId === automation.id}
 				isAnyRunPending={runningAutomationId !== undefined}
@@ -194,6 +276,7 @@ export const AgentAutomationsPageView: React.FC<
 				onRunNow={onRunNow}
 				onViewChats={onViewChats}
 				onEdit={onEditAutomation}
+				onDelete={onDeleteAutomation}
 			/>
 		));
 	}
@@ -205,15 +288,16 @@ export const AgentAutomationsPageView: React.FC<
 				<div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
 					<SectionHeader
 						label="Automations"
-						description={
-							organizationName
-								? `Schedules and webhooks that send prompts to agents in ${organizationName}.`
-								: "Schedules and webhooks that send prompts to agents."
-						}
+						badge={<ExperimentalBadge />}
+						description="Run agents in the background on a schedule or when an event arrives. Runs happen on your Coder deployment, so your browser and devices can be closed."
 						action={
 							<div className="flex items-center gap-2">
 								{organizationSelector}
-								<Button size="sm" onClick={onCreateAutomation}>
+								<Button
+									ref={newAutomationRef}
+									size="sm"
+									onClick={onCreateAutomation}
+								>
 									New automation
 								</Button>
 							</div>
@@ -237,19 +321,32 @@ export const AgentAutomationsPageView: React.FC<
 							</AlertDescription>
 						</Alert>
 					)}
-					{Boolean(error) && <ErrorAlert error={error} />}
+					{Boolean(error) &&
+						(automations && automations.length > 0 ? (
+							<Alert severity="warning" prominent>
+								<AlertTitle>Could not refresh automations</AlertTitle>
+								<AlertDescription>
+									The automations shown may be out of date.{" "}
+									{getErrorMessage(error, "The list did not refresh.")}
+								</AlertDescription>
+							</Alert>
+						) : (
+							<ErrorAlert error={error} />
+						))}
 					{(!error || automations) && (
 						<Table aria-label="Automations">
 							<TableHeader>
 								<TableRow>
 									<TableHead>Name</TableHead>
-									<TableHead>Trigger</TableHead>
-									<TableHead>Target</TableHead>
-									<TableHead>Next run</TableHead>
+									{!isMobile && (
+										<>
+											<TableHead>Trigger</TableHead>
+											<TableHead>Target</TableHead>
+											<TableHead>Next run</TableHead>
+										</>
+									)}
 									<TableHead>Enabled</TableHead>
-									<TableHead>
-										<span className="sr-only">Actions</span>
-									</TableHead>
+									<TableHead className="text-right">Actions</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>{rows}</TableBody>
@@ -258,8 +355,15 @@ export const AgentAutomationsPageView: React.FC<
 				</div>
 			</div>
 			{chatsDialog && <AutomationChatsDialog state={chatsDialog} />}
+			{deleteDialog && (
+				<AutomationDeleteDialog
+					state={deleteDialog}
+					fallbackFocusRef={newAutomationRef}
+				/>
+			)}
 			{editorDialog}
 			{webhookSecretDialog}
+			{leavePrompt}
 		</ScrollArea>
 	);
 };

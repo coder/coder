@@ -2,15 +2,18 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, screen, spyOn, userEvent } from "storybook/test";
 import { API } from "#/api/api";
 import { chatAutomationSchedulePreviewKey } from "#/api/queries/chatAutomations";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { chatEntityKey, organizationChatModelsKey } from "#/api/queries/chats";
 import type {
 	ChatAutomation,
 	ChatModel,
+	ChatProject,
 	OrganizationChatModelsResponse,
 } from "#/api/typesGenerated";
 import {
 	MockChat,
 	MockChatAutomation,
+	MockChatProject,
 	MockWebhookChatAutomation,
 } from "#/testHelpers/chatEntities";
 import {
@@ -41,6 +44,28 @@ const mockWebhookAutomation: ChatAutomation = {
 	...MockWebhookChatAutomation,
 	organization_id: organizationId,
 	target_chat_id: MockChat.id,
+};
+
+const mockProject: ChatProject = {
+	...MockChatProject,
+	organization_id: organizationId,
+};
+
+// Listed by the API but in another organization, so the field hides it.
+const mockOtherOrgProject: ChatProject = {
+	...MockChatProject,
+	id: "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b",
+	organization_id: "other-org-id",
+	name: "Other organization project",
+};
+
+const mockNewChatAutomation: ChatAutomation = {
+	...mockAutomation,
+	target_mode: "new_chat",
+	target_chat_id: undefined,
+	when_busy: undefined,
+	new_chat_model_config_id: mockModel.id,
+	project_id: mockProject.id,
 };
 
 const nextRunTimes = [
@@ -81,6 +106,7 @@ const meta: Meta<typeof AutomationEditorDialog> = {
 	args: {
 		organizationId,
 		currentUserId: MockUserOwner.id,
+		projectsEnabled: false,
 		origin: "https://coder.example.com",
 		error: undefined,
 		isSubmitting: false,
@@ -108,7 +134,11 @@ export const CreateSchedule: Story = {
 					schedule_cron: "0 9 * * *",
 					schedule_time_zone: storyTimeZone,
 				}),
-				data: { next_run_times: nextRunTimes },
+				data: {
+					next_run_times: nextRunTimes,
+					clock_change_note:
+						"When clocks go back, a time that occurs twice runs once, at its first occurrence. When clocks go forward, a time that is skipped runs at the first valid time after the change.",
+				},
 			},
 		],
 	},
@@ -139,6 +169,43 @@ export const NewChatTarget: Story = {
 	},
 };
 
+const mockEffortModel: ChatModel = {
+	...mockModel,
+	reasoning_efforts: ["low", "medium", "high"],
+};
+
+export const NewChatReasoningEffort: Story = {
+	args: {
+		automation: {
+			...mockAutomation,
+			target_mode: "new_chat",
+			target_chat_id: undefined,
+			new_chat_model_config_id: mockEffortModel.id,
+			reasoning_effort: "high",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: { ...mockModelCatalog, models: [mockEffortModel] },
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("combobox", { name: "Reasoning effort" }),
+		);
+	},
+};
+
 export const Edit: Story = {
 	args: { automation: mockAutomation },
 	parameters: {
@@ -156,6 +223,271 @@ export const Edit: Story = {
 				data: { next_run_times: nextRunTimes },
 			},
 		],
+	},
+};
+
+export const EditWeekdaySchedule: Story = {
+	args: { automation: { ...mockAutomation, schedule_cron: "30 9 * * 1-5" } },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "30 9 * * 1-5",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const EditCustomSchedule: Story = {
+	args: { automation: { ...mockAutomation, schedule_cron: "0 9 1 * *" } },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 1 * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const EditHourlySchedule: Story = {
+	args: { automation: { ...mockAutomation, schedule_cron: "15 * * * *" } },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "15 * * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const SearchTimeZone: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: storyTimeZone,
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: pinBrowserTimeZone,
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Time zone" }),
+		);
+		await userEvent.type(
+			await screen.findByPlaceholderText("Search time zones"),
+			"berl",
+		);
+	},
+};
+
+export const EditBelowMinimumInterval: Story = {
+	args: {
+		automation: {
+			...mockAutomation,
+			schedule_cron: "*/2 * * * *",
+			schedule_interval_below_minimum: true,
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "*/2 * * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: {
+					next_run_times: [
+						"2026-10-01T09:00:00Z",
+						"2026-10-01T09:02:00Z",
+						"2026-10-01T09:04:00Z",
+					],
+					interval_warning:
+						"Runs as often as every 2 minutes, but this deployment allows at most one run every 5 minutes. Saving a new or changed schedule like this fails.",
+				},
+			},
+		],
+	},
+};
+
+export const CreateNewChatProject: Story = {
+	args: { projectsEnabled: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [mockProject, mockOtherOrgProject] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: storyTimeZone,
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: pinBrowserTimeZone,
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("radio", { name: "New chat each run" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("combobox", { name: /^Project/ }),
+		);
+	},
+};
+
+export const EditNewChatProject: Story = {
+	args: { automation: mockNewChatAutomation, projectsEnabled: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [mockProject] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const EditNewChatUnknownProject: Story = {
+	args: {
+		automation: { ...mockNewChatAutomation, project_id: "project-gone" },
+		projectsEnabled: true,
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [mockProject] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const ProjectsLoading: Story = {
+	args: { automation: mockNewChatAutomation, projectsEnabled: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
+export const NoProjects: Story = {
+	args: {
+		automation: { ...mockNewChatAutomation, project_id: undefined },
+		projectsEnabled: true,
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatProjectsKey, data: [] },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+};
+
+export const ProjectsLoadError: Story = {
+	args: { automation: mockNewChatAutomation, projectsEnabled: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Projects error." }),
+		);
 	},
 };
 
@@ -251,7 +583,6 @@ export const PreviewError: Story = {
 export const SaveForbidden: Story = {
 	args: {
 		automation: mockAutomation,
-		currentUserId: "another-user",
 		error: mockApiError({
 			message: "Only the owner of a chat automation can change it.",
 		}),
@@ -271,6 +602,41 @@ export const SaveForbidden: Story = {
 				data: { next_run_times: nextRunTimes },
 			},
 		],
+	},
+};
+
+export const SaveValidationError: Story = {
+	args: {
+		automation: mockAutomation,
+		error: mockApiError({
+			message: "Validation failed.",
+			validations: [
+				{
+					field: "reasoning_effort",
+					detail: "Existing chat automations do not take a reasoning effort.",
+				},
+			],
+		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	// Server errors show once the values they apply to were submitted.
+	play: async () => {
+		await userEvent.click(await screen.findByRole("button", { name: "Save" }));
 	},
 };
 
@@ -306,6 +672,40 @@ export const EditWebhook: Story = {
 				data: mockModelCatalog,
 			},
 			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+};
+
+export const ViewWebhookAsNonOwner: Story = {
+	args: { automation: mockWebhookAutomation, currentUserId: "another-user" },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+};
+
+export const ViewNewChatAsNonOwner: Story = {
+	args: {
+		automation: {
+			...mockWebhookAutomation,
+			target_mode: "new_chat",
+			target_chat_id: undefined,
+			when_busy: undefined,
+			new_chat_model_config_id: "owner-only-model",
+		},
+		currentUserId: "another-user",
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
 		],
 	},
 };
@@ -378,7 +778,6 @@ export const ConfirmRotateSecret: Story = {
 export const RotateSecretForbidden: Story = {
 	args: {
 		automation: mockWebhookAutomation,
-		currentUserId: "another-user",
 		rotateSecretError: mockApiError({
 			message: "Only the owner of a chat automation can change it.",
 		}),

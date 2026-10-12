@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	automationChatsKey,
+	chatAutomationReferencesKey,
 	chatAutomationsKey,
 } from "#/api/queries/chatAutomations";
 import {
@@ -340,6 +341,7 @@ describe("useChatToolInvalidations", () => {
 		"invalidates automations after a successful manage_automations %s",
 		async (action) => {
 			queryClient.setQueryData(chatAutomationsKey("org-1"), []);
+			queryClient.setQueryData(chatAutomationReferencesKey("other-chat"), []);
 			const { setStreamState } = renderInvalidations();
 
 			await act(async () => {
@@ -353,6 +355,10 @@ describe("useChatToolInvalidations", () => {
 					queryClient.getQueryState(chatAutomationsKey("org-1"))?.isInvalidated,
 				).toBe(true);
 			});
+			expect(
+				queryClient.getQueryState(chatAutomationReferencesKey("other-chat"))
+					?.isInvalidated,
+			).toBe(true);
 		},
 	);
 

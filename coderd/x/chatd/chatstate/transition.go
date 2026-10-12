@@ -43,6 +43,8 @@ func (t Transition) String() string { return string(t) }
 // entries list more than one output. Promotions can also drop queued
 // automation rows that fail the queue promotion guard, which adds the
 // outputs where that guard empties or shrinks the queue.
+// DeleteQueuedMessage from XE1 deletes only a row that fails that guard
+// and keeps the chat archived, so it lands in XE0 or stays in XE1.
 //
 // Ownership transitions (Acquire, Abandon) are intentionally not
 // included; they are orthogonal to execution state.
@@ -132,7 +134,8 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionSetArchived: {StateE0},
 	},
 	StateXE1: {
-		TransitionSetArchived: {StateE1},
+		TransitionSetArchived:         {StateE1},
+		TransitionDeleteQueuedMessage: {StateXE0, StateXE1},
 	},
 	StateInvalid: {
 		TransitionReconcileInvalidState: {StateE0, StateE1},

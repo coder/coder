@@ -9,6 +9,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { restoreFocusTo } from "#/hooks/useRestoreFocusOnClose";
 
 type AutomationWebhookSecretDialogProps = {
 	endpoint: string;
@@ -41,13 +42,9 @@ export const AutomationWebhookSecretDialog: React.FC<
 					event.preventDefault();
 					doneButtonRef.current?.focus();
 				}}
-				onCloseAutoFocus={(event) => {
-					const returnFocusTo = returnFocusRef.current;
-					if (returnFocusTo?.isConnected) {
-						event.preventDefault();
-						returnFocusTo.focus();
-					}
-				}}
+				onCloseAutoFocus={(event) =>
+					restoreFocusTo(event, returnFocusRef.current)
+				}
 			>
 				<DialogHeader>
 					<DialogTitle>Copy the webhook secret</DialogTitle>

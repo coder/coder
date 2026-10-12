@@ -1,9 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import { chatEntityKey } from "#/api/queries/chats";
+import { organizationMemberKey } from "#/api/queries/organizations";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { MockChat, MockChatAutomation } from "#/testHelpers/chatEntities";
-import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
+import {
+	MockOrganizationMember,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { AgentAutomationsPageView } from "./AgentAutomationsPageView";
 
 const mockTargetChat: Chat = {
@@ -30,7 +35,8 @@ const mockScheduleAutomation: ChatAutomation = {
 	target_chat_id: mockTargetChat.id,
 	schedule_cron: "0 9 * * 1-5",
 	schedule_time_zone: "Europe/Berlin",
-	next_run_times: ["2026-10-01T07:00:00Z"],
+	// The first entry has passed, so the row shows the second one.
+	next_run_times: ["2026-01-01T08:00:00Z", "2099-10-01T07:00:00Z"],
 };
 const mockHeartbeatAutomation: ChatAutomation = {
 	...MockChatAutomation,
@@ -40,7 +46,7 @@ const mockHeartbeatAutomation: ChatAutomation = {
 	target_chat_id: mockCreatingChat.id,
 	schedule_cron: "*/5 * * * *",
 	schedule_time_zone: "UTC",
-	next_run_times: ["2026-09-30T12:05:00Z"],
+	next_run_times: ["2099-09-30T12:05:00Z"],
 };
 const mockWebhookAutomation: ChatAutomation = {
 	...MockChatAutomation,
@@ -62,7 +68,6 @@ const meta: Meta<typeof AgentAutomationsPageView> = {
 	component: AgentAutomationsPageView,
 	args: {
 		currentUserId: MockUserOwner.id,
-		organizationName: "Coder",
 		automations: [
 			mockScheduleAutomation,
 			mockHeartbeatAutomation,
@@ -76,6 +81,7 @@ const meta: Meta<typeof AgentAutomationsPageView> = {
 		onViewChats: fn(),
 		onCreateAutomation: fn(),
 		onEditAutomation: fn(),
+		onDeleteAutomation: fn(),
 	},
 	parameters: {
 		queries: [
@@ -93,6 +99,23 @@ export const WithAutomations: Story = {};
 
 export const OtherOwner: Story = {
 	args: { currentUserId: "another-user-id" },
+	parameters: {
+		queries: [
+			{
+				key: organizationMemberKey(
+					MockChatAutomation.organization_id,
+					MockChatAutomation.owner_id,
+				),
+				data: MockOrganizationMember,
+			},
+		],
+	},
+};
+
+export const MobileLayout: Story = {
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+	},
 };
 
 export const Empty: Story = {
@@ -133,7 +156,7 @@ export const ChatsDialog: Story = {
 	args: {
 		chatsDialog: {
 			automation: mockScheduleAutomation,
-			chats: [mockTargetChat, mockCreatingChat],
+			chats: [mockTargetChat, mockCreatingChat, mockArchivedChat],
 			isLoading: false,
 			error: undefined,
 			hasNextPage: true,
@@ -173,5 +196,29 @@ export const ListError: Story = {
 	args: {
 		automations: undefined,
 		error: mockApiError({ message: "Failed to list chat automations." }),
+	},
+};
+
+export const DeleteDialog: Story = {
+	args: {
+		deleteDialog: {
+			automation: mockScheduleAutomation,
+			isDeleting: false,
+			error: undefined,
+			onConfirm: fn(),
+			onClose: fn(),
+		},
+	},
+};
+
+export const DeleteDialogError: Story = {
+	args: {
+		deleteDialog: {
+			automation: mockWebhookAutomation,
+			isDeleting: false,
+			error: mockApiError({ message: "Could not delete the automation." }),
+			onConfirm: fn(),
+			onClose: fn(),
+		},
 	},
 };

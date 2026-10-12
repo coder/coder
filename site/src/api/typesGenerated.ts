@@ -2196,35 +2196,91 @@ export interface ChatAutoArchiveDaysResponse {
 /**
  * ChatAutomation is a webhook or scheduled automation that delivers a
  * prompt to an agent chat. It never carries the webhook secret or its
- * hash.
+ * hash. ProjectID is the project of the chats a new_chat automation
+ * creates; it is cleared when the project is deleted.
  */
 export interface ChatAutomation {
 	readonly id: string;
 	readonly organization_id: string;
 	readonly owner_id: string;
+	/**
+	 * Owner is the display data of the automation owner. It is set by the
+	 * chat automations API only when the caller can read the owner's
+	 * membership in the automation's organization, the same check as
+	 * GET /api/v2/organizations/{organization}/members/{user}. It is absent
+	 * otherwise, including for deleted owners and owners who left the
+	 * organization.
+	 */
+	readonly owner?: MinimalUser;
 	readonly name: string;
 	readonly created_by_chat_id?: string;
+	/**
+	 * CreatedByChat is the chat that created the automation. It is set by
+	 * the chat automations API only when the caller can read that chat, so
+	 * it is absent for automations created outside a chat, for deleted
+	 * chats, and for chats the caller cannot read.
+	 */
+	readonly created_by_chat?: ChatAutomationChat;
 	readonly kind: ChatAutomationKind;
 	readonly enabled: boolean;
 	readonly target_mode: ChatAutomationTargetMode;
 	readonly target_chat_id?: string;
+	/**
+	 * TargetChat is the target chat of an existing_chat automation. Like
+	 * CreatedByChat, it is set only when the caller can read that chat.
+	 */
+	readonly target_chat?: ChatAutomationChat;
 	readonly new_chat_model_config_id?: string;
 	readonly reasoning_effort?: string;
 	readonly when_busy?: ChatAutomationWhenBusy;
+	readonly project_id?: string;
 	readonly webhook_use?: ChatAutomationWebhookUse;
 	readonly webhook_secret_version: number;
 	readonly webhook_consumed_at?: string;
 	readonly prompt: string;
 	readonly schedule_cron?: string;
 	readonly schedule_time_zone?: string;
+	/**
+	 * ScheduleNextRunAt is the scheduler cursor, not a promise that a run
+	 * happens then. While the automation is paused it can stay in the past,
+	 * or keep moving past occurrences that are refused, for example while
+	 * its model is unavailable.
+	 */
 	readonly schedule_next_run_at?: string;
 	/**
 	 * NextRunTimes lists up to five upcoming runs of an enabled schedule.
-	 * It is empty for webhooks and disabled schedules.
+	 * It is empty for webhooks, disabled schedules, and schedules with any
+	 * paused reason.
 	 */
 	readonly next_run_times: readonly string[];
+	/**
+	 * PausedReasons lists conditions that stop the automation from running
+	 * even while it is enabled: schedule occurrences, Run now, and webhook
+	 * deliveries are refused. It is set by the chat automations API and
+	 * absent when none was found. It is computed independently of Enabled.
+	 * It is an advisory snapshot: admission stays authoritative, and an
+	 * empty list does not guarantee that a run is accepted, because lost
+	 * chat permissions, busy chats, and full queues are not reported.
+	 */
+	readonly paused_reasons?: readonly ChatAutomationPausedReason[];
+	/**
+	 * ScheduleIntervalBelowMinimum is true when the schedule runs more
+	 * often than the deployment's minimum interval between runs. Such
+	 * automations keep running, but a change to their schedule must meet
+	 * the minimum.
+	 */
+	readonly schedule_interval_below_minimum: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationChat identifies a chat that a chat automation refers to.
+ */
+export interface ChatAutomationChat {
+	readonly id: string;
+	readonly title: string;
 }
 
 // From codersdk/chatautomations.go
@@ -2245,6 +2301,32 @@ export const ChatAutomationKinds: ChatAutomationKind[] = [
 	"schedule",
 	"webhook",
 ];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationPausedReason =
+	| "experiment_disabled"
+	| "model_unavailable"
+	| "owner_inactive"
+	| "target_unavailable";
+
+export const ChatAutomationPausedReasons: ChatAutomationPausedReason[] = [
+	"experiment_disabled",
+	"model_unavailable",
+	"owner_inactive",
+	"target_unavailable",
+];
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationReference names an automation that delivered into a chat.
+ * Anyone who can read the chat can read its references, so it carries no
+ * other automation fields.
+ */
+export interface ChatAutomationReference {
+	readonly id: string;
+	readonly name: string;
+	readonly kind: ChatAutomationKind;
+}
 
 // From codersdk/chatautomations.go
 /**
@@ -2274,6 +2356,19 @@ export interface ChatAutomationSchedulePreviewRequest {
  */
 export interface ChatAutomationSchedulePreviewResponse {
 	readonly next_run_times: readonly string[];
+	/**
+	 * ClockChangeNote explains how the schedule runs across daylight
+	 * saving changes. It is set when the schedule's time zone changes its
+	 * UTC offset within a year.
+	 */
+	readonly clock_change_note?: string;
+	/**
+	 * IntervalWarning is set when the schedule runs more often than the
+	 * deployment's minimum interval. Creating such a schedule, or changing
+	 * an automation's schedule to it, fails, but an automation that
+	 * already has it keeps running.
+	 */
+	readonly interval_warning?: string;
 }
 
 // From codersdk/chatautomations.go
@@ -2382,6 +2477,12 @@ export interface ChatConfig {
 	 * one user can own across all organizations.
 	 */
 	readonly max_automations_per_owner: number;
+	/**
+	 * MinAutomationScheduleInterval is the minimum time between two runs
+	 * of a chat schedule automation. Creating or changing a schedule that
+	 * runs more often fails; existing schedules keep running.
+	 */
+	readonly min_automation_schedule_interval: number;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -4285,7 +4386,9 @@ export interface CreateAIProviderRequest {
 // From codersdk/chatautomations.go
 /**
  * CreateChatAutomationRequest creates a chat automation owned by the
- * caller.
+ * caller. ProjectID applies to new_chat automations only, requires the
+ * chat-projects experiment, and puts the chats the automation creates into
+ * that project.
  */
 export interface CreateChatAutomationRequest {
 	readonly name: string;
@@ -4295,6 +4398,7 @@ export interface CreateChatAutomationRequest {
 	readonly new_chat_model_config_id?: string;
 	readonly reasoning_effort?: string;
 	readonly when_busy?: ChatAutomationWhenBusy;
+	readonly project_id?: string;
 	readonly webhook_use?: ChatAutomationWebhookUse;
 	readonly prompt: string;
 	/**
@@ -6624,8 +6728,8 @@ export interface ListChatsOptions extends Pagination {
 	readonly ProjectID: string | null;
 	/**
 	 * AutomationID filters to chats the automation created or sent
-	 * messages to. The server ignores it unless the chat-automations
-	 * experiment is enabled for the caller.
+	 * messages to. The server rejects it with 400 Bad Request unless the
+	 * chat-automations experiment is enabled for the caller.
 	 */
 	readonly AutomationID: string;
 }
@@ -10760,6 +10864,13 @@ export interface UpdateChatAutomationRequest {
 	readonly when_busy?: ChatAutomationWhenBusy;
 	readonly target_chat_id?: string;
 	readonly new_chat_model_config_id?: string;
+	/**
+	 * ProjectID applies to new_chat automations only. A project ID moves the
+	 * chats the automation creates later into that project. The all-zero
+	 * UUID removes the project. Omitted or null leaves it unchanged. Chats
+	 * created earlier keep their project.
+	 */
+	readonly project_id?: string;
 }
 
 // From codersdk/chats.go

@@ -504,6 +504,7 @@ export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 				open={unsavedChanges.isOpen}
 				onClose={unsavedChanges.onCancel}
 				onConfirm={unsavedChanges.onConfirm}
+				onCloseAutoFocus={unsavedChanges.onCloseAutoFocus}
 				title="Unsaved changes"
 				confirmText="Confirm"
 				description={

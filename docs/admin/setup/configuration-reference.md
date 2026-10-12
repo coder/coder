@@ -691,6 +691,19 @@ Must be at least 1.
 - YAML key: `chat.maxStepsPerTurn`
 - Default value: `1200`
 
+### Min automation schedule interval
+
+Minimum time between two runs of a chat schedule automation.
+Creating a schedule, or changing one, that runs more often fails with HTTP 400.
+Existing schedules that run more often keep running, and the API marks them.
+Must be between 1m and 24h.
+
+- Type: `duration`
+- Environment variable: `CODER_CHAT_MIN_AUTOMATION_SCHEDULE_INTERVAL`
+- CLI flag: [`--chat-min-automation-schedule-interval`](../../reference/cli/server/index.md#--chat-min-automation-schedule-interval)
+- YAML key: `chat.minAutomationScheduleInterval`
+- Default value: `5m0s`
+
 ### Stream silence timeout
 
 Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried.

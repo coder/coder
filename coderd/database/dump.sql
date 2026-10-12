@@ -953,6 +953,18 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION clear_chat_automation_schedule_claim() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF NEW.schedule_next_run_at IS DISTINCT FROM OLD.schedule_next_run_at
+		OR NEW.schedule_revision IS DISTINCT FROM OLD.schedule_revision THEN
+		NEW.schedule_claimed_until := NULL;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION compute_notification_message_dedupe_hash() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1097,6 +1109,19 @@ BEGIN
 		RAISE EXCEPTION 'creating chat % is not in organization %', NEW.created_by_chat_id, NEW.organization_id
 			USING ERRCODE = 'check_violation',
 			      CONSTRAINT = 'chat_automations_chat_organization';
+	END IF;
+	-- Project deletion sets project_id to NULL, which skips this check.
+	IF NEW.project_id IS NOT NULL AND (
+		TG_OP = 'INSERT'
+		OR NEW.project_id IS DISTINCT FROM OLD.project_id
+		OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
+	) AND NOT EXISTS (
+		SELECT 1 FROM chat_projects
+		WHERE id = NEW.project_id AND organization_id = NEW.organization_id
+	) THEN
+		RAISE EXCEPTION 'project % is not in organization %', NEW.project_id, NEW.organization_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'chat_automations_project_organization';
 	END IF;
 	RETURN NEW;
 END;
@@ -2016,8 +2041,11 @@ CREATE TABLE chat_automations (
     queue_generation bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chat_automations_kind_shape CHECK ((((kind = 'webhook'::chat_automation_kind) AND (webhook_use IS NOT NULL) AND (schedule_cron IS NULL)) OR ((kind = 'schedule'::chat_automation_kind) AND (webhook_use IS NULL) AND (webhook_secret_hash IS NULL) AND (schedule_cron IS NOT NULL) AND (schedule_time_zone IS NOT NULL)))),
+    project_id uuid,
+    schedule_claimed_until timestamp with time zone,
+    CONSTRAINT chat_automations_kind_shape CHECK ((((kind = 'webhook'::chat_automation_kind) AND (webhook_use IS NOT NULL) AND (schedule_cron IS NULL) AND (schedule_time_zone IS NULL) AND (schedule_next_run_at IS NULL)) OR ((kind = 'schedule'::chat_automation_kind) AND (webhook_use IS NULL) AND (webhook_secret_hash IS NULL) AND (webhook_consumed_at IS NULL) AND (schedule_cron IS NOT NULL) AND (schedule_time_zone IS NOT NULL)))),
     CONSTRAINT chat_automations_name_length CHECK (((char_length(name) >= 1) AND (char_length(name) <= 128))),
+    CONSTRAINT chat_automations_project_target_mode CHECK (((project_id IS NULL) OR (target_mode = 'new_chat'::chat_automation_target_mode))),
     CONSTRAINT chat_automations_target_shape CHECK ((((target_mode = 'existing_chat'::chat_automation_target_mode) AND (new_chat_model_config_id IS NULL) AND (when_busy IS NOT NULL)) OR ((target_mode = 'new_chat'::chat_automation_target_mode) AND (target_chat_id IS NULL) AND (new_chat_model_config_id IS NOT NULL) AND (when_busy IS NULL))))
 );
 
@@ -2036,6 +2064,10 @@ COMMENT ON COLUMN chat_automations.schedule_revision IS 'Incremented whenever th
 COMMENT ON COLUMN chat_automations.schedule_next_run_at IS 'Schedule cursor: the next occurrence to fire. NULL when no occurrence is pending.';
 
 COMMENT ON COLUMN chat_automations.queue_generation IS 'Incremented to invalidate queued messages this automation delivered earlier; queued rows carry the generation they were created with.';
+
+COMMENT ON COLUMN chat_automations.project_id IS 'Project for chats a new_chat automation creates. NULL when the automation has no project or after the project is deleted.';
+
+COMMENT ON COLUMN chat_automations.schedule_claimed_until IS 'Lease on the occurrence at schedule_next_run_at: the replica that set it runs the prompt hooks and publishes that occurrence. NULL or a past time means unclaimed.';
 
 CREATE TABLE chat_context_resources (
     chat_id uuid NOT NULL,
@@ -4942,6 +4974,8 @@ CREATE INDEX chat_automations_org_owner_idx ON chat_automations USING btree (org
 
 CREATE INDEX chat_automations_owner_id_idx ON chat_automations USING btree (owner_id);
 
+CREATE INDEX chat_automations_project_id_idx ON chat_automations USING btree (project_id) WHERE (project_id IS NOT NULL);
+
 CREATE INDEX chat_automations_target_chat_id_idx ON chat_automations USING btree (target_chat_id) WHERE (target_chat_id IS NOT NULL);
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
@@ -5342,6 +5376,8 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER IN
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
+CREATE TRIGGER trigger_clear_chat_automation_schedule_claim BEFORE UPDATE OF schedule_next_run_at, schedule_revision ON chat_automations FOR EACH ROW EXECUTE FUNCTION clear_chat_automation_schedule_claim();
+
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
@@ -5350,7 +5386,7 @@ CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_group_member_delete BE
 
 CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_org_member_delete();
 
-CREATE TRIGGER trigger_enforce_chat_automation_chat_organization BEFORE INSERT OR UPDATE OF organization_id, target_chat_id, created_by_chat_id ON chat_automations FOR EACH ROW EXECUTE FUNCTION enforce_chat_automation_chat_organization();
+CREATE TRIGGER trigger_enforce_chat_automation_chat_organization BEFORE INSERT OR UPDATE OF organization_id, target_chat_id, created_by_chat_id, project_id ON chat_automations FOR EACH ROW EXECUTE FUNCTION enforce_chat_automation_chat_organization();
 
 CREATE TRIGGER trigger_enforce_user_ai_budget_override_membership BEFORE INSERT OR UPDATE ON user_ai_budget_overrides FOR EACH ROW EXECUTE FUNCTION enforce_user_ai_budget_override_membership();
 
@@ -5430,6 +5466,9 @@ ALTER TABLE ONLY chat_automations
 
 ALTER TABLE ONLY chat_automations
     ADD CONSTRAINT chat_automations_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_automations
     ADD CONSTRAINT chat_automations_target_chat_id_fkey FOREIGN KEY (target_chat_id) REFERENCES chats(id) ON DELETE SET NULL;

@@ -689,6 +689,19 @@ class ApiMethods {
 
 	/**
 	 * @param organization Can be the organization's ID or name
+	 * @param user Can be the user's ID or username
+	 */
+	getOrganizationMember = async (organization: string, user: string) => {
+		const response =
+			await this.axios.get<TypesGen.OrganizationMemberWithUserData>(
+				`/api/v2/organizations/${encodeURIComponent(organization)}/members/${encodeURIComponent(user)}`,
+			);
+
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
 	 * @param options Pagination options
 	 */
 	getOrganizationPaginatedMembers = async (
@@ -3946,11 +3959,28 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	/** Lists the chat projects the viewer owns, in every organization. */
+	getChatProjects = async (): Promise<TypesGen.ChatProject[]> => {
+		const response = await this.axios.get<TypesGen.ChatProject[]>(
+			"/api/experimental/chats/projects",
+		);
+		return response.data;
+	};
+
 	getChatAutomations = async (
 		organizationId: string,
 	): Promise<TypesGen.ChatAutomation[]> => {
 		const response = await this.axios.get<TypesGen.ChatAutomation[]>(
 			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations`,
+		);
+		return response.data;
+	};
+
+	getChatAutomationReferences = async (
+		chatId: string,
+	): Promise<TypesGen.ChatAutomationReference[]> => {
+		const response = await this.axios.get<TypesGen.ChatAutomationReference[]>(
+			`/api/experimental/chats/${encodeURIComponent(chatId)}/automations`,
 		);
 		return response.data;
 	};
@@ -3991,6 +4021,15 @@ class ExperimentalApiMethods {
 			req,
 		);
 		return response.data;
+	};
+
+	deleteChatAutomation = async (
+		organizationId: string,
+		automationId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}`,
+		);
 	};
 
 	runChatAutomation = async (

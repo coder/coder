@@ -15,9 +15,13 @@ import (
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 )
 
 //go:embed *.sql
@@ -117,8 +121,68 @@ func Up(db *sql.DB) error {
 	return UpWithFS(db, migrations)
 }
 
+const (
+	// maxUpAttempts bounds how often UpWithFS runs the migrations when
+	// PostgreSQL picks the migration transaction as a deadlock victim.
+	maxUpAttempts = 5
+	// upRetryBackoff is the wait before the first retry. It doubles for
+	// each further retry.
+	upRetryBackoff = 100 * time.Millisecond
+	// deadlockSQLState is the SQLSTATE of deadlock_detected.
+	deadlockSQLState = "40P01"
+)
+
+type upOptions struct {
+	logger slog.Logger
+}
+
+// Option configures UpWithFS.
+type Option func(*upOptions)
+
+// WithLogger sets the logger UpWithFS reports retries to. The default logs
+// to stderr.
+func WithLogger(logger slog.Logger) Option {
+	return func(o *upOptions) {
+		o.logger = logger
+	}
+}
+
 // UpWithFS runs SQL migrations in the given fs.
-func UpWithFS(db *sql.DB, migs fs.FS) (retErr error) {
+//
+// All pending migrations run in one transaction. Other replicas keep using
+// the database while it runs, so PostgreSQL can abort the transaction as a
+// deadlock victim. The transaction then rolls back completely, and UpWithFS
+// runs the migrations again from the committed version, up to maxUpAttempts
+// times. Other errors are returned without a retry.
+func UpWithFS(db *sql.DB, migs fs.FS, opts ...Option) error {
+	o := upOptions{logger: slog.Make(sloghuman.Sink(os.Stderr)).Named("migrations")}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	backoff := upRetryBackoff
+	for attempt := 1; ; attempt++ {
+		err := upOnce(db, migs)
+		if err == nil || !isDeadlockError(err) {
+			return err
+		}
+		if attempt == maxUpAttempts {
+			return xerrors.Errorf("migrations were a deadlock victim on all %d attempts: %w", maxUpAttempts, err)
+		}
+		o.logger.Warn(context.Background(), "migrations were a deadlock victim, retrying",
+			slog.F("attempt", attempt),
+			slog.F("max_attempts", maxUpAttempts),
+			slog.F("backoff", backoff),
+			slog.Error(err),
+		)
+		time.Sleep(backoff)
+		backoff *= 2
+	}
+}
+
+// upOnce runs the pending migrations once. A failed run leaves the
+// golang-migrate instance locked, so every attempt needs a new instance.
+func upOnce(db *sql.DB, migs fs.FS) (retErr error) {
 	_, m, err := setup(db, migs)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
@@ -146,6 +210,38 @@ func UpWithFS(db *sql.DB, migs fs.FS) (retErr error) {
 	}
 
 	return nil
+}
+
+// isDeadlockError reports whether err comes from a PostgreSQL deadlock
+// (SQLSTATE 40P01). golang-migrate's database.Error has no Unwrap method, so
+// errors.As cannot see through it. This walks wrapped and joined errors and
+// the OrigErr of database.Error values instead.
+func isDeadlockError(err error) bool {
+	//nolint:errorlint // Walks the error tree by hand, see above.
+	switch e := err.(type) {
+	case nil:
+		return false
+	case interface{ SQLState() string }:
+		if e.SQLState() == deadlockSQLState {
+			return true
+		}
+	case database.Error:
+		return isDeadlockError(e.OrigErr)
+	case *database.Error:
+		return e != nil && isDeadlockError(e.OrigErr)
+	}
+	//nolint:errorlint // Walks the error tree by hand, see above.
+	switch e := err.(type) {
+	case interface{ Unwrap() []error }:
+		for _, inner := range e.Unwrap() {
+			if isDeadlockError(inner) {
+				return true
+			}
+		}
+	case interface{ Unwrap() error }:
+		return isDeadlockError(e.Unwrap())
+	}
+	return false
 }
 
 // Down runs all down SQL migrations.

@@ -17,12 +17,12 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import {
 	AutomationLabel,
-	type ChatAutomationNames,
+	type ChatAutomationReferences,
 } from "./ChatConversation/AutomationLabel";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
-	automationNames: ChatAutomationNames;
+	automationReferences: ChatAutomationReferences;
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
 	className?: string;
@@ -60,7 +60,7 @@ export const getQueuedMessageInfo = (
 
 export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
-	automationNames,
+	automationReferences,
 	onDelete,
 	onPromote,
 	className,
@@ -188,10 +188,13 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 						{item.automationId && (
 							<div className="mb-1 flex">
 								<AutomationLabel
+									variant="badge"
 									automationId={item.automationId}
 									inputId={item.inputId}
-									automationName={automationNames.names.get(item.automationId)}
-									nameStatus={automationNames.status}
+									reference={automationReferences.references.get(
+										item.automationId,
+									)}
+									nameStatus={automationReferences.status}
 								/>
 							</div>
 						)}

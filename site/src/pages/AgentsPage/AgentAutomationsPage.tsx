@@ -5,12 +5,14 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
+import { useLocation } from "react-router";
 import { toast } from "sonner";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
 import {
 	automationChats,
 	chatAutomations,
 	createChatAutomation,
+	deleteChatAutomation,
 	rotateChatAutomationSecret,
 	runChatAutomation,
 	updateChatAutomation,
@@ -36,17 +38,46 @@ import { AutomationEditorDialog } from "./components/Automations/AutomationEdito
 import { AutomationWebhookSecretDialog } from "./components/Automations/AutomationWebhookSecretDialog";
 import { useAutomationsEnabled } from "./components/Automations/automationsFlag";
 import { CompactOrgSelector } from "./components/ChatElements/CompactOrgSelector";
+import { normalizeLocationSearch } from "./components/ChatsSidebar/locationSearch";
 
 const AgentAutomationsPage: React.FC = () => {
-	return useAutomationsEnabled() ? <AutomationsList /> : <NotFoundPage />;
+	return useAutomationsEnabled() ? (
+		<AutomationsList />
+	) : (
+		<div className="flex min-h-0 flex-1 flex-col">
+			<AutomationsPageHeader />
+			<div className="min-h-0 flex-1">
+				<NotFoundPage />
+			</div>
+		</div>
+	);
+};
+
+/** Keeps the sidebar's search filters on the mobile link back to Agents. */
+const AutomationsPageHeader: React.FC = () => {
+	const location = useLocation();
+	return (
+		<AgentPageHeader
+			mobileBack={{
+				to: {
+					pathname: "/agents",
+					search: normalizeLocationSearch(location.search),
+				},
+				label: "Agents",
+			}}
+		/>
+	);
 };
 
 type EditorState =
 	| { mode: "create" }
 	| { mode: "edit"; automation: ChatAutomation };
 
+type SecretGuard = "pending" | "shown";
+
 const AutomationsList: React.FC = () => {
-	const { buildInfo, organizations, showOrganizations } = useDashboard();
+	const { buildInfo, experiments, organizations, showOrganizations } =
+		useDashboard();
 	const queryClient = useQueryClient();
 	const { user } = useAuthenticated();
 	// Senders must reach the configured URL, not the address this tab uses.
@@ -60,8 +91,13 @@ const AutomationsList: React.FC = () => {
 		organizations[0];
 	const organizationId = selectedOrg?.id ?? "";
 
-	const [runError, setRunError] = useState<AutomationRunError>();
+	// Holds the organization of the run, so a failure that arrives after the
+	// viewer switched organizations does not show on the new one.
+	const [runError, setRunError] = useState<
+		AutomationRunError & { organizationId: string }
+	>();
 	const [chatsAutomation, setChatsAutomation] = useState<ChatAutomation>();
+	const [deleteTarget, setDeleteTarget] = useState<ChatAutomation>();
 	const [editor, setEditor] = useState<EditorState>();
 	// The only copy of a new webhook secret. Never cache or persist it.
 	const [webhookSecret, setWebhookSecret] = useState<{
@@ -80,15 +116,23 @@ const AutomationsList: React.FC = () => {
 	const chatsQuery = useInfiniteQuery({
 		...automationChats(chatsAutomation?.id ?? ""),
 		enabled: Boolean(chatsAutomation),
+		// Scheduled and webhook runs add chats while the dialog is open. Each
+		// tick refetches every loaded page, which stays small in practice.
+		refetchInterval: 30_000,
 	});
-	const updateMutation = useMutation(
-		updateChatAutomation(queryClient, organizationId),
-	);
 	const runMutation = useMutation(
 		runChatAutomation(queryClient, organizationId),
 	);
+	// The list toggle and the editor each own an update mutation, which keeps
+	// their pending and error states apart.
+	const updateMutation = useMutation(
+		updateChatAutomation(queryClient, organizationId),
+	);
 	const editMutation = useMutation(
 		updateChatAutomation(queryClient, organizationId),
+	);
+	const deleteMutation = useMutation(
+		deleteChatAutomation(queryClient, organizationId),
 	);
 	const createMutation = useMutation({
 		...createChatAutomation(
@@ -102,7 +146,10 @@ const AutomationsList: React.FC = () => {
 		),
 		onSuccess: ({ automation }) => {
 			toast.success(`Created ${automation.name}.`);
-			setEditor(undefined);
+			// A webhook create closed the editor when its secret arrived.
+			if (automation.kind === "schedule") {
+				setEditor(undefined);
+			}
 		},
 	});
 	const rotateMutation = useMutation(
@@ -113,12 +160,26 @@ const AutomationsList: React.FC = () => {
 		),
 	);
 
-	// Leaving mid-request would drop the one-time secret in the response.
-	const leavePrompt = useUnsavedChangesPrompt(
+	// Leaving mid-request, or before copying, loses the one-time secret.
+	let secretGuard: SecretGuard | undefined;
+	if (webhookSecret) {
+		secretGuard = "shown";
+	} else if (
 		rotateMutation.isPending ||
-			(createMutation.isPending &&
-				createMutation.variables?.kind === "webhook"),
+		(createMutation.isPending && createMutation.variables?.kind === "webhook")
+	) {
+		secretGuard = "pending";
+	}
+	const leavePrompt = useUnsavedChangesPrompt(
+		secretGuard !== undefined,
+		secretGuard,
 	);
+	const editedAutomation =
+		editor?.mode === "edit"
+			? (automationsQuery.data?.find(
+					(automation) => automation.id === editor.automation.id,
+				) ?? editor.automation)
+			: undefined;
 
 	const openEditor = (next: EditorState) => {
 		createMutation.reset();
@@ -162,6 +223,28 @@ const AutomationsList: React.FC = () => {
 		localStorage.setItem(selectedOrganizationIdStorageKey, organization.id);
 		setRunError(undefined);
 		setEditor(undefined);
+		setDeleteTarget(undefined);
+	};
+
+	const openDeleteDialog = (automation: ChatAutomation) => {
+		deleteMutation.reset();
+		setDeleteTarget(automation);
+	};
+
+	const handleDelete = (automation: ChatAutomation) => {
+		deleteMutation.mutate(automation.id, {
+			onSuccess: () => {
+				toast.success(`Deleted ${automation.name}.`);
+				setDeleteTarget(undefined);
+			},
+			onError: (error) => {
+				// Someone else deleted it first, so there is nothing to retry.
+				if (getErrorStatus(error) === 404) {
+					toast.message(`${automation.name} was already deleted.`);
+					setDeleteTarget(undefined);
+				}
+			},
+		});
 	};
 
 	const handleToggleEnabled = (
@@ -187,18 +270,15 @@ const AutomationsList: React.FC = () => {
 				toast.success(`${automation.name} accepted the run.`);
 			},
 			onError: (error) => {
-				setRunError({ automation, error });
+				setRunError({ automation, error, organizationId });
 			},
 		});
 	};
 
 	return (
 		<AgentAutomationsPageView
-			header={
-				<AgentPageHeader mobileBack={{ to: "/agents", label: "Agents" }} />
-			}
+			header={<AutomationsPageHeader />}
 			currentUserId={user.id}
-			organizationName={selectedOrg?.display_name || selectedOrg?.name}
 			organizationSelector={
 				showOrganizations && (
 					<CompactOrgSelector
@@ -220,7 +300,9 @@ const AutomationsList: React.FC = () => {
 			runningAutomationId={
 				runMutation.isPending ? runMutation.variables : undefined
 			}
-			runError={runError}
+			runError={
+				runError?.organizationId === organizationId ? runError : undefined
+			}
 			onDismissRunError={() => setRunError(undefined)}
 			onToggleEnabled={handleToggleEnabled}
 			onRunNow={handleRunNow}
@@ -229,12 +311,23 @@ const AutomationsList: React.FC = () => {
 			onEditAutomation={(automation) =>
 				openEditor({ mode: "edit", automation })
 			}
+			onDeleteAutomation={openDeleteDialog}
+			deleteDialog={
+				deleteTarget && {
+					automation: deleteTarget,
+					isDeleting: deleteMutation.isPending,
+					error: deleteMutation.error,
+					onConfirm: () => handleDelete(deleteTarget),
+					onClose: () => setDeleteTarget(undefined),
+				}
+			}
 			editorDialog={
 				editor && (
 					<AutomationEditorDialog
 						organizationId={organizationId}
-						automation={editor.mode === "edit" ? editor.automation : undefined}
+						automation={editedAutomation}
 						currentUserId={user.id}
+						projectsEnabled={experiments.includes("chat-projects")}
 						origin={webhookOrigin}
 						error={
 							editor.mode === "edit" ? editMutation.error : createMutation.error
@@ -262,30 +355,40 @@ const AutomationsList: React.FC = () => {
 				)
 			}
 			webhookSecretDialog={
-				<>
-					{webhookSecret && (
-						<AutomationWebhookSecretDialog
-							endpoint={webhookPublishEndpoint(
-								webhookOrigin,
-								webhookSecret.automationId,
-							)}
-							secret={webhookSecret.secret}
-							returnFocusRef={secretReturnFocusRef}
-							onClose={() => setWebhookSecret(undefined)}
-						/>
-					)}
-					{leavePrompt.isOpen && (
-						<LeaveBeforeSecretPrompt
-							onStay={leavePrompt.onCancel}
-							onLeave={leavePrompt.onConfirm}
-						/>
-					)}
-				</>
+				webhookSecret && (
+					<AutomationWebhookSecretDialog
+						endpoint={webhookPublishEndpoint(
+							webhookOrigin,
+							webhookSecret.automationId,
+						)}
+						secret={webhookSecret.secret}
+						returnFocusRef={secretReturnFocusRef}
+						onClose={() => setWebhookSecret(undefined)}
+					/>
+				)
+			}
+			leavePrompt={
+				<ConfirmDialog
+					open={leavePrompt.isOpen}
+					type="info"
+					hideCancel={false}
+					cancelText="Stay"
+					title={
+						secretGuard === "shown"
+							? "Leave without copying the secret?"
+							: "Leave before the secret arrives?"
+					}
+					description="The webhook secret is shown only once. If you leave now, you must rotate it to get a new one."
+					confirmText="Leave"
+					onClose={leavePrompt.onCancel}
+					onConfirm={leavePrompt.onConfirm}
+					onCloseAutoFocus={leavePrompt.onCloseAutoFocus}
+				/>
 			}
 			chatsDialog={
 				chatsAutomation && {
 					automation: chatsAutomation,
-					chats: chatsQuery.data?.pages.flat(),
+					chats: chatsQuery.data,
 					isLoading: chatsQuery.isLoading,
 					error: chatsQuery.error,
 					hasNextPage: chatsQuery.hasNextPage,
@@ -294,42 +397,6 @@ const AutomationsList: React.FC = () => {
 					onClose: () => setChatsAutomation(undefined),
 				}
 			}
-		/>
-	);
-};
-
-type LeaveBeforeSecretPromptProps = {
-	onStay: () => void;
-	onLeave: () => void;
-};
-
-const LeaveBeforeSecretPrompt: React.FC<LeaveBeforeSecretPromptProps> = ({
-	onStay,
-	onLeave,
-}) => {
-	// The prompt opens without a trigger, so Radix has nowhere to return focus.
-	const [opener] = useState(() =>
-		document.activeElement instanceof HTMLElement
-			? document.activeElement
-			: null,
-	);
-	return (
-		<ConfirmDialog
-			open
-			type="info"
-			hideCancel={false}
-			cancelText="Stay"
-			title="Leave before the secret arrives?"
-			description="The webhook secret is shown only once. If you leave now, you must rotate it to get a new one."
-			confirmText="Leave"
-			onClose={onStay}
-			onConfirm={onLeave}
-			onCloseAutoFocus={(event) => {
-				if (opener?.isConnected) {
-					event.preventDefault();
-					opener.focus();
-				}
-			}}
 		/>
 	);
 };

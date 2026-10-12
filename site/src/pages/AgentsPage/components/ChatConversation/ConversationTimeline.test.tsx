@@ -61,7 +61,7 @@ function renderTimeline(initial: TimelineStage = {}) {
 								subagentStatusOverrides={new Map()}
 								subagentTitles={new Map()}
 								subagentVariants={new Map()}
-								automationNames={{ names: new Map(), status: "settled" }}
+								automationReferences={{ references: new Map(), status: "settled" }}
 								parsedMessages={parseMessagesWithMergedTools(messages, {
 									pendingToolCallIDs,
 								})}

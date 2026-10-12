@@ -31,6 +31,20 @@ const (
 	// automationScheduleGrace is how late an occurrence may still be
 	// accepted. Older occurrences are missed and never replayed.
 	automationScheduleGrace = 60 * time.Second
+	// automationScheduleClaimLease is how long an instance holds its claim
+	// on an occurrence, which it takes before the prompt hooks run, so
+	// instances that scan the same due row do not all run the hooks.
+	//
+	// The lease is longer than the grace window, so the claim keeps the
+	// prompt hooks from running twice for one occurrence however skewed
+	// the clocks of the instances are. The claim requires the occurrence
+	// to be due and within the grace window by the clock read it is taken
+	// with: cursor <= now <= cursor + grace. Another instance can claim the
+	// same occurrence only once the lease has expired by its clock, at
+	// now_B >= now_A + lease > cursor + grace, so the claim itself refuses
+	// it as expired, whatever the clock reads later. An instance that stops while it holds a claim loses that
+	// occurrence: it is missed once the lease expires.
+	automationScheduleClaimLease = 2 * automationScheduleGrace
 	// automationScheduleConcurrency bounds the occurrences one scan
 	// publishes at once, so an occurrence that waits for a lock or a slow
 	// hook does not hold back the others past the grace window.
@@ -106,6 +120,49 @@ func advanceAutomationSchedule(ctx context.Context, store database.Store, automa
 	return count == 1, nil
 }
 
+// claimAutomationOccurrence claims the observed occurrence of the
+// automation until claimedUntil, judging the occurrence and other claims
+// at now. It reports false when the occurrence is not due at now or is
+// older than the grace window, another instance holds an unexpired claim
+// on it, or the schedule revision or cursor changed since they were
+// observed. Moving the cursor drops the claim.
+func claimAutomationOccurrence(ctx context.Context, store database.Store, automationID uuid.UUID, occurrence automationOccurrence, now, claimedUntil time.Time) (bool, error) {
+	//nolint:gocritic // The scheduler claims the occurrences of every owner's automations; chatd may update them.
+	count, err := store.ClaimChatAutomationScheduleOccurrence(dbauthz.AsChatd(ctx), database.ClaimChatAutomationScheduleOccurrenceParams{
+		ID:                automationID,
+		ScheduleRevision:  occurrence.revision,
+		ObservedNextRunAt: occurrence.cursor,
+		ClaimedUntil:      claimedUntil,
+		Now:               now,
+		EarliestNextRunAt: now.Add(-automationScheduleGrace),
+	})
+	if err != nil {
+		return false, xerrors.Errorf("claim chat automation schedule occurrence: %w", err)
+	}
+	return count == 1, nil
+}
+
+// releaseAutomationOccurrence drops the claim claimAutomationOccurrence
+// took until claimedUntil, so a later scan can retry the occurrence. It
+// leaves a claim another instance took after this one expired.
+func releaseAutomationOccurrence(ctx context.Context, store database.Store, automationID uuid.UUID, occurrence automationOccurrence, claimedUntil time.Time) error {
+	//nolint:gocritic // The scheduler releases the claims it took on every owner's automations.
+	_, err := store.ReleaseChatAutomationScheduleClaim(dbauthz.AsChatd(ctx), database.ReleaseChatAutomationScheduleClaimParams{
+		ID:                automationID,
+		ScheduleRevision:  occurrence.revision,
+		ObservedNextRunAt: occurrence.cursor,
+		ClaimedUntil:      claimedUntil,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		// The automation was deleted, which dropped the claim with it.
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("release chat automation schedule claim: %w", err)
+	}
+	return nil
+}
+
 // automationScheduleLoop scans for due schedule automations at start and
 // then every AutomationScheduleInterval.
 func (w *chatWorker) automationScheduleLoop(ctx context.Context) {
@@ -128,7 +185,8 @@ func (w *chatWorker) automationScheduleLoop(ctx context.Context) {
 // scanAutomationSchedules runs every due schedule occurrence once. The
 // due rows are read without locks; each publish rechecks its occurrence
 // under the chat and automation locks, so concurrent scans on several
-// instances accept each occurrence at most once.
+// instances accept each occurrence at most once. Each instance claims an
+// occurrence before its prompt hooks run, so the hooks also run once.
 //
 // The due rows are read in pages of batchSize until a page comes back
 // short. Rows that stay due, such as those of owners with the experiment
@@ -181,36 +239,87 @@ func (p *Server) scanAutomationSchedules(ctx context.Context, batchSize int32) {
 // runAutomationOccurrence publishes the occurrence at the cursor of a due
 // schedule automation that the scan read at now, or moves the cursor past
 // an occurrence that is missed or refused.
+//
+// A missed occurrence, one older than the grace window, is not replayed.
+// The cursor moves to the first cron time within the grace window instead,
+// and when that time is already due it is published in the same call, so
+// a late scan still runs an occurrence that is on time.
+//
+// An occurrence is claimed before it is published. When another instance
+// holds the claim, this call leaves the occurrence to it. Moving the
+// cursor drops the claim, and a publish that fails with a retryable error
+// or finds the occurrence stale releases it, so the next scan retries
+// within the grace window.
 func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatAutomation, now time.Time) {
 	occurrence := automationOccurrence{revision: row.ScheduleRevision, cursor: row.ScheduleNextRunAt.Time}
-	logger := p.logger.With(
-		slog.F("automation_id", row.ID),
-		slog.F("schedule_revision", occurrence.revision),
-		slog.F("scheduled_at", occurrence.cursor),
-	)
+	occurrenceLogger := func(occurrence automationOccurrence) slog.Logger {
+		return p.logger.With(
+			slog.F("automation_id", row.ID),
+			slog.F("schedule_revision", occurrence.revision),
+			slog.F("scheduled_at", occurrence.cursor),
+		)
+	}
+	logger := occurrenceLogger(occurrence)
 	sched, err := cron.Standard(row.ScheduleCron.String, row.ScheduleTimeZone.String)
 	if err != nil {
 		logger.Warn(ctx, "parse chat automation schedule", slog.Error(err))
 		return
 	}
-	// skip moves the cursor to the first cron time after a fresh clock
-	// read, unless someone else moved it first.
-	skip := func(msg string, fields ...slog.Field) {
+	// skip moves the cursor past the occurrence to the first cron time
+	// after a fresh clock read minus lookback, unless someone else moved
+	// it first. It returns the new cursor and whether it moved.
+	skip := func(lookback time.Duration, msg string, fields ...slog.Field) (time.Time, bool) {
 		skippedAt := dbtime.Time(p.clock.Now())
-		next := sched.Next(skippedAt)
+		next := sched.Next(skippedAt.Add(-lookback))
 		moved, err := advanceAutomationSchedule(ctx, p.db, row.ID, occurrence, next, skippedAt)
 		if err != nil {
 			logger.Warn(ctx, "skip chat automation schedule occurrence", slog.Error(err))
-			return
+			return time.Time{}, false
 		}
 		if moved {
 			logger.Info(ctx, msg, append(fields, slog.F("next_run_at", next))...)
 		}
+		return next, moved
 	}
 
 	if now.Sub(occurrence.cursor) > automationScheduleGrace {
-		skip("chat automation schedule occurrence missed")
+		// The occurrence is older than the grace window, so the first
+		// cron time within the window is after the cursor.
+		next, moved := skip(automationScheduleGrace, "chat automation schedule occurrence missed")
+		if !moved || next.IsZero() || next.After(dbtime.Time(p.clock.Now())) {
+			return
+		}
+		// The new cursor is within the grace window by construction, so
+		// this continues at most once.
+		occurrence = automationOccurrence{revision: occurrence.revision, cursor: next}
+		logger = occurrenceLogger(occurrence)
+	}
+	claimedAt := dbtime.Time(p.clock.Now())
+	claimedUntil := claimedAt.Add(automationScheduleClaimLease)
+	claimed, err := claimAutomationOccurrence(ctx, p.db, row.ID, occurrence, claimedAt, claimedUntil)
+	if err != nil {
+		if ctx.Err() == nil {
+			logger.Warn(ctx, "claim chat automation schedule occurrence", slog.Error(err))
+		}
 		return
+	}
+	if !claimed {
+		// Another instance publishes it, or the automation changed since
+		// the scan.
+		logger.Debug(ctx, "chat automation schedule occurrence not claimed")
+		return
+	}
+	// release drops this call's claim after a publish that did not move
+	// the cursor.
+	release := func() {
+		if ctx.Err() != nil {
+			// The server is stopping, so a release would fail. The claim
+			// expires on its own and the occurrence is missed.
+			return
+		}
+		if err := releaseAutomationOccurrence(ctx, p.db, row.ID, occurrence, claimedUntil); err != nil {
+			logger.Warn(ctx, "release chat automation schedule occurrence", slog.Error(err))
+		}
 	}
 	result, err := p.publishAutomation(ctx, automationPublish{
 		automationID: row.ID,
@@ -227,18 +336,33 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 		if row.TargetMode == database.ChatAutomationTargetModeNewChat {
 			p.auditAutomationCreatedChat(ctx, logger, row, result, nil)
 		}
+	case errors.Is(err, ErrAutomationOccurrenceExpired):
+		// The occurrence expired while waiting for the locks. A later
+		// cron time may still be within the grace window.
+		if _, moved := skip(automationScheduleGrace, "chat automation schedule occurrence skipped", slog.F("reason", err.Error())); !moved {
+			release()
+		}
 	case errors.Is(err, ErrAutomationChatBusy),
 		errors.Is(err, ErrAutomationQueueShareFull),
 		errors.Is(err, chatstate.ErrMessageQueueFull),
 		errors.As(err, &denied),
 		errors.Is(err, ErrAutomationForbidden),
-		errors.Is(err, ErrAutomationOccurrenceExpired):
-		skip("chat automation schedule occurrence skipped", slog.F("reason", err.Error()))
+		errors.Is(err, ErrAutomationModelUnavailable):
+		// A skip that fails releases the claim, so it does not hide the
+		// next occurrences of a frequent schedule.
+		if _, moved := skip(0, "chat automation schedule occurrence skipped", slog.F("reason", err.Error())); !moved {
+			release()
+		}
 	case errors.Is(err, ErrAutomationScheduleStale),
 		errors.Is(err, ErrAutomationDisabled),
 		errors.Is(err, ErrAutomationNotFound):
 		// The automation changed since the scan; the next scan reads it
-		// again.
+		// again. The publish can also see an unchanged occurrence as not
+		// due when the clock steps back after the claim. The release
+		// drops the claim only when the revision and cursor still match,
+		// so the next scan can retry within the grace window.
+		logger.Debug(ctx, "chat automation schedule occurrence changed during publish", slog.Error(err))
+		release()
 	default:
 		// The cursor stays, so the next scan retries while the occurrence
 		// is within the grace window. This includes
@@ -248,6 +372,7 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 		if ctx.Err() == nil {
 			logger.Warn(ctx, "publish chat automation schedule occurrence", slog.Error(err))
 		}
+		release()
 	}
 }
 

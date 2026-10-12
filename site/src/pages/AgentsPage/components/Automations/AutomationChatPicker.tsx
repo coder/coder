@@ -40,7 +40,11 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 	);
 	// The picker shows titles only, so match a title substring. The full-text
 	// `search:` term matches whole words and message content instead.
-	const searchTerms = ["archived:false", "source:created_by_me"];
+	const searchTerms = [
+		"archived:false",
+		"source:created_by_me",
+		`organization:${organizationId}`,
+	];
 	if (debouncedSearch) {
 		searchTerms.unshift(`title:"${debouncedSearch}"`);
 	}
@@ -49,11 +53,7 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});
-	// Chat search has no organization term, and a target must share the
-	// automation's organization.
-	const chats = (searchQuery.data ?? []).filter(
-		(c) => c.organization_id === organizationId,
-	);
+	const chats = searchQuery.data ?? [];
 	const listedChat = chats.find((c) => c.id === value);
 	const selectedQuery = useQuery({
 		...chat(value),

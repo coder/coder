@@ -86,9 +86,9 @@ type CreateAutomationParams struct {
 }
 
 // CreateAutomation validates and inserts an enabled automation. ctx must
-// carry the caller's authorization: referenced chats and model configs are
-// loaded as the caller. For webhook automations it returns the plaintext
-// webhook secret, which is not stored and cannot be read again.
+// carry the caller's authorization: referenced chats, model configs, and
+// projects are loaded as the caller. For webhook automations it returns the
+// plaintext webhook secret, which is not stored and cannot be read again.
 func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationParams) (database.ChatAutomation, string, error) {
 	if params.OrganizationID == uuid.Nil || params.OwnerID == uuid.Nil {
 		return database.ChatAutomation{}, "", xerrors.New("create automation: organization and owner are required")
@@ -135,6 +135,7 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		ScheduleCron:         sql.NullString{},
 		ScheduleTimeZone:     sql.NullString{},
 		ScheduleNextRunAt:    sql.NullTime{},
+		ProjectID:            uuid.NullUUID{},
 	}
 
 	var (
@@ -154,6 +155,9 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		}
 		sched, err = validateAutomationSchedule(*req.ScheduleCron, *req.ScheduleTimeZone, now)
 		if err != nil {
+			return database.ChatAutomation{}, "", err
+		}
+		if err := validateAutomationScheduleInterval(sched, now, p.chatLimits.MinAutomationScheduleInterval); err != nil {
 			return database.ChatAutomation{}, "", err
 		}
 		arg.ScheduleCron = sql.NullString{String: sched.Cron(), Valid: true}
@@ -189,6 +193,9 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		}
 		if req.ReasoningEffort != nil {
 			return database.ChatAutomation{}, "", automationFieldError("reasoning_effort", "must be omitted for existing_chat automations")
+		}
+		if req.ProjectID != nil {
+			return database.ChatAutomation{}, "", automationFieldError("project_id", "must be omitted for existing_chat automations")
 		}
 		if req.TargetChatID == nil {
 			return database.ChatAutomation{}, "", automationFieldError("target_chat_id", "is required for existing_chat automations")
@@ -231,6 +238,16 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 			}
 			arg.ReasoningEffort = database.NullChatReasoningEffort{ChatReasoningEffort: effort, Valid: true}
 		}
+		if req.ProjectID != nil {
+			// Only an update clears the project with the all-zero UUID.
+			if *req.ProjectID == uuid.Nil {
+				return database.ChatAutomation{}, "", automationFieldError("project_id", "must be a project ID or omitted")
+			}
+			if err := p.validateAutomationProject(ctx, p.db, params.OrganizationID, params.OwnerID, *req.ProjectID); err != nil {
+				return database.ChatAutomation{}, "", err
+			}
+			arg.ProjectID = uuid.NullUUID{UUID: *req.ProjectID, Valid: true}
+		}
 	}
 
 	limit := p.chatLimits.MaxAutomationsPerOwner
@@ -260,6 +277,9 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		}
 		automation, err = tx.InsertChatAutomation(ctx, arg)
 		if err != nil {
+			if isAutomationProjectDeleted(err) {
+				return automationFieldError("project_id", "project not found")
+			}
 			return xerrors.Errorf("insert chat automation: %w", err)
 		}
 		return nil
@@ -289,12 +309,19 @@ type AutomationGuard func(store database.Store, automation database.ChatAutomati
 // deleteStaleAutomationQueuedMessages. Re-enabling a schedule moves its
 // cursor to the next future occurrence, so missed occurrences never run.
 //
+// A prompt edit does not start a new queue generation: messages the
+// automation already queued keep the prompt they were sent with, and only
+// disabling or deleting the automation removes them.
+//
 // guard, when set, runs after the owner check on the locked stored row
 // and again on the row as the update would leave it, before the write.
-func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, req codersdk.UpdateChatAutomationRequest, guard AutomationGuard) (database.ChatAutomation, error) {
+//
+// old is the row as read under the lock before the change. Callers record
+// it as the audit before-image, because a row read before the call can be
+// stale by the time the lock is held.
+func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, req codersdk.UpdateChatAutomationRequest, guard AutomationGuard) (old, updated database.ChatAutomation, err error) {
 	disabling := req.Enabled != nil && !*req.Enabled
-	var updated database.ChatAutomation
-	err := p.db.InTx(func(tx database.Store) error {
+	err = p.db.InTx(func(tx database.Store) error {
 		rows, err := tx.GetChatAutomationsByIDsForUpdate(ctx, []uuid.UUID{id})
 		if err != nil {
 			return xerrors.Errorf("lock chat automation: %w", err)
@@ -303,6 +330,7 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			return ErrAutomationNotFound
 		}
 		row := rows[0]
+		old = row
 		// Read the time after the lock wait, so a cursor computed below is
 		// never already in the past when the update commits.
 		now := dbtime.Time(p.clock.Now())
@@ -356,6 +384,12 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 				return err
 			}
 			if sched.Cron() != row.ScheduleCron.String || timeZone != row.ScheduleTimeZone.String {
+				// Only a changed schedule must meet the minimum interval,
+				// so automations created before a stricter minimum keep
+				// working.
+				if err := validateAutomationScheduleInterval(sched, now, p.chatLimits.MinAutomationScheduleInterval); err != nil {
+					return err
+				}
 				invalidatesPendingRuns = true
 				arg.ScheduleCron = sql.NullString{String: sched.Cron(), Valid: true}
 				arg.ScheduleTimeZone = sql.NullString{String: timeZone, Valid: true}
@@ -408,6 +442,22 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			}
 			arg.NewChatModelConfigID = uuid.NullUUID{UUID: *req.NewChatModelConfigID, Valid: true}
 		}
+		if req.ProjectID != nil {
+			if row.TargetMode != database.ChatAutomationTargetModeNewChat {
+				return automationFieldError("project_id", "applies only to new_chat automations")
+			}
+			// The all-zero UUID removes the project. Removing it needs no
+			// experiment, so an owner can always undo the setting. A
+			// changed project only affects chats created later, so pending
+			// runs stay valid.
+			arg.ProjectID = uuid.NullUUID{}
+			if *req.ProjectID != uuid.Nil {
+				if err := p.validateAutomationProject(ctx, tx, row.OrganizationID, row.OwnerID, *req.ProjectID); err != nil {
+					return err
+				}
+				arg.ProjectID = uuid.NullUUID{UUID: *req.ProjectID, Valid: true}
+			}
+		}
 		if invalidatesPendingRuns && row.Kind == database.ChatAutomationKindSchedule {
 			arg.ScheduleRevision = row.ScheduleRevision + 1
 		}
@@ -439,17 +489,20 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 		}
 		updated, err = tx.UpdateChatAutomationByID(ctx, arg)
 		if err != nil {
+			if isAutomationProjectDeleted(err) {
+				return automationFieldError("project_id", "project not found")
+			}
 			return xerrors.Errorf("update chat automation: %w", err)
 		}
 		return nil
 	}, &database.TxOptions{Isolation: sql.LevelReadCommitted, TxIdentifier: "update_chat_automation"})
 	if err != nil {
-		return database.ChatAutomation{}, err
+		return database.ChatAutomation{}, database.ChatAutomation{}, err
 	}
 	if disabling {
 		p.deleteStaleAutomationQueuedMessages(ctx, updated.ID, updated.QueueGeneration)
 	}
-	return updated, nil
+	return old, updated, nil
 }
 
 // DeleteAutomation deletes an automation and then removes the messages it
@@ -483,6 +536,7 @@ func automationUpdateParams(row database.ChatAutomation, now time.Time) database
 		ScheduleNextRunAt:    row.ScheduleNextRunAt,
 		Enabled:              row.Enabled,
 		QueueGeneration:      row.QueueGeneration,
+		ProjectID:            row.ProjectID,
 		UpdatedAt:            now,
 	}
 }
@@ -501,6 +555,7 @@ func automationAfterUpdate(row database.ChatAutomation, arg database.UpdateChatA
 	row.ScheduleNextRunAt = arg.ScheduleNextRunAt
 	row.Enabled = arg.Enabled
 	row.QueueGeneration = arg.QueueGeneration
+	row.ProjectID = arg.ProjectID
 	row.UpdatedAt = arg.UpdatedAt
 	return row
 }
@@ -641,14 +696,80 @@ func AutomationNextRuns(row database.ChatAutomation, now time.Time, n int) []tim
 	return scheduleNextRuns(sched, now, n)
 }
 
+// AutomationScheduleBelowMinimum reports whether row is a schedule
+// automation that runs more often than minimum allows. It reports false
+// for webhooks and schedules that no longer parse.
+func AutomationScheduleBelowMinimum(row database.ChatAutomation, now time.Time, minimum time.Duration) bool {
+	if row.Kind != database.ChatAutomationKindSchedule || !row.ScheduleCron.Valid || !row.ScheduleTimeZone.Valid {
+		return false
+	}
+	sched, err := cron.Standard(row.ScheduleCron.String, row.ScheduleTimeZone.String)
+	if err != nil {
+		return false
+	}
+	return validateAutomationScheduleInterval(sched, now, minimum) != nil
+}
+
+// AutomationSchedulePreview is a validated schedule's upcoming runs.
+type AutomationSchedulePreview struct {
+	// NextRuns are the next runs after now, in UTC.
+	NextRuns []time.Time
+	// ClockChangeNote explains the daylight saving rules when the
+	// schedule's time zone changes its UTC offset within a year.
+	ClockChangeNote string
+	// IntervalWarning is set when the schedule runs more often than the
+	// deployment's minimum interval, so creating it, or changing a
+	// schedule to it, fails. An automation that already has it keeps
+	// running.
+	IntervalWarning string
+}
+
+// automationClockChangeNote is the preview text for schedules whose time
+// zone changes its UTC offset. It states the rules cron.Standard applies.
+const automationClockChangeNote = "When clocks go back, a time that occurs twice runs once, at its first occurrence. When clocks go forward, a time that is skipped runs at the first valid time after the change."
+
 // PreviewAutomationSchedule validates a schedule like CreateAutomation
-// does and returns its next n runs after now, in UTC.
-func PreviewAutomationSchedule(spec, timeZone string, now time.Time, n int) ([]time.Time, error) {
+// does and returns its next n runs after now. A schedule that runs more
+// often than minimum is not an error here: the preview carries a warning
+// instead, because an automation saved under a lower minimum keeps its
+// schedule.
+func PreviewAutomationSchedule(spec, timeZone string, now time.Time, n int, minimum time.Duration) (AutomationSchedulePreview, error) {
 	sched, err := validateAutomationSchedule(spec, timeZone, now)
 	if err != nil {
-		return nil, err
+		return AutomationSchedulePreview{}, err
 	}
-	return scheduleNextRuns(sched, now, n), nil
+	preview := AutomationSchedulePreview{NextRuns: scheduleNextRuns(sched, now, n)}
+	// The preview still lists the runs of a schedule below the minimum,
+	// because an automation saved under an earlier, lower minimum keeps
+	// that schedule and keeps running.
+	if interval, ok := sched.ShortestInterval(now); ok && interval < minimum {
+		preview.IntervalWarning = fmt.Sprintf(
+			"Runs as often as every %s, but this deployment allows at most one run every %s. Saving a new or changed schedule like this fails.",
+			formatAutomationInterval(interval), formatAutomationInterval(minimum))
+	}
+	if offsetChangesWithinYear(sched.Location(), now) {
+		preview.ClockChangeNote = automationClockChangeNote
+	}
+	return preview, nil
+}
+
+// offsetChangesWithinYear reports whether loc changes its UTC offset
+// within one year after now.
+func offsetChangesWithinYear(loc *time.Location, now time.Time) bool {
+	_, offset := now.In(loc).Zone()
+	end := now.AddDate(1, 0, 0)
+	for at := now; at.Before(end); {
+		_, periodEnd := at.In(loc).ZoneBounds()
+		// A zero end means the current zone period never ends.
+		if periodEnd.IsZero() || !periodEnd.Before(end) {
+			return false
+		}
+		if _, next := periodEnd.In(loc).Zone(); next != offset {
+			return true
+		}
+		at = periodEnd
+	}
+	return false
 }
 
 func scheduleNextRuns(sched *cron.Schedule, now time.Time, n int) []time.Time {
@@ -693,6 +814,43 @@ func validateAutomationSchedule(spec, timeZone string, now time.Time) (*cron.Sch
 		return nil, automationFieldError("schedule_cron", "never runs")
 	}
 	return sched, nil
+}
+
+// validateAutomationScheduleInterval requires sched to leave at least
+// minimum between two runs on its wall clock.
+func validateAutomationScheduleInterval(sched *cron.Schedule, now time.Time, minimum time.Duration) error {
+	interval, ok := sched.ShortestInterval(now)
+	if !ok || interval >= minimum {
+		return nil
+	}
+	return automationFieldError("schedule_cron", fmt.Sprintf(
+		"runs as often as every %s; this deployment allows at most one run every %s",
+		formatAutomationInterval(interval), formatAutomationInterval(minimum)))
+}
+
+// formatAutomationInterval writes d in whole hours when it is a multiple
+// of an hour, and otherwise in minutes and, when present, seconds.
+func formatAutomationInterval(d time.Duration) string {
+	if d >= time.Hour && d%time.Hour == 0 {
+		return pluralAutomationUnit(int64(d/time.Hour), "hour")
+	}
+	minutes := pluralAutomationUnit(int64(d/time.Minute), "minute")
+	seconds := int64((d % time.Minute) / time.Second)
+	switch {
+	case seconds == 0:
+		return minutes
+	case d < time.Minute:
+		return pluralAutomationUnit(seconds, "second")
+	default:
+		return minutes + " " + pluralAutomationUnit(seconds, "second")
+	}
+}
+
+func pluralAutomationUnit(n int64, unit string) string {
+	if n == 1 {
+		return "1 " + unit
+	}
+	return fmt.Sprintf("%d %ss", n, unit)
 }
 
 func validateAutomationWhenBusy(value codersdk.ChatAutomationWhenBusy) (database.ChatAutomationWhenBusy, error) {
@@ -752,6 +910,43 @@ func validateAutomationModelConfig(ctx context.Context, store database.Store, or
 		return automationFieldError("new_chat_model_config_id", "model config is disabled")
 	}
 	return nil
+}
+
+// validateAutomationProject requires the chat-projects experiment for the
+// automation owner and the project to be readable by the caller, owned by
+// the automation owner, and in the automation's organization. Projects are
+// private to their owner, so a project of another user is reported like a
+// missing one and callers cannot probe for project IDs.
+func (p *Server) validateAutomationProject(ctx context.Context, store database.Store, organizationID, ownerID, projectID uuid.UUID) error {
+	if !p.experimentEvaluator.Enabled(ctx, ownerID, codersdk.ExperimentChatProjects) {
+		return automationFieldError("project_id", "chat projects experiment is not enabled")
+	}
+	project, err := store.GetChatProjectByID(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+			return automationFieldError("project_id", "project not found")
+		}
+		return xerrors.Errorf("get project: %w", err)
+	}
+	if project.OwnerID != ownerID {
+		return automationFieldError("project_id", "project not found")
+	}
+	if project.OrganizationID != organizationID {
+		return automationFieldError("project_id", "project is not in the automation's organization")
+	}
+	return nil
+}
+
+// automationProjectOrganizationCheck is raised by the
+// enforce_chat_automation_chat_organization trigger, which runs before the
+// foreign key and also fails when the project row is gone.
+const automationProjectOrganizationCheck database.CheckConstraint = "chat_automations_project_organization"
+
+// isAutomationProjectDeleted reports whether a write failed because the
+// project was deleted after validation read it.
+func isAutomationProjectDeleted(err error) bool {
+	return database.IsForeignKeyViolation(err, database.ForeignKeyChatAutomationsProjectID) ||
+		database.IsCheckViolation(err, automationProjectOrganizationCheck)
 }
 
 // newAutomationWebhookSecret returns a new webhook secret and the SHA-256

@@ -7,6 +7,7 @@ import type {
 	ChatDiffStatus,
 	ChatFileMetadata,
 	ChatMessage,
+	ChatProject,
 	ChatQueuedMessage,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
@@ -192,6 +193,7 @@ export const MockChatAutomation: ChatAutomation = {
 	schedule_cron: "0 9 * * *",
 	schedule_time_zone: "UTC",
 	next_run_times: [],
+	schedule_interval_below_minimum: false,
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
 };
@@ -223,4 +225,15 @@ export const MockChatDiffStatus: ChatDiffStatus = {
 	additions: 1,
 	deletions: 0,
 	changed_files: 1,
+};
+
+export const MockChatProject: ChatProject = {
+	id: "4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f",
+	organization_id: "test-org-id",
+	owner_id: MockUserOwner.id,
+	name: "Release work",
+	description: "",
+	icon: "",
+	created_at: MOCK_TIMESTAMP,
+	updated_at: MOCK_TIMESTAMP,
 };

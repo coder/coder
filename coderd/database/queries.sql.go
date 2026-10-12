@@ -5505,7 +5505,8 @@ type AdvanceChatAutomationScheduleCursorParams struct {
 // observed occurrence to next_run_at. It affects no row when the schedule
 // revision or the cursor changed since they were observed, so exactly one
 // caller moves the cursor past each occurrence. A NULL next_run_at means
-// no occurrence is pending.
+// no occurrence is pending. Moving the cursor also drops the claim on the
+// observed occurrence (trigger_clear_chat_automation_schedule_claim).
 func (q *sqlQuerier) AdvanceChatAutomationScheduleCursor(ctx context.Context, arg AdvanceChatAutomationScheduleCursorParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, advanceChatAutomationScheduleCursor,
 		arg.NextRunAt,
@@ -5513,6 +5514,52 @@ func (q *sqlQuerier) AdvanceChatAutomationScheduleCursor(ctx context.Context, ar
 		arg.ID,
 		arg.ScheduleRevision,
 		arg.ObservedNextRunAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const claimChatAutomationScheduleOccurrence = `-- name: ClaimChatAutomationScheduleOccurrence :execrows
+UPDATE
+    chat_automations
+SET
+    schedule_claimed_until = $1::timestamptz
+WHERE
+    id = $2::uuid
+    AND kind = 'schedule'
+    AND enabled
+    AND schedule_revision = $3::bigint
+    AND schedule_next_run_at = $4::timestamptz
+    AND schedule_next_run_at <= $5::timestamptz
+    AND schedule_next_run_at >= $6::timestamptz
+    AND (schedule_claimed_until IS NULL OR schedule_claimed_until <= $5::timestamptz)
+`
+
+type ClaimChatAutomationScheduleOccurrenceParams struct {
+	ClaimedUntil      time.Time `db:"claimed_until" json:"claimed_until"`
+	ID                uuid.UUID `db:"id" json:"id"`
+	ScheduleRevision  int64     `db:"schedule_revision" json:"schedule_revision"`
+	ObservedNextRunAt time.Time `db:"observed_next_run_at" json:"observed_next_run_at"`
+	Now               time.Time `db:"now" json:"now"`
+	EarliestNextRunAt time.Time `db:"earliest_next_run_at" json:"earliest_next_run_at"`
+}
+
+// Claims the observed occurrence of an enabled schedule automation until
+// claimed_until, so only the claimer runs its prompt hooks and publishes
+// it. It affects no row when the schedule revision or the cursor changed
+// since they were observed, the cursor is after now or before
+// earliest_next_run_at (the occurrence expired), or another caller holds a
+// claim that has not expired at now.
+func (q *sqlQuerier) ClaimChatAutomationScheduleOccurrence(ctx context.Context, arg ClaimChatAutomationScheduleOccurrenceParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, claimChatAutomationScheduleOccurrence,
+		arg.ClaimedUntil,
+		arg.ID,
+		arg.ScheduleRevision,
+		arg.ObservedNextRunAt,
+		arg.Now,
+		arg.EarliestNextRunAt,
 	)
 	if err != nil {
 		return 0, err
@@ -5580,7 +5627,7 @@ func (q *sqlQuerier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID)
 
 const getChatAutomationByID = `-- name: GetChatAutomationByID :one
 SELECT
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
 FROM
     chat_automations
 WHERE
@@ -5615,13 +5662,159 @@ func (q *sqlQuerier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (C
 		&i.QueueGeneration,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProjectID,
+		&i.ScheduleClaimedUntil,
 	)
 	return i, err
 }
 
+const getChatAutomationReferencesByChatID = `-- name: GetChatAutomationReferencesByChatID :many
+WITH referenced AS (
+    SELECT
+        chats.automation_id
+    FROM
+        chats
+    WHERE
+        chats.id = $1::uuid
+        AND chats.automation_id IS NOT NULL
+    UNION
+    -- The role, deleted and visibility predicates match
+    -- idx_chat_messages_user_prompts so the index applies.
+    SELECT
+        chat_messages.automation_id
+    FROM
+        chat_messages
+    WHERE
+        chat_messages.chat_id = $1::uuid
+        AND chat_messages.deleted = false
+        AND chat_messages.role = 'user'
+        AND chat_messages.visibility IN ('user', 'both')
+        AND chat_messages.automation_id IS NOT NULL
+    UNION
+    SELECT
+        chat_queued_messages.automation_id
+    FROM
+        chat_queued_messages
+    WHERE
+        chat_queued_messages.chat_id = $1::uuid
+        AND chat_queued_messages.automation_id IS NOT NULL
+)
+SELECT
+    chat_automations.id,
+    chat_automations.name,
+    chat_automations.kind
+FROM
+    referenced
+    JOIN chat_automations ON chat_automations.id = referenced.automation_id
+    JOIN chats ON chats.id = $1::uuid
+WHERE
+    chat_automations.organization_id = chats.organization_id
+ORDER BY
+    chat_automations.id
+`
+
+type GetChatAutomationReferencesByChatIDRow struct {
+	ID   uuid.UUID          `db:"id" json:"id"`
+	Name string             `db:"name" json:"name"`
+	Kind ChatAutomationKind `db:"kind" json:"kind"`
+}
+
+// Returns the id, name and kind of each automation that delivered into
+// the chat: the automation that created the chat, the automations of its
+// visible non-deleted user messages and the automations of its queued
+// messages. Only automations in the chat's organization are returned, and
+// deleted automations are absent.
+func (q *sqlQuerier) GetChatAutomationReferencesByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatAutomationReferencesByChatIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutomationReferencesByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatAutomationReferencesByChatIDRow
+	for rows.Next() {
+		var i GetChatAutomationReferencesByChatIDRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Kind); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatAutomationRunStatusesByIDs = `-- name: GetChatAutomationRunStatusesByIDs :many
+SELECT
+    chat_automations.id,
+    chat_automations.organization_id,
+    chat_automations.owner_id,
+    (users.id IS NOT NULL AND users.status = 'active' AND NOT users.deleted)::boolean AS owner_active,
+    (
+        chat_automations.target_mode <> 'existing_chat'
+        OR (
+            chats.id IS NOT NULL
+            AND NOT chats.archived
+            AND chats.organization_id = chat_automations.organization_id
+            AND chats.owner_id = chat_automations.owner_id
+            AND chats.parent_chat_id IS NULL
+        )
+    )::boolean AS target_available
+FROM
+    chat_automations
+    LEFT JOIN users ON users.id = chat_automations.owner_id
+    LEFT JOIN chats ON chats.id = chat_automations.target_chat_id
+WHERE
+    chat_automations.id = ANY($1::uuid[])
+`
+
+type GetChatAutomationRunStatusesByIDsRow struct {
+	ID              uuid.UUID `db:"id" json:"id"`
+	OrganizationID  uuid.UUID `db:"organization_id" json:"organization_id"`
+	OwnerID         uuid.UUID `db:"owner_id" json:"owner_id"`
+	OwnerActive     bool      `db:"owner_active" json:"owner_active"`
+	TargetAvailable bool      `db:"target_available" json:"target_available"`
+}
+
+// Returns, for each given automation, whether its owner is active and
+// whether its existing_chat target chat is usable, with the same rules
+// that GetDueChatAutomationSchedules and publishing apply. Missing ids
+// are not returned.
+func (q *sqlQuerier) GetChatAutomationRunStatusesByIDs(ctx context.Context, ids []uuid.UUID) ([]GetChatAutomationRunStatusesByIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutomationRunStatusesByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatAutomationRunStatusesByIDsRow
+	for rows.Next() {
+		var i GetChatAutomationRunStatusesByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.OwnerActive,
+			&i.TargetAvailable,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatAutomationsByIDsForUpdate = `-- name: GetChatAutomationsByIDsForUpdate :many
 SELECT
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
 FROM
     chat_automations
 WHERE
@@ -5668,6 +5861,8 @@ func (q *sqlQuerier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids [
 			&i.QueueGeneration,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProjectID,
+			&i.ScheduleClaimedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -5684,11 +5879,14 @@ func (q *sqlQuerier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids [
 
 const getChatAutomationsByOrganizationID = `-- name: GetChatAutomationsByOrganizationID :many
 SELECT
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
 FROM
     chat_automations
 WHERE
     organization_id = $1::uuid
+    -- Authorize Filter clause will be injected below in
+    -- GetAuthorizedChatAutomationsByOrganizationID.
+    -- @authorize_filter
 ORDER BY
     created_at DESC,
     id DESC
@@ -5728,6 +5926,8 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, org
 			&i.QueueGeneration,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProjectID,
+			&i.ScheduleClaimedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -5744,7 +5944,7 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, org
 
 const getChatAutomationsByOrganizationIDAndOwnerID = `-- name: GetChatAutomationsByOrganizationIDAndOwnerID :many
 SELECT
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
 FROM
     chat_automations
 WHERE
@@ -5794,6 +5994,8 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationIDAndOwnerID(ctx context.Co
 			&i.QueueGeneration,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProjectID,
+			&i.ScheduleClaimedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -5810,7 +6012,7 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationIDAndOwnerID(ctx context.Co
 
 const getDueChatAutomationSchedules = `-- name: GetDueChatAutomationSchedules :many
 SELECT
-    chat_automations.id, chat_automations.organization_id, chat_automations.owner_id, chat_automations.name, chat_automations.created_by_chat_id, chat_automations.kind, chat_automations.enabled, chat_automations.target_mode, chat_automations.target_chat_id, chat_automations.new_chat_model_config_id, chat_automations.reasoning_effort, chat_automations.when_busy, chat_automations.webhook_use, chat_automations.webhook_secret_hash, chat_automations.webhook_secret_version, chat_automations.webhook_consumed_at, chat_automations.prompt, chat_automations.schedule_cron, chat_automations.schedule_time_zone, chat_automations.schedule_revision, chat_automations.schedule_next_run_at, chat_automations.queue_generation, chat_automations.created_at, chat_automations.updated_at
+    chat_automations.id, chat_automations.organization_id, chat_automations.owner_id, chat_automations.name, chat_automations.created_by_chat_id, chat_automations.kind, chat_automations.enabled, chat_automations.target_mode, chat_automations.target_chat_id, chat_automations.new_chat_model_config_id, chat_automations.reasoning_effort, chat_automations.when_busy, chat_automations.webhook_use, chat_automations.webhook_secret_hash, chat_automations.webhook_secret_version, chat_automations.webhook_consumed_at, chat_automations.prompt, chat_automations.schedule_cron, chat_automations.schedule_time_zone, chat_automations.schedule_revision, chat_automations.schedule_next_run_at, chat_automations.queue_generation, chat_automations.created_at, chat_automations.updated_at, chat_automations.project_id, chat_automations.schedule_claimed_until
 FROM
     chat_automations
     JOIN users ON users.id = chat_automations.owner_id
@@ -5820,6 +6022,10 @@ WHERE
     AND chat_automations.enabled
     AND chat_automations.schedule_next_run_at <= $1::timestamptz
     AND (chat_automations.schedule_next_run_at, chat_automations.id) > ($2::timestamptz, $3::uuid)
+    AND (
+        chat_automations.schedule_claimed_until IS NULL
+        OR chat_automations.schedule_claimed_until <= $1::timestamptz
+    )
     AND users.status = 'active'
     AND NOT users.deleted
     AND (
@@ -5843,9 +6049,10 @@ type GetDueChatAutomationSchedulesParams struct {
 // Returns enabled schedule automations whose cursor is at or before now,
 // oldest cursor first, starting after the (after_next_run_at, after_id)
 // keyset so callers can page through every due row. Automations of
-// inactive owners and existing_chat automations whose target chat is gone
-// or archived are left out. It takes no locks: publishing rechecks each
-// row under the chat and automation locks.
+// inactive owners, existing_chat automations whose target chat is gone
+// or archived, and occurrences another instance holds an unexpired claim
+// on are left out. It takes no locks: publishing rechecks each row under
+// the chat and automation locks.
 func (q *sqlQuerier) GetDueChatAutomationSchedules(ctx context.Context, arg GetDueChatAutomationSchedulesParams) ([]ChatAutomation, error) {
 	rows, err := q.db.QueryContext(ctx, getDueChatAutomationSchedules,
 		arg.Now,
@@ -5885,6 +6092,8 @@ func (q *sqlQuerier) GetDueChatAutomationSchedules(ctx context.Context, arg GetD
 			&i.QueueGeneration,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProjectID,
+			&i.ScheduleClaimedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -5920,6 +6129,7 @@ INSERT INTO chat_automations (
     schedule_cron,
     schedule_time_zone,
     schedule_next_run_at,
+    project_id,
     created_at,
     updated_at
 ) VALUES (
@@ -5945,10 +6155,11 @@ INSERT INTO chat_automations (
     $18,
     $19,
     $20,
-    $21
+    $21,
+    $22
 )
 RETURNING
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
 `
 
 type InsertChatAutomationParams struct {
@@ -5971,6 +6182,7 @@ type InsertChatAutomationParams struct {
 	ScheduleCron         sql.NullString               `db:"schedule_cron" json:"schedule_cron"`
 	ScheduleTimeZone     sql.NullString               `db:"schedule_time_zone" json:"schedule_time_zone"`
 	ScheduleNextRunAt    sql.NullTime                 `db:"schedule_next_run_at" json:"schedule_next_run_at"`
+	ProjectID            uuid.NullUUID                `db:"project_id" json:"project_id"`
 	CreatedAt            time.Time                    `db:"created_at" json:"created_at"`
 	UpdatedAt            time.Time                    `db:"updated_at" json:"updated_at"`
 }
@@ -5996,6 +6208,7 @@ func (q *sqlQuerier) InsertChatAutomation(ctx context.Context, arg InsertChatAut
 		arg.ScheduleCron,
 		arg.ScheduleTimeZone,
 		arg.ScheduleNextRunAt,
+		arg.ProjectID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -6025,8 +6238,45 @@ func (q *sqlQuerier) InsertChatAutomation(ctx context.Context, arg InsertChatAut
 		&i.QueueGeneration,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProjectID,
+		&i.ScheduleClaimedUntil,
 	)
 	return i, err
+}
+
+const releaseChatAutomationScheduleClaim = `-- name: ReleaseChatAutomationScheduleClaim :execrows
+UPDATE
+    chat_automations
+SET
+    schedule_claimed_until = NULL
+WHERE
+    id = $1::uuid
+    AND schedule_revision = $2::bigint
+    AND schedule_next_run_at = $3::timestamptz
+    AND schedule_claimed_until = $4::timestamptz
+`
+
+type ReleaseChatAutomationScheduleClaimParams struct {
+	ID                uuid.UUID `db:"id" json:"id"`
+	ScheduleRevision  int64     `db:"schedule_revision" json:"schedule_revision"`
+	ObservedNextRunAt time.Time `db:"observed_next_run_at" json:"observed_next_run_at"`
+	ClaimedUntil      time.Time `db:"claimed_until" json:"claimed_until"`
+}
+
+// Drops the caller's claim on the observed occurrence, so a later scan can
+// retry it. It affects no row when the schedule revision or the cursor
+// changed, or the claim is no longer the one the caller set.
+func (q *sqlQuerier) ReleaseChatAutomationScheduleClaim(ctx context.Context, arg ReleaseChatAutomationScheduleClaimParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, releaseChatAutomationScheduleClaim,
+		arg.ID,
+		arg.ScheduleRevision,
+		arg.ObservedNextRunAt,
+		arg.ClaimedUntil,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateChatAutomationByID = `-- name: UpdateChatAutomationByID :one
@@ -6045,11 +6295,12 @@ SET
     schedule_next_run_at = $10,
     enabled = $11,
     queue_generation = $12,
-    updated_at = $13
+    project_id = $13,
+    updated_at = $14
 WHERE
-    id = $14::uuid
+    id = $15::uuid
 RETURNING
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
 `
 
 type UpdateChatAutomationByIDParams struct {
@@ -6065,6 +6316,7 @@ type UpdateChatAutomationByIDParams struct {
 	ScheduleNextRunAt    sql.NullTime               `db:"schedule_next_run_at" json:"schedule_next_run_at"`
 	Enabled              bool                       `db:"enabled" json:"enabled"`
 	QueueGeneration      int64                      `db:"queue_generation" json:"queue_generation"`
+	ProjectID            uuid.NullUUID              `db:"project_id" json:"project_id"`
 	UpdatedAt            time.Time                  `db:"updated_at" json:"updated_at"`
 	ID                   uuid.UUID                  `db:"id" json:"id"`
 }
@@ -6083,6 +6335,7 @@ func (q *sqlQuerier) UpdateChatAutomationByID(ctx context.Context, arg UpdateCha
 		arg.ScheduleNextRunAt,
 		arg.Enabled,
 		arg.QueueGeneration,
+		arg.ProjectID,
 		arg.UpdatedAt,
 		arg.ID,
 	)
@@ -6112,6 +6365,8 @@ func (q *sqlQuerier) UpdateChatAutomationByID(ctx context.Context, arg UpdateCha
 		&i.QueueGeneration,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProjectID,
+		&i.ScheduleClaimedUntil,
 	)
 	return i, err
 }
@@ -6126,7 +6381,7 @@ SET
 WHERE
     id = $3::uuid
 RETURNING
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
 `
 
 type UpdateChatAutomationWebhookSecretByIDParams struct {
@@ -6165,6 +6420,8 @@ func (q *sqlQuerier) UpdateChatAutomationWebhookSecretByID(ctx context.Context, 
 		&i.QueueGeneration,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProjectID,
+		&i.ScheduleClaimedUntil,
 	)
 	return i, err
 }
@@ -10835,6 +11092,114 @@ func (q *sqlQuerier) GetChatMessagesByRevisionForStream(ctx context.Context, arg
 	return items, nil
 }
 
+const getChatMessagesForAutomationTurnTrigger = `-- name: GetChatMessagesForAutomationTurnTrigger :many
+WITH prompt AS (
+    SELECT
+        id
+    FROM
+        chat_messages
+    WHERE
+        chat_id = $1::uuid
+        AND role = 'user'
+        AND visibility IN ('user', 'both')
+        AND deleted = false
+        AND compressed = false
+    ORDER BY
+        id DESC
+    LIMIT 1
+), boundary AS (
+    SELECT
+        COALESCE((
+            SELECT
+                prior.id
+            FROM
+                chat_messages AS prior, prompt
+            WHERE
+                prior.chat_id = $1::uuid
+                AND prior.id < prompt.id
+                AND prior.role <> 'user'
+                AND prior.visibility IN ('user', 'both')
+                AND prior.deleted = false
+                AND prior.compressed = false
+            ORDER BY
+                prior.id DESC
+            LIMIT 1
+        ), 0)::bigint AS id
+)
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND role = 'user'
+    AND visibility IN ('user', 'both')
+    AND deleted = false
+    AND EXISTS (SELECT 1 FROM prompt)
+    AND id > (SELECT boundary.id FROM boundary)
+ORDER BY
+    id ASC
+`
+
+// Returns the user rows of the chat's current turn: every user row after the
+// latest non-user row that precedes the latest user prompt. It reads the same
+// rows as GetChatMessagesByChatID (visibility user or both, not deleted), so
+// the manage_automations reached-turn check gives the same result over these
+// rows as over the full history without loading it. A user prompt is a user
+// row that is not compressed, and a compressed row never ends the turn. A
+// chat without a user prompt returns no rows.
+func (q *sqlQuerier) GetChatMessagesForAutomationTurnTrigger(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesForAutomationTurnTrigger, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+			&i.RuntimeMs,
+			&i.Deleted,
+			&i.ProviderResponseID,
+			&i.Revision,
+			&i.ReasoningEffort,
+			&i.SearchTsv,
+			&i.SearchTsvConfig,
+			&i.QueuedMessageID,
+			&i.AutomationID,
+			&i.InputID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatMessagesForPromptByChatID = `-- name: GetChatMessagesForPromptByChatID :many
 WITH latest_compressed_summary AS (
     SELECT
@@ -11501,7 +11866,7 @@ WITH cursor_chat AS (
         updated_at,
         id
     FROM chats
-    WHERE id = $8
+    WHERE id = $9
 )
 SELECT
     chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.project_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at, chats_expanded.title_source, chats_expanded.title_updated_at, chats_expanded.automation_id, chats_expanded.manage_automations_enabled,
@@ -11536,11 +11901,15 @@ WHERE
         ELSE true
     END
     AND CASE
+        WHEN $8::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats_expanded.organization_id = $8::uuid
+        ELSE true
+    END
+    AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
         -- which lets us use a single tuple < comparison.
-        WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+        WHEN $9 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
             (CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END, -chats_expanded.pin_order, chats_expanded.updated_at, chats_expanded.id) < (
                 SELECT
                     CASE WHEN cursor_chat.pin_order > 0 THEN 1 ELSE 0 END,
@@ -11554,7 +11923,7 @@ WHERE
         ELSE true
     END
     AND CASE
-        WHEN $9::jsonb IS NOT NULL THEN chats_expanded.labels @> $9::jsonb
+        WHEN $10::jsonb IS NOT NULL THEN chats_expanded.labels @> $10::jsonb
         ELSE true
     END
     -- Match chats whose linked diff URL (e.g. a pull request URL)
@@ -11562,25 +11931,27 @@ WHERE
     -- a delegated sub-agent's diff status, so we surface the root chat
     -- when any descendant matches.
     AND CASE
-        WHEN $10::text IS NOT NULL THEN EXISTS (
+        WHEN $11::text IS NOT NULL THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             JOIN chats c2 ON c2.id = cds.chat_id
             WHERE cds.url IS NOT NULL
               AND cds.url <> ''
-              AND LOWER(cds.url) = LOWER($10::text)
+              AND LOWER(cds.url) = LOWER($11::text)
               AND (c2.id = chats_expanded.id OR c2.root_chat_id = chats_expanded.id)
         )
         ELSE true
     END
-    -- Filter by title substring (case-insensitive). Applied when the
-    -- caller provides a non-empty title_query.
+    -- Filter by literal title substring (case-insensitive). Applied when
+    -- the caller provides a non-empty title_query. The query escapes
+    -- backslash, '%' and '_' so they match literally instead of acting
+    -- as ILIKE wildcards.
     AND CASE
-        WHEN $11 :: text != '' THEN chats_expanded.title ILIKE '%' || $11 || '%'
+        WHEN $12 :: text != '' THEN chats_expanded.title ILIKE '%' || replace(replace(replace($12 :: text, '\', '\\'), '%', '\%'), '_', '\_') || '%' ESCAPE '\'
         ELSE true
     END
     AND CASE
-        WHEN $12::boolean IS NOT NULL THEN (
+        WHEN $13::boolean IS NOT NULL THEN (
             EXISTS (
                 SELECT 1 FROM chat_messages cm
                 WHERE cm.chat_id = chats_expanded.id
@@ -11588,14 +11959,14 @@ WHERE
                     AND cm.deleted = false
                     AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
             )
-        ) = $12::boolean
+        ) = $13::boolean
         ELSE true
     END
     -- Filter by the stored chat_status enum, the same value the sidebar
     -- row icon uses.
     AND CASE
-        WHEN COALESCE(array_length($13::text[], 1), 0) > 0 THEN
-            chats_expanded.status::text = ANY($13::text[])
+        WHEN COALESCE(array_length($14::text[], 1), 0) > 0 THEN
+            chats_expanded.status::text = ANY($14::text[])
         ELSE true
     END
     -- Filter by pull request status. Unlike the diff_url filter above,
@@ -11606,9 +11977,9 @@ WHERE
     -- "none" matches chats with no pull request: no diff-status row, or a
     -- row whose pull_request_state is null or empty.
     AND CASE
-        WHEN COALESCE(array_length($14::text[], 1), 0) > 0 THEN (
+        WHEN COALESCE(array_length($15::text[], 1), 0) > 0 THEN (
             (
-                'none' = ANY($14::text[])
+                'none' = ANY($15::text[])
                 AND NOT EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
@@ -11626,56 +11997,56 @@ WHERE
                             WHEN cds.pull_request_state = 'open' THEN 'open'
                             ELSE cds.pull_request_state
                         END
-                    ) = ANY($14::text[])
+                    ) = ANY($15::text[])
             )
         )
         ELSE true
     END
     -- Filter by PR number (exact match on chat's diff status).
     AND CASE
-        WHEN $15::int != 0 THEN EXISTS (
+        WHEN $16::int != 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pr_number = $15
+                AND cds.pr_number = $16
         )
         ELSE true
     END
     -- Filter by repository (substring match on remote origin or PR URL).
     AND CASE
-        WHEN $16::text != '' THEN EXISTS (
+        WHEN $17::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
                 AND (
-                    cds.git_remote_origin ILIKE '%' || $16 || '%'
-                    OR cds.url ILIKE '%' || $16 || '%'
+                    cds.git_remote_origin ILIKE '%' || $17 || '%'
+                    OR cds.url ILIKE '%' || $17 || '%'
                 )
         )
         ELSE true
     END
     -- Filter by pull request title (case-insensitive substring).
     AND CASE
-        WHEN $17::text != '' THEN EXISTS (
+        WHEN $18::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pull_request_title ILIKE '%' || $17 || '%'
+                AND cds.pull_request_title ILIKE '%' || $18 || '%'
         )
         ELSE true
     END
     -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
     -- the 'simple' config folds case and skips stemming.
     AND CASE
-        WHEN $18::text != '' THEN (
+        WHEN $19::text != '' THEN (
             -- Served by idx_chats_title_fts.
-            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $18)
+            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $19)
             -- Served by idx_chat_diff_statuses_pr_title_fts.
             OR EXISTS (
                 SELECT 1
                 FROM chat_diff_statuses cds
                 WHERE cds.chat_id = chats_expanded.id
-                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $18)
+                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $19)
             )
             -- The WHERE clause must repeat the predicate of the partial index
             -- idx_chat_messages_search_tsv so the planner can use it. Additional
@@ -11689,18 +12060,18 @@ WHERE
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
                     AND (
-                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $18))
-                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $18))
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $19))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $19))
                     )
             )
             -- Digits only, so LIKE sees no metacharacters; a per-chat PK probe.
             OR CASE
-                WHEN $18 ~ '^[0-9]+$' THEN EXISTS (
+                WHEN $19 ~ '^[0-9]+$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number::text LIKE $18 || '%'
+                        AND cds.pr_number::text LIKE $19 || '%'
                 )
                 ELSE false
             END
@@ -11710,13 +12081,13 @@ WHERE
     -- Filter to chats an automation created or sent messages to. Served
     -- by chats_automation_idx and chat_messages_automation_idx.
     AND CASE
-        WHEN $19::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-            chats_expanded.automation_id = $19::uuid
+        WHEN $20::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+            chats_expanded.automation_id = $20::uuid
             OR EXISTS (
                 SELECT 1
                 FROM chat_messages cm
                 WHERE cm.chat_id = chats_expanded.id
-                    AND cm.automation_id = $19::uuid
+                    AND cm.automation_id = $20::uuid
                     AND cm.deleted = false
             )
         )
@@ -11738,11 +12109,11 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $20
+OFFSET $21
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($21 :: int, 0), 50)
+    COALESCE(NULLIF($22 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
@@ -11753,6 +12124,7 @@ type GetChatsParams struct {
 	SharedWithGroupIds  []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
 	Archived            sql.NullBool          `db:"archived" json:"archived"`
 	ProjectID           uuid.NullUUID         `db:"project_id" json:"project_id"`
+	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
 	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
 	LabelFilter         pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
 	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
@@ -11783,6 +12155,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,
 		arg.ProjectID,
+		arg.OrganizationID,
 		arg.AfterID,
 		arg.LabelFilter,
 		arg.DiffURL,
@@ -11890,6 +12263,90 @@ WHERE
 
 func (q *sqlQuerier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, getChatsByChatFileID, fileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+			&i.CompactionRequestedAt,
+			&i.TitleSource,
+			&i.TitleUpdatedAt,
+			&i.AutomationID,
+			&i.ManageAutomationsEnabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsByIDs = `-- name: GetChatsByIDs :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at, automation_id, manage_automations_enabled
+FROM chats_expanded
+WHERE id = ANY($1::uuid[])
+ORDER BY id ASC
+`
+
+// Returns the given chats. Missing ids are not returned.
+func (q *sqlQuerier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
@@ -23586,6 +24043,65 @@ func (q *sqlQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uu
 	for rows.Next() {
 		var i GetOrganizationIDsByMemberIDsRow
 		if err := rows.Scan(&i.UserID, pq.Array(&i.OrganizationIDs)); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOrganizationMembersByUserIDs = `-- name: GetOrganizationMembersByUserIDs :many
+SELECT
+	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
+	users.username, users.name, users.avatar_url
+FROM
+	organization_members
+		INNER JOIN
+	users ON organization_members.user_id = users.id AND users.deleted = false
+WHERE
+	organization_members.organization_id = $1 :: uuid
+	AND organization_members.user_id = ANY($2 :: uuid[])
+`
+
+type GetOrganizationMembersByUserIDsParams struct {
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	UserIds        []uuid.UUID `db:"user_ids" json:"user_ids"`
+}
+
+type GetOrganizationMembersByUserIDsRow struct {
+	OrganizationMember OrganizationMember `db:"organization_member" json:"organization_member"`
+	Username           string             `db:"username" json:"username"`
+	Name               string             `db:"name" json:"name"`
+	AvatarURL          string             `db:"avatar_url" json:"avatar_url"`
+}
+
+// Returns the members of an organization among the given users, with
+// their display data. Deleted users and non-members are not returned.
+func (q *sqlQuerier) GetOrganizationMembersByUserIDs(ctx context.Context, arg GetOrganizationMembersByUserIDsParams) ([]GetOrganizationMembersByUserIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationMembersByUserIDs, arg.OrganizationID, pq.Array(arg.UserIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrganizationMembersByUserIDsRow
+	for rows.Next() {
+		var i GetOrganizationMembersByUserIDsRow
+		if err := rows.Scan(
+			&i.OrganizationMember.UserID,
+			&i.OrganizationMember.OrganizationID,
+			&i.OrganizationMember.CreatedAt,
+			&i.OrganizationMember.UpdatedAt,
+			pq.Array(&i.OrganizationMember.Roles),
+			&i.Username,
+			&i.Name,
+			&i.AvatarURL,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -797,6 +797,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 				open={unsavedChanges.isOpen}
 				onClose={unsavedChanges.onCancel}
 				onConfirm={unsavedChanges.onConfirm}
+				onCloseAutoFocus={unsavedChanges.onCloseAutoFocus}
 				title="Unsaved changes"
 				confirmText="Confirm"
 				description={

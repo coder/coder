@@ -1,4 +1,5 @@
 import {
+	type InfiniteData,
 	infiniteQueryOptions,
 	type QueryClient,
 	queryOptions,
@@ -10,6 +11,7 @@ import { invalidateChatListQueries } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatAutomation,
+	ChatAutomationReference,
 	ChatAutomationRunResponse,
 	ChatAutomationSchedulePreviewRequest,
 	CreateChatAutomationRequest,
@@ -27,29 +29,52 @@ export const chatAutomations = (organizationId: string) => ({
 		API.experimental.getChatAutomations(organizationId),
 });
 
-/** Automation IDs mapped to names. Deleted or unreadable automations are absent. */
-export type ChatAutomationNameMap = ReadonlyMap<string, string>;
+/** Automation IDs mapped to their references. Deleted automations are absent. */
+export type ChatAutomationReferenceMap = ReadonlyMap<
+	string,
+	ChatAutomationReference
+>;
 
-const selectChatAutomationNames = (
-	automations: ChatAutomation[],
-): ChatAutomationNameMap =>
-	new Map(automations.map((automation) => [automation.id, automation.name]));
+const chatAutomationReferencesFamilyKey = [
+	"chat-automation-references",
+] as const;
 
-export const chatAutomationNameMap = (
-	organizationId: string | undefined,
+export const chatAutomationReferencesKey = (chatId: string) =>
+	[...chatAutomationReferencesFamilyKey, chatId] as const;
+
+const selectChatAutomationReferences = (
+	references: ChatAutomationReference[],
+): ChatAutomationReferenceMap =>
+	new Map(references.map((reference) => [reference.id, reference] as const));
+
+/** Names the automations that delivered into a chat. */
+export const chatAutomationReferences = (
+	chatId: string,
 	{ enabled }: { enabled: boolean },
 ) =>
 	({
-		...chatAutomations(organizationId ?? ""),
-		select: selectChatAutomationNames,
-		enabled: Boolean(organizationId) && enabled,
+		queryKey: chatAutomationReferencesKey(chatId),
+		queryFn: () => API.experimental.getChatAutomationReferences(chatId),
+		select: selectChatAutomationReferences,
+		enabled,
 	}) satisfies UseQueryOptions<
-		ChatAutomation[],
+		ChatAutomationReference[],
 		unknown,
-		ChatAutomationNameMap
+		ChatAutomationReferenceMap,
+		ReturnType<typeof chatAutomationReferencesKey>
 	>;
 
-/** Refetches automation names, for example after new automation input. */
+/** Omit chatId to refetch every chat. */
+export const invalidateChatAutomationReferences = (
+	queryClient: QueryClient,
+	chatId?: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: chatId
+			? chatAutomationReferencesKey(chatId)
+			: chatAutomationReferencesFamilyKey,
+	});
+
 export const invalidateChatAutomations = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({ queryKey: chatAutomationsFamilyKey });
 
@@ -72,10 +97,13 @@ export const createChatAutomation = (
 		}
 		return response;
 	},
-	onSettled: () =>
-		queryClient.invalidateQueries({
+	// Not awaited, so the mutation stops pending when the response arrives
+	// instead of after the list refetch.
+	onSettled: () => {
+		void queryClient.invalidateQueries({
 			queryKey: chatAutomationsKey(organizationId),
-		}),
+		});
+	},
 });
 
 export const rotateChatAutomationSecret = (
@@ -92,10 +120,12 @@ export const rotateChatAutomationSecret = (
 		onWebhookSecret(automationId, webhook_secret);
 		return response;
 	},
-	onSettled: () =>
-		queryClient.invalidateQueries({
+	// Not awaited, so the mutation stops pending when the response arrives.
+	onSettled: () => {
+		void queryClient.invalidateQueries({
 			queryKey: chatAutomationsKey(organizationId),
-		}),
+		});
+	},
 });
 
 export const chatAutomationSchedulePreviewKey = (
@@ -139,6 +169,40 @@ export const updateChatAutomation = (
 		req: UpdateChatAutomationRequest;
 	}) =>
 		API.experimental.updateChatAutomation(organizationId, automationId, req),
+	// Awaited, unlike create and rotate: the list's enabled switch stays
+	// pending until the refetched list shows the new state.
+	onSettled: () =>
+		queryClient.invalidateQueries({
+			queryKey: chatAutomationsKey(organizationId),
+		}),
+});
+
+const removeCachedAutomation = (
+	queryClient: QueryClient,
+	organizationId: string,
+	automationId: string,
+) =>
+	queryClient.setQueryData<ChatAutomation[]>(
+		chatAutomationsKey(organizationId),
+		(automations) =>
+			automations?.filter((automation) => automation.id !== automationId),
+	);
+
+export const deleteChatAutomation = (
+	queryClient: QueryClient,
+	organizationId: string,
+) => ({
+	mutationFn: (automationId: string) =>
+		API.experimental.deleteChatAutomation(organizationId, automationId),
+	// Drops the row right away, before the dialog closes, so focus moves to
+	// a stable element instead of the removed row.
+	onSuccess: (_: unknown, automationId: string) =>
+		removeCachedAutomation(queryClient, organizationId, automationId),
+	onError: (error: unknown, automationId: string) => {
+		if (getErrorStatus(error) === 404) {
+			removeCachedAutomation(queryClient, organizationId, automationId);
+		}
+	},
 	onSettled: () =>
 		queryClient.invalidateQueries({
 			queryKey: chatAutomationsKey(organizationId),
@@ -155,14 +219,31 @@ export const invalidateAutomationChats = (queryClient: QueryClient) =>
 
 const automationChatsPageSize = 25;
 
+// The first page has no cursor.
+const firstChatsPage: string | undefined = undefined;
+
+// A chat that moves up between page requests can appear on two pages.
+const selectUniqueChats = (data: InfiniteData<Chat[]>): Chat[] => {
+	const seen = new Set<string>();
+	return data.pages.flat().filter((chat) => {
+		if (seen.has(chat.id)) {
+			return false;
+		}
+		seen.add(chat.id);
+		return true;
+	});
+};
+
 export const automationChats = (automationId: string) =>
 	infiniteQueryOptions({
 		queryKey: automationChatsKey(automationId),
-		initialPageParam: 0,
-		getNextPageParam: (lastPage: Chat[], pages: Chat[][]) =>
+		initialPageParam: firstChatsPage,
+		// Pages by cursor, not offset: new runs add chats to the top while the
+		// dialog is open, which would shift every offset.
+		getNextPageParam: (lastPage: Chat[]) =>
 			lastPage.length < automationChatsPageSize
 				? undefined
-				: pages.length * automationChatsPageSize,
+				: lastPage.at(-1)?.id,
 		queryFn: ({ pageParam, signal }) =>
 			API.experimental.getChats(
 				{
@@ -171,10 +252,11 @@ export const automationChats = (automationId: string) =>
 					// created or wrote to them.
 					q: "archived:any",
 					limit: automationChatsPageSize,
-					offset: pageParam,
+					after_id: pageParam,
 				},
 				signal,
 			),
+		select: selectUniqueChats,
 	});
 
 export const runChatAutomation = (

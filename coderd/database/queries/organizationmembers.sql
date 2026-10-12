@@ -38,6 +38,20 @@ WHERE
     ELSE true
   END;
 
+-- name: GetOrganizationMembersByUserIDs :many
+-- Returns the members of an organization among the given users, with
+-- their display data. Deleted users and non-members are not returned.
+SELECT
+	sqlc.embed(organization_members),
+	users.username, users.name, users.avatar_url
+FROM
+	organization_members
+		INNER JOIN
+	users ON organization_members.user_id = users.id AND users.deleted = false
+WHERE
+	organization_members.organization_id = @organization_id :: uuid
+	AND organization_members.user_id = ANY(@user_ids :: uuid[]);
+
 -- name: InsertOrganizationMember :one
 INSERT INTO
 	organization_members (

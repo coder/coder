@@ -309,6 +309,12 @@ Configure the background chat processing daemon.
           count. A turn that reaches the limit runs the tools from the last
           response, then ends without an error. Must be at least 1.
 
+      --chat-min-automation-schedule-interval duration, $CODER_CHAT_MIN_AUTOMATION_SCHEDULE_INTERVAL (default: 5m0s)
+          Minimum time between two runs of a chat schedule automation. Creating
+          a schedule, or changing one, that runs more often fails with HTTP 400.
+          Existing schedules that run more often keep running, and the API marks
+          them. Must be between 1m and 24h.
+
       --chat-stream-silence-timeout duration, $CODER_CHAT_STREAM_SILENCE_TIMEOUT (default: 10m0s)
           Maximum time to wait for the next streamed part from the chat model
           before the attempt is canceled and retried. This also bounds the time

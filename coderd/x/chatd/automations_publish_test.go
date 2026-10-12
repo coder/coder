@@ -124,6 +124,17 @@ func (f publishFixture) newChatWebhook(ctx context.Context, t *testing.T, use co
 	return automation
 }
 
+// inProject moves the chats a new_chat automation creates into a new
+// project of the owner and returns the updated automation and project.
+func (f publishFixture) inProject(ctx context.Context, t *testing.T, automation database.ChatAutomation) (database.ChatAutomation, database.ChatProject) {
+	t.Helper()
+	project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+	_, updated, err := f.server.UpdateAutomation(ctx, f.owner.ID, automation.ID, codersdk.UpdateChatAutomationRequest{ProjectID: &project.ID}, nil)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, updated.ProjectID)
+	return updated, project
+}
+
 // singleUseWebhook creates a single-use webhook automation with the
 // given target mode.
 func (f publishFixture) singleUseWebhook(ctx context.Context, t *testing.T, targetMode codersdk.ChatAutomationTargetMode) database.ChatAutomation {
@@ -443,6 +454,81 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		require.Equal(t, f.chat.ID, result.ChatID)
 	})
 
+	t.Run("QueueFullOfStaleRowsAcceptsMessages", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name  string
+			hooks bool
+			// person sends as a person; otherwise a webhook publishes.
+			person bool
+		}{
+			{name: "Person", person: true},
+			{name: "PersonWithHooks", person: true, hooks: true},
+			{name: "Webhook"},
+			{name: "WebhookWithHooks", hooks: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				const maxQueued = 2
+				var hookCalls *atomic.Int64
+				f := newPublishFixture(t, database.ChatStatusError, func(cfg *chatd.Config) {
+					cfg.Limits = chatd.Limits{MaxQueuedMessagesPerChat: maxQueued}
+					if tc.hooks {
+						var consumer *httptest.Server
+						consumer, hookCalls = newHookConsumer(t, hookNoDecision, nil)
+						cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
+					}
+				})
+				ctx := testutil.Context(t, testutil.WaitLong)
+				// A cleanup that failed leaves the rows of a disabled
+				// automation behind, filling the errored chat's queue.
+				filler := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti, codersdk.ChatAutomationWhenBusyQueue)
+				content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("stale")})
+				require.NoError(t, err)
+				for range maxQueued {
+					_, err := f.db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+						ChatID:          f.chat.ID,
+						Content:         content.RawMessage,
+						CreatedBy:       f.owner.ID,
+						AutomationID:    uuid.NullUUID{UUID: filler.ID, Valid: true},
+						InputID:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
+						QueueGeneration: sql.NullInt64{Int64: filler.QueueGeneration, Valid: true},
+					})
+					require.NoError(t, err)
+				}
+				_, err = f.sqlDB.ExecContext(ctx,
+					"UPDATE chat_automations SET enabled = false, queue_generation = queue_generation + 1 WHERE id = $1", filler.ID)
+				require.NoError(t, err)
+
+				// wantAutomation is the automation of the delivered
+				// message; a person's message has none.
+				var wantAutomation uuid.NullUUID
+				if tc.person {
+					_, err = f.server.SendMessage(ctx, chatd.SendMessageOptions{
+						ChatID:    f.chat.ID,
+						CreatedBy: f.owner.ID,
+						Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("from a person")},
+					})
+				} else {
+					automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti, codersdk.ChatAutomationWhenBusyQueue)
+					wantAutomation = uuid.NullUUID{UUID: automation.ID, Valid: true}
+					_, err = f.publish(ctx, automation)
+				}
+				require.NoError(t, err)
+				if tc.hooks {
+					require.EqualValues(t, 1, hookCalls.Load(), "the message passes the hook pre-check")
+				}
+				queued, err := f.db.GetChatQueuedMessages(ctx, f.chat.ID)
+				require.NoError(t, err)
+				require.Empty(t, queued, "the stale rows are deleted and the message is promoted")
+				messages := chatMessages(ctx, t, f.db, f.chat.ID)
+				require.Len(t, messages, 1)
+				require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
+				require.Equal(t, wantAutomation, messages[0].AutomationID)
+			})
+		}
+	})
+
 	t.Run("RefusedOwner", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
@@ -558,7 +644,7 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		chat, err := f.db.GetChatByID(ctx, result.ChatID)
 		require.NoError(t, err)
 		require.Equal(t, uuid.NullUUID{UUID: automation.ID, Valid: true}, chat.AutomationID)
-		require.Equal(t, "Deploy hook 2026-03-04 21:07 UTC", chat.Title)
+		require.Equal(t, "Deploy hook · 4 Mar 21:07 UTC", chat.Title)
 		// A user title source keeps title generation from replacing the
 		// automation title with one derived from the event data.
 		require.Equal(t, database.ChatTitleSourceUser, chat.TitleSource)
@@ -583,6 +669,76 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		require.Len(t, parts, 2)
 		require.Equal(t, codersdk.ChatMessageText("A deploy finished."), parts[0])
 		require.Contains(t, parts[1].Text, "<automation_event_data>\n{\"service\":\"api\"}\n</automation_event_data>")
+	})
+
+	t.Run("NewChatProject", func(t *testing.T) {
+		t.Parallel()
+		f := newPublishFixture(t, database.ChatStatusWaiting)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automation, project := f.inProject(ctx, t, f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti))
+
+		result, err := f.publish(ctx, automation)
+		require.NoError(t, err)
+		chat, err := f.db.GetChatByID(ctx, result.ChatID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, chat.ProjectID)
+
+		// A deleted project clears the reference, and later chats have no
+		// project.
+		require.NoError(t, f.db.DeleteChatProjectByID(ctx, project.ID))
+		result, err = f.publish(ctx, automation)
+		require.NoError(t, err)
+		chat, err = f.db.GetChatByID(ctx, result.ChatID)
+		require.NoError(t, err)
+		require.False(t, chat.ProjectID.Valid)
+	})
+
+	t.Run("NewChatProjectExperimentOff", func(t *testing.T) {
+		t.Parallel()
+		experiments := slices.DeleteFunc(slices.Clone(codersdk.ExperimentsKnown), func(e codersdk.Experiment) bool {
+			return e == codersdk.ExperimentChatProjects
+		})
+		f := newPublishFixture(t, database.ChatStatusWaiting, func(cfg *chatd.Config) {
+			cfg.Experiments = experiments
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti)
+		// The project was stored while the experiment was on.
+		project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+		_, err := f.sqlDB.ExecContext(ctx, "UPDATE chat_automations SET project_id = $1 WHERE id = $2", project.ID, automation.ID)
+		require.NoError(t, err)
+
+		result, err := f.publish(ctx, automation)
+		require.NoError(t, err)
+		chat, err := f.db.GetChatByID(ctx, result.ChatID)
+		require.NoError(t, err)
+		require.False(t, chat.ProjectID.Valid)
+		// The reference is kept for when the experiment is on again.
+		stored, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, stored.ProjectID)
+	})
+
+	t.Run("NewChatProjectNotUsable", func(t *testing.T) {
+		t.Parallel()
+		f := newPublishFixture(t, database.ChatStatusWaiting)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti)
+		// The owner can no longer use the stored project: it belongs to
+		// another user, which the service refuses to store.
+		other := dbgen.User(t, f.db, database.User{})
+		project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: other.ID})
+		_, err := f.sqlDB.ExecContext(ctx, "UPDATE chat_automations SET project_id = $1 WHERE id = $2", project.ID, automation.ID)
+		require.NoError(t, err)
+
+		result, err := f.publish(ctx, automation)
+		require.NoError(t, err)
+		chat, err := f.db.GetChatByID(ctx, result.ChatID)
+		require.NoError(t, err)
+		require.False(t, chat.ProjectID.Valid)
+		stored, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, stored.ProjectID)
 	})
 
 	t.Run("NewChatModelUnavailable", func(t *testing.T) {
@@ -629,15 +785,28 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		// the checks repeated under the automation lock, after the chat
 		// row is inserted.
 		for _, tc := range []struct {
-			name   string
-			change func(publishFixture, context.Context) error
-			want   error
+			name      string
+			inProject bool
+			change    func(publishFixture, context.Context) error
+			want      error
 		}{
-			{"ModelDisabled", func(f publishFixture, ctx context.Context) error {
+			{"ModelDisabled", false, func(f publishFixture, ctx context.Context) error {
 				_, err := f.sqlDB.ExecContext(ctx, "UPDATE chat_model_configs SET enabled = false WHERE id = $1", f.model.ID)
 				return err
 			}, chatd.ErrAutomationModelUnavailable},
-			{"NoAgentsAccess", publishFixture.removeAgentsAccess, chatd.ErrAutomationForbidden},
+			{"NoAgentsAccess", false, publishFixture.removeAgentsAccess, chatd.ErrAutomationForbidden},
+			// The chat would be created in the project the automation no
+			// longer names.
+			{"ProjectRemoved", true, func(f publishFixture, ctx context.Context) error {
+				_, err := f.sqlDB.ExecContext(ctx, "UPDATE chat_automations SET project_id = NULL WHERE owner_id = $1", f.owner.ID)
+				return err
+			}, chatd.ErrAutomationTargetUnavailable},
+			// The insert fails the project foreign key before admission
+			// can see the cleared reference.
+			{"ProjectDeleted", true, func(f publishFixture, ctx context.Context) error {
+				_, err := f.sqlDB.ExecContext(ctx, "DELETE FROM chat_projects WHERE owner_id = $1", f.owner.ID)
+				return err
+			}, chatd.ErrAutomationTargetUnavailable},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -648,6 +817,9 @@ func TestPublishAutomationWebhook(t *testing.T) {
 				})
 				ctx := testutil.Context(t, testutil.WaitLong)
 				automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle)
+				if tc.inProject {
+					automation, _ = f.inProject(ctx, t, automation)
+				}
 				change = func() { assert.NoError(t, tc.change(f, ctx)) }
 
 				_, err := f.publish(ctx, automation)
@@ -938,4 +1110,31 @@ func TestAutomationQueuedInputRunsAfterExperimentOff(t *testing.T) {
 	require.True(t, slices.ContainsFunc(messages[automationMessage+1:], func(m database.ChatMessage) bool {
 		return m.Role == database.ChatMessageRoleAssistant
 	}), "a turn ran for the promoted input")
+}
+
+// A project deleted after the update validated it fails the write's
+// foreign key, which must come back as a project_id validation error.
+func TestUpdateAutomationProjectDeletedBeforeWrite(t *testing.T) {
+	t.Parallel()
+	f := newPublishFixture(t, database.ChatStatusWaiting)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti)
+	project := dbgen.ChatProject(t, f.db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+
+	// The guard runs on the stored row and then on the row as the update
+	// would leave it, after validation and before the write.
+	calls := 0
+	guard := func(database.Store, database.ChatAutomation) error {
+		calls++
+		if calls == 2 {
+			_, err := f.sqlDB.ExecContext(ctx, "DELETE FROM chat_projects WHERE id = $1", project.ID)
+			return err
+		}
+		return nil
+	}
+	_, _, err := f.server.UpdateAutomation(ctx, f.owner.ID, automation.ID, codersdk.UpdateChatAutomationRequest{ProjectID: &project.ID}, guard)
+	var validation *chatd.AutomationValidationError
+	require.ErrorAs(t, err, &validation)
+	require.Equal(t, "project_id", validation.Field)
+	require.Equal(t, 2, calls)
 }

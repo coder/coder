@@ -1,9 +1,7 @@
 import { useFormik } from "formik";
-import { useId, useState } from "react";
-import { useQuery } from "react-query";
+import { useRef, useState } from "react";
 import * as Yup from "yup";
 import { getErrorMessage, isApiError } from "#/api/errors";
-import { chatModels } from "#/api/queries/chats";
 import type {
 	ChatAutomation,
 	ChatAutomationKind,
@@ -24,43 +22,38 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { FormField } from "#/components/FormField/FormField";
-import { RadioGroup } from "#/components/RadioGroup/RadioGroup";
-import { SelectItem } from "#/components/Select/Select";
-import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { ModelSelector } from "#/modules/aiModels/ModelSelector";
+import { useRestoreFocusOnClose } from "#/hooks/useRestoreFocusOnClose";
 import { getFormHelpers } from "#/utils/formUtils";
 import { getPreferredTimezone } from "#/utils/timeZones";
-import {
-	getModelSelectorPlaceholder,
-	hasUserFixableProviders,
-	resolveModelSelector,
-} from "../../utils/modelOptions";
-import { pickReasoningEffort } from "../../utils/reasoningEffort";
-import { getModelSelectorHelp } from "../ModelSelectorHelp";
-import { AutomationChatPicker } from "./AutomationChatPicker";
-import { AutomationScheduleFields } from "./AutomationScheduleFields";
-import { AutomationWebhookFields } from "./AutomationWebhookFields";
-import { RadioOption } from "./RadioOption";
+import { NIL_UUID } from "../../utils/modelOptions";
+import { NO_PROJECT } from "./AutomationProjectField";
+import { AutomationTargetField } from "./AutomationTargetField";
+import { AutomationTriggerField } from "./AutomationTriggerField";
 
 const NAME_MAX_LENGTH = 128;
 
-const KIND_FIELDS: readonly string[] = [
-	"schedule_cron",
-	"schedule_time_zone",
-	"webhook_use",
-];
-
-const TARGET_FIELDS: readonly string[] = [
-	"target_chat_id",
-	"when_busy",
-	"new_chat_model_config_id",
-	"reasoning_effort",
-];
+// Labels for the server's field names, and the choice that hides a field,
+// which makes the field's server error stale when that choice changes.
+const SERVER_FIELDS: Record<
+	string,
+	{ label: string; shownFor?: "kind" | "target_mode" }
+> = {
+	name: { label: "Name" },
+	prompt: { label: "Prompt" },
+	schedule_cron: { label: "Cron expression", shownFor: "kind" },
+	schedule_time_zone: { label: "Time zone", shownFor: "kind" },
+	webhook_use: { label: "Use", shownFor: "kind" },
+	target_chat_id: { label: "Chat", shownFor: "target_mode" },
+	when_busy: { label: "When busy", shownFor: "target_mode" },
+	new_chat_model_config_id: { label: "Model", shownFor: "target_mode" },
+	reasoning_effort: { label: "Reasoning effort", shownFor: "target_mode" },
+	project_id: { label: "Project", shownFor: "target_mode" },
+};
 
 // Field names match the API so getFormHelpers maps 400 validations onto them.
-type AutomationFormValues = {
+export type AutomationFormValues = {
 	name: string;
 	prompt: string;
 	kind: ChatAutomationKind;
@@ -72,6 +65,7 @@ type AutomationFormValues = {
 	when_busy: ChatAutomationWhenBusy;
 	new_chat_model_config_id: string;
 	reasoning_effort: string;
+	project_id: string;
 };
 
 const defaultWhenBusy = (kind: ChatAutomationKind): ChatAutomationWhenBusy =>
@@ -93,6 +87,7 @@ const initialFormValues = (
 	when_busy: automation?.when_busy ?? "skip",
 	new_chat_model_config_id: automation?.new_chat_model_config_id ?? "",
 	reasoning_effort: automation?.reasoning_effort ?? "",
+	project_id: automation?.project_id ?? NO_PROJECT,
 });
 
 const normalize = (values: AutomationFormValues): AutomationFormValues => ({
@@ -129,6 +124,7 @@ const buildCreateRequest = (
 		...(values.reasoning_effort && {
 			reasoning_effort: values.reasoning_effort,
 		}),
+		...(values.project_id !== NO_PROJECT && { project_id: values.project_id }),
 	};
 };
 
@@ -163,6 +159,11 @@ const buildUpdateRequest = (
 			changed("reasoning_effort") && {
 				reasoning_effort: values.reasoning_effort,
 			}),
+		...(!isExistingChat &&
+			changed("project_id") && {
+				project_id:
+					values.project_id === NO_PROJECT ? NIL_UUID : values.project_id,
+			}),
 	};
 };
 
@@ -171,6 +172,8 @@ type AutomationEditorDialogProps = {
 	/** Edits this automation; creates a new one when unset. */
 	automation?: ChatAutomation;
 	currentUserId: string;
+	/** Shows the Project field for new chat targets. */
+	projectsEnabled: boolean;
 	/** Origin of the webhook publish endpoint. */
 	origin: string;
 	error: unknown;
@@ -188,6 +191,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	organizationId,
 	automation,
 	currentUserId,
+	projectsEnabled,
 	origin,
 	error,
 	isSubmitting,
@@ -199,33 +203,19 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	onClose,
 }) => {
 	const isCreate = !automation;
-	const triggerLabelId = useId();
+	const pointerFocusRef = useRef(false);
+	const isReadOnly = Boolean(
+		automation && automation.owner_id !== currentUserId,
+	);
 	// A user-picked When busy value survives trigger changes.
 	const [whenBusyChosen, setWhenBusyChosen] = useState(false);
-	const modelErrorId = useId();
-	// Radix returns focus to a DialogTrigger on close; this dialog has none.
-	const [opener] = useState(() =>
-		document.activeElement instanceof HTMLElement
-			? document.activeElement
-			: null,
-	);
+	const restoreFocus = useRestoreFocusOnClose();
 	const [submittedValues, setSubmittedValues] =
 		useState<AutomationFormValues>();
-	const modelsQuery = useQuery(chatModels(organizationId));
-	const {
-		options: modelOptions,
-		isModelCatalogLoading,
-		modelCatalog,
-		hasConfiguredModels,
-	} = resolveModelSelector(organizationId, modelsQuery);
-	const modelSelectorHelp = getModelSelectorHelp({
-		isModelCatalogLoading,
-		hasModelOptions: modelOptions.length > 0,
-		hasConfiguredModels,
-		hasUserFixableModelProviders: hasUserFixableProviders(modelCatalog),
-	});
 
-	const initialValues = initialFormValues(automation);
+	// Frozen at open, so a list refetch that refreshes `automation` neither
+	// resets the user's input nor changes the PATCH baseline.
+	const [initialValues] = useState(() => initialFormValues(automation));
 	const form = useFormik<AutomationFormValues>({
 		initialValues,
 		// A blur error would shift the fields below it between pointerdown and
@@ -258,7 +248,12 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		}),
 		onSubmit: (rawValues) => {
 			setSubmittedValues(rawValues);
-			const values = normalize(rawValues);
+			const values = {
+				...normalize(rawValues),
+				// The field unmounts if the experiment turns off while the
+				// dialog is open; never send its hidden value.
+				...(!projectsEnabled && { project_id: initialValues.project_id }),
+			};
 			if (!automation) {
 				onCreate(buildCreateRequest(values));
 				return;
@@ -271,32 +266,31 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			onUpdate(req);
 		},
 	});
-	// Server errors on kind or target fields go stale once that choice changes.
-	const isStaleField = (field: string) => {
+	// A server error applies while its field, and the choice that shows the
+	// field, still hold the submitted values.
+	const serverErrorApplies = (field: string) => {
 		if (!submittedValues) {
 			return false;
 		}
-		const kindChanged = submittedValues.kind !== form.values.kind;
-		const targetChanged =
-			submittedValues.target_mode !== form.values.target_mode;
-		return (
-			(kindChanged && KIND_FIELDS.includes(field)) ||
-			(targetChanged && TARGET_FIELDS.includes(field))
-		);
+		const shownFor = SERVER_FIELDS[field]?.shownFor;
+		if (shownFor && submittedValues[shownFor] !== form.values[shownFor]) {
+			return false;
+		}
+		const isFormField = (key: string): key is keyof AutomationFormValues =>
+			key in submittedValues;
+		return !isFormField(field) || submittedValues[field] === form.values[field];
 	};
-	const getFieldHelpers = (name: keyof AutomationFormValues) =>
-		getFormHelpers(
-			form,
-			submittedValues?.[name] === form.values[name] && !isStaleField(name)
-				? error
-				: undefined,
-		)(name);
-	const modelField = getFieldHelpers("new_chat_model_config_id");
+	const getFieldHelpers = (
+		name: keyof AutomationFormValues,
+		options?: { helperText?: React.ReactNode },
+	) =>
+		getFormHelpers(form, serverErrorApplies(name) ? error : undefined)(
+			name,
+			options,
+		);
 	const isSchedule = form.values.kind === "schedule";
 	const isExistingChat = form.values.target_mode === "existing_chat";
-	const selectedModel = modelOptions.find(
-		(option) => option.id === form.values.new_chat_model_config_id,
-	);
+	const showProjectField = projectsEnabled && !isExistingChat;
 
 	const renderedFields: readonly string[] = [
 		"name",
@@ -304,13 +298,14 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		...(isSchedule ? ["schedule_cron", "schedule_time_zone"] : []),
 		...(isExistingChat
 			? ["target_chat_id", "when_busy"]
-			: ["new_chat_model_config_id"]),
+			: ["new_chat_model_config_id", "reasoning_effort"]),
+		...(showProjectField ? ["project_id"] : []),
 	];
 	const apiError = isApiError(error) ? error.response.data : undefined;
 	const alertValidations = (apiError?.validations ?? []).filter(
 		(validation) =>
 			!renderedFields.includes(validation.field) &&
-			!isStaleField(validation.field),
+			serverErrorApplies(validation.field),
 	);
 	const isPending = isSubmitting || isRotatingSecret;
 	const showAlert =
@@ -328,12 +323,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		>
 			<DialogContent
 				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
-				onCloseAutoFocus={(event) => {
-					if (opener?.isConnected) {
-						event.preventDefault();
-						opener.focus();
-					}
-				}}
+				onCloseAutoFocus={restoreFocus}
 			>
 				<form
 					className="flex min-h-0 flex-1 flex-col"
@@ -342,29 +332,54 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 				>
 					<DialogHeader className="px-6 pt-6">
 						<DialogTitle>
-							{isCreate ? "New automation" : `Edit ${automation.name}`}
+							{isCreate
+								? "New automation"
+								: isReadOnly
+									? "View automation"
+									: "Edit automation"}
 						</DialogTitle>
 						<DialogDescription>
 							{isCreate
 								? "Create a schedule or webhook that sends a prompt to an agent."
-								: isSchedule
-									? "The trigger and target type cannot change after creation."
-									: "The trigger, webhook use, and target type cannot change after creation."}
+								: isReadOnly
+									? "Only the owner of this automation can change it."
+									: "Changes apply to the next run."}
 						</DialogDescription>
 					</DialogHeader>
-					{/* The div scrolls because Chrome does not scroll a flex-sized
-					    fieldset. Radix Select triggers open on pointerdown, which
-					    browsers still dispatch to fieldset-disabled buttons. */}
-					<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4">
+					{/* Browser and Radix constraints on this layout:
+					    - Chrome does not scroll a flex-sized fieldset, so the div scrolls.
+					    - The focus trap wraps Tab with preventScroll, so onFocus scrolls
+					      the wrapped-to field into view. Pointer focus does not scroll:
+					      moving the control between pointerdown and pointerup would
+					      lose the click.
+					    - Radix Select opens on pointerdown, which browsers still send to
+					      fieldset-disabled buttons, so they get pointer-events: none. */}
+					<div
+						className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4"
+						onPointerDown={() => {
+							pointerFocusRef.current = true;
+						}}
+						onPointerUp={() => {
+							pointerFocusRef.current = false;
+						}}
+						onFocus={(event) => {
+							if (pointerFocusRef.current) {
+								pointerFocusRef.current = false;
+								return;
+							}
+							if (event.target instanceof HTMLElement) {
+								// The parent first keeps a field's label in view too.
+								event.target.parentElement?.scrollIntoView({
+									block: "nearest",
+								});
+								event.target.scrollIntoView({ block: "nearest" });
+							}
+						}}
+					>
 						<fieldset
-							disabled={isSubmitting}
+							disabled={isSubmitting || isReadOnly}
 							className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0 [&_button:disabled]:pointer-events-none"
 						>
-							{automation && automation.owner_id !== currentUserId && (
-								<p className="m-0 text-sm text-content-secondary">
-									Only the owner of this automation can change it.
-								</p>
-							)}
 							{showAlert && (
 								<Alert severity="error" prominent>
 									<AlertTitle>
@@ -375,7 +390,9 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											{apiError?.detail}
 											{alertValidations.map((validation) => (
 												<span key={validation.field} className="block">
-													{validation.field}: {validation.detail}
+													{SERVER_FIELDS[validation.field]
+														? `${SERVER_FIELDS[validation.field].label}: ${validation.detail}`
+														: validation.detail}
 												</span>
 											))}
 										</AlertDescription>
@@ -388,7 +405,18 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 								required
 							/>
 							<FormField
-								field={getFieldHelpers("prompt")}
+								field={getFieldHelpers("prompt", {
+									helperText: [
+										isSchedule
+											? "Sent as the message for every run."
+											: "Sent as the message for every run. The webhook request body is attached below it as untrusted event data. Say what to check, when to act, and when to do nothing.",
+										// Queued messages keep the prompt they were sent with.
+										!isCreate &&
+											"Changes apply to future runs. Messages already queued keep the previous prompt.",
+									]
+										.filter(Boolean)
+										.join(" "),
+								})}
 								label="Prompt"
 								required
 								control={(props) => (
@@ -399,197 +427,46 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 									/>
 								)}
 							/>
-							<section className="flex flex-col gap-4">
-								{isCreate ? (
-									<>
-										<h3
-											id={triggerLabelId}
-											className="m-0 text-sm font-medium text-content-primary"
-										>
-											Trigger
-										</h3>
-										<RadioGroup
-											aria-labelledby={triggerLabelId}
-											value={form.values.kind}
-											onValueChange={(kind) => {
-												if (kind === "schedule" || kind === "webhook") {
-													if (!whenBusyChosen) {
-														form.setFieldValue(
-															"when_busy",
-															defaultWhenBusy(kind),
-														);
-													}
-													form.setFieldValue("kind", kind);
-												}
-											}}
-										>
-											<RadioOption value="schedule" label="Schedule" />
-											<RadioOption value="webhook" label="Webhook" />
-										</RadioGroup>
-									</>
-								) : (
-									<h3 className="m-0 text-sm font-medium text-content-primary">
-										Trigger:{" "}
-										<span className="font-normal text-content-secondary">
-											{isSchedule ? "Schedule" : "Webhook"}
-										</span>
-									</h3>
-								)}
-								{isSchedule && (
-									<AutomationScheduleFields
-										organizationId={organizationId}
-										isCreate={isCreate}
-										cronField={getFieldHelpers("schedule_cron")}
-										timeZoneField={getFieldHelpers("schedule_time_zone")}
-										onCronChange={(cron) =>
-											form.setFieldValue("schedule_cron", cron)
-										}
-										onTimeZoneChange={(timeZone) =>
-											form.setFieldValue("schedule_time_zone", timeZone)
-										}
-									/>
-								)}
-								{!isSchedule && (
-									<AutomationWebhookFields
-										automation={automation}
-										origin={origin}
-										webhookUse={form.values.webhook_use}
-										onWebhookUseChange={(webhookUse) =>
-											form.setFieldValue("webhook_use", webhookUse)
-										}
-										rotateSecretError={rotateSecretError}
-										isRotatingSecret={isRotatingSecret}
-										isSubmitting={isSubmitting}
-										onRotateSecret={onRotateSecret}
-									/>
-								)}
-							</section>
-							<section className="flex flex-col gap-4">
-								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Target
-								</h3>
-								{!isCreate && (
-									<p className="m-0 text-sm text-content-secondary">
-										Changes apply to the next run.
-									</p>
-								)}
-								{isCreate ? (
-									<RadioGroup
-										aria-label="Target"
-										value={form.values.target_mode}
-										onValueChange={(value) => {
-											if (value === "existing_chat" || value === "new_chat") {
-												form.setFieldValue("target_mode", value);
-											}
-										}}
-									>
-										<RadioOption value="existing_chat" label="Existing chat" />
-										<RadioOption value="new_chat" label="New chat each run" />
-									</RadioGroup>
-								) : (
-									<p className="m-0 text-sm text-content-secondary">
-										{isExistingChat ? "Existing chat" : "New chat each run"}
-									</p>
-								)}
-								{isExistingChat ? (
-									<div className="grid grid-cols-2 gap-4">
-										<FormField
-											field={getFieldHelpers("target_chat_id")}
-											label="Chat"
-											control={(props) => (
-												<AutomationChatPicker
-													{...props}
-													organizationId={organizationId}
-													value={form.values.target_chat_id}
-													onChange={(chatId) =>
-														form.setFieldValue("target_chat_id", chatId)
-													}
-												/>
-											)}
-										/>
-										<SelectField
-											field={getFieldHelpers("when_busy")}
-											label="When busy"
-											onValueChange={(value) => {
-												if (value === "skip" || value === "queue") {
-													setWhenBusyChosen(true);
-													form.setFieldValue("when_busy", value);
-												}
-											}}
-										>
-											<SelectItem value="skip">Skip the run</SelectItem>
-											<SelectItem value="queue">Queue the prompt</SelectItem>
-										</SelectField>
-									</div>
-								) : (
-									<div className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-content-primary">
-											Model
-										</span>
-										<div>
-											<ModelSelector
-												className="w-fit"
-												triggerAriaLabel="Model"
-												triggerAriaInvalid={modelField.error}
-												triggerAriaDescribedBy={
-													modelField.error ? modelErrorId : undefined
-												}
-												placeholder={getModelSelectorPlaceholder(
-													modelOptions,
-													isModelCatalogLoading,
-													hasConfiguredModels,
-													modelCatalog,
-												)}
-												options={modelOptions}
-												value={form.values.new_chat_model_config_id}
-												onValueChange={(modelId) => {
-													if (
-														modelId !== form.values.new_chat_model_config_id
-													) {
-														form.setFieldValue(
-															"new_chat_model_config_id",
-															modelId,
-														);
-														form.setFieldValue("reasoning_effort", "");
-													}
-												}}
-												reasoningEffort={
-													selectedModel
-														? pickReasoningEffort(
-																form.values.reasoning_effort,
-																selectedModel.reasoningEfforts ?? [],
-																selectedModel.reasoningEffortDefault,
-															)
-														: form.values.reasoning_effort
-												}
-												onReasoningEffortChange={(effort) =>
-													form.setFieldValue("reasoning_effort", effort)
-												}
-											/>
-											<div aria-live="polite">
-												{modelField.error && (
-													<p
-														id={modelErrorId}
-														className="m-0 mt-2 text-xs text-content-destructive"
-													>
-														{modelField.helperText}
-													</p>
-												)}
-											</div>
-										</div>
-										{modelSelectorHelp && (
-											<span className="text-xs text-content-secondary">
-												{modelSelectorHelp}
-											</span>
-										)}
-										{modelsQuery.isError && (
-											<span className="text-xs text-content-destructive">
-												Could not load models.
-											</span>
-										)}
-									</div>
-								)}
-							</section>
+							<AutomationTriggerField
+								isCreate={isCreate}
+								kind={form.values.kind}
+								onKindChange={(kind) => {
+									if (!whenBusyChosen) {
+										form.setFieldValue("when_busy", defaultWhenBusy(kind));
+									}
+									form.setFieldValue("kind", kind);
+								}}
+								scheduleFieldsProps={{
+									organizationId,
+									cronField: getFieldHelpers("schedule_cron"),
+									timeZoneField: getFieldHelpers("schedule_time_zone"),
+									onCronChange: (cron) =>
+										form.setFieldValue("schedule_cron", cron),
+									onTimeZoneChange: (timeZone) =>
+										form.setFieldValue("schedule_time_zone", timeZone),
+								}}
+								webhookFieldsProps={{
+									automation,
+									origin,
+									webhookUse: form.values.webhook_use,
+									onWebhookUseChange: (webhookUse) =>
+										form.setFieldValue("webhook_use", webhookUse),
+									rotateSecretError,
+									isRotatingSecret,
+									isSubmitting,
+									canRotateSecret: !isReadOnly,
+									onRotateSecret,
+								}}
+							/>
+							<AutomationTargetField
+								organizationId={organizationId}
+								isCreate={isCreate}
+								isReadOnly={isReadOnly}
+								form={form}
+								getFieldHelpers={getFieldHelpers}
+								showProjectField={showProjectField}
+								onWhenBusyChange={() => setWhenBusyChosen(true)}
+							/>
 						</fieldset>
 					</div>
 					<DialogFooter className="border-0 border-t border-solid border-border px-6 py-4">
@@ -599,12 +476,14 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 							disabled={isPending}
 							onClick={onClose}
 						>
-							Cancel
+							{isReadOnly ? "Close" : "Cancel"}
 						</Button>
-						<Button type="submit" disabled={isPending}>
-							<Spinner loading={isSubmitting} />
-							Save
-						</Button>
+						{!isReadOnly && (
+							<Button type="submit" disabled={isPending}>
+								<Spinner loading={isSubmitting} />
+								Save
+							</Button>
+						)}
 					</DialogFooter>
 				</form>
 			</DialogContent>
