@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -26,9 +27,9 @@ func (p *Server) subscribeStreamLoop(
 	chat database.Chat,
 	requestHeader http.Header,
 	cursor StreamCursor,
-) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), bool) {
+) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error) {
 	if p == nil || p.db == nil || p.pubsub == nil {
-		return nil, nil, nil, false
+		return nil, nil, nil, xerrors.New("chat stream state is not configured")
 	}
 	if p.messagePartBuffer == nil {
 		p.messagePartBuffer = messagepartbuffer.New(messagepartbuffer.Options{Clock: p.clock})
@@ -53,9 +54,8 @@ func (p *Server) subscribeStreamLoop(
 		}),
 	)
 	if err != nil {
-		logger.Warn(ctx, "failed to subscribe to chat state updates", slog.Error(err))
 		streamCancel()
-		return subscribeWithInitialError(chatID, "failed to subscribe to chat updates")
+		return nil, nil, nil, xerrors.Errorf("subscribe to chat state updates: %w", err)
 	}
 
 	pollerCh, unregisterPoller := p.streamSyncPoller.Register(chatID)
@@ -67,11 +67,10 @@ func (p *Server) subscribeStreamLoop(
 	//nolint:gocritic // The HTTP route authorizes the chat before subscribing; the stream loop needs chatd-scoped reads for one consistent snapshot.
 	initial, target, _, err := loop.syncDB(dbauthz.AsChatd(ctx))
 	if err != nil {
-		logger.Error(ctx, "failed to load initial chat stream snapshot", slog.Error(err))
 		unregisterPoller()
 		pubsubCancel()
 		streamCancel()
-		return subscribeWithInitialError(chatID, "failed to load initial snapshot")
+		return nil, nil, nil, xerrors.Errorf("load initial chat stream snapshot: %w", err)
 	}
 
 	relay := newStreamRelayForwarder(
@@ -125,7 +124,7 @@ func (p *Server) subscribeStreamLoop(
 		pubsubCancel()
 		<-done
 	}
-	return initial, events, cancel, true
+	return initial, events, cancel, nil
 }
 
 func (p *Server) runStreamSync(
@@ -210,6 +209,8 @@ func sendStreamEvent(ctx context.Context, ch chan<- codersdk.ChatStreamEvent, ev
 	}
 }
 
+// Subscribe loads the chat as the caller and subscribes it to stream
+// updates. Setup failures return an error instead of a stream.
 func (p *Server) Subscribe(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -219,27 +220,21 @@ func (p *Server) Subscribe(
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
 	func(),
-	bool,
+	error,
 ) {
 	if p == nil {
-		return nil, nil, nil, false
+		return nil, nil, nil, xerrors.New("chat stream state is not configured")
 	}
 
 	chat, err := p.db.GetChatByID(ctx, chatID)
 	if err != nil {
-		if dbauthz.IsNotAuthorizedError(err) {
-			return nil, nil, nil, false
-		}
-		p.logger.Warn(ctx, "failed to load chat for stream subscription",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return subscribeWithInitialError(chatID, "failed to load initial snapshot")
+		return nil, nil, nil, xerrors.Errorf("get chat for stream: %w", err)
 	}
 	return p.SubscribeAuthorized(ctx, chat, requestHeader, cursor)
 }
 
-// SubscribeAuthorized subscribes an already-authorized chat to stream updates.
+// SubscribeAuthorized subscribes an already-authorized chat to stream
+// updates. Setup failures return an error instead of a stream.
 func (p *Server) SubscribeAuthorized(
 	ctx context.Context,
 	chat database.Chat,
@@ -249,7 +244,7 @@ func (p *Server) SubscribeAuthorized(
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
 	func(),
-	bool,
+	error,
 ) {
 	return p.subscribeStreamLoop(ctx, chat, requestHeader, cursor)
 }
