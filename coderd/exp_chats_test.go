@@ -14925,6 +14925,9 @@ type chatTab struct {
 
 func newChatTab(page codersdk.ChatMessagesResponse) *chatTab {
 	tab := &chatTab{ids: map[int64]bool{}, version: page.SnapshotVersion, queue: []int64{}}
+	if page.Turn != nil {
+		tab.status = page.Turn.Status
+	}
 	tab.hold(page.Messages...)
 	for _, queued := range page.QueuedMessages {
 		tab.queue = append(tab.queue, queued.ID)
@@ -14991,8 +14994,6 @@ func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan 
 				maps.DeleteFunc(tab.ids, func(id int64, _ bool) bool { return id >= fromID })
 			case codersdk.ChatStreamEventTypeMessage:
 				tab.hold(*event.Message)
-			case codersdk.ChatStreamEventTypeStatus:
-				tab.status = event.Status.Status
 			case codersdk.ChatStreamEventTypeQueueUpdate:
 				tab.queue = make([]int64, 0, len(event.QueuedMessages))
 				for _, queued := range event.QueuedMessages {
@@ -15001,6 +15002,7 @@ func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan 
 			case codersdk.ChatStreamEventTypeCheckpoint:
 				if event.Checkpoint != nil {
 					tab.version = event.Checkpoint.SnapshotVersion
+					tab.status = event.Checkpoint.Turn.Status
 				}
 			}
 			if done(event) {
@@ -19539,6 +19541,10 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		newest, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		require.Positive(t, newest.SnapshotVersion)
+		require.NotNil(t, newest.Turn)
+		record, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, record.Status, newest.Turn.Status)
 
 		for name, opts := range map[string]*codersdk.ChatMessagesPaginationOptions{
 			"before_id": {BeforeID: ids[2]},
@@ -19548,6 +19554,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, resp.Messages, name)
 			require.Zero(t, resp.SnapshotVersion, "%s page must not carry snapshot_version", name)
+			require.Nil(t, resp.Turn, "%s page must not carry the turn", name)
 		}
 	})
 
