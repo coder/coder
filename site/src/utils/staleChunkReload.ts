@@ -1,5 +1,5 @@
-const lastReloadKey = "preload-reload";
-const reloadGuardMs = 10_000;
+const RELOAD_TIMESTAMP_STORAGE_KEY = "preload-reload";
+const RELOAD_GUARD_MS = 10_000;
 
 let reloadPending = false;
 
@@ -11,14 +11,14 @@ let reloadPending = false;
  */
 export function registerStaleChunkReload(): void {
 	window.addEventListener("vite:preloadError", () => {
-		const last = sessionStorage.getItem(lastReloadKey);
+		const lastReloadAt = sessionStorage.getItem(RELOAD_TIMESTAMP_STORAGE_KEY);
 		const now = Date.now();
 
-		if (last && now - Number(last) <= reloadGuardMs) {
+		if (lastReloadAt && now - Number(lastReloadAt) <= RELOAD_GUARD_MS) {
 			return;
 		}
 
-		sessionStorage.setItem(lastReloadKey, String(now));
+		sessionStorage.setItem(RELOAD_TIMESTAMP_STORAGE_KEY, String(now));
 		reloadPending = true;
 
 		location.reload();
