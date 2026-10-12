@@ -336,8 +336,10 @@ func TestOpenAIResponsesRetriesWithoutRejectedEncryptedReasoning(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const (
-		reasoningID = "rs_rejected_reasoning"
-		blob        = "encrypted-by-another-organization"
+		staleID   = "rs_rejected_reasoning"
+		staleBlob = "encrypted-by-another-organization"
+		freshID   = "rs_fresh_reasoning"
+		freshBlob = "encrypted-by-current-organization"
 	)
 	var recorder responsesRequestRecorder
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -345,23 +347,29 @@ func TestOpenAIResponsesRetriesWithoutRejectedEncryptedReasoning(t *testing.T) {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
 		n := recorder.record(req)
-		if n == 1 {
-			resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer")...)
-			resp.Reasoning = &chattest.OpenAIReasoningItem{
-				ID:               reasoningID,
-				EncryptedContent: blob,
-			}
-			return resp
-		}
 		// Later turns reach an organization that cannot decrypt the
-		// replayed reasoning.
-		if slices.Contains(promptItemTypes(req.Prompt), "reasoning") {
+		// reasoning from the first turn.
+		if n > 1 && slices.ContainsFunc(req.Prompt, func(item interface{}) bool {
+			itemMap, ok := item.(map[string]interface{})
+			return ok && chattest.StringResponseField(itemMap, "id") == staleID
+		}) {
 			resp := chattest.OpenAIErrorResponse(http.StatusBadRequest, "invalid_request_error",
 				"The encrypted content could not be verified.")
 			resp.Error.Code = "invalid_encrypted_content"
 			return resp
 		}
-		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		switch n {
+		case 1:
+			resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer")...)
+			resp.Reasoning = &chattest.OpenAIReasoningItem{ID: staleID, EncryptedContent: staleBlob}
+			return resp
+		case 3:
+			resp := chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("list_templates", `{}`))
+			resp.Reasoning = &chattest.OpenAIReasoningItem{ID: freshID, EncryptedContent: freshBlob}
+			return resp
+		default:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		}
 	})
 
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
@@ -385,24 +393,33 @@ func TestOpenAIResponsesRetriesWithoutRejectedEncryptedReasoning(t *testing.T) {
 	waitForChatProcessed(ctx, t, db, chat.ID, server)
 	requireResponsesChatWaiting(ctx, t, db, chat.ID)
 
-	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:        chat.ID,
-		CreatedBy:     user.ID,
-		ModelConfigID: model.ID,
-		Content: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("thanks"),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatProcessed(ctx, t, db, chat.ID, server)
-	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+	for _, text := range []string{"list the templates", "thanks"} {
+		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(text),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatProcessed(ctx, t, db, chat.ID, server)
+		requireResponsesChatWaiting(ctx, t, db, chat.ID)
+	}
 
+	// Only the first request after the change is rejected.
 	requests := recorder.all()
-	require.Len(t, requests, 3)
-	requireInlineReasoningItem(t, requests[1].Prompt, reasoningID, blob, "")
+	require.Len(t, requests, 5)
+	requireInlineReasoningItem(t, requests[1].Prompt, staleID, staleBlob, "")
 	retry := requests[2]
 	require.NotEmpty(t, retry.Prompt)
 	require.NotContains(t, promptItemTypes(retry.Prompt), "reasoning")
+	// requests[3] continues the tool step from in-memory history;
+	// requests[4] rebuilds the prompt from persisted messages.
+	for _, request := range requests[3:] {
+		requireInlineReasoningItem(t, request.Prompt, freshID, freshBlob, "")
+		requireNoResponsesProviderItemReplay(t, request.Prompt, staleID)
+	}
 }
 
 func TestOpenAIResponsesAdvisorPromptOmitsReasoning(t *testing.T) {
