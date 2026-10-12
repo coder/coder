@@ -7940,9 +7940,12 @@ const getChatProjectByIDForUpdate = `-- name: GetChatProjectByIDForUpdate :one
 SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at, user_acl, group_acl, deleted
 FROM chat_projects
 WHERE id = $1::uuid AND NOT deleted
-FOR UPDATE
+FOR NO KEY UPDATE
 `
 
+// NO KEY UPDATE, unlike UPDATE, lets sub-chat inserts take the project_id
+// foreign key lock. A project delete holding this lock while a sub-chat
+// insert holds its root would otherwise deadlock.
 func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error) {
 	row := q.db.QueryRowContext(ctx, getChatProjectByIDForUpdate, id)
 	var i ChatProject

@@ -2351,9 +2351,10 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 	require.NoError(t, err, "a live project with no chats is not purged")
 }
 
-// TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation verifies that
-// LockChatProjectRootChats waits for a sub-chat insert holding the root, so
-// the archive, a later statement, includes the committed child.
+// TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation verifies that a
+// project delete passes the project lock while a sub-chat insert holds the
+// project_id foreign key lock, and that LockChatProjectRootChats waits for
+// the insert holding the root, so the archive includes the committed child.
 func TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2393,6 +2394,9 @@ func TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation(t *testing.T) {
 	deleteErr := make(chan error, 1)
 	go func() {
 		deleteErr <- db.InTx(func(tx database.Store) error {
+			if _, err := tx.GetChatProjectByIDForUpdate(ctx, project.ID); err != nil {
+				return err
+			}
 			if err := tx.UpdateChatProjectDeletedByID(ctx, project.ID); err != nil {
 				return err
 			}

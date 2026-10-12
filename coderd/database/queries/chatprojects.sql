@@ -16,10 +16,13 @@ FROM chat_projects
 WHERE id = @id::uuid AND NOT deleted;
 
 -- name: GetChatProjectByIDForUpdate :one
+-- NO KEY UPDATE, unlike UPDATE, lets sub-chat inserts take the project_id
+-- foreign key lock. A project delete holding this lock while a sub-chat
+-- insert holds its root would otherwise deadlock.
 SELECT *
 FROM chat_projects
 WHERE id = @id::uuid AND NOT deleted
-FOR UPDATE;
+FOR NO KEY UPDATE;
 
 -- name: GetChatProjectsByOwnerID :many
 SELECT *

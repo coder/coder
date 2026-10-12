@@ -562,6 +562,9 @@ type sqlcQuerier interface {
 	// so a concurrent project delete either archives the new chat or makes
 	// this return no rows.
 	GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error)
+	// NO KEY UPDATE, unlike UPDATE, lets sub-chat inserts take the project_id
+	// foreign key lock. A project delete holding this lock while a sub-chat
+	// insert holds its root would otherwise deadlock.
 	GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	// Sub-chats carry their root's project_id, so this returns whole families.
 	GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]Chat, error)
