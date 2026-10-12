@@ -108,15 +108,19 @@ the parameter, such as Microsoft Entra ID.
 
 Auto-discovery also records the provider's `revocation_endpoint` from the
 RFC 8414 metadata when advertised, and sets `oauth2_resource` to the
-Protected Resource Metadata `resource` that matches the MCP server URL, or to
-the server URL when none matches. Explicit `oauth2_revocation_url` and
+Protected Resource Metadata `resource` that matches the MCP server URL. When
+none matches, it uses the server URL with the scheme and host lowercased and
+any user information or fragment removed. Explicit `oauth2_revocation_url` and
 `oauth2_resource` values in the request take precedence over the discovered
 values. Discovery runs only when a configuration is created, so to add a
 resource indicator to an existing configuration, set `oauth2_resource` on it
 or re-create the server.
 
 Users connect through a popup that redirects through the OAuth2 provider.
-Tokens are stored per-user and refreshed automatically. Users can disconnect
+Tokens are stored per-user and refreshed automatically. Changing the server
+URL, authentication type, `oauth2_client_id`, `oauth2_token_url`,
+`oauth2_revocation_url`, or `oauth2_resource` deletes every user's stored
+token, so users must connect again. Users can disconnect
 via the UI or API to remove stored tokens. When a revocation endpoint is
 configured, disconnecting also asks the provider to revoke the token
 (RFC 7009). Provider revocation is best-effort: the stored token is always
