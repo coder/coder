@@ -708,12 +708,6 @@ func (c *turnWorkspaceContext) workspaceAgentIDForConn(
 		if !workspaceMatches {
 			continue
 		}
-		if currentAgentID != chatSnapshot.AgentID.UUID {
-			// The chat is bound to a workspace agent other than the latest
-			// build's chat agent. Forget the runner's connection to it, so
-			// the next dial validates the binding.
-			c.runnerAgentConn.forget(chatSnapshot.AgentID.UUID)
-		}
 		return latestChat, currentAgentID, nil
 	}
 
@@ -721,6 +715,20 @@ func (c *turnWorkspaceContext) workspaceAgentIDForConn(
 	return chatSnapshot, uuid.Nil, xerrors.New(
 		"chat workspace changed while resolving agent",
 	)
+}
+
+// checkWorkspaceAgentBinding reads the chat agent of the workspace's latest
+// build. If the chat is bound to another workspace agent, the next dial
+// validates the binding instead of reusing the chat runner's connection.
+func (c *turnWorkspaceContext) checkWorkspaceAgentBinding(ctx context.Context) error {
+	chatSnapshot, latestAgentID, err := c.workspaceAgentIDForConn(ctx)
+	if err != nil {
+		return err
+	}
+	if chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != latestAgentID {
+		c.runnerAgentConn.forget(chatSnapshot.AgentID.UUID)
+	}
+	return nil
 }
 
 // getWorkspaceConnLocked returns the cached connection when it still matches
