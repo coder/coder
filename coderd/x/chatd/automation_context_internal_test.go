@@ -103,3 +103,29 @@ func TestCheckManageAutomationsArgNames(t *testing.T) {
 	err := checkManageAutomationsArgNames(`{"action":"update","id":"x","bogus":1}`)
 	require.ErrorContains(t, err, `unknown argument "bogus", "id" (use automation_id): valid arguments are action, automation_id, name,`)
 }
+
+// TestManageAutomationsStopGuidance pins how the tool tells the model to
+// build a stop condition (R1-05): the agent wrote a fixed "run 1 of 2"
+// prompt and offered a "/disable" command that does not exist.
+func TestManageAutomationsStopGuidance(t *testing.T) {
+	t.Parallel()
+	for _, want := range []string{
+		"no run limit or end time",
+		"do not number runs in it",
+		"write the condition into the prompt",
+		"an existing_chat run can count earlier runs in this chat's history, a new_chat run cannot",
+		"There are no slash commands",
+	} {
+		require.Contains(t, manageAutomationsDescription, want)
+	}
+	heartbeat := database.ChatAutomation{
+		ID:               uuid.New(),
+		Name:             "bb-heartbeat",
+		Kind:             database.ChatAutomationKindSchedule,
+		TargetMode:       database.ChatAutomationTargetModeExistingChat,
+		ScheduleCron:     sql.NullString{String: "* * * * *", Valid: true},
+		ScheduleTimeZone: sql.NullString{String: "UTC", Valid: true},
+	}
+	note := automationContextPart(automationNote{automation: heartbeat, toolAvailable: true}).Text
+	require.Contains(t, note, `When the prompt's stop condition holds or this recurring check is no longer needed, call manage_automations with action "disable" and automation_id "`+heartbeat.ID.String()+`".`)
+}

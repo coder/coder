@@ -42,6 +42,7 @@ const manageAutomationsDescription = "Manage the chat owner's automations in thi
 	"Every action except list and create requires automation_id. kind, target_mode, and webhook_use cannot change after create. " +
 	"A heartbeat is a schedule that wakes this chat: create it with kind schedule, target_mode existing_chat, name, prompt, " +
 	"schedule_cron, and schedule_time_zone; target_chat_id defaults to this chat. " +
+	manageAutomationsStopGuidance +
 	"A callback is a single-use webhook on this chat: create it with kind webhook, target_mode existing_chat, webhook_use single, name, and prompt; " +
 	"the result has webhook_url and webhook_secret, which an external job uses once as POST webhook_url with header Authorization: Bearer <webhook_secret> and a JSON body. " +
 	"Multi-use webhook secrets are never returned: the owner rotates the secret in the automations UI to get one. " +
@@ -59,6 +60,15 @@ const (
 	manageAutomationsListPromptMax = 2000
 	manageAutomationsGetPromptMax  = 32000
 )
+
+// manageAutomationsStopGuidance tells the model how to build a stop
+// condition. Without it, agents put a fixed "run 1 of 2" into the prompt
+// and promise a stop the automation cannot make by itself.
+const manageAutomationsStopGuidance = "Automations have no run limit or end time, and the prompt is the same text on every run, so do not number runs in it. " +
+	"To stop after a condition such as a number of runs, write the condition into the prompt, for example " +
+	"\"If this chat already shows 2 runs of this automation, call manage_automations disable for it\"; " +
+	"an existing_chat run can count earlier runs in this chat's history, a new_chat run cannot. " +
+	"There are no slash commands: an automation stops only through disable or delete, or when the owner turns it off on the Automations page. "
 
 var manageAutomationsActions = []string{"list", "get", "create", "update", "enable", "disable", "delete", "run_now"}
 
