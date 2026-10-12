@@ -336,7 +336,10 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 			{
 				onSuccess: (updated) =>
 					toast.success(
-						`${updated.name} is ${updated.enabled ? "on" : "off"}.`,
+						updated.enabled || isOwner
+							? `${updated.name} is ${updated.enabled ? "on" : "off"}.`
+							: // Only the owner can undo this, so say so right away.
+								`${updated.name} is off. Only ${ownerName} can turn it back on.`,
 					),
 				onError: (error) =>
 					toast.error(
@@ -496,8 +499,9 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 					{automation && !isOwner ? (
 						<>
 							<p className="m-0 text-sm text-content-secondary">
-								Only {ownerName} can change this automation or turn it back on.
-								You can turn it off.
+								{automation.enabled
+									? `Only ${ownerName} can change this automation. You can turn it off, but only ${ownerName} can turn it back on.`
+									: `Only ${ownerName} can change this automation or turn it back on.`}
 							</p>
 							<AutomationSummary automation={automation} origin={origin} />
 							<AutomationRunsAsCard

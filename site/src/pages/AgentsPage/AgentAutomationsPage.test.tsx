@@ -1746,6 +1746,37 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 
 		expect(updateBodies).toEqual([]);
 	});
+
+	it("tells a viewer who turned another owner's automation off that only the owner can undo it", async () => {
+		const user = userEvent.setup();
+		const toastSuccess = vi.spyOn(toast, "success");
+		const otherOwners: ChatAutomation = {
+			...mockAutomation,
+			owner_id: "another-user",
+			owner: { id: "another-user", username: "bob", name: "Bob" },
+		};
+		setupEditor({ automations: [otherOwners] });
+		server.use(
+			http.patch(`${automationsPath(":organizationId")}/:automationId`, () =>
+				HttpResponse.json({ ...otherOwners, enabled: false }),
+			),
+		);
+
+		await openRowAction(user, mockAutomation.name, "View");
+		// Wait for the editor so the click does not hit the list row's switch.
+		await screen.findByText(
+			"Only Bob can change this automation. You can turn it off, but only Bob can turn it back on.",
+		);
+		await user.click(
+			screen.getByRole("switch", { name: `Enable ${mockAutomation.name}` }),
+		);
+
+		await waitFor(() => {
+			expect(toastSuccess).toHaveBeenCalledWith(
+				`${mockAutomation.name} is off. Only Bob can turn it back on.`,
+			);
+		});
+	});
 });
 
 const webhookSecret = "test-webhook-secret-5f3a";
