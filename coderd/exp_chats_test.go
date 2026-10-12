@@ -10865,15 +10865,17 @@ func TestStreamChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		res, err := client.Request(
-			ctx,
-			http.MethodGet,
-			fmt.Sprintf("/api/v2/chats/%s/stream?snapshot_version=0", chat.ID),
-			nil,
-		)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		for _, version := range []string{"0", "-1"} {
+			res, err := client.Request(
+				ctx,
+				http.MethodGet,
+				fmt.Sprintf("/api/v2/chats/%s/stream?snapshot_version=%s", chat.ID, version),
+				nil,
+			)
+			require.NoError(t, err)
+			_ = res.Body.Close()
+			require.Equal(t, http.StatusBadRequest, res.StatusCode, "snapshot_version=%s", version)
+		}
 	})
 
 	t.Run("SnapshotVersionAboveChatReturns400", func(t *testing.T) {
