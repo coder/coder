@@ -378,7 +378,7 @@
 						},
 						{
 							"title": "Claude Desktop",
-							"description": "Access your Coder workspace with Claude Desktop, which discovers running workspaces as SSH targets.",
+							"description": "Let Claude Desktop access your Coder workspaces.",
 							"path": "./user-guides/workspace-access/claude-desktop.md"
 						}
 					]
