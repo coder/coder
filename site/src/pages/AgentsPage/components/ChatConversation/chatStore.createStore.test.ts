@@ -762,10 +762,10 @@ const seededStore = (
 		messages,
 		queued_messages: queuedMessages,
 		has_more: false,
-		history_version: 1,
+		snapshot_version: 1,
 	});
 	store.applyServerChatStatus(status);
-	store.applyCheckpoint(1, 1);
+	store.applyCheckpoint(1);
 	return store;
 };
 
@@ -1044,7 +1044,7 @@ describe("prependOlderMessages", () => {
 			messages: [makeMessage(3, "user", "c")],
 			queued_messages: [],
 			has_more: true,
-			history_version: 1,
+			snapshot_version: 1,
 		});
 		const resetCount = store.getHistoryResetCount();
 
@@ -1064,7 +1064,7 @@ describe("prependOlderMessages", () => {
 			messages: [makeMessage(3, "user", "c")],
 			queued_messages: [],
 			has_more: true,
-			history_version: 1,
+			snapshot_version: 1,
 		});
 		const resetCount = store.getHistoryResetCount();
 		store.replaceMessagesFrom(undefined, [makeMessage(4, "user", "new")]);
@@ -1086,7 +1086,7 @@ describe("load", () => {
 			messages: [makeMessage(2, "assistant", "b"), makeMessage(1, "user", "a")],
 			queued_messages: [],
 			has_more: true,
-			history_version: 4,
+			snapshot_version: 4,
 		}));
 
 		store.load(fetchPage);
@@ -1099,6 +1099,6 @@ describe("load", () => {
 		expect(fetchPage).toHaveBeenCalledTimes(1);
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
 		expect(store.getSnapshot().hasMoreMessages).toBe(true);
-		expect(store.getSyncedHistoryVersion()).toBe(4);
+		expect(store.getSyncedSnapshotVersion()).toBe(4);
 	});
 });

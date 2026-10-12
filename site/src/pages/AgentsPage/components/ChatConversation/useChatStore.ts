@@ -77,7 +77,7 @@ export const useChatStore = (
 	const queryClient = useQueryClient();
 	// A chat keeps its store as long as the query cache keeps an unused query,
 	// so reopening it shows the chat as it was left and the stream resumes
-	// from the store's history version.
+	// from the store's snapshot version.
 	const { data: store } = useQuery({
 		queryKey: chatStoreKey(chatID),
 		queryFn: () =>
@@ -339,10 +339,7 @@ export const useChatStore = (
 					if (streamEvent.type === "checkpoint") {
 						const checkpoint = streamEvent.checkpoint;
 						if (checkpoint) {
-							store.applyCheckpoint(
-								checkpoint.snapshot_version,
-								checkpoint.history_version,
-							);
+							store.applyCheckpoint(checkpoint.snapshot_version);
 						}
 						continue;
 					}
@@ -478,8 +475,8 @@ export const useChatStore = (
 		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
-				// The server sends only history changed after this version.
-				const socket = watchChat(chatID, store.getSyncedHistoryVersion());
+				// The server sends only changes made after this version.
+				const socket = watchChat(chatID, store.getSyncedSnapshotVersion());
 				socket.addEventListener("message", handleMessage);
 				return socket;
 			},
