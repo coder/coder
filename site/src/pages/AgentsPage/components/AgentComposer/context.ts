@@ -41,7 +41,7 @@ export type ComposerFileBindings = {
 };
 
 /** Initial document and change notifications for the uncontrolled editor. */
-type ComposerEditorBindings = {
+export type ComposerEditorBindings = {
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	initialValue: string;
 	initialEditorState?: string;
@@ -55,7 +55,7 @@ type ComposerEditorBindings = {
 };
 
 /** Submission capabilities shared by new and existing chat drafts. */
-type ComposerDraftBindings = ComposerEditorBindings & {
+export type ComposerDraftBindings = ComposerEditorBindings & {
 	onSend: (message: string) => void;
 	isDisabled: boolean;
 	isReadOnly?: boolean;

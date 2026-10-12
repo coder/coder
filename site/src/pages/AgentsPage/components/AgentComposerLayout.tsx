@@ -29,7 +29,7 @@ export const AgentComposerContainer = ({
 	);
 };
 
-type AgentComposerSetup = {
+export type AgentComposerSetup = {
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;

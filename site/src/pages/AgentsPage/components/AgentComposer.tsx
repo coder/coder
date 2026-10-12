@@ -56,7 +56,7 @@ function RuntimeProvider({
 }
 
 /** Editor affordances selected by an assembly, separate from document state. */
-type ComposerEditorProps = {
+export type ComposerEditorProps = {
 	placeholder?: string;
 	workspaceSkills?: readonly SkillMetadata[];
 	slashCommands?: readonly ChatSlashCommand[];

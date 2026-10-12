@@ -19,7 +19,7 @@ import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import { findWorkspaceAgent } from "#/utils/workspace";
-import { AgentChatInput } from "./components/AgentChatInput";
+import { LoadingChatComposer } from "./components/AgentComposers";
 import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
@@ -1082,24 +1082,29 @@ export const AgentChatPageLoadingView: React.FC<
 					</div>
 				</div>
 				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
-					<AgentChatInput
-						onSend={() => {}}
-						inputRef={inputRef}
-						initialValue={initialValue}
-						initialEditorState={initialEditorState}
-						remountKey={remountKey}
-						onContentChange={onContentChange}
-						isDisabled={isInputDisabled}
-						isLoading={false}
-						selectedModel={effectiveSelectedModel}
-						onModelChange={setSelectedModel}
-						modelOptions={modelOptions}
-						modelSelectorPlaceholder={modelSelectorPlaceholder}
-						planModeEnabled={planModeEnabled}
-						onPlanModeToggle={onPlanModeToggle}
-						isModelCatalogLoading={isModelCatalogLoading}
-						hasModelOptions={hasModelOptions}
-						canConfigureAgentSetup={false}
+					<LoadingChatComposer
+						bindings={{
+							inputRef,
+							initialValue,
+							initialEditorState,
+							remountKey,
+							onContentChange,
+							isDisabled: isInputDisabled,
+							hasModelOptions,
+						}}
+						model={{
+							selectedModel: effectiveSelectedModel,
+							onModelChange: setSelectedModel,
+							modelOptions,
+							modelSelectorPlaceholder,
+							isModelCatalogLoading,
+						}}
+						tools={{
+							planning: {
+								enabled: planModeEnabled,
+								onChange: onPlanModeToggle,
+							},
+						}}
 					/>
 				</div>{" "}
 			</div>

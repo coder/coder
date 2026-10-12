@@ -43,7 +43,7 @@ import {
 	pickReasoningEffort,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentChatInput } from "./AgentChatInput";
+import { NewAgentComposer } from "./AgentComposers";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
@@ -950,84 +950,101 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 							}}
 						/>
 					)}
-				<AgentChatInput
+				<NewAgentComposer
 					fillWidth={fillWidth}
-					onSend={handleSendWithAttachments}
-					placeholder="Ask Coder to build, fix bugs, or explore your project..."
-					isDisabled={
-						isSubmitPending ||
-						isForbidden ||
-						!orgSelectionSettled ||
-						// Sending before adoption would omit persisted files not yet restored.
-						!organizationAdopted ||
-						workspaceValidationPending ||
-						isPersonalModelOverridesUnresolved ||
-						isMCPSelectionUnresolved ||
-						!hasModelOptions ||
-						Boolean(aiGatewayDisabled)
-					}
-					isReadOnly={isForbidden}
-					isLoading={isSubmitPending}
-					initialValue={initialInputValue}
-					initialEditorState={initialEditorState}
-					onContentChange={(content, serializedEditorState, hasRefs) => {
-						if (content !== prefill?.message) {
-							setIsPrefillEdited(true);
-						}
-						handleContentChange(content, serializedEditorState, hasRefs);
+					bindings={{
+						onSend: handleSendWithAttachments,
+						isDisabled:
+							isSubmitPending ||
+							isForbidden ||
+							!orgSelectionSettled ||
+							// Sending before adoption would omit persisted files not yet restored.
+							!organizationAdopted ||
+							workspaceValidationPending ||
+							isPersonalModelOverridesUnresolved ||
+							isMCPSelectionUnresolved ||
+							!hasModelOptions ||
+							Boolean(aiGatewayDisabled),
+						isReadOnly: isForbidden,
+						isLoading: isSubmitPending,
+						hasModelOptions,
+						initialValue: initialInputValue,
+						initialEditorState,
+						onContentChange: (content, serializedEditorState, hasRefs) => {
+							if (content !== prefill?.message) {
+								setIsPrefillEdited(true);
+							}
+							handleContentChange(content, serializedEditorState, hasRefs);
+						},
+						warning: isPrefillEdited ? undefined : prefill?.warning,
+						files: {
+							attachments,
+							// Files attached before org adoption cannot upload and would be discarded
+							// when restoration completes.
+							onAttach: organizationAdopted ? handleAttachWhenIdle : undefined,
+							onRemoveAttachment: handleRemoveAttachment,
+							uploadStates,
+							previewUrls,
+							textContents,
+							workspaceUploads: {
+								uploads: workspaceUploadEntries,
+								onAttach: canUploadWorkspaceFiles
+									? workspaceUploads.attach
+									: undefined,
+								onRemove: workspaceUploads.remove,
+								unavailableMessage: workspaceUploadUnavailableMessage,
+								deferred: true,
+							},
+						},
 					}}
-					warning={isPrefillEdited ? undefined : prefill?.warning}
-					selectedModel={selectedModel}
-					onModelChange={handleModelChange}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					reasoningEffort={effectiveReasoningEffort}
-					onReasoningEffortChange={handleReasoningEffortChange}
-					isModelCatalogLoading={isModelDataPending}
-					hasModelOptions={hasModelOptions}
-					planModeEnabled={planModeEnabled}
-					onPlanModeToggle={setPlanModeEnabled}
-					attachments={attachments}
-					// Files attached before org adoption cannot upload and would be discarded
-					// when restoration completes.
-					onAttach={organizationAdopted ? handleAttachWhenIdle : undefined}
-					onRemoveAttachment={handleRemoveAttachment}
-					uploadStates={uploadStates}
-					previewUrls={previewUrls}
-					textContents={textContents}
-					workspaceUploads={{
-						uploads: workspaceUploadEntries,
-						onAttach: canUploadWorkspaceFiles
-							? workspaceUploads.attach
-							: undefined,
-						onRemove: workspaceUploads.remove,
-						unavailableMessage: workspaceUploadUnavailableMessage,
-						deferred: true,
+					editor={{
+						placeholder:
+							"Ask Coder to build, fix bugs, or explore your project...",
 					}}
-					mcpServers={mcpServers}
-					chatOrganizationId={organizationId}
-					selectedMCPServerIds={effectiveMCPServerIds}
-					onMCPSelectionChange={(ids) => {
-						setUserMCPServerIds(ids);
-						if (!isLocked) {
-							saveMCPSelection(organizationId, ids);
-						}
+					model={{
+						selectedModel,
+						onModelChange: handleModelChange,
+						modelOptions,
+						modelSelectorPlaceholder,
+						reasoningEffort: effectiveReasoningEffort,
+						onReasoningEffortChange: handleReasoningEffortChange,
+						isModelCatalogLoading: isModelDataPending,
 					}}
-					onMCPAuthComplete={() => void mcpServersQuery.refetch()}
-					workspaceOptions={filteredWorkspaces}
-					selectedWorkspaceId={effectiveWorkspaceId}
-					// Do not persist a workspace until its organization is authorized.
-					onWorkspaceChange={
-						orgSelectionSettled && !noPermittedOrgs && !isSubmitPending
-							? setSelectedWorkspaceId
-							: undefined
-					}
-					isWorkspaceLoading={isWorkspacesLoading}
-					canConfigureAgentSetup={canConfigureAgentSetup}
-					providerCount={providerCount}
-					modelCount={modelCount}
-					unsupportedProviderNames={unsupportedProviderNames}
-					aiGatewayDisabled={aiGatewayDisabled}
+					tools={{
+						organizationId,
+						planning: {
+							enabled: planModeEnabled,
+							onChange: setPlanModeEnabled,
+						},
+						mcp: {
+							servers: mcpServers,
+							selectedServerIds: effectiveMCPServerIds,
+							onSelectionChange: (ids) => {
+								setUserMCPServerIds(ids);
+								if (!isLocked) {
+									saveMCPSelection(organizationId, ids);
+								}
+							},
+							onAuthComplete: () => void mcpServersQuery.refetch(),
+						},
+						workspaceSelection: {
+							options: filteredWorkspaces,
+							selectedId: effectiveWorkspaceId,
+							// Do not persist a workspace until its organization is authorized.
+							onChange:
+								orgSelectionSettled && !noPermittedOrgs && !isSubmitPending
+									? setSelectedWorkspaceId
+									: undefined,
+							isLoading: isWorkspacesLoading,
+						},
+					}}
+					setup={{
+						canConfigureAgentSetup,
+						providerCount,
+						modelCount,
+						unsupportedProviderNames,
+						aiGatewayDisabled,
+					}}
 				/>
 				{modelSelectorHelp ? (
 					<div className="px-3 pt-1 text-2xs text-content-secondary">
