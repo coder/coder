@@ -40,7 +40,6 @@ export const chatStoreKey = (chatID: string) => ["chatStore", chatID] as const;
 
 type UseChatStoreOptions = {
 	chatID: string;
-	chatRecord: TypesGen.Chat | undefined;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 	aiGatewayDisabled?: boolean;
@@ -59,7 +58,6 @@ export const useChatStore = (
 } => {
 	const {
 		chatID,
-		chatRecord,
 		setChatErrorReason,
 		clearChatErrorReason,
 		aiGatewayDisabled = false,
@@ -100,13 +98,6 @@ export const useChatStore = (
 	useEffect(() => {
 		store.load(() => fetchNewestChatMessages(chatID));
 	}, [chatID, store]);
-
-	// The chat record supplies the status until the stream reports one.
-	useEffect(() => {
-		if (!store.hasServerStatus()) {
-			store.setChatStatus(chatRecord?.status ?? null);
-		}
-	}, [chatRecord?.status, store]);
 
 	const {
 		mutate: loadOlderMessages,
