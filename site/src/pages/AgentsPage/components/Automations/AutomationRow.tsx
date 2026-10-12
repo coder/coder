@@ -23,6 +23,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { AutomationLastRun } from "./AutomationLastRun";
 import {
 	AutomationEnabledSwitch,
 	AutomationNextRun,
@@ -341,6 +342,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 							<span>
 								Next: <AutomationNextRun automation={automation} />
 							</span>
+							<AutomationLastRun lastRun={automation.last_run} />
 						</div>
 					</TableCell>
 					<TableCell className="align-top">{enabledSwitch}</TableCell>
@@ -362,8 +364,15 @@ export const AutomationRow = memo<AutomationRowProps>(
 				<TableCell>
 					<TargetCell automation={automation} isOwner={isOwner} />
 				</TableCell>
-				<TableCell className="whitespace-nowrap">
-					<AutomationNextRun automation={automation} />
+				<TableCell>
+					{/* Paused reasons come first: while paused, the last run is
+					    an older result. */}
+					<div className="flex flex-col gap-1">
+						<span className="whitespace-nowrap">
+							<AutomationNextRun automation={automation} />
+						</span>
+						<AutomationLastRun lastRun={automation.last_run} />
+					</div>
 				</TableCell>
 				<TableCell>{enabledSwitch}</TableCell>
 				<TableCell>{actions}</TableCell>

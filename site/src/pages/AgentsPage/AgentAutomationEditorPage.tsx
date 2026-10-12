@@ -41,6 +41,7 @@ import {
 	AutomationRunsAsCard,
 	type SecretGuard,
 } from "./components/Automations/AutomationEditorForm";
+import { AutomationLastRun } from "./components/Automations/AutomationLastRun";
 import {
 	AutomationEnabledSwitch,
 	AutomationNextRun,
@@ -362,9 +363,16 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 								{title}
 							</h1>
 							{automation && (
-								<span className="text-sm text-content-secondary">
-									Next run: <AutomationNextRun automation={automation} />
-								</span>
+								<>
+									<span className="text-sm text-content-secondary">
+										Next run: <AutomationNextRun automation={automation} />
+									</span>
+									<AutomationLastRun
+										lastRun={automation.last_run}
+										showHint={isOwner}
+										className="text-sm"
+									/>
+								</>
 							)}
 						</div>
 						{automation && (
