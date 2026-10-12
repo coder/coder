@@ -75,7 +75,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
-import type { EditingTarget } from "./ChatConversation/types";
+import { isPendingRowID } from "./ChatConversation/chatStore";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -1206,7 +1206,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			!isReadOnly &&
 			!isLoading &&
 			!hasActiveUploads &&
-			enterSendsHead &&
+			queuedMessages.length > 0 &&
+			!isPendingRowID(queuedMessages[0].id) &&
 			onPromoteQueuedMessage
 		) {
 			void onPromoteQueuedMessage(queuedMessages[0].id);
