@@ -407,6 +407,9 @@ func TestManageAutomationsTool(t *testing.T) {
 
 		content, isError = f.call(ctx, t, f.chat.ID, "delete", schedule.ID)
 		require.False(t, isError, content)
+		var deleted map[string]any
+		require.NoError(t, json.Unmarshal([]byte(content), &deleted))
+		require.Equal(t, schedule.Name, deleted["name"])
 		_, err = f.db.GetChatAutomationByID(ctx, schedule.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 

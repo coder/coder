@@ -436,7 +436,8 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 			return nil, p.manageAutomationsError(ctx, logger, action, err)
 		}
 		p.auditManageAutomations(ctx, chat, trigger, database.AuditActionDelete, row, database.ChatAutomation{})
-		return map[string]any{"deleted": true, "automation_id": row.ID.String()}, nil
+		// The name lets the chat's tool label say which automation went.
+		return map[string]any{"deleted": true, "automation_id": row.ID.String(), "name": row.Name}, nil
 	}
 }
 

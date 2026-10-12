@@ -91,8 +91,10 @@ const ManageAutomationsLabel: React.FC<ToolLabelProps> = ({
 		? manageAutomationsLabels[action]
 		: undefined;
 	const parsedResult = asRecord(result);
+	// A delete result has no automation object, only its name.
 	const automationName =
 		asString(asRecord(parsedResult?.automation)?.name) ||
+		asString(parsedResult?.name) ||
 		asString(parsed?.name);
 	const suffix = automationName ? ` ${automationName}` : "";
 	let label = "Manage automations";
