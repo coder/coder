@@ -1713,11 +1713,6 @@ describe("useChatStore", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
@@ -1785,11 +1780,6 @@ describe("useChatStore", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
@@ -1903,11 +1893,6 @@ describe("useChatStore", () => {
 		const queryClient = createTestQueryClient();
 		const wrapper = createWrapper(queryClient);
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		renderHook(
 			() =>
 				useChatStore({
@@ -2174,11 +2159,6 @@ describe("updateSidebarChat via stream events", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		renderHook(
 			() => {
 				const { store } = useChatStore({
@@ -2229,11 +2209,6 @@ describe("updateSidebarChat via stream events", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		renderHook(
 			() => {
 				const { store } = useChatStore({
@@ -2300,11 +2275,6 @@ describe("updateSidebarChat via stream events", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		renderHook(
 			() => {
 				const { store } = useChatStore({
@@ -2362,11 +2332,6 @@ describe("updateSidebarChat via stream events", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		renderHook(
 			() => {
 				useChatStore({
@@ -2426,11 +2391,6 @@ describe("updateSidebarChat via stream events", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		renderHook(
 			() => {
 				const { store } = useChatStore({
@@ -2495,11 +2455,6 @@ describe("updateSidebarChat via stream events", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		renderHook(
 			() => {
 				const { store } = useChatStore({
@@ -2552,11 +2507,6 @@ describe("updateSidebarChat via stream events", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		renderHook(
 			() => {
 				const { store } = useChatStore({
@@ -2877,11 +2827,6 @@ describe("parse errors", () => {
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		mockNewestPage(chatID, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
