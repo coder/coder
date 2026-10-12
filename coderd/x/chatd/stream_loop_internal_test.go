@@ -35,15 +35,15 @@ func TestStreamLoopSyncHintDecision(t *testing.T) {
 			db:     db,
 			logger: slogtest.Make(t, nil),
 			state: streamLocalState{
-				snapshotVersion:          5,
-				historyVersion:           2,
-				queueVersion:             3,
-				retryVersion:             4,
-				status:                   database.ChatStatusRunning,
-				workerID:                 uuid.NullUUID{UUID: workerA, Valid: true},
-				generationAttempt:        1,
-				knownMessages:            make(map[int64]int64),
-				initialMessageSyncDone:   true,
+				snapshotVersion:           5,
+				historyVersion:            2,
+				queueVersion:              3,
+				retryVersion:              4,
+				status:                    database.ChatStatusRunning,
+				workerID:                  uuid.NullUUID{UUID: workerA, Valid: true},
+				generationAttempt:         1,
+				knownMessages:             make(map[int64]int64),
+				initialMessageSyncDone:    true,
 				openedWithSnapshotVersion: true,
 			},
 		}
@@ -406,6 +406,82 @@ func TestStreamLoopQueueStatusRetryErrorActionRequiredAndPreviewReset(t *testing
 		codersdk.ChatStreamEventTypeCheckpoint,
 	)
 	require.Equal(t, "call-1", actionEvents[1].ActionRequired.ToolCalls[0].ToolCallID)
+}
+
+// TestStreamLoopTurn checks that a stream opened with a snapshot version
+// reports the turn only in its checkpoints, while a stream opened without
+// one keeps the status, error, retry and action_required events.
+func TestStreamLoopTurn(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	retry := codersdk.ChatStreamRetry{Attempt: 2, DelayMs: 100, Error: "retrying", RetryingAt: time.Now().UTC().Truncate(time.Second)}
+	retryRaw, err := json.Marshal(retry)
+	require.NoError(t, err)
+	chatError := codersdk.ChatError{Message: "provider failed", Kind: codersdk.ChatErrorKindConfig}
+	errorRaw, err := json.Marshal(chatError)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name       string
+		chat       database.Chat
+		wantTurn   codersdk.ChatStreamTurn
+		wantLegacy []codersdk.ChatStreamEventType
+	}{
+		{
+			name:       "waiting",
+			chat:       database.Chat{Status: database.ChatStatusWaiting},
+			wantTurn:   codersdk.ChatStreamTurn{Status: codersdk.ChatStatusWaiting},
+			wantLegacy: []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus},
+		},
+		{
+			name: "running with a pending retry",
+			chat: database.Chat{
+				Status:            database.ChatStatusRunning,
+				RetryStateVersion: 3,
+				RetryState:        pqtype.NullRawMessage{RawMessage: retryRaw, Valid: true},
+			},
+			wantTurn:   codersdk.ChatStreamTurn{Status: codersdk.ChatStatusRunning, Retry: &retry},
+			wantLegacy: []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus, codersdk.ChatStreamEventTypeRetry},
+		},
+		{
+			// A chat that stopped can still hold the retry payload of its
+			// last attempt.
+			name: "error",
+			chat: database.Chat{
+				Status:            database.ChatStatusError,
+				LastError:         pqtype.NullRawMessage{RawMessage: errorRaw, Valid: true},
+				RetryStateVersion: 3,
+				RetryState:        pqtype.NullRawMessage{RawMessage: retryRaw, Valid: true},
+			},
+			wantTurn:   codersdk.ChatStreamTurn{Status: codersdk.ChatStatusError, Error: &chatError},
+			wantLegacy: []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus, codersdk.ChatStreamEventTypeError},
+		},
+		{
+			name:       "requires_action",
+			chat:       database.Chat{Status: database.ChatStatusRequiresAction},
+			wantTurn:   codersdk.ChatStreamTurn{Status: codersdk.ChatStatusRequiresAction},
+			wantLegacy: []codersdk.ChatStreamEventType{codersdk.ChatStreamEventTypeStatus, codersdk.ChatStreamEventTypeActionRequired},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.chat.ID = chatID
+			tt.chat.SnapshotVersion = 4
+			tt.chat.HistoryVersion = 2
+
+			loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), StreamCursor{SnapshotVersion: 4})
+			events := loop.applyDBSnapshot(streamDBSnapshot{chat: tt.chat})
+			requireEventTypes(t, events, codersdk.ChatStreamEventTypeCheckpoint)
+			require.Equal(t, tt.wantTurn, events[0].Checkpoint.Turn)
+
+			legacy := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), StreamCursor{})
+			legacy.state.historyVersion = 2
+			events = legacy.applyDBSnapshot(streamDBSnapshot{chat: tt.chat})
+			requireEventTypes(t, events, append(tt.wantLegacy, codersdk.ChatStreamEventTypeCheckpoint)...)
+			require.Equal(t, tt.wantTurn, events[len(events)-1].Checkpoint.Turn)
+		})
+	}
 }
 
 func TestStreamLoopActionRequiredFromHistory(t *testing.T) {
@@ -976,7 +1052,6 @@ func TestStreamLoopSnapshotVersion(t *testing.T) {
 			types = append(types, codersdk.ChatStreamEventTypeMessage)
 		}
 		return append(types,
-			codersdk.ChatStreamEventTypeStatus,
 			codersdk.ChatStreamEventTypePreviewReset,
 			codersdk.ChatStreamEventTypeCheckpoint,
 		)
@@ -995,7 +1070,6 @@ func TestStreamLoopSnapshotVersion(t *testing.T) {
 			rows:   edited,
 			cursor: StreamCursor{AfterMessageID: 6, SnapshotVersion: 5},
 			wantEvents: []codersdk.ChatStreamEventType{
-				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypeCheckpoint,
 			},
 		},
@@ -1005,7 +1079,6 @@ func TestStreamLoopSnapshotVersion(t *testing.T) {
 			cursor: StreamCursor{AfterMessageID: 5, SnapshotVersion: 4},
 			wantEvents: []codersdk.ChatStreamEventType{
 				codersdk.ChatStreamEventTypeMessage,
-				codersdk.ChatStreamEventTypeStatus,
 				codersdk.ChatStreamEventTypePreviewReset,
 				codersdk.ChatStreamEventTypeCheckpoint,
 			},
@@ -1030,11 +1103,20 @@ func TestStreamLoopSnapshotVersion(t *testing.T) {
 		},
 		{
 			// Message after_id was deleted.
-			name:       "no snapshot version resets the whole history",
-			rows:       edited,
-			cursor:     StreamCursor{AfterMessageID: 4},
-			wantEvents: reset(4),
-			wantIDs:    []int64{1, 2, 5, 6},
+			name:   "no snapshot version resets the whole history",
+			rows:   edited,
+			cursor: StreamCursor{AfterMessageID: 4},
+			wantEvents: []codersdk.ChatStreamEventType{
+				codersdk.ChatStreamEventTypeHistoryReset,
+				codersdk.ChatStreamEventTypeMessage,
+				codersdk.ChatStreamEventTypeMessage,
+				codersdk.ChatStreamEventTypeMessage,
+				codersdk.ChatStreamEventTypeMessage,
+				codersdk.ChatStreamEventTypeStatus,
+				codersdk.ChatStreamEventTypePreviewReset,
+				codersdk.ChatStreamEventTypeCheckpoint,
+			},
+			wantIDs: []int64{1, 2, 5, 6},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1076,7 +1158,6 @@ func TestStreamLoopSnapshotVersionWithoutStatusChange(t *testing.T) {
 	prompt := streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "prompt", false)
 	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), StreamCursor{AfterMessageID: 1, SnapshotVersion: 1})
 	requireEventTypes(t, syncAgainst(t, loop, chat, []database.ChatMessage{prompt}),
-		codersdk.ChatStreamEventTypeStatus,
 		codersdk.ChatStreamEventTypePreviewReset,
 		codersdk.ChatStreamEventTypeCheckpoint,
 	)
@@ -1093,6 +1174,7 @@ func TestStreamLoopSnapshotVersionWithoutStatusChange(t *testing.T) {
 	)
 	require.Equal(t, &codersdk.ChatStreamCheckpoint{
 		SnapshotVersion: 2,
+		Turn:            codersdk.ChatStreamTurn{Status: codersdk.ChatStatusRunning},
 	}, events[2].Checkpoint, "the sync reported no version to reconnect with")
 }
 

@@ -52,11 +52,16 @@ type streamLocalState struct {
 	// not come back.
 	attemptRetired bool
 
+	// turn is the turn the last checkpoint reported.
+	turn codersdk.ChatStreamTurn
+
 	afterMessageID         int64
 	initialMessageSyncDone bool
 	// openedWithSnapshotVersion reports whether the client opened the stream
 	// with a snapshot version. Only then may history_reset carry
-	// from_message_id, which older clients would read as a full reset.
+	// from_message_id, which older clients would read as a full reset, and
+	// only then does the checkpoint's turn replace the status, error, retry
+	// and action_required events those clients read.
 	openedWithSnapshotVersion bool
 }
 
@@ -240,7 +245,7 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 			}
 		}
 
-		if chat.Status == database.ChatStatusRequiresAction {
+		if chat.Status == database.ChatStatusRequiresAction && !l.state.openedWithSnapshotVersion {
 			history, err := tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 				ChatID:  l.chatID,
 				AfterID: 0,
@@ -347,44 +352,10 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 		})
 	}
 
-	if chat.Status != l.state.status {
-		events = append(events, codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeStatus,
-			ChatID: l.chatID,
-			Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(chat.Status)},
-		})
+	if !l.state.openedWithSnapshotVersion {
+		events = append(events, l.turnEvents(chat, snapshot.actionRequired)...)
 	}
-
-	if chat.Status == database.ChatStatusError && chat.HistoryVersion > l.state.errorHistoryVersion {
-		events = append(events, codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeError,
-			ChatID: l.chatID,
-			Error:  l.chatError(chat),
-		})
-		l.state.errorHistoryVersion = chat.HistoryVersion
-	}
-
-	if chat.Status == database.ChatStatusRequiresAction && chat.HistoryVersion > l.state.actionRequiredHistoryVersion {
-		actionRequired := snapshot.actionRequired
-		if actionRequired == nil {
-			actionRequired = &codersdk.ChatStreamActionRequired{}
-		}
-		events = append(events, codersdk.ChatStreamEvent{
-			Type:           codersdk.ChatStreamEventTypeActionRequired,
-			ChatID:         l.chatID,
-			ActionRequired: actionRequired,
-		})
-		l.state.actionRequiredHistoryVersion = chat.HistoryVersion
-	}
-
-	// retry_state describes a pending retry of a running chat. Never
-	// announce it for a chat that stopped running, even if a stale payload
-	// is still stored.
-	if chat.RetryStateVersion > l.state.retryVersion && chat.Status == database.ChatStatusRunning {
-		if retry := l.retryEvent(chat); retry != nil {
-			events = append(events, *retry)
-		}
-	}
+	l.state.turn = StreamTurn(l.logger, chat)
 
 	if historyChanged || generationChanged {
 		l.state.attemptRetired = false
@@ -433,6 +404,7 @@ func (l *streamLoop) checkpointEvent() codersdk.ChatStreamEvent {
 		ChatID: l.chatID,
 		Checkpoint: &codersdk.ChatStreamCheckpoint{
 			SnapshotVersion: l.state.snapshotVersion,
+			Turn:            l.state.turn,
 		},
 	}
 }
@@ -486,7 +458,70 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 	return events
 }
 
-func (l *streamLoop) chatError(chat database.Chat) *codersdk.ChatError {
+// turnEvents reports turn changes as the status, error, action_required
+// and retry events of streams opened without a snapshot version.
+func (l *streamLoop) turnEvents(chat database.Chat, actionRequired *codersdk.ChatStreamActionRequired) []codersdk.ChatStreamEvent {
+	var events []codersdk.ChatStreamEvent
+	if chat.Status != l.state.status {
+		events = append(events, codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypeStatus,
+			ChatID: l.chatID,
+			Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(chat.Status)},
+		})
+	}
+
+	if chat.Status == database.ChatStatusError && chat.HistoryVersion > l.state.errorHistoryVersion {
+		events = append(events, codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypeError,
+			ChatID: l.chatID,
+			Error:  chatStreamError(l.logger, chat),
+		})
+		l.state.errorHistoryVersion = chat.HistoryVersion
+	}
+
+	if chat.Status == database.ChatStatusRequiresAction && chat.HistoryVersion > l.state.actionRequiredHistoryVersion {
+		if actionRequired == nil {
+			actionRequired = &codersdk.ChatStreamActionRequired{}
+		}
+		events = append(events, codersdk.ChatStreamEvent{
+			Type:           codersdk.ChatStreamEventTypeActionRequired,
+			ChatID:         l.chatID,
+			ActionRequired: actionRequired,
+		})
+		l.state.actionRequiredHistoryVersion = chat.HistoryVersion
+	}
+
+	// retry_state describes a pending retry of a running chat. Never
+	// announce it for a chat that stopped running, even if a stale payload
+	// is still stored.
+	if chat.RetryStateVersion > l.state.retryVersion && chat.Status == database.ChatStatusRunning {
+		if retry := chatStreamRetry(l.logger, chat); retry != nil {
+			events = append(events, codersdk.ChatStreamEvent{
+				Type:   codersdk.ChatStreamEventTypeRetry,
+				ChatID: l.chatID,
+				Retry:  retry,
+			})
+		}
+	}
+	return events
+}
+
+// StreamTurn reports the chat's turn as the stream's checkpoint carries
+// it.
+func StreamTurn(logger slog.Logger, chat database.Chat) codersdk.ChatStreamTurn {
+	turn := codersdk.ChatStreamTurn{Status: codersdk.ChatStatus(chat.Status)}
+	switch chat.Status {
+	case database.ChatStatusError:
+		turn.Error = chatStreamError(logger, chat)
+	case database.ChatStatusRunning:
+		// retry_state describes a pending retry of a running chat. A
+		// stopped chat can still hold a stale payload.
+		turn.Retry = chatStreamRetry(logger, chat)
+	}
+	return turn
+}
+
+func chatStreamError(logger slog.Logger, chat database.Chat) *codersdk.ChatError {
 	if !chat.LastError.Valid || len(chat.LastError.RawMessage) == 0 {
 		return &codersdk.ChatError{
 			Message: "The chat request failed unexpectedly.",
@@ -495,8 +530,8 @@ func (l *streamLoop) chatError(chat database.Chat) *codersdk.ChatError {
 	}
 	var payload codersdk.ChatError
 	if err := json.Unmarshal(chat.LastError.RawMessage, &payload); err != nil {
-		l.logger.Warn(context.Background(), "failed to parse chat stream last_error",
-			slog.F("chat_id", l.chatID),
+		logger.Warn(context.Background(), "failed to parse chat stream last_error",
+			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
 		return &codersdk.ChatError{
@@ -513,23 +548,19 @@ func (l *streamLoop) chatError(chat database.Chat) *codersdk.ChatError {
 	return &payload
 }
 
-func (l *streamLoop) retryEvent(chat database.Chat) *codersdk.ChatStreamEvent {
+func chatStreamRetry(logger slog.Logger, chat database.Chat) *codersdk.ChatStreamRetry {
 	if !chat.RetryState.Valid || len(chat.RetryState.RawMessage) == 0 {
 		return nil
 	}
 	var retry codersdk.ChatStreamRetry
 	if err := json.Unmarshal(chat.RetryState.RawMessage, &retry); err != nil {
-		l.logger.Warn(context.Background(), "failed to parse chat stream retry_state",
-			slog.F("chat_id", l.chatID),
+		logger.Warn(context.Background(), "failed to parse chat stream retry_state",
+			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
 		return nil
 	}
-	return &codersdk.ChatStreamEvent{
-		Type:   codersdk.ChatStreamEventTypeRetry,
-		ChatID: l.chatID,
-		Retry:  &retry,
-	}
+	return &retry
 }
 
 func (l *streamLoop) part(part streamPart) (event codersdk.ChatStreamEvent, accepted bool, err error) {
