@@ -10217,9 +10217,8 @@ func TestStreamChat(t *testing.T) {
 		_, _ = tab.connect(ctx, t, client, chat.ID)
 
 		// While this tab is not reading its stream, another tab sends a message
-		// and then this tab sends one, storing the response as submitChatTurn.ts
-		// does. The other tab's message has the lower ID, so after_id alone
-		// would skip it.
+		// and then this tab sends one and holds it. The other tab's message
+		// has the lower ID, so after_id alone would skip it.
 		_ = sendChatMessage(ctx, t, client, chat.ID, "from another tab")
 		tab.hold(sendChatMessage(ctx, t, client, chat.ID, "from this tab")...)
 
