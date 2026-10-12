@@ -244,8 +244,11 @@ func ProtoFromScript(s codersdk.WorkspaceAgentScript) (*proto.WorkspaceAgentScri
 }
 
 // agentScriptDependenciesFromProto rejects an empty address or an unknown
-// enum value, including UNSPECIFIED, so the agent never starts scripts
-// from a list it only half understands.
+// enum value, including UNSPECIFIED. The error fails the whole manifest,
+// so the agent stays offline rather than start scripts from a list it only
+// half understands. Coderd avoids this by sending a new Requirement value
+// only to agents on the API version that added it; see the enum in
+// agent.proto.
 func agentScriptDependenciesFromProto(dependencies []*proto.WorkspaceAgentScriptDependency) ([]codersdk.WorkspaceAgentScriptDependency, error) {
 	if len(dependencies) == 0 {
 		return nil, nil

@@ -70,6 +70,10 @@ message WorkspaceAgentScript {
 // WorkspaceAgentScriptDependency names a prerequisite script and the
 // outcome it must reach before the dependent script may run.
 message WorkspaceAgentScriptDependency {
+	// The agent rejects a Requirement value it does not know and fails its
+	// whole manifest, which keeps networking, SSH and apps down until the
+	// agent binary is replaced. So coderd must send a value only to agents
+	// whose reported API version is at or above the version that added it.
 	enum Requirement {
 		REQUIREMENT_UNSPECIFIED = 0;
 		REQUIREMENT_SUCCESS = 1;

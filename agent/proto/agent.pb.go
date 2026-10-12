@@ -190,6 +190,10 @@ func (WorkspaceApp_Health) EnumDescriptor() ([]byte, []int) {
 	return file_agent_proto_agent_proto_rawDescGZIP(), []int{0, 1}
 }
 
+// The agent rejects a Requirement value it does not know and fails its
+// whole manifest, which keeps networking, SSH and apps down until the
+// agent binary is replaced. So coderd must send a value only to agents
+// whose reported API version is at or above the version that added it.
 type WorkspaceAgentScriptDependency_Requirement int32
 
 const (
