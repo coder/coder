@@ -3,6 +3,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	type ChatStore,
 	createChatStore,
+	isPendingRowID,
 	type PendingAction,
 	type SyncedUpdates,
 	selectChatStatus,
@@ -853,6 +854,33 @@ describe("pending actions", () => {
 			status: "waiting",
 			error: null,
 		});
+	});
+
+	it("gives the rows it draws IDs the server never assigns", () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "first"), makeMessage(2, "user", "old")],
+			[],
+			"waiting",
+		);
+		store.addPendingAction({
+			kind: "edit",
+			editedMessageID: 2,
+			message: makeMessage(2, "user", "new"),
+		});
+		store.addPendingAction(eagerSend("queued"));
+
+		const state = store.getSnapshot();
+		const shown = selectOrderedMessageIDs(state).map((id) => [
+			textOf(selectMessagesByID(state).get(id)?.content),
+			isPendingRowID(id),
+		]);
+		expect(shown).toEqual([
+			["first", false],
+			["new", true],
+		]);
+		expect(
+			selectQueuedMessages(state).map((row) => isPendingRowID(row.id)),
+		).toEqual([true]);
 	});
 
 	it("shows the turn stopping when a running chat's head is promoted", () => {

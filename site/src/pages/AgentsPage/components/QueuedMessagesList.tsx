@@ -15,6 +15,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { isPendingRowID } from "./ChatConversation/chatStore";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
@@ -107,6 +108,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 			{items.map((item, index) => {
 				const isFirst = index === 0;
 				const isItemBusy = busyItem !== null && busyItem.id === item.id;
+				const isPending = isPendingRowID(item.id);
 				const isHovered = hoveredID === item.id;
 				const showActions = isHovered || (isFirst && hoveredID === null);
 
@@ -174,7 +176,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 											variant="subtle"
 											size="icon"
 											aria-label="Send now"
-											disabled={isBusy}
+											disabled={isBusy || isPending}
 											onClick={() => void handlePromote(item.id)}
 											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
 										>
@@ -193,7 +195,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 											variant="subtle"
 											size="icon"
 											aria-label="Remove from queue"
-											disabled={isBusy}
+											disabled={isBusy || isPending}
 											onClick={() => void handleDelete(item.id)}
 											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
 										>

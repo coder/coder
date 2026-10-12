@@ -731,6 +731,16 @@ const withoutRow =
 	(rows) =>
 		rows.filter((row) => row.id !== id);
 
+// Pending rows take IDs from the top of the safe integer range, above any ID
+// the database assigns.
+const pendingRowIDFloor = Number.MAX_SAFE_INTEGER - 2 ** 32;
+
+/**
+ * Whether a shown message or queued row is drawn by a pending action. Such a
+ * row has no server identity, so nothing may act on it by ID.
+ */
+export const isPendingRowID = (id: number) => id > pendingRowIDFloor;
+
 // The server places a request's message by the state the request finds
 // (chatstate SendMessage and PromoteQueuedMessage); the entry places it by
 // the state shown at the click.
@@ -801,7 +811,10 @@ const pendingEntry = (
 		case "edit":
 			return {
 				id,
-				history: { fromID: action.editedMessageID, draft: action.message },
+				history: {
+					fromID: action.editedMessageID,
+					draft: action.message && { ...action.message, id: eagerID },
+				},
 				// Clearing an empty queue sends no queue update.
 				queue: shown.queuedMessages.length > 0 ? () => [] : undefined,
 				turn: "running",
