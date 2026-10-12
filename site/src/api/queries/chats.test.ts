@@ -130,10 +130,6 @@ import {
 	updateMCPServerConfigACL,
 } from "./chats";
 
-// A per-chat sub-key: chat invalidations must not reach it.
-const chatMessagesKey = (chatId: string) =>
-	[...chatEntityKey(chatId), "messages"] as const;
-
 vi.mock("#/api/api", () => ({
 	API: {
 		deleteWorkspace: vi.fn(),
@@ -599,7 +595,7 @@ describe("invalidateChatListQueries", () => {
 		});
 		// Per-chat queries that should NOT be touched.
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		queryClient.setQueryData(chatPromptsKey(chatId), []);
 		queryClient.setQueryData(chatDiffContentsKey(chatId), {});
 
 		await invalidateChatListQueries(queryClient);
@@ -625,8 +621,8 @@ describe("invalidateChatListQueries", () => {
 			"chatEntityKey should NOT be invalidated",
 		).not.toBe(true);
 		expect(
-			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"chatMessagesKey should NOT be invalidated",
+			queryClient.getQueryState(chatPromptsKey(chatId))?.isInvalidated,
+			"chatPromptsKey should NOT be invalidated",
 		).not.toBe(true);
 		expect(
 			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
@@ -659,7 +655,7 @@ describe("invalidateChatListQueries", () => {
 			makeChat(chatId),
 		]);
 		queryClient.setQueryData(chatEntityKey(otherChatId), makeChat(otherChatId));
-		queryClient.setQueryData(chatMessagesKey(otherChatId), []);
+		queryClient.setQueryData(chatPromptsKey(otherChatId), []);
 
 		await invalidateChatListQueries(queryClient);
 
@@ -668,8 +664,8 @@ describe("invalidateChatListQueries", () => {
 			"other chat's chatEntityKey should NOT be invalidated",
 		).not.toBe(true);
 		expect(
-			queryClient.getQueryState(chatMessagesKey(otherChatId))?.isInvalidated,
-			"other chat's chatMessagesKey should NOT be invalidated",
+			queryClient.getQueryState(chatPromptsKey(otherChatId))?.isInvalidated,
+			"other chat's chatPromptsKey should NOT be invalidated",
 		).not.toBe(true);
 	});
 
@@ -1734,7 +1730,7 @@ describe("mutation invalidation scope", () => {
 			pageParams: [0],
 		});
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		queryClient.setQueryData(chatPromptsKey(chatId), []);
 		queryClient.setQueryData(chatDebugRunsKey(chatId), []);
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 	};
@@ -1770,7 +1766,7 @@ describe("mutation invalidation scope", () => {
 		).not.toBe(true);
 	});
 
-	it("createChatMessage invalidates debug runs and chat detail, not messages", async () => {
+	it("createChatMessage invalidates debug runs and chat detail", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
@@ -1788,12 +1784,6 @@ describe("mutation invalidation scope", () => {
 			chatState?.isInvalidated,
 			"chatEntityKey should be invalidated",
 		).toBe(true);
-
-		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
-		expect(
-			messagesState?.isInvalidated,
-			"chatMessagesKey should NOT be invalidated",
-		).not.toBe(true);
 	});
 
 	it("editChatMessage does not invalidate unrelated queries", async () => {
@@ -1815,7 +1805,7 @@ describe("mutation invalidation scope", () => {
 		}
 	});
 
-	it("editChatMessage invalidates chat detail and debug runs, not messages", async () => {
+	it("editChatMessage invalidates chat detail and debug runs", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
@@ -1833,15 +1823,6 @@ describe("mutation invalidation scope", () => {
 			chatState?.isInvalidated,
 			"chatEntityKey should be invalidated",
 		).toBe(true);
-
-		// Messages are NOT invalidated. The per-chat WebSocket handles
-		// post-edit message delivery, making REST invalidation
-		// unnecessary.
-		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
-		expect(
-			messagesState?.isInvalidated,
-			"chatMessagesKey should not be invalidated",
-		).not.toBe(true);
 
 		expect(
 			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
@@ -1916,7 +1897,7 @@ describe("mutation invalidation scope", () => {
 					key: chatListKey(toChatListParams()),
 				},
 				{ label: "chat detail", key: chatEntityKey(chatId) },
-				{ label: "messages", key: chatMessagesKey(chatId) },
+				{ label: "prompts", key: chatPromptsKey(chatId) },
 				...unrelatedKeys(chatId),
 			]) {
 				const state = queryClient.getQueryState(key);
@@ -1956,8 +1937,8 @@ describe("mutation invalidation scope", () => {
 			"chatEntityKey should NOT be invalidated",
 		).not.toBe(true);
 		expect(
-			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"chatMessagesKey should NOT be invalidated",
+			queryClient.getQueryState(chatPromptsKey(chatId))?.isInvalidated,
+			"chatPromptsKey should NOT be invalidated",
 		).not.toBe(true);
 	});
 
@@ -1974,8 +1955,8 @@ describe("mutation invalidation scope", () => {
 			"chatEntityKey should be invalidated",
 		).toBe(true);
 		expect(
-			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"chatMessagesKey should not be invalidated",
+			queryClient.getQueryState(chatPromptsKey(chatId))?.isInvalidated,
+			"chatPromptsKey should not be invalidated",
 		).toBe(false);
 
 		// Unrelated queries should NOT be touched.
@@ -2354,7 +2335,7 @@ describe("diff_status_change invalidation scope", () => {
 
 		// Seed all the queries that are active on the /agents/:id page.
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		queryClient.setQueryData(chatPromptsKey(chatId), []);
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 		queryClient.setQueryData(chatListKey(toChatListParams()), [
 			makeChat(chatId),
@@ -2373,8 +2354,8 @@ describe("diff_status_change invalidation scope", () => {
 
 		// Messages should NOT be invalidated.
 		expect(
-			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"chatMessagesKey should NOT be invalidated by exact chatEntityKey",
+			queryClient.getQueryState(chatPromptsKey(chatId))?.isInvalidated,
+			"chatPromptsKey should NOT be invalidated by exact chatEntityKey",
 		).not.toBe(true);
 
 		// Diff-contents should NOT be invalidated.
@@ -2395,7 +2376,7 @@ describe("diff_status_change invalidation scope", () => {
 		const chatId = "chat-1";
 
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		queryClient.setQueryData(chatPromptsKey(chatId), []);
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 
 		// This is what the OLD (broken) handler did, no exact: true.
@@ -2404,8 +2385,8 @@ describe("diff_status_change invalidation scope", () => {
 		});
 
 		expect(
-			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"chatMessagesKey IS invalidated without exact: true (old bug)",
+			queryClient.getQueryState(chatPromptsKey(chatId))?.isInvalidated,
+			"chatPromptsKey IS invalidated without exact: true (old bug)",
 		).toBe(true);
 
 		expect(
@@ -4203,7 +4184,7 @@ describe("semantic cache operations: exact invalidations", () => {
 	it("invalidateChatEntity touches only the detail entry", async () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
-		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
+		queryClient.setQueryData(chatPromptsKey("chat-1"), []);
 		queryClient.setQueryData(chatEntityKey("chat-2"), makeChat("chat-2"));
 
 		await invalidateChatEntity(queryClient, "chat-1");
@@ -4212,8 +4193,8 @@ describe("semantic cache operations: exact invalidations", () => {
 			queryClient.getQueryState(chatEntityKey("chat-1"))?.isInvalidated,
 		).toBe(true);
 		expect(
-			queryClient.getQueryState(chatMessagesKey("chat-1"))?.isInvalidated,
-			"messages entry should NOT be invalidated",
+			queryClient.getQueryState(chatPromptsKey("chat-1"))?.isInvalidated,
+			"prompts entry should NOT be invalidated",
 		).not.toBe(true);
 		expect(
 			queryClient.getQueryState(chatEntityKey("chat-2"))?.isInvalidated,
@@ -4361,7 +4342,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 		queryClient.setQueryData(chatDebugRunsKey("chat-1"), []);
 		queryClient.setQueryData(chatDebugRunKey("chat-1", "run-1"), {});
 		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
-		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
+		queryClient.setQueryData(chatPromptsKey("chat-1"), []);
 
 		await invalidateChatDebugRuns(queryClient, "chat-1");
 
@@ -4378,8 +4359,8 @@ describe("semantic cache operations: prefix invalidations", () => {
 			"detail entry should NOT be invalidated",
 		).not.toBe(true);
 		expect(
-			queryClient.getQueryState(chatMessagesKey("chat-1"))?.isInvalidated,
-			"messages entry should NOT be invalidated",
+			queryClient.getQueryState(chatPromptsKey("chat-1"))?.isInvalidated,
+			"prompts entry should NOT be invalidated",
 		).not.toBe(true);
 	});
 
@@ -4390,7 +4371,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 		seedInfiniteChats(queryClient, [makeChat("chat-1")]);
 		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {});
 		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
-		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
+		queryClient.setQueryData(chatPromptsKey("chat-1"), []);
 		queryClient.setQueryData(chatCostTreeKey("chat-1"), {});
 
 		await invalidateChatSearches(queryClient);
@@ -4407,7 +4388,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			["chat list", infiniteChatsTestKey],
 			["by-workspace", chatsByWorkspace(["ws-1"]).queryKey],
 			["chat detail", chatEntityKey("chat-1")],
-			["messages", chatMessagesKey("chat-1")],
+			["prompts", chatPromptsKey("chat-1")],
 			["cost tree", chatCostTreeKey("chat-1")],
 		] as const) {
 			expect(
@@ -4541,7 +4522,6 @@ describe("semantic cache operations: removal and patching", () => {
 	it("removeChatEntity removes only the exact detail entry", () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(chatEntityKey("chat-1"), makeChat("chat-1"));
-		queryClient.setQueryData(chatMessagesKey("chat-1"), []);
 		queryClient.setQueryData(chatPromptsKey("chat-1"), { prompts: [] });
 		queryClient.setQueryData(chatACLKey("chat-1"), {});
 		queryClient.setQueryData(chatDiffContentsKey("chat-1"), { files: [] });
@@ -4553,7 +4533,6 @@ describe("semantic cache operations: removal and patching", () => {
 
 		expect(queryClient.getQueryData(chatEntityKey("chat-1"))).toBeUndefined();
 		for (const [label, key] of [
-			["messages", chatMessagesKey("chat-1")],
 			["prompts", chatPromptsKey("chat-1")],
 			["acl", chatACLKey("chat-1")],
 			["diff-contents", chatDiffContentsKey("chat-1")],
@@ -4699,7 +4678,6 @@ describe("applyChatArchiveStateToCaches search rows", () => {
 	it("leaves per-chat sub-resource entries untouched", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
 		queryClient.setQueryData(chatPromptsKey(chatId), { prompts: [] });
 		queryClient.setQueryData(chatACLKey(chatId), {});
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
@@ -4707,7 +4685,6 @@ describe("applyChatArchiveStateToCaches search rows", () => {
 		applyChatArchiveStateToCaches(queryClient, chatId, true);
 
 		for (const [label, key] of [
-			["messages", chatMessagesKey(chatId)],
 			["prompts", chatPromptsKey(chatId)],
 			["acl", chatACLKey(chatId)],
 			["diff-contents", chatDiffContentsKey(chatId)],
@@ -4827,7 +4804,7 @@ describe("applyWatchedChatArchived", () => {
 		const chatId = "chat-1";
 		seedInfiniteChats(queryClient, [makeChat(chatId)]);
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		queryClient.setQueryData(chatPromptsKey(chatId), []);
 		queryClient.setQueryData(chatSearch({ q: "alpha" }).queryKey, []);
 		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {});
 
@@ -4844,12 +4821,12 @@ describe("applyWatchedChatArchived", () => {
 			).toBe(true);
 		}
 		expect(
-			queryClient.getQueryData(chatMessagesKey(chatId)),
-			"messages entry should survive",
+			queryClient.getQueryData(chatPromptsKey(chatId)),
+			"prompts entry should survive",
 		).toBeDefined();
 		expect(
-			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"messages entry should NOT be invalidated",
+			queryClient.getQueryState(chatPromptsKey(chatId))?.isInvalidated,
+			"prompts entry should NOT be invalidated",
 		).not.toBe(true);
 		expect(
 			queryClient.getQueryData(chatEntityKey(chatId)),
@@ -4965,7 +4942,7 @@ describe("archive mutation entity retention", () => {
 				chatEntityKey(chatId),
 				makeChat(chatId, { archived: !archived }),
 			);
-			queryClient.setQueryData(chatMessagesKey(chatId), []);
+			queryClient.setQueryData(chatPromptsKey(chatId), []);
 
 			const mutation = factory(queryClient);
 			mutation.onSuccess(undefined, chatId);
@@ -4974,7 +4951,7 @@ describe("archive mutation entity retention", () => {
 			expect(
 				queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
 			).toMatchObject({ archived });
-			expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeDefined();
+			expect(queryClient.getQueryData(chatPromptsKey(chatId))).toBeDefined();
 		},
 	);
 });
