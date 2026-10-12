@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -21,29 +22,22 @@ func IsChatAgent(name string) bool {
 
 // FindChatAgent picks the best workspace agent for a chat session from the
 // provided candidates. It applies these rules in order:
-//  1. Filter to root agents only (ParentID is null).
-//  2. Sort stably and deterministically by DisplayOrder ASC, then Name ASC
-//     (case-insensitive), then Name ASC, then ID ASC.
-//  3. If exactly one root agent name ends with Suffix (case-insensitive),
-//     return it.
-//  4. If zero root agents match the suffix, return the first root agent after
-//     sorting (deterministic fallback).
-//  5. If more than one root agent matches the suffix, return an error with an
-//     actionable message.
-//  6. If no root agents exist at all, return an error.
+//  1. Pick a root agent (ParentID is null) with pickAgent.
+//  2. If the picked root agent has child agents, such as devcontainer
+//     agents, pick one of them with pickAgent instead, so chats run with
+//     the devcontainer's tools and environment.
+//  3. If no root agents exist at all, return an error.
 func FindChatAgent(
 	agents []database.WorkspaceAgent,
 ) (database.WorkspaceAgent, error) {
 	rootAgents := make([]database.WorkspaceAgent, 0, len(agents))
-	matchingAgents := make([]database.WorkspaceAgent, 0, 1)
+	childAgents := make(map[uuid.UUID][]database.WorkspaceAgent)
 	for _, agent := range agents {
 		if agent.ParentID.Valid {
+			childAgents[agent.ParentID.UUID] = append(childAgents[agent.ParentID.UUID], agent)
 			continue
 		}
 		rootAgents = append(rootAgents, agent)
-		if IsChatAgent(agent.Name) {
-			matchingAgents = append(matchingAgents, agent)
-		}
 	}
 
 	if len(rootAgents) == 0 {
@@ -52,7 +46,28 @@ func FindChatAgent(
 		)
 	}
 
-	compareAgents := func(a, b database.WorkspaceAgent) int {
+	root, err := pickAgent(rootAgents)
+	if err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	if children := childAgents[root.ID]; len(children) > 0 {
+		return pickAgent(children)
+	}
+	return root, nil
+}
+
+// pickAgent picks one agent from a non-empty set of sibling agents:
+//  1. Sort stably and deterministically by DisplayOrder ASC, then Name ASC
+//     (case-insensitive), then Name ASC, then ID ASC.
+//  2. If exactly one agent name ends with Suffix (case-insensitive),
+//     return it.
+//  3. If zero agents match the suffix, return the first agent after
+//     sorting (deterministic fallback).
+//  4. If more than one agent matches the suffix, return an error with an
+//     actionable message.
+func pickAgent(agents []database.WorkspaceAgent) (database.WorkspaceAgent, error) {
+	sorted := slices.Clone(agents)
+	slices.SortStableFunc(sorted, func(a, b database.WorkspaceAgent) int {
 		if order := cmp.Compare(a.DisplayOrder, b.DisplayOrder); order != 0 {
 			return order
 		}
@@ -63,13 +78,18 @@ func FindChatAgent(
 			return order
 		}
 		return cmp.Compare(a.ID.String(), b.ID.String())
+	})
+
+	matchingAgents := make([]database.WorkspaceAgent, 0, 1)
+	for _, agent := range sorted {
+		if IsChatAgent(agent.Name) {
+			matchingAgents = append(matchingAgents, agent)
+		}
 	}
-	slices.SortStableFunc(rootAgents, compareAgents)
-	slices.SortStableFunc(matchingAgents, compareAgents)
 
 	switch len(matchingAgents) {
 	case 0:
-		return rootAgents[0], nil
+		return sorted[0], nil
 	case 1:
 		return matchingAgents[0], nil
 	default:

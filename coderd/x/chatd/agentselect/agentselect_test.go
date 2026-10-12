@@ -26,11 +26,18 @@ func TestFindChatAgent(t *testing.T) {
 		return newRootAgentWithID(uuid.NewString(), name, displayOrder)
 	}
 
-	newChildAgent := func(name string, displayOrder int32) database.WorkspaceAgent {
+	newChildAgentOf := func(parent database.WorkspaceAgent, name string, displayOrder int32) database.WorkspaceAgent {
 		agent := newRootAgent(name, displayOrder)
-		agent.ParentID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
+		agent.ParentID = uuid.NullUUID{UUID: parent.ID, Valid: true}
 		return agent
 	}
+
+	newChildAgent := func(name string, displayOrder int32) database.WorkspaceAgent {
+		return newChildAgentOf(newRootAgent("orphan", 0), name, displayOrder)
+	}
+
+	dev := newRootAgent("dev", 0)
+	chatRoot := newRootAgent("sandbox-coderd-chat", 1)
 
 	tests := []struct {
 		name            string
@@ -157,6 +164,63 @@ func TestFindChatAgent(t *testing.T) {
 				newRootAgent("preferred-coderd-chat", 99),
 			},
 			wantIndex: 2,
+		},
+		{
+			name: "DevcontainerAgentPreferred",
+			agents: []database.WorkspaceAgent{
+				dev,
+				newChildAgentOf(dev, "devcontainer", 5),
+			},
+			wantIndex: 1,
+		},
+		{
+			name: "DevcontainerAgentOfSelectedRootOnly",
+			agents: []database.WorkspaceAgent{
+				dev,
+				chatRoot,
+				newChildAgentOf(dev, "devcontainer", 0),
+			},
+			wantIndex: 1,
+		},
+		{
+			name: "DevcontainerAgentOfSuffixRootPreferred",
+			agents: []database.WorkspaceAgent{
+				dev,
+				chatRoot,
+				newChildAgentOf(chatRoot, "devcontainer", 0),
+			},
+			wantIndex: 2,
+		},
+		{
+			name: "MultipleDevcontainerAgentsFallbackDeterministic",
+			agents: []database.WorkspaceAgent{
+				dev,
+				newChildAgentOf(dev, "zeta", 0),
+				newChildAgentOf(dev, "alpha", 0),
+			},
+			wantIndex: 2,
+		},
+		{
+			name: "DevcontainerAgentSuffixMatch",
+			agents: []database.WorkspaceAgent{
+				dev,
+				newChildAgentOf(dev, "alpha", 0),
+				newChildAgentOf(dev, "zeta-coderd-chat", 1),
+			},
+			wantIndex: 2,
+		},
+		{
+			name: "MultipleDevcontainerAgentSuffixMatchesError",
+			agents: []database.WorkspaceAgent{
+				dev,
+				newChildAgentOf(dev, "alpha-coderd-chat", 0),
+				newChildAgentOf(dev, "beta-coderd-chat", 1),
+			},
+			wantErrContains: []string{
+				"alpha-coderd-chat",
+				"beta-coderd-chat",
+				"only one agent should use this suffix",
+			},
 		},
 	}
 
