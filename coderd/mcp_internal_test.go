@@ -346,6 +346,24 @@ func TestMCPOAuth2ResourceIndicator(t *testing.T) {
 			want:       "https://mcp.example.com/mcp",
 		},
 		{
+			name:       "ExplicitDefaultPortOnServer",
+			serverURL:  "https://mcp.example.com:443/mcp",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
+			name:       "ExplicitDefaultPortOnResource",
+			serverURL:  "http://mcp.example.com/mcp",
+			advertised: []string{"http://mcp.example.com:80/mcp"},
+			want:       "http://mcp.example.com:80/mcp",
+		},
+		{
+			name:       "EscapedSlashIsNotSegmentBoundary",
+			serverURL:  "https://mcp.example.com/mcp%2Ftenant",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp%2Ftenant",
+		},
+		{
 			name:      "NoEntriesFallsBack",
 			serverURL: "https://mcp.example.com/mcp",
 			want:      "https://mcp.example.com/mcp",

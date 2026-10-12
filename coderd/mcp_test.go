@@ -1361,7 +1361,7 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, newRevocationURL, updated.OAuth2RevocationURL)
 
-	// RFC 8707 resource indicators must be absolute URIs without a
+	// RFC 8707 resource indicators must be valid absolute URIs without a
 	// fragment, on both create and update. Create rejects them before
 	// auto-discovery so an invalid value causes no client registration.
 	var discoveryRequests atomic.Int64
@@ -1370,7 +1370,12 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	t.Cleanup(discoveryProbe.Close)
-	for _, invalidResource := range []string{"https://mcp.example.com/v1#frag", "/v1/mcp"} {
+	for _, invalidResource := range []string{
+		"https://mcp.example.com/v1#frag",
+		"/v1/mcp",
+		"https://mcp.example.com/a b",
+		"https://mcp.example.com/mcp?tenant=%zz",
+	} {
 		_, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 			OAuth2Resource: &invalidResource,
 		})

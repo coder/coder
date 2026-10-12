@@ -1784,6 +1784,9 @@ func parseMCPOAuth2Resource(resource string) (*url.URL, error) {
 	if strings.Contains(resource, "#") {
 		return nil, xerrors.New("oauth2_resource must not contain a fragment")
 	}
+	if !isURIText(resource) {
+		return nil, xerrors.New("oauth2_resource must be a valid URI")
+	}
 	parsed, err := url.Parse(resource)
 	if err != nil {
 		return nil, xerrors.New("oauth2_resource must be a valid URI")
@@ -1792,6 +1795,30 @@ func parseMCPOAuth2Resource(resource string) (*url.URL, error) {
 		return nil, xerrors.New("oauth2_resource must be an absolute URI")
 	}
 	return parsed, nil
+}
+
+// isURIText reports whether s contains only characters RFC 3986 allows
+// in a URI, with every "%" starting a percent-encoded octet. url.Parse
+// alone accepts spaces and other characters a URI cannot contain.
+func isURIText(s string) bool {
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; {
+		case c == '%':
+			if i+2 >= len(s) || !isHexDigit(s[i+1]) || !isHexDigit(s[i+2]) {
+				return false
+			}
+			i += 2
+		case 'a' <= c && c <= 'z', 'A' <= c && c <= 'Z', '0' <= c && c <= '9':
+		case strings.IndexByte("-._~:/?#[]@!$&'()*+,;=", c) >= 0:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func isHexDigit(c byte) bool {
+	return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
 }
 
 // validateMCPOAuth2ResourceRequest writes a 400 response and returns
@@ -1828,11 +1855,11 @@ func mcpOAuth2ResourceBinding(resource string) string {
 // an MCP server: the most specific advertised Protected Resource
 // Metadata resource that covers the server URL, stored verbatim, else
 // the server URL in canonical form. As in the MCP Python SDK, a resource
-// covers URLs on its origin under its path. Unlike the SDK, a resource
-// with a query covers only URLs with the same query, which can select a
-// tenant.
+// covers URLs on its origin under its escaped path, so "%2F" does not
+// end a segment. Unlike the SDK, a resource with a query covers only
+// URLs with the same query, which can select a tenant.
 func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string {
-	serverPath := withTrailingSlash(serverURL.Path)
+	serverPath := withTrailingSlash(serverURL.EscapedPath())
 	best := ""
 	bestPathLen := -1
 	bestHasQuery := false
@@ -1842,14 +1869,14 @@ func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string 
 		if err != nil {
 			continue
 		}
-		if !strings.EqualFold(parsed.Scheme, serverURL.Scheme) || !strings.EqualFold(parsed.Host, serverURL.Host) {
+		if !sameOrigin(parsed, serverURL) {
 			continue
 		}
 		hasQuery := parsed.RawQuery != ""
 		if hasQuery && parsed.RawQuery != serverURL.RawQuery {
 			continue
 		}
-		entryPath := withTrailingSlash(parsed.Path)
+		entryPath := withTrailingSlash(parsed.EscapedPath())
 		if !strings.HasPrefix(serverPath, entryPath) {
 			continue
 		}
@@ -1870,6 +1897,28 @@ func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string 
 	canonical.Fragment = ""
 	canonical.RawFragment = ""
 	return canonical.String()
+}
+
+// sameOrigin reports whether two URLs have the same scheme, host, and
+// port, where an omitted port is the scheme's default.
+func sameOrigin(a, b *url.URL) bool {
+	return strings.EqualFold(a.Scheme, b.Scheme) &&
+		strings.EqualFold(a.Hostname(), b.Hostname()) &&
+		portOrDefault(a) == portOrDefault(b)
+}
+
+func portOrDefault(u *url.URL) string {
+	if port := u.Port(); port != "" {
+		return port
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http":
+		return "80"
+	case "https":
+		return "443"
+	default:
+		return ""
+	}
 }
 
 func withTrailingSlash(path string) string {
