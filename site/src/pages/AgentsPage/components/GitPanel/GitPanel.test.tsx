@@ -144,7 +144,7 @@ describe("GitPanel", () => {
 });
 
 describe("GitPanel per-ref views", () => {
-	it("fetches the selected ref's diff, not the primary's", async () => {
+	it("fetches and links the selected ref, not the primary", async () => {
 		const user = userEvent.setup();
 		const getDiff = vi
 			.spyOn(API.experimental, "getChatDiffContents")
@@ -195,6 +195,10 @@ describe("GitPanel per-ref views", () => {
 				}),
 				expect.any(AbortSignal),
 			),
+		);
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockFirstRef.url,
 		);
 	});
 

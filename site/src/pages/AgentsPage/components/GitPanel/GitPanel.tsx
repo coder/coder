@@ -4,6 +4,7 @@ import {
 	ChevronDownIcon,
 	CircleDotIcon,
 	ColumnsIcon,
+	ExternalLinkIcon,
 	GitBranchIcon,
 	GitCompareArrowsIcon,
 	GitMergeIcon,
@@ -366,6 +367,9 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	// row needs a PR number to belong to.
 	const showPrTitleRow =
 		isRemoteView && Boolean(selectedPrNumber) && Boolean(prTitle);
+	// A branch-only ref's url can point at its branch, not a PR.
+	const selectedPrUrl =
+		isRemoteView && selectedPrNumber ? selectedRemote?.url : undefined;
 
 	const [isPrTitleTruncated, setIsPrTitleTruncated] = useState(false);
 	// Ref callback so the observer attaches whenever the title span
@@ -449,6 +453,14 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 						onSelect={handleSelectItem}
 					/>
 				</div>
+				{selectedPrUrl && (
+					<Button asChild variant="outline" size="sm" className="h-6">
+						<a href={selectedPrUrl} target="_blank" rel="noreferrer">
+							View PR
+							<ExternalLinkIcon />
+						</a>
+					</Button>
+				)}
 				{/* Controls */}
 				<div className="flex shrink-0 items-center gap-1">
 					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border">
