@@ -346,6 +346,18 @@ func TestMCPOAuth2ResourceIndicator(t *testing.T) {
 			want:       "https://mcp.example.com/mcp",
 		},
 		{
+			name:       "EmptyQueryIsNotOtherQuery",
+			serverURL:  "https://mcp.example.com/mcp?tenant=b",
+			advertised: []string{"https://mcp.example.com/mcp?"},
+			want:       "https://mcp.example.com/mcp?tenant=b",
+		},
+		{
+			name:       "EmptyQueryIsNotNoQuery",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"https://mcp.example.com/mcp?"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
 			name:       "ExplicitDefaultPortOnServer",
 			serverURL:  "https://mcp.example.com:443/mcp",
 			advertised: []string{"https://mcp.example.com/mcp"},

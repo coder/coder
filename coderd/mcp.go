@@ -1905,11 +1905,11 @@ func mcpOAuth2ResourceBinding(resource string) string {
 // resource indicator. As in the MCP Python SDK, a resource
 // covers URLs on its origin under its path. Paths and queries compare in
 // RFC 3986 normal form, where "%2F" does not end a segment. Unlike the
-// SDK, a resource with a query covers only URLs with the same query,
-// which can select a tenant.
+// SDK, a resource with a query, even an empty one, covers only URLs with
+// the same query, which can select a tenant.
 func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string {
 	serverPath := withTrailingSlash(comparableURIPath(serverURL))
-	serverQuery := normalizePercentEncoding(serverURL.RawQuery)
+	serverQuery, serverHasQuery := comparableURIQuery(serverURL)
 	best := ""
 	bestPathLen := -1
 	bestHasQuery := false
@@ -1922,9 +1922,8 @@ func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string 
 		if !sameOrigin(parsed, serverURL) {
 			continue
 		}
-		query := normalizePercentEncoding(parsed.RawQuery)
-		hasQuery := query != ""
-		if hasQuery && query != serverQuery {
+		query, hasQuery := comparableURIQuery(parsed)
+		if hasQuery && (!serverHasQuery || query != serverQuery) {
 			continue
 		}
 		entryPath := withTrailingSlash(comparableURIPath(parsed))
@@ -1965,6 +1964,13 @@ func comparableURIPath(u *url.URL) string {
 	normalized.RawPath = normalizePercentEncoding(u.EscapedPath())
 	// Resolving a URL against itself removes dot segments and keeps escapes.
 	return normalized.ResolveReference(&normalized).EscapedPath()
+}
+
+// comparableURIQuery returns u's query with percent-encodings normalized
+// and whether u has a query. A trailing "?" is an empty query, which RFC
+// 3986 distinguishes from no query.
+func comparableURIQuery(u *url.URL) (string, bool) {
+	return normalizePercentEncoding(u.RawQuery), u.RawQuery != "" || u.ForceQuery
 }
 
 // sameOrigin reports whether two URLs have the same scheme, host, and
