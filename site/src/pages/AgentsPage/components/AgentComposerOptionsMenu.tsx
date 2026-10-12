@@ -36,7 +36,7 @@ import {
 export const AgentComposerOptionsMenu = () => {
 	const options = useAgentComposerOptions();
 	const composer = useAgentComposer();
-	const { mcp, workspaceSelection, isViewOnly } = options;
+	const { mcp, workspaceSelection, isViewOnly, changeWorkspace } = options;
 	const { state, actions } = composer;
 	const mcpServers = enabledMcpServers(mcp);
 
@@ -73,16 +73,13 @@ export const AgentComposerOptionsMenu = () => {
 		},
 	});
 
-	const onWorkspaceChange = workspaceSelection?.onChange;
 	const hasWorkspaceOptions = workspaceSelection?.options !== undefined;
 	const isWorkspaceChoiceOffered =
-		hasWorkspaceOptions && onWorkspaceChange !== undefined;
-	const isWorkspaceSelectionLoading = workspaceSelection?.isLoading === true;
-	const canChangeWorkspace =
-		onWorkspaceChange !== undefined && !isWorkspaceSelectionLoading;
+		hasWorkspaceOptions && workspaceSelection?.onChange !== undefined;
+	const canChangeWorkspace = changeWorkspace !== undefined;
 
 	const selectWorkspace = (id: string | null) => {
-		onWorkspaceChange?.(id);
+		changeWorkspace?.(id);
 		setOpen(false);
 	};
 

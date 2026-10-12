@@ -49,7 +49,17 @@ export type AgentComposerOptionsData = {
 	};
 };
 
-export const OptionsContext = createContext<AgentComposerOptionsData | null>(
+/** Options data plus capabilities the provider derives from it. */
+type AgentComposerOptionsValue = AgentComposerOptionsData & {
+	/**
+	 * Present while a workspace change can start: the caller offers one and
+	 * workspace selection is not loading. Composer disablement does not
+	 * withdraw it.
+	 */
+	changeWorkspace?: (id: string | null) => void;
+};
+
+export const OptionsContext = createContext<AgentComposerOptionsValue | null>(
 	null,
 );
 
