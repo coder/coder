@@ -23,8 +23,7 @@ import (
 type CreateChatInput struct {
 	OrganizationID uuid.UUID
 	OwnerID        uuid.UUID
-	// ProjectID must be unset or the root's project for sub-chats, which
-	// take their root's project.
+	// For sub-chats, ProjectID must be unset or equal the root's project.
 	ProjectID         uuid.NullUUID
 	WorkspaceID       uuid.NullUUID
 	BuildID           uuid.NullUUID
@@ -133,7 +132,6 @@ func insertChat(
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
-		projectID := input.ProjectID
 		if input.RootChatID.Valid {
 			// Lock the family root before inserting the child so this
 			// transaction serializes with SetFamilyArchived, which also
@@ -152,20 +150,20 @@ func insertChat(
 			if root.Archived {
 				return ErrChatFamilyArchived
 			}
-			if projectID.Valid && projectID != root.ProjectID {
-				return xerrors.New("a sub-chat must be in its root chat's project")
-			}
-			// A project delete locks every root in the project FOR UPDATE,
+			// The insert trigger gives the child its root's project. A
+			// project delete locks every root in the project FOR UPDATE,
 			// which waits for this FOR SHARE lock. Either the delete
 			// committed first and the archived check above refuses the
 			// child, or the delete archives the child after this commit, so
 			// no project lock is needed.
-			projectID = root.ProjectID
-		} else if projectID.Valid {
+			if input.ProjectID.Valid && input.ProjectID != root.ProjectID {
+				return xerrors.New("chatstate: CreateChat called with a sub-chat ProjectID that differs from its root's")
+			}
+		} else if input.ProjectID.Valid {
 			// Held until commit so a concurrent project delete, which locks
 			// the project row, either archives this chat or is seen here as
 			// a missing project.
-			if _, err := store.GetChatProjectByIDForShare(ctx, projectID.UUID); err != nil {
+			if _, err := store.GetChatProjectByIDForShare(ctx, input.ProjectID.UUID); err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					return ErrChatProjectNotFound
 				}
@@ -176,7 +174,7 @@ func insertChat(
 			ID:                chatID,
 			OrganizationID:    input.OrganizationID,
 			OwnerID:           input.OwnerID,
-			ProjectID:         projectID,
+			ProjectID:         input.ProjectID,
 			WorkspaceID:       input.WorkspaceID,
 			BuildID:           input.BuildID,
 			AgentID:           input.AgentID,

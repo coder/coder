@@ -14,10 +14,11 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// DeleteChatProject runs [chatstate.DeleteChatProject] for callers without a
-// [Server]. It returns a nil error once the delete commits; a failed
-// chat:update publish is logged, and those chats' runners stop at their
-// next heartbeat renewal.
+// DeleteChatProject runs [chatstate.DeleteChatProject] and logs
+// [chatstate.ErrChatUpdatePublishFailed] instead of returning it; those
+// chats' runners stop at their next heartbeat renewal. Unlike
+// [Server.DeleteChatProject], it publishes no removed watch events and
+// schedules no debug-data cleanup.
 func DeleteChatProject(ctx context.Context, logger slog.Logger, db database.Store, publisher chatstate.Publisher, projectID uuid.UUID) (chatstate.DeletedChatProject, error) {
 	deleted, err := chatstate.DeleteChatProject(ctx, db, publisher, projectID)
 	if errors.Is(err, chatstate.ErrChatUpdatePublishFailed) {
