@@ -1931,6 +1931,32 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		);
 	});
 
+	it("clears Choose a model once a model is chosen after a failed save", async () => {
+		const user = userEvent.setup();
+		const { createBodies } = setupEditor();
+		const dialog = await openCreateDialog(user);
+		await user.click(
+			within(dialog).getByRole("radio", { name: "New chat each run" }),
+		);
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+		const model = await within(dialog).findByRole("combobox", {
+			name: /^Model/,
+		});
+		await waitFor(() => {
+			expect(model).toHaveAccessibleDescription("Choose a model.");
+		});
+
+		await pickNewChatModel(user, dialog);
+
+		await waitFor(() => {
+			expect(model).not.toHaveAccessibleDescription("Choose a model.");
+		});
+		expect(within(dialog).queryByText("Choose a model.")).toBeNull();
+		expect(createBodies).toEqual([]);
+	});
+
 	it("shows the server's reasoning effort error on the effort field", async () => {
 		const user = userEvent.setup();
 		setupEditor();

@@ -227,8 +227,14 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 										value={form.values.new_chat_model_config_id}
 										onValueChange={(modelId) => {
 											if (modelId !== form.values.new_chat_model_config_id) {
-												form.setFieldValue("new_chat_model_config_id", modelId);
-												form.setFieldValue("reasoning_effort", "");
+												// One update: Formik validates each setFieldValue against the
+												// values of the last render, so a second call would bring
+												// back "Choose a model.".
+												void form.setValues({
+													...form.values,
+													new_chat_model_config_id: modelId,
+													reasoning_effort: "",
+												});
 											}
 										}}
 									/>
