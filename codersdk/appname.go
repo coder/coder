@@ -163,6 +163,13 @@ func AppNameFamily(appName string) AppFamilyName {
 	return AppFamilyUnknown
 }
 
+// AppDisplayName returns the registry name of appName, or the normalized name
+// if unregistered.
+func AppDisplayName(appName string) string {
+	appName = NormalizeAppName(appName)
+	return cmp.Or(sessionApps[appName].displayName, appName)
+}
+
 // NormalizeAppName prepares a client-supplied app name for storage and
 // lookup: it strips control characters, then trims, truncates, lowercases,
 // and folds hyphens to underscores. Empty becomes AppFamilyUnknown.

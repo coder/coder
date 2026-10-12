@@ -132,20 +132,13 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		sshInfo *codersdk.ConnectionLogSSHInfo
 	)
 
-	switch dblog.ConnectionLog.Type {
-	case database.ConnectionTypeWorkspaceApp,
-		database.ConnectionTypePortForwarding,
-		database.ConnectionTypeTunnel:
-		webInfo = &codersdk.ConnectionLogWebInfo{
-			UserAgent:  dblog.ConnectionLog.UserAgent.String,
-			User:       user,
-			SlugOrPort: dblog.ConnectionLog.SlugOrPort.String,
-			StatusCode: dblog.ConnectionLog.Code.Int32,
+	var appName, appDisplayName string
+	switch dblog.ConnectionLog.ConnectionMethod {
+	case database.ConnectionLogMethodSSH, database.ConnectionLogMethodReconnectingPTY:
+		appName = dblog.ConnectionLog.AppNameOrPort.String
+		if appName != "" {
+			appDisplayName = codersdk.AppDisplayName(appName)
 		}
-	case database.ConnectionTypeSsh,
-		database.ConnectionTypeReconnectingPty,
-		database.ConnectionTypeJetbrains,
-		database.ConnectionTypeVscode:
 		sshInfo = &codersdk.ConnectionLogSSHInfo{
 			ConnectionID:     dblog.ConnectionLog.ConnectionID.UUID,
 			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
@@ -156,6 +149,17 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		if dblog.ConnectionLog.Code.Valid {
 			sshInfo.ExitCode = &dblog.ConnectionLog.Code.Int32
 		}
+	case database.ConnectionLogMethodWorkspaceApp,
+		database.ConnectionLogMethodPortForwarding,
+		database.ConnectionLogMethodTunnel:
+		webInfo = &codersdk.ConnectionLogWebInfo{
+			UserAgent:  dblog.ConnectionLog.UserAgent.String,
+			User:       user,
+			SlugOrPort: dblog.ConnectionLog.AppNameOrPort.String,
+			StatusCode: dblog.ConnectionLog.Code.Int32,
+		}
+	default:
+		panic("developer error: unknown connection log method " + string(dblog.ConnectionLog.ConnectionMethod))
 	}
 
 	return codersdk.ConnectionLog{
@@ -172,7 +176,10 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		WorkspaceID:            dblog.ConnectionLog.WorkspaceID,
 		WorkspaceName:          dblog.ConnectionLog.WorkspaceName,
 		AgentName:              dblog.ConnectionLog.AgentName,
-		Type:                   codersdk.ConnectionType(dblog.ConnectionLog.Type),
+		Type:                   db2sdk.ConnectionLogType(dblog.ConnectionLog.ConnectionMethod, dblog.ConnectionLog.AppNameOrPort.String),
+		ConnectionMethod:       codersdk.ConnectionLogMethod(dblog.ConnectionLog.ConnectionMethod),
+		AppName:                appName,
+		AppDisplayName:         appDisplayName,
 		IP:                     ip,
 		WebInfo:                webInfo,
 		SSHInfo:                sshInfo,
