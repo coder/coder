@@ -4157,12 +4157,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
-                        },
-                        "headers": {
-                            "Coder-Chat-Snapshot-Version": {
-                                "type": "integer",
-                                "description": "The chat's snapshot_version this request committed"
-                            }
                         }
                     }
                 },
@@ -4202,12 +4196,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
-                        },
-                        "headers": {
-                            "Coder-Chat-Snapshot-Version": {
-                                "type": "integer",
-                                "description": "The chat's snapshot_version this request committed"
-                            }
                         }
                     }
                 },
@@ -4365,12 +4353,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
-                        },
-                        "headers": {
-                            "Coder-Chat-Snapshot-Version": {
-                                "type": "integer",
-                                "description": "The chat's snapshot_version this request committed"
-                            }
                         }
                     }
                 },
@@ -4469,12 +4451,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.CreateChatMessageResponse"
-                        },
-                        "headers": {
-                            "Coder-Chat-Snapshot-Version": {
-                                "type": "integer",
-                                "description": "The chat's snapshot_version this request committed"
-                            }
                         }
                     }
                 },
@@ -4529,12 +4505,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.EditChatMessageResponse"
-                        },
-                        "headers": {
-                            "Coder-Chat-Snapshot-Version": {
-                                "type": "integer",
-                                "description": "The chat's snapshot_version this request committed"
-                            }
                         }
                     }
                 },
@@ -4613,13 +4583,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content",
-                        "headers": {
-                            "Coder-Chat-Snapshot-Version": {
-                                "type": "integer",
-                                "description": "The chat's snapshot_version this request committed"
-                            }
-                        }
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -4707,12 +4671,6 @@ const docTemplate = `{
                         "description": "Accepted",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
-                        },
-                        "headers": {
-                            "Coder-Chat-Snapshot-Version": {
-                                "type": "integer",
-                                "description": "The chat's snapshot_version this request committed"
-                            }
                         }
                     }
                 },
@@ -4748,12 +4706,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
-                        },
-                        "headers": {
-                            "Coder-Chat-Snapshot-Version": {
-                                "type": "integer",
-                                "description": "The chat's snapshot_version this request committed"
-                            }
                         }
                     }
                 },
@@ -4956,13 +4908,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content",
-                        "headers": {
-                            "Coder-Chat-Snapshot-Version": {
-                                "type": "integer",
-                                "description": "The chat's snapshot_version this request committed"
-                            }
-                        }
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -23640,7 +23586,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "snapshot_version": {
-                    "description": "SnapshotVersion is the chat's snapshot_version the sync applied. It\nreflects every action whose ChatSnapshotVersionHeader is at or below\nit. A client reconnects with the value of the last checkpoint it\nreceived.",
+                    "description": "SnapshotVersion is the chat's snapshot_version the sync applied. A\nclient reconnects with the value of the last checkpoint it received.",
                     "type": "integer"
                 },
                 "turn": {
