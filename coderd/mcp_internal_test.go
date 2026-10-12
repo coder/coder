@@ -382,6 +382,12 @@ func TestMCPOAuth2ResourceIndicator(t *testing.T) {
 			want:       "http://mcp.example.com:80/mcp",
 		},
 		{
+			name:       "PortLeadingZerosAreIgnored",
+			serverURL:  "https://mcp.example.com:0443/mcp",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
 			name:       "EscapedSlashIsNotSegmentBoundary",
 			serverURL:  "https://mcp.example.com/mcp%2Ftenant",
 			advertised: []string{"https://mcp.example.com/mcp"},

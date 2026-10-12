@@ -2004,7 +2004,11 @@ func sameHost(a, b string) bool {
 
 func portOrDefault(u *url.URL) string {
 	if port := u.Port(); port != "" {
-		return port
+		// An origin's port has no leading zeros (RFC 9110 section 4.3.1).
+		if trimmed := strings.TrimLeft(port, "0"); trimmed != "" {
+			return trimmed
+		}
+		return "0"
 	}
 	switch strings.ToLower(u.Scheme) {
 	case "http":
