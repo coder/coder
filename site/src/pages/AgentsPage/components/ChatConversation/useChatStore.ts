@@ -16,7 +16,6 @@ import {
 	invalidateChatPrompts,
 	invalidateChatSearches,
 	patchChatMessages,
-	replaceChatMessagesFrom,
 	replaceChatMessagesHistory,
 	updateInfiniteChatsCache,
 	upsertChatMessages,
@@ -37,31 +36,6 @@ import {
 } from "./chatStore";
 import type { RetryState } from "./types";
 
-// Rewrites the cached newest page, which carries the chat's queue and history
-// version. An update that returns the page unchanged leaves the cache as is.
-const patchNewestPage = (
-	queryClient: QueryClient,
-	chatID: string,
-	update: (
-		page: TypesGen.ChatMessagesResponse,
-	) => TypesGen.ChatMessagesResponse,
-): void => {
-	patchChatMessages(queryClient, chatID, (currentData) => {
-		if (!currentData?.pages?.length) {
-			return currentData;
-		}
-		const firstPage = currentData.pages[0];
-		const nextPage = update(firstPage);
-		if (nextPage === firstPage) {
-			return currentData;
-		}
-		return {
-			...currentData,
-			pages: [nextPage, ...currentData.pages.slice(1)],
-		};
-	});
-};
-
 // Prevents REST re-hydration from replaying a stale queue over the store.
 const writeQueuedMessagesToCache = (
 	queryClient: QueryClient,
@@ -69,11 +43,24 @@ const writeQueuedMessagesToCache = (
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 ): void => {
 	const nextQueuedMessages = queuedMessages ?? [];
-	patchNewestPage(queryClient, chatID, (page) =>
-		chatQueuedMessagesEqualByID(page.queued_messages, nextQueuedMessages)
-			? page
-			: { ...page, queued_messages: nextQueuedMessages },
-	);
+	patchChatMessages(queryClient, chatID, (currentData) => {
+		if (!currentData?.pages?.length) {
+			return currentData;
+		}
+		const firstPage = currentData.pages[0];
+		if (
+			chatQueuedMessagesEqualByID(firstPage.queued_messages, nextQueuedMessages)
+		) {
+			return currentData;
+		}
+		return {
+			...currentData,
+			pages: [
+				{ ...firstPage, queued_messages: nextQueuedMessages },
+				...currentData.pages.slice(1),
+			],
+		};
+	});
 };
 
 const readQueuedMessagesFromCache = (
@@ -83,19 +70,6 @@ const readQueuedMessagesFromCache = (
 	return queryClient.getQueryData<
 		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
 	>(chatMessagesKey(chatID))?.pages[0]?.queued_messages;
-};
-
-// Lets a remounted chat open the stream at the version it last synchronized.
-const writeHistoryVersionToCache = (
-	queryClient: QueryClient,
-	chatID: string,
-	historyVersion: number,
-): void => {
-	patchNewestPage(queryClient, chatID, (page) =>
-		page.history_version === historyVersion
-			? page
-			: { ...page, history_version: historyVersion },
-	);
 };
 
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
@@ -198,30 +172,6 @@ export const useChatStore = (
 				: undefined;
 	});
 
-	// The history version the stream reconnects with. It is taken from the
-	// chat's first loaded page and then advances only on checkpoint events,
-	// because a refetched page does not remove every deleted message from the
-	// store. A first page without a version keeps the chat on after_id.
-	const historyVersionRef = useRef<
-		{ chatID: string; version: number | undefined } | undefined
-	>(undefined);
-	const pageLoaded = chatMessagesData !== undefined;
-	const pageHistoryVersion = chatMessagesData?.history_version;
-	useEffect(() => {
-		if (
-			!chatID ||
-			!pageLoaded ||
-			historyVersionRef.current?.chatID === chatID
-		) {
-			return;
-		}
-		historyVersionRef.current = { chatID, version: pageHistoryVersion };
-	}, [chatID, pageLoaded, pageHistoryVersion]);
-	const historyVersionFor = (id: string): number | undefined =>
-		historyVersionRef.current?.chatID === id
-			? historyVersionRef.current.version
-			: undefined;
-
 	// Wrap error-reason callbacks so the WebSocket effect can call
 	// them without including them in its dependency array.
 	const setChatErrorReasonEvent = useEffectEvent(setChatErrorReason);
@@ -258,12 +208,8 @@ export const useChatStore = (
 	);
 
 	const replaceCacheMessages = useCallback(
-		(messages: readonly TypesGen.ChatMessage[], fromID?: number) => {
-			if (fromID === undefined) {
-				replaceChatMessagesHistory(queryClient, chatID, messages);
-			} else {
-				replaceChatMessagesFrom(queryClient, chatID, fromID, messages);
-			}
+		(messages: readonly TypesGen.ChatMessage[]) => {
+			replaceChatMessagesHistory(queryClient, chatID, messages);
 			void invalidateChatSearches(queryClient);
 		},
 		[chatID, queryClient],
@@ -461,7 +407,6 @@ export const useChatStore = (
 		// server always emits preview_reset after a history change in
 		// the same sync, so the run is guaranteed to terminate.
 		let historyResetPending = false;
-		let historyResetFromID: number | undefined;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
 		// Set when the stream reports "waiting", cleared by any other
@@ -541,7 +486,6 @@ export const useChatStore = (
 			// entire batch produces one Map copy + one sort
 			// instead of N copies and N sorts.
 			const pendingMessages: TypesGen.ChatMessage[] = [];
-			let syncedHistoryVersion: number | undefined;
 			let needsStreamReset = false;
 
 			// Atomically swap in the buffered replacement history. Called
@@ -554,15 +498,8 @@ export const useChatStore = (
 				}
 				historyResetPending = false;
 				const replacement = historyReplacementBuf.splice(0);
-				const fromID = historyResetFromID;
-				const kept =
-					fromID === undefined
-						? []
-						: [...store.getSnapshot().messagesByID.values()].filter(
-								(message) => message.id < fromID,
-							);
-				store.replaceMessages([...kept, ...replacement]);
-				replaceCacheMessages(replacement, fromID);
+				store.replaceMessages(replacement);
+				replaceCacheMessages(replacement);
 			};
 
 			// Wrap all store mutations in a batch so subscribers
@@ -596,19 +533,11 @@ export const useChatStore = (
 					if (streamEvent.type === "history_reset") {
 						discardBufferedParts();
 						store.clearStreamState();
-						// A partial reset keeps the messages below its
-						// from_message_id, which can include messages received
-						// earlier in this frame, so apply those first.
-						const earlierMessages = pendingMessages.splice(0);
-						if (earlierMessages.length > 0) {
-							store.upsertDurableMessages(earlierMessages);
-							upsertCacheMessages(earlierMessages);
-						}
-						historyResetPending = true;
-						historyResetFromID = streamEvent.history_reset?.from_message_id;
 						// A newer reset supersedes any in-flight replacement
 						// run, so restart buffering instead of committing.
+						historyResetPending = true;
 						historyReplacementBuf.length = 0;
+						pendingMessages.length = 0;
 						needsStreamReset = false;
 						continue;
 					}
@@ -623,14 +552,6 @@ export const useChatStore = (
 					if (streamEvent.type === "preview_reset") {
 						discardBufferedParts();
 						store.clearStreamState();
-						continue;
-					}
-					if (streamEvent.type === "checkpoint") {
-						const version = streamEvent.checkpoint?.history_version;
-						if (version !== undefined) {
-							historyVersionRef.current = { chatID, version };
-							syncedHistoryVersion = version;
-						}
 						continue;
 					}
 
@@ -755,9 +676,6 @@ export const useChatStore = (
 					store.upsertDurableMessages(pendingMessages);
 					upsertCacheMessages(pendingMessages);
 				}
-				if (syncedHistoryVersion !== undefined) {
-					writeHistoryVersionToCache(queryClient, chatID, syncedHistoryVersion);
-				}
 
 				// Clear stream state atomically with the durable
 				// message commit so subscribers never see a
@@ -787,15 +705,9 @@ export const useChatStore = (
 		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
-				// The server sends only history changed after the history
-				// version. Without one, it skips messages at or below the
-				// latest message ID, but resends the whole history of a chat
-				// with a deleted message.
-				const socket = watchChat(
-					chatID,
-					lastMessageIdRef.current,
-					historyVersionFor(chatID),
-				);
+				// Use the latest known message ID so the server only
+				// sends events the client hasn't seen yet.
+				const socket = watchChat(chatID, lastMessageIdRef.current);
 				socket.addEventListener("message", handleMessage);
 				return socket;
 			},
@@ -815,7 +727,6 @@ export const useChatStore = (
 				// Drop any partial replacement run from the old
 				// socket; the new socket replays a fresh snapshot.
 				historyResetPending = false;
-				historyResetFromID = undefined;
 				historyReplacementBuf.length = 0;
 			},
 			onDisconnect(reconnectState: ReconnectSchedule) {
