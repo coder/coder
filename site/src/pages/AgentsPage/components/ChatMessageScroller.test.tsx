@@ -43,7 +43,7 @@ const nextFrames = () =>
 	);
 
 it.each([true, false])(
-	"loads no older messages when a transcript mounts after its scroller provider (autoScroll: %s)",
+	"opens at the end without loading older messages when a transcript mounts after its scroller provider (autoScroll: %s)",
 	async (autoScroll) => {
 		const onFetchMoreMessages = vi.fn();
 		const page = (transcript: boolean) => (
@@ -70,10 +70,11 @@ it.each([true, false])(
 		);
 
 		// The provider mounts while the page shows its loading view.
-		const { rerender } = render(page(false));
+		const { rerender, getByLabelText } = render(page(false));
 		rerender(page(true));
 		await nextFrames();
 
+		expect(getByLabelText("Messages").scrollTop).toBe(900);
 		expect(onFetchMoreMessages).not.toHaveBeenCalled();
 	},
 );
