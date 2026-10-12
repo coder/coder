@@ -200,11 +200,11 @@ links */}}
       </p>
       {{- end }}
       <div class="button-group" id="button-group">
+        <a id="cancel-link" href="{{ .CancelURI }}">Cancel</a>
         <form id="allow-form" method="POST" style="display: inline;">
           <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}" />
           <button type="submit" class="primary-button">Allow</button>
         </form>
-        <a id="cancel-link" href="{{ .CancelURI }}">Cancel</a>
       </div>
     </div>
     <script>
