@@ -4696,7 +4696,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event",
+                        "description": "Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event. The stream then sends the turn in checkpoint events instead of status, error, retry and action_required events",
                         "name": "snapshot_version",
                         "in": "query"
                     }
