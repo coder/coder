@@ -2166,6 +2166,7 @@ func TestChatProjectDeleteQueries(t *testing.T) {
 		if parent != nil {
 			seed.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
 			seed.RootChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+			seed.ProjectID = parent.ProjectID
 		}
 		return dbgen.Chat(t, db, seed)
 	}
@@ -2385,8 +2386,8 @@ func TestArchiveChatsOfDeletedChatProjectWaitsForChildCreation(t *testing.T) {
 	_, err = childTx.ExecContext(ctx, "SELECT id FROM chats WHERE id = $1 FOR SHARE", root.ID)
 	require.NoError(t, err)
 	childID := uuid.New()
-	_, err = childTx.ExecContext(ctx, `INSERT INTO chats (id, organization_id, owner_id, last_model_config_id, title, parent_chat_id, root_chat_id)
-		VALUES ($1, $2, $3, $4, 'child', $5, $5)`, childID, org.ID, owner.ID, modelCfg.ID, root.ID)
+	_, err = childTx.ExecContext(ctx, `INSERT INTO chats (id, organization_id, owner_id, last_model_config_id, title, parent_chat_id, root_chat_id, project_id)
+		VALUES ($1, $2, $3, $4, 'child', $5, $5, $6)`, childID, org.ID, owner.ID, modelCfg.ID, root.ID, project.ID)
 	require.NoError(t, err)
 
 	deleteErr := make(chan error, 1)

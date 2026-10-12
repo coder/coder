@@ -2343,7 +2343,7 @@ COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
 
-COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat with related chats.';
+COMMENT ON COLUMN chats.project_id IS 'Project the chat belongs to. Sub-chats carry their root chat''s project.';
 
 COMMENT ON COLUMN chats.title_source IS 'Rows from before this column existed are fallback regardless of who set their title.';
 

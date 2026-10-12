@@ -2318,10 +2318,8 @@ WHERE
     -- Chats of a deleted project stay archived until chat retention removes them.
     AND NOT EXISTS (
         SELECT 1
-        FROM chats root
-        JOIN chat_projects ON chat_projects.id = root.project_id
-        WHERE root.id = COALESCE(chats_expanded.root_chat_id, chats_expanded.parent_chat_id, chats_expanded.id)
-            AND chat_projects.deleted
+        FROM chat_projects
+        WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
     )
     -- Authorize Filter clause will be injected below in GetAuthorizedChatsByChatFileID.
     -- @authorize_filter

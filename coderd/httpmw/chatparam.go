@@ -44,8 +44,8 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 			// Chats of a deleted project stay archived until chat retention
-			// removes them. Only project chats and sub-chats can be in one.
-			if chat.ProjectID.Valid || chat.RootChatID.Valid || chat.ParentChatID.Valid {
+			// removes them.
+			if chat.ProjectID.Valid {
 				//nolint:gocritic // The chat was authorized by the fetch above.
 				inDeletedProject, err := db.IsChatInDeletedChatProject(dbauthz.AsSystemRestricted(ctx), chat.ID)
 				if err != nil {

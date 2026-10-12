@@ -7789,22 +7789,9 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 }
 
 const archiveChatsOfDeletedChatProject = `-- name: ArchiveChatsOfDeletedChatProject :exec
-WITH family AS (
-    SELECT chats.id
-    FROM chats
-    JOIN chat_projects ON chat_projects.id = chats.project_id
-    WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
-    UNION ALL
-    SELECT child.id
-    FROM chats child
-    JOIN chats root ON root.id = child.root_chat_id
-    JOIN chat_projects ON chat_projects.id = root.project_id
-    WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
-)
 UPDATE chats
 SET
     archived = true,
-    project_id = $1::uuid,
     pin_order = 0,
     status = CASE WHEN status = 'error'::chat_status THEN 'error'::chat_status ELSE 'waiting'::chat_status END,
     worker_id = NULL,
@@ -7814,7 +7801,10 @@ SET
     retry_state = NULL,
     snapshot_version = snapshot_version + 1,
     updated_at = now()
-WHERE id IN (SELECT id FROM family)
+FROM chat_projects
+WHERE chats.project_id = $1::uuid
+    AND chat_projects.id = chats.project_id
+    AND chat_projects.deleted
 `
 
 // Execution-state transition outside the chatstate machine: moves every
@@ -7822,11 +7812,9 @@ WHERE id IN (SELECT id FROM family)
 // from error; once step 5 clears the queue these are StateXW and StateXE0.
 // It publishes nothing, so callers publish chat:update per chat. Clearing
 // the runner makes heartbeat renewal stop matching, so workers stop;
-// archived roots refuse new sub-chats. Sub-chats get the project ID so they
-// stay in the deleted project if retention deletes their root first. Run it
-// before clearing the queue, so a send waiting on a chat lock reads the
-// archived state and is refused. Keep the SET list in sync with
-// UpdateChatExecutionState.
+// archived roots refuse new sub-chats. Run it before clearing the queue, so
+// a send waiting on a chat lock reads the archived state and is refused.
+// Keep the SET list in sync with UpdateChatExecutionState.
 func (q *sqlQuerier) ArchiveChatsOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, archiveChatsOfDeletedChatProject, projectID)
 	return err
@@ -7861,12 +7849,6 @@ WHERE chat_id IN (
     SELECT chats.id
     FROM chats
     JOIN chat_projects ON chat_projects.id = chats.project_id
-    WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
-    UNION ALL
-    SELECT child.id
-    FROM chats child
-    JOIN chats root ON root.id = child.root_chat_id
-    JOIN chat_projects ON chat_projects.id = root.project_id
     WHERE chat_projects.id = $1::uuid AND chat_projects.deleted
 )
 `
@@ -7983,17 +7965,11 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 const getChatProjectChatFamilies = `-- name: GetChatProjectChatFamilies :many
 SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at
 FROM chats_expanded
-WHERE id IN (
-    SELECT chats.id FROM chats WHERE chats.project_id = $1::uuid
-    UNION ALL
-    SELECT child.id
-    FROM chats child
-    JOIN chats root ON root.id = child.root_chat_id
-    WHERE root.project_id = $1::uuid
-)
+WHERE project_id = $1::uuid
 ORDER BY id
 `
 
+// Sub-chats carry their root's project_id, so this returns whole families.
 func (q *sqlQuerier) GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, getChatProjectChatFamilies, projectID)
 	if err != nil {
@@ -8226,8 +8202,7 @@ const isChatInDeletedChatProject = `-- name: IsChatInDeletedChatProject :one
 SELECT EXISTS (
     SELECT 1
     FROM chats c
-    JOIN chats root ON root.id = COALESCE(c.root_chat_id, c.parent_chat_id, c.id)
-    JOIN chat_projects ON chat_projects.id = root.project_id
+    JOIN chat_projects ON chat_projects.id = c.project_id
     WHERE c.id = $1::uuid AND chat_projects.deleted
 )::boolean
 `
@@ -11507,10 +11482,8 @@ WHERE
     -- Chats of a deleted project stay archived until chat retention removes them.
     AND NOT EXISTS (
         SELECT 1
-        FROM chats root
-        JOIN chat_projects ON chat_projects.id = root.project_id
-        WHERE root.id = COALESCE(chats_expanded.root_chat_id, chats_expanded.parent_chat_id, chats_expanded.id)
-            AND chat_projects.deleted
+        FROM chat_projects
+        WHERE chat_projects.id = chats_expanded.project_id AND chat_projects.deleted
     )
     -- Authorize Filter clause will be injected below in GetAuthorizedChatsByChatFileID.
     -- @authorize_filter
