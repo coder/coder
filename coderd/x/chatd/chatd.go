@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -206,7 +207,10 @@ type Server struct {
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
 	experimentEvaluator      *experiments.Evaluator
-	authorizer               rbac.Authorizer
+	// accessURL is the deployment URL; manage_automations builds webhook
+	// URLs from it. Nil leaves the URL out.
+	accessURL  *url.URL
+	authorizer rbac.Authorizer
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -1478,7 +1482,7 @@ func (p *Server) checkQueueCapacity(ctx context.Context, chatID uuid.UUID) error
 	}
 	var promotable int64
 	for _, row := range queued {
-		if queuedRowPromotable(row, automations) {
+		if chatstate.QueuedRowPromotable(row, automations) {
 			promotable++
 		}
 	}
@@ -3009,6 +3013,9 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
+	// AccessURL is the deployment URL that manage_automations uses to
+	// show webhook URLs. Optional.
+	AccessURL *url.URL
 	// ExperimentEvaluator decides user-scoped experiments for a chat's
 	// owner. It is required.
 	ExperimentEvaluator *experiments.Evaluator
@@ -3140,6 +3147,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
 		experimentEvaluator:      cfg.ExperimentEvaluator,
+		accessURL:                cfg.AccessURL,
 		authorizer:               cfg.Authorizer,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,

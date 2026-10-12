@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -32,21 +33,32 @@ const manageAutomationsToolName = "manage_automations"
 const manageAutomationsNextRunCount = 5
 
 const manageAutomationsDescription = "Manage the chat owner's automations in this chat's organization. " +
-	"Automations are webhook or schedule triggers that send a prompt to an existing chat or start a new chat. " +
-	"Actions: list returns the automations without their prompts; get returns one automation with its prompt; create adds an enabled automation; " +
-	"update changes only the fields you pass; enable turns an automation on again; " +
-	"disable stops an automation from running until it is enabled again; delete removes an automation permanently; " +
+	"An automation sends its saved prompt on a trigger, a schedule (cron) or a webhook, either to an existing chat or to a new chat per run. " +
+	"Use it for recurring or later work: the automation handles the timing, and you do the work when its message arrives. " +
+	"Actions: list returns every visible automation with its prompt (long prompts are cut; get returns the full one); get returns one automation; " +
+	"create adds an enabled automation; update changes only the fields you pass; enable turns an automation on again; " +
+	"disable stops an automation until it is enabled again; delete removes an automation permanently; " +
 	"run_now sends the prompt of an enabled schedule automation now. " +
 	"Every action except list and create requires automation_id. kind, target_mode, and webhook_use cannot change after create. " +
-	"A heartbeat is a schedule automation with target_mode existing_chat on this chat: create it with kind schedule, " +
-	"target_mode existing_chat, a prompt, schedule_cron, and schedule_time_zone, and omit target_chat_id. " +
+	"A heartbeat is a schedule that wakes this chat: create it with kind schedule, target_mode existing_chat, name, prompt, " +
+	"schedule_cron, and schedule_time_zone; target_chat_id defaults to this chat. " +
+	"A callback is a single-use webhook on this chat: create it with kind webhook, target_mode existing_chat, webhook_use single, name, and prompt; " +
+	"the result has webhook_url and webhook_secret, which an external job uses once as POST webhook_url with header Authorization: Bearer <webhook_secret> and a JSON body. " +
+	"Multi-use webhook secrets are never returned: the owner rotates the secret in the automations UI to get one. " +
 	"An existing_chat automation can only target this chat. A new_chat automation uses this chat's model config " +
 	"unless new_chat_model_config_id names a model config without provider tools such as web search. " +
 	"A new_chat automation puts its chats into this chat's project, if this chat has one, unless project_id is empty; it cannot use another project. " +
 	"update, enable, and run_now work only on automations that follow these rules. " +
-	"Webhook secrets are never returned: the owner rotates the secret in the automations UI to get one. " +
-	"When the current turn was started by an automation, create, update, enable, and run_now are refused; " +
-	"only automations that target this chat or that created this chat are visible, and delete only removes the automation that started the turn."
+	"When an automation sent the current turn's message, create, update, enable, and run_now are refused; " +
+	"only automations that target this chat or that created this chat are visible, and delete only removes the automation that sent the message."
+
+// manageAutomationsListPromptMax and manageAutomationsGetPromptMax cap,
+// in runes, the prompt text list and get return, so a tool result stays
+// small. Prompts have no stored length limit.
+const (
+	manageAutomationsListPromptMax = 2000
+	manageAutomationsGetPromptMax  = 32000
+)
 
 var manageAutomationsActions = []string{"list", "get", "create", "update", "enable", "disable", "delete", "run_now"}
 
@@ -54,13 +66,21 @@ var manageAutomationsActions = []string{"list", "get", "create", "update", "enab
 // reached, because they can add or widen what automations do.
 var manageAutomationsWriteActions = []string{"create", "update", "enable", "run_now"}
 
-var errManageAutomationsNotFound = xerrors.New("automation not found")
+var errManageAutomationsNotFound = xerrors.New("automation not found: call list for the automations this turn can use")
 
 // manageAutomationsSecretNotShown replaces a webhook secret the tool does
 // not return.
 //
 //nolint:gosec // Explains that a secret is withheld; it is not a credential.
 const manageAutomationsSecretNotShown = "The webhook secret is not shown. The owner can rotate the secret in the automations UI to get a new one."
+
+// manageAutomationsSingleUseSecretNote explains how to use a returned
+// single-use secret.
+//
+//nolint:gosec // Explains how a secret is used; it is not a credential.
+const manageAutomationsSingleUseSecretNote = "This secret is shown once and works for one delivery: " +
+	"POST a JSON body to webhook_url with the header Authorization: Bearer <webhook_secret>. " +
+	"The delivery sends this automation's prompt and the body, marked as untrusted event data, to the target chat."
 
 type manageAutomationsArgs struct {
 	Action       string `json:"action" enum:"list,get,create,update,enable,disable,delete,run_now" description:"The action to perform."`
@@ -76,7 +96,7 @@ type manageAutomationsArgs struct {
 	ReasoningEffort      *string `json:"reasoning_effort,omitempty" description:"new_chat only: reasoning effort for new chats. On update, an empty value clears it."`
 	ProjectID            *string `json:"project_id,omitempty" description:"new_chat only: project for new chats. Must be this chat's project. Defaults to this chat's project on create. An empty value means no project; on update it removes the project."`
 	WhenBusy             *string `json:"when_busy,omitempty" enum:"queue,skip" description:"existing_chat only: queue or skip a run while the chat is busy. Schedules default to skip, webhooks to queue."`
-	WebhookUse           *string `json:"webhook_use,omitempty" enum:"single,multi" description:"create only, webhook only: single-use or multi-use secret. Defaults to multi."`
+	WebhookUse           *string `json:"webhook_use,omitempty" enum:"single,multi" description:"create only, webhook only: single (one delivery; create returns the secret once, for a callback) or multi (secret never returned). Defaults to multi."`
 	Prompt               *string `json:"prompt,omitempty" description:"create (required) and update: the prompt each run sends."`
 	ScheduleCron         *string `json:"schedule_cron,omitempty" description:"schedule only, required on create: a standard five-field cron expression."`
 	ScheduleTimeZone     *string `json:"schedule_time_zone,omitempty" description:"schedule only, required on create: an IANA time zone such as UTC or Europe/Berlin."`
@@ -137,6 +157,67 @@ func (a manageAutomationsArgs) checkFields(action string) error {
 		}
 	}
 	return nil
+}
+
+// manageAutomationsArgHints maps argument names models tend to guess to
+// what the tool expects.
+var manageAutomationsArgHints = map[string]string{
+	"id":             "use automation_id",
+	"enabled":        "use action enable or disable",
+	"cron":           "use schedule_cron",
+	"schedule":       "use schedule_cron and schedule_time_zone",
+	"timezone":       "use schedule_time_zone",
+	"time_zone":      "use schedule_time_zone",
+	"tz":             "use schedule_time_zone",
+	"chat_id":        "use target_chat_id, which defaults to this chat",
+	"model":          "use new_chat_model_config_id",
+	"model_config":   "use new_chat_model_config_id",
+	"webhook_secret": "the tool returns a secret only when it creates a single-use webhook",
+}
+
+// checkManageAutomationsArgNames rejects arguments the schema does not
+// define. JSON decoding would drop them, so a guessed name such as
+// "enabled" or "cron" would otherwise be ignored without a word.
+func checkManageAutomationsArgNames(input string) error {
+	if strings.TrimSpace(input) == "" {
+		return nil
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(input), &raw); err != nil {
+		return xerrors.New("arguments must be a JSON object")
+	}
+	known := manageAutomationsArgNames()
+	var unknown []string
+	for name := range raw {
+		if !slices.Contains(known, name) {
+			unknown = append(unknown, name)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	slices.Sort(unknown)
+	msgs := make([]string, 0, len(unknown))
+	for _, name := range unknown {
+		if hint, ok := manageAutomationsArgHints[name]; ok {
+			msgs = append(msgs, fmt.Sprintf("%q (%s)", name, hint))
+		} else {
+			msgs = append(msgs, fmt.Sprintf("%q", name))
+		}
+	}
+	return xerrors.Errorf("unknown argument %s: valid arguments are %s", strings.Join(msgs, ", "), strings.Join(known, ", "))
+}
+
+// manageAutomationsArgNames returns the JSON names of every argument in
+// schema order.
+func manageAutomationsArgNames() []string {
+	typ := reflect.TypeOf(manageAutomationsArgs{})
+	names := make([]string, 0, typ.NumField())
+	for i := range typ.NumField() {
+		name, _, _ := strings.Cut(typ.Field(i).Tag.Get("json"), ",")
+		names = append(names, name)
+	}
+	return names
 }
 
 // automationTurnTrigger identifies the automation input that reached the
@@ -201,7 +282,10 @@ func (p *Server) manageAutomationsTool(chatID uuid.UUID) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		manageAutomationsToolName,
 		manageAutomationsDescription,
-		func(ctx context.Context, args manageAutomationsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args manageAutomationsArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			if err := checkManageAutomationsArgNames(call.Input); err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
 			result, err := p.runManageAutomations(ctx, chatID, args)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
@@ -261,7 +345,9 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 	}
 	trigger := automationTurnTriggerFromHistory(history)
 	if trigger.AutomationID.Valid && slices.Contains(manageAutomationsWriteActions, action) {
-		return nil, xerrors.Errorf("%s is not available in a turn that an automation started", action)
+		return nil, xerrors.Errorf("%s is not available in a turn that an automation started: an automation sent this turn's message, "+
+			"so only list, get, disable, and delete work. Ask the owner to make the change; "+
+			"a message the owner sends after your reply starts a turn without this limit", action)
 	}
 
 	switch action {
@@ -274,14 +360,13 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 			logger.Warn(ctx, "manage_automations failed to list automations", slog.Error(err))
 			return nil, xerrors.New("failed to list automations")
 		}
-		automations := make([]codersdk.ChatAutomation, 0, len(rows))
+		automations := make([]manageAutomationsAutomation, 0, len(rows))
 		for _, row := range rows {
 			if manageAutomationsVisible(chat, trigger, row) {
-				// The result stays in the chat, which may be shared, so list
-				// leaves prompts out; get returns one when asked.
-				view := p.manageAutomationsView(row)
-				view.Prompt = ""
-				automations = append(automations, view)
+				// Prompts are not secrets, and an empty prompt reads as
+				// "no prompt set", so list returns them, cut to a size that
+				// keeps the result small.
+				automations = append(automations, p.manageAutomationsView(row, manageAutomationsListPromptMax))
 			}
 		}
 		return map[string]any{"automations": automations}, nil
@@ -308,7 +393,7 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 
 	switch action {
 	case "get":
-		return map[string]any{"automation": p.manageAutomationsView(row)}, nil
+		return map[string]any{"automation": p.manageAutomationsView(row, manageAutomationsGetPromptMax)}, nil
 	case "update":
 		req, err := args.updateRequest()
 		if err != nil {
@@ -327,7 +412,7 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 			return nil, p.manageAutomationsError(ctx, logger, action, err)
 		}
 		p.auditManageAutomations(ctx, chat, trigger, database.AuditActionWrite, old, updated)
-		return map[string]any{"automation": p.manageAutomationsView(updated)}, nil
+		return map[string]any{"automation": p.manageAutomationsView(updated, manageAutomationsListPromptMax)}, nil
 	default: // delete
 		// Input from one automation must not remove another one for good;
 		// disabling it stays possible and is undone by enabling it.
@@ -403,9 +488,13 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 		return nil, err
 	}
 
-	// The secret is dropped: tool results stay in the chat, which shared
-	// readers, the model provider, and compaction can see.
-	row, _, err := p.CreateAutomation(ownerCtx, CreateAutomationParams{
+	// A multi-use secret is dropped: tool results stay in the chat, which
+	// shared readers, the model provider, and compaction can see. A
+	// single-use secret is returned, as the RFC allows in a turn no
+	// automation reached (create is refused in the others), because a
+	// callback the agent cannot hand to a job is useless, and the secret
+	// stops working after one delivery.
+	row, secret, err := p.CreateAutomation(ownerCtx, CreateAutomationParams{
 		OrganizationID:  chat.OrganizationID,
 		OwnerID:         chat.OwnerID,
 		CreatedByChatID: uuid.NullUUID{UUID: chat.ID, Valid: true},
@@ -416,8 +505,13 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 		return nil, p.manageAutomationsError(ctx, logger, "create", err)
 	}
 	p.auditManageAutomations(ctx, chat, trigger, database.AuditActionCreate, database.ChatAutomation{}, row)
-	result := map[string]any{"automation": p.manageAutomationsView(row)}
-	if row.Kind == database.ChatAutomationKindWebhook {
+	result := map[string]any{"automation": p.manageAutomationsView(row, manageAutomationsListPromptMax)}
+	switch {
+	case row.Kind != database.ChatAutomationKindWebhook:
+	case isSingleUseWebhook(row) && !trigger.AutomationID.Valid:
+		result["webhook_secret"] = secret
+		result["webhook_secret_note"] = manageAutomationsSingleUseSecretNote
+	default:
 		result["webhook_secret_note"] = manageAutomationsSecretNotShown
 	}
 	return result, nil
@@ -476,7 +570,7 @@ func (p *Server) manageAutomationsUpdate(ctx, ownerCtx context.Context, chat dat
 		return nil, p.manageAutomationsError(ctx, logger, action, err)
 	}
 	p.auditManageAutomations(ctx, chat, trigger, database.AuditActionWrite, old, updated)
-	return map[string]any{"automation": p.manageAutomationsView(updated)}, nil
+	return map[string]any{"automation": p.manageAutomationsView(updated, manageAutomationsListPromptMax)}, nil
 }
 
 // manageAutomationsRun publishes the prompt of a contained schedule
@@ -627,13 +721,40 @@ func manageAutomationsVisible(chat database.Chat, trigger automationTurnTrigger,
 	return targetsChat || createdChat
 }
 
-// manageAutomationsView converts row to the API shape, which carries no
-// webhook secret or secret hash.
-func (p *Server) manageAutomationsView(row database.ChatAutomation) codersdk.ChatAutomation {
+// manageAutomationsAutomation is the tool's view of an automation: the
+// API shape, which carries no webhook secret or secret hash, plus fields
+// the model needs: a cut-prompt marker and the webhook URL.
+type manageAutomationsAutomation struct {
+	codersdk.ChatAutomation
+	// PromptTruncated is set when Prompt was cut; get returns more.
+	PromptTruncated bool `json:"prompt_truncated,omitempty"`
+	// WebhookURL is where a webhook automation receives events.
+	WebhookURL string `json:"webhook_url,omitempty"`
+}
+
+// manageAutomationsView converts row to the tool's view with its prompt
+// cut to promptMax runes.
+func (p *Server) manageAutomationsView(row database.ChatAutomation, promptMax int) manageAutomationsAutomation {
 	now := p.clock.Now()
-	view := db2sdk.ChatAutomation(row, AutomationNextRuns(row, now, manageAutomationsNextRunCount))
+	view := manageAutomationsAutomation{
+		ChatAutomation: db2sdk.ChatAutomation(row, AutomationNextRuns(row, now, manageAutomationsNextRunCount)),
+		WebhookURL:     p.automationWebhookURL(row),
+	}
 	view.ScheduleIntervalBelowMinimum = AutomationScheduleBelowMinimum(row, now, p.chatLimits.MinAutomationScheduleInterval)
+	if runes := []rune(view.Prompt); len(runes) > promptMax {
+		view.Prompt = string(runes[:promptMax])
+		view.PromptTruncated = true
+	}
 	return view
+}
+
+// automationWebhookURL returns the events URL of a webhook automation, or
+// "" for schedules and when the access URL is not configured.
+func (p *Server) automationWebhookURL(row database.ChatAutomation) string {
+	if row.Kind != database.ChatAutomationKindWebhook || p.accessURL == nil {
+		return ""
+	}
+	return p.accessURL.JoinPath("api", "experimental", "chat-automations", row.ID.String(), "events").String()
 }
 
 // manageAutomationsError maps service errors to tool errors that reveal

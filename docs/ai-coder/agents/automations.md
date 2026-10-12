@@ -428,7 +428,8 @@ The tool supports the `list`, `get`, `create`, `update`, `enable`, `disable`, `d
 The agent acts as you, so its automations count toward your limit and appear on your **Automations** page with a **Created by agent in** link to the chat.
 
 In a turn that you start, the agent can list, read, turn off, and delete any of your automations in the chat's organization, including automations that target other chats.
-Listing automations leaves out their prompts, but reading one automation shows its prompt in the chat.
+Listing automations shows their prompts in the chat, cut to 2,000 characters.
+Reading one automation shows its full prompt.
 
 The agent can create, update, enable, or run only automations that stay close to its own chat:
 
@@ -443,8 +444,18 @@ In a turn that an automation started, the agent can't create, update, enable, or
 It sees only automations that target the chat or that created it, and it can delete only the automation that started the turn.
 A message you send right after an automation message, before the agent responds, counts as part of that turn.
 
-The tool never returns a webhook secret, because tool results stay in the chat.
-To get the secret of a webhook an agent created, rotate the secret in the dashboard.
+The tool never returns the secret of a multi-use webhook, because tool results stay in the chat.
+To get the secret of a multi-use webhook an agent created, rotate the secret in the dashboard.
+When the agent creates a single-use webhook in a turn that you start, the result shows the secret and the endpoint once, so the agent can hand them to a job as a callback.
+The secret stops working after one delivery.
+
+### What the agent sees in an automation turn
+
+Each message that an automation sends starts with a note that only the model sees.
+The note names the automation and its trigger, says that the agent acts for you while you may be away, and tells the agent to reply in the chat with the result.
+For a heartbeat on a chat with **Manage automations** on, the note tells the agent how to turn the heartbeat off when it is no longer needed.
+For a webhook, the note repeats that the event data is untrusted.
+The dashboard doesn't show the note.
 
 ### Heartbeats
 

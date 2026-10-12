@@ -244,10 +244,13 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 
 	// The input id is fixed per call, so a retried transaction reuses it.
 	inputID := uuid.New()
+	// The tool is offered by the same rules at the start of the turn, so
+	// the note names it only when the model will have it.
+	toolAvailable := manageAutomationsAllowed(chat, func() bool { return true })
 	_, err = p.SendMessage(ownerCtx, SendMessageOptions{
 		ChatID:    chatID,
 		CreatedBy: automation.OwnerID,
-		Content:   in.content(automation),
+		Content:   automationInputContent(in, automation, toolAvailable),
 		// Automations never interrupt or steer a running turn; set it
 		// explicitly so a different chatd default cannot change that.
 		BusyBehavior: SendMessageBusyBehaviorQueue,
@@ -305,12 +308,13 @@ func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subjec
 		ProjectID:      projectID,
 		// The title is explicit and its user source stops title
 		// generation, so the event data never becomes the chat title.
-		Title:              automationNewChatTitle(automation, titleTime),
-		TitleSource:        database.ChatTitleSourceUser,
-		ModelConfigID:      modelConfigID,
-		ReasoningEffort:    reasoningEffort,
-		ClientType:         database.ChatClientTypeApi,
-		InitialUserContent: in.content(automation),
+		Title:           automationNewChatTitle(automation, titleTime),
+		TitleSource:     database.ChatTitleSourceUser,
+		ModelConfigID:   modelConfigID,
+		ReasoningEffort: reasoningEffort,
+		ClientType:      database.ChatClientTypeApi,
+		// Chats an automation creates never offer manage_automations.
+		InitialUserContent: automationInputContent(in, automation, false),
 		// No MCP servers are selected; CreateChat still adds the Force On
 		// servers the owner can read.
 		MCPServerIDs: nil,
@@ -331,6 +335,12 @@ func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subjec
 		return PublishAutomationResult{}, err
 	}
 	return PublishAutomationResult{InputID: inputID, ChatID: chat.ID}, nil
+}
+
+// automationInputContent returns the message parts of an automation
+// input: the model-only automation context note, then in.content.
+func automationInputContent(in automationPublish, automation database.ChatAutomation, toolAvailable bool) []codersdk.ChatMessagePart {
+	return append([]codersdk.ChatMessagePart{automationContextPart(automation, toolAvailable)}, in.content(automation)...)
 }
 
 // logAutomationRefusal logs the refusals that depend on the target chat's
@@ -576,7 +586,7 @@ func (p *Server) checkAdmission(
 	// it keeps make the chat busy or fill the automations' share.
 	var promotable, promotableAutomation int64
 	for _, row := range queued {
-		if !queuedRowPromotable(row, automations) {
+		if !chatstate.QueuedRowPromotable(row, automations) {
 			continue
 		}
 		promotable++
@@ -603,20 +613,6 @@ func (p *Server) checkAdmission(
 	default:
 		return xerrors.Errorf("unknown when_busy %q", automation.WhenBusy.ChatAutomationWhenBusy)
 	}
-}
-
-// queuedRowPromotable reports whether promotion would deliver the queued
-// row: rows of a deleted or disabled automation, or of an older queue
-// generation, are dropped. It mirrors chatstate's promotion guard.
-func queuedRowPromotable(row database.ChatQueuedMessage, automations map[uuid.UUID]database.ChatAutomation) bool {
-	if !row.AutomationID.Valid {
-		return true
-	}
-	automation, ok := automations[row.AutomationID.UUID]
-	if !ok || !automation.Enabled {
-		return false
-	}
-	return row.QueueGeneration.Valid && row.QueueGeneration.Int64 == automation.QueueGeneration
 }
 
 // readQueuedAutomations reads, without locking, the automations of the

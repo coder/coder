@@ -952,6 +952,7 @@ func New(options *Options) *API {
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
 				ExperimentEvaluator:            api.ExperimentEvaluator,
+				AccessURL:                      options.AccessURL,
 				Authorizer:                     options.Authorizer,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,

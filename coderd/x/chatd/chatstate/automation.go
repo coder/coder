@@ -125,15 +125,17 @@ func queuedAutomationIDs(rows []database.ChatQueuedMessage) []uuid.UUID {
 	return ids
 }
 
-// queuedRowPromotable reports whether row may be promoted. Rows without
+// QueuedRowPromotable reports whether row may be promoted. Rows without
 // an automation always pass. Automation rows pass only when their
 // automation exists, is enabled, and still has the queue generation the
-// row was queued with.
-func queuedRowPromotable(row database.ChatQueuedMessage, locked map[uuid.UUID]database.ChatAutomation) bool {
+// row was queued with. automations holds the rows' automations by id;
+// deleted ones are absent. Promotion uses the locked rows, and chatd's
+// unlocked admission prechecks use the same rule on unlocked reads.
+func QueuedRowPromotable(row database.ChatQueuedMessage, automations map[uuid.UUID]database.ChatAutomation) bool {
 	if !row.AutomationID.Valid {
 		return true
 	}
-	automation, ok := locked[row.AutomationID.UUID]
+	automation, ok := automations[row.AutomationID.UUID]
 	if !ok || !automation.Enabled {
 		return false
 	}
@@ -149,7 +151,7 @@ func (tx *Tx) dropUnpromotable(
 ) ([]database.ChatQueuedMessage, error) {
 	passing := make([]database.ChatQueuedMessage, 0, len(rows))
 	for _, row := range rows {
-		if queuedRowPromotable(row, locked) {
+		if QueuedRowPromotable(row, locked) {
 			passing = append(passing, row)
 			continue
 		}
