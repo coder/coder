@@ -23,6 +23,7 @@ export const AutomationTriggerField: React.FC<AutomationTriggerFieldProps> = ({
 }) => {
 	const triggerLabelId = useId();
 	const triggerDescriptionId = useId();
+	const fixedId = useId();
 	return (
 		<section className="flex flex-col gap-4">
 			<div className="flex items-start justify-between gap-2">
@@ -40,22 +41,30 @@ export const AutomationTriggerField: React.FC<AutomationTriggerFieldProps> = ({
 						What starts a run.
 					</p>
 				</div>
-				{!isCreate && <FixedAtCreationBadge />}
 			</div>
-			<RadioGroup
-				aria-labelledby={triggerLabelId}
-				aria-describedby={triggerDescriptionId}
-				value={kind}
-				disabled={!isCreate}
-				onValueChange={(value) => {
-					if (value === "schedule" || value === "webhook") {
-						onKindChange(value);
+			{/* The badge sits beside the radios, not the heading, so it does not
+			    read as if the fields below were fixed too. */}
+			<div className="flex flex-wrap items-start gap-4">
+				<RadioGroup
+					aria-labelledby={triggerLabelId}
+					aria-describedby={
+						isCreate
+							? triggerDescriptionId
+							: `${triggerDescriptionId} ${fixedId}`
 					}
-				}}
-			>
-				<RadioOption value="schedule" label="Schedule" />
-				<RadioOption value="webhook" label="Webhook" />
-			</RadioGroup>
+					value={kind}
+					disabled={!isCreate}
+					onValueChange={(value) => {
+						if (value === "schedule" || value === "webhook") {
+							onKindChange(value);
+						}
+					}}
+				>
+					<RadioOption value="schedule" label="Schedule" />
+					<RadioOption value="webhook" label="Webhook" />
+				</RadioGroup>
+				{!isCreate && <FixedAtCreationBadge id={fixedId} />}
+			</div>
 			{kind === "schedule" ? (
 				<AutomationScheduleFields {...scheduleFieldsProps} />
 			) : (

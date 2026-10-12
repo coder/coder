@@ -1891,6 +1891,21 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		},
 	);
 
+	it("ties the Fixed at creation badge to the radios, not the fields below", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+
+		await openRowAction(user, MockChatAutomation.name, "Edit");
+		const form = await screen.findByRole("form", { name: "Edit automation" });
+
+		expect(
+			within(form).getByRole("radiogroup", { name: "Runs in" }),
+		).toHaveAccessibleDescription("Fixed at creation");
+		expect(
+			within(form).getByRole("radiogroup", { name: "Trigger" }),
+		).toHaveAccessibleDescription("What starts a run. Fixed at creation");
+	});
+
 	it("keeps only radios focusable in the Runs in group", async () => {
 		const user = userEvent.setup();
 		setupEditor();

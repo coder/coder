@@ -71,6 +71,7 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 	onWhenBusyChange,
 }) => {
 	const headingId = useId();
+	const fixedId = useId();
 	const modelErrorId = useId();
 	const effortId = useId();
 	const effortErrorId = useId();
@@ -119,29 +120,34 @@ export const AutomationTargetField: React.FC<AutomationTargetFieldProps> = ({
 				>
 					Runs in
 				</h3>
-				{!isCreate && <FixedAtCreationBadge />}
 			</div>
-			<RadioGroup
-				aria-labelledby={headingId}
-				value={form.values.target_mode}
-				disabled={!isCreate}
-				onValueChange={(value) => {
-					if (value === "existing_chat" || value === "new_chat") {
-						form.setFieldValue("target_mode", value);
-					}
-				}}
-			>
-				<RadioOption
-					value="existing_chat"
-					label="Existing chat"
-					description="Each run sends the prompt to the chosen chat."
-				/>
-				<RadioOption
-					value="new_chat"
-					label="New chat each run"
-					description="Each run starts a new chat with the model below."
-				/>
-			</RadioGroup>
+			{/* The badge sits beside the radios, not the heading, so it does not
+			    read as if the fields below were fixed too. */}
+			<div className="flex flex-wrap items-start gap-4">
+				<RadioGroup
+					aria-labelledby={headingId}
+					aria-describedby={isCreate ? undefined : fixedId}
+					value={form.values.target_mode}
+					disabled={!isCreate}
+					onValueChange={(value) => {
+						if (value === "existing_chat" || value === "new_chat") {
+							form.setFieldValue("target_mode", value);
+						}
+					}}
+				>
+					<RadioOption
+						value="existing_chat"
+						label="Existing chat"
+						description="Each run sends the prompt to the chosen chat."
+					/>
+					<RadioOption
+						value="new_chat"
+						label="New chat each run"
+						description="Each run starts a new chat with the model below."
+					/>
+				</RadioGroup>
+				{!isCreate && <FixedAtCreationBadge id={fixedId} />}
+			</div>
 			{form.values.target_mode === "existing_chat" ? (
 				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 					<FormField
