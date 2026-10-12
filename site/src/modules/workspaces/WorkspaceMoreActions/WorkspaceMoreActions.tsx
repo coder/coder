@@ -120,8 +120,10 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	// Reference: https://github.com/coder/coder/pull/17775#discussion_r2087273706
 	const [open, setOpen] = useState(false);
 	useEffect(() => {
-		setOpen((open) => (disabled ? false : open));
-	});
+		if (disabled) {
+			setOpen(false);
+		}
+	}, [disabled]);
 
 	return (
 		<>

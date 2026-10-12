@@ -53,25 +53,60 @@ describe("extractContextUsageFromMessage", () => {
 		expect(result!.usedTokens).toBe(50);
 	});
 
-	it("sums all token components into usedTokens", () => {
-		const msg = {
-			...MockChatMessage,
+	it.each<{
+		shape: string;
+		usage: TypesGen.ChatMessageUsage;
+		usedTokens: number;
+	}>([
+		// Usage values recorded from real provider responses.
+		{
+			shape: "reasoning inside output",
 			usage: {
-				input_tokens: 10,
-				output_tokens: 20,
-				reasoning_tokens: 5,
-				cache_creation_tokens: 3,
-				cache_read_tokens: 2,
+				input_tokens: 110,
+				output_tokens: 334,
+				reasoning_tokens: 256,
+				cache_read_tokens: 5632,
 			},
-		};
-		const result = extractContextUsageFromMessage(msg);
-		expect(result).not.toBeNull();
-		expect(result!.usedTokens).toBe(10 + 20 + 5 + 3 + 2);
-		expect(result!.inputTokens).toBe(10);
-		expect(result!.outputTokens).toBe(20);
-		expect(result!.reasoningTokens).toBe(5);
-		expect(result!.cacheCreationTokens).toBe(3);
-		expect(result!.cacheReadTokens).toBe(2);
+			usedTokens: 110 + 334 + 5632,
+		},
+		{
+			shape: "cache creation present",
+			usage: {
+				input_tokens: 3,
+				output_tokens: 120,
+				cache_read_tokens: 7736,
+				cache_creation_tokens: 129,
+			},
+			usedTokens: 3 + 120 + 7736 + 129,
+		},
+		{
+			shape: "no cache fields",
+			usage: { input_tokens: 4220, output_tokens: 41 },
+			usedTokens: 4220 + 41,
+		},
+	])(
+		"sums input, output and cache tokens with $shape",
+		({ usage, usedTokens }) => {
+			const result = extractContextUsageFromMessage({
+				...MockChatMessage,
+				usage,
+			});
+			expect(result?.usedTokens).toBe(usedTokens);
+			expect(result?.inputTokens).toBe(usage.input_tokens);
+			expect(result?.outputTokens).toBe(usage.output_tokens);
+			expect(result?.reasoningTokens).toBe(usage.reasoning_tokens);
+			expect(result?.cacheReadTokens).toBe(usage.cache_read_tokens);
+			expect(result?.cacheCreationTokens).toBe(usage.cache_creation_tokens);
+		},
+	);
+
+	it("does not count reasoning tokens reported alone", () => {
+		const result = extractContextUsageFromMessage({
+			...MockChatMessage,
+			usage: { reasoning_tokens: 256, context_limit: 128000 },
+		});
+		expect(result?.usedTokens).toBeUndefined();
+		expect(result?.reasoningTokens).toBe(256);
 	});
 
 	it("includes contextLimitTokens when context_limit is set", () => {

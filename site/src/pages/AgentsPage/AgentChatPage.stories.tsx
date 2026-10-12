@@ -16,6 +16,7 @@ import {
 	chatMessagesKey,
 	chatPromptsKey,
 	mcpServerConfigsKey,
+	organizationChatModelOverridesKey,
 	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
@@ -71,17 +72,8 @@ const AgentChatPageLayout: React.FC = () => {
 							chatErrorReasons: {},
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
-							requestArchiveAgent: () => {},
-							requestArchiveAndDeleteWorkspace: (
-								_chatId: string,
-								_workspaceId: string,
-							) => {},
-							requestUnarchiveAgent: () => {},
-							requestPinAgent: () => {},
-							requestUnpinAgent: () => {},
+							navigateAfterArchive: () => {},
 							onOpenRenameDialog: () => {},
-							isArchiving: false,
-							archivingChatId: undefined,
 							activeChatChildren: undefined,
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
@@ -314,7 +306,7 @@ const buildQueries = (
 		mcpServers?: readonly TypesGen.MCPServerConfig[];
 	},
 ) => {
-	const diffStatus: TypesGen.ChatDiffStatus = {
+	const mockDiffStatus: TypesGen.ChatDiffStatus = {
 		chat_id: CHAT_ID,
 		url: opts?.diffUrl,
 		pull_request_title: "",
@@ -324,12 +316,13 @@ const buildQueries = (
 		deletions: opts?.diffUrl ? 1 : 0,
 		changed_files: opts?.diffUrl ? 2 : 0,
 	};
-	const chatWithDiffStatus: TypesGen.Chat = {
+	const mockChatWithDiffStatus: TypesGen.Chat = {
 		...chat,
-		diff_status: diffStatus,
+		diff_status: mockDiffStatus,
+		diff_statuses: [mockDiffStatus],
 	};
 	return [
-		{ key: chatEntityKey(CHAT_ID), data: chatWithDiffStatus },
+		{ key: chatEntityKey(CHAT_ID), data: mockChatWithDiffStatus },
 		{
 			key: chatMessagesKey(CHAT_ID),
 			data: { pages: [messagesData], pageParams: [undefined] },
@@ -342,7 +335,7 @@ const buildQueries = (
 		},
 		{
 			key: chatListKey(toChatListParams()),
-			data: { pages: [[chatWithDiffStatus]], pageParams: [0] },
+			data: { pages: [[mockChatWithDiffStatus]], pageParams: [0] },
 		},
 		{
 			key: chatDiffContentsKey(CHAT_ID),
@@ -399,6 +392,10 @@ const buildQueries = (
 		{
 			key: userCompactionThresholdsKey,
 			data: MockUserChatCompactionThresholds,
+		},
+		{
+			key: organizationChatModelOverridesKey(chat.organization_id),
+			data: { overrides: [] },
 		},
 	];
 };
@@ -968,6 +965,37 @@ type Story = StoryObj<typeof AgentChatPageLayout>;
 // ---------------------------------------------------------------------------
 // Stories
 // ---------------------------------------------------------------------------
+
+const mockContextUsageMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	role: "assistant",
+	usage: { input_tokens: 50_000, context_limit: 200_000 },
+};
+
+export const CompactionHintSurvivesOverrideFetchError: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(MockChat, {
+				messages: [mockContextUsageMessage],
+				queued_messages: [],
+				has_more: false,
+			}),
+			organizationChatModelOverridesKey(MockChat.organization_id),
+		),
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockRejectedValue(new Error("Failed to load model overrides"));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			await canvas.findByRole("button", { name: /Context usage 25%/ }),
+		);
+	},
+};
 
 /** Multi-turn conversation with rich markdown rendering: headings, tables,
  *  ordered/unordered lists, nested lists, code blocks, blockquotes,
