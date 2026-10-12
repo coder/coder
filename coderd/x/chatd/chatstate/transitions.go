@@ -72,6 +72,10 @@ type CreateChatResult struct {
 //   - When RootChatID is set, the root chat must exist and must not be
 //     archived; otherwise CreateChat returns [ErrChatNotFound] or
 //     [ErrChatFamilyArchived].
+//   - When RootChatID is unset and ProjectID is set, the project must
+//     exist; otherwise CreateChat returns [ErrChatProjectNotFound].
+//   - When RootChatID is set, ProjectID must be unset or equal the
+//     root's project; the insert trigger sets the sub-chat's project.
 //
 // After commit CreateChat publishes a `chat:update` message describing
 // the new chat snapshot. When the new chat is runnable (`running`),
