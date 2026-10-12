@@ -1827,11 +1827,15 @@ func mcpOAuth2ResourceBinding(resource string) string {
 // mcpOAuth2ResourceIndicator picks the RFC 8707 resource indicator for
 // an MCP server: the most specific advertised Protected Resource
 // Metadata resource that covers the server URL, stored verbatim, else
-// the server URL in canonical form. This matches the MCP Python SDK.
+// the server URL in canonical form. As in the MCP Python SDK, a resource
+// covers URLs on its origin under its path. Unlike the SDK, a resource
+// with a query covers only URLs with the same query, which can select a
+// tenant.
 func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string {
 	serverPath := withTrailingSlash(serverURL.Path)
 	best := ""
 	bestPathLen := -1
+	bestHasQuery := false
 	for _, raw := range advertised {
 		candidate := strings.TrimSpace(raw)
 		parsed, err := parseMCPOAuth2Resource(candidate)
@@ -1841,13 +1845,18 @@ func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string 
 		if !strings.EqualFold(parsed.Scheme, serverURL.Scheme) || !strings.EqualFold(parsed.Host, serverURL.Host) {
 			continue
 		}
+		hasQuery := parsed.RawQuery != ""
+		if hasQuery && parsed.RawQuery != serverURL.RawQuery {
+			continue
+		}
 		entryPath := withTrailingSlash(parsed.Path)
 		if !strings.HasPrefix(serverPath, entryPath) {
 			continue
 		}
-		if len(entryPath) > bestPathLen {
+		if len(entryPath) > bestPathLen || (len(entryPath) == bestPathLen && hasQuery && !bestHasQuery) {
 			best = candidate
 			bestPathLen = len(entryPath)
+			bestHasQuery = hasQuery
 		}
 	}
 	if best != "" {

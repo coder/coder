@@ -325,6 +325,27 @@ func TestMCPOAuth2ResourceIndicator(t *testing.T) {
 			want: "https://mcp.example.com/a/b",
 		},
 		{
+			name:      "QueryMustMatch",
+			serverURL: "https://mcp.example.com/mcp?tenant=b",
+			advertised: []string{
+				"https://mcp.example.com/mcp?tenant=a",
+				"https://mcp.example.com/mcp?tenant=b",
+			},
+			want: "https://mcp.example.com/mcp?tenant=b",
+		},
+		{
+			name:       "MatchingQueryBeatsNoQuery",
+			serverURL:  "https://mcp.example.com/mcp?tenant=b",
+			advertised: []string{"https://mcp.example.com/mcp", "https://mcp.example.com/mcp?tenant=b"},
+			want:       "https://mcp.example.com/mcp?tenant=b",
+		},
+		{
+			name:       "NoQueryCoversQuery",
+			serverURL:  "https://mcp.example.com/mcp?tenant=a",
+			advertised: []string{"https://mcp.example.com/mcp"},
+			want:       "https://mcp.example.com/mcp",
+		},
+		{
 			name:      "NoEntriesFallsBack",
 			serverURL: "https://mcp.example.com/mcp",
 			want:      "https://mcp.example.com/mcp",
