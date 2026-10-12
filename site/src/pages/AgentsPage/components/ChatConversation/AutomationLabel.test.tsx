@@ -47,29 +47,35 @@ describe("AutomationLabel", () => {
 		},
 	);
 
-	it("keeps the UUID out of the label when the references request fails", async () => {
-		const user = userEvent.setup();
-		render(
-			<MemoryRouter>
-				<TooltipProvider delayDuration={0}>
-					<AutomationLabel
-						variant="card"
-						automationId={automationId}
-						inputId={inputId}
-						nameStatus="error"
-					/>
-				</TooltipProvider>
-			</MemoryRouter>,
-		);
+	it.each([
+		{ nameStatus: "loading", label: "Automation run · loading name" },
+		{ nameStatus: "error", label: "Automation run · name unavailable" },
+		{ nameStatus: "settled", label: "Automation run · deleted automation" },
+	] as const)(
+		"names a missing automation in the $nameStatus state without its UUID",
+		async ({ nameStatus, label }) => {
+			const user = userEvent.setup();
+			render(
+				<MemoryRouter>
+					<TooltipProvider delayDuration={0}>
+						<AutomationLabel
+							variant="card"
+							automationId={automationId}
+							inputId={inputId}
+							nameStatus={nameStatus}
+						/>
+					</TooltipProvider>
+				</MemoryRouter>,
+			);
 
-		const label = screen.getByRole("note", { name: "Automation run" });
-		expect(label).not.toHaveTextContent(automationId);
+			const note = screen.getByRole("note", { name: label });
+			expect(note).not.toHaveTextContent(automationId);
 
-		await user.tab();
-		const tooltip = await screen.findByRole("tooltip");
-		expect(tooltip).toHaveTextContent("Could not load the automation name.");
-		expect(tooltip).toHaveTextContent(`Automation ID: ${automationId}`);
-	});
+			await user.tab();
+			const tooltip = await screen.findByRole("tooltip");
+			expect(tooltip).toHaveTextContent(`Automation ID: ${automationId}`);
+		},
+	);
 
 	it("links the card's automation name to the automation's page", () => {
 		render(

@@ -120,12 +120,25 @@ export const workspaceSkillsFromChat = (
 	return [...skills.values()];
 };
 
-const toChatAutomationReferences = (
-	query: UseQueryResult<ChatAutomationReferenceMap>,
-): ChatAutomationReferences => ({
-	references: query.data ?? new Map(),
-	status: query.isFetching ? "loading" : query.isError ? "error" : "settled",
-});
+/**
+ * Only the first load hides missing names. A refetch keeps the loaded
+ * names, so a deleted automation's label does not flicker while new
+ * automation input refreshes the references.
+ */
+export const toChatAutomationReferences = (
+	query: Pick<
+		UseQueryResult<ChatAutomationReferenceMap>,
+		"data" | "isError" | "isFetching"
+	>,
+): ChatAutomationReferences => {
+	if (query.data) {
+		return { references: query.data, status: "settled" };
+	}
+	return {
+		references: new Map(),
+		status: query.isError ? "error" : query.isFetching ? "loading" : "settled",
+	};
+};
 
 type ChatPageTimelineProps = {
 	organizationId: string;

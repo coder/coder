@@ -13,9 +13,9 @@ import { TimelineNotice } from "./TimelineNotice";
 
 export type ChatAutomationReferences = {
 	references: ChatAutomationReferenceMap;
-	// State of the chat's automation references: while "loading" (including
-	// refetches) a missing name may still resolve, and "error" means the
-	// request failed.
+	// State of the chat's automation references: "loading" until the first
+	// response, "error" when that request failed, then "settled". A refetch
+	// keeps the loaded names, so labels do not change while it runs.
 	status: "loading" | "error" | "settled";
 };
 
@@ -38,12 +38,19 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 	variant,
 }) => {
 	const showNameLoading = !reference && nameStatus === "loading";
-	// A failed request shows the generic label. A settled request without the
-	// automation means it was deleted. The full ID is in the tooltip.
-	const hideName = showNameLoading || nameStatus === "error";
-	const nameOrId = reference?.name ?? (hideName ? "" : "deleted automation");
+	// Every state names the automation the same way: by name, as deleted,
+	// or with a placeholder while it loads or when the request failed. The
+	// full ID is in the tooltip, so the label never shows a UUID.
+	let missingName = "deleted automation";
+	if (showNameLoading) {
+		missingName = "…";
+	} else if (!reference && nameStatus === "error") {
+		missingName = "name unavailable";
+	}
+	const nameOrId = reference?.name ?? missingName;
 	const kindSuffix = reference ? ` (${reference.kind})` : "";
-	const suffix = nameOrId ? `${labelSeparator}${nameOrId}${kindSuffix}` : "";
+	const suffix = `${labelSeparator}${nameOrId}${kindSuffix}`;
+	const ariaSuffix = showNameLoading ? `${labelSeparator}loading name` : suffix;
 	let statusText = "The automation was deleted.";
 	if (reference) {
 		statusText = `Automation: ${nameOrId}${kindSuffix}`;
@@ -60,7 +67,7 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 						// The note hosts a tooltip with the full IDs, so keyboard focus
 						// must reach it.
 						tabIndex={0}
-						aria-label={`Automation run${suffix}`}
+						aria-label={`Automation run${ariaSuffix}`}
 						className="cursor-default break-words focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 					>
 						<span className="font-semibold">Automation run</span>
@@ -85,7 +92,7 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 					<Badge
 						role="note"
 						tabIndex={0}
-						aria-label={`Automation run${suffix}`}
+						aria-label={`Automation run${ariaSuffix}`}
 						size="sm"
 						variant="outline"
 						// The right padding moves to the text span, so its clip edge sits
