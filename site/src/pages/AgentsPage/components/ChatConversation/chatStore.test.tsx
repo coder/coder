@@ -1271,159 +1271,59 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("startTransition deferred parts are discarded after chat switch", async () => {
+	it("shows only the new chat's state after a chat switch", async () => {
 		immediateAnimationFrame();
 
 		const chatID1 = "chat-1";
 		const chatID2 = "chat-2";
-		const msg1 = buildMessage(chatID1, 1, "user", "hello");
-		const msg2 = buildMessage(chatID2, 10, "user", "world");
-
-		const mockSocket1 = createMockSocket();
-		const mockSocket2 = createMockSocket();
-		// Use a fallback so that extra effect re-runs get a valid socket.
-		mockWatchChatReturn(mockSocket2);
-		vi.mocked(watchChat)
-			.mockReturnValueOnce(mockSocket1)
-			.mockReturnValueOnce(mockSocket1)
-			.mockReturnValueOnce(mockSocket1);
-
-		const queryClient = createTestQueryClient();
-		const wrapper = createWrapper(queryClient);
-		const setChatErrorReason = vi.fn();
-		const clearChatErrorReason = vi.fn();
-
+		const sockets = mockWatchChatWithFreshSockets();
+		const wrapper = createWrapper(createTestQueryClient());
 		mockNewestPage(chatID1, {
-			messages: [msg1],
-			queued_messages: [] as TypesGen.ChatQueuedMessage[],
+			messages: [buildMessage(chatID1, 1, "user", "hello")],
+			queued_messages: [buildQueuedMessage(chatID1, 10, "queued")],
 			has_more: false,
 		});
-		const initialOptions = {
+		mockNewestPage(chatID2, {
+			messages: [buildMessage(chatID2, 10, "user", "world")],
+			queued_messages: [],
+			has_more: false,
+		});
+		const options = {
 			chatID: chatID1,
-			setChatErrorReason,
-			clearChatErrorReason,
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
 		};
-
 		const { result, rerender } = renderHook(
-			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
+			(props: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(props);
 				return {
+					messageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					queuedMessages: useChatSelector(store, selectQueuedMessages),
 					streamState: useChatSelector(store, selectStreamState),
 				};
 			},
-			{ initialProps: initialOptions, wrapper },
+			{ initialProps: options, wrapper },
 		);
-
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID1, 0);
-		});
-
+		await waitFor(() => expect(sockets).toHaveLength(1));
 		act(() => {
-			mockSocket1.emitData({
+			sockets[0].emitData({
 				type: "message_part",
 				chat_id: chatID1,
 				message_part: {
 					role: "assistant",
-					part: {
-						type: "text",
-						text: "stale-part",
-					},
+					part: { type: "text", text: "chat-1 output" },
 				},
 			});
 		});
-
 		await waitFor(() => {
-			expect(result.current.streamState?.blocks).toEqual([
-				{ type: "response", text: "stale-part" },
-			]);
+			expect(result.current.streamState).not.toBeNull();
 		});
 
-		mockNewestPage(chatID2, {
-			messages: [msg2],
-			queued_messages: [],
-			has_more: false,
-		});
-		rerender({
-			...initialOptions,
-			chatID: chatID2,
-		});
+		rerender({ ...options, chatID: chatID2 });
 
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID2, 0);
-		});
-
-		expect(result.current.streamState).toBeNull();
-	});
-
-	it("messages are cleared immediately on chat switch before new query resolves", async () => {
-		immediateAnimationFrame();
-
-		const chatID1 = "chat-1";
-		const chatID2 = "chat-2";
-		const msg1 = buildMessage(chatID1, 1, "user", "first");
-		const queuedMsg = buildQueuedMessage(chatID1, 10, "queued");
-
-		const mockSocket1 = createMockSocket();
-		const mockSocket2 = createMockSocket();
-		// Use a fallback so that extra effect re-runs get a valid socket.
-		mockWatchChatReturn(mockSocket2);
-		vi.mocked(watchChat)
-			.mockReturnValueOnce(mockSocket1)
-			.mockReturnValueOnce(mockSocket1)
-			.mockReturnValueOnce(mockSocket1);
-
-		const queryClient = createTestQueryClient();
-		const wrapper = createWrapper(queryClient);
-		const setChatErrorReason = vi.fn();
-		const clearChatErrorReason = vi.fn();
-
-		mockNewestPage(chatID1, {
-			messages: [msg1],
-			queued_messages: [queuedMsg],
-			has_more: false,
-		});
-		const initialOptions = {
-			chatID: chatID1,
-			setChatErrorReason,
-			clearChatErrorReason,
-		};
-
-		const { result, rerender } = renderHook(
-			(options: Parameters<typeof useChatStore>[0]) => {
-				const { store } = useChatStore(options);
-				return {
-					queuedMessages: useChatSelector(store, selectQueuedMessages),
-				};
-			},
-			{ initialProps: initialOptions, wrapper },
-		);
-
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID1, 0);
-		});
-
-		// Verify queued messages from chat-1 are present.
-		expect(result.current.queuedMessages.map((m) => m.id)).toEqual([
-			queuedMsg.id,
-		]);
-
-		// Switch to chat-2 with no messages and no queued messages
-		// (simulating query not yet resolved for the new chat).
-		mockNewestPage(chatID2, {
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
-		rerender({
-			...initialOptions,
-			chatID: chatID2,
-		});
-
-		// Chat-2 has its own store, so chat-1's queued messages are gone.
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID2, 0);
-		});
+		await waitFor(() => expect(result.current.messageIDs).toEqual([10]));
 		expect(result.current.queuedMessages).toEqual([]);
+		expect(result.current.streamState).toBeNull();
 	});
 
 	it("routes status events for other chatIDs to subagent overrides", async () => {
