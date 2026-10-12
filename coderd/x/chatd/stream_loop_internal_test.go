@@ -472,13 +472,13 @@ func TestStreamLoopTurn(t *testing.T) {
 
 			loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), StreamCursor{SnapshotVersion: 4})
 			events := loop.applyDBSnapshot(streamDBSnapshot{chat: tt.chat})
-			requireEventTypes(t, events, codersdk.ChatStreamEventTypeCheckpoint)
-			require.Equal(t, tt.wantTurn, events[0].Checkpoint.Turn)
+			requireEventTypes(t, events, codersdk.ChatStreamEventTypePreviewReset, codersdk.ChatStreamEventTypeCheckpoint)
+			require.Equal(t, tt.wantTurn, events[1].Checkpoint.Turn)
 
 			legacy := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), StreamCursor{})
 			legacy.state.historyVersion = 2
 			events = legacy.applyDBSnapshot(streamDBSnapshot{chat: tt.chat})
-			requireEventTypes(t, events, append(tt.wantLegacy, codersdk.ChatStreamEventTypeCheckpoint)...)
+			requireEventTypes(t, events, append(tt.wantLegacy, codersdk.ChatStreamEventTypePreviewReset, codersdk.ChatStreamEventTypeCheckpoint)...)
 			require.Equal(t, tt.wantTurn, events[len(events)-1].Checkpoint.Turn)
 		})
 	}
@@ -563,6 +563,7 @@ func TestStreamLoopInitialSyncRecoversWithoutHint(t *testing.T) {
 	require.True(t, changed)
 	requireEventTypes(t, events,
 		codersdk.ChatStreamEventTypeStatus,
+		codersdk.ChatStreamEventTypePreviewReset,
 		codersdk.ChatStreamEventTypeCheckpoint,
 	)
 	require.Equal(t, codersdk.ChatStatusWaiting, events[0].Status.Status)
@@ -1070,6 +1071,7 @@ func TestStreamLoopSnapshotVersion(t *testing.T) {
 			rows:   edited,
 			cursor: StreamCursor{AfterMessageID: 6, SnapshotVersion: 5},
 			wantEvents: []codersdk.ChatStreamEventType{
+				codersdk.ChatStreamEventTypePreviewReset,
 				codersdk.ChatStreamEventTypeCheckpoint,
 			},
 		},

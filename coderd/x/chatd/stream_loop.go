@@ -44,12 +44,12 @@ type streamLocalState struct {
 	generationAttempt int64
 	lastPartSeq       int64
 	// attemptRetired is set once the stream observes that the current
-	// generation attempt failed: a retry payload was recorded for it, or
-	// the chat entered the error status. Its remaining in-flight parts
-	// are dropped until a new history version or generation attempt
-	// starts a fresh preview episode. It stays set when a pending retry
-	// is later canceled (interrupt, error), since the failed attempt does
-	// not come back.
+	// generation attempt can no longer produce live output: a retry payload
+	// was recorded for it, or the chat stopped running. Its remaining
+	// in-flight parts are dropped until a new history version or generation
+	// attempt starts a fresh preview episode. It stays set when a pending
+	// retry is later canceled (interrupt, error), since the failed attempt
+	// does not come back.
 	attemptRetired bool
 
 	// turn is the turn the last checkpoint reported.
@@ -357,27 +357,31 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 	}
 	l.state.turn = StreamTurn(l.logger, chat)
 
+	wasRetired := l.state.attemptRetired
 	if historyChanged || generationChanged {
 		l.state.attemptRetired = false
 	}
 	// A retry payload is only recorded after the current generation
 	// attempt failed, and the chats trigger clears it when the attempt
-	// changes. Clients drop their preview on the retry event, so parts of
-	// the failed attempt that are still in flight must not reach them.
-	// Within one episode retry_state only changes when a retry is recorded
-	// for the current attempt or that pending retry is cleared, so an
-	// advanced retry_state_version also retires the attempt when the
+	// changes. Within one episode retry_state only changes when a retry is
+	// recorded for the current attempt or that pending retry is cleared,
+	// so an advanced retry_state_version also retires the attempt when the
 	// payload was cleared again before this sync.
 	//
-	// Clients also drop their preview on the error event, and an errored
-	// chat records a new generation attempt before it streams again, so
-	// any later part of the current attempt is from the failed one.
+	// A chat that stopped running records a new generation attempt before
+	// it streams again, so any later part of the current attempt is from
+	// the stopped one.
 	retryChangedInEpisode := chat.RetryStateVersion > l.state.retryVersion && !historyChanged && !generationChanged
-	if retryChangedInEpisode || (chat.RetryState.Valid && len(chat.RetryState.RawMessage) > 0) || chat.Status == database.ChatStatusError {
+	stopped := chat.Status != database.ChatStatusRunning && chat.Status != database.ChatStatusInterrupting
+	if retryChangedInEpisode || (chat.RetryState.Valid && len(chat.RetryState.RawMessage) > 0) || stopped {
 		l.state.attemptRetired = true
 	}
 
-	if historyChanged || (generationChanged && chat.GenerationAttempt != 0) {
+	// preview_reset tells the client to discard its live output. The first
+	// sync sends it because the client's live output belongs to an earlier
+	// connection, whose parts this one replays from the start.
+	retiredNow := l.state.attemptRetired && !wasRetired
+	if initialSync || historyChanged || (generationChanged && chat.GenerationAttempt != 0) || retiredNow {
 		l.state.lastPartSeq = 0
 		events = append(events, codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypePreviewReset,
