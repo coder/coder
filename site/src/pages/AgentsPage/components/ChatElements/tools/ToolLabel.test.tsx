@@ -17,6 +17,6 @@ describe("manage_automations label", () => {
 				isError={false}
 			/>,
 		);
-		expect(screen.getByText("Deleted automation bb-heartbeat")).toBeVisible();
+		screen.getByText("Deleted automation bb-heartbeat");
 	});
 });

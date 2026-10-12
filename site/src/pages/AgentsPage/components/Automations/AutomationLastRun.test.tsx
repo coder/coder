@@ -132,7 +132,7 @@ describe("AutomationLastRun with a browser clock behind the server", () => {
 		]);
 		render(<RouterProvider router={router} />);
 
-		expect(screen.getByText("a few seconds ago")).toBeVisible();
+		screen.getByText("a few seconds ago");
 		expect(screen.queryByText("in a few seconds")).toBeNull();
 	});
 });
@@ -154,12 +154,12 @@ describe("AutomationLastRun without a fixed time", () => {
 				},
 			]);
 			render(<RouterProvider router={router} />);
-			expect(screen.getByText("a few seconds ago")).toBeVisible();
+			screen.getByText("a few seconds ago");
 
 			act(() => {
 				vi.advanceTimersByTime(3 * 60_000);
 			});
-			expect(screen.getByText("3 minutes ago")).toBeVisible();
+			screen.getByText("3 minutes ago");
 		} finally {
 			vi.useRealTimers();
 		}

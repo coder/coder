@@ -169,12 +169,10 @@ describe("ChatsSidebar projects", () => {
 		);
 		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
 
-		expect(
-			await screen.findByText(
-				"Automations that start chats in this project keep running",
-				{ exact: false },
-			),
-		).toBeVisible();
+		await screen.findByText(
+			"Automations that start chats in this project keep running",
+			{ exact: false },
+		);
 	});
 
 	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {

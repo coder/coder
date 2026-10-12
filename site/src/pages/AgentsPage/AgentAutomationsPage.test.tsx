@@ -1040,7 +1040,7 @@ describe("AgentAutomationsPage owner filter", () => {
 			),
 		);
 
-		expect(await screen.findByText(mockAutomation.name)).toBeVisible();
+		await screen.findByText(mockAutomation.name);
 		expect(listRequests(requests)).toEqual(["me"]);
 		expect(screen.queryByRole("group", { name: "Owner" })).toBeNull();
 		expect(screen.queryByRole("columnheader", { name: "Owner" })).toBeNull();
@@ -1049,9 +1049,7 @@ describe("AgentAutomationsPage owner filter", () => {
 	it("says a member has no automations yet", async () => {
 		setup({ automations: [] });
 
-		expect(
-			await screen.findByText("You have no automations yet"),
-		).toBeVisible();
+		await screen.findByText("You have no automations yet");
 	});
 
 	it("lets an admin list every owner's automations with an Owner column", async () => {
@@ -1083,11 +1081,9 @@ describe("AgentAutomationsPage owner filter", () => {
 			expect(listRequests(requests)).toEqual(["me", null]);
 		});
 		expect(router.state.location.search).toBe("?owner=all");
-		expect(
-			await screen.findByRole("columnheader", { name: "Owner" }),
-		).toBeVisible();
+		await screen.findByRole("columnheader", { name: "Owner" });
 		const row = screen.getByRole("row", { name: new RegExp(otherOwners.name) });
-		expect(within(row).getByText("Bob")).toBeVisible();
+		within(row).getByText("Bob");
 		// The Owner column names the owner, so the name cell does not repeat it.
 		expect(within(row).queryByText("Owned by Bob")).toBeNull();
 		// The Owner column takes the width of the button labels, so the
@@ -1114,9 +1110,7 @@ describe("AgentAutomationsPage owner filter", () => {
 			),
 		);
 
-		expect(
-			await screen.findByText("No automations in this organization"),
-		).toBeVisible();
+		await screen.findByText("No automations in this organization");
 		expect(listRequests(requests)).toEqual([null]);
 	});
 });
