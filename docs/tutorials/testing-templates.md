@@ -26,7 +26,9 @@ ensures your templates are validated, tested, and promoted seamlessly.
   [user roles and permissions](../admin/users/groups-roles.md#roles) to manage
   templates and run workspaces.
 
-## Creating the headless user
+<a id="creating-the-headless-user"></a>
+
+## Create the headless user
 
 > [!WARNING]
 > Creating users with `--login-type none` is deprecated.

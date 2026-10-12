@@ -1,4 +1,4 @@
-import { type FC, Suspense } from "react";
+import { Suspense } from "react";
 import { Outlet } from "react-router";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
@@ -13,7 +13,7 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import { Sidebar } from "./Sidebar";
 
-const Layout: FC = () => {
+const Layout: React.FC = () => {
 	const { user: me } = useAuthenticated();
 
 	return (

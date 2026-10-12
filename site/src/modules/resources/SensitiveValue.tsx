@@ -1,5 +1,5 @@
 import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import {
@@ -8,11 +8,11 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-interface SensitiveValueProps {
+type SensitiveValueProps = {
 	value: string;
-}
+};
 
-export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
+export const SensitiveValue: React.FC<SensitiveValueProps> = ({ value }) => {
 	const [shouldDisplay, setShouldDisplay] = useState(false);
 	const displayValue = shouldDisplay ? value : "••••••••";
 	const buttonLabel = shouldDisplay ? "Hide value" : "Show value";

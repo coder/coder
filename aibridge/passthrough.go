@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -17,14 +16,16 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
-// newPassthroughRouter returns a simple reverse-proxy implementation which will be used when a route is not handled specifically
-// by a [intercept.Provider].
-// A single reverse proxy is created per provider and reused across all requests.
-func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
+// NewPassthroughHandler returns a reverse proxy handler that should be mounted
+// on provider's PassthroughRoutes endpoints. Proxy is built once and reused
+// by returned HandlerFunc.
+func NewPassthroughHandler(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
 	provBaseURL, err := url.Parse(prov.BaseURL())
 	if err != nil {
 		return newInvalidBaseURLHandler(prov, logger, m, tracer, err)
@@ -34,13 +35,14 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 	}
 
 	// Transport tuned for streaming (no response header timeout).
-	t := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
+	t := utils.NewStreamingTransport()
+
+	inner := apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal())
+	// Providers which authenticate passthrough requests themselves (for example
+	// AWS SigV4 signing) wrap the transport here, beneath key failover, so an
+	// existing BYOK or centralized-pool credential still takes precedence.
+	if wrapper, ok := prov.(provider.PassthroughTransportWrapper); ok {
+		inner = wrapper.WrapPassthroughTransport(inner)
 	}
 
 	// Build the passthrough proxy, reused across all requests for this provider.
@@ -51,12 +53,12 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 			rewritePassthroughRequest(pr, provBaseURL)
 		},
 		Transport: keypool.NewKeyFailoverTransport(
-			apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
+			inner,
 			prov.KeyFailoverConfig(logger),
 		),
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, e error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](e); ok {
-				writeRequestBodyTooLarge(req.Context(), rw)
+				routing.WriteRequestBodyTooLarge(req.Context(), rw)
 			} else {
 				logger.Warn(req.Context(), "reverse proxy error", slog.Error(e), slog.F("path", req.URL.Path))
 				http.Error(rw, "upstream proxy error", http.StatusBadGateway)

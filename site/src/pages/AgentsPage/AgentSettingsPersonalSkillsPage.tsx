@@ -1,7 +1,6 @@
 import { isAxiosError } from "axios";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
-import type { FC } from "react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -93,7 +92,7 @@ const exportPersonalSkillsArchive = async (
 	saveAs(archive, "personal-skills.zip");
 };
 
-const AgentSettingsPersonalSkillsPage: FC = () => {
+const AgentSettingsPersonalSkillsPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const [dialogState, setDialogState] = useState<DialogState>(null);
 	const skillsQuery = useQuery(userSkills());

@@ -1,18 +1,17 @@
-import type { FC } from "react";
 import type { GitSSHKey } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { Spinner } from "#/components/Spinner/Spinner";
 
-interface SSHKeysPageViewProps {
+type SSHKeysPageViewProps = {
 	isLoading: boolean;
 	getSSHKeyError?: unknown;
 	sshKey?: GitSSHKey;
 	onRegenerateClick: () => void;
-}
+};
 
-export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
+export const SSHKeysPageView: React.FC<SSHKeysPageViewProps> = ({
 	isLoading,
 	getSSHKeyError,
 	sshKey,

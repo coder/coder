@@ -20,14 +20,14 @@ const formatMessage = (message: string) => {
 
 type LicenseBannerVariant = "warning" | "warningProminent" | "error";
 
-export interface LicenseBannerLink {
+export type LicenseBannerLink = {
 	href: string;
 	label: string;
 	showExternalIcon?: boolean;
 	target?: React.ComponentProps<typeof Link>["target"];
-}
+};
 
-export interface LicenseBannerMessage {
+export type LicenseBannerMessage = {
 	message: string;
 	variant: LicenseBannerVariant;
 	// Diagnostics about the license or the usage measurement rather than
@@ -35,7 +35,7 @@ export interface LicenseBannerMessage {
 	// they are the only message, since the muted text needs that context.
 	kind?: "diagnostic";
 	link?: LicenseBannerLink;
-}
+};
 
 const bannerVariants = cva("flex items-center p-3", {
 	variants: {
@@ -57,9 +57,9 @@ const iconVariants = cva("size-4", {
 	},
 });
 
-interface LicenseBannerViewProps {
+type LicenseBannerViewProps = {
 	messages: readonly LicenseBannerMessage[];
-}
+};
 
 const messageLinkClass = "text-xs font-medium text-content-link!";
 const listClass =

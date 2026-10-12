@@ -79,27 +79,6 @@ func SoftTryReceive[A any](ctx context.Context, t testing.TB, c <-chan A) (A, bo
 	}
 }
 
-// AssertReceive will receive a value from the chan and return it. If the
-// context expires or the channel is closed before a value can be received,
-// it will mark the test as failed but continue execution.
-// The second return value indicates whether the receive was successful.
-//
-// Safety: can be called from any goroutine.
-func AssertReceive[A any](ctx context.Context, t testing.TB, c <-chan A) (A, bool) {
-	t.Helper()
-	select {
-	case <-ctx.Done():
-		assert.Fail(t, "AssertReceive: context expired")
-		var a A
-		return a, false
-	case a, ok := <-c:
-		if !ok {
-			assert.Fail(t, "AssertReceive: channel closed")
-		}
-		return a, ok
-	}
-}
-
 // AssertSend will send the given value over the chan and then return. If
 // the context expires before the send succeeds, it will mark the test as failed
 // but continue execution.

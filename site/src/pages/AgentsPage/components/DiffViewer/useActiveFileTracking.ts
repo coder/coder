@@ -7,10 +7,10 @@ const ACTIVE_FILE_SCROLL_THRESHOLD = 4;
 // Minimal view of the @pierre/diffs CodeView instance handed to `onScroll`.
 // `getRenderedItems` only returns the small set of currently virtualized
 // items, so deriving the active file from it avoids scanning every file.
-export interface ScrollViewer {
+export type ScrollViewer = {
 	getRenderedItems(): readonly { id: string }[];
 	getTopForItem(id: string): number | undefined;
-}
+};
 
 // The active file is the rendered item closest to the top edge that has
 // already crossed it (largest top still at or above the fold). Exported for

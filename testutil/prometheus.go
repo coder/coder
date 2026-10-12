@@ -14,6 +14,17 @@ const (
 	gaugeKind   kind = "gauge"
 )
 
+// PromHistogramSampleCount returns the observed sample count for the named
+// histogram, or 0 if it has not been gathered.
+func PromHistogramSampleCount(t testing.TB, metrics []*dto.MetricFamily, name string, labels ...string) uint64 {
+	t.Helper()
+	m := getMetric(t, metrics, name, labels...)
+	if m == nil {
+		return 0
+	}
+	return m.GetHistogram().GetSampleCount()
+}
+
 func PromGaugeHasValue(t testing.TB, metrics []*dto.MetricFamily, value float64, name string, labels ...string) bool {
 	t.Helper()
 	return value == getValue(t, metrics, gaugeKind, name, labels...)

@@ -1500,12 +1500,6 @@ func NewController(logger slog.Logger, dialer ControlProtocolDialer, opts ...Con
 
 type ControllerOpt func(*Controller)
 
-func WithTestClock(clock quartz.Clock) ControllerOpt {
-	return func(c *Controller) {
-		c.clock = clock
-	}
-}
-
 func WithGracefulTimeout(timeout time.Duration) ControllerOpt {
 	return func(c *Controller) {
 		c.gracefulTimeout = timeout
@@ -1738,6 +1732,10 @@ func (c *Controller) derpMap(client DERPClient) error {
 		cErr := client.Close()
 		if cErr != nil {
 			c.logger.Warn(c.ctx, "failed to close StreamDERPMaps RPC", slog.Error(cErr))
+		}
+		// Wait for the DERP controller's goroutines so they cannot outlive Closed().
+		if cwErr := cw.Close(c.gracefulCtx); cwErr != nil {
+			c.logger.Warn(c.ctx, "failed to close DERP controller", slog.Error(cwErr))
 		}
 		return nil
 	case err := <-cw.Wait():

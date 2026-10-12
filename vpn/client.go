@@ -107,7 +107,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	sdk.SetSessionToken(token)
 	sdk.HTTPClient.Transport = &codersdk.HeaderTransport{
 		Transport: http.DefaultTransport,
-		Header:    headers.Clone(),
+		Provider:  codersdk.StaticHeaderProvider{Header: headers.Clone()},
 	}
 
 	// New context, separate from initCtx. We don't want to cancel the

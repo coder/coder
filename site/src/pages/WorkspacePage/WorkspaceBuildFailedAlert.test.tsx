@@ -1,0 +1,79 @@
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import { MockFailedWorkspaceBuild } from "#/testHelpers/entities";
+import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
+import { isUUID } from "#/utils/uuid";
+import { WorkspaceBuildFailedAlert } from "./WorkspaceBuildFailedAlert";
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
+const failedBuild = MockFailedWorkspaceBuild();
+
+describe("WorkspaceBuildFailedAlert", () => {
+	it.each(["primary click", "middle click", "keyboard"])(
+		"links to the agents page in a new tab and reports %s",
+		async (activation) => {
+			server.use(
+				http.get("/api/v2/experiments", () =>
+					HttpResponse.json(["enable-ai-workspace-debug"]),
+				),
+			);
+			const reportClick = vi
+				.spyOn(API, "reportWorkspaceBuildDebugClick")
+				.mockResolvedValue();
+			const user = userEvent.setup();
+
+			renderWithAuth(<WorkspaceBuildFailedAlert build={failedBuild} />);
+
+			const link = await screen.findByRole("link", {
+				name: "Debug with Coder Agents",
+			});
+			expect(link).toHaveAttribute(
+				"href",
+				`/agents?debug_workspace_build=${failedBuild.id}`,
+			);
+			expect(link).toHaveAttribute("target", "_blank");
+
+			if (activation === "middle click") {
+				await user.pointer({ target: link, keys: "[MouseMiddle]" });
+			} else if (activation === "keyboard") {
+				link.focus();
+				await user.keyboard("{Enter}");
+			} else {
+				await user.click(link);
+			}
+
+			await waitFor(() => expect(reportClick).toHaveBeenCalledTimes(1));
+			const [buildId, request] = reportClick.mock.calls[0];
+			expect(buildId).toBe(failedBuild.id);
+			expect(isUUID(request.id)).toBe(true);
+		},
+	);
+
+	it("does not report a right click", async () => {
+		server.use(
+			http.get("/api/v2/experiments", () =>
+				HttpResponse.json(["enable-ai-workspace-debug"]),
+			),
+		);
+		const reportClick = vi
+			.spyOn(API, "reportWorkspaceBuildDebugClick")
+			.mockResolvedValue();
+		const user = userEvent.setup();
+
+		renderWithAuth(<WorkspaceBuildFailedAlert build={failedBuild} />);
+
+		const link = await screen.findByRole("link", {
+			name: "Debug with Coder Agents",
+		});
+		await user.pointer({ target: link, keys: "[MouseRight]" });
+
+		expect(reportClick).not.toHaveBeenCalled();
+	});
+});

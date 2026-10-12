@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useLocation } from "react-router";
 import type { AuthMethods, BuildInfoResponse } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -7,7 +7,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
 
-interface LoginPageViewProps {
+type LoginPageViewProps = {
 	authMethods: AuthMethods | undefined;
 	error: unknown;
 	isLoading: boolean;
@@ -15,9 +15,9 @@ interface LoginPageViewProps {
 	isSigningIn: boolean;
 	onSignIn: (credentials: { email: string; password: string }) => void;
 	redirectTo: string;
-}
+};
 
-export const LoginPageView: FC<LoginPageViewProps> = ({
+export const LoginPageView: React.FC<LoginPageViewProps> = ({
 	authMethods,
 	error,
 	isLoading,

@@ -2,6 +2,7 @@ package chatadvisor
 
 import (
 	"sync/atomic"
+	"time"
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
@@ -12,9 +13,13 @@ import (
 type RuntimeConfig struct {
 	Model fantasy.LanguageModel
 	// CallTemplate's provider options are cloned for each nested call.
-	CallTemplate    fantasy.Call
-	MaxUsesPerRun   int
-	MaxOutputTokens int64
+	CallTemplate         fantasy.Call
+	MaxUsesPerRun        int
+	MaxOutputTokens      int64
+	StreamSilenceTimeout time.Duration
+	// MaxRetries is the maximum number of retries after a transient
+	// provider error within one advisor call. It must be positive.
+	MaxRetries int
 }
 
 // Runtime executes nested, tool-less advisor runs against the configured
@@ -41,6 +46,9 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	}
 	if cfg.MaxOutputTokens <= 0 {
 		return nil, xerrors.New("advisor max output tokens must be positive")
+	}
+	if cfg.MaxRetries < 1 {
+		return nil, xerrors.New("advisor max retries must be positive")
 	}
 	if cfg.CallTemplate.MaxOutputTokens != nil &&
 		*cfg.CallTemplate.MaxOutputTokens != cfg.MaxOutputTokens {

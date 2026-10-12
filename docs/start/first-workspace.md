@@ -1,4 +1,6 @@
-# Creating your first coder workspace
+<a id="creating-your-first-coder-workspace"></a>
+
+# Create your first Coder workspace
 
 A workspace is the environment that a developer works in. Developers in a team
 each work from their own workspace and can use

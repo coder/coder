@@ -259,11 +259,6 @@ func (opts *LicenseOptions) Generate(t *testing.T) string {
 	return GenerateLicense(t, *opts)
 }
 
-// AddFullLicense generates a license with all features enabled.
-func AddFullLicense(t *testing.T, client *codersdk.Client) codersdk.License {
-	return AddLicense(t, client, LicenseOptions{AllFeatures: true})
-}
-
 // AddLicense generates a new license with the options provided and inserts it.
 func AddLicense(t *testing.T, client *codersdk.Client, options LicenseOptions) codersdk.License {
 	l, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
@@ -503,7 +498,7 @@ func GetRunningPrebuilds(
 
 		t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), desiredPrebuilds)
 		return len(runningPrebuilds) == desiredPrebuilds
-	}, testutil.IntervalSlow, "found %d running prebuilds, expected %d", len(runningPrebuilds), desiredPrebuilds)
+	}, testutil.IntervalFast, "found %d running prebuilds, expected %d", len(runningPrebuilds), desiredPrebuilds)
 
 	return runningPrebuilds
 }

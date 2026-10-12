@@ -1,8 +1,7 @@
-import type { FC } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
 
-export const SessionTimelineSkeleton: FC = () => {
+export const SessionTimelineSkeleton: React.FC = () => {
 	return (
 		<div className="relative">
 			<div className="grid grid-cols-[16px_1rem_1px_1fr_auto_16px]">
@@ -40,11 +39,6 @@ export const SessionTimelineSkeleton: FC = () => {
 							key={i}
 							className="border border-solid rounded-md flex flex-col lg:flex-row gap-6 p-2"
 						>
-							{/* avatar + username */}
-							<div className="flex flex-row items-center gap-2">
-								<Skeleton className="size-6 rounded-full shrink-0" />
-								<Skeleton className="h-4 w-20" />
-							</div>
 							{/* prompt */}
 							<div className="grow flex flex-col gap-2">
 								<Skeleton className="h-3 w-12" />
@@ -52,6 +46,10 @@ export const SessionTimelineSkeleton: FC = () => {
 							</div>
 							{/* right-column details */}
 							<div className="flex flex-col gap-2 lg:w-64 shrink-0">
+								<div className="flex items-center gap-1">
+									<Skeleton className="size-6 rounded-full shrink-0" />
+									<Skeleton className="h-4 w-20" />
+								</div>
 								<Skeleton className="h-3 w-full" />
 								<Skeleton className="h-3 w-4/5" />
 								<Skeleton className="h-3 w-3/5" />

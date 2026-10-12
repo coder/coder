@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/preview"
 	previewtypes "github.com/coder/preview/types"
 )
@@ -45,6 +46,9 @@ type loader struct {
 	job                    *database.ProvisionerJob
 	terraformValues        *database.TemplateVersionTerraformValue
 	templateVariableValues *[]database.TemplateVersionVariable
+
+	// previewOptions are passed through to every preview.Preview call.
+	previewOptions []preview.Option
 }
 
 // Prepare is the entrypoint for this package. It loads the necessary objects &
@@ -88,6 +92,30 @@ func WithTerraformValues(values database.TemplateVersionTerraformValue) func(r *
 			r.terraformValues = &values
 		}
 	}
+}
+
+// WithPreviewOptions passes options through to preview.Preview. See
+// PreviewOptions for the options implied by the deployment configuration.
+func WithPreviewOptions(opts ...preview.Option) func(r *loader) {
+	return func(r *loader) {
+		r.previewOptions = append(r.previewOptions, opts...)
+	}
+}
+
+// PreviewOptions returns the preview options implied by the deployment
+// configuration. A nil configuration yields preview's defaults.
+func PreviewOptions(dv *codersdk.DeploymentValues) []preview.Option {
+	if dv == nil {
+		return nil
+	}
+	var opts []preview.Option
+	if dv.DynamicParametersFullEvaluation.Value() {
+		// Escape hatch for preview's resource closure optimization: evaluate
+		// every resource rather than only what parameters, presets, and tags
+		// reference.
+		opts = append(opts, preview.OptionFullEvaluation())
+	}
+	return opts
 }
 
 func (r *loader) loadData(ctx context.Context, db database.Store) error {
@@ -257,7 +285,7 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 		Logger: slog.New(slog.DiscardHandler),
 	}
 
-	return preview.Preview(ctx, input, r.templateFS)
+	return preview.Preview(ctx, input, r.templateFS, r.data.previewOptions...)
 }
 
 func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uuid.UUID) error {

@@ -1,8 +1,8 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatModels,
 	organizationChatModelOverrides,
+	updateChatModel,
 	updateOrganizationChatModelOverride,
 } from "#/api/queries/chats";
 import type {
@@ -26,17 +26,15 @@ const contexts: readonly ChatModelOverrideContext[] = [
 	"advisor",
 ];
 
-interface OrganizationAgentSettingsProps {
+type OrganizationAgentSettingsProps = {
 	organization: Organization;
 	canEdit: boolean;
 	showAdvisor: boolean;
-}
+};
 
-export const OrganizationAgentSettings: FC<OrganizationAgentSettingsProps> = ({
-	organization,
-	canEdit,
-	showAdvisor,
-}) => (
+export const OrganizationAgentSettings: React.FC<
+	OrganizationAgentSettingsProps
+> = ({ organization, canEdit, showAdvisor }) => (
 	<OrganizationAgentSettingsContent
 		key={organization.id}
 		organization={organization}
@@ -45,11 +43,9 @@ export const OrganizationAgentSettings: FC<OrganizationAgentSettingsProps> = ({
 	/>
 );
 
-const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
-	organization,
-	canEdit,
-	showAdvisor,
-}) => {
+const OrganizationAgentSettingsContent: React.FC<
+	OrganizationAgentSettingsProps
+> = ({ organization, canEdit, showAdvisor }) => {
 	const queryClient = useQueryClient();
 	const modelsQuery = useQuery(chatModels(organization.id));
 	const overridesQuery = useQuery(
@@ -97,6 +93,7 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 		compactionMutation,
 		advisorMutation,
 	] as const;
+	const defaultModelMutation = useMutation(updateChatModel(queryClient));
 	const providerInfoByID = providerInfoByIDFromDescriptors(
 		modelsQuery.data?.providers,
 	);
@@ -104,11 +101,10 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 		(modelsQuery.data?.models ?? []).filter((model) => model.enabled),
 		providerInfoByID,
 	);
-	// Only the overrides request gates the page: when the model catalog
-	// fails, the rows must stay rendered with the error inline so a stale
-	// override can still be cleared without the catalog.
+	// Only the overrides request gates the override rows: when the model
+	// catalog fails, the rows must stay rendered with the error inline so a
+	// stale override can still be cleared without the catalog.
 	const { loadError, refetchError } = splitModelQueryErrors(overridesQuery);
-	const inlineError = refetchError ?? modelsQuery.error;
 	const saveByContext = new Map<ChatModelOverrideContext, SaveModelOverride>();
 	for (const [index, context] of contexts.entries()) {
 		const mutation = mutations[index];
@@ -119,12 +115,29 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 
 	return (
 		<OrganizationAgentSettingsView
+			defaultModelID={
+				modelsQuery.data?.models.find((model) => model.is_default)?.id
+			}
+			onSaveDefaultModel={(modelID, options) =>
+				defaultModelMutation.mutate(
+					{
+						organizationId: organization.id,
+						modelId: modelID,
+						req: { is_default: true },
+					},
+					options,
+				)
+			}
+			isSavingDefaultModel={defaultModelMutation.isPending}
+			isSaveDefaultModelError={defaultModelMutation.isError}
 			overrides={overridesQuery.data?.overrides}
 			enabledModels={enabledModels}
 			providerInfoByID={providerInfoByID}
-			isLoading={modelsQuery.isLoading || overridesQuery.isLoading}
-			loadError={loadError}
-			refetchError={inlineError}
+			isModelsLoading={modelsQuery.isLoading}
+			isOverridesLoading={overridesQuery.isLoading}
+			overridesLoadError={loadError}
+			overridesRefetchError={refetchError}
+			modelsError={modelsQuery.error}
 			canEdit={canEdit}
 			showAdvisor={showAdvisor}
 			saveByContext={saveByContext}

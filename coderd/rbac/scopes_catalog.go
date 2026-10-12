@@ -1,8 +1,11 @@
 package rbac
 
 import (
+	"maps"
 	"sort"
 	"strings"
+
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 // externalLowLevel is the curated set of low-level scope names exposed to users.
@@ -43,6 +46,10 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"file:read":   {},
 	"file:create": {},
 	"file:*":      {},
+
+	// Inbox notifications. No wildcard: it would grant create, which stays internal.
+	"inbox_notification:read":   {},
+	"inbox_notification:update": {},
 
 	// Users
 	"user:read":            {},
@@ -116,6 +123,12 @@ func IsExternalScope(name ScopeName) bool {
 	return false
 }
 
+// ScopeAliases returns the backward-compatibility aliases and their canonical
+// scope names. The returned map is a copy and may be modified by the caller.
+func ScopeAliases() map[ScopeName]ScopeName {
+	return maps.Clone(scopeAliases)
+}
+
 // CanonicalScopeName maps the backward-compatibility aliases IsExternalScope
 // accepts onto the names the api_key_scope enum stores. Any other name is
 // returned unchanged.
@@ -129,6 +142,26 @@ func CanonicalScopeName(name ScopeName) ScopeName {
 		return canonical
 	}
 	return name
+}
+
+// CanonicalScopeList rewrites a space-separated scope list into its canonical
+// spelling and drops duplicates, keeping first-seen order. Not every stored
+// allowlist is canonical, so readers call this to get one display form.
+// Unknown names are kept: this shows what is configured, not what is grantable.
+//
+// A list with no names is returned as given. An empty allowlist means
+// unrestricted, but a whitespace-only one is configured and grants nothing,
+// so collapsing it to "" would report the opposite of how it authorizes.
+func CanonicalScopeList(raw string) string {
+	names := strings.Fields(raw)
+	if len(names) == 0 {
+		return raw
+	}
+	canonical := make([]string, 0, len(names))
+	for _, name := range names {
+		canonical = append(canonical, string(CanonicalScopeName(ScopeName(name))))
+	}
+	return strings.Join(slice.Unique(canonical), " ")
 }
 
 // ExternalScopeNames returns a sorted list of all public scopes: the canonical

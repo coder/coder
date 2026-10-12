@@ -28,6 +28,7 @@ func sanitizeCompactionPrompt(
 	logger slog.Logger,
 	prompt []fantasy.Message,
 	compactionModel chatprovider.Model,
+	configuredProvider string,
 	chatConfig database.ChatModelConfig,
 	overrideConfig database.ChatModelConfig,
 ) []fantasy.Message {
@@ -36,6 +37,7 @@ func sanitizeCompactionPrompt(
 		messages = flattenProviderExecutedToolParts(ctx, logger, messages)
 	}
 	messages = replaceUnsupportedFileParts(ctx, logger, messages, compactionModel.AcceptsFilePartMediaType)
+	messages = replaceUnsupportedToolMedia(ctx, logger, messages, compactionModel, configuredProvider)
 	sanitized, stats := chatsanitize.SanitizeAnthropicProviderToolHistory(
 		compactionModel.Provider(),
 		messages,

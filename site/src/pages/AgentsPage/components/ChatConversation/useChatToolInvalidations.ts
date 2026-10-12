@@ -22,12 +22,12 @@ const selectStreamToolResults = (state: {
 }): Record<string, ChatToolResult> | null =>
 	state.streamState?.toolResults ?? null;
 
-interface UseChatToolInvalidationsOptions {
+type UseChatToolInvalidationsOptions = {
 	store: ChatStore;
-	chatID: string | undefined;
+	chatID: string;
 	organizationName: string;
 	username: string;
-}
+};
 
 const CHAT_WORKSPACE_BINDING_TOOL_NAMES = new Set(["create_workspace"]);
 const WORKSPACE_MUTATION_TOOL_NAMES = new Set([
@@ -57,7 +57,7 @@ export function useChatToolInvalidations({
 			processedToolCallIdsRef.current.clear();
 		}
 
-		if (!toolResults || !chatID) {
+		if (!toolResults) {
 			processedToolCallIdsRef.current.clear();
 			return;
 		}

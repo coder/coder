@@ -1,6 +1,5 @@
 import { isAxiosError } from "axios";
 import { type FormikContextType, useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import { countries } from "#/api/countriesGenerated";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -60,14 +59,14 @@ const validationSchema = Yup.object({
 	}),
 });
 
-interface SetupPageViewProps {
+type SetupPageViewProps = {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
 	error?: unknown;
 	isLoading?: boolean;
 	authMethods: TypesGen.AuthMethods | undefined;
-}
+};
 
-export const SetupPageView: FC<SetupPageViewProps> = ({
+export const SetupPageView: React.FC<SetupPageViewProps> = ({
 	onSubmit,
 	error,
 	isLoading,

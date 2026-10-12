@@ -1,19 +1,18 @@
-import type { ReactNode } from "react";
 import { Link } from "react-router";
 
-interface GetModelSelectorHelpOptions {
+type GetModelSelectorHelpOptions = {
 	isModelCatalogLoading: boolean;
 	hasModelOptions: boolean;
 	hasConfiguredModels: boolean;
 	hasUserFixableModelProviders: boolean;
-}
+};
 
 export const getModelSelectorHelp = ({
 	isModelCatalogLoading,
 	hasModelOptions,
 	hasConfiguredModels,
 	hasUserFixableModelProviders,
-}: GetModelSelectorHelpOptions): ReactNode | undefined => {
+}: GetModelSelectorHelpOptions): React.ReactNode | undefined => {
 	if (
 		isModelCatalogLoading ||
 		hasModelOptions ||

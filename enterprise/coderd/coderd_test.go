@@ -40,11 +40,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	natspubsub "github.com/coder/coder/v2/coderd/nats"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/enterprise/audit"
@@ -647,7 +647,6 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 	t.Cleanup(func() { _ = natsA.Close() })
 
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentNATSPubsub)}
 	_, _ = coderdenttest.New(t, &coderdenttest.Options{
 		EntitlementsUpdateInterval: 25 * time.Millisecond,
 		ReplicaSyncUpdateInterval:  25 * time.Millisecond,

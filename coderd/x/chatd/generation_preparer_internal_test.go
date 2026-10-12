@@ -16,9 +16,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -155,8 +157,9 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
-		Chat:     created.Chat,
-		Messages: created.InitialMessages,
+		Chat:            created.Chat,
+		Messages:        created.InitialMessages,
+		TurnExperiments: &turnExperimentDecisions{},
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
@@ -165,6 +168,11 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
 	require.NotNil(t, providerOptions.ReasoningEffort)
 	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
+	require.NotNil(t, prepared.Compaction.Options.ToolDefinitions)
+	require.Equal(t,
+		chatloop.BuildToolDefinitions(prepared.Tools, prepared.ActiveTools, prepared.ProviderTools),
+		prepared.Compaction.Options.ToolDefinitions,
+	)
 
 	require.NotNil(t, providerOptions.User)
 	require.Equal(t, "turn-options-sentinel", *providerOptions.User)
@@ -176,9 +184,118 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.Equal(t, prepared.CallTemplate.ProviderOptions, summaryCall.ProviderOptions)
 	require.NotNil(t, summaryCall.ToolChoice)
 	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
-	// Non-streaming summaries must not inherit the default output cap the
-	// Anthropic SDK rejects.
-	require.Nil(t, summaryCall.MaxOutputTokens)
+	require.NotNil(t, summaryCall.MaxOutputTokens)
+	require.Equal(t, 3*defaultChatMaxOutputTokens/2, *summaryCall.MaxOutputTokens)
+}
+
+func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		provider  database.AIProviderType
+		model     string
+		mediaType string
+	}{
+		// Anthropic is a native transport; Google is bridged through an
+		// OpenAI-compatible transport that hides the vendor restriction.
+		{name: "AnthropicAudio", provider: database.AIProviderTypeAnthropic, model: "claude-sonnet-4-5", mediaType: "audio/mpeg"},
+		{name: "GoogleSVG", provider: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", mediaType: "image/svg+xml"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			ctx := chatdTestContext(t)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+			})
+			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+				Type: tc.provider,
+			}, "test-key")
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				Model:          tc.model,
+				AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+				OrganizationID: org.ID,
+			}, func(p *database.InsertChatModelConfigParams) {
+				p.Enabled = true
+			})
+
+			const toolCallID = "call-media-1"
+			mediaResult, err := json.Marshal(map[string]string{
+				"data":      "AAAA",
+				"mime_type": tc.mediaType,
+				"text":      "Tool output",
+			})
+			require.NoError(t, err)
+			assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageToolCall(toolCallID, "media__render", json.RawMessage(`{}`)),
+			})
+			require.NoError(t, err)
+			toolContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageToolResult(toolCallID, "media__render", mediaResult, false, true),
+			})
+			require.NoError(t, err)
+			message := func(role database.ChatMessageRole, content pqtype.NullRawMessage) chatstate.Message {
+				return chatstate.Message{
+					Role:           role,
+					Content:        content,
+					Visibility:     database.ChatMessageVisibilityBoth,
+					ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+					CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+					ContentVersion: chatprompt.CurrentContentVersion,
+				}
+			}
+			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             "tool media after provider switch",
+				ClientType:        database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{
+					message(database.ChatMessageRoleUser, mustMarshalText(t, "render media")),
+					message(database.ChatMessageRoleAssistant, assistantContent),
+					message(database.ChatMessageRoleTool, toolContent),
+					message(database.ChatMessageRoleUser, mustMarshalText(t, "what did it show?")),
+				},
+			})
+			require.NoError(t, err)
+
+			server := newInternalTestServer(
+				t,
+				db,
+				ps,
+				chatprovider.ProviderAPIKeys{},
+				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+			)
+			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+				Chat:            created.Chat,
+				Messages:        created.InitialMessages,
+				TurnExperiments: &turnExperimentDecisions{},
+			})
+			require.NoError(t, err)
+			t.Cleanup(prepared.Cleanup)
+
+			var sawToolResult bool
+			for _, msg := range prepared.Prompt {
+				for _, part := range msg.Content {
+					result, ok := part.(fantasy.ToolResultPart)
+					if !ok || result.ToolCallID != toolCallID {
+						continue
+					}
+					sawToolResult = true
+					text, ok := result.Output.(fantasy.ToolResultOutputContentText)
+					require.True(t, ok, "expected text output, got %T", result.Output)
+					require.Contains(t, text.Text, "Tool output")
+					require.Contains(t, text.Text, "["+tc.mediaType+" content omitted: unsupported tool result media type]")
+				}
+			}
+			require.True(t, sawToolResult, "tool result missing from prompt")
+		})
+	}
 }
 
 func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {
@@ -260,8 +377,9 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
-		Chat:     created.Chat,
-		Messages: created.InitialMessages,
+		Chat:            created.Chat,
+		Messages:        created.InitialMessages,
+		TurnExperiments: &turnExperimentDecisions{},
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
@@ -288,6 +406,99 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		}
 	}
 	require.True(t, sawInlinedText, "attachment was not inlined as text")
+}
+
+func TestPrepareGenerationMemory(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		project            bool
+		subagent           bool
+		experimentsEnabled bool
+		wantMemoryBlock    bool
+		wantMemoryTools    bool
+		intro              string
+	}{
+		{name: "Project", project: true, experimentsEnabled: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
+		{name: "NoProject", experimentsEnabled: true},
+		{name: "ExperimentDisabled"},
+		{name: "Subagent", experimentsEnabled: true, subagent: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			ctx := chatdTestContext(t)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "gpt-4o-mini", AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: org.ID}, func(p *database.InsertChatModelConfigParams) { p.Enabled = true })
+
+			projectID := uuid.NullUUID{}
+			if tt.project {
+				project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID, Name: "platform"})
+				projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
+				dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: org.ID, CreatedBy: user.ID, Name: "release_notes", Description: "Durable release process", Body: "Run the release checklist."})
+			}
+
+			parentChatID, rootChatID := uuid.NullUUID{}, uuid.NullUUID{}
+			if tt.subagent {
+				parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
+				parentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+				rootChatID = parentChatID
+			}
+			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+				OrganizationID: org.ID, OwnerID: user.ID, ProjectID: projectID, ParentChatID: parentChatID, RootChatID: rootChatID,
+				LastModelConfigID: modelConfig.ID, Title: "memory preparation", ClientType: database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{{Role: database.ChatMessageRoleUser, Content: mustMarshalText(t, "inspect the release process"), Visibility: database.ChatMessageVisibilityBoth, ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true}, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}, ContentVersion: chatprompt.CurrentContentVersion}},
+			})
+			require.NoError(t, err)
+
+			serverOpts := []internalTestServerOpt{withInternalTestServerTransportFactory(&aibridgeTestFactory{})}
+			if !tt.experimentsEnabled {
+				serverOpts = append(serverOpts, withInternalTestServerExperiments([]codersdk.Experiment{}))
+			}
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, serverOpts...)
+			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
+			require.NoError(t, err)
+			t.Cleanup(prepared.Cleanup)
+
+			var systemPrompt strings.Builder
+			for _, message := range prepared.Prompt {
+				if message.Role != fantasy.MessageRoleSystem {
+					continue
+				}
+				for _, part := range message.Content {
+					if text, ok := part.(fantasy.TextPart); ok {
+						systemPrompt.WriteString(text.Text)
+						systemPrompt.WriteString("\n")
+					}
+				}
+			}
+			gotSystemPrompt := systemPrompt.String()
+			require.Equal(t, tt.wantMemoryBlock, strings.Contains(gotSystemPrompt, "<memory>"))
+			// The index travels as conversation messages, never in the
+			// system prompt or tools, so the cached prefix survives writes.
+			require.NotContains(t, gotSystemPrompt, "- release_notes: Durable release process")
+			if tt.wantMemoryBlock {
+				require.Contains(t, gotSystemPrompt, tt.intro)
+			}
+
+			toolDescriptions := make(map[string]string, len(prepared.Tools))
+			for _, tool := range prepared.Tools {
+				toolDescriptions[tool.Info().Name] = tool.Info().Description
+			}
+			for _, name := range []string{chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName} {
+				description, ok := toolDescriptions[name]
+				require.Equal(t, tt.wantMemoryTools, ok, name)
+				require.NotContains(t, description, "release_notes", name)
+			}
+		})
+	}
 }
 
 func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
@@ -345,8 +556,9 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
-		Chat:     created.Chat,
-		Messages: created.InitialMessages,
+		Chat:            created.Chat,
+		Messages:        created.InitialMessages,
+		TurnExperiments: &turnExperimentDecisions{},
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
@@ -368,7 +580,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-	setup := func(t *testing.T) (*Server, database.Chat) {
+	// setup seeds an OpenAI provider with one enabled config per model. The
+	// first model is the chat's default model; the rest are extra enabled
+	// configs, returned by model name.
+	setup := func(t *testing.T, chatModel string, extraModels ...string) (*Server, database.Chat, map[string]database.ChatModelConfig) {
 		t.Helper()
 		db, ps := dbtestutil.NewDB(t)
 		ctx := chatdTestContext(t)
@@ -386,15 +601,22 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			Enabled:     true,
 			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
-		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:          "gpt-4o-mini",
-			DisplayName:    "gpt-4o-mini",
-			Options:        json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
-			OrganizationID: org.ID,
-		}, func(p *database.InsertChatModelConfigParams) {
-			p.Enabled = true
-			p.IsDefault = true
-		})
+		insertModel := func(model string, isDefault bool) database.ChatModelConfig {
+			return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				Model:          model,
+				DisplayName:    model,
+				Options:        json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
+				OrganizationID: org.ID,
+			}, func(p *database.InsertChatModelConfigParams) {
+				p.Enabled = true
+				p.IsDefault = isDefault
+			})
+		}
+		modelCfg := insertModel(chatModel, true)
+		extra := make(map[string]database.ChatModelConfig, len(extraModels))
+		for _, model := range extraModels {
+			extra[model] = insertModel(model, false)
+		}
 
 		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 			OrganizationID:    org.ID,
@@ -402,6 +624,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			LastModelConfigID: modelCfg.ID,
 			Title:             "derive-chat",
 			ClientType:        database.ChatClientTypeUi,
+			InitialStatus:     database.ChatStatusRunning,
 			InitialMessages: []chatstate.Message{
 				{
 					Role:           database.ChatMessageRoleUser,
@@ -419,7 +642,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			t, db, ps, chatprovider.ProviderAPIKeys{},
 			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 		)
-		return server, created.Chat
+		return server, created.Chat, extra
 	}
 
 	commitAssistant := func(t *testing.T, server *Server, chat database.Chat, text string) {
@@ -444,7 +667,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 
 	t.Run("WaitingDerivesFromHistory", func(t *testing.T) {
 		t.Parallel()
-		server, chat := setup(t)
+		server, chat, _ := setup(t, "gpt-4o-mini")
 		ctx := chatdTestContext(t)
 		commitAssistant(t, server, chat, "the answer is 42")
 
@@ -472,9 +695,44 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabelCall.dbConfig.Options))
 	})
 
+	// The status label is a structured side call, so it must prefer the
+	// title generation model over a chat model that may reject forced tools.
+	t.Run("WaitingPrefersSmallModelOverChatModel", func(t *testing.T) {
+		t.Parallel()
+		server, chat, extra := setup(t, "gpt-4.1", "gpt-4o-mini")
+		ctx := chatdTestContext(t)
+		commitAssistant(t, server, chat, "the answer is 42")
+
+		chat.Status = database.ChatStatusWaiting
+		result := server.deriveFinalTurnRunResult(ctx, chat, logger)
+
+		require.NotNil(t, result.StatusLabelCall)
+		require.Equal(t, extra["gpt-4o-mini"].ID, result.StatusLabelCall.dbConfig.ID)
+		require.Equal(t, "gpt-4o-mini", result.StatusLabelCall.resolvedModel)
+	})
+
+	t.Run("WaitingPrefersTitleGenerationOverride", func(t *testing.T) {
+		t.Parallel()
+		server, chat, extra := setup(t, "gpt-4.1", "gpt-4o-mini", "gpt-4.1-nano")
+		ctx := chatdTestContext(t)
+		commitAssistant(t, server, chat, "the answer is 42")
+		upsertInternalChatOrganizationModelOverride(
+			t, server.db, chat.OrganizationID,
+			codersdk.ChatModelOverrideContextTitleGeneration,
+			extra["gpt-4.1-nano"].ID.String(),
+		)
+
+		chat.Status = database.ChatStatusWaiting
+		result := server.deriveFinalTurnRunResult(ctx, chat, logger)
+
+		require.NotNil(t, result.StatusLabelCall)
+		require.Equal(t, extra["gpt-4.1-nano"].ID, result.StatusLabelCall.dbConfig.ID)
+		require.Equal(t, "gpt-4.1-nano", result.StatusLabelCall.resolvedModel)
+	})
+
 	t.Run("NonWaitingReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
-		server, chat := setup(t)
+		server, chat, _ := setup(t, "gpt-4o-mini")
 		ctx := chatdTestContext(t)
 		commitAssistant(t, server, chat, "the answer is 42")
 
@@ -485,7 +743,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 
 	t.Run("WaitingWithoutAssistantReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
-		server, chat := setup(t)
+		server, chat, _ := setup(t, "gpt-4o-mini")
 		ctx := chatdTestContext(t)
 
 		// No assistant message was committed, so there is nothing to label.
@@ -519,6 +777,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			LastModelConfigID: modelCfg.ID,
 			Title:             "derive-chat-error",
 			ClientType:        database.ChatClientTypeUi,
+			InitialStatus:     database.ChatStatusRunning,
 			InitialMessages: []chatstate.Message{
 				{
 					Role:           database.ChatMessageRoleUser,
@@ -641,6 +900,82 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 			fantasy.Usage{TotalTokens: 211000},
 			contextLimit, 80))
 	})
+}
+
+func TestBindingCompactionTriggerSource(t *testing.T) {
+	t.Parallel()
+
+	// Rows must match the binding tests in
+	// site/src/pages/AgentsPage/compactionTriggers.test.ts.
+
+	trigger := func(threshold int32, limit int64) compactionTrigger {
+		return compactionTrigger{thresholdPercent: threshold, contextLimit: limit}
+	}
+	override := func(limit int64) compactionTrigger {
+		return trigger(compactionOverrideWindowPercent, limit)
+	}
+
+	cases := []struct {
+		name     string
+		chat     compactionTrigger
+		override compactionTrigger
+		want     compactionTriggerSource
+	}{
+		{
+			name:     "lower override point wins",
+			chat:     trigger(70, 200_000),
+			override: override(32_000),
+			want:     compactionTriggerSourceOrganization,
+		},
+		{
+			name:     "lower chat point wins over higher override point",
+			chat:     trigger(70, 80_000),
+			override: override(80_000),
+			want:     compactionTriggerSourceChat,
+		},
+		{
+			name:     "tie prefers the chat trigger",
+			chat:     trigger(80, 100_000),
+			override: override(100_000),
+			want:     compactionTriggerSourceChat,
+		},
+		{
+			name:     "chat trigger disabled by threshold 100 yields override",
+			chat:     trigger(100, 200_000),
+			override: override(32_000),
+			want:     compactionTriggerSourceOrganization,
+		},
+		{
+			name:     "chat trigger disabled by zero limit yields override",
+			chat:     trigger(70, 0),
+			override: override(32_000),
+			want:     compactionTriggerSourceOrganization,
+		},
+		{
+			name:     "override disabled by zero limit yields chat",
+			chat:     trigger(70, 200_000),
+			override: override(0),
+			want:     compactionTriggerSourceChat,
+		},
+		{
+			name:     "both disabled yields chat",
+			chat:     trigger(100, 200_000),
+			override: override(0),
+			want:     compactionTriggerSourceChat,
+		},
+		{
+			name:     "chat threshold zero fires immediately and wins",
+			chat:     trigger(0, 200_000),
+			override: override(32_000),
+			want:     compactionTriggerSourceChat,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, bindingCompactionTriggerSource(tc.chat, tc.override))
+		})
+	}
 }
 
 func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {

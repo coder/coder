@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
 import {
 	Table,
@@ -17,12 +16,15 @@ import {
 } from "./Option";
 import { optionValue } from "./optionValue";
 
-interface OptionsTableProps {
+type OptionsTableProps = {
 	options: readonly SerpentOption[];
 	additionalValues?: readonly string[];
-}
+};
 
-const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {
+const OptionsTable: React.FC<OptionsTableProps> = ({
+	options,
+	additionalValues,
+}) => {
 	if (options.length === 0) {
 		return <p>No options to configure</p>;
 	}

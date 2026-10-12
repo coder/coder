@@ -1,5 +1,4 @@
 import { type FormikContextType, useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -15,11 +14,11 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { getFormHelpers } from "#/utils/formUtils";
 
-interface SecurityFormValues {
+type SecurityFormValues = {
 	old_password: string;
 	password: string;
 	confirm_password: string;
-}
+};
 
 const validationSchema = Yup.object({
 	old_password: Yup.string().trim().required("Old password is required"),
@@ -35,14 +34,14 @@ const validationSchema = Yup.object({
 		),
 });
 
-interface SecurityFormProps {
+type SecurityFormProps = {
 	disabled: boolean;
 	isLoading: boolean;
 	onSubmit: (values: SecurityFormValues) => void;
 	error?: unknown;
-}
+};
 
-export const SecurityForm: FC<SecurityFormProps> = ({
+export const SecurityForm: React.FC<SecurityFormProps> = ({
 	disabled,
 	isLoading,
 	onSubmit,

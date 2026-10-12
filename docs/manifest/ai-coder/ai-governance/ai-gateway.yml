@@ -1,0 +1,47 @@
+title: AI Gateway
+description: Govern and observe AI coding traffic with AI Gateway.
+path: ./ai-coder/ai-gateway/index.md
+icon_path: ./images/icons/api.svg
+state: [premium]
+children:
+  - title: Setup
+    description: Enable and configure AI Gateway inside the Coder control plane, with no extra compute to deploy.
+    path: ./ai-coder/ai-gateway/setup.md
+    state: [premium]
+  - title: Standalone deployment
+    description: Deploy and operate AI Gateway as a standalone service
+    path: ./ai-coder/ai-gateway/standalone.md
+    state: [premium]
+  - title: Authentication
+    description: Authenticate AI coding tools against AI Gateway using your Coder API token.
+    path: ./ai-coder/ai-gateway/auth.md
+    state: [premium]
+  - include: ai-coder/ai-governance/ai-gateway/clients.yml
+  - title: MCP tools injection
+    description: Connect MCP servers to AI Gateway to inject tools and centrally manage what users can call.
+    path: ./ai-coder/ai-gateway/mcp.md
+  - include: ai-coder/ai-governance/ai-gateway/ai-gateway-proxy.yml
+  - title: Provider configuration
+    description: Learn how AI Gateway stores and reloads LLM provider configuration for your deployment.
+    path: ./ai-coder/ai-gateway/providers.md
+    state: [premium]
+  - title: Audit AI sessions
+    description: Audit AI coding sessions and threads captured by AI Gateway for governance and review.
+    path: ./ai-coder/ai-gateway/audit.md
+    state: [premium]
+  - title: Monitoring
+    description: Monitor AI Gateway activity, including prompts, token usage, and tool calls per request.
+    path: ./ai-coder/ai-gateway/monitoring.md
+    state: [premium]
+  - title: AI Governance cost control
+    description: Configure AI Gateway budgets, enforcement, notifications, and spend reporting.
+    path: ./ai-coder/ai-gateway/cost-controls.md
+    state: [premium]
+  - title: Reference
+    description: Technical reference for AI Gateway, including deployment topologies, version compatibility, and supported APIs.
+    path: ./ai-coder/ai-gateway/reference.md
+    state: [premium]
+  - title: Rebranding migration
+    description: Update configuration and references after the AI Bridge rename to AI Gateway.
+    path: ./ai-coder/ai-gateway/rebranding-migration.md
+    state: [premium]

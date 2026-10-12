@@ -1,4 +1,4 @@
-import { type ProfilerOnRenderCallback, useCallback, useRef } from "react";
+import { useCallback, useRef } from "react";
 
 // Threshold in milliseconds. Renders exceeding one frame budget
 // (16.67ms at 60fps) are logged as warnings.
@@ -26,12 +26,12 @@ const MAX_MEASURE_ENTRIES = 500;
  * only produces output when built with react-dom/profiling (enabled
  * via CODER_REACT_PROFILING=true).
  */
-export function useOnRenderProfiler(): ProfilerOnRenderCallback {
+export function useOnRenderProfiler(): React.ProfilerOnRenderCallback {
 	const lastWarnTime = useRef(0);
 	const measureCount = useRef(0);
 	const measureNames = useRef(new Set<string>());
 
-	return useCallback<ProfilerOnRenderCallback>(
+	return useCallback<React.ProfilerOnRenderCallback>(
 		(id, phase, actualDuration, baseDuration, startTime, commitTime) => {
 			// In standard production builds the Profiler callback
 			// receives zero for all timing values. Bail out early to

@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type {
 	Group,
 	ReducedUser,
@@ -56,7 +56,7 @@ type AddTemplateUserOrGroupProps = {
 	) => void;
 };
 
-const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
+const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
 	isLoading,
 	templateID,
 	templateACL,
@@ -131,13 +131,13 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 	);
 };
 
-interface RoleSelectProps {
+type RoleSelectProps = {
 	value: TemplateRole;
 	disabled?: boolean;
 	onValueChange: (value: TemplateRole) => void;
-}
+};
 
-const RoleSelect: FC<RoleSelectProps> = ({
+const RoleSelect: React.FC<RoleSelectProps> = ({
 	value,
 	disabled,
 	onValueChange,
@@ -175,7 +175,7 @@ const RoleSelect: FC<RoleSelectProps> = ({
 	);
 };
 
-interface TemplatePermissionsPageViewProps {
+type TemplatePermissionsPageViewProps = {
 	templateACL: TemplateACL | undefined;
 	templateID: string;
 	canUpdatePermissions: boolean;
@@ -199,9 +199,9 @@ interface TemplatePermissionsPageViewProps {
 	onUpdateGroup: (group: TemplateGroup, role: TemplateRole) => void;
 	updatingGroupId?: TemplateGroup["id"] | undefined;
 	onRemoveGroup: (group: Group) => void;
-}
+};
 
-export const TemplatePermissionsPageView: FC<
+export const TemplatePermissionsPageView: React.FC<
 	TemplatePermissionsPageViewProps
 > = ({
 	templateACL,
@@ -261,7 +261,7 @@ export const TemplatePermissionsPageView: FC<
 	);
 };
 
-interface MembersTableBodyProps {
+type MembersTableBodyProps = {
 	templateACL: TemplateACL | undefined;
 	canUpdatePermissions: boolean;
 	updatingUserId: TemplateUser["id"] | undefined;
@@ -270,9 +270,9 @@ interface MembersTableBodyProps {
 	onRemoveUser: (user: TemplateUser) => void;
 	onUpdateGroup: (group: TemplateGroup, role: TemplateRole) => void;
 	onRemoveGroup: (group: Group) => void;
-}
+};
 
-const MembersTableBody: FC<MembersTableBodyProps> = ({
+const MembersTableBody: React.FC<MembersTableBodyProps> = ({
 	templateACL,
 	canUpdatePermissions,
 	updatingUserId,

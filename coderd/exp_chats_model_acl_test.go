@@ -448,7 +448,7 @@ func TestChatModelACLSparseUpdate(t *testing.T) {
 	require.Equal(t, expectedGroupRoles, chatModelACLGroupRoles(modelACL))
 
 	path := fmt.Sprintf(
-		"/api/experimental/organizations/%s/chats/models/%s/acl",
+		"/api/v2/organizations/%s/chats/models/%s/acl",
 		firstUser.OrganizationID,
 		model.ID,
 	)
@@ -596,7 +596,7 @@ func TestChatModelACLValidationIsAtomic(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			res, err := adminClient.Request(ctx, http.MethodPatch, fmt.Sprintf(
-				"/api/experimental/organizations/%s/chats/models/%s/acl",
+				"/api/v2/organizations/%s/chats/models/%s/acl",
 				firstUser.OrganizationID,
 				model.ID,
 			), test.body)
@@ -783,7 +783,7 @@ func TestCreateChatModelRejectsACLKeys(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 			res, err := client.Request(ctx, http.MethodPost, fmt.Sprintf(
-				"/api/experimental/organizations/%s/chats/models",
+				"/api/v2/organizations/%s/chats/models",
 				firstUser.OrganizationID,
 			), map[string]any{test.key: test.value})
 			require.NoError(t, err)

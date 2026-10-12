@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { pageTitle } from "#/utils/page";
@@ -6,7 +5,7 @@ import { MCPServerForm } from "../components/MCPServerForm";
 import { OrganizationPicker } from "../components/OrganizationPicker";
 import { mcpServersPath } from "../organizationParam";
 
-interface AddMCPServerPageViewProps {
+type AddMCPServerPageViewProps = {
 	isSaving: boolean;
 	canCreate: boolean;
 	canViewServerList: boolean;
@@ -18,9 +17,9 @@ interface AddMCPServerPageViewProps {
 		req: TypesGen.CreateMCPServerConfigRequest,
 	) => Promise<unknown>;
 	onCancel: () => void;
-}
+};
 
-const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
+const AddMCPServerPageView: React.FC<AddMCPServerPageViewProps> = ({
 	isSaving,
 	canCreate,
 	canViewServerList,

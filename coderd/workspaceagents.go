@@ -1501,15 +1501,16 @@ func (api *API) logTunnelConnection(agentID uuid.UUID, statusCode int32, userID 
 		WorkspaceID:      waws.WorkspaceTable.ID,
 		WorkspaceName:    waws.WorkspaceTable.Name,
 		AgentName:        waws.WorkspaceAgent.Name,
-		Type:             database.ConnectionTypeTunnel,
+		ConnectionMethod: database.ConnectionLogMethodTunnel,
 		IP:               database.ParseIP(ip),
 		Code:             sql.NullInt32{Int32: statusCode, Valid: true},
 		UserAgent:        sql.NullString{String: userAgent, Valid: userAgent != ""},
 		UserID:           uuid.NullUUID{UUID: userID, Valid: userID != uuid.Nil},
-		SlugOrPort:       sql.NullString{},
+		AppNameOrPort:    sql.NullString{},
 		ConnectionID:     uuid.NullUUID{},
 		DisconnectReason: sql.NullString{},
 		ConnectionStatus: database.ConnectionStatusConnected,
+		ClientSessionID:  sql.NullString{},
 	})
 	if err != nil {
 		api.Logger.Error(ctx, "upsert tunnel connection log",

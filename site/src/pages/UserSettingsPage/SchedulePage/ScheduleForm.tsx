@@ -1,5 +1,5 @@
 import { type FormikContextType, useFormik } from "formik";
-import { type FC, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import * as Yup from "yup";
 import type {
 	UpdateUserQuietHoursScheduleRequest,
@@ -23,10 +23,10 @@ import { getFormHelpers } from "#/utils/formUtils";
 import { quietHoursDisplay, timeToCron, validTime } from "#/utils/schedule";
 import { getPreferredTimezone, timeZones } from "#/utils/timeZones";
 
-interface ScheduleFormValues {
+type ScheduleFormValues = {
 	time: string;
 	timezone: string;
-}
+};
 
 const validationSchema = Yup.object({
 	time: Yup.string()
@@ -43,16 +43,16 @@ const validationSchema = Yup.object({
 	timezone: Yup.string().required(),
 });
 
-interface ScheduleFormProps {
+type ScheduleFormProps = {
 	isLoading: boolean;
 	initialValues: UserQuietHoursScheduleResponse;
 	submitError: unknown;
 	onSubmit: (data: UpdateUserQuietHoursScheduleRequest) => void;
 	// now can be set to force the time used for "Next occurrence" in tests.
 	now?: Date;
-}
+};
 
-export const ScheduleForm: FC<ScheduleFormProps> = ({
+export const ScheduleForm: React.FC<ScheduleFormProps> = ({
 	isLoading,
 	initialValues,
 	submitError,

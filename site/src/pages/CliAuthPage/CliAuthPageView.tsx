@@ -1,5 +1,4 @@
 import { CheckIcon, CopyIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
@@ -7,11 +6,13 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Welcome } from "#/components/Welcome/Welcome";
 import { useClipboard } from "#/hooks/useClipboard";
 
-interface CliAuthPageViewProps {
+type CliAuthPageViewProps = {
 	sessionToken?: string;
-}
+};
 
-export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
+export const CliAuthPageView: React.FC<CliAuthPageViewProps> = ({
+	sessionToken,
+}) => {
 	const clipboardState = useClipboard();
 	return (
 		<SignInLayout>

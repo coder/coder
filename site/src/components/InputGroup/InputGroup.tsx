@@ -45,7 +45,7 @@ export const InputGroupAddon: React.FC<
 	React.ComponentProps<"div"> & VariantProps<typeof inputGroupAddonVariants>
 > = ({ className, align = "inline-start", ...props }) => {
 	return (
-		// biome-ignore lint/a11y/useKeyWithClickEvents: Click focuses the input, keyboard users can tab directly to input.
+		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- Click focuses the input; keyboard users can tab to it.
 		<div
 			data-align={align}
 			className={cn(inputGroupAddonVariants({ align }), className)}
@@ -62,9 +62,10 @@ export const InputGroupAddon: React.FC<
 	);
 };
 
-export const InputGroupInput: React.FC<
-	React.ComponentPropsWithRef<typeof Input>
-> = ({ className, ...props }) => {
+export const InputGroupInput: React.FC<React.ComponentProps<typeof Input>> = ({
+	className,
+	...props
+}) => {
 	return (
 		<Input
 			className={cn(

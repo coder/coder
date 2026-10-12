@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -18,7 +17,7 @@ import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { CreateEditRolePageView } from "./CreateEditRolePageView";
 
-const CreateEditRolePage: FC = () => {
+const CreateEditRolePage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { organization: organizationName, roleName } = useParams();

@@ -31,6 +31,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogjson"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
@@ -234,6 +235,7 @@ func TestAuthorization(t *testing.T) {
 					OwnerId:  user.ID.String(),
 					ApiKeyId: keyID,
 					Username: user.Username,
+					Email:    user.Email,
 				}
 				require.NoError(t, err)
 				require.Equal(t, &expected, resp)
@@ -411,7 +413,104 @@ func TestAuthorization_Delegated(t *testing.T) {
 				OwnerId:  user.ID.String(),
 				ApiKeyId: keyID,
 				Username: user.Username,
+				Email:    user.Email,
 			}, resp)
+		})
+	}
+}
+
+func TestAuthorization_WorkspaceAttribution(t *testing.T) {
+	t.Parallel()
+
+	// workspaceAttribution is lookup-free: it parses the workspace UUID from the
+	// strict server-minted token name and validates the embedded owner against
+	// key.UserID without touching the database.
+	tests := []struct {
+		name      string
+		configure func(key *database.APIKey, user database.User, workspaceID uuid.UUID)
+		wantErr   error
+		wantWsID  bool // expect resp.GetWorkspaceId() == workspaceID.String()
+	}{
+		{
+			name: "valid",
+			configure: func(key *database.APIKey, user database.User, workspaceID uuid.UUID) {
+				key.TokenName = fmt.Sprintf("%s_%s_session_token", user.ID, workspaceID)
+			},
+			wantWsID: true,
+		},
+		{
+			// LoginType == Token must never yield workspace attribution even when
+			// the token name matches the strict pattern.
+			name: "personal token spoof",
+			configure: func(key *database.APIKey, user database.User, workspaceID uuid.UUID) {
+				key.LoginType = database.LoginTypeToken
+				key.TokenName = fmt.Sprintf("%s_%s_session_token", user.ID, workspaceID)
+			},
+		},
+		{
+			// A token name that matches the suffix but not the strict UUID-pair
+			// prefix must not be attributed to any workspace.
+			name: "chatd lookalike",
+			configure: func(key *database.APIKey, user database.User, _ uuid.UUID) {
+				key.TokenName = fmt.Sprintf("chatd_%s_session_token", user.ID)
+			},
+		},
+		{
+			// An extra word between the UUIDs does not match the strict pattern.
+			name: "oauth lookalike",
+			configure: func(key *database.APIKey, user database.User, workspaceID uuid.UUID) {
+				key.TokenName = fmt.Sprintf("%s_%s_oauth_session_token", user.ID, workspaceID)
+			},
+		},
+		{
+			// The embedded owner UUID in the token name differs from key.UserID.
+			// Fail closed: return ErrWorkspaceAttribution.
+			name: "embedded owner mismatch",
+			configure: func(key *database.APIKey, _ database.User, workspaceID uuid.UUID) {
+				key.TokenName = fmt.Sprintf("%s_%s_session_token", uuid.New(), workspaceID)
+			},
+			wantErr: aibridgedserver.ErrWorkspaceAttribution,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			now := dbtime.Now()
+			user := database.User{ID: uuid.New(), Username: "test", Status: database.UserStatusActive, LoginType: database.LoginTypePassword}
+			workspaceID := uuid.New()
+			keyID, err := cryptorand.String(10)
+			require.NoError(t, err)
+			secret, hashedSecret, err := apikey.GenerateSecret(22)
+			require.NoError(t, err)
+			key := database.APIKey{ID: keyID, UserID: user.ID, HashedSecret: hashedSecret, ExpiresAt: now.Add(time.Hour), LoginType: database.LoginTypePassword}
+			tt.configure(&key, user, workspaceID)
+
+			db.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil)
+			db.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
+			// No GetWorkspaceByID: attribution is lookup-free.
+
+			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
+				Store: db, AISeatTracker: agplaiseats.Noop{}, AccessURL: "/",
+				GatewayCfg: codersdk.AIBridgeConfig{}, Experiments: requiredExperiments,
+				Logger: testutil.Logger(t), Clock: quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			resp, err := srv.IsAuthorized(t.Context(), &proto.IsAuthorizedRequest{Key: key.ID + "-" + secret})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			if tt.wantWsID {
+				require.Equal(t, workspaceID.String(), resp.GetWorkspaceId())
+			} else {
+				require.Empty(t, resp.GetWorkspaceId())
+			}
 		})
 	}
 }
@@ -1766,7 +1865,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				// A priced model does not increment unpriced_token_usage_records_total.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
 					require.Nil(t, promhelp.MetricValue(t, reg, "cost_control_unpriced_token_usage_records_total",
-						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6"}))
+						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6", "provider_model": ""}))
 				},
 			},
 			{
@@ -1913,7 +2012,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				// A missing price row increments unpriced_token_usage_records_total.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
 					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
-						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6"}))
+						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6", "provider_model": ""}))
 				},
 			},
 			{
@@ -2162,7 +2261,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				// A missing price row increments unpriced_token_usage_records_total.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
 					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
-						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6"}))
+						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6", "provider_model": ""}))
 				},
 			},
 			{
@@ -2328,7 +2427,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				// The metric names the provider that failed to resolve.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
 					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
-						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "unknown", "model": "claude-sonnet-4-6"}))
+						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "unknown", "model": "claude-sonnet-4-6", "provider_model": ""}))
 				},
 			},
 			{
@@ -2668,67 +2767,117 @@ func TestBudgetNotificationAuthorized(t *testing.T) {
 func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 	t.Parallel()
 
-	const provider, model = "anthropic", "claude-sonnet-4-6"
+	const provider, model, providerModel = "anthropic", "requested-model", "provider-model"
 
-	priceSeed := func(input, output, cacheRead, cacheWrite int64) json.RawMessage {
-		seed, err := json.Marshal([]map[string]any{{
-			"provider":          provider,
-			"model":             model,
-			"input_price":       input,
-			"output_price":      output,
-			"cache_read_price":  cacheRead,
-			"cache_write_price": cacheWrite,
-		}})
+	type modelPrice struct {
+		model                                string
+		input, output, cacheRead, cacheWrite int64
+		cost                                 int64
+	}
+
+	var (
+		requestedDefault = modelPrice{model: model, input: 3_000_000, output: 6_000_000, cacheRead: 300_000, cacheWrite: 4_000_000, cost: 1555}         // 300 + 1200 + 15 + 40
+		requestedCustom  = modelPrice{model: model, input: 9_000_000, output: 12_000_000, cacheRead: 900_000, cacheWrite: 8_000_000, cost: 3425}        // 900 + 2400 + 45 + 80
+		providerDefault  = modelPrice{model: providerModel, input: 2_000_000, output: 4_000_000, cacheRead: 200_000, cacheWrite: 1_000_000, cost: 1020} // 200 + 800 + 10 + 10
+		providerCustom   = modelPrice{model: providerModel, input: 1_000_000, output: 2_000_000, cacheRead: 100_000, cacheWrite: 500_000, cost: 510}    // 100 + 400 + 5 + 5
+	)
+
+	priceSeed := func(prices []modelPrice) json.RawMessage {
+		rows := make([]map[string]any, 0, len(prices))
+		for _, p := range prices {
+			rows = append(rows, map[string]any{
+				"provider":          provider,
+				"model":             p.model,
+				"input_price":       p.input,
+				"output_price":      p.output,
+				"cache_read_price":  p.cacheRead,
+				"cache_write_price": p.cacheWrite,
+			})
+		}
+		seed, err := json.Marshal(rows)
 		require.NoError(t, err)
 		return seed
 	}
 
 	tests := []struct {
-		name        string
-		defaultSeed json.RawMessage
-		customSeed  json.RawMessage
-		want        database.AIBridgeTokenUsage
+		name          string
+		providerModel string
+		defaultPrices []modelPrice
+		customPrices  []modelPrice
+		want          *modelPrice
 	}{
 		{
-			name:        "DefaultOnly",
-			defaultSeed: priceSeed(3_000_000, 6_000_000, 300_000, 4_000_000),
-			want: database.AIBridgeTokenUsage{
-				InputPriceMicros:      sql.NullInt64{Int64: 3_000_000, Valid: true},
-				OutputPriceMicros:     sql.NullInt64{Int64: 6_000_000, Valid: true},
-				CacheReadPriceMicros:  sql.NullInt64{Int64: 300_000, Valid: true},
-				CacheWritePriceMicros: sql.NullInt64{Int64: 4_000_000, Valid: true},
-				// 100 input, 200 output, 50 cache read, and 10 cache write
-				// tokens, priced per million: 300 + 1200 + 15 + 40.
-				CostMicros: sql.NullInt64{Int64: 1555, Valid: true},
-			},
+			name:          "RequestedCustomOnly",
+			providerModel: providerModel,
+			customPrices:  []modelPrice{requestedCustom},
+			want:          &requestedCustom,
 		},
 		{
-			// A model the price book does not cover, priced through the API.
-			name:       "CustomOnly",
-			customSeed: priceSeed(2_000_000, 4_000_000, 200_000, 1_000_000),
-			want: database.AIBridgeTokenUsage{
-				InputPriceMicros:      sql.NullInt64{Int64: 2_000_000, Valid: true},
-				OutputPriceMicros:     sql.NullInt64{Int64: 4_000_000, Valid: true},
-				CacheReadPriceMicros:  sql.NullInt64{Int64: 200_000, Valid: true},
-				CacheWritePriceMicros: sql.NullInt64{Int64: 1_000_000, Valid: true},
-				// 100 input, 200 output, 50 cache read, and 10 cache write
-				// tokens, priced per million: 200 + 800 + 10 + 10.
-				CostMicros: sql.NullInt64{Int64: 1020, Valid: true},
-			},
+			name:          "RequestedDefaultOnly",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault},
+			want:          &requestedDefault,
 		},
 		{
-			name:        "CustomWinsOverDefault",
-			defaultSeed: priceSeed(3_000_000, 6_000_000, 300_000, 4_000_000),
-			customSeed:  priceSeed(9_000_000, 12_000_000, 900_000, 8_000_000),
-			want: database.AIBridgeTokenUsage{
-				InputPriceMicros:      sql.NullInt64{Int64: 9_000_000, Valid: true},
-				OutputPriceMicros:     sql.NullInt64{Int64: 12_000_000, Valid: true},
-				CacheReadPriceMicros:  sql.NullInt64{Int64: 900_000, Valid: true},
-				CacheWritePriceMicros: sql.NullInt64{Int64: 8_000_000, Valid: true},
-				// 100 input, 200 output, 50 cache read, and 10 cache write
-				// tokens, priced per million: 900 + 2400 + 45 + 80.
-				CostMicros: sql.NullInt64{Int64: 3425, Valid: true},
-			},
+			name:          "ProviderCustomOnly",
+			providerModel: providerModel,
+			customPrices:  []modelPrice{providerCustom},
+			want:          &providerCustom,
+		},
+		{
+			name:          "ProviderDefaultOnly",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{providerDefault},
+			want:          &providerDefault,
+		},
+		{
+			name:          "RequestedCustomWinsOverRequestedDefault",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault},
+			customPrices:  []modelPrice{requestedCustom},
+			want:          &requestedCustom,
+		},
+		{
+			name:          "RequestedCustomWinsOverProviderCustom",
+			providerModel: providerModel,
+			customPrices:  []modelPrice{requestedCustom, providerCustom},
+			want:          &requestedCustom,
+		},
+		{
+			name:          "RequestedCustomWinsOverProviderDefault",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{providerDefault},
+			customPrices:  []modelPrice{requestedCustom},
+			want:          &requestedCustom,
+		},
+		{
+			name:          "RequestedDefaultWinsOverProviderCustom",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault},
+			customPrices:  []modelPrice{providerCustom},
+			want:          &requestedDefault,
+		},
+		{
+			name:          "RequestedDefaultWinsOverProviderDefault",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault, providerDefault},
+			want:          &requestedDefault,
+		},
+		{
+			name:          "ProviderCustomWinsOverProviderDefault",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{providerDefault},
+			customPrices:  []modelPrice{providerCustom},
+			want:          &providerCustom,
+		},
+		{
+			name:          "Unpriced",
+			providerModel: providerModel,
+		},
+		{
+			name:          "ProviderModelNotReported",
+			defaultPrices: []modelPrice{requestedDefault},
+			want:          &requestedDefault,
 		},
 	}
 
@@ -2745,15 +2894,15 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 			user := dbgen.User(t, rawDB, database.User{})
 			dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
 
-			if tt.defaultSeed != nil {
+			if len(tt.defaultPrices) > 0 {
 				require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
-					Seed:   tt.defaultSeed,
+					Seed:   priceSeed(tt.defaultPrices),
 					Source: database.AIModelPriceSourceDefault,
 				}), "seed model prices")
 			}
-			if tt.customSeed != nil {
+			if len(tt.customPrices) > 0 {
 				require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
-					Seed:   tt.customSeed,
+					Seed:   priceSeed(tt.customPrices),
 					Source: database.AIModelPriceSourceCustom,
 				}), "set custom model price")
 			}
@@ -2769,6 +2918,7 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 				Model:        model,
 			}, nil)
 
+			reg := prometheus.NewRegistry()
 			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 				Store:         authzDB,
 				AISeatTracker: agplaiseats.Noop{},
@@ -2777,12 +2927,14 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 				Experiments:   requiredExperiments,
 				Logger:        logger,
 				Clock:         quartz.NewReal(),
+				Metrics:       aibridgedserver.NewMetrics(reg),
 			})
 			require.NoError(t, err)
 
 			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
 				InterceptionId:        intc.ID.String(),
 				MsgId:                 "msg_price_resolution",
+				ProviderModel:         tt.providerModel,
 				InputTokens:           100,
 				OutputTokens:          200,
 				CacheReadInputTokens:  50,
@@ -2791,16 +2943,35 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 			})
 			require.NoError(t, err, "record token usage")
 
+			var want database.AIBridgeTokenUsage
+			if tt.want != nil {
+				want = database.AIBridgeTokenUsage{
+					PricedModel:           sql.NullString{String: tt.want.model, Valid: true},
+					InputPriceMicros:      sql.NullInt64{Int64: tt.want.input, Valid: true},
+					OutputPriceMicros:     sql.NullInt64{Int64: tt.want.output, Valid: true},
+					CacheReadPriceMicros:  sql.NullInt64{Int64: tt.want.cacheRead, Valid: true},
+					CacheWritePriceMicros: sql.NullInt64{Int64: tt.want.cacheWrite, Valid: true},
+					CostMicros:            sql.NullInt64{Int64: tt.want.cost, Valid: true},
+				}
+			}
+
 			tokenUsages, err := rawDB.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
 			require.NoError(t, err)
 			require.Len(t, tokenUsages, 1)
 
 			tokenUsage := tokenUsages[0]
-			require.Equal(t, tt.want.InputPriceMicros, tokenUsage.InputPriceMicros, "input price")
-			require.Equal(t, tt.want.OutputPriceMicros, tokenUsage.OutputPriceMicros, "output price")
-			require.Equal(t, tt.want.CacheReadPriceMicros, tokenUsage.CacheReadPriceMicros, "cache read price")
-			require.Equal(t, tt.want.CacheWritePriceMicros, tokenUsage.CacheWritePriceMicros, "cache write price")
-			require.Equal(t, tt.want.CostMicros, tokenUsage.CostMicros, "cost")
+			require.Equal(t, sql.NullString{String: tt.providerModel, Valid: tt.providerModel != ""}, tokenUsage.ProviderModel, "provider model")
+			require.Equal(t, want.PricedModel, tokenUsage.PricedModel, "priced model")
+			require.Equal(t, want.InputPriceMicros, tokenUsage.InputPriceMicros, "input price")
+			require.Equal(t, want.OutputPriceMicros, tokenUsage.OutputPriceMicros, "output price")
+			require.Equal(t, want.CacheReadPriceMicros, tokenUsage.CacheReadPriceMicros, "cache read price")
+			require.Equal(t, want.CacheWritePriceMicros, tokenUsage.CacheWritePriceMicros, "cache write price")
+			require.Equal(t, want.CostMicros, tokenUsage.CostMicros, "cost")
+
+			if tt.want == nil {
+				require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
+					prometheus.Labels{"provider": aiProvider.Name, "provider_type": provider, "model": model, "provider_model": tt.providerModel}))
+			}
 		})
 	}
 }
@@ -4233,8 +4404,8 @@ func TestStructuredLogging(t *testing.T) {
 				// No log expected (disabled or error case).
 				require.Empty(t, lines)
 			} else {
-				matchedLines := getLogLinesWithMessage(lines, aibridgedserver.InterceptionLogMarker)
-				require.GreaterOrEqual(t, len(matchedLines), 1, "expected at least 1 log line(s) with message %q", aibridgedserver.InterceptionLogMarker)
+				matchedLines := getLogLinesWithMessage(lines, recorder.InterceptionLogMarker)
+				require.GreaterOrEqual(t, len(matchedLines), 1, "expected at least 1 log line(s) with message %q", recorder.InterceptionLogMarker)
 
 				fields := matchedLines[0].Fields
 				for key, expected := range tc.expectedFields {
@@ -4474,6 +4645,23 @@ func TestGetAIProviders(t *testing.T) {
 		Settings: sql.NullString{String: string(bedrockSettings), Valid: true},
 	})
 
+	// Enabled Anthropic using Claude Platform for AWS in IAM mode. It has no
+	// keys: it authenticates by signing.
+	claudePlatformSettings, err := json.Marshal(codersdk.AIProviderSettings{
+		ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-west-2",
+			WorkspaceID: "wrkspc_123",
+		},
+	})
+	require.NoError(t, err)
+	dbgen.AIProvider(t, db, database.AIProvider{
+		Type:     database.AIProviderTypeAnthropic,
+		Name:     "claude-platform",
+		Enabled:  true,
+		BaseUrl:  "https://aws-external-anthropic.us-west-2.api.aws/",
+		Settings: sql.NullString{String: string(claudePlatformSettings), Valid: true},
+	})
+
 	// Enabled Copilot, which is keyless (BYOK per request).
 	dbgen.AIProvider(t, db, database.AIProvider{
 		Type:    database.AIProviderTypeCopilot,
@@ -4519,7 +4707,7 @@ func TestGetAIProviders(t *testing.T) {
 	for _, p := range resp.GetProviders() {
 		byName[p.GetName()] = p
 	}
-	require.Len(t, byName, 4)
+	require.Len(t, byName, 5)
 	assert.NotContains(t, byName, "broken-settings", "provider with undecodable settings must be skipped")
 
 	gotOpenAI := byName["openai"]
@@ -4541,6 +4729,17 @@ func TestGetAIProviders(t *testing.T) {
 	assert.Equal(t, "secret", gotBedrock.GetBedrock().GetAccessKeySecret())
 	assert.Equal(t, "arn:aws:iam::123456789012:role/bedrock", gotBedrock.GetBedrock().GetRoleArn())
 
+	gotClaudePlatform := byName["claude-platform"]
+	require.NotNil(t, gotClaudePlatform)
+	assert.True(t, gotClaudePlatform.GetEnabled())
+	assert.Equal(t, string(database.AIProviderTypeAnthropic), gotClaudePlatform.GetType(),
+		"claude platform is an authentication method on anthropic, not a provider type")
+	assert.Nil(t, gotClaudePlatform.GetBedrock())
+	require.NotNil(t, gotClaudePlatform.GetClaudePlatformAws())
+	assert.Equal(t, "us-west-2", gotClaudePlatform.GetClaudePlatformAws().GetRegion())
+	assert.Equal(t, "wrkspc_123", gotClaudePlatform.GetClaudePlatformAws().GetWorkspaceId())
+	assert.Empty(t, gotClaudePlatform.GetKeys())
+
 	gotCopilot := byName["copilot"]
 	require.NotNil(t, gotCopilot)
 	assert.True(t, gotCopilot.GetEnabled())
@@ -4551,6 +4750,7 @@ func TestGetAIProviders(t *testing.T) {
 	assert.False(t, gotDisabled.GetEnabled())
 	assert.Empty(t, gotDisabled.GetKeys(), "keys must be withheld for disabled providers")
 	assert.Nil(t, gotDisabled.GetBedrock())
+	assert.Nil(t, gotDisabled.GetClaudePlatformAws())
 }
 
 // TestWatchAIProviders asserts that the WatchAIProviders handler emits an

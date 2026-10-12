@@ -4,7 +4,7 @@ import schema from "./chatModelOptionsGenerated.json";
  * Describes a single configurable field for a chat model provider.
  * Generated from Go struct tags via `scripts/modeloptionsgen`.
  */
-export interface FieldSchema {
+export type FieldSchema = {
 	/** The JSON key used in API payloads (may use dot-notation for nested fields). */
 	json_name: string;
 	/** The corresponding Go struct field name. */
@@ -27,14 +27,14 @@ export interface FieldSchema {
 	conflicts_with?: string[];
 	/** Raw provider types the field applies to; absent means every provider. */
 	visible_for_providers?: string[];
-}
+};
 
 /**
  * A group of fields belonging to a single provider or the general section.
  */
-interface ProviderSchema {
+type ProviderSchema = {
 	fields: FieldSchema[];
-}
+};
 
 /**
  * Top-level schema describing all configurable chat model options.
@@ -44,11 +44,11 @@ interface ProviderSchema {
  * - `provider_aliases` maps alternate names to canonical provider names
  *   (e.g. "azure" → "openai").
  */
-interface ModelOptionsSchema {
+type ModelOptionsSchema = {
 	general: ProviderSchema;
 	providers: Record<string, ProviderSchema>;
 	provider_aliases: Record<string, string>;
-}
+};
 
 /** The imported schema, typed as {@link ModelOptionsSchema}. */
 const modelOptionsSchema: ModelOptionsSchema = schema as ModelOptionsSchema;
@@ -125,9 +125,11 @@ export function toFormFieldKey(provider: string, jsonName: string): string {
 	return `${provider}.${camelSegments.join(".")}`;
 }
 
-/** Get only the visible (non-hidden) fields for a provider. */
+/** Get only the visible fields for a raw provider type. */
 export function getVisibleProviderFields(provider: string): FieldSchema[] {
-	return getProviderFields(provider).filter((f) => !f.hidden);
+	return getProviderFields(provider).filter(
+		(f) => !f.hidden && isFieldVisibleForProvider(f, provider),
+	);
 }
 
 /** Matches the raw provider type, not {@link resolveProvider}, so aliases

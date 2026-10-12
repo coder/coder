@@ -530,6 +530,15 @@ const (
 	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
 	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
 	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
+	ApiKeyScopeChatProject                         APIKeyScope = "chat_project:*"
+	ApiKeyScopeChatProjectCreate                   APIKeyScope = "chat_project:create"
+	ApiKeyScopeChatProjectRead                     APIKeyScope = "chat_project:read"
+	ApiKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
+	ApiKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
+	ApiKeyScopeChatProjectMemory                   APIKeyScope = "chat_project_memory:*"
+	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
+	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
+	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -811,7 +820,16 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatModelConfigRead,
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
-		ApiKeyScopeChatModelConfigShare:
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatProject,
+		ApiKeyScopeChatProjectCreate,
+		ApiKeyScopeChatProjectRead,
+		ApiKeyScopeChatProjectUpdate,
+		ApiKeyScopeChatProjectDelete,
+		ApiKeyScopeChatProjectMemory,
+		ApiKeyScopeChatProjectMemoryCreate,
+		ApiKeyScopeChatProjectMemoryRead,
+		ApiKeyScopeChatProjectMemoryDelete:
 		return true
 	}
 	return false
@@ -1062,6 +1080,15 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
 		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatProject,
+		ApiKeyScopeChatProjectCreate,
+		ApiKeyScopeChatProjectRead,
+		ApiKeyScopeChatProjectUpdate,
+		ApiKeyScopeChatProjectDelete,
+		ApiKeyScopeChatProjectMemory,
+		ApiKeyScopeChatProjectMemoryCreate,
+		ApiKeyScopeChatProjectMemoryRead,
+		ApiKeyScopeChatProjectMemoryDelete,
 	}
 }
 
@@ -1916,6 +1943,135 @@ func AllChatStatusValues() []ChatStatus {
 	}
 }
 
+// Where a chat title came from, in ascending rank. A title write applies only when its source ranks at or above the current source. fallback: derived from the first prompt, or the default title of a chat created without one. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.
+type ChatTitleSource string
+
+const (
+	ChatTitleSourceFallback  ChatTitleSource = "fallback"
+	ChatTitleSourceGenerated ChatTitleSource = "generated"
+	ChatTitleSourceUser      ChatTitleSource = "user"
+)
+
+func (e *ChatTitleSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatTitleSource(s)
+	case string:
+		*e = ChatTitleSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatTitleSource: %T", src)
+	}
+	return nil
+}
+
+type NullChatTitleSource struct {
+	ChatTitleSource ChatTitleSource `json:"chat_title_source"`
+	Valid           bool            `json:"valid"` // Valid is true if ChatTitleSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatTitleSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatTitleSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatTitleSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatTitleSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatTitleSource), nil
+}
+
+func (e ChatTitleSource) Valid() bool {
+	switch e {
+	case ChatTitleSourceFallback,
+		ChatTitleSourceGenerated,
+		ChatTitleSourceUser:
+		return true
+	}
+	return false
+}
+
+func AllChatTitleSourceValues() []ChatTitleSource {
+	return []ChatTitleSource{
+		ChatTitleSourceFallback,
+		ChatTitleSourceGenerated,
+		ChatTitleSourceUser,
+	}
+}
+
+type ConnectionLogMethod string
+
+const (
+	ConnectionLogMethodSSH             ConnectionLogMethod = "ssh"
+	ConnectionLogMethodReconnectingPTY ConnectionLogMethod = "reconnecting_pty"
+	ConnectionLogMethodWorkspaceApp    ConnectionLogMethod = "workspace_app"
+	ConnectionLogMethodPortForwarding  ConnectionLogMethod = "port_forwarding"
+	ConnectionLogMethodTunnel          ConnectionLogMethod = "tunnel"
+)
+
+func (e *ConnectionLogMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionLogMethod(s)
+	case string:
+		*e = ConnectionLogMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionLogMethod: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionLogMethod struct {
+	ConnectionLogMethod ConnectionLogMethod `json:"connection_log_method"`
+	Valid               bool                `json:"valid"` // Valid is true if ConnectionLogMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionLogMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionLogMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionLogMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionLogMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionLogMethod), nil
+}
+
+func (e ConnectionLogMethod) Valid() bool {
+	switch e {
+	case ConnectionLogMethodSSH,
+		ConnectionLogMethodReconnectingPTY,
+		ConnectionLogMethodWorkspaceApp,
+		ConnectionLogMethodPortForwarding,
+		ConnectionLogMethodTunnel:
+		return true
+	}
+	return false
+}
+
+func AllConnectionLogMethodValues() []ConnectionLogMethod {
+	return []ConnectionLogMethod{
+		ConnectionLogMethodSSH,
+		ConnectionLogMethodReconnectingPTY,
+		ConnectionLogMethodWorkspaceApp,
+		ConnectionLogMethodPortForwarding,
+		ConnectionLogMethodTunnel,
+	}
+}
+
 type ConnectionStatus string
 
 const (
@@ -1971,79 +2127,6 @@ func AllConnectionStatusValues() []ConnectionStatus {
 	return []ConnectionStatus{
 		ConnectionStatusConnected,
 		ConnectionStatusDisconnected,
-	}
-}
-
-type ConnectionType string
-
-const (
-	ConnectionTypeSsh             ConnectionType = "ssh"
-	ConnectionTypeVscode          ConnectionType = "vscode"
-	ConnectionTypeJetbrains       ConnectionType = "jetbrains"
-	ConnectionTypeReconnectingPty ConnectionType = "reconnecting_pty"
-	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
-	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
-	ConnectionTypeTunnel          ConnectionType = "tunnel"
-)
-
-func (e *ConnectionType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ConnectionType(s)
-	case string:
-		*e = ConnectionType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ConnectionType: %T", src)
-	}
-	return nil
-}
-
-type NullConnectionType struct {
-	ConnectionType ConnectionType `json:"connection_type"`
-	Valid          bool           `json:"valid"` // Valid is true if ConnectionType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullConnectionType) Scan(value interface{}) error {
-	if value == nil {
-		ns.ConnectionType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.ConnectionType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullConnectionType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.ConnectionType), nil
-}
-
-func (e ConnectionType) Valid() bool {
-	switch e {
-	case ConnectionTypeSsh,
-		ConnectionTypeVscode,
-		ConnectionTypeJetbrains,
-		ConnectionTypeReconnectingPty,
-		ConnectionTypeWorkspaceApp,
-		ConnectionTypePortForwarding,
-		ConnectionTypeTunnel:
-		return true
-	}
-	return false
-}
-
-func AllConnectionTypeValues() []ConnectionType {
-	return []ConnectionType{
-		ConnectionTypeSsh,
-		ConnectionTypeVscode,
-		ConnectionTypeJetbrains,
-		ConnectionTypeReconnectingPty,
-		ConnectionTypeWorkspaceApp,
-		ConnectionTypePortForwarding,
-		ConnectionTypeTunnel,
 	}
 }
 
@@ -3627,46 +3710,51 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization                ResourceType = "organization"
-	ResourceTypeTemplate                    ResourceType = "template"
-	ResourceTypeTemplateVersion             ResourceType = "template_version"
-	ResourceTypeUser                        ResourceType = "user"
-	ResourceTypeWorkspace                   ResourceType = "workspace"
-	ResourceTypeGitSshKey                   ResourceType = "git_ssh_key"
-	ResourceTypeApiKey                      ResourceType = "api_key"
-	ResourceTypeGroup                       ResourceType = "group"
-	ResourceTypeWorkspaceBuild              ResourceType = "workspace_build"
-	ResourceTypeLicense                     ResourceType = "license"
-	ResourceTypeWorkspaceProxy              ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin                ResourceType = "convert_login"
-	ResourceTypeHealthSettings              ResourceType = "health_settings"
-	ResourceTypeOauth2ProviderApp           ResourceType = "oauth2_provider_app"
-	ResourceTypeOauth2ProviderAppSecret     ResourceType = "oauth2_provider_app_secret"
-	ResourceTypeCustomRole                  ResourceType = "custom_role"
-	ResourceTypeOrganizationMember          ResourceType = "organization_member"
-	ResourceTypeNotificationsSettings       ResourceType = "notifications_settings"
-	ResourceTypeNotificationTemplate        ResourceType = "notification_template"
-	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
-	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
-	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
-	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
-	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
-	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
-	ResourceTypeTask                        ResourceType = "task"
-	ResourceTypeAISeat                      ResourceType = "ai_seat"
-	ResourceTypeChat                        ResourceType = "chat"
-	ResourceTypeUserSecret                  ResourceType = "user_secret"
-	ResourceTypeAIProvider                  ResourceType = "ai_provider"
-	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
-	ResourceTypeGroupAIBudget               ResourceType = "group_ai_budget"
-	ResourceTypeUserSkill                   ResourceType = "user_skill"
-	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
-	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
-	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
-	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
-	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
-	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
-	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
+	ResourceTypeOrganization                 ResourceType = "organization"
+	ResourceTypeTemplate                     ResourceType = "template"
+	ResourceTypeTemplateVersion              ResourceType = "template_version"
+	ResourceTypeUser                         ResourceType = "user"
+	ResourceTypeWorkspace                    ResourceType = "workspace"
+	ResourceTypeGitSshKey                    ResourceType = "git_ssh_key"
+	ResourceTypeApiKey                       ResourceType = "api_key"
+	ResourceTypeGroup                        ResourceType = "group"
+	ResourceTypeWorkspaceBuild               ResourceType = "workspace_build"
+	ResourceTypeLicense                      ResourceType = "license"
+	ResourceTypeWorkspaceProxy               ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin                 ResourceType = "convert_login"
+	ResourceTypeHealthSettings               ResourceType = "health_settings"
+	ResourceTypeOauth2ProviderApp            ResourceType = "oauth2_provider_app"
+	ResourceTypeOauth2ProviderAppSecret      ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeCustomRole                   ResourceType = "custom_role"
+	ResourceTypeOrganizationMember           ResourceType = "organization_member"
+	ResourceTypeNotificationsSettings        ResourceType = "notifications_settings"
+	ResourceTypeNotificationTemplate         ResourceType = "notification_template"
+	ResourceTypeIdpSyncSettingsOrganization  ResourceType = "idp_sync_settings_organization"
+	ResourceTypeIdpSyncSettingsGroup         ResourceType = "idp_sync_settings_group"
+	ResourceTypeIdpSyncSettingsRole          ResourceType = "idp_sync_settings_role"
+	ResourceTypeWorkspaceAgent               ResourceType = "workspace_agent"
+	ResourceTypeWorkspaceApp                 ResourceType = "workspace_app"
+	ResourceTypePrebuildsSettings            ResourceType = "prebuilds_settings"
+	ResourceTypeTask                         ResourceType = "task"
+	ResourceTypeAISeat                       ResourceType = "ai_seat"
+	ResourceTypeChat                         ResourceType = "chat"
+	ResourceTypeUserSecret                   ResourceType = "user_secret"
+	ResourceTypeAIProvider                   ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey                ResourceType = "ai_provider_key"
+	ResourceTypeGroupAIBudget                ResourceType = "group_ai_budget"
+	ResourceTypeUserSkill                    ResourceType = "user_skill"
+	ResourceTypeAIGatewayKey                 ResourceType = "ai_gateway_key"
+	ResourceTypeUserAIBudgetOverride         ResourceType = "user_ai_budget_override"
+	ResourceTypeOauth2ProviderSettings       ResourceType = "oauth2_provider_settings"
+	ResourceTypeChatInstructionSettings      ResourceType = "chat_instruction_settings"
+	ResourceTypeMCPServerConfig              ResourceType = "mcp_server_config"
+	ResourceTypeChatModelConfig              ResourceType = "chat_model_config"
+	ResourceTypeChatOperationalSettings      ResourceType = "chat_operational_settings"
+	ResourceTypeExperimentRule               ResourceType = "experiment_rule"
+	ResourceTypeChatProject                  ResourceType = "chat_project"
+	ResourceTypeChatAutomation               ResourceType = "chat_automation"
+	ResourceTypeChatProjectMemory            ResourceType = "chat_project_memory"
+	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3745,7 +3833,12 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
-		ResourceTypeChatOperationalSettings:
+		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
+		ResourceTypeChatProject,
+		ResourceTypeChatAutomation,
+		ResourceTypeChatProjectMemory,
+		ResourceTypeChatOrganizationSystemPrompt:
 		return true
 	}
 	return false
@@ -3793,6 +3886,11 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
+		ResourceTypeChatProject,
+		ResourceTypeChatAutomation,
+		ResourceTypeChatProjectMemory,
+		ResourceTypeChatOrganizationSystemPrompt,
 	}
 }
 
@@ -4790,6 +4888,8 @@ type AIBridgeInterception struct {
 	ErrorType NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
 	// Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
+	// The workspace in which the agent ran. NULL when no workspace context is available.
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -4818,6 +4918,10 @@ type AIBridgeTokenUsage struct {
 	CacheReadPriceMicros  sql.NullInt64         `db:"cache_read_price_micros" json:"cache_read_price_micros"`
 	CacheWritePriceMicros sql.NullInt64         `db:"cache_write_price_micros" json:"cache_write_price_micros"`
 	CostMicros            sql.NullInt64         `db:"cost_micros" json:"cost_micros"`
+	// The model reported by the upstream provider. NULL when the provider did not report one.
+	ProviderModel sql.NullString `db:"provider_model" json:"provider_model"`
+	// The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.
+	PricedModel sql.NullString `db:"priced_model" json:"priced_model"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge
@@ -5048,6 +5152,7 @@ type Chat struct {
 	LastReadMessageID        sql.NullInt64           `db:"last_read_message_id" json:"last_read_message_id"`
 	DynamicTools             pqtype.NullRawMessage   `db:"dynamic_tools" json:"dynamic_tools"`
 	OrganizationID           uuid.UUID               `db:"organization_id" json:"organization_id"`
+	ProjectID                uuid.NullUUID           `db:"project_id" json:"project_id"`
 	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
 	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
 	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
@@ -5070,6 +5175,8 @@ type Chat struct {
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
+	TitleSource              ChatTitleSource         `db:"title_source" json:"title_source"`
+	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5181,6 +5288,24 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+// MCP servers that a chat owner attached to a root chat. Experimental. chatd connects to every row on each turn of the chat.
+type ChatMCPServer struct {
+	ID     uuid.UUID `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	Slug   string    `db:"slug" json:"slug"`
+	Url    string    `db:"url" json:"url"`
+	// JSON object of HTTP header name to value sent on every request to the server. Encrypted at rest via dbcrypt when headers_key_id is set.
+	Headers string `db:"headers" json:"headers"`
+	// The ID of the key used to encrypt headers. If this is NULL, headers are not encrypted.
+	HeadersKeyID        sql.NullString `db:"headers_key_id" json:"headers_key_id"`
+	ToolAllowList       []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList        []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	AllowInSubagents    bool           `db:"allow_in_subagents" json:"allow_in_subagents"`
+	ForwardCoderHeaders bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
@@ -5210,6 +5335,8 @@ type ChatMessage struct {
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
 	// Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.
 	SearchTsvConfig NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
+	// ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.
+	QueuedMessageID sql.NullInt64 `db:"queued_message_id" json:"queued_message_id"`
 }
 
 type ChatModelConfig struct {
@@ -5239,6 +5366,39 @@ type ChatOrganizationModelOverride struct {
 	Context         string         `db:"context" json:"context"`
 	ModelConfigID   uuid.UUID      `db:"model_config_id" json:"model_config_id"`
 	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
+}
+
+// Organization-scoped system prompts added after the deployment system prompt when Coder Agents chats are created.
+type ChatOrganizationSystemPrompt struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	SystemPrompt   string    `db:"system_prompt" json:"system_prompt"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Organization-scoped projects that group agent chats.
+type ChatProject struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	// Optional icon URL shown next to the project name.
+	Icon      string    `db:"icon" json:"icon"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.
+type ChatProjectMemory struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	ProjectID      uuid.UUID `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	Body           string    `db:"body" json:"body"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
 type ChatQueuedMessage struct {
@@ -5308,6 +5468,12 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
+	// Optional project that groups a root chat with related chats.
+	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
+	// Rows from before this column existed are fallback regardless of who set their title.
+	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
+	// Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.
+	TitleUpdatedAt time.Time `db:"title_updated_at" json:"title_updated_at"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -5331,29 +5497,32 @@ type ChatUserModelOverride struct {
 }
 
 type ConnectionLog struct {
-	ID               uuid.UUID      `db:"id" json:"id"`
-	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`
-	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID uuid.UUID      `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    string         `db:"workspace_name" json:"workspace_name"`
-	AgentName        string         `db:"agent_name" json:"agent_name"`
-	Type             ConnectionType `db:"type" json:"type"`
-	Ip               pqtype.Inet    `db:"ip" json:"ip"`
+	ID               uuid.UUID `db:"id" json:"id"`
+	ConnectTime      time.Time `db:"connect_time" json:"connect_time"`
+	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string    `db:"workspace_name" json:"workspace_name"`
+	AgentName        string    `db:"agent_name" json:"agent_name"`
+	// How the connection was established.
+	ConnectionMethod ConnectionLogMethod `db:"connection_method" json:"connection_method"`
+	Ip               pqtype.Inet         `db:"ip" json:"ip"`
 	// Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.
 	Code sql.NullInt32 `db:"code" json:"code"`
 	// Null for SSH events. For web connections, this is the User-Agent header from the request.
 	UserAgent sql.NullString `db:"user_agent" json:"user_agent"`
 	// Null for SSH events. For web connections, this is the ID of the user that made the request.
 	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
-	// Null for SSH events. For web connections, this is the slug of the app or the port number being forwarded.
-	SlugOrPort sql.NullString `db:"slug_or_port" json:"slug_or_port"`
+	// Self-reported name of the connecting application for SSH and reconnecting PTY; destination slug or port for workspace apps and port forwarding. Null when absent.
+	AppNameOrPort sql.NullString `db:"app_name_or_port" json:"app_name_or_port"`
 	// The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.
 	ConnectionID uuid.NullUUID `db:"connection_id" json:"connection_id"`
 	// The time the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
 	DisconnectTime sql.NullTime `db:"disconnect_time" json:"disconnect_time"`
 	// The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
+	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
+	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
 type CryptoKey struct {
@@ -5552,6 +5721,8 @@ type MCPServerConfig struct {
 	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
 	GroupACL                ChatACL        `db:"group_acl" json:"group_acl"`
 	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
+	SigningSecret           string         `db:"signing_secret" json:"signing_secret"`
+	SigningSecretKeyID      sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
 }
 
 type MCPServerUserToken struct {
@@ -5619,13 +5790,14 @@ type NotificationTemplate struct {
 
 // A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.
 type OAuth2ProviderApp struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	Icon        string    `db:"icon" json:"icon"`
-	CallbackURL string    `db:"callback_url" json:"callback_url"`
-	// List of valid redirect URIs for the application
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Name      string    `db:"name" json:"name"`
+	Icon      string    `db:"icon" json:"icon"`
+	// Deprecated: the primary redirect URI is the first entry of redirect_uris. Every writer keeps this column equal to it until the column is dropped.
+	CallbackURL string `db:"callback_url" json:"callback_url"`
+	// Redirect URIs the authorize and token endpoints accept. The first entry is the primary, used when a request omits redirect_uri.
 	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`
 	// OAuth2 client type: confidential or public
 	ClientType string `db:"client_type" json:"client_type"`
@@ -6033,18 +6205,19 @@ type TemplateUsageStat struct {
 	MedianLatencyMs sql.NullFloat64 `db:"median_latency_ms" json:"median_latency_ms"`
 	// Total minutes the user has been using the template.
 	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
-	// Total minutes the user has been using SSH.
-	SshMins int16 `db:"ssh_mins" json:"ssh_mins"`
-	// Total minutes the user has been using SFTP.
-	SftpMins int16 `db:"sftp_mins" json:"sftp_mins"`
-	// Total minutes the user has been using the reconnecting PTY.
-	ReconnectingPtyMins int16 `db:"reconnecting_pty_mins" json:"reconnecting_pty_mins"`
-	// Total minutes the user has been using VSCode.
-	VscodeMins int16 `db:"vscode_mins" json:"vscode_mins"`
-	// Total minutes the user has been using JetBrains.
-	JetbrainsMins int16 `db:"jetbrains_mins" json:"jetbrains_mins"`
 	// Object with app names as keys and total minutes used as values. Null means no app usage was recorded.
 	AppUsageMins StringMapOfInt `db:"app_usage_mins" json:"app_usage_mins"`
+}
+
+// Session usage of each template_usage_stats bucket, split by app name. No row means the bucket recorded no session usage. Reads group app names into families through the codersdk registry.
+type TemplateUsageStatsSessionApp struct {
+	StartTime  time.Time `db:"start_time" json:"start_time"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	// App name as the agent reported it, so a source label rather than a curated identity. Rows converted from the fixed session columns carry a family name here instead.
+	AppName string `db:"app_name" json:"app_name"`
+	// Total minutes the user has been using the app. A minute counts once however many sessions were open.
+	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
 }
 
 // Joins in the username + avatar url of the created by user.

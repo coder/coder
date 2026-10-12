@@ -1,4 +1,6 @@
-# Setting up a Coder deployment
+<a id="setting-up-a-coder-deployment"></a>
+
+# Set up a Coder deployment
 
 For day-zero Coder users, we recommend following this guide to set up a local
 Coder deployment from our
@@ -24,7 +26,7 @@ If you already have the Coder binary installed, restart it after installing Dock
 Our install script is the fastest way to install Coder on Linux/macOS:
 
 ```sh
-curl -L https://coder.com/install.sh | sh
+curl -fsSL https://coder.com/install.sh | sh
 ```
 
 ## Windows

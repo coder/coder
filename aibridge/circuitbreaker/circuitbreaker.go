@@ -2,16 +2,17 @@ package circuitbreaker
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/sony/gobreaker/v2"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/metrics"
 )
@@ -44,13 +45,28 @@ type ProviderCircuitBreakers struct {
 	metrics  *metrics.Metrics
 }
 
-// NewProviderCircuitBreakers creates circuit breakers for a single provider.
-// Returns nil if cfg is nil (no circuit breaker protection).
-// onChange is called when circuit state changes.
-// metrics is used to record circuit breaker reject counts (can be nil).
-func NewProviderCircuitBreakers(provider string, cfg *config.CircuitBreaker, onChange func(endpoint, model string, from, to gobreaker.State), m *metrics.Metrics) *ProviderCircuitBreakers {
+// NewProviderCircuitBreakers creates circuit breakers for a single provider
+// with state-change logging and metrics. Returns nil if cfg is nil (no
+// circuit breaker protection). m records state, trip, and reject metrics
+// and can be nil.
+func NewProviderCircuitBreakers(provider string, cfg *config.CircuitBreaker, logger slog.Logger, m *metrics.Metrics) *ProviderCircuitBreakers {
 	if cfg == nil {
 		return nil
+	}
+	onChange := func(endpoint, model string, from, to gobreaker.State) {
+		logger.Info(context.Background(), "circuit breaker state change",
+			slog.F("provider", provider),
+			slog.F("endpoint", endpoint),
+			slog.F("model", model),
+			slog.F("from", from.String()),
+			slog.F("to", to.String()),
+		)
+		if m != nil {
+			m.CircuitBreakerState.WithLabelValues(provider, endpoint, model).Set(StateToGaugeValue(to))
+			if to == gobreaker.StateOpen {
+				m.CircuitBreakerTrips.WithLabelValues(provider, endpoint, model).Inc()
+			}
+		}
 	}
 	return &ProviderCircuitBreakers{
 		provider: provider,
@@ -185,22 +201,6 @@ func (p *ProviderCircuitBreakers) Execute(endpoint, model string, w http.Respons
 	}
 
 	return handlerErr
-}
-
-// Timeout returns the configured timeout duration for this circuit breaker.
-func (p *ProviderCircuitBreakers) Timeout() time.Duration {
-	return p.config.Timeout
-}
-
-// Provider returns the provider name for this circuit breaker.
-func (p *ProviderCircuitBreakers) Provider() string {
-	return p.provider
-}
-
-// OpenErrorResponse returns the error response body when the circuit is open.
-// This is exposed for handlers to use when responding to rejected requests.
-func (p *ProviderCircuitBreakers) OpenErrorResponse() []byte {
-	return p.openErrBody()
 }
 
 // StateToGaugeValue converts gobreaker.State to a gauge value.

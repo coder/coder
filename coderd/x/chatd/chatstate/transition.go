@@ -46,7 +46,7 @@ func (t Transition) String() string { return string(t) }
 // included; they are orthogonal to execution state.
 var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	StateN: {
-		TransitionCreateChat: {StateR0},
+		TransitionCreateChat: {StateR0, StateW},
 	},
 	StateW: {
 		TransitionSetArchived:       {StateXW},

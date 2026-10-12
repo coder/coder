@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
 import {
@@ -14,12 +13,12 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { AgentSettingLayout } from "#/pages/AISettingsPage/CoderAgentsPage/components/AgentSettingLayout";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
-interface VirtualDesktopSettingsProps {
+type VirtualDesktopSettingsProps = {
 	computerUseProviderData: TypesGen.ChatComputerUseProviderResponse | undefined;
 	isLoadingComputerUseProvider: boolean;
 	onSaveComputerUseProvider: (
@@ -28,7 +27,7 @@ interface VirtualDesktopSettingsProps {
 	) => void;
 	isSavingComputerUseProvider: boolean;
 	computerUseProviderSaveError: Error | null;
-}
+};
 
 const computerUseProviderOptions = [
 	{ label: "Anthropic", value: "anthropic" },
@@ -42,7 +41,7 @@ const getComputerUseProviderLabel = (provider: string) => {
 	);
 };
 
-export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
+export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 	computerUseProviderData,
 	isLoadingComputerUseProvider,
 	onSaveComputerUseProvider,

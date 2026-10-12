@@ -228,10 +228,7 @@ func TestOrganizationParam(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode, "by default keyword")
 
-		// Try by legacy
-		// TODO: This can be removed when legacy nil uuids are no longer supported.
-		//		 This is a temporary measure to ensure as legacy provisioners use
-		//		 nil uuids as the org id and expect the default org.
+		// Try by nil uuid, which resolves to the default org.
 		chi.RouteContext(r.Context()).URLParams.Add("organization", uuid.Nil.String())
 		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
 		rtr.ServeHTTP(rw, r)

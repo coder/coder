@@ -5,7 +5,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 
-type TableProps = React.ComponentPropsWithRef<"table"> & {
+type TableProps = React.ComponentProps<"table"> & {
 	wrapperClassName?: string;
 };
 
@@ -27,7 +27,7 @@ export const Table: React.FC<TableProps> = ({
 	);
 };
 
-export const TableHeader: React.FC<React.ComponentPropsWithRef<"thead">> = ({
+export const TableHeader: React.FC<React.ComponentProps<"thead">> = ({
 	className,
 	...props
 }) => {
@@ -37,12 +37,12 @@ export const TableHeader: React.FC<React.ComponentPropsWithRef<"thead">> = ({
 const tableBodyVariants = cva(null, {
 	variants: {
 		size: {
-			lg: "[&>tr>td]:box-border [&>tr>td]:h-[72px]",
+			lg: "[&>tr>*]:box-border [&>tr>*]:h-[72px]",
 		},
 	},
 });
 
-type TableBodyProps = React.ComponentPropsWithRef<"tbody"> &
+type TableBodyProps = React.ComponentProps<"tbody"> &
 	VariantProps<typeof tableBodyVariants>;
 
 export const TableBody: React.FC<TableBodyProps> = ({
@@ -53,26 +53,14 @@ export const TableBody: React.FC<TableBodyProps> = ({
 	return (
 		<tbody
 			className={cn(
-				"[&>tr:first-of-type>td]:border-t [&>tr>td:first-of-type]:border-l",
-				"[&>tr:last-child>td]:border-b [&>tr>td:last-child]:border-r",
-				"[&>tr:first-of-type>td:first-of-type]:rounded-tl-md [&>tr:first-of-type>td:last-child]:rounded-tr-md",
-				"[&>tr:last-child>td:first-of-type]:rounded-bl-md [&>tr:last-child>td:last-child]:rounded-br-md",
+				// Select the outline by child position: a body row can start with a
+				// scope="row" th, and td:first-of-type would skip it and treat the
+				// second cell as the first.
+				"[&>tr:first-of-type>*]:border-t [&>tr>*:first-child]:border-l",
+				"[&>tr:last-child>*]:border-b [&>tr>*:last-child]:border-r",
+				"[&>tr:first-of-type>*:first-child]:rounded-tl-md [&>tr:first-of-type>*:last-child]:rounded-tr-md",
+				"[&>tr:last-child>*:first-child]:rounded-bl-md [&>tr:last-child>*:last-child]:rounded-br-md",
 				tableBodyVariants({ size }),
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
-
-export const TableFooter: React.FC<React.ComponentPropsWithRef<"tfoot">> = ({
-	className,
-	...props
-}) => {
-	return (
-		<tfoot
-			className={cn(
-				"border-t bg-surface-secondary/50 font-medium last:[&>tr]:border-b-0",
 				className,
 			)}
 			{...props}
@@ -101,7 +89,7 @@ const tableRowVariants = cva(
 	},
 );
 
-export type TableRowProps = React.HTMLAttributes<HTMLTableRowElement> &
+export type TableRowProps = React.ComponentProps<"tr"> &
 	VariantProps<typeof tableRowVariants>;
 
 export const TableRow: React.FC<TableRowProps> = ({
@@ -121,7 +109,7 @@ export const TableRow: React.FC<TableRowProps> = ({
 	);
 };
 
-export const TableHead: React.FC<React.ComponentPropsWithRef<"th">> = ({
+export const TableHead: React.FC<React.ComponentProps<"th">> = ({
 	className,
 	scope = "col",
 	...props
@@ -139,7 +127,7 @@ export const TableHead: React.FC<React.ComponentPropsWithRef<"th">> = ({
 	);
 };
 
-export const TableCell: React.FC<React.ComponentPropsWithRef<"td">> = ({
+export const TableCell: React.FC<React.ComponentProps<"td">> = ({
 	className,
 	...props
 }) => {

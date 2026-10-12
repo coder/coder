@@ -8,7 +8,6 @@
  * the workspaces and audits page that have a risk of getting out of sync.
  */
 
-import type { FC } from "react";
 import { API } from "#/api/api";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
@@ -90,12 +89,12 @@ export type OrganizationsFilterMenu = ReturnType<
 	typeof useOrganizationsFilterMenu
 >;
 
-interface OrganizationsMenuProps {
+type OrganizationsMenuProps = {
 	menu: OrganizationsFilterMenu;
 	width?: number;
-}
+};
 
-export const OrganizationsMenu: FC<OrganizationsMenuProps> = ({
+export const OrganizationsMenu: React.FC<OrganizationsMenuProps> = ({
 	menu,
 	width,
 }) => {

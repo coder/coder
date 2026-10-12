@@ -1,22 +1,21 @@
 import { cn } from "cn";
 import { SquareTerminalIcon } from "lucide-react";
-import type { FC } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { AppPreview } from "./AppLink/AppPreview";
 import { BaseIcon } from "./AppLink/BaseIcon";
 
-interface AgentRowPreviewStyles {
+type AgentRowPreviewStyles = {
 	// Helpful when there are more than one row so the values are aligned
 	// When it is only one row, it is better to have than "flex" and not hard aligned
 	alignValues?: boolean;
-}
-interface AgentRowPreviewProps extends AgentRowPreviewStyles {
+};
+type AgentRowPreviewProps = AgentRowPreviewStyles & {
 	agent: WorkspaceAgent;
-}
+};
 
-export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
+export const AgentRowPreview: React.FC<AgentRowPreviewProps> = ({
 	agent,
 	alignValues,
 }) => {

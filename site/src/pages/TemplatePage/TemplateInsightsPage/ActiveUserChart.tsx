@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
 	type ChartConfig,
@@ -15,11 +14,11 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
-interface ActiveUserChartProps {
+type ActiveUserChartProps = {
 	data: { date: string; amount: number }[];
-}
+};
 
-export const ActiveUserChart: FC<ActiveUserChartProps> = ({ data }) => {
+export const ActiveUserChart: React.FC<ActiveUserChartProps> = ({ data }) => {
 	return (
 		<ChartContainer config={chartConfig} className="aspect-auto h-full">
 			<AreaChart

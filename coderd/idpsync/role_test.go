@@ -164,6 +164,42 @@ func TestRoleSyncTable(t *testing.T) {
 			},
 		},
 		{
+			// agents-access removed from the org defaults is granted
+			// through role sync like any other role.
+			Name:                  "AgentsAccessNotDefault",
+			OrganizationRoles:     []string{},
+			DefaultOrgMemberRoles: []string{rbac.RoleOrgWorkspaceAccess()},
+			RoleSettings: &idpsync.RoleSyncSettings{
+				Field: "roles",
+				Mapping: map[string][]string{
+					"foo": {rbac.RoleAgentsAccess()},
+				},
+			},
+			assertRoles: &orgRoleAssert{
+				ExpectedOrgRoles: []string{
+					rbac.RoleOrgAuditor(),
+					rbac.RoleAgentsAccess(),
+				},
+			},
+		},
+		{
+			// While agents-access is a default it is implicit, so role
+			// sync neither stores nor strips it.
+			Name:              "AgentsAccessDefault",
+			OrganizationRoles: []string{},
+			RoleSettings: &idpsync.RoleSyncSettings{
+				Field: "roles",
+				Mapping: map[string][]string{
+					"foo": {rbac.RoleAgentsAccess()},
+				},
+			},
+			assertRoles: &orgRoleAssert{
+				ExpectedOrgRoles: []string{
+					rbac.RoleOrgAuditor(),
+				},
+			},
+		},
+		{
 			Name:              "NonExistentClaim",
 			OrganizationRoles: []string{rbac.RoleOrgAuditor()},
 			RoleSettings: &idpsync.RoleSyncSettings{

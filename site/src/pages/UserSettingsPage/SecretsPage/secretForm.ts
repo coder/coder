@@ -11,22 +11,22 @@ import type {
 	UserSecret,
 } from "#/api/typesGenerated";
 
-export interface SecretFormValues {
+export type SecretFormValues = {
 	name: string;
 	value: string;
 	description: string;
 	env_name: string;
 	file_path: string;
-}
+};
 
 type SecretFormField = keyof SecretFormValues;
 
 export type SecretFieldErrors = Partial<Record<SecretFormField, string>>;
 
-interface SecretFormErrors {
+type SecretFormErrors = {
 	fieldErrors: SecretFieldErrors;
 	formError?: string;
-}
+};
 
 export const buildImportSuccessMessage = (secrets: UserSecret[]): string => {
 	const total = secrets.length;
@@ -81,10 +81,10 @@ export const getCreateSecretRequiredFieldErrors = (
 	return errors;
 };
 
-interface SecretInjectionSummary {
+type SecretInjectionSummary = {
 	canEnable: boolean;
 	typeLabel: "env var" | "file" | "env var + file" | "not injected";
-}
+};
 
 export const getSecretInjectionSummary = (
 	secret: Pick<UserSecret, "env_name" | "file_path">,

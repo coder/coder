@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
-import { type FC, type PropsWithChildren, useState } from "react";
+import { useState } from "react";
 import type {
 	AIBridgeSessionThreadsResponse,
 	AIBridgeThread,
@@ -22,11 +22,19 @@ import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 import { SessionTimelineSkeleton } from "./SessionTimeline/SessionTimelineSkeleton";
 import { countSessionSearchMatches } from "./SessionTimeline/sessionSearch";
 
-const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
+const SessionSummaryTooltip: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => (
 	<TooltipProvider>
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<div className="shrink-0 flex items-center">{children}</div>
+				<button
+					type="button"
+					aria-label="About sessions"
+					className="m-0 ml-2 shrink-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				>
+					{children}
+				</button>
 			</TooltipTrigger>
 			<TooltipContent
 				side="top"
@@ -42,7 +50,7 @@ const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 	</TooltipProvider>
 );
 
-interface SessionThreadsPageViewProps {
+type SessionThreadsPageViewProps = {
 	session: AIBridgeSessionThreadsResponse | undefined;
 	threads: readonly AIBridgeThread[];
 	loading: boolean;
@@ -52,9 +60,9 @@ interface SessionThreadsPageViewProps {
 	isAISessionsEnabled: boolean;
 	isAISessionsEntitled: boolean;
 	onBackClicked: () => void;
-}
+};
 
-export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
+export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 	session,
 	threads,
 	loading,
@@ -156,7 +164,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 					<h2 className="text-sm font-semibold flex items-center m-0">
 						Session summary
 						<SessionSummaryTooltip>
-							<InfoIcon className="ml-2 text-content-secondary size-icon-xs" />
+							<InfoIcon className="text-content-secondary size-icon-xs" />
 						</SessionSummaryTooltip>
 					</h2>
 					{loading && <Loader className="my-4" />}

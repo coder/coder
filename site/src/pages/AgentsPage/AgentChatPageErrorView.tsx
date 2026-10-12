@@ -1,15 +1,14 @@
 import { RotateCcwIcon } from "lucide-react";
-import type { FC } from "react";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import { ChatTopBar } from "./components/ChatTopBar";
 
-interface AgentChatPageErrorViewProps {
+type AgentChatPageErrorViewProps = {
 	error: unknown;
 	onRetry: () => void;
-}
+};
 
-export const AgentChatPageErrorView: FC<AgentChatPageErrorViewProps> = ({
+export const AgentChatPageErrorView: React.FC<AgentChatPageErrorViewProps> = ({
 	error,
 	onRetry,
 }) => {

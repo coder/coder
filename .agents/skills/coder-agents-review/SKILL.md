@@ -1,6 +1,6 @@
 ---
 name: coder-agents-review
-description: "Use this skill when a repository already has an open pull request and you need to run the Coder Agents Review loop: request review with `/coder-agents-review` when needed, wait for feedback from the `coder-agents-review` GitHub app, fix issues, and repeat until the app comments `approved`."
+description: "Use this skill when a repository already has an open pull request and you need to run the Coder Agents Review loop: request review with `/coder-agents-review` when needed, wait for feedback from the `coder-agents-review` GitHub app, fix issues, and repeat until the app approves (an `approved` comment or an `APPROVED` review)."
 ---
 
 # Coder Agents Review Loop
@@ -18,7 +18,8 @@ The loop is:
 3. fix actionable issues with the smallest safe diff
 4. validate and push
 5. request another review with `/coder-agents-review`
-6. repeat until the app comments `approved`
+6. repeat until the app approves the current work (an `approved` comment
+   or an `APPROVED` review)
 
 ## Definition of done
 

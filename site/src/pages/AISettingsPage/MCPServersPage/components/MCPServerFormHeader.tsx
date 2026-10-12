@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ArrowLeftIcon, Share2Icon } from "lucide-react";
-import { type FC, useId } from "react";
+import { useId } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -12,9 +12,9 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { MCPServerIcon } from "./MCPServerIcon";
+import { MCPServerIcon } from "#/modules/mcpServers/MCPServerIcon";
 
-const MCPServerFormBackLink: FC<{ to: string }> = ({ to }) => {
+const MCPServerFormBackLink: React.FC<{ to: string }> = ({ to }) => {
 	return (
 		<Link to={to} className="-ml-3">
 			<Button variant="subtle" type="button">
@@ -25,7 +25,7 @@ const MCPServerFormBackLink: FC<{ to: string }> = ({ to }) => {
 	);
 };
 
-interface MCPServerFormHeaderProps {
+type MCPServerFormHeaderProps = {
 	server?: TypesGen.MCPServerConfig;
 	title: string;
 	iconUrl: string;
@@ -35,9 +35,9 @@ interface MCPServerFormHeaderProps {
 	onRequestDelete?: () => void;
 	onShareServer?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
-}
+};
 
-export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
+export const MCPServerFormHeader: React.FC<MCPServerFormHeaderProps> = ({
 	server,
 	title,
 	iconUrl,
@@ -82,9 +82,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 				)}
 			</div>
 			<div className="flex items-center gap-4 pt-6 min-w-0">
-				{isEditing && (
-					<MCPServerIcon iconUrl={iconUrl} name={title} className="size-12" />
-				)}
+				{isEditing && <MCPServerIcon iconUrl={iconUrl} className="size-12" />}
 				<SettingsHeaderTitle>
 					<span
 						className={cn(

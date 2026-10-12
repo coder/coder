@@ -16,9 +16,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
-	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -39,7 +39,7 @@ func NewStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
 	cfg intercept.Config,
-	cred intercept.Credential,
+	cred credential.Credential,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingResponsesInterceptor {
@@ -50,8 +50,8 @@ func NewBedrockStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
 	cfg intercept.Config,
-	cred intercept.Credential,
-	bedrockMantle *bedrocksig.MantleConfig,
+	cred credential.Credential,
+	bedrockMantle *awssig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingResponsesInterceptor {
@@ -62,8 +62,8 @@ func buildStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
 	cfg intercept.Config,
-	cred intercept.Credential,
-	bedrockMantle *bedrocksig.MantleConfig,
+	cred credential.Credential,
+	bedrockMantle *awssig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingResponsesInterceptor {
@@ -105,7 +105,11 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		return err
 	}
 
-	i.injectTools()
+	// Only injected tools let the inner agentic loop rerun upstream, which
+	// requires holding back everything but the final response so response.id
+	// stays consistent. Otherwise events are relayed as they arrive: buffering
+	// starves the client of headers and bytes until upstream completes.
+	toolsInjected := i.injectTools()
 
 	events := eventstream.NewEventStream(ctx, i.logger.Named("sse-sender"), nil, quartz.NewReal())
 	go events.Start(w, r)
@@ -120,6 +124,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	var completedResponse *responses.Response
 	var innerLoopErr error
 	var streamErr error
+	var relayed bool
 
 	prompt, promptFound, err := i.reqPayload.lastUserPrompt(ctx, i.logger)
 	if err != nil {
@@ -131,7 +136,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+	if cp, ok := credential.AsCentralizedPool(i.cred); ok {
 		defer func() {
 			cp.Pool.RecordAttempts(totalKeyAttempts)
 		}()
@@ -144,7 +149,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		// agentic continuation or a failover retry after the previous key was
 		// marked. BYOK has no pool and runs as a single attempt.
 		var walker *keypool.Walker
-		cp, isPool := intercept.AsCentralizedPool(i.cred)
+		cp, isPool := credential.AsCentralizedPool(i.cred)
 		if isPool {
 			walker = cp.Pool.Walker()
 		}
@@ -156,12 +161,6 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		for {
 			respCopy = responseCopier{}
 			opts := i.requestOptions(&respCopy)
-
-			// TODO(ssncferreira): inject actor headers directly in the client-header
-			//   middleware instead of using SDK options.
-			if actor := aibcontext.ActorFromContext(r.Context()); actor != nil && i.cfg.SendActorHeaders {
-				opts = append(opts, intercept.ActorHeadersAsOpenAIOpts(actor)...)
-			}
 
 			var currentPoolKey *keypool.Key
 			if isPool && walker != nil {
@@ -176,7 +175,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 					return xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				}
 
-				i.logger.Debug(intercept.WithCredentialInfo(ctx, i.cred), "using centralized api key")
+				i.logger.Debug(credential.WithCredentialInfo(ctx, i.cred), "using centralized api key")
 				currentPoolKey = key
 				opts = append(opts,
 					option.WithAPIKey(key.Value()),
@@ -247,16 +246,12 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 					completedResponse = &completedEvent.Response
 				}
 
-				// If no MCP proxy is provided then no tools are injected.
-				// Inner loop will never iterate more than once, so events can be forwarded as soon as received.
-				//
-				// Otherwise inner loop could iterate. Only last response should be forwarded.
-				// This is needed to keep consistency between response.id and response.previous_response_id fields.
-				if i.mcpProxy == nil {
+				if !toolsInjected {
 					if err := events.Send(ctx, respCopy.buff.readDelta()); err != nil {
 						err = xerrors.Errorf("failed to relay chunk: %w", err)
 						return err
 					}
+					relayed = true
 				}
 			}
 
@@ -275,7 +270,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			i.recordTokenUsage(ctx, completedResponse)
 		}
 
-		if i.mcpProxy != nil && completedResponse != nil {
+		if toolsInjected && completedResponse != nil {
 			pending := i.getPendingInjectedToolCalls(completedResponse)
 			shouldLoop, innerLoopErr = i.handleInnerAgenticLoop(ctx, pending, completedResponse)
 			if innerLoopErr != nil {
@@ -300,7 +295,14 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 
 	b, err := respCopy.readAll()
 	if err != nil {
-		return xerrors.Errorf("failed to read response body: %w", err)
+		err = xerrors.Errorf("failed to read response body: %w", err)
+		// Returning without a response would let the server emit an empty 200.
+		// A queued payload commits the response to SSE before IsStreaming
+		// reports it, so decide from what this request relayed instead.
+		if !relayed {
+			i.sendCustomErr(ctx, w, http.StatusBadGateway, err)
+		}
+		return err
 	}
 
 	err = events.Send(ctx, b)

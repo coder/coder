@@ -153,6 +153,43 @@ func TestServer_NotificationTemplateID(t *testing.T) {
 	require.Equal(t, notificationID, summaries[0].NotificationTemplateID)
 }
 
+func TestServer_MessageID(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	srv := new(smtpmock.Server)
+	err := srv.Start(ctx, smtpmock.Config{
+		HostAddress: "127.0.0.1",
+		SMTPPort:    0,
+		APIPort:     0,
+		Logger:      slogtest.Make(t, nil),
+	})
+	require.NoError(t, err)
+	defer srv.Stop()
+
+	messageID := "abc123@coder.com"
+	err = sendTestEmailWithMessageID(srv.SMTPAddress(), "test-user@coder.com", "Notification", messageID, "Body")
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return srv.MessageCount() == 1
+	}, testutil.WaitShort, testutil.IntervalMedium)
+
+	url := fmt.Sprintf("%s/messages", srv.APIAddress())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	var summaries []smtpmock.EmailSummary
+	err = json.NewDecoder(resp.Body).Decode(&summaries)
+	require.NoError(t, err)
+	require.Len(t, summaries, 1)
+	require.Equal(t, messageID, summaries[0].MessageID)
+}
+
 func TestServer_Purge(t *testing.T) {
 	t.Parallel()
 
@@ -194,6 +231,23 @@ func sendTestEmail(smtpAddr, to, subject, body string) error {
 	_, _ = msg.WriteString(fmt.Sprintf("From: %s\r\n", from))
 	_, _ = msg.WriteString(fmt.Sprintf("To: %s\r\n", to))
 	_, _ = msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	_, _ = msg.WriteString(fmt.Sprintf("Date: %s\r\n", now))
+	_, _ = msg.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+	_, _ = msg.WriteString("\r\n")
+	_, _ = msg.WriteString(body)
+
+	return smtp.SendMail(smtpAddr, nil, from, []string{to}, []byte(msg.String()))
+}
+
+func sendTestEmailWithMessageID(smtpAddr, to, subject, messageID, body string) error {
+	from := "noreply@coder.com"
+	now := time.Now().Format(time.RFC1123Z)
+
+	msg := strings.Builder{}
+	_, _ = msg.WriteString(fmt.Sprintf("From: %s\r\n", from))
+	_, _ = msg.WriteString(fmt.Sprintf("To: %s\r\n", to))
+	_, _ = msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	_, _ = msg.WriteString(fmt.Sprintf("Message-Id: %s\r\n", messageID))
 	_, _ = msg.WriteString(fmt.Sprintf("Date: %s\r\n", now))
 	_, _ = msg.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 	_, _ = msg.WriteString("\r\n")

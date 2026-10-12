@@ -1,17 +1,17 @@
 import { type AxiosError, type AxiosResponse, isAxiosError } from "axios";
 
-export interface FieldError {
+export type FieldError = {
 	field: string;
 	detail: string;
-}
+};
 
 type FieldErrors = Record<FieldError["field"], FieldError["detail"]>;
 
-export interface ApiErrorResponse {
+export type ApiErrorResponse = {
 	message: string;
 	detail?: string;
 	validations?: FieldError[];
-}
+};
 
 export type ApiError = AxiosError<ApiErrorResponse> & {
 	response: AxiosResponse<ApiErrorResponse>;
@@ -142,6 +142,12 @@ export const getErrorStatus = (error: unknown): number | undefined => {
 	}
 
 	return undefined;
+};
+
+/** Matches missing, inaccessible (404), or deleted (410) workspaces. */
+export const isWorkspaceNotFound = (error: unknown): boolean => {
+	const status = isAxiosError(error) ? error.response?.status : undefined;
+	return status === 404 || status === 410;
 };
 
 export class DetailedError extends Error {

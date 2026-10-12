@@ -1,5 +1,4 @@
 import { EllipsisVerticalIcon, PencilIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -11,16 +10,16 @@ import {
 import { Switch } from "#/components/Switch/Switch";
 import { TableCell, TableRow } from "#/components/Table/Table";
 
-interface AnnouncementBannerItemProps {
+type AnnouncementBannerItemProps = {
 	enabled: boolean;
 	backgroundColor?: string;
 	message?: string;
 	onUpdate: (banner: Partial<BannerConfig>) => Promise<void>;
 	onEdit: () => void;
 	onDelete: () => void;
-}
+};
 
-export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
+export const AnnouncementBannerItem: React.FC<AnnouncementBannerItemProps> = ({
 	enabled,
 	backgroundColor = "#004852",
 	message,

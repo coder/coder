@@ -32,6 +32,7 @@ const LocationProbe = () => {
 
 const aiSettingsRoutes: [RouterRoute, ...RouterRoute[]] = [
 	{ path: "/ai/settings/governance", useStoryElement: true },
+	{ path: "/ai/settings/spend", useStoryElement: true },
 	{ path: "/ai/settings/gateway-keys", useStoryElement: true },
 	{ path: "/ai/settings/providers", useStoryElement: true },
 	{ path: "/ai/settings/coder-agents", useStoryElement: true },
@@ -79,6 +80,7 @@ const meta: Meta<typeof AISettingsSidebarView> = {
 	],
 	args: {
 		permissions: MockPermissions,
+		canViewOrganizationInstructions: false,
 	},
 	parameters: {
 		reactRouter: atLocation("/ai/settings/coder-agents"),
@@ -88,13 +90,20 @@ const meta: Meta<typeof AISettingsSidebarView> = {
 export default meta;
 type Story = StoryObj<typeof AISettingsSidebarView>;
 
-export const CoderAgentsActive: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
-		await expect(
-			canvas.queryByRole("link", { name: "Spend" }),
-		).not.toBeInTheDocument();
+export const CoderAgentsActive: Story = {};
+
+export const SpendVisible: Story = {
+	args: {
+		canViewAISpend: true,
+	},
+};
+
+export const SpendActive: Story = {
+	args: {
+		canViewAISpend: true,
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/spend"),
 	},
 };
 
@@ -387,6 +396,17 @@ export const MCPServersHiddenWithoutPermission: Story = {
 		expect(
 			canvas.queryByRole("link", { name: "MCP servers" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const InstructionsForOrganizationAdmin: Story = {
+	args: {
+		permissions: MockNoPermissions,
+		canAccessOrganizationModels: true,
+		canViewOrganizationInstructions: true,
+	},
+	parameters: {
+		reactRouter: atLocation("/ai/settings/instructions"),
 	},
 };
 

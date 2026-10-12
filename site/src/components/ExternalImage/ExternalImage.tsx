@@ -1,7 +1,7 @@
 import { useAppearance } from "#/theme/appearance";
 import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 
-export const ExternalImage: React.FC<React.ComponentPropsWithRef<"img">> = ({
+export const ExternalImage: React.FC<React.ComponentProps<"img">> = ({
 	style,
 	alt = "",
 	...props

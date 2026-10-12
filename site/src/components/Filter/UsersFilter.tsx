@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import {
 	Filter,
 	MenuSkeleton,
@@ -60,15 +59,19 @@ const PRESET_FILTERS = [
 	{ query: userFilterQuery.all, name: "All users" },
 ];
 
-interface UsersFilterProps {
+type UsersFilterProps = {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus?: {
 		status?: StatusFilterMenu;
 	};
-}
+};
 
-export const UsersFilter: FC<UsersFilterProps> = ({ filter, error, menus }) => {
+export const UsersFilter: React.FC<UsersFilterProps> = ({
+	filter,
+	error,
+	menus,
+}) => {
 	return (
 		<Filter
 			presets={PRESET_FILTERS}

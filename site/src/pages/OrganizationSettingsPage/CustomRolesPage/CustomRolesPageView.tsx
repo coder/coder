@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { AssignableRoles, Organization, Role } from "#/api/typesGenerated";
 import { PremiumBadge } from "#/components/Badge/PresetBadges";
@@ -34,7 +34,7 @@ import type { Permissions } from "#/modules/permissions";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
 
-interface CustomRolesPageViewProps {
+type CustomRolesPageViewProps = {
 	organization: Organization;
 	builtInRoles: AssignableRoles[] | undefined;
 	customRoles: AssignableRoles[] | undefined;
@@ -49,9 +49,9 @@ interface CustomRolesPageViewProps {
 	availableOrgRoles?: AssignableRoles[];
 	onUpdateDefaultRoles?: (roles: string[]) => Promise<void>;
 	isUpdatingDefaultRoles?: boolean;
-}
+};
 
-export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
+export const CustomRolesPageView: React.FC<CustomRolesPageViewProps> = ({
 	organization,
 	builtInRoles,
 	customRoles,
@@ -148,16 +148,16 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	);
 };
 
-interface DefaultRolesSectionProps {
+type DefaultRolesSectionProps = {
 	organization: Organization;
 	availableOrgRoles?: AssignableRoles[];
 	canEditDefaultRoles: boolean;
 	defaultRolesEntitled: boolean;
 	isUpdatingDefaultRoles: boolean;
 	onUpdateDefaultRoles: (roles: string[]) => Promise<void>;
-}
+};
 
-const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
+const DefaultRolesSection: React.FC<DefaultRolesSectionProps> = ({
 	organization,
 	availableOrgRoles,
 	canEditDefaultRoles,
@@ -204,9 +204,8 @@ const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 			<div className="text-sm">
 				{organization.default_org_member_roles.length === 0 ? (
 					<span className="text-content-secondary">
-						No default roles. Members have only the permissions of their
-						directly assigned roles, which excludes creating and using
-						workspaces.
+						No default roles. Members can create and use workspaces or use Coder
+						Agents only through directly assigned roles.
 					</span>
 				) : (
 					<DefaultRolesSummary
@@ -230,12 +229,12 @@ const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 	);
 };
 
-interface DefaultRolesSummaryProps {
+type DefaultRolesSummaryProps = {
 	roleNames: readonly string[];
 	availableRoles?: AssignableRoles[];
-}
+};
 
-const DefaultRolesSummary: FC<DefaultRolesSummaryProps> = ({
+const DefaultRolesSummary: React.FC<DefaultRolesSummaryProps> = ({
 	roleNames,
 	availableRoles,
 }) => {
@@ -253,20 +252,20 @@ const DefaultRolesSummary: FC<DefaultRolesSummaryProps> = ({
 	);
 };
 
-interface RoleTableBodyProps {
+type RoleTableBodyProps = {
 	roles: AssignableRoles[] | undefined;
 	isCustomRolesEnabled: boolean;
 	canCreateOrgRole: boolean;
 	canUpdateOrgRole: boolean;
 	canDeleteOrgRole: boolean;
 	onDeleteRole: (role: Role) => void;
-}
+};
 
-interface RoleTableProps extends RoleTableBodyProps {
+type RoleTableProps = RoleTableBodyProps & {
 	"aria-label": string;
-}
+};
 
-const RoleTable: FC<RoleTableProps> = ({
+const RoleTable: React.FC<RoleTableProps> = ({
 	"aria-label": ariaLabel,
 	...bodyProps
 }) => {
@@ -286,7 +285,7 @@ const RoleTable: FC<RoleTableProps> = ({
 	);
 };
 
-const RoleTableBody: FC<RoleTableBodyProps> = ({
+const RoleTableBody: React.FC<RoleTableBodyProps> = ({
 	roles,
 	isCustomRolesEnabled,
 	canCreateOrgRole,
@@ -339,14 +338,14 @@ const RoleTableBody: FC<RoleTableBodyProps> = ({
 	);
 };
 
-interface RoleRowProps {
+type RoleRowProps = {
 	role: AssignableRoles;
 	canUpdateOrgRole: boolean;
 	canDeleteOrgRole: boolean;
 	onDelete: () => void;
-}
+};
 
-const RoleRow: FC<RoleRowProps> = ({
+const RoleRow: React.FC<RoleRowProps> = ({
 	role,
 	onDelete,
 	canUpdateOrgRole,

@@ -6,7 +6,9 @@ This is an example configuration of how to use Coder with
 [caddy](https://caddyserver.com/docs). To use Caddy to generate TLS
 certificates, you'll need a domain name that resolves to your Caddy server.
 
-## Getting started
+<a id="getting-started"></a>
+
+## Get started
 
 ### With `docker compose`
 
@@ -106,6 +108,10 @@ certificates, you'll need a domain name that resolves to your Caddy server.
      This is optional and can be removed.
    - `email@example.com`: Email to request certificates from LetsEncrypt/ZeroSSL
      (does not have to be Coder admin email)
+   - `ask http://example.com`: Change this to a URL you control that
+     validates the requested hostname before Caddy requests a certificate for
+     it. See [this discussion](https://github.com/coder/coder/discussions/29079#discussioncomment-18462842)
+     for a reference implementation.
 
 4. Start Coder. Set `CODER_ACCESS_URL` and `CODER_WILDCARD_ACCESS_URL` to the
    domain you're using in your Caddyfile.
@@ -147,8 +153,10 @@ certificates, you'll need a domain name that resolves to your Caddy server.
      is optional and can be removed.
    - `localhost:3000`: Address Coder is running on. Modify this if you changed
      `CODER_HTTP_ADDRESS` in the Coder configuration.
-   - _DO NOT CHANGE the `ask http://example.com` line! Doing so will result in
-     your certs potentially not being generated._
+   - `ask http://example.com`: Change this to a URL you control that
+     validates the requested hostname before Caddy requests a certificate for
+     it. See [this discussion](https://github.com/coder/coder/discussions/29079#discussioncomment-18462842)
+     for a reference implementation.
 
 4. [Configure Coder](../admin/setup/index.md) and change the following values:
 
@@ -194,14 +202,12 @@ certificates, you'll need a domain name that resolves to your Caddy server.
 7. Navigate to your Coder URL! A TLS certificate should be auto-generated on
    your first visit.
 
-## Generating wildcard certificates
+<a id="generating-wildcard-certificates"></a>
 
-By default, this configuration uses Caddy's
-[on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls) to
-generate a certificate for each subdomain (e.g. `app1.coder.example.com`,
-`app2.coder.example.com`). When users visit new subdomains, such as accessing
-[ports on a workspace](../admin/networking/port-forwarding.md), the request will
-take an additional 5-30 seconds since a new certificate is being generated.
+## Generate wildcard certificates
+
+By default, this configuration uses Caddy's [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls) to generate a certificate for each subdomain (e.g. `app1.coder.example.com`, `app2.coder.example.com`).
+When users visit new subdomains, such as accessing [ports on a workspace](../admin/networking/port-forwarding.md), the request will take an additional 5-30&nbsp;seconds since a new certificate is being generated.
 
 For production deployments, we recommend configuring Caddy to generate a
 wildcard certificate, which requires an explicit DNS challenge and additional

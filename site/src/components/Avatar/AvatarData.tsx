@@ -1,10 +1,9 @@
 import { cn } from "cn";
-import type { FC, ReactNode } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 
-interface AvatarDataProps {
-	title: ReactNode;
-	subtitle?: ReactNode;
+type AvatarDataProps = {
+	title: React.ReactNode;
+	subtitle?: React.ReactNode;
 	src?: string;
 	avatar?: React.ReactNode;
 
@@ -25,9 +24,9 @@ interface AvatarDataProps {
 	 * nodes (icons, badges) as `title` would otherwise clip silently.
 	 */
 	truncate?: boolean;
-}
+};
 
-export const AvatarData: FC<AvatarDataProps> = ({
+export const AvatarData: React.FC<AvatarDataProps> = ({
 	title,
 	subtitle,
 	src,

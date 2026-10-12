@@ -1,6 +1,6 @@
-import { type FC, Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 
-const formatJSONValue = (value: unknown, depth: number): ReactNode => {
+const formatJSONValue = (value: unknown, depth: number): React.ReactNode => {
 	switch (typeof value) {
 		case "boolean":
 			return <span className="text-syntax-boolean">{String(value)}</span>;
@@ -17,7 +17,6 @@ const formatJSONValue = (value: unknown, depth: number): ReactNode => {
 		if (value.length === 0) return "[]";
 		return (
 			<>
-				{/* biome-ignore lint/style/useConsistentCurlyBraces: \n requires a JS string literal */}
 				{"[\n"}
 				{value.map((v, i) => (
 					<Fragment key={i}>
@@ -39,7 +38,6 @@ const formatJSONValue = (value: unknown, depth: number): ReactNode => {
 				<Fragment key={k}>
 					{inner}
 					<span className="text-syntax-key">"{k}"</span>
-					{/* biome-ignore lint/style/useConsistentCurlyBraces: keeps spacing explicit */}
 					{": "}
 					{formatJSONValue(v, depth + 1)}
 					{i < entries.length - 1 ? ",\n" : "\n"}
@@ -53,7 +51,7 @@ const formatJSONValue = (value: unknown, depth: number): ReactNode => {
 
 // input is not guaranteed to be valid JSON, so we need to catch any errors
 // and return the original string if it is not valid
-export const JsonPrettyPrinter: FC<{ input: string }> = ({ input }) => {
+export const JsonPrettyPrinter: React.FC<{ input: string }> = ({ input }) => {
 	try {
 		return formatJSONValue(JSON.parse(input), 0);
 	} catch {

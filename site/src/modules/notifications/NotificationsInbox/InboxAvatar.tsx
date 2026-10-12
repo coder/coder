@@ -5,7 +5,6 @@ import {
 	UserIcon,
 } from "lucide-react";
 import type React from "react";
-import type { FC } from "react";
 import {
 	InboxNotificationFallbackIconAccount,
 	InboxNotificationFallbackIconOther,
@@ -35,7 +34,7 @@ type InboxAvatarProps = {
 	icon: string;
 };
 
-export const InboxAvatar: FC<InboxAvatarProps> = ({ icon }) => {
+export const InboxAvatar: React.FC<InboxAvatarProps> = ({ icon }) => {
 	if (icon === "") {
 		return <Avatar variant="icon">{fallbackIcons.DEFAULT_ICON_OTHER}</Avatar>;
 	}

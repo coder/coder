@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 type WorkspaceStatus string
@@ -169,6 +170,23 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 	}
 
 	return obj
+}
+
+func (p ChatProject) RBACObject() rbac.Object {
+	return rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.OwnerID.String())
+}
+
+// RBACObject scopes a memory to its project so the project owner owns it.
+// Memories carry no owner of their own, so the parent project must be
+// supplied.
+func (m ChatProjectMemory) RBACObject(project ChatProject) rbac.Object {
+	return rbac.ResourceChatProjectMemory.WithID(m.ID).InOrg(project.OrganizationID).WithOwner(project.OwnerID.String())
+}
+
+// ChatProjectMemoryRBACObject is the object to authorize when creating a
+// memory in the project, before an ID exists.
+func ChatProjectMemoryRBACObject(project ChatProject) rbac.Object {
+	return rbac.ResourceChatProjectMemory.InOrg(project.OrganizationID).WithOwner(project.OwnerID.String())
 }
 
 func (c Chat) RBACObject() rbac.Object {
@@ -660,6 +678,16 @@ func (a OAuth2ProviderApp) IsPublic() bool {
 	return a.ClientType == OAuth2ProviderAppClientTypePublic
 }
 
+// RegisteredRedirectURIs returns the redirect URIs the authorize and token
+// endpoints accept, primary first. RedirectUris is the source of truth.
+// The result is never empty: callers index the first entry directly.
+func (a OAuth2ProviderApp) RegisteredRedirectURIs() []string {
+	if len(a.RedirectUris) == 0 {
+		return []string{a.CallbackURL}
+	}
+	return slice.Unique(a.RedirectUris)
+}
+
 func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {
 	return a.OAuth2ProviderApp.RBACObject()
 }
@@ -999,22 +1027,23 @@ func (r GetWorkspaceBuildAgentsByInstanceIDRow) RBACObject() rbac.Object {
 // still used as the canonical connection log event type throughout
 // the codebase.
 type UpsertConnectionLogParams struct {
-	ID               uuid.UUID        `db:"id" json:"id"`
-	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
-	AgentName        string           `db:"agent_name" json:"agent_name"`
-	Type             ConnectionType   `db:"type" json:"type"`
-	Code             sql.NullInt32    `db:"code" json:"code"`
-	IP               pqtype.Inet      `db:"ip" json:"ip"`
-	UserAgent        sql.NullString   `db:"user_agent" json:"user_agent"`
-	UserID           uuid.NullUUID    `db:"user_id" json:"user_id"`
-	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
-	ConnectionID     uuid.NullUUID    `db:"connection_id" json:"connection_id"`
-	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
-	Time             time.Time        `db:"time" json:"time"`
-	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
+	ID               uuid.UUID           `db:"id" json:"id"`
+	OrganizationID   uuid.UUID           `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID           `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string              `db:"workspace_name" json:"workspace_name"`
+	AgentName        string              `db:"agent_name" json:"agent_name"`
+	ConnectionMethod ConnectionLogMethod `db:"connection_method" json:"connection_method"`
+	Code             sql.NullInt32       `db:"code" json:"code"`
+	IP               pqtype.Inet         `db:"ip" json:"ip"`
+	UserAgent        sql.NullString      `db:"user_agent" json:"user_agent"`
+	UserID           uuid.NullUUID       `db:"user_id" json:"user_id"`
+	AppNameOrPort    sql.NullString      `db:"app_name_or_port" json:"app_name_or_port"`
+	ConnectionID     uuid.NullUUID       `db:"connection_id" json:"connection_id"`
+	DisconnectReason sql.NullString      `db:"disconnect_reason" json:"disconnect_reason"`
+	ClientSessionID  sql.NullString      `db:"client_session_id" json:"client_session_id"`
+	Time             time.Time           `db:"time" json:"time"`
+	ConnectionStatus ConnectionStatus    `db:"connection_status" json:"connection_status"`
 }
 
 func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {

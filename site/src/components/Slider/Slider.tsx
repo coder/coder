@@ -7,7 +7,7 @@ import { cn } from "cn";
 import { Slider as SliderPrimitive } from "radix-ui";
 
 export const Slider: React.FC<
-	React.ComponentPropsWithRef<typeof SliderPrimitive.Root>
+	React.ComponentProps<typeof SliderPrimitive.Root>
 > = ({ className, defaultValue, value, min = 0, max = 100, ...props }) => {
 	const thumbCount = Array.isArray(value)
 		? value.length

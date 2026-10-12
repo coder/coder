@@ -71,18 +71,21 @@ export const NetworkDisabled: Story = {
 	},
 };
 
-// Tabbing to the disabled indicator's info button and pressing Enter reveals
-// the reason without a mouse.
+// Tabbing to the disabled indicator's info button reveals the reason tooltip
+// without a mouse.
 export const NetworkDisabledKeyboard: Story = {
 	args: {
 		...Default.args,
 		networkCalls: undefined,
 	},
-	play: async () => {
-		await userEvent.tab();
-		await userEvent.keyboard("{Enter}");
+	play: async ({ canvas }) => {
+		// Earlier rows, such as the token usage badges, are also focusable.
+		const info = canvas.getByRole("button", { name: "More info" });
+		while (document.activeElement !== info) {
+			await userEvent.tab();
+		}
 		await waitFor(() =>
-			expect(screen.getByRole("dialog")).toHaveTextContent(
+			expect(screen.getByRole("tooltip")).toHaveTextContent(
 				"Network request monitoring was not active for this session.",
 			),
 		);

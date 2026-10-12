@@ -415,3 +415,24 @@ WHERE site_configs.key = sqlc.arg(config_key)
         'agents_chat_debug_logging_allow_users',
         'agents_chat_personal_model_overrides_enabled'
     );
+
+-- GetExperimentRules returns every stored runtime experiment rule, keyed by
+-- the experiment name. starts_with is used instead of LIKE because '_' is a
+-- LIKE wildcard.
+-- name: GetExperimentRules :many
+SELECT
+    substr(site_configs.key, length('experiment_rule:') + 1)::text AS experiment,
+    site_configs.value
+FROM site_configs
+WHERE starts_with(site_configs.key, 'experiment_rule:')
+ORDER BY site_configs.key;
+
+-- name: GetExperimentRule :one
+SELECT site_configs.value
+FROM site_configs
+WHERE site_configs.key = 'experiment_rule:' || sqlc.arg(experiment)::text;
+
+-- name: UpsertExperimentRule :exec
+INSERT INTO site_configs (key, value)
+VALUES ('experiment_rule:' || sqlc.arg(experiment)::text, sqlc.arg(value)::text)
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;

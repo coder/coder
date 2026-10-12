@@ -1,16 +1,16 @@
 import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import { useTheme } from "#/theme/context";
 
 loader.config({ monaco });
 
-export interface MonacoEditorProps {
+export type MonacoEditorProps = {
 	value?: string;
 	path?: string;
 	onChange?: (value: string) => void;
-}
+};
 
 // Monaco exposes the keybinding service only as a private field, so we describe
 // the shape we use instead of reaching for `any`.
@@ -26,7 +26,7 @@ type EditorWithKeybindingService = monaco.editor.IStandaloneCodeEditor & {
 	readonly _standaloneKeybindingService: StandaloneKeybindingService;
 };
 
-export const MonacoEditor: FC<MonacoEditorProps> = ({
+export const MonacoEditor: React.FC<MonacoEditorProps> = ({
 	onChange,
 	value,
 	path,

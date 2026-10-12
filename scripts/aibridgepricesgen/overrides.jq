@@ -31,35 +31,20 @@ end
     )
   end
 
-# gpt-daybreak-blue-latest is an alias for gpt-5.6-sol. Copy its pricing
-# until models.dev includes the alias. Recheck the target when OpenAI updates it.
-# Ref: https://developers.openai.com/api/docs/pricing#cyber-models
-| if (.openai.models | has("gpt-daybreak-blue-latest")) then
-    error("overrides.jq: gpt-daybreak-blue-latest now present upstream; drop the injection")
-  elif (.openai.models."gpt-5.6-sol".cost | (.input | type) != "number" or (.output | type) != "number") then
-    error("overrides.jq: gpt-5.6-sol pricing missing upstream; update the gpt-daybreak-blue-latest source")
+# claude-mythos-5-1: same situation as claude-mythos-5. Anthropic prices it
+# identically to claude-fable-5-1 (including the reduced cache-read rate),
+# so inject it as a copy with its own id and display name.
+# Ref: https://platform.claude.com/docs/en/about-claude/pricing#model-pricing
+| if (.anthropic.models | has("claude-fable-5-1") | not) then
+    error("overrides.jq: claude-fable-5-1 gone from upstream; the claude-mythos-5-1 copy has no source")
+  elif (.anthropic.models | has("claude-mythos-5-1")) then
+    error("overrides.jq: claude-mythos-5-1 now present upstream; drop the injection")
   else
-    .openai.models."gpt-daybreak-blue-latest" = (
-      .openai.models."gpt-5.6-sol"
-      | .id = "gpt-daybreak-blue-latest"
-      | .name = "GPT Daybreak Blue Latest"
+    .anthropic.models."claude-mythos-5-1" = (
+      .anthropic.models."claude-fable-5-1"
+      | .id = "claude-mythos-5-1"
+      | .name = "Claude Mythos 5.1"
     )
-  end
-
-# gpt-daybreak-red-latest is an alias for gpt-5.6-cyber. Neither is listed
-# on models.dev, so use OpenAI's USD-per-million-token prices directly.
-# Recheck the target and rates when OpenAI updates the alias.
-# Ref: https://developers.openai.com/api/docs/pricing#cyber-models
-| if (.openai.models | has("gpt-daybreak-red-latest")) then
-    error("overrides.jq: gpt-daybreak-red-latest now present upstream; drop the injection")
-  elif (.openai.models | has("gpt-5.6-cyber")) then
-    error("overrides.jq: gpt-5.6-cyber now present upstream; copy its pricing for gpt-daybreak-red-latest")
-  else
-    .openai.models."gpt-daybreak-red-latest" = {
-      id: "gpt-daybreak-red-latest",
-      name: "GPT Daybreak Red Latest",
-      cost: {input: 12.5, output: 75, cache_read: 1.25, cache_write: 15.625}
-    }
   end
 
 # Copilot does not charge for background utility calls using GPT-4o mini,

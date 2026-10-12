@@ -75,15 +75,6 @@ func TrackerWithLogger(log slog.Logger) TrackerOption {
 	}
 }
 
-// TrackerWithFlushInterval allows configuring the flush interval of Tracker.
-func TrackerWithFlushInterval(d time.Duration) TrackerOption {
-	return func(h *UsageTracker) {
-		ticker := time.NewTicker(d)
-		h.tickCh = ticker.C
-		h.stopTick = ticker.Stop
-	}
-}
-
 // TrackerWithTickFlush allows passing two channels: one that reads
 // a time.Time, and one that returns the number of marked workspaces
 // every time Tracker flushes.

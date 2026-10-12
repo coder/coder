@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { richParameters } from "#/api/queries/templates";
 import type { TemplateVersionParameter, Workspace } from "#/api/typesGenerated";
@@ -19,13 +19,13 @@ import {
 } from "#/components/Popover/Popover";
 import { docs } from "#/utils/docs";
 
-interface BuildParametersPopoverProps {
+type BuildParametersPopoverProps = {
 	workspace: Workspace;
 	disabled?: boolean;
 	label: string;
-}
+};
 
-export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
+export const BuildParametersPopover: React.FC<BuildParametersPopoverProps> = ({
 	workspace,
 	disabled,
 	label,
@@ -64,15 +64,14 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 	);
 };
 
-interface BuildParametersPopoverContentProps {
+type BuildParametersPopoverContentProps = {
 	workspace: Workspace;
 	ephemeralParameters: TemplateVersionParameter[] | undefined;
-}
+};
 
-const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
-	workspace,
-	ephemeralParameters,
-}) => {
+const BuildParametersPopoverContent: React.FC<
+	BuildParametersPopoverContentProps
+> = ({ workspace, ephemeralParameters }) => {
 	if (!ephemeralParameters) {
 		return <Loader />;
 	}

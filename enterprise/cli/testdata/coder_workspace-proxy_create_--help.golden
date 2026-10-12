@@ -1,0 +1,33 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder workspace-proxy create [flags]
+
+  Create a workspace proxy
+
+OPTIONS:
+  -c, --column [id|name|display name|icon url|healthy|url|wildcard hostname|derp enabled|derp only|proxy status|proxy report|proxy checked at|created at|updated at|deleted|version|proxy token] (default: name,url,proxy token)
+          Columns to display in table output.
+
+      --display-name string
+          Display name of the proxy. If omitted, the name is reused as the
+          display name.
+
+      --icon string
+          Display icon of the proxy.
+
+      --name string
+          Name of the proxy. This is used to identify the proxy.
+
+      --no-prompt bool
+          Disable all input prompting, and fail if any required flags are
+          missing.
+
+      --only-token bool
+          Only print the token. This is useful for scripting.
+
+  -o, --output text|json|table (default: text)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

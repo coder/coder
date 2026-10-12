@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import type {
 	PreviewParameter,
 	Workspace,
@@ -37,7 +36,7 @@ type WorkspaceParametersPageViewProps = {
 	templateVersionId: string | undefined;
 };
 
-export const WorkspaceParametersPageView: FC<
+export const WorkspaceParametersPageView: React.FC<
 	WorkspaceParametersPageViewProps
 > = ({
 	workspace,

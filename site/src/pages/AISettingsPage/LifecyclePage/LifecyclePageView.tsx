@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -12,7 +11,7 @@ import { DebugRetentionSettings } from "./components/DebugRetentionSettings";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
 import { WorkspaceAutostopSettings } from "./components/WorkspaceAutostopSettings";
 
-export interface LifecyclePageViewProps {
+export type LifecyclePageViewProps = {
 	workspaceTTLData: TypesGen.ChatWorkspaceTTLResponse | undefined;
 	isWorkspaceTTLLoading: boolean;
 	isWorkspaceTTLLoadError: boolean;
@@ -67,9 +66,9 @@ export interface LifecyclePageViewProps {
 	>;
 	isSavingDebugLogging: boolean;
 	isSaveDebugLoggingError: boolean;
-}
+};
 
-export const LifecyclePageView: FC<LifecyclePageViewProps> = ({
+export const LifecyclePageView: React.FC<LifecyclePageViewProps> = ({
 	workspaceTTLData,
 	isWorkspaceTTLLoading,
 	isWorkspaceTTLLoadError,

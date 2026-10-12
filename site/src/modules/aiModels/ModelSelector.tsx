@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon, InfoIcon } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { useId, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -26,7 +26,7 @@ import { formatReasoningEffort } from "#/modules/aiModels/helpers";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
 
-export interface ModelSelectorOption {
+export type ModelSelectorOption = {
 	id: string;
 	provider: string;
 	providerId?: string;
@@ -37,11 +37,11 @@ export interface ModelSelectorOption {
 	contextLimit?: number;
 	reasoningEffortDefault?: string;
 	reasoningEfforts?: readonly string[];
-}
+};
 
-interface ModelSelectorProps {
+type ModelSelectorProps = {
 	options: readonly ModelSelectorOption[];
-	value: string;
+	value: string | undefined;
 	onValueChange: (value: string) => void;
 	/**
 	 * When set, the trigger's accessible name is this contextual label followed
@@ -66,15 +66,19 @@ interface ModelSelectorProps {
 	enableMobileFullWidthDropdown?: boolean;
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
-}
+};
 
 export const formatContextLimit = (tokens: number): string => {
-	if (tokens >= 1_000_000) {
-		const m = tokens / 1_000_000;
-		return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+	const roundedTokens = Math.round(tokens);
+	if (roundedTokens < 1_000) {
+		return `${roundedTokens}`;
 	}
 	const k = Math.round(tokens / 1_000);
-	return `${k}K`;
+	if (k < 1_000) {
+		return `${k}K`;
+	}
+	const m = tokens / 1_000_000;
+	return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
 };
 
 const getProviderLabel = (
@@ -93,7 +97,7 @@ const getSearchText = (option: ModelSelectorOption, providerLabel: string) =>
 		.join(" ")
 		.toLowerCase();
 
-export const ModelSelector: FC<ModelSelectorProps> = ({
+export const ModelSelector: React.FC<ModelSelectorProps> = ({
 	options,
 	value,
 	onValueChange,
@@ -194,7 +198,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 				className={cn(
 					enableMobileFullWidthDropdown &&
 						"mobile-full-width-dropdown mobile-full-width-dropdown-above-composer",
-					"w-72 overflow-hidden border-border-default p-0",
+					"w-72 overflow-hidden border-border p-0",
 					contentClassName,
 				)}
 				onOpenAutoFocus={(event) => {
@@ -210,7 +214,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 			>
 				<Command
 					shouldFilter={false}
-					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border-default [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
+					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
 				>
 					<CommandInput
 						value={search}
@@ -278,8 +282,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 									}
 									className={cn(
 										"p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:leading-[18px] [&_[cmdk-group-heading]]:text-content-secondary",
-										index > 0 &&
-											"border-0 border-t border-solid border-border-default",
+										index > 0 && "border-0 border-t border-solid border-border",
 									)}
 								>
 									{providerOptions.map((option) => (
@@ -318,16 +321,16 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	);
 };
 
-interface ReasoningEffortRowProps {
+type ReasoningEffortRowProps = {
 	option: ModelSelectorOption;
 	value: string;
 	onChange: (value: string) => void;
-}
+};
 
 // Effort row pinned below the model list. Lives outside the Command
 // so it stays visible while the list scrolls and cmdk's arrow-key
 // navigation does not capture the slider's keyboard interaction.
-const ReasoningEffortRow: FC<ReasoningEffortRowProps> = ({
+const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 	option,
 	value,
 	onChange,
@@ -340,7 +343,7 @@ const ReasoningEffortRow: FC<ReasoningEffortRowProps> = ({
 	const effortIndex = valueIndex >= 0 ? valueIndex : 0;
 
 	return (
-		<div className="flex items-center gap-3 border-0 border-t border-solid border-border-default px-3 py-2">
+		<div className="flex items-center gap-3 border-0 border-t border-solid border-border px-3 py-2">
 			<div className="flex shrink-0 items-center gap-1">
 				<span className="text-xs font-medium leading-[18px] text-content-secondary">
 					Effort
@@ -374,20 +377,33 @@ const ReasoningEffortRow: FC<ReasoningEffortRowProps> = ({
 				max={selectableEfforts.length - 1}
 				step={1}
 			/>
-			<span className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary">
-				{formatReasoningEffort(value)}
+			{/* Rendering every label in one grid cell keeps this slot at the width
+			    of the longest label, so the slider does not resize while dragging.
+			    The badge itself hugs its text and sits at the right edge. */}
+			<span className="grid shrink-0 justify-items-end">
+				{selectableEfforts.map((effort, index) => (
+					<span
+						key={effort}
+						className={cn(
+							"[grid-area:1/1] rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary",
+							index !== effortIndex && "invisible",
+						)}
+					>
+						{formatReasoningEffort(effort)}
+					</span>
+				))}
 			</span>
 		</div>
 	);
 };
 
-interface ModelOptionItemProps {
+type ModelOptionItemProps = {
 	option: ModelSelectorOption;
 	isSelected: boolean;
 	onSelect: () => void;
-}
+};
 
-const ModelOptionItem: FC<ModelOptionItemProps> = ({
+const ModelOptionItem: React.FC<ModelOptionItemProps> = ({
 	option,
 	isSelected,
 	onSelect,

@@ -423,7 +423,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case "api_key":
-		if req.APIKeyHeader == "" || req.APIKeyValue == "" {
+		if strings.TrimSpace(req.APIKeyHeader) == "" || strings.TrimSpace(req.APIKeyValue) == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "API key auth type requires api_key_header and api_key_value.",
 			})
@@ -469,6 +469,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		APIKeyValueKeyID:        sql.NullString{},
 		CustomHeaders:           customHeadersJSON,
 		CustomHeadersKeyID:      sql.NullString{},
+		SigningSecret:           strings.TrimSpace(req.SigningSecret),
+		SigningSecretKeyID:      sql.NullString{},
 		ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
 		ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
 		Availability:            strings.TrimSpace(req.Availability),
@@ -572,6 +574,8 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 }
 
 var errUserOIDCRequiresDeploymentPerms = xerrors.New("managing user_oidc MCP server configs requires deployment-level permissions")
+
+var errAPIKeyAuthRequiresHeaderAndValue = xerrors.New("api_key auth type requires api_key_header and api_key_value")
 
 var errMCPConfigSupersededDuringAuth = xerrors.New("MCP server config superseded during authorization")
 
@@ -784,6 +788,13 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			customHeadersKeyID = sql.NullString{}
 		}
 
+		signingSecret := existing.SigningSecret
+		signingSecretKeyID := existing.SigningSecretKeyID
+		if req.SigningSecret != nil {
+			signingSecret = strings.TrimSpace(*req.SigningSecret)
+			signingSecretKeyID = sql.NullString{}
+		}
+
 		toolAllowList := existing.ToolAllowList
 		if req.ToolAllowList != nil {
 			toolAllowList = coalesceStringSlice(trimStringSlice(*req.ToolAllowList))
@@ -882,6 +893,10 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		if authType == "api_key" && (apiKeyHeader == "" || apiKeyValue == "") {
+			return errAPIKeyAuthRequiresHeaderAndValue
+		}
+
 		// User grants are bound to the destination, auth flow, token and revocation
 		// endpoints, and OAuth client. Invalidate them when any of these change so
 		// stored tokens cannot be sent to another endpoint or client.
@@ -913,6 +928,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			APIKeyValueKeyID:        apiKeyValueKeyID,
 			CustomHeaders:           customHeaders,
 			CustomHeadersKeyID:      customHeadersKeyID,
+			SigningSecret:           signingSecret,
+			SigningSecretKeyID:      signingSecretKeyID,
 			ToolAllowList:           toolAllowList,
 			ToolDenyList:            toolDenyList,
 			Availability:            availability,
@@ -934,6 +951,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, errUserOIDCRequiresDeploymentPerms):
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: "Managing user_oidc MCP server configs requires deployment-level permissions.",
+			})
+			return
+		case errors.Is(err, errAPIKeyAuthRequiresHeaderAndValue):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "API key auth type requires api_key_header and api_key_value.",
 			})
 			return
 		case httpapi.Is404Error(err):
@@ -1567,8 +1589,6 @@ func (api *API) markMCPTokenRefreshFailure(
 // external authorization servers, so it must not change when other MCP
 // routes move. The route registration in coderd.go and the OAuth cookie
 // Path values must stay aligned with it.
-// TODO(CODAGT-922): define a migration story before moving registered
-// redirect URIs to /api/v2.
 func mcpServerOAuth2CallbackPath(configID uuid.UUID) string {
 	return fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", configID)
 }
@@ -1625,6 +1645,7 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		ModelIntent:         config.ModelIntent,
 		AllowInPlanMode:     config.AllowInPlanMode,
 		ForwardCoderHeaders: config.ForwardCoderHeaders,
+		HasSigningSecret:    config.SigningSecret != "",
 		CreatedAt:           config.CreatedAt,
 		UpdatedAt:           config.UpdatedAt,
 

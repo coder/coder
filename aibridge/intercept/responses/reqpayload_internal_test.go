@@ -69,7 +69,7 @@ func TestNewRequestPayload(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, payload)
 			assert.EqualValues(t, tc.want, payload)
-			assert.Equal(t, tc.model, payload.model())
+			assert.Equal(t, tc.model, payload.Model())
 			assert.Equal(t, tc.stream, payload.Stream())
 			assert.Equal(t, tc.background, payload.background())
 		})

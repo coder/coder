@@ -186,6 +186,21 @@ func humanizeTitle(title string) string {
 // breakingCommitRe matches conventional commit "!:" breaking changes.
 var breakingCommitRe = regexp.MustCompile(`^[a-zA-Z]+(\(.+\))?!:`)
 
+// findBreakingCommits returns the commits categorized as breaking,
+// either by a "!" title marker or a release/breaking label on the
+// source PR. Only the given commits are considered, so callers control
+// the range (e.g. prevVersion..HEAD).
+func findBreakingCommits(commits []commitEntry, prMeta *prMetadataMaps) []commitEntry {
+	var breaking []commitEntry
+	for _, c := range commits {
+		meta := prMeta.lookupCommit(c.FullSHA, c.PRCount)
+		if categorizeCommit(c.Title, meta.Labels) == "breaking" {
+			breaking = append(breaking, c)
+		}
+	}
+	return breaking
+}
+
 // categorizeCommit determines the release note section for a commit.
 // The priority order matches the bash script: breaking title first,
 // then labels (breaking, security, experimental), then prefix.

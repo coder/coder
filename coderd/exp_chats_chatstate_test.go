@@ -173,38 +173,79 @@ func TestArchiveChatStateTransitions(t *testing.T) {
 	})
 }
 
-// TestPostChatMessagesBusyInterrupt verifies that a busy-interrupt
-// send returns a queued response and leaves the chat in `interrupting`
-// from the endpoint's perspective.
+// TestPostChatMessagesBusyInterrupt verifies busy-interrupt sends from the
+// endpoint's perspective. An owned chat queues the message and lands in
+// `interrupting` for its runner. A chat with no owner has no runner, so the
+// interruption finishes inline and the message is promoted into history.
 func TestPostChatMessagesBusyInterrupt(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModel(t, client)
+	t.Run("OwnedChatQueues", func(t *testing.T) {
+		t.Parallel()
 
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusRunning, chat.Status)
+
+		// A worker owns the running chat.
+		chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors chatd background transitions.
+		machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chat.ID)
+		require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
+			return err
+		}))
+
+		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "stop"}},
+			BusyBehavior: codersdk.ChatBusyBehaviorInterrupt,
+		})
+		require.NoError(t, err)
+		require.True(t, resp.Queued, "busy interrupt must return queued=true")
+		require.NotNil(t, resp.QueuedMessage)
+
+		got, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusInterrupting, got.Status,
+			"busy interrupt send must land the chat in `interrupting`")
 	})
-	require.NoError(t, err)
-	require.Equal(t, codersdk.ChatStatusRunning, chat.Status)
 
-	// CreateChat leaves the chat in `running`; an interrupt-style
-	// follow-up should land it in `interrupting`.
-	resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-		Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "stop"}},
-		BusyBehavior: codersdk.ChatBusyBehaviorInterrupt,
+	t.Run("UnownedChatPromotesInline", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t, withChatWorkerDisabled)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+		})
+		require.NoError(t, err)
+
+		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "stop"}},
+			BusyBehavior: codersdk.ChatBusyBehaviorInterrupt,
+		})
+		require.NoError(t, err)
+		require.False(t, resp.Queued, "an unowned chat promotes the message instead of queueing it")
+		require.Nil(t, resp.QueuedMessage)
+		require.NotNil(t, resp.Message)
+		require.Equal(t, codersdk.ChatMessageRoleUser, resp.Message.Role)
+
+		got, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusRunning, got.Status,
+			"the promoted turn waits for a worker in `running`")
 	})
-	require.NoError(t, err)
-	require.True(t, resp.Queued, "busy interrupt must return queued=true")
-	require.NotNil(t, resp.QueuedMessage)
-
-	got, err := client.GetChat(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, codersdk.ChatStatusInterrupting, got.Status,
-		"busy interrupt send must land the chat in `interrupting`")
 }
 
 // TestDeleteChatQueuedMessageMissingReturns404 covers the new
@@ -237,7 +278,7 @@ func TestDeleteChatQueuedMessageMissingReturns404(t *testing.T) {
 	res, err := client.Request(
 		ctx,
 		http.MethodDelete,
-		fmt.Sprintf("/api/experimental/chats/%s/queue/99999999", chat.ID),
+		fmt.Sprintf("/api/v2/chats/%s/queue/99999999", chat.ID),
 		nil,
 	)
 	require.NoError(t, err)
@@ -264,7 +305,7 @@ func TestDeleteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	res, err := client.Request(
 		ctx,
 		http.MethodDelete,
-		fmt.Sprintf("/api/experimental/chats/%s/queue/99999999", chat.ID),
+		fmt.Sprintf("/api/v2/chats/%s/queue/99999999", chat.ID),
 		nil,
 	)
 	require.NoError(t, err)
@@ -299,7 +340,7 @@ func TestPromoteChatQueuedMessageMissingReturns404(t *testing.T) {
 	res, err := client.Request(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("/api/experimental/chats/%s/queue/99999999/promote", chat.ID),
+		fmt.Sprintf("/api/v2/chats/%s/queue/99999999/promote", chat.ID),
 		nil,
 	)
 	require.NoError(t, err)
@@ -326,7 +367,7 @@ func TestPromoteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	res, err := client.Request(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("/api/experimental/chats/%s/queue/99999999/promote", chat.ID),
+		fmt.Sprintf("/api/v2/chats/%s/queue/99999999/promote", chat.ID),
 		nil,
 	)
 	require.NoError(t, err)
@@ -436,7 +477,7 @@ func TestSubmitToolResultsRequiresActionSucceeds(t *testing.T) {
 	require.True(t, foundToolResult, "tool result message must be visible in chat history")
 }
 
-// TestPatchChatArchiveChildRejected verifies that PATCH /api/experimental/chats/{child}
+// TestPatchChatArchiveChildRejected verifies that PATCH /api/v2/chats/{child}
 // with archived=true returns the root-only error regardless of the
 // child's current archived value, and does not change archive state on
 // any family member.
@@ -485,7 +526,7 @@ func TestPatchChatArchiveChildRejected(t *testing.T) {
 	}
 }
 
-// TestPatchChatUnarchiveChildRejected verifies that PATCH /api/experimental/chats/{child}
+// TestPatchChatUnarchiveChildRejected verifies that PATCH /api/v2/chats/{child}
 // with archived=false on an archived family is rejected with the
 // root-only error and leaves every family member archived. The child
 // already matches the requested value? No, the family is archived;

@@ -153,6 +153,7 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
+// Required by the agentfake scaletest dialer.
 func (c *Client) ConnectRPC29WithRole(ctx context.Context, _ string) (
 	agentproto.DRPCAgentClient29, proto.DRPCTailnetClient28, error,
 ) {
@@ -177,10 +178,18 @@ func (c *Client) ConnectRPC210(ctx context.Context) (
 	return client, tAPI, nil
 }
 
-func (c *Client) ConnectRPC210WithRole(ctx context.Context, _ string) (
-	agentproto.DRPCAgentClient210, proto.DRPCTailnetClient28, error,
+// v2.11 adds no RPCs, so the v2.10 client satisfies it as-is.
+func (c *Client) ConnectRPC211WithRole(ctx context.Context, _ string) (
+	agentproto.DRPCAgentClient211, proto.DRPCTailnetClient28, error,
 ) {
 	return c.ConnectRPC210(ctx)
+}
+
+// v2.12 adds no RPCs, so the v2.11 client satisfies it as-is.
+func (c *Client) ConnectRPC212WithRole(ctx context.Context, role string) (
+	agentproto.DRPCAgentClient212, proto.DRPCTailnetClient28, error,
+) {
+	return c.ConnectRPC211WithRole(ctx, role)
 }
 
 func (c *Client) ConnectRPC29(ctx context.Context) (

@@ -130,12 +130,13 @@ func TestGenerateCompaction_RecordsRuntime(t *testing.T) {
 	model := &chattest.FakeModel{
 		ProviderName: "test-provider",
 		ModelName:    "test-model",
-		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			clock.Advance(1500 * time.Millisecond)
-			return &fantasy.Response{
-				Content: []fantasy.Content{
-					fantasy.TextContent{Text: "summary"},
-				},
+			return func(yield func(fantasy.StreamPart) bool) {
+				yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"})
+				yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"})
+				yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"})
+				yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop})
 			}, nil
 		},
 	}
@@ -197,210 +198,244 @@ type serialTool struct {
 
 func (serialTool) SerialToolCalls() bool { return true }
 
-func TestExecuteLocalTools_BatchWindowIsMaxNotSum(t *testing.T) {
+// Each case scripts one tool batch through the trapped clock: the batch
+// start timestamp is released first, then every step advances the clock,
+// lets one tool's calls finish, and releases the Now() calls they trap.
+func TestExecuteLocalTools_BatchRuntime(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	trap := clock.Trap().Now()
-	defer trap.Close()
-
-	fastGo := make(chan struct{})
-	slowGo := make(chan struct{})
-	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
-		Tools: []fantasy.AgentTool{
-			blockingTool("fast_tool", fastGo, fantasy.NewTextResponse("done")),
-			blockingTool("slow_tool", slowGo, fantasy.NewTextErrorResponse("blew up")),
-		},
-		ActiveTools: []string{"fast_tool", "slow_tool"},
-		ToolCalls: []fantasy.ToolCallContent{
-			{ToolCallID: "call-fast", ToolName: "fast_tool", Input: "{}"},
-			{ToolCallID: "call-slow", ToolName: "slow_tool", Input: "{}"},
-		},
-	})
-
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(10 * time.Second)
-	close(fastGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(50 * time.Second)
-	close(slowGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-
-	outcome := testutil.RequireReceive(ctx, t, resultCh)
-	require.Equal(t, 60*time.Second, outcome.BatchRuntime)
-	require.Equal(t, 2, outcome.BatchBilledCalls)
-}
-
-func TestExecuteLocalTools_SimultaneousCompletionsBillOnce(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	trap := clock.Trap().Now()
-	defer trap.Close()
-
-	release := make(chan struct{})
-	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
-		Tools: []fantasy.AgentTool{
-			blockingTool("read_tool", release, fantasy.NewTextResponse("done")),
-		},
-		ActiveTools: []string{"read_tool"},
-		ToolCalls: []fantasy.ToolCallContent{
-			{ToolCallID: "call-1", ToolName: "read_tool", Input: "{}"},
-			{ToolCallID: "call-2", ToolName: "read_tool", Input: "{}"},
-			{ToolCallID: "call-3", ToolName: "read_tool", Input: "{}"},
-		},
-	})
-
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(10 * time.Second)
-	close(release)
-	for range 3 {
-		trap.MustWait(ctx).MustRelease(ctx)
+	type tool struct {
+		name     string
+		response fantasy.ToolResponse
+		serial   bool
 	}
-
-	outcome := testutil.RequireReceive(ctx, t, resultCh)
-	require.Equal(t, 10*time.Second, outcome.BatchRuntime)
-}
-
-func TestExecuteLocalTools_UnbilledToolNeverExtendsWindow(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	trap := clock.Trap().Now()
-	defer trap.Close()
-
-	executeGo := make(chan struct{})
-	waitGo := make(chan struct{})
-	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
-		Tools: []fantasy.AgentTool{
-			blockingTool("execute", executeGo, fantasy.NewTextResponse("done")),
-			blockingTool("wait_agent", waitGo, fantasy.NewTextResponse("child report")),
+	type step struct {
+		advance time.Duration
+		finish  string
+		// releases counts the trapped Now() calls that follow finish: one
+		// per completing call, plus one for the next serial call's start.
+		releases int
+	}
+	cases := []struct {
+		name            string
+		tools           []tool
+		unbilled        map[string]bool
+		aliases         map[string]string
+		calls           []fantasy.ToolCallContent
+		steps           []step
+		wantRuntime     time.Duration
+		wantBilledCalls int
+	}{
+		{
+			name: "BatchWindowIsMaxNotSum",
+			tools: []tool{
+				{name: "fast_tool", response: fantasy.NewTextResponse("done")},
+				{name: "slow_tool", response: fantasy.NewTextErrorResponse("blew up")},
+			},
+			calls: []fantasy.ToolCallContent{
+				{ToolCallID: "call-fast", ToolName: "fast_tool", Input: "{}"},
+				{ToolCallID: "call-slow", ToolName: "slow_tool", Input: "{}"},
+			},
+			steps: []step{
+				{advance: 10 * time.Second, finish: "fast_tool", releases: 1},
+				{advance: 50 * time.Second, finish: "slow_tool", releases: 1},
+			},
+			wantRuntime:     60 * time.Second,
+			wantBilledCalls: 2,
 		},
-		ActiveTools:       []string{"execute", "wait_agent"},
-		UnbilledToolNames: map[string]bool{"wait_agent": true},
-		ToolCalls: []fantasy.ToolCallContent{
-			{ToolCallID: "call-execute", ToolName: "execute", Input: "{}"},
-			{ToolCallID: "call-wait", ToolName: "wait_agent", Input: "{}"},
+		{
+			name: "SimultaneousCompletionsBillOnce",
+			tools: []tool{
+				{name: "read_tool", response: fantasy.NewTextResponse("done")},
+			},
+			calls: []fantasy.ToolCallContent{
+				{ToolCallID: "call-1", ToolName: "read_tool", Input: "{}"},
+				{ToolCallID: "call-2", ToolName: "read_tool", Input: "{}"},
+				{ToolCallID: "call-3", ToolName: "read_tool", Input: "{}"},
+			},
+			steps: []step{
+				{advance: 10 * time.Second, finish: "read_tool", releases: 3},
+			},
+			wantRuntime:     10 * time.Second,
+			wantBilledCalls: 3,
 		},
-	})
-
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(10 * time.Second)
-	close(executeGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(50 * time.Second)
-	close(waitGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-
-	outcome := testutil.RequireReceive(ctx, t, resultCh)
-	require.Equal(t, 10*time.Second, outcome.BatchRuntime)
-}
-
-func TestExecuteLocalTools_UnbilledOnlyBatchBillsNothing(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	trap := clock.Trap().Now()
-	defer trap.Close()
-
-	waitGo := make(chan struct{})
-	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
-		Tools: []fantasy.AgentTool{
-			blockingTool("wait_agent", waitGo, fantasy.NewTextResponse("child report")),
+		{
+			name: "UnbilledToolNeverExtendsWindow",
+			tools: []tool{
+				{name: "execute", response: fantasy.NewTextResponse("done")},
+				{name: "wait_agent", response: fantasy.NewTextResponse("child report")},
+			},
+			unbilled: map[string]bool{"wait_agent": true},
+			calls: []fantasy.ToolCallContent{
+				{ToolCallID: "call-execute", ToolName: "execute", Input: "{}"},
+				{ToolCallID: "call-wait", ToolName: "wait_agent", Input: "{}"},
+			},
+			steps: []step{
+				{advance: 10 * time.Second, finish: "execute", releases: 1},
+				{advance: 50 * time.Second, finish: "wait_agent", releases: 1},
+			},
+			wantRuntime:     10 * time.Second,
+			wantBilledCalls: 1,
 		},
-		ActiveTools:       []string{"wait_agent"},
-		UnbilledToolNames: map[string]bool{"wait_agent": true},
-		ToolCalls: []fantasy.ToolCallContent{
-			{ToolCallID: "call-wait", ToolName: "wait_agent", Input: "{}"},
+		{
+			name: "UnbilledOnlyBatchBillsNothing",
+			tools: []tool{
+				{name: "wait_agent", response: fantasy.NewTextResponse("child report")},
+			},
+			unbilled: map[string]bool{"wait_agent": true},
+			calls: []fantasy.ToolCallContent{
+				{ToolCallID: "call-wait", ToolName: "wait_agent", Input: "{}"},
+			},
+			steps: []step{
+				{advance: 60 * time.Second, finish: "wait_agent", releases: 1},
+			},
+			wantRuntime:     0,
+			wantBilledCalls: 0,
 		},
-	})
-
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(60 * time.Second)
-	close(waitGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-
-	outcome := testutil.RequireReceive(ctx, t, resultCh)
-	require.Zero(t, outcome.BatchRuntime)
-	require.Zero(t, outcome.BatchBilledCalls)
-}
-
-func TestExecuteLocalTools_AliasNamesClassifyAsCalled(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	trap := clock.Trap().Now()
-	defer trap.Close()
-
-	executeGo := make(chan struct{})
-	legacyGo := make(chan struct{})
-	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
-		Tools: []fantasy.AgentTool{
-			blockingTool("execute", executeGo, fantasy.NewTextResponse("done")),
-			blockingTool("interrupt_agent", legacyGo, fantasy.NewTextResponse("stopped")),
+		{
+			name: "AliasNamesClassifyAsCalled",
+			tools: []tool{
+				{name: "execute", response: fantasy.NewTextResponse("done")},
+				{name: "interrupt_agent", response: fantasy.NewTextResponse("stopped")},
+			},
+			aliases: map[string]string{"close_agent": "interrupt_agent"},
+			unbilled: map[string]bool{
+				"interrupt_agent": true,
+				"close_agent":     true,
+			},
+			calls: []fantasy.ToolCallContent{
+				{ToolCallID: "call-execute", ToolName: "execute", Input: "{}"},
+				{ToolCallID: "call-legacy", ToolName: "close_agent", Input: "{}"},
+			},
+			steps: []step{
+				{advance: 10 * time.Second, finish: "execute", releases: 1},
+				{advance: 50 * time.Second, finish: "interrupt_agent", releases: 1},
+			},
+			wantRuntime:     10 * time.Second,
+			wantBilledCalls: 1,
 		},
-		ActiveTools:     []string{"execute", "interrupt_agent"},
-		ToolNameAliases: map[string]string{"close_agent": "interrupt_agent"},
-		UnbilledToolNames: map[string]bool{
-			"interrupt_agent": true,
-			"close_agent":     true,
+		{
+			name: "DuplicateToolCallIDsKeepOccurrenceCompletions",
+			tools: []tool{
+				{name: "slow_tool", response: fantasy.NewTextResponse("done")},
+				{name: "fast_tool", response: fantasy.NewTextResponse("done")},
+			},
+			calls: []fantasy.ToolCallContent{
+				{ToolCallID: "call-dup", ToolName: "slow_tool", Input: "{}"},
+				{ToolCallID: "call-dup", ToolName: "fast_tool", Input: "{}"},
+			},
+			steps: []step{
+				{advance: 10 * time.Second, finish: "fast_tool", releases: 1},
+				{advance: 50 * time.Second, finish: "slow_tool", releases: 1},
+			},
+			wantRuntime:     60 * time.Second,
+			wantBilledCalls: 2,
 		},
-		ToolCalls: []fantasy.ToolCallContent{
-			{ToolCallID: "call-execute", ToolName: "execute", Input: "{}"},
-			{ToolCallID: "call-legacy", ToolName: "close_agent", Input: "{}"},
+		{
+			name: "EmptyToolCallIDStillBillsWindow",
+			tools: []tool{
+				{name: "idless_tool", response: fantasy.NewTextResponse("done")},
+				{name: "fast_tool", response: fantasy.NewTextResponse("done")},
+			},
+			calls: []fantasy.ToolCallContent{
+				{ToolCallID: "", ToolName: "idless_tool", Input: "{}"},
+				{ToolCallID: "call-fast", ToolName: "fast_tool", Input: "{}"},
+			},
+			steps: []step{
+				{advance: 10 * time.Second, finish: "fast_tool", releases: 1},
+				{advance: 50 * time.Second, finish: "idless_tool", releases: 1},
+			},
+			wantRuntime:     60 * time.Second,
+			wantBilledCalls: 2,
 		},
-	})
-
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(10 * time.Second)
-	close(executeGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(50 * time.Second)
-	close(legacyGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-
-	outcome := testutil.RequireReceive(ctx, t, resultCh)
-	require.Equal(t, 10*time.Second, outcome.BatchRuntime)
-	require.Equal(t, 1, outcome.BatchBilledCalls)
-}
-
-func TestExecuteLocalTools_DuplicateToolCallIDsKeepOccurrenceCompletions(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	trap := clock.Trap().Now()
-	defer trap.Close()
-
-	slowGo := make(chan struct{})
-	fastGo := make(chan struct{})
-	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
-		Tools: []fantasy.AgentTool{
-			blockingTool("slow_tool", slowGo, fantasy.NewTextResponse("done")),
-			blockingTool("fast_tool", fastGo, fantasy.NewTextResponse("done")),
+		{
+			// A serial call bills its own execution, not the unbilled wait
+			// that delayed its launch.
+			name: "SerialCallBillsFromItsOwnStart",
+			tools: []tool{
+				{name: "wait_agent", response: fantasy.NewTextResponse("child report")},
+				{name: "serial_tool", response: fantasy.NewTextResponse("done"), serial: true},
+			},
+			unbilled: map[string]bool{"wait_agent": true},
+			calls: []fantasy.ToolCallContent{
+				{ToolCallID: "call-wait", ToolName: "wait_agent", Input: "{}"},
+				{ToolCallID: "call-serial", ToolName: "serial_tool", Input: "{}"},
+			},
+			steps: []step{
+				{advance: 10 * time.Minute, finish: "wait_agent", releases: 2},
+				{advance: 2 * time.Second, finish: "serial_tool", releases: 1},
+			},
+			wantRuntime:     2 * time.Second,
+			wantBilledCalls: 1,
 		},
-		ActiveTools: []string{"slow_tool", "fast_tool"},
-		ToolCalls: []fantasy.ToolCallContent{
-			{ToolCallID: "call-dup", ToolName: "slow_tool", Input: "{}"},
-			{ToolCallID: "call-dup", ToolName: "fast_tool", Input: "{}"},
+		{
+			// The 3s concurrent window and the 2s serial window bill; the 7s
+			// span where only wait_agent ran does not.
+			name: "SerialAfterBilledSiblingBillsUnion",
+			tools: []tool{
+				{name: "execute", response: fantasy.NewTextResponse("done")},
+				{name: "wait_agent", response: fantasy.NewTextResponse("child report")},
+				{name: "serial_tool", response: fantasy.NewTextResponse("done"), serial: true},
+			},
+			unbilled: map[string]bool{"wait_agent": true},
+			calls: []fantasy.ToolCallContent{
+				{ToolCallID: "call-execute", ToolName: "execute", Input: "{}"},
+				{ToolCallID: "call-wait", ToolName: "wait_agent", Input: "{}"},
+				{ToolCallID: "call-serial", ToolName: "serial_tool", Input: "{}"},
+			},
+			steps: []step{
+				{advance: 3 * time.Second, finish: "execute", releases: 1},
+				{advance: 7 * time.Second, finish: "wait_agent", releases: 2},
+				{advance: 2 * time.Second, finish: "serial_tool", releases: 1},
+			},
+			wantRuntime:     5 * time.Second,
+			wantBilledCalls: 2,
 		},
-	})
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(10 * time.Second)
-	close(fastGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(50 * time.Second)
-	close(slowGo)
-	trap.MustWait(ctx).MustRelease(ctx)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+			trap := clock.Trap().Now()
+			defer trap.Close()
 
-	outcome := testutil.RequireReceive(ctx, t, resultCh)
-	require.Equal(t, 60*time.Second, outcome.BatchRuntime)
+			releases := make(map[string]chan struct{}, len(tc.tools))
+			tools := make([]fantasy.AgentTool, 0, len(tc.tools))
+			activeTools := make([]string, 0, len(tc.tools))
+			for _, tl := range tc.tools {
+				release := make(chan struct{})
+				releases[tl.name] = release
+				agentTool := blockingTool(tl.name, release, tl.response)
+				if tl.serial {
+					agentTool = serialTool{agentTool}
+				}
+				tools = append(tools, agentTool)
+				activeTools = append(activeTools, tl.name)
+			}
+			resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
+				Tools:             tools,
+				ActiveTools:       activeTools,
+				ToolNameAliases:   tc.aliases,
+				UnbilledToolNames: tc.unbilled,
+				ToolCalls:         tc.calls,
+			})
+
+			trap.MustWait(ctx).MustRelease(ctx)
+			for _, st := range tc.steps {
+				clock.Advance(st.advance)
+				close(releases[st.finish])
+				for range st.releases {
+					trap.MustWait(ctx).MustRelease(ctx)
+				}
+			}
+
+			outcome := testutil.RequireReceive(ctx, t, resultCh)
+			require.Equal(t, tc.wantRuntime, outcome.BatchRuntime)
+			require.Equal(t, tc.wantBilledCalls, outcome.BatchBilledCalls)
+		})
+	}
 }
 
 // recordingToolBillingRecorder is a test ToolBillingRecorder that
@@ -500,40 +535,6 @@ func TestExecuteLocalTools_BillingRecorderRecordsOnlyRuns(t *testing.T) {
 	})
 }
 
-func TestExecuteLocalTools_EmptyToolCallIDStillBillsWindow(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	trap := clock.Trap().Now()
-	defer trap.Close()
-
-	idlessGo := make(chan struct{})
-	fastGo := make(chan struct{})
-	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
-		Tools: []fantasy.AgentTool{
-			blockingTool("idless_tool", idlessGo, fantasy.NewTextResponse("done")),
-			blockingTool("fast_tool", fastGo, fantasy.NewTextResponse("done")),
-		},
-		ActiveTools: []string{"idless_tool", "fast_tool"},
-		ToolCalls: []fantasy.ToolCallContent{
-			{ToolCallID: "", ToolName: "idless_tool", Input: "{}"},
-			{ToolCallID: "call-fast", ToolName: "fast_tool", Input: "{}"},
-		},
-	})
-
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(10 * time.Second)
-	close(fastGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(50 * time.Second)
-	close(idlessGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-
-	outcome := testutil.RequireReceive(ctx, t, resultCh)
-	require.Equal(t, 60*time.Second, outcome.BatchRuntime)
-}
-
 func TestExecuteLocalTools_BillingRecorderReportsLiveCompletions(t *testing.T) {
 	t.Parallel()
 
@@ -578,88 +579,6 @@ func TestExecuteLocalTools_BillingRecorderReportsLiveCompletions(t *testing.T) {
 		"call-fast": fast.completedAt,
 		"call-slow": slow.completedAt,
 	}, outcome.ToolResultCreatedAt)
-}
-
-func TestExecuteLocalTools_SerialCallBillsFromItsOwnStart(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	trap := clock.Trap().Now()
-	defer trap.Close()
-
-	waitGo := make(chan struct{})
-	serialGo := make(chan struct{})
-	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
-		Tools: []fantasy.AgentTool{
-			blockingTool("wait_agent", waitGo, fantasy.NewTextResponse("child report")),
-			serialTool{blockingTool("serial_tool", serialGo, fantasy.NewTextResponse("done"))},
-		},
-		ActiveTools:       []string{"wait_agent", "serial_tool"},
-		UnbilledToolNames: map[string]bool{"wait_agent": true},
-		ToolCalls: []fantasy.ToolCallContent{
-			{ToolCallID: "call-wait", ToolName: "wait_agent", Input: "{}"},
-			{ToolCallID: "call-serial", ToolName: "serial_tool", Input: "{}"},
-		},
-	})
-
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(10 * time.Minute)
-	close(waitGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-	// Release the serial start timestamp.
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(2 * time.Second)
-	close(serialGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-
-	outcome := testutil.RequireReceive(ctx, t, resultCh)
-	require.Equal(t, 2*time.Second, outcome.BatchRuntime,
-		"a serial call bills its own execution, not the unbilled wait that delayed its launch")
-}
-
-func TestExecuteLocalTools_SerialAfterBilledSiblingBillsUnion(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	trap := clock.Trap().Now()
-	defer trap.Close()
-
-	execGo := make(chan struct{})
-	waitGo := make(chan struct{})
-	serialGo := make(chan struct{})
-	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
-		Tools: []fantasy.AgentTool{
-			blockingTool("execute", execGo, fantasy.NewTextResponse("done")),
-			blockingTool("wait_agent", waitGo, fantasy.NewTextResponse("child report")),
-			serialTool{blockingTool("serial_tool", serialGo, fantasy.NewTextResponse("done"))},
-		},
-		ActiveTools:       []string{"execute", "wait_agent", "serial_tool"},
-		UnbilledToolNames: map[string]bool{"wait_agent": true},
-		ToolCalls: []fantasy.ToolCallContent{
-			{ToolCallID: "call-execute", ToolName: "execute", Input: "{}"},
-			{ToolCallID: "call-wait", ToolName: "wait_agent", Input: "{}"},
-			{ToolCallID: "call-serial", ToolName: "serial_tool", Input: "{}"},
-		},
-	})
-
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(3 * time.Second)
-	close(execGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(7 * time.Second)
-	close(waitGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-	// Release the serial start timestamp.
-	trap.MustWait(ctx).MustRelease(ctx)
-	clock.Advance(2 * time.Second)
-	close(serialGo)
-	trap.MustWait(ctx).MustRelease(ctx)
-
-	outcome := testutil.RequireReceive(ctx, t, resultCh)
-	require.Equal(t, 5*time.Second, outcome.BatchRuntime,
-		"the 3s concurrent window and the 2s serial window bill; the 7s span where only wait_agent ran does not")
 }
 
 func TestBilledIntervalsDuration(t *testing.T) {

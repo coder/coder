@@ -13,7 +13,7 @@ vi.mock("#/api/api", () => ({
 // We use vi.hoisted() to define the mock class in the hoisted scope, then
 // reference it from the factory and from the tests.
 
-interface MockRFBInstance {
+type MockRFBInstance = {
 	scaleViewport: boolean;
 	resizeSession: boolean;
 	clipboardPasteFrom: ReturnType<typeof vi.fn>;
@@ -22,7 +22,7 @@ interface MockRFBInstance {
 	addEventListener: ReturnType<typeof vi.fn>;
 	listeners: Map<string, (ev: unknown) => void>;
 	simulateEvent: (type: string, detail?: unknown) => void;
-}
+};
 
 const { FakeRFB, lastInstance } = vi.hoisted(() => {
 	const ref: { current: MockRFBInstance | null } = { current: null };

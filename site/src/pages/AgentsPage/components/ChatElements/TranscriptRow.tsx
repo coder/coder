@@ -1,13 +1,12 @@
 import { cn } from "cn";
 import { Slot } from "radix-ui";
-import type { ComponentPropsWithRef, FC } from "react";
 
-type TranscriptRowProps = ComponentPropsWithRef<"div"> & {
+type TranscriptRowProps = React.ComponentProps<"div"> & {
 	asChild?: boolean;
 };
 
 /** Consistent min-height for transcript rows that bypass the ToolCall primitives. */
-export const TranscriptRow: FC<TranscriptRowProps> = ({
+export const TranscriptRow: React.FC<TranscriptRowProps> = ({
 	asChild = false,
 	className,
 	...props

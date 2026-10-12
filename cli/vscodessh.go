@@ -178,11 +178,11 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 
 			closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
 				AgentID: workspaceAgent.ID,
-				AppName: codersdk.UsageAppNameVscode,
+				AppName: string(codersdk.UsageAppNameVscode),
 			})
 			defer closeUsage()
 
-			rawSSH, err := agentConn.SSH(ctx)
+			rawSSH, err := agentConn.SSHTCPConn(ctx)
 			if err != nil {
 				return err
 			}

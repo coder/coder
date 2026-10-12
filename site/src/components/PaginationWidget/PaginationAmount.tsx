@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 
 type PaginationHeaderProps = {
@@ -8,18 +7,20 @@ type PaginationHeaderProps = {
 	totalRecords: number | undefined;
 	currentOffsetStart: number | undefined;
 	countIsCapped?: boolean;
+	isFiltered?: boolean;
 
 	// Temporary escape hatch until Workspaces can be switched over to using
 	// PaginationContainer
 	className?: string;
 };
 
-export const PaginationAmount: FC<PaginationHeaderProps> = ({
+export const PaginationAmount: React.FC<PaginationHeaderProps> = ({
 	paginationUnitLabel,
 	limit,
 	totalRecords,
 	currentOffsetStart,
 	countIsCapped,
+	isFiltered = false,
 	className,
 }) => {
 	return (
@@ -38,10 +39,17 @@ export const PaginationAmount: FC<PaginationHeaderProps> = ({
 					 * Have to put text content in divs so that flexbox doesn't scramble
 					 * the inner text nodes up
 					 */}
-					{totalRecords === 0 && <div>No records available</div>}
+					{totalRecords === 0 && (
+						<div>
+							{isFiltered
+								? `No ${paginationUnitLabel} match your search.`
+								: "No records available"}
+						</div>
+					)}
 
 					{totalRecords !== 0 && currentOffsetStart !== undefined && (
 						<div>
+							{isFiltered && "Filtered: "}
 							Showing <strong>{currentOffsetStart.toLocaleString()}</strong> to{" "}
 							<strong>
 								{(

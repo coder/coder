@@ -284,24 +284,6 @@ func (e *Expecter) Peek(ctx context.Context, n int) []byte {
 	return slices.Clone(out)
 }
 
-//nolint:govet // We don't care about conforming to ReadRune() (rune, int, error).
-func (e *Expecter) ReadRune(ctx context.Context) rune {
-	e.t.Helper()
-
-	var r rune
-	err := e.doMatchWithDeadline(ctx, "ReadRune", func(rd *bufio.Reader) error {
-		var err error
-		r, _, err = rd.ReadRune()
-		return err
-	})
-	if err != nil {
-		e.fatalf("read error", "%v (wanted rune; got %q)", err, r)
-		return 0
-	}
-	e.Logf("matched rune = %q", r)
-	return r
-}
-
 func (e *Expecter) ReadLine(ctx context.Context) string {
 	e.t.Helper()
 

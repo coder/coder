@@ -1,0 +1,42 @@
+title: Workspace access
+description: Connect to your Coder workspace using SSH, your IDE, a web terminal, remote desktop, and more.
+path: ./user-guides/workspace-access/index.md
+icon_path: ./images/icons/access.svg
+children:
+  - title: Visual Studio Code
+    description: Develop in your Coder workspace remotely with VS Code, using the desktop app or the browser.
+    path: ./user-guides/workspace-access/vscode.md
+  - title: Web terminal
+    description: Use the browser-based web terminal to run commands in your workspace without any local setup.
+    path: ./user-guides/workspace-access/web-terminal.md
+  - include: user-guides/workspace-access/jetbrains.yml
+  - title: Remote desktops
+    description: Connect to a GUI-based desktop in your Coder workspace using RDP, including Windows workspaces.
+    path: ./user-guides/workspace-access/remote-desktops.md
+  - title: Emacs TRAMP
+    description: Use Emacs TRAMP to edit files and run commands in your Coder workspace over SSH.
+    path: ./user-guides/workspace-access/emacs-tramp.md
+  - title: Workspace ports
+    description: Securely access ports and processes running inside your Coder workspace from your local machine.
+    path: ./user-guides/workspace-access/port-forwarding.md
+  - title: File browser
+    description: Upload, download, and manage files in your Coder workspace from the browser with File Browser.
+    path: ./user-guides/workspace-access/filebrowser.md
+  - title: Web IDEs
+    description: Access your Coder workspace through web-based IDEs that run in the browser, with no local install.
+    path: ./user-guides/workspace-access/web-ides.md
+  - title: code-server
+    description: Access your Coder workspace in the browser with code-server, the VS Code experience over the web.
+    path: ./user-guides/workspace-access/code-server.md
+  - title: Zed
+    description: Access your Coder workspace with the Zed collaborative code editor over SSH.
+    path: ./user-guides/workspace-access/zed.md
+  - title: Cursor
+    description: Access your Coder workspace with Cursor, the AI-powered code editor, over SSH.
+    path: ./user-guides/workspace-access/cursor.md
+  - title: Devin Desktop
+    description: Access your Coder workspace with Devin Desktop (formerly Windsurf), the AI-powered code editor, over SSH.
+    path: ./user-guides/workspace-access/devin-desktop.md
+  - title: Antigravity
+    description: Access your Coder workspace with the Antigravity agentic code editor over SSH.
+    path: ./user-guides/workspace-access/antigravity.md

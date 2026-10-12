@@ -51,8 +51,14 @@ export const Vercel: Story = {
 	},
 };
 
-// Provider types without a bundled icon (openai-compat, openrouter, or
-// anything we don't recognize) render the generic Building2 glyph.
+export const OpenRouter: Story = {
+	args: {
+		provider: "openrouter",
+	},
+};
+
+// Provider types without a bundled icon (openai-compat or anything we don't
+// recognize) render the generic Building2 glyph.
 export const Fallback: Story = {
 	args: {
 		provider: "openai-compat",

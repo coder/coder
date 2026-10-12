@@ -15,8 +15,10 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
@@ -31,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -46,21 +49,17 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey    = xerrors.New("invalid key")
-	ErrUnknownKey    = xerrors.New("unknown key")
-	ErrExpired       = xerrors.New("expired")
-	ErrUnknownUser   = xerrors.New("unknown user")
-	ErrDeletedUser   = xerrors.New("deleted user")
-	ErrInactiveUser  = xerrors.New("inactive user")
-	ErrSystemUser    = xerrors.New("system user")
-	ErrAmbiguousAuth = xerrors.New("both key and key_id set; exactly one required")
+	ErrInvalidKey           = xerrors.New("invalid key")
+	ErrUnknownKey           = xerrors.New("unknown key")
+	ErrExpired              = xerrors.New("expired")
+	ErrUnknownUser          = xerrors.New("unknown user")
+	ErrDeletedUser          = xerrors.New("deleted user")
+	ErrInactiveUser         = xerrors.New("inactive user")
+	ErrSystemUser           = xerrors.New("system user")
+	ErrAmbiguousAuth        = xerrors.New("both key and key_id set; exactly one required")
+	ErrWorkspaceAttribution = xerrors.New("invalid workspace attribution")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
-)
-
-const (
-	InterceptionLogMarker = "interception log"
-	MetadataUserAgentKey  = "request_user_agent"
 )
 
 var _ aibridged.DRPCServer = &Server{}
@@ -94,7 +93,6 @@ type store interface {
 	// Authorizer-related queries.
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
-
 	// ProviderConfigurator-related queries. InTx wraps the provider and key
 	// reads in a single read-only transaction.
 	GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error)
@@ -173,7 +171,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 		pubsub:              opts.Pubsub,
 		logger:              opts.Logger,
 		externalAuthConfigs: eac,
-		structuredLogging:   opts.GatewayCfg.StructuredLogging.Value(),
+		structuredLogging:   opts.GatewayCfg.EmitsStructuredLogs(codersdk.AIStructuredLoggingSourceCoderd),
 		aiSeatTracker:       opts.AISeatTracker,
 		experiments:         opts.Experiments,
 		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),
@@ -195,6 +193,23 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 	return srv, nil
 }
 
+// recordTime resolves the time a gateway reported for a record. A gateway is a
+// separate process, possibly of a different version, so an unset time is
+// replaced with the server's own rather than persisted as the zero time, which
+// would place the record in year one and skew budget periods and retention.
+func (s *Server) recordTime(ctx context.Context, field string, reported *timestamppb.Timestamp, interceptionID string) time.Time {
+	if reported.IsValid() && !reported.AsTime().IsZero() {
+		return reported.AsTime()
+	}
+	now := dbtime.Now()
+	s.logger.Warn(ctx, "record reported no time, using server time",
+		slog.F("field", field),
+		slog.F("interception_id", interceptionID),
+		slog.F("server_time", now),
+	)
+	return now
+}
+
 func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
@@ -214,36 +229,18 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	metadata := metadataToMap(in.GetMetadata())
 
 	if in.UserAgent != "" {
-		if _, ok := metadata[MetadataUserAgentKey]; ok {
+		if _, ok := metadata[recorder.MetadataUserAgentKey]; ok {
 			s.logger.Warn(ctx, "interception metadata contains user agent key, will be overwritten")
 		}
-		metadata[MetadataUserAgentKey] = in.UserAgent
+		metadata[recorder.MetadataUserAgentKey] = in.UserAgent
 	}
 
 	// Look up the interception lineage using the correlating tool call ID.
 	parentID, rootID := s.findInterceptionLineage(ctx, in.GetCorrelatingToolCallId())
 
-	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "interception_start"),
-			slog.F("interception_id", intcID.String()),
-			slog.F("initiator_id", initID.String()),
-			slog.F("api_key_id", in.ApiKeyId),
-			slog.F("provider", in.Provider),
-			slog.F("model", in.Model),
-			slog.F("client", in.Client),
-			slog.F("client_session_id", in.GetClientSessionId()),
-			slog.F("started_at", in.StartedAt.AsTime()),
-			slog.F("metadata", metadata),
-			slog.F("correlating_tool_call_id", in.GetCorrelatingToolCallId()),
-			slog.F("thread_parent_id", parentID),
-			slog.F("thread_root_id", rootID),
-		)
-	}
-
 	out, err := json.Marshal(metadata)
 	if err != nil {
-		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
+		s.logger.Warn(ctx, "failed to marshal ai gateway metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
 	}
 
 	providerName := strings.TrimSpace(in.ProviderName)
@@ -257,6 +254,33 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 			slog.F("agent_firewall_session_id", in.GetAgentFirewallSessionId()), slog.Error(err))
 	}
 
+	workspaceID, err := interceptionAttribution(in)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to parse interception attribution", slog.F("metadata", in), slog.Error(err))
+	}
+
+	if s.structuredLogging {
+		fields := []slog.Field{
+			slog.F("record_type", recorder.RecordTypeInterceptionStart),
+			slog.F("interception_id", intcID.String()),
+			slog.F("initiator_id", initID.String()),
+			slog.F("api_key_id", in.ApiKeyId),
+			slog.F("provider", in.Provider),
+			slog.F("model", in.Model),
+			slog.F("client", in.Client),
+			slog.F("client_session_id", in.GetClientSessionId()),
+			slog.F("started_at", in.StartedAt.AsTime()),
+			slog.F("metadata", metadata),
+			slog.F("correlating_tool_call_id", in.GetCorrelatingToolCallId()),
+			slog.F("thread_parent_id", parentID),
+			slog.F("thread_root_id", rootID),
+		}
+		if workspaceID.Valid {
+			fields = append(fields, slog.F("workspace_id", workspaceID.UUID))
+		}
+		s.logger.Info(ctx, recorder.InterceptionLogMarker, fields...)
+	}
+
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
 		ID:                          intcID,
 		APIKeyID:                    sql.NullString{String: in.ApiKeyId, Valid: true},
@@ -267,13 +291,14 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		ProviderName:                providerName,
 		Model:                       in.Model,
 		Metadata:                    out,
-		StartedAt:                   in.StartedAt.AsTime(),
+		StartedAt:                   s.recordTime(ctx, "started_at", in.GetStartedAt(), intcID.String()),
 		ThreadParentInterceptionID:  uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
 		ThreadRootInterceptionID:    uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
 		CredentialKind:              credentialKindOrDefault(in.CredentialKind),
 		CredentialHint:              in.CredentialHint,
 		AgentFirewallSessionID:      agentFirewallSessionID,
 		AgentFirewallSequenceNumber: parseOptionalInt32(in.AgentFirewallSequenceNumber),
+		WorkspaceID:                 workspaceID,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
@@ -296,8 +321,8 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 	}
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "interception_end"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypeInterceptionEnd),
 			slog.F("interception_id", intcID.String()),
 			slog.F("ended_at", in.EndedAt.AsTime()),
 		)
@@ -313,7 +338,7 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 	}
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
 		ID:             intcID,
-		EndedAt:        in.EndedAt.AsTime(),
+		EndedAt:        s.recordTime(ctx, "ended_at", in.GetEndedAt(), intcID.String()),
 		CredentialHint: in.CredentialHint,
 		ErrorType:      errType,
 		ErrorMessage:   errMsg,
@@ -337,10 +362,11 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "token_usage"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypeTokenUsage),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
+			slog.F("provider_model", in.GetProviderModel()),
 			slog.F("input_tokens", in.GetInputTokens()),
 			slog.F("output_tokens", in.GetOutputTokens()),
 			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),
@@ -392,7 +418,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 // interception's cost) and, when the user is budgeted and the computed cost is
 // positive, accumulates that cost into the user's daily spend.
 func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIBridgeInterception, cost tokenUsageCost, in *proto.RecordTokenUsageRequest, metadataJSON []byte) error {
-	createdAt := in.GetCreatedAt().AsTime()
+	createdAt := s.recordTime(ctx, "created_at", in.GetCreatedAt(), intc.ID.String())
 
 	// Populated inside the transaction with any budget thresholds this
 	// interception crossed.
@@ -414,6 +440,8 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 			CacheReadPriceMicros:  cost.cacheReadPriceMicros,
 			CacheWritePriceMicros: cost.cacheWritePriceMicros,
 			CostMicros:            cost.costMicros,
+			ProviderModel:         sql.NullString{String: in.GetProviderModel(), Valid: in.GetProviderModel() != ""},
+			PricedModel:           cost.pricedModel,
 		}); err != nil {
 			return xerrors.Errorf("insert token usage: %w", err)
 		}
@@ -477,8 +505,8 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "prompt_usage"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypePromptUsage),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
 			slog.F("prompt", in.GetPrompt()),
@@ -498,7 +526,7 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 		ProviderResponseID: in.GetMsgId(),
 		Prompt:             in.GetPrompt(),
 		Metadata:           out,
-		CreatedAt:          in.GetCreatedAt().AsTime(),
+		CreatedAt:          s.recordTime(ctx, "created_at", in.GetCreatedAt(), intcID.String()),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert user prompt: %w", err)
@@ -519,8 +547,8 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "tool_usage"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypeToolUsage),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
 			slog.F("tool_call_id", in.GetToolCallId()),
@@ -552,7 +580,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		Injected:           in.GetInjected(),
 		InvocationError:    sql.NullString{String: in.GetInvocationError(), Valid: in.InvocationError != nil},
 		Metadata:           out,
-		CreatedAt:          in.GetCreatedAt().AsTime(),
+		CreatedAt:          s.recordTime(ctx, "created_at", in.GetCreatedAt(), intcID.String()),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert tool usage: %w", err)
@@ -573,8 +601,8 @@ func (s *Server) RecordModelThought(ctx context.Context, in *proto.RecordModelTh
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "model_thought"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypeModelThought),
 			slog.F("interception_id", intcID.String()),
 			slog.F("content", in.GetContent()),
 			slog.F("created_at", in.GetCreatedAt().AsTime()),
@@ -591,7 +619,7 @@ func (s *Server) RecordModelThought(ctx context.Context, in *proto.RecordModelTh
 		InterceptionID: intcID,
 		Content:        in.GetContent(),
 		Metadata:       out,
-		CreatedAt:      in.GetCreatedAt().AsTime(),
+		CreatedAt:      s.recordTime(ctx, "created_at", in.GetCreatedAt(), intcID.String()),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert model thought: %w", err)
@@ -820,11 +848,56 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrSystemUser
 	}
 
-	return &proto.IsAuthorizedResponse{
+	resp := &proto.IsAuthorizedResponse{
 		OwnerId:  key.UserID.String(),
 		ApiKeyId: key.ID,
 		Username: user.Username,
-	}, nil
+		Email:    user.Email,
+	}
+	if !delegated {
+		workspaceID, ok, err := workspaceAttribution(key)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			resp.WorkspaceId = workspaceID.String()
+		}
+	}
+	return resp, nil
+}
+
+// workspaceAttribution parses the workspace UUID from a strict server-minted
+// token name without performing any database lookup. It returns the workspace
+// UUID and true when the token name matches the expected pattern and the
+// embedded owner UUID equals key.UserID. It fails closed (ErrWorkspaceAttribution)
+// when the embedded owner does not match.
+func workspaceAttribution(key database.APIKey) (uuid.UUID, bool, error) {
+	if key.LoginType == database.LoginTypeToken {
+		return uuid.Nil, false, nil
+	}
+
+	ownerID, workspaceID, ok := provisionerdserver.ParseWorkspaceSessionTokenName(key.TokenName)
+	if !ok {
+		return uuid.Nil, false, nil
+	}
+	if ownerID != key.UserID {
+		return uuid.Nil, false, ErrWorkspaceAttribution
+	}
+	return workspaceID, true, nil
+}
+
+// interceptionAttribution parses the optional workspace_id from the
+// interception request. The returned NullUUID is valid only when a non-empty
+// workspace_id was provided.
+func interceptionAttribution(in *proto.RecordInterceptionRequest) (workspaceID uuid.NullUUID, err error) {
+	if in.GetWorkspaceId() == "" {
+		return uuid.NullUUID{}, nil
+	}
+	id, err := uuid.Parse(in.GetWorkspaceId())
+	if err != nil {
+		return uuid.NullUUID{}, xerrors.Errorf("invalid workspace ID: %w", err)
+	}
+	return uuid.NullUUID{UUID: id, Valid: true}, nil
 }
 
 // IsBudgetExceeded reports whether the user's AI spend has reached their
@@ -1205,6 +1278,12 @@ func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (
 			Protocol:               string(settings.Bedrock.Protocol),
 			ResolvedModel:          settings.Bedrock.ResolvedModel,
 			ResolvedSmallFastModel: settings.Bedrock.ResolvedSmallFastModel,
+		}
+	}
+	if settings.ClaudePlatformAWS != nil {
+		p.ClaudePlatformAws = &proto.AIProviderKindClaudePlatformAWS{
+			Region:      settings.ClaudePlatformAWS.Region,
+			WorkspaceId: settings.ClaudePlatformAWS.WorkspaceID,
 		}
 	}
 

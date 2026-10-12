@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -22,7 +21,7 @@ const sharingUpdatedToastLabels: Record<ShareableWorkspaceOwners, string> = {
 	everyone: "Workspace sharing enabled for all users.",
 };
 
-const OrganizationSettingsPage: FC = () => {
+const OrganizationSettingsPage: React.FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { organization, organizationPermissions } = useOrganizationSettings();

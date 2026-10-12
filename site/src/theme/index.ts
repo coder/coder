@@ -11,7 +11,7 @@ import lightTritan from "./lightTritan";
 import type { Palette } from "./palette";
 import type { Roles } from "./roles";
 
-export interface Theme {
+export type Theme = {
 	/** @deprecated prefer roles or CSS variables when possible */
 	palette: Palette;
 
@@ -29,7 +29,7 @@ export interface Theme {
 
 	monaco: monaco.editor.IStandaloneThemeData;
 	externalImages: ExternalImageModeStyles;
-}
+};
 
 export const DEFAULT_THEME = "dark";
 

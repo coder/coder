@@ -1,12 +1,4 @@
-import {
-	createContext,
-	type FC,
-	type PropsWithChildren,
-	useContext,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
 import { cachedQuery } from "#/api/queries/util";
@@ -18,7 +10,7 @@ import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
 export type Proxies = readonly Region[] | readonly WorkspaceProxy[];
 export type ProxyLatencies = Record<string, ProxyLatencyReport>;
-export interface ProxyContextValue {
+export type ProxyContextValue = {
 	// proxy is **always** the workspace proxy that should be used.
 	// The 'proxy.selectedProxy' field is the proxy being used and comes from either:
 	//   1. The user manually selected this proxy. (saved to local storage)
@@ -68,9 +60,9 @@ export interface ProxyContextValue {
 	// clearProxy is a function that clears the user's selected proxy.
 	// If no proxy is selected, then the default proxy will be used.
 	clearProxy: () => void;
-}
+};
 
-interface PreferredProxy {
+type PreferredProxy = {
 	// proxy is the proxy being used. It is provided for
 	// getting the fields such as "display_name" and "id"
 	// Do not use the fields 'path_app_url' or 'wildcard_hostname' from this
@@ -82,7 +74,7 @@ interface PreferredProxy {
 	preferredPathAppURL: string;
 	// PreferredWildcardHostname is a hostname that includes a wildcard.
 	preferredWildcardHostname: string;
-}
+};
 
 export const ProxyContext = createContext<ProxyContextValue | undefined>(
 	undefined,
@@ -91,7 +83,9 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
 /**
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
  */
-export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
+export const ProxyProvider: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	// Using a useState so the caller always has the latest user saved
 	// proxy.
 	const [userSavedProxy, setUserSavedProxy] = useState(loadUserSelectedProxy());

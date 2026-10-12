@@ -7,6 +7,7 @@
  */
 
 import { cn } from "cn";
+import { ChevronRightIcon } from "lucide-react";
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui";
 import {
 	menuContentClass,
@@ -25,7 +26,7 @@ export const ContextMenuGroup = ContextMenuPrimitive.Group;
 export const ContextMenuRadioGroup = ContextMenuPrimitive.RadioGroup;
 
 export const ContextMenuContent: React.FC<
-	React.ComponentPropsWithRef<typeof ContextMenuPrimitive.Content>
+	React.ComponentProps<typeof ContextMenuPrimitive.Content>
 > = ({ className, ...props }) => {
 	return (
 		<ContextMenuPrimitive.Portal>
@@ -37,7 +38,7 @@ export const ContextMenuContent: React.FC<
 	);
 };
 
-type ContextMenuItemProps = React.ComponentPropsWithRef<
+type ContextMenuItemProps = React.ComponentProps<
 	typeof ContextMenuPrimitive.Item
 > & {
 	inset?: boolean;
@@ -56,8 +57,39 @@ export const ContextMenuItem: React.FC<ContextMenuItemProps> = ({
 	);
 };
 
+export const ContextMenuSub = ContextMenuPrimitive.Sub;
+
+export const ContextMenuSubTrigger: React.FC<
+	React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger> & {
+		inset?: boolean;
+	}
+> = ({ className, inset, children, ...props }) => {
+	return (
+		<ContextMenuPrimitive.SubTrigger
+			className={cn(menuItemClass, inset && "pl-8", className)}
+			{...props}
+		>
+			{children}
+			<ChevronRightIcon className="ml-auto size-3.5" />
+		</ContextMenuPrimitive.SubTrigger>
+	);
+};
+
+export const ContextMenuSubContent: React.FC<
+	React.ComponentProps<typeof ContextMenuPrimitive.SubContent>
+> = ({ className, ...props }) => {
+	return (
+		<ContextMenuPrimitive.Portal>
+			<ContextMenuPrimitive.SubContent
+				className={cn(menuContentClass, className)}
+				{...props}
+			/>
+		</ContextMenuPrimitive.Portal>
+	);
+};
+
 export const ContextMenuSeparator: React.FC<
-	React.ComponentPropsWithRef<typeof ContextMenuPrimitive.Separator>
+	React.ComponentProps<typeof ContextMenuPrimitive.Separator>
 > = ({ className, ...props }) => {
 	return (
 		<ContextMenuPrimitive.Separator

@@ -1,0 +1,206 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder workspace-proxy server [flags]
+
+  Start a workspace proxy server
+
+OPTIONS:
+      --disable-owner-workspace-access bool, $CODER_DISABLE_OWNER_WORKSPACE_ACCESS
+          Remove the permission for the 'owner' role to have workspace execution
+          on all workspaces. This prevents the 'owner' from ssh, apps, and
+          terminal access based on the 'owner' role. They still have their user
+          permissions to access their own workspaces.
+
+      --disable-path-apps bool, $CODER_DISABLE_PATH_APPS
+          Disable workspace apps that are not served from subdomains. Path-based
+          apps can make requests to the Coder API and pose a security risk when
+          the workspace serves malicious JavaScript. This is recommended for
+          security purposes if a --wildcard-access-url is configured.
+
+      --experiments string-array, $CODER_EXPERIMENTS
+          Enable one or more experiments. These are not ready for production.
+          Separate multiple experiments with commas, or enter '*' to opt-in to
+          all available experiments.
+
+CONFIG OPTIONS: 
+Use a YAML configuration file when your server launch become unwieldy.
+
+      --write-config bool
+          
+          Write out the current server config as YAML to stdout.
+
+EXTERNAL WORKSPACE PROXY OPTIONS: 
+      --primary-access-url url, $CODER_PRIMARY_ACCESS_URL
+          URL to communicate with coderd. This should match the access URL of
+          the Coder deployment.
+
+      --derp-only bool, $CODER_PROXY_DERP_ONLY
+          Run a proxy server that only supports DERP connections and does not
+          proxy workspace app/terminal traffic.
+
+      --proxy-session-token string, $CODER_PROXY_SESSION_TOKEN
+          Authentication token for the workspace proxy to communicate with
+          coderd.
+
+INTROSPECTION / LOGGING OPTIONS: 
+      --log-human string, $CODER_LOGGING_HUMAN (default: /dev/stderr)
+          Output human-readable logs to a given file.
+
+      --log-json string, $CODER_LOGGING_JSON
+          Output JSON logs to a given file.
+
+      --log-stackdriver string, $CODER_LOGGING_STACKDRIVER
+          Output Stackdriver compatible logs to a given file.
+
+INTROSPECTION / PROMETHEUS OPTIONS: 
+      --prometheus-address host:port, $CODER_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
+          The bind address to serve prometheus metrics.
+
+      --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
+          Serve prometheus metrics on the address defined by prometheus address.
+
+INTROSPECTION / TRACING OPTIONS: 
+      --trace-logs bool, $CODER_TRACE_LOGS
+          Enables capturing of logs as events in traces. This is useful for
+          debugging, but may result in a very large amount of events being sent
+          to the tracing backend which may incur significant costs.
+
+      --trace bool, $CODER_TRACE_ENABLE
+          Whether application tracing data is collected. It exports to a backend
+          configured by environment variables. See:
+          https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
+
+      --trace-honeycomb-api-key string, $CODER_TRACE_HONEYCOMB_API_KEY
+          Enables trace exporting to Honeycomb.io using the provided API Key.
+
+INTROSPECTION / PPROF OPTIONS: 
+      --pprof-address host:port, $CODER_PPROF_ADDRESS (default: 127.0.0.1:6060)
+          The bind address to serve pprof.
+
+      --pprof-enable bool, $CODER_PPROF_ENABLE
+          Serve pprof metrics on the address defined by pprof address.
+
+NETWORKING OPTIONS: 
+      --access-url url, $CODER_ACCESS_URL
+          The URL that users will use to access the Coder deployment.
+
+      --docs-url url, $CODER_DOCS_URL (default: https://coder.com/docs)
+          Specifies the custom docs URL.
+
+      --proxy-trusted-headers string-array, $CODER_PROXY_TRUSTED_HEADERS
+          Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
+          True-Client-Ip, X-Forwarded-For.
+
+      --proxy-trusted-origins string-array, $CODER_PROXY_TRUSTED_ORIGINS
+          Origin addresses to respect "proxy-trusted-headers" and
+          X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.
+
+      --samesite-auth-cookie lax|none, $CODER_SAMESITE_AUTH_COOKIE (default: lax)
+          Controls the 'SameSite' property is set on browser session cookies.
+
+      --secure-auth-cookie bool, $CODER_SECURE_AUTH_COOKIE (default: false)
+          Controls if the 'Secure' property is set on browser session cookies.
+
+      --wildcard-access-url string, $CODER_WILDCARD_ACCESS_URL
+          Specifies the wildcard hostname to use for workspace applications in
+          the form "*.example.com".
+
+      --host-prefix-cookie bool, $CODER_HOST_PREFIX_COOKIE (default: false)
+          Recommended to be enabled. Enables `__Host-` prefix for cookies to
+          guarantee they are only set by the right domain. This change is
+          disruptive to any workspaces built before release 2.31, requiring a
+          workspace restart.
+
+NETWORKING / DERP OPTIONS: 
+Most Coder deployments never have to think about DERP because all connections
+between workspaces and users are peer-to-peer. However, when Coder cannot
+establish a peer to peer connection, Coder uses a distributed relay network
+backed by Tailscale and WireGuard.
+
+      --block-direct-connections bool, $CODER_BLOCK_DIRECT
+          Block peer-to-peer (aka. direct) workspace connections. All workspace
+          connections from the CLI will be proxied through Coder (or custom
+          configured DERP servers) and will never be peer-to-peer when enabled.
+          Workspaces may still reach out to STUN servers to get their address
+          until they are restarted after this change has been made, but new
+          connections will still be proxied regardless.
+
+      --derp-server-enable bool, $CODER_DERP_SERVER_ENABLE (default: true)
+          Whether to enable or disable the embedded DERP relay server.
+
+NETWORKING / HTTP OPTIONS: 
+      --http-address string, $CODER_HTTP_ADDRESS (default: 127.0.0.1:3000)
+          HTTP bind address of the server. Unset to disable the HTTP endpoint.
+
+NETWORKING / TLS OPTIONS: 
+Configure TLS / HTTPS for your Coder deployment. If you're running Coder behind
+a TLS-terminating reverse proxy or are accessing Coder over a secure link, you
+can safely ignore these settings.
+
+      --strict-transport-security int, $CODER_STRICT_TRANSPORT_SECURITY (default: 0)
+          Controls if the 'Strict-Transport-Security' header is set on all
+          static file responses. This header should only be set if the server is
+          accessed via HTTPS. This value is the MaxAge in seconds of the header.
+
+      --strict-transport-security-options string-array, $CODER_STRICT_TRANSPORT_SECURITY_OPTIONS
+          Two optional fields can be set in the Strict-Transport-Security
+          header; 'includeSubDomains' and 'preload'. The
+          'strict-transport-security' flag must be set to a non-zero value for
+          these options to be used.
+
+      --tls-address host:port, $CODER_TLS_ADDRESS (default: 127.0.0.1:3443)
+          HTTPS bind address of the server.
+
+      --tls-allow-insecure-ciphers bool, $CODER_TLS_ALLOW_INSECURE_CIPHERS (default: false)
+          By default, only ciphers marked as 'secure' are allowed to be used.
+          See
+          https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
+
+      --tls-cert-file string-array, $CODER_TLS_CERT_FILE
+          Path to each certificate for TLS. It requires a PEM-encoded file. To
+          configure the listener to use a CA certificate, concatenate the
+          primary certificate and the CA certificate together. The primary
+          certificate should appear first in the combined file.
+
+      --tls-ciphers string-array, $CODER_TLS_CIPHERS
+          Specify specific TLS ciphers that allowed to be used. See
+          https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
+
+      --tls-client-auth string, $CODER_TLS_CLIENT_AUTH (default: none)
+          Policy the server will follow for TLS Client Authentication. Accepted
+          values are "none", "request", "require-any", "verify-if-given", or
+          "require-and-verify".
+
+      --tls-client-ca-file string, $CODER_TLS_CLIENT_CA_FILE
+          PEM-encoded Certificate Authority file used for checking the
+          authenticity of client.
+
+      --tls-client-cert-file string, $CODER_TLS_CLIENT_CERT_FILE
+          Path to certificate for client TLS authentication. It requires a
+          PEM-encoded file.
+
+      --tls-client-key-file string, $CODER_TLS_CLIENT_KEY_FILE
+          Path to key for client TLS authentication. It requires a PEM-encoded
+          file.
+
+      --tls-enable bool, $CODER_TLS_ENABLE
+          Whether TLS will be enabled.
+
+      --tls-key-file string-array, $CODER_TLS_KEY_FILE
+          Paths to the private keys for each of the certificates. It requires a
+          PEM-encoded file.
+
+      --tls-min-version string, $CODER_TLS_MIN_VERSION (default: tls12)
+          Minimum supported version of TLS. Accepted values are "tls10",
+          "tls11", "tls12" or "tls13".
+
+ENTERPRISE OPTIONS: 
+These options are only available in the Enterprise Edition.
+
+      --derp-server-relay-url url, $CODER_DERP_SERVER_RELAY_URL
+          An HTTP URL that is accessible by other replicas to relay DERP
+          traffic. Required for high availability.
+
+———
+Run `coder --help` for a list of global options.

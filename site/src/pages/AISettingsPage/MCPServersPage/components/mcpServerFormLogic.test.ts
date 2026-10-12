@@ -28,6 +28,7 @@ describe("mcpServerFormLogic", () => {
 
 		expect(values.oauth2ClientSecret).toBe(SECRET_PLACEHOLDER);
 		expect(values.apiKeyValue).toBe(SECRET_PLACEHOLDER);
+		expect(values.signingSecret).toBe(SECRET_PLACEHOLDER);
 	});
 
 	it("requires display name, slug, and URL before submitting", () => {
@@ -81,6 +82,31 @@ describe("mcpServerFormLogic", () => {
 		expect(unchanged.api_key_value).toBeUndefined();
 		expect(changed.api_key_value).toBe("new-key");
 	});
+
+	it.each([
+		{ value: SECRET_PLACEHOLDER, touched: false, expected: undefined },
+		{ value: SECRET_PLACEHOLDER, touched: true, expected: undefined },
+		{ value: "", touched: true, expected: undefined },
+		{
+			value: "new-signing-secret",
+			touched: true,
+			expected: "new-signing-secret",
+		},
+	])(
+		"sends only a replacement signing secret: $value/$touched",
+		({ value, touched, expected }) => {
+			const values = validValues({
+				signingSecret: value,
+				signingSecretTouched: touched,
+			});
+			expect(buildCreateMCPServerConfigRequest(values).signing_secret).toBe(
+				expected,
+			);
+			expect(buildUpdateMCPServerConfigRequest(values).signing_secret).toBe(
+				expected,
+			);
+		},
+	);
 
 	it("omits enabled from update requests", () => {
 		const request = buildUpdateMCPServerConfigRequest(

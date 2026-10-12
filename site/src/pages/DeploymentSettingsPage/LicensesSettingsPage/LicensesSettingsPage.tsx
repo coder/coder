@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -11,7 +11,7 @@ import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { pageTitle } from "#/utils/page";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
-const LicensesSettingsPage: FC = () => {
+const LicensesSettingsPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const success = searchParams.get("success");

@@ -228,6 +228,21 @@ describe(usePaginatedQuery.name, () => {
 			await waitFor(() => expect(result.current.currentPage).toBe(1));
 		});
 
+		it("No custom callback: uses the first page's count when an overshot page reports a count of 0", async () => {
+			const mockQueryFn = vi.fn(({ pageNumber }: { pageNumber: number }) =>
+				Promise.resolve({ data: [], count: pageNumber === 1 ? 100 : 0 }),
+			);
+			const { result } = await render(
+				{
+					queryKey: ({ pageNumber }) => ["overshoot", pageNumber],
+					queryFn: mockQueryFn,
+				},
+				"/?page=35",
+			);
+
+			await waitFor(() => expect(result.current.currentPage).toBe(4));
+		});
+
 		it("With custom callback: Calls callback and does not update search params automatically", async () => {
 			const testControl = new URLSearchParams({
 				page: "1000",
@@ -480,6 +495,29 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
 			// Give it a moment to ensure no navigation happens
 			await new Promise((resolve) => setTimeout(resolve, 10));
 			expect(result.current.currentPage).toBe(1);
+		});
+	});
+
+	describe("Refetch errors", () => {
+		it("keeps the pagination info from the retained data when a refetch fails", async () => {
+			const mockQueryFn = vi
+				.fn()
+				.mockResolvedValueOnce({ count: 50 })
+				.mockRejectedValueOnce(new Error("Refetch failed"));
+			const { result } = await render({
+				queryKey: () => ["refetchError"],
+				queryFn: mockQueryFn,
+				recordsPerPage: 10,
+			});
+			await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+			await result.current.refetch();
+			await waitFor(() => expect(result.current.isError).toBe(true));
+
+			expect(result.current.isSuccess).toBe(false);
+			expect(result.current.totalRecords).toBe(50);
+			expect(result.current.totalPages).toBe(5);
+			expect(result.current.hasNextPage).toBe(true);
 		});
 	});
 });

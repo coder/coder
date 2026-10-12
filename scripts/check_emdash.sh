@@ -31,6 +31,8 @@ exclude_pathspecs=(
 	# (migration 000324). It lives in an applied migration, so it cannot be
 	# edited in place.
 	":(exclude)coderd/notifications/testdata/rendered-templates/**/*.golden"
+	# Vendored third-party source keeps upstream comments verbatim.
+	":(exclude)site/src/vendor/**"
 )
 
 scan_all_files() {

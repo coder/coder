@@ -6,6 +6,7 @@ import (
 
 	"charm.land/fantasy"
 
+	"github.com/coder/coder/v2/codersdk/toolsdk/workspacetools"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -16,14 +17,19 @@ type WriteFileOptions struct {
 }
 
 type WriteFileArgs struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
+	Path    string `json:"path" description:"Absolute path of the file to write. Plan files must use the chat-specific absolute plan path."`
+	Content string `json:"content" description:"Complete file contents. Replaces any existing contents."`
 }
+
+// WriteFileToolName is the registered name of the write_file tool.
+const WriteFileToolName = "write_file"
 
 func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"write_file",
-		"Write a file to the workspace.",
+		WriteFileToolName,
+		"Create a file in the workspace or overwrite an existing one with the given content. "+
+			"Use edit_files for targeted changes to an existing file. "+
+			"During plan turns, only the chat-specific plan file path is writable.",
 		func(ctx context.Context, args WriteFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			var planPath string
 			if options.IsPlanTurn {
@@ -79,8 +85,12 @@ func executeWriteFileTool(
 		}
 	}
 
-	if err := conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content)); err != nil {
-		return fantasy.NewTextErrorResponse(err.Error()), nil
+	return writeFileResponse(conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content))), nil
+}
+
+func writeFileResponse(err error) fantasy.ToolResponse {
+	if err != nil {
+		return fantasy.NewTextErrorResponse(err.Error())
 	}
-	return toolResponse(map[string]any{"ok": true}), nil
+	return marshalToolResponse(workspacetools.OKResult{OK: true})
 }

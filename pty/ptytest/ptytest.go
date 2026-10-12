@@ -109,15 +109,6 @@ func (p *PTY) WriteLine(str string) {
 	require.NoError(p.t, err, "write line failed")
 }
 
-// Named sets the PTY name in the logs. Defaults to "cmd". Make sure you set this before anything starts writing to the
-// pty, or it may not be named consistently. E.g.
-//
-// p := New(t).Named("myCmd")
-func (p *PTY) Named(name string) *PTY {
-	p.Rename(name)
-	return p
-}
-
 type PTYCmd struct {
 	expecter.Expecter
 	pty.PTYCmd

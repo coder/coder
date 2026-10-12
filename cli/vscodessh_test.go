@@ -87,5 +87,5 @@ func TestVSCodeSSH(t *testing.T) {
 	}
 
 	require.EqualValues(t, 1, batcher.Called)
-	require.EqualValues(t, 1, batcher.LastStats.SessionCountVscode)
+	require.EqualValues(t, 1, batcher.LastStats.GetSessionCounts()["vscode"])
 }

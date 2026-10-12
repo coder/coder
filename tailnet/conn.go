@@ -93,6 +93,8 @@ type Options struct {
 	Addresses  []netip.Prefix
 	DERPMap    *tailcfg.DERPMap
 	DERPHeader *http.Header
+	// DERPGetHeaders overrides DERPHeader on each connection attempt.
+	DERPGetHeaders func() http.Header
 	// DERPTLSConfig is an optional TLS config for DERP connections.
 	DERPTLSConfig *tls.Config
 	// DERPForceWebSockets determines whether websockets is always used for DERP
@@ -247,6 +249,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	if options.DERPHeader != nil {
 		magicConn.SetDERPHeader(options.DERPHeader.Clone())
 	}
+	magicConn.SetDERPGetHeaders(options.DERPGetHeaders)
 	if options.DERPTLSConfig != nil {
 		magicConn.SetDERPTLSConfig(options.DERPTLSConfig)
 	}

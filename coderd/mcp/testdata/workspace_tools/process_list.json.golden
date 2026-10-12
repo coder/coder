@@ -1,0 +1,5 @@
+{
+  "description": "List all tracked processes in the workspace. Returns process IDs, commands, status (running or exited), and exit codes. Use this to discover processes or check which are still running.",
+  "parameters": {},
+  "required": []
+}

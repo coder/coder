@@ -5,7 +5,7 @@ set -eu
 # See https://github.com/coder/coder#install
 #
 # To run:
-# curl -L https://coder.com/install.sh | sh
+# curl -fsSL https://coder.com/install.sh | sh
 
 usage() {
 	arg0="$0"

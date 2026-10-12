@@ -1,0 +1,165 @@
+package codersdk_test
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk"
+)
+
+func TestValidateRedirectURIShape(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		url   string
+		valid bool
+	}{
+		{url: "https://app.example.com/callback", valid: true},
+		{url: "http://127.0.0.1:3000/callback", valid: true},
+		{url: "http://example.com/callback", valid: true},
+		{url: "cursor://anysphere.cursor-mcp/oauth/callback", valid: true},
+		{url: "vscode://coder.coder-remote/oauth/callback", valid: true},
+		{url: "com.example.app:/oauth2redirect", valid: true},
+		{url: "com.example.app://auth/oauth2redirect", valid: true},
+		{url: "com.example.app:oauth2redirect", valid: false},
+		{url: "urn:ietf:wg:oauth:2.0:oob", valid: true},
+		{url: "", valid: false},
+		{url: "javascript:alert(1)", valid: false},
+		{url: "data:text/plain,hello", valid: false},
+		{url: "file:///tmp/callback", valid: false},
+		{url: "ftp://example.com/callback", valid: false},
+		{url: "urn:example:callback", valid: false},
+		{url: "https:/example.com", valid: false},
+		{url: "http:///example.com", valid: false},
+		{url: "localhost:3000", valid: false},
+		{url: "vscode:", valid: false},
+		{url: "vscode://", valid: false},
+		{url: "mailto:a@b", valid: false},
+		{url: "https://app.example.com/callback#fragment", valid: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.url, func(t *testing.T) {
+			t.Parallel()
+			err := codersdk.ValidateRedirectURIShape(tc.url)
+			if tc.valid {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			// Dynamic registration must not store a URI the shape check
+			// rejects, whatever the client type.
+			require.Error(t, codersdk.ValidateRedirectURI(tc.url, codersdk.OAuth2ClientTypeConfidential))
+			require.Error(t, codersdk.ValidateRedirectURI(tc.url, codersdk.OAuth2ClientTypePublic))
+		})
+	}
+}
+
+func TestValidateRedirectURIsSize(t *testing.T) {
+	t.Parallel()
+
+	list := func(n int) []string {
+		out := make([]string, 0, n)
+		for i := range n {
+			out = append(out, fmt.Sprintf("https://example.com/callback/%d", i))
+		}
+		return out
+	}
+
+	t.Run("AtCountLimit", func(t *testing.T) {
+		t.Parallel()
+		require.NoError(t, codersdk.ValidateRedirectURIs(list(codersdk.OAuth2RedirectURIsMaxCount), codersdk.OAuth2ClientTypeConfidential))
+	})
+
+	t.Run("OverCountLimit", func(t *testing.T) {
+		t.Parallel()
+		err := codersdk.ValidateRedirectURIs(list(codersdk.OAuth2RedirectURIsMaxCount+1), codersdk.OAuth2ClientTypeConfidential)
+		require.ErrorContains(t, err, "at most 32 redirect URIs")
+	})
+
+	t.Run("AtByteLimit", func(t *testing.T) {
+		t.Parallel()
+		prefix := "https://example.com/"
+		long := prefix + strings.Repeat("a", codersdk.OAuth2RedirectURIMaxBytes-len(prefix))
+		require.Len(t, long, codersdk.OAuth2RedirectURIMaxBytes)
+		require.NoError(t, codersdk.ValidateRedirectURI(long, codersdk.OAuth2ClientTypeConfidential))
+	})
+
+	t.Run("OverByteLimit", func(t *testing.T) {
+		t.Parallel()
+		prefix := "https://example.com/"
+		long := prefix + strings.Repeat("a", codersdk.OAuth2RedirectURIMaxBytes-len(prefix)+1)
+		err := codersdk.ValidateRedirectURI(long, codersdk.OAuth2ClientTypeConfidential)
+		require.ErrorContains(t, err, "at most 2048 bytes")
+	})
+
+	// The length check runs before parsing, so an oversized value reports
+	// its size and is never inspected further.
+	t.Run("SizeBeforeParse", func(t *testing.T) {
+		t.Parallel()
+		huge := "javascript:" + strings.Repeat("a", 1<<20)
+		err := codersdk.ValidateRedirectURIs([]string{huge}, codersdk.OAuth2ClientTypePublic)
+		require.ErrorContains(t, err, "at most 2048 bytes")
+		require.NotContains(t, err.Error(), "javascript")
+	})
+
+	t.Run("IndexIsReported", func(t *testing.T) {
+		t.Parallel()
+		err := codersdk.ValidateRedirectURIs([]string{"https://ok.example/cb", "mailto:a@b"}, codersdk.OAuth2ClientTypePublic)
+		require.ErrorContains(t, err, "redirect URI at index 1: public clients may not use the mailto scheme")
+	})
+}
+
+func TestValidateOAuth2ScopeList(t *testing.T) {
+	t.Parallel()
+
+	names := func(n int) string {
+		parts := make([]string, 0, n)
+		for i := range n {
+			parts = append(parts, fmt.Sprintf("s%d", i))
+		}
+		return strings.Join(parts, " ")
+	}
+
+	cases := []struct {
+		name    string
+		raw     string
+		wantErr string
+	}{
+		{name: "empty", raw: ""},
+		{name: "one", raw: "workspace:read"},
+		{name: "unknown_names_pass", raw: "openid profile email"},
+		{name: "at_name_limit", raw: names(codersdk.OAuth2ScopeListMaxNames)},
+		{
+			name:    "over_name_limit",
+			raw:     names(codersdk.OAuth2ScopeListMaxNames + 1),
+			wantErr: "at most 100 names",
+		},
+		{name: "at_byte_limit", raw: strings.Repeat("a", codersdk.OAuth2ScopeListMaxBytes)},
+		{
+			name:    "over_byte_limit",
+			raw:     strings.Repeat("a", codersdk.OAuth2ScopeListMaxBytes+1),
+			wantErr: "at most 4096 bytes",
+		},
+		{
+			// The byte check runs first, so a long list reports the byte limit.
+			name:    "long_and_many",
+			raw:     strings.Repeat("a ", codersdk.OAuth2ScopeListMaxBytes),
+			wantErr: "at most 4096 bytes",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := codersdk.ValidateOAuth2ScopeList(test.raw)
+			if test.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, test.wantErr)
+		})
+	}
+}

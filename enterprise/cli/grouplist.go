@@ -38,7 +38,7 @@ func (r *RootCmd) groupList() *serpent.Command {
 				return xerrors.Errorf("current organization: %w", err)
 			}
 
-			groups, err := client.GroupsByOrganization(ctx, org.ID)
+			groups, err := client.Groups(ctx, codersdk.GroupArguments{Organization: org.ID.String()})
 			if err != nil {
 				return xerrors.Errorf("get groups: %w", err)
 			}

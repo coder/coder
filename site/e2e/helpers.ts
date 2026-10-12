@@ -614,7 +614,7 @@ type RecursivePartial<T> = {
 			: T[P];
 };
 
-interface EchoProvisionerResponses {
+type EchoProvisionerResponses = {
 	init?: RecursivePartial<Response>[];
 	// parse is for observing any Terraform variables
 	parse?: RecursivePartial<Response>[];
@@ -626,7 +626,7 @@ interface EchoProvisionerResponses {
 	// extraFiles allows the bundling of terraform files in echo provisioner tars
 	// in order to support dynamic parameters
 	extraFiles?: Map<string, string>;
-}
+};
 
 const emptyPlan = new TextEncoder().encode("{}");
 

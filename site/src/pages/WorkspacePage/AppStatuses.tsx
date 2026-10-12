@@ -1,6 +1,6 @@
 import capitalize from "lodash/capitalize";
 import { ExternalLinkIcon, FileIcon, LayoutGridIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type {
 	WorkspaceAppStatus as APIWorkspaceAppStatus,
 	Workspace,
@@ -21,20 +21,20 @@ import { useAppLink } from "#/modules/apps/useAppLink";
 import { timeFrom } from "#/utils/time";
 import { truncateURI } from "#/utils/uri";
 
-interface AppStatusesProps {
+type AppStatusesProps = {
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	/** Optional reference date for calculating relative time. Defaults to Date.now(). Useful for Storybook. */
 	referenceDate?: Date;
-}
+};
 
 // Extend the API status type to include the app icon and the app itself
-interface StatusWithAppInfo extends APIWorkspaceAppStatus {
+type StatusWithAppInfo = APIWorkspaceAppStatus & {
 	appIcon?: string; // Kept for potential future use, but we'll primarily use app.icon
 	app?: WorkspaceApp; // Store the full app object
-}
+};
 
-export const AppStatuses: FC<AppStatusesProps> = ({
+export const AppStatuses: React.FC<AppStatusesProps> = ({
 	workspace,
 	agent,
 	referenceDate,
@@ -169,7 +169,7 @@ type AppLinkProps = {
 	workspace: Workspace;
 };
 
-const AppLink: FC<AppLinkProps> = ({ app, agent, workspace }) => {
+const AppLink: React.FC<AppLinkProps> = ({ app, agent, workspace }) => {
 	const link = useAppLink(app, { agent, workspace });
 
 	return (

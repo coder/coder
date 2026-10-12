@@ -7,7 +7,7 @@ import { cn } from "cn";
 import { MoreHorizontalIcon } from "lucide-react";
 import { NavLink } from "react-router";
 
-type BreadcrumbProps = React.ComponentPropsWithRef<"nav"> & {
+type BreadcrumbProps = React.ComponentProps<"nav"> & {
 	separator?: React.ReactNode;
 };
 
@@ -15,7 +15,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ ...props }) => {
 	return <nav aria-label="breadcrumb" {...props} />;
 };
 
-export const BreadcrumbList: React.FC<React.ComponentPropsWithRef<"ol">> = ({
+export const BreadcrumbList: React.FC<React.ComponentProps<"ol">> = ({
 	className,
 	...props
 }) => {
@@ -30,7 +30,7 @@ export const BreadcrumbList: React.FC<React.ComponentPropsWithRef<"ol">> = ({
 	);
 };
 
-export const BreadcrumbItem: React.FC<React.ComponentPropsWithRef<"li">> = ({
+export const BreadcrumbItem: React.FC<React.ComponentProps<"li">> = ({
 	className,
 	...props
 }) => {
@@ -62,7 +62,7 @@ export const BreadcrumbLink: React.FC<BreadcrumbLinkProps> = ({
 	);
 };
 
-export const BreadcrumbPage: React.FC<React.ComponentPropsWithRef<"span">> = ({
+export const BreadcrumbPage: React.FC<React.ComponentProps<"span">> = ({
 	className,
 	...props
 }) => {
@@ -79,7 +79,7 @@ export const BreadcrumbPage: React.FC<React.ComponentPropsWithRef<"span">> = ({
 };
 
 export const BreadcrumbSeparator: React.FC<
-	Omit<React.ComponentPropsWithRef<"li">, "children">
+	Omit<React.ComponentProps<"li">, "children">
 > = ({ className, ...props }) => {
 	return (
 		<li
@@ -97,7 +97,7 @@ export const BreadcrumbSeparator: React.FC<
 };
 
 export const BreadcrumbEllipsis: React.FC<
-	Omit<React.ComponentPropsWithRef<"span">, "children">
+	Omit<React.ComponentProps<"span">, "children">
 > = ({ className, ...props }) => {
 	return (
 		<span

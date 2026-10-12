@@ -9,7 +9,7 @@ set -euo pipefail
 # 12 hex chars; see comment in compute-base-sha.sh.
 HASH_LEN=12
 
-distro="${1:?usage: $0 <22.04|26.04>}"
+distro="${1:?usage: $0 <26.04>}"
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"

@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { MergedTool } from "../../ChatConversation/types";
 import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ToolCall } from "./ToolCall";
@@ -20,10 +20,10 @@ const getReadFileItem = (tool: MergedTool): ReadFileItem => ({
 	...getReadFileToolData(tool),
 });
 
-export const ReadFilesTool: FC<{
+export const ReadFilesTool: React.FC<{
 	tools: readonly MergedTool[];
-	expanded?: boolean;
-	onExpandedChange?: (expanded: boolean) => void;
+	expanded: boolean;
+	onExpandedChange: (expanded: boolean) => void;
 }> = ({ tools, expanded, onExpandedChange }) => {
 	const [expandedFileIDs, setExpandedFileIDs] = useState<ReadonlySet<string>>(
 		new Set(),

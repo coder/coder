@@ -8,6 +8,9 @@ import (
 	"github.com/coder/coder/v2/aibridge/metrics"
 )
 
+// DefaultAsyncTimeout is the default timeout for asynchronous recordings.
+const DefaultAsyncTimeout = time.Second * 5
+
 var _ Recorder = &AsyncRecorder{}
 
 // AsyncRecorder calls [Recorder] methods asynchronously, discarding any errors

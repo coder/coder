@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC, ReactNode } from "react";
 import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -61,14 +60,14 @@ const getProviderStatus = (
 	};
 };
 
-interface ProviderKeyPanelProps {
+type ProviderKeyPanelProps = {
 	provider: UserChatProviderConfig;
 	models: readonly ChatModel[];
 	isModelsLoading: boolean;
 	areModelsUnavailable: boolean;
-}
+};
 
-const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
+const ProviderKeyPanel: React.FC<ProviderKeyPanelProps> = ({
 	provider,
 	models,
 	isModelsLoading,
@@ -149,7 +148,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 		? "Requests will fall back to the shared deployment key for this provider."
 		: "You will need to add a new key before you can use this provider again.";
 
-	let enabledModelsContent: ReactNode;
+	let enabledModelsContent: React.ReactNode;
 	if (isModelsLoading) {
 		enabledModelsContent = <Spinner size="sm" loading label="Loading models" />;
 	} else if (enabledModels.length > 0) {
@@ -258,16 +257,16 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 	);
 };
 
-export interface AgentSettingsAPIKeysPageViewProps {
+export type AgentSettingsAPIKeysPageViewProps = {
 	error: unknown;
 	isLoading: boolean;
 	providers: readonly UserChatProviderConfig[];
 	models: readonly ChatModel[];
 	isModelsLoading: boolean;
 	areModelsUnavailable: boolean;
-}
+};
 
-export const AgentSettingsAPIKeysPageView: FC<
+export const AgentSettingsAPIKeysPageView: React.FC<
 	AgentSettingsAPIKeysPageViewProps
 > = ({
 	error,

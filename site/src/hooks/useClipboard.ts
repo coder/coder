@@ -48,26 +48,32 @@ export const useClipboard = (
 ): UseClipboardResult => {
 	const { onError = toast.error, clearErrorOnSuccess = true } = input;
 
-	const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
+	const [successToken, setSuccessToken] = useState<symbol>();
 	const [error, setError] = useState<Error>();
-	const timeoutIdRef = useRef<number | undefined>(undefined);
 	const lastCopiedTextRef = useRef("");
 
 	useEffect(() => {
-		return () => window.clearTimeout(timeoutIdRef.current);
-	}, []);
+		if (successToken === undefined) {
+			return;
+		}
+
+		const timeoutId = window.setTimeout(() => {
+			setSuccessToken((current) =>
+				current === successToken ? undefined : current,
+			);
+		}, CLIPBOARD_TIMEOUT_MS);
+		return () => window.clearTimeout(timeoutId);
+	}, [successToken]);
 
 	const copyToClipboard = useCallback(
 		async (textToCopy: string) => {
 			const markSuccess = () => {
 				lastCopiedTextRef.current = textToCopy;
-				setShowCopiedSuccess(true);
+				// A unique token restarts feedback even when copying the same text.
+				setSuccessToken(Symbol());
 				if (clearErrorOnSuccess) {
 					setError(undefined);
 				}
-				timeoutIdRef.current = window.setTimeout(() => {
-					setShowCopiedSuccess(false);
-				}, CLIPBOARD_TIMEOUT_MS);
 			};
 
 			try {
@@ -108,7 +114,12 @@ export const useClipboard = (
 		return lastCopiedTextRef.current;
 	}, []);
 
-	return { showCopiedSuccess, error, copyToClipboard, readFromClipboard };
+	return {
+		showCopiedSuccess: successToken !== undefined,
+		error,
+		copyToClipboard,
+		readFromClipboard,
+	};
 };
 
 /**

@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -32,7 +32,7 @@ import {
 } from "./formToRequest";
 import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 
-const WorkspaceSchedulePage: FC = () => {
+const WorkspaceSchedulePage: React.FC = () => {
 	const params = useParams() as { username: string; workspace: string };
 	const navigate = useNavigate();
 	const username = params.username.replace("@", "");

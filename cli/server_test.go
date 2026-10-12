@@ -333,6 +333,10 @@ func TestServer(t *testing.T) {
 			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://localhost:3000/",
 			"--cache-dir", t.TempDir(),
+			// NATS pubsub is on by default and needs this replica's routable
+			// address; without it the server logs an error and falls back to
+			// PostgreSQL pubsub, which would count against the log budget.
+			"--cluster-host", "127.0.0.1",
 		)
 		pty := ptytest.New(t).Attach(inv)
 		require.NoError(t, pty.Resize(20, 80))
@@ -1229,6 +1233,22 @@ func TestServer(t *testing.T) {
 		cancel()
 		require.Error(t, goleak.Find())
 	})
+	t.Run("StartupErrorNoLeak", func(t *testing.T) {
+		t.Parallel()
+
+		inv, cfg := clitest.New(t,
+			"server",
+			dbArg(t),
+			"--http-address", "127.0.0.1:0",
+			"--access-url", "http://example.com",
+			"--cache-dir", t.TempDir(),
+		)
+		// A directory at the URL file path fails startup after coderd is
+		// created; the package goleak check catches a leaked API.
+		require.NoError(t, os.Mkdir(string(cfg.URL()), 0o700))
+		err := inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run()
+		require.ErrorContains(t, err, "write config url")
+	})
 	t.Run("Telemetry", func(t *testing.T) {
 		t.Parallel()
 
@@ -1750,62 +1770,31 @@ func TestServer(t *testing.T) {
 	t.Run("Logging", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("CreatesFile", func(t *testing.T) {
-			t.Parallel()
-			fiName := testutil.TempFile(t, "", "coder-logging-test-*")
+		sinks := []struct {
+			flag string
+			file string
+		}{
+			{flag: "--log-human", file: testutil.TempFile(t, "", "coder-logging-test-*")},
+			{flag: "--log-json", file: testutil.TempFile(t, "", "coder-logging-test-*")},
+		}
+		args := []string{
+			"server",
+			"--log-filter=.*",
+			dbArg(t),
+			"--http-address", "127.0.0.1:0",
+			"--access-url", "http://example.com",
+			"--provisioner-daemons=3",
+			"--provisioner-types=echo",
+		}
+		for _, sink := range sinks {
+			args = append(args, sink.flag, sink.file)
+		}
+		root, _ := clitest.New(t, args...)
+		startIgnoringPostgresQueryCancel(t, root)
 
-			root, _ := clitest.New(t,
-				"server",
-				"--log-filter=.*",
-				dbArg(t),
-				"--http-address", "127.0.0.1:0",
-				"--access-url", "http://example.com",
-				"--provisioner-daemons=3",
-				"--provisioner-types=echo",
-				"--log-human", fiName,
-			)
-			startIgnoringPostgresQueryCancel(t, root)
-
-			loggingWaitFile(t, fiName, testutil.WaitLong)
-		})
-
-		t.Run("Human", func(t *testing.T) {
-			t.Parallel()
-			fi := testutil.TempFile(t, "", "coder-logging-test-*")
-
-			root, _ := clitest.New(t,
-				"server",
-				"--log-filter=.*",
-				dbArg(t),
-				"--http-address", "127.0.0.1:0",
-				"--access-url", "http://example.com",
-				"--provisioner-daemons=3",
-				"--provisioner-types=echo",
-				"--log-human", fi,
-			)
-			startIgnoringPostgresQueryCancel(t, root)
-
-			loggingWaitFile(t, fi, testutil.WaitShort)
-		})
-
-		t.Run("JSON", func(t *testing.T) {
-			t.Parallel()
-			fi := testutil.TempFile(t, "", "coder-logging-test-*")
-
-			root, _ := clitest.New(t,
-				"server",
-				"--log-filter=.*",
-				dbArg(t),
-				"--http-address", "127.0.0.1:0",
-				"--access-url", "http://example.com",
-				"--provisioner-daemons=3",
-				"--provisioner-types=echo",
-				"--log-json", fi,
-			)
-			startIgnoringPostgresQueryCancel(t, root)
-
-			loggingWaitFile(t, fi, testutil.WaitShort)
-		})
+		for _, sink := range sinks {
+			loggingWaitFile(t, sink.file, testutil.WaitLong)
+		}
 	})
 
 	t.Run("YAML", func(t *testing.T) {
@@ -2110,7 +2099,7 @@ func TestServer_ExternalAuthGitHubDefaultProvider(t *testing.T) {
 	}
 }
 
-//nolint:tparallel,paralleltest // This test sets environment variables.
+//nolint:paralleltest // This test sets environment variables.
 func TestServer_Logging_NoParallel(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(io.Discard, r.Body)
@@ -2134,73 +2123,48 @@ func TestServer_Logging_NoParallel(t *testing.T) {
 	// I know; it was made up for the Go package.
 	t.Setenv("GCE_METADATA_HOST", server.URL)
 
-	t.Run("Stackdriver", func(t *testing.T) {
-		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-		defer cancelFunc()
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancelFunc()
 
-		fi := testutil.TempFile(t, "", "coder-logging-test-*")
+	sinks := []struct {
+		flag string
+		file string
+	}{
+		{flag: "--log-human", file: testutil.TempFile(t, "", "coder-logging-test-*")},
+		{flag: "--log-json", file: testutil.TempFile(t, "", "coder-logging-test-*")},
+		{flag: "--log-stackdriver", file: testutil.TempFile(t, "", "coder-logging-test-*")},
+	}
+	args := []string{
+		"server",
+		"--log-filter=.*",
+		dbArg(t),
+		"--http-address", "127.0.0.1:0",
+		"--access-url", "http://example.com",
+		"--provisioner-daemons=3",
+		"--provisioner-types=echo",
+	}
+	for _, sink := range sinks {
+		args = append(args, sink.flag, sink.file)
+	}
 
-		inv, _ := clitest.New(t,
-			"server",
-			"--log-filter=.*",
-			dbArg(t),
-			"--http-address", "127.0.0.1:0",
-			"--access-url", "http://example.com",
-			"--provisioner-daemons=3",
-			"--provisioner-types=echo",
-			"--log-stackdriver", fi,
-		)
-		// Attach expecter so we get debug output from the command if this test
-		// fails.
-		stdout := expecter.NewAttachedToInvocation(t, inv)
+	// NOTE(mafredri): This test might end up downloading Terraform
+	// which can take a long time and end up failing the test.
+	// This is why we wait extra long below for server to listen on
+	// HTTP.
+	inv, _ := clitest.New(t, args...)
+	// Attach expecter so we get debug output from the command if this test
+	// fails.
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 
-		startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
+	startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
 
-		// Wait for server to listen on HTTP, this is a good
-		// starting point for expecting logs.
-		_ = stdout.ExpectMatch(ctx, "Started HTTP listener at")
+	// Wait for server to listen on HTTP, this is a good
+	// starting point for expecting logs.
+	_ = stdout.ExpectMatch(ctx, "Started HTTP listener at")
 
-		loggingWaitFile(t, fi, testutil.WaitSuperLong)
-	})
-
-	t.Run("Multiple", func(t *testing.T) {
-		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-		defer cancelFunc()
-
-		fi1 := testutil.TempFile(t, "", "coder-logging-test-*")
-		fi2 := testutil.TempFile(t, "", "coder-logging-test-*")
-		fi3 := testutil.TempFile(t, "", "coder-logging-test-*")
-
-		// NOTE(mafredri): This test might end up downloading Terraform
-		// which can take a long time and end up failing the test.
-		// This is why we wait extra long below for server to listen on
-		// HTTP.
-		inv, _ := clitest.New(t,
-			"server",
-			"--log-filter=.*",
-			dbArg(t),
-			"--http-address", "127.0.0.1:0",
-			"--access-url", "http://example.com",
-			"--provisioner-daemons=3",
-			"--provisioner-types=echo",
-			"--log-human", fi1,
-			"--log-json", fi2,
-			"--log-stackdriver", fi3,
-		)
-		// Attach expecter so we get debug output from the command if this test
-		// fails.
-		stdout := expecter.NewAttachedToInvocation(t, inv)
-
-		startIgnoringPostgresQueryCancel(t, inv)
-
-		// Wait for server to listen on HTTP, this is a good
-		// starting point for expecting logs.
-		_ = stdout.ExpectMatch(ctx, "Started HTTP listener at")
-
-		loggingWaitFile(t, fi1, testutil.WaitSuperLong)
-		loggingWaitFile(t, fi2, testutil.WaitSuperLong)
-		loggingWaitFile(t, fi3, testutil.WaitSuperLong)
-	})
+	for _, sink := range sinks {
+		loggingWaitFile(t, sink.file, testutil.WaitSuperLong)
+	}
 }
 
 func loggingWaitFile(t *testing.T, fiName string, dur time.Duration) {
@@ -2619,7 +2583,8 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 	cacheDir := t.TempDir()
 	runServer := func(t *testing.T, opts runServerOpts) (chan error, context.CancelFunc) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		inv, _ := clitest.New(t,
+		t.Cleanup(cancelFunc)
+		inv, cfg := clitest.New(t,
 			"server",
 			"--postgres-url", dbConnURL,
 			"--http-address", "127.0.0.1:0",
@@ -2646,6 +2611,19 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 		if opts.waitForTelemetryDisabledCheck {
 			stdout.ExpectMatch(testutil.Context(t, testutil.WaitLong), "finished telemetry status check")
 		}
+
+		// Telemetry can initialize before the server is healthy.
+		// Wait for HTTP serving so context cancellation does not interrupt startup.
+		client := codersdk.New(waitAccessURL(t, cfg))
+		healthCtx := testutil.Context(t, testutil.WaitLong)
+		testutil.Eventually(healthCtx, t, func(ctx context.Context) bool {
+			resp, err := client.Request(ctx, http.MethodGet, "/healthz", nil)
+			if err != nil {
+				return false
+			}
+			defer resp.Body.Close()
+			return resp.StatusCode == http.StatusOK
+		}, testutil.IntervalFast, "server did not become healthy")
 		return errChan, cancelFunc
 	}
 	waitForShutdown := func(t *testing.T, errChan chan error) error {

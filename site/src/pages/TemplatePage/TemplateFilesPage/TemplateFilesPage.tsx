@@ -1,5 +1,5 @@
 import { ExternalLinkIcon } from "lucide-react";
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
 import {
@@ -14,7 +14,7 @@ import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { docs } from "#/utils/docs";
 import { getTemplatePageTitle } from "../utils";
 
-const TemplateFilesPage: FC = () => {
+const TemplateFilesPage: React.FC = () => {
 	const { organization: organizationName = "default" } = useParams() as {
 		organization?: string;
 	};

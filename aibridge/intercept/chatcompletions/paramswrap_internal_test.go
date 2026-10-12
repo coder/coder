@@ -1,12 +1,16 @@
 package chatcompletions
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
+
+	"github.com/coder/coder/v2/aibridge/intercept"
 )
 
 func TestOpenAILastUserPrompt(t *testing.T) {
@@ -133,6 +137,114 @@ func TestOpenAILastUserPrompt(t *testing.T) {
 			}
 		})
 	}
+}
+
+// cacheControlRequest carries cache_control at every position chatd
+// emits it: a system content part, a string-content message (the shape
+// the fantasy openrouter client produces), and a user content part.
+const cacheControlRequest = `{
+	"model":"anthropic/claude-haiku-4.5",
+	"stream":true,
+	"messages":[
+		{"role":"system","content":[{"type":"text","text":"You are helpful.","cache_control":{"type":"ephemeral"}}]},
+		{"role":"user","content":"earlier turn","cache_control":{"type":"ephemeral"}},
+		{"role":"assistant","content":"earlier answer"},
+		{"role":"user","content":[{"type":"text","text":"current turn","cache_control":{"type":"ephemeral"}}]}
+	]
+}`
+
+func TestChatCompletionRequestBodyPreservesCacheControl(t *testing.T) {
+	t.Parallel()
+
+	var req ChatCompletionNewParamsWrapper
+	require.NoError(t, json.Unmarshal([]byte(cacheControlRequest), &req))
+
+	roundTripped, err := json.Marshal(req.ChatCompletionNewParams)
+	require.NoError(t, err)
+	require.NotContains(t, string(roundTripped), "cache_control",
+		"openai-go drops cache_control during the typed param round-trip")
+
+	body, err := (&interceptionBase{
+		req: &req,
+		cfg: intercept.Config{BaseURL: "https://openrouter.ai/api/v1"},
+	}).chatCompletionRequestBody()
+	require.NoError(t, err)
+
+	for _, path := range []string{
+		"messages.0.content.0.cache_control.type",
+		"messages.1.cache_control.type",
+		"messages.3.content.0.cache_control.type",
+	} {
+		require.Equal(t, "ephemeral", gjson.GetBytes(body, path).String(), path)
+	}
+	require.False(t, gjson.GetBytes(body, "messages.2.cache_control").Exists())
+	require.Equal(t, "earlier turn", gjson.GetBytes(body, "messages.1.content").String())
+	require.True(t, gjson.GetBytes(body, "stream_options.include_usage").Bool())
+}
+
+func TestChatCompletionRequestBodyWithoutCacheControlIsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	var req ChatCompletionNewParamsWrapper
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"model":"gpt-4o",
+		"messages":[
+			{"role":"system","content":[{"type":"text","text":"You are helpful."}]},
+			{"role":"user","content":"current turn"}
+		]
+	}`), &req))
+	require.Empty(t, req.PreservedFields)
+
+	typed, err := json.Marshal(req.ChatCompletionNewParams)
+	require.NoError(t, err)
+	body, err := (&interceptionBase{
+		req: &req,
+		cfg: intercept.Config{BaseURL: "https://api.openai.com/v1"},
+	}).chatCompletionRequestBody()
+	require.NoError(t, err)
+	require.Equal(t, typed, body)
+}
+
+func TestPreservedCacheControlFieldsAreCapped(t *testing.T) {
+	t.Parallel()
+
+	var parts []string
+	for i := range maxPreservedCacheControlFields + 2 {
+		parts = append(parts, fmt.Sprintf(`{"type":"text","text":"part %d","cache_control":{"type":"ephemeral"}}`, i))
+	}
+	var req ChatCompletionNewParamsWrapper
+	require.NoError(t, json.Unmarshal([]byte(`{"model":"anthropic/claude-haiku-4.5","messages":[{"role":"user","content":[`+strings.Join(parts, ",")+`]}]}`), &req))
+	require.Len(t, req.PreservedFields, maxPreservedCacheControlFields)
+
+	body, err := (&interceptionBase{
+		req: &req,
+		cfg: intercept.Config{BaseURL: "https://openrouter.ai/api/v1"},
+	}).chatCompletionRequestBody()
+	require.NoError(t, err)
+	for i := range maxPreservedCacheControlFields + 2 {
+		path := fmt.Sprintf("messages.0.content.%d.cache_control", i)
+		require.Equal(t, i < maxPreservedCacheControlFields, gjson.GetBytes(body, path).Exists(), path)
+	}
+}
+
+func TestApplyPreservedFieldsSkipsMissingParents(t *testing.T) {
+	t.Parallel()
+
+	req := ChatCompletionNewParamsWrapper{
+		ChatCompletionNewParams: openai.ChatCompletionNewParams{
+			Messages: []openai.ChatCompletionMessageParamUnion{openai.UserMessage("hello")},
+		},
+		PreservedFields: []preservedJSONField{
+			{Path: "messages.0.content.0.cache_control", Raw: json.RawMessage(`{"type":"ephemeral"}`)},
+			{Path: "messages.4.cache_control", Raw: json.RawMessage(`{"type":"ephemeral"}`)},
+		},
+	}
+	typed, err := json.Marshal(req.ChatCompletionNewParams)
+	require.NoError(t, err)
+
+	body, err := req.applyPreservedFields(typed)
+	require.NoError(t, err)
+	require.Equal(t, typed, body)
 }
 
 // generatePayload creates a JSON payload with the specified number of messages.

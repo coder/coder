@@ -1,5 +1,4 @@
 import { RotateCcwIcon } from "lucide-react";
-import type { FC } from "react";
 import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
@@ -20,11 +19,9 @@ type SubAgentOutdatedTooltipProps = {
 	onUpdate: () => void;
 };
 
-export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
-	devcontainer,
-	agent,
-	onUpdate,
-}) => {
+export const SubAgentOutdatedTooltip: React.FC<
+	SubAgentOutdatedTooltipProps
+> = ({ devcontainer, agent, onUpdate }) => {
 	if (!devcontainer.agent || devcontainer.agent.id !== agent.id) {
 		return null;
 	}

@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import {
 	Tooltip,
 	TooltipContent,
@@ -47,7 +47,7 @@ type ScriptsChartProps = {
 	onBack: () => void;
 };
 
-export const ScriptsChart: FC<ScriptsChartProps> = ({
+export const ScriptsChart: React.FC<ScriptsChartProps> = ({
 	stage,
 	timings,
 	onBack,

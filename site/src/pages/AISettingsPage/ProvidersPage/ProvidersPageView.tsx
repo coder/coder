@@ -29,12 +29,12 @@ import { addableProviders } from "#/pages/AISettingsPage/ProvidersPage/component
 import { ProviderRow } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderRow";
 import { docs } from "#/utils/docs";
 
-interface ProvidersPageViewProps {
+type ProvidersPageViewProps = {
 	isLoading: boolean;
 	isFetching: boolean;
 	error: unknown;
 	providers: AIProvider[];
-}
+};
 
 const AddProviderDropdown: React.FC<{ align?: "start" | "end" }> = ({
 	align = "end",
@@ -98,13 +98,16 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					<ErrorAlert error={error} />
 				</div>
 			)}
-			<Table aria-label="AI providers">
+			<Table className="table-fixed" aria-label="AI providers">
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-1/3">Name</TableHead>
 						<TableHead className="w-1/3">Base URL</TableHead>
 						<TableHead>
 							<span className="sr-only">Status</span>
+						</TableHead>
+						<TableHead className="w-12">
+							<span className="sr-only">Open provider</span>
 						</TableHead>
 					</TableRow>
 				</TableHeader>

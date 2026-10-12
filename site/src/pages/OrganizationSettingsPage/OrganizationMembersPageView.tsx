@@ -76,9 +76,9 @@ export const OrganizationMembersPageView: React.FC<
 	);
 };
 
-interface AddUsersDialogProps {
+type AddUsersDialogProps = {
 	onSubmit: (users: User[]) => Promise<void>;
-}
+};
 
 const AddUsersDialog: React.FC<AddUsersDialogProps> = ({ onSubmit }) => {
 	const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
@@ -107,7 +107,7 @@ const AddUsersDialog: React.FC<AddUsersDialogProps> = ({ onSubmit }) => {
 			>
 				<DialogContent
 					data-testid="dialog"
-					className="max-w-md gap-4 border-border-default bg-surface-primary p-8 text-content-primary"
+					className="max-w-md gap-4 border-border bg-surface-primary p-8 text-content-primary"
 				>
 					<DialogTitle className="font-semibold text-content-primary">
 						Add user(s)

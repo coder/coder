@@ -151,14 +151,6 @@ func WithDBFrom(dbFrom string) OpenOption {
 	}
 }
 
-// WithLogDSN sets whether the DSN should be logged during testing.
-// This provides an ergonomic way to connect to test databases during debugging.
-func WithLogDSN(logDSN bool) OpenOption {
-	return func(o *OpenOptions) {
-		o.LogDSN = logDSN
-	}
-}
-
 // TBSubset is a subset of the testing.TB interface.
 // It allows to use dbtestutil.Open outside of tests.
 type TBSubset interface {

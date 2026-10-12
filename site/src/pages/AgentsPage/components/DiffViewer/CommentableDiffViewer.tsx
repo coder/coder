@@ -4,13 +4,7 @@ import type {
 	SelectedLineRange,
 } from "@pierre/diffs";
 import { ArrowUpIcon } from "lucide-react";
-import {
-	type FC,
-	type RefObject,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	annotationLineForBox,
@@ -108,7 +102,7 @@ export function extractDiffContent(
  * line(s). Supports multiline via Shift+Enter. Enter submits,
  * Escape dismisses.
  */
-export const InlinePromptInput: FC<{
+export const InlinePromptInput: React.FC<{
 	onSubmit: (text: string) => void;
 	onCancel: () => void;
 }> = ({ onSubmit, onCancel }) => {
@@ -121,7 +115,7 @@ export const InlinePromptInput: FC<{
 
 	return (
 		<div className="px-2 py-1.5">
-			<div className="rounded-lg border border-border-default/80 bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
+			<div className="rounded-lg border border-border/80 bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
 				<textarea
 					ref={textareaRef}
 					className="w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-sm leading-5 text-content-primary placeholder:text-content-secondary outline-hidden ring-0 focus:outline-hidden focus:ring-0"
@@ -174,11 +168,11 @@ export const InlinePromptInput: FC<{
 // CommentableDiffViewer
 // -------------------------------------------------------------------
 
-interface CommentableDiffViewerProps {
+type CommentableDiffViewerProps = {
 	/** Parsed file diffs to render. */
 	parsedFiles: readonly FileDiffMetadata[];
 	/** Whether the panel is in expanded mode. */
-	isExpanded?: boolean;
+	isExpanded: boolean;
 	/** Loading state. */
 	isLoading?: boolean;
 	/** Error state. */
@@ -188,19 +182,19 @@ interface CommentableDiffViewerProps {
 	/** Which diff rendering style to use. */
 	diffStyle: DiffStyle;
 	/** Ref to the chat message input for inserting comments. */
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	/** Scroll to a specific file. */
 	scrollToFile?: string | null;
 	/** Called after scrollToFile has been processed. */
 	onScrollToFileComplete?: () => void;
-}
+};
 
 /**
  * Wraps `DiffViewer` with inline commenting support. Click a line
  * number or select a range to open a comment input that inserts a
  * file reference chip and text into the chat input.
  */
-export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
+export const CommentableDiffViewer: React.FC<CommentableDiffViewerProps> = ({
 	parsedFiles,
 	chatInputRef,
 	...diffViewerProps
@@ -303,16 +297,16 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 		);
 		// Single imperative call: chip inserted atomically
 		// in one Lexical update. No rAF hack needed.
-		chatInputRef?.current?.addFileReference({
+		chatInputRef.current?.addFileReference({
 			fileName: box.fileName,
 			startLine,
 			endLine,
 			content,
 		});
 		if (text.trim()) {
-			chatInputRef?.current?.insertText(text);
+			chatInputRef.current?.insertText(text);
 		}
-		chatInputRef?.current?.focus();
+		chatInputRef.current?.focus();
 		updateCommentBox(null);
 	};
 

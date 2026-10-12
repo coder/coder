@@ -19,6 +19,8 @@ export const MockCoderMCPServer: TypesGen.MCPServerConfig = {
 	transport: "streamable_http",
 	auth_type: "oauth2",
 	has_oauth2_secret: true,
+	has_signing_secret: true,
+	forward_coder_headers: true,
 	availability: "default_off",
 	enabled: true,
 };

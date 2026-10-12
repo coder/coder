@@ -62,7 +62,16 @@ const longAdvice = [
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/AdvisorTool",
 	component: Tool,
-	args: { name: "advisor" },
+	args: {
+		name: "advisor",
+		organizationId: "organization-id",
+		mcpServers: [],
+		isError: false,
+		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		shellToolDisplayMode: "auto",
+		codeDiffDisplayMode: "auto",
+	},
 };
 export default meta;
 type Story = StoryObj<typeof Tool>;
@@ -86,6 +95,14 @@ export const SuccessfulAdvice: Story = {
 	},
 };
 
+export const CompletedWithTransientReasoning: Story = {
+	...SuccessfulAdvice,
+	args: {
+		...SuccessfulAdvice.args,
+		reasoning: "This transient reasoning must not appear after completion.",
+	},
+};
+
 export const Running: Story = {
 	args: {
 		status: "running",
@@ -93,30 +110,11 @@ export const Running: Story = {
 	},
 };
 
-// When the model supplies a model_intent, it is the whole header label,
-// matching how the exec tool renders its intent.
-export const WithModelIntent: Story = {
+export const RunningWithReasoning: Story = {
 	args: {
-		status: "completed",
-		args: {
-			question: sampleQuestion,
-			model_intent: "Weighing a refactor tradeoff",
-		},
-		// The backend surfaces model_intent as a top-level tool field, so the
-		// story passes it the same way the timeline does.
-		modelIntent: "Weighing a refactor tradeoff",
-		result: {
-			type: "advice",
-			advice: sampleAdvice,
-			remaining_uses: 2,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const toggle = canvas.getByRole("button", {
-			name: /Weighing a refactor tradeoff/,
-		});
-		await userEvent.click(toggle);
+		status: "running",
+		args: { question: sampleQuestion },
+		reasoning: "I am comparing the risky paths before recommending one.",
 	},
 };
 
@@ -125,6 +123,15 @@ export const RunningWithStreamedAdvice: Story = {
 		status: "running",
 		args: { question: sampleQuestion },
 		result: "Use the smaller diff while the advisor is still responding.",
+	},
+};
+
+export const RunningWithReasoningAndStreamedAdvice: Story = {
+	args: {
+		status: "running",
+		args: { question: sampleQuestion },
+		reasoning: "I found one low-risk path and one risky shortcut.",
+		result: "Use the low-risk path while the advisor is still responding.",
 	},
 };
 

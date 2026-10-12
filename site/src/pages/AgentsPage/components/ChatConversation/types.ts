@@ -16,6 +16,7 @@ export type ParsedToolResult = {
 	name: string;
 	result?: unknown;
 	isError: boolean;
+	isMedia?: boolean;
 	mcpServerConfigId?: string;
 };
 
@@ -24,7 +25,10 @@ export type MergedTool = {
 	name: string;
 	args?: unknown;
 	result?: unknown;
+	/** Streamed advisor reasoning, present only while the advisor runs. */
+	reasoning?: string;
 	isError: boolean;
+	isMedia?: boolean;
 	status: "completed" | "error" | "running";
 	mcpServerConfigId?: string;
 	modelIntent?: string;
@@ -51,6 +55,7 @@ export type RenderBlock =
 	  }
 	| TypesGen.ChatFilePart
 	| TypesGen.ChatFileReferencePart
+	| TypesGen.ChatWorkspaceFileReferencePart
 	| {
 			type: "sources";
 			sources: Array<{ url: string; title: string }>;
@@ -101,8 +106,11 @@ type StreamToolResult = {
 	name: string;
 	result?: unknown;
 	resultRaw?: string;
+	/** Reasoning deltas so far; absent when none arrived or the result is final. */
+	reasoning?: string;
 	isError: boolean;
-	/** True while result deltas are still accumulating before the final result. */
+	isMedia?: boolean;
+	/** True while result or reasoning deltas are still accumulating before the final result. */
 	isStreaming?: boolean;
 	mcpServerConfigId?: string;
 };
@@ -112,4 +120,5 @@ export type StreamState = {
 	toolCalls: Record<string, StreamToolCall>;
 	toolResults: Record<string, StreamToolResult>;
 	sources: Array<{ url: string; title: string }>;
+	startedAt?: string;
 };

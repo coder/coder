@@ -374,6 +374,20 @@ WHERE
 			workspaces.group_acl ? (@shared_with_group_id :: uuid) :: text
 		ELSE true
 	END
+	-- Filter by user_id: workspaces the user owns, or that are shared with
+	-- them directly or through a group they belong to.
+	AND CASE
+		WHEN @user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.owner_id = @user_id
+			OR workspaces.user_acl ? (@user_id :: uuid) :: text
+			OR EXISTS (
+				SELECT 1
+				FROM group_members_expanded
+				WHERE group_members_expanded.user_id = @user_id
+					AND workspaces.group_acl ? group_members_expanded.group_id :: text
+			)
+		ELSE true
+	END
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
@@ -383,13 +397,18 @@ WHERE
 	FROM
 		filtered_workspaces fw
 	ORDER BY
-		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
+		-- Favorited workspaces should show up first only for their owner.
 		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = @requester_id) THEN 0 ELSE 1 END ASC,
+		-- Workspaces you own should show up first.
+		CASE WHEN owner_username = (SELECT users.username FROM users WHERE users.id = @requester_id) THEN 0 ELSE 1 END ASC,
+		-- Running workspaces should show up first.
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
 			latest_build_transition = 'start'::workspace_transition) DESC,
+		-- Group workspaces by owner.
 		LOWER(owner_username) ASC,
+		-- Order workspaces by name.
 		LOWER(name) ASC
 	LIMIT
 		CASE

@@ -34,12 +34,16 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AuditableGroupAIBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
+	"ChatProject":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatProjectMemory":             {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"ChatModelConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
 	"ChatOperationalSettings":       {codersdk.AuditActionWrite},
+	"ChatOrganizationSystemPrompt":  {codersdk.AuditActionWrite},
+	"ExperimentRule":                {codersdk.AuditActionWrite},
 }
 
 type Action string
@@ -286,6 +290,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"id":                                  ActionIgnore,
 		"dynamic_client_registration_enabled": ActionTrack,
 	},
+	&database.ChatOrganizationSystemPrompt{}: {
+		"organization_id": ActionIgnore,
+		"system_prompt":   ActionTrack,
+		"created_at":      ActionIgnore,
+		"updated_at":      ActionIgnore,
+	},
 	&database.ChatInstructionSettings{}: {
 		"id":                                ActionIgnore,
 		"name":                              ActionIgnore,
@@ -446,10 +456,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"owner_username":              ActionIgnore,
 		"owner_name":                  ActionIgnore,
 		"organization_id":             ActionIgnore, // Never changes after creation.
+		"project_id":                  ActionTrack,
 		"workspace_id":                ActionTrack,
 		"build_id":                    ActionIgnore, // Internal lifecycle.
 		"agent_id":                    ActionIgnore, // Internal lifecycle.
 		"title":                       ActionSecret, // May contain sensitive content.
+		"title_source":                ActionTrack,
+		"title_updated_at":            ActionIgnore, // Ordering key for title events.
 		"status":                      ActionIgnore, // Churns every message.
 		"worker_id":                   ActionIgnore, // Internal.
 		"started_at":                  ActionIgnore,
@@ -488,6 +501,26 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
+	},
+	&database.ChatProject{}: {
+		"id":              ActionTrack,
+		"organization_id": ActionTrack,
+		"owner_id":        ActionTrack,
+		"name":            ActionTrack,
+		"description":     ActionTrack,
+		"icon":            ActionTrack,
+		"created_at":      ActionIgnore,
+		"updated_at":      ActionIgnore,
+	},
+	&database.ChatProjectMemory{}: {
+		"id":              ActionTrack,
+		"project_id":      ActionTrack,
+		"organization_id": ActionTrack,
+		"name":            ActionTrack,
+		"description":     ActionTrack,
+		"body":            ActionTrack,
+		"created_by":      ActionTrack,
+		"created_at":      ActionIgnore,
 	},
 	&database.ChatModelConfig{}: {
 		"id":                    ActionIgnore, // Conveyed by resource_id.
@@ -529,6 +562,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"api_key_value_key_id":        ActionIgnore, // dbcrypt bookkeeping.
 		"custom_headers":              ActionSecret, // May contain credentials
 		"custom_headers_key_id":       ActionIgnore, // dbcrypt bookkeeping.
+		"signing_secret":              ActionSecret,
+		"signing_secret_key_id":       ActionIgnore, // dbcrypt bookkeeping.
 		"tool_allow_list":             ActionTrack,
 		"tool_deny_list":              ActionTrack,
 		"availability":                ActionTrack,
@@ -563,6 +598,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"computer_use_provider":            ActionTrack,
 		"debug_logging_allow_users":        ActionTrack,
 		"personal_model_overrides_enabled": ActionTrack,
+	},
+	&database.ExperimentRule{}: {
+		"id":         ActionIgnore, // Derived from the experiment name.
+		"experiment": ActionTrack,
+		"mode":       ActionTrack,
+		"condition":  ActionTrack,
+		"revision":   ActionTrack,
 	},
 	&database.UserSecret{}: {
 		"id":          ActionTrack,

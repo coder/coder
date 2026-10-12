@@ -522,6 +522,13 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 		appSlugs[attrs.Slug] = struct{}{}
 
+		// The browser navigates to external app URLs directly, so they must be valid urls
+		if attrs.External && attrs.URL != "" {
+			if err := provisioner.ValidateExternalURL(attrs.URL); err != nil {
+				return nil, xerrors.Errorf("invalid external url %q for app %q: %w", attrs.URL, attrs.Slug, err)
+			}
+		}
+
 		var healthcheck *proto.Healthcheck
 		if len(attrs.Healthcheck) != 0 {
 			healthcheck = &proto.Healthcheck{
@@ -651,6 +658,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			RunOnStart:       attrs.RunOnStart,
 			RunOnStop:        attrs.RunOnStop,
 			TimeoutSeconds:   attrs.TimeoutSeconds,
+			ResourceAddress:  resource.Address,
 		}
 
 	scriptAgentLoop:

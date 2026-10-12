@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC, JSX } from "react";
 import {
 	containerWidth,
 	containerWidthMedium,
@@ -15,11 +14,11 @@ const widthBySize: Record<Size, number> = {
 	small: containerWidth / 3,
 };
 
-type MarginsProps = JSX.IntrinsicElements["div"] & {
+type MarginsProps = React.JSX.IntrinsicElements["div"] & {
 	size?: Size;
 };
 
-export const Margins: FC<MarginsProps> = ({
+export const Margins: React.FC<MarginsProps> = ({
 	size = "regular",
 	children,
 	className,

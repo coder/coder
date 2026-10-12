@@ -18,10 +18,10 @@ export default meta;
 
 type Story = StoryObj<typeof Autocomplete>;
 
-interface SimpleOption {
+type SimpleOption = {
 	id: string;
 	name: string;
-}
+};
 
 const simpleOptions: SimpleOption[] = [
 	{ id: "1", name: "Mango" },
@@ -372,12 +372,12 @@ export const ClearSelection: Story = {
 	},
 };
 
-interface User {
+type User = {
 	id: string;
 	username: string;
 	email: string;
 	avatar_url?: string;
-}
+};
 
 const users: User[] = [
 	{

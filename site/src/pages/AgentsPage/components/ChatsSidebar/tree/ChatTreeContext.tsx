@@ -2,7 +2,7 @@ import { createContext, useContext } from "react";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import type { ChatTree } from "./chatTree";
 
-export interface ChatTreeContextValue {
+export type ChatTreeContextValue = {
 	readonly chatTree: ChatTree;
 	readonly chatById: ReadonlyMap<string, Chat>;
 	readonly visibleChatIDs: ReadonlySet<string>;
@@ -12,19 +12,12 @@ export interface ChatTreeContextValue {
 	readonly isLoadingModelConfigs: boolean;
 	readonly chatErrorReasons: Record<string, string>;
 	readonly activeChatId: string | undefined;
-	readonly isArchiving: boolean;
-	readonly archivingChatId: string | null;
+	readonly currentUserId: string;
 	readonly toggleExpanded: (chatID: string) => void;
-	readonly onArchiveAgent: (chatId: string) => void;
-	readonly onUnarchiveAgent: (chatId: string) => void;
-	readonly onArchiveAndDeleteWorkspace: (
-		chatId: string,
-		workspaceId: string,
-	) => void;
-	readonly onPinAgent: (chatId: string) => void;
-	readonly onUnpinAgent: (chatId: string) => void;
+	readonly onArchiveSuccess?: (chatId: string) => void;
+	readonly navigateAfterArchive: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
-}
+};
 
 export const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
 

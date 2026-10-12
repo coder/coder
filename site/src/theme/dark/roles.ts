@@ -33,12 +33,12 @@ const roles: Roles = {
 		},
 	},
 	error: {
-		background: colors.red[950],
-		outline: colors.red[600],
+		background: "hsl(var(--surface-destructive))",
+		outline: "hsl(var(--border-destructive))",
 		text: colors.red[50],
 		fill: {
-			solid: colors.red[400],
-			outline: colors.red[400],
+			solid: "hsl(var(--content-destructive))",
+			outline: "hsl(var(--content-destructive))",
 			text: colors.white,
 		},
 	},

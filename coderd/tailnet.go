@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 var tailnetTransport *http.Transport
@@ -75,21 +76,7 @@ func NewServerTailnet(
 	// instead of needing to hit the external access URL. Don't use the ctx
 	// given in this callback, it's only valid while connecting.
 	if derpServer != nil {
-		conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
-			// Don't set up the embedded relay if we're shutting down
-			if !region.EmbeddedRelay || ctx.Err() != nil {
-				return nil
-			}
-			logger.Debug(ctx, "connecting to embedded DERP via in-memory pipe")
-			left, right := net.Pipe()
-			go func() {
-				defer left.Close()
-				defer right.Close()
-				brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
-				derpServer.Accept(ctx, right, brw, "internal")
-			}()
-			return left
-		})
+		conn.SetDERPRegionDialer(embeddedDERPRegionDialer(ctx, logger, derpServer))
 	}
 
 	tracer := traceProvider.Tracer(tracing.TracerName)
@@ -337,6 +324,30 @@ func (s *ServerTailnet) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	s.conn.MagicsockServeHTTPDebug(w, r)
 }
 
+// embeddedDERPRegionDialer serves the embedded DERP region over an in-memory
+// pipe. A nil conn makes the DERP client dial the access URL, so after ctx is
+// done it returns a closed conn: the handshake fails and magicsock backs off.
+func embeddedDERPRegionDialer(ctx context.Context, logger slog.Logger, derpServer *derp.Server) func(context.Context, *tailcfg.DERPRegion) net.Conn {
+	return func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
+		if !region.EmbeddedRelay {
+			return nil
+		}
+		left, right := net.Pipe()
+		if ctx.Err() != nil {
+			_ = right.Close()
+			return left
+		}
+		logger.Debug(ctx, "connecting to embedded DERP via in-memory pipe")
+		go func() {
+			defer left.Close()
+			defer right.Close()
+			brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
+			derpServer.Accept(ctx, right, brw, "internal")
+		}()
+		return left
+	}
+}
+
 type netConnCloser struct {
 	net.Conn
 	close func()
@@ -557,6 +568,8 @@ type InmemTailnetDialer struct {
 	ClientID uuid.UUID
 	// DatabaseHealthCheck is used to validate that the store is reachable.
 	DatabaseHealthCheck Pinger
+	// Clock is optional and defaults to the real clock.
+	Clock quartz.Clock
 }
 
 func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
@@ -572,7 +585,11 @@ func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenCont
 	}
 	coordClient := tailnet.NewInMemoryCoordinatorClient(
 		a.Logger, a.ClientID, tailnet.SingleTailnetCoordinateeAuth{}, *coord)
-	derpClient := newPollingDERPClient(a.DERPFn, a.Logger)
+	clock := a.Clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
+	derpClient := newPollingDERPClient(a.DERPFn, a.Logger, clock)
 	return tailnet.ControlProtocolClients{
 		Closer:      closeAll{coord: coordClient, derp: derpClient},
 		Coordinator: coordClient,
@@ -580,13 +597,14 @@ func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenCont
 	}, nil
 }
 
-func newPollingDERPClient(derpFn func() *tailcfg.DERPMap, logger slog.Logger) tailnet.DERPClient {
+func newPollingDERPClient(derpFn func() *tailcfg.DERPMap, logger slog.Logger, clock quartz.Clock) tailnet.DERPClient {
 	ctx, cancel := context.WithCancel(context.Background())
 	a := &pollingDERPClient{
 		fn:       derpFn,
 		ctx:      ctx,
 		cancel:   cancel,
 		logger:   logger,
+		clock:    clock,
 		ch:       make(chan *tailcfg.DERPMap),
 		loopDone: make(chan struct{}),
 	}
@@ -599,6 +617,7 @@ func newPollingDERPClient(derpFn func() *tailcfg.DERPMap, logger slog.Logger) ta
 type pollingDERPClient struct {
 	fn          func() *tailcfg.DERPMap
 	logger      slog.Logger
+	clock       quartz.Clock
 	ctx         context.Context
 	cancel      context.CancelFunc
 	loopDone    chan struct{}
@@ -626,16 +645,12 @@ func (a *pollingDERPClient) pollDERP() {
 	defer close(a.loopDone)
 	defer a.logger.Debug(a.ctx, "polling DERPMap exited")
 
-	ticker := time.NewTicker(5 * time.Second)
+	// Fetch immediately so the tailnet can publish its node without waiting
+	// for the first tick.
+	ticker := a.clock.NewTicker(5*time.Second, "pollDERP")
 	defer ticker.Stop()
 
 	for {
-		select {
-		case <-a.ctx.Done():
-			return
-		case <-ticker.C:
-		}
-
 		newDerpMap := a.fn()
 		if !tailnet.CompareDERPMaps(a.lastDERPMap, newDerpMap) {
 			select {
@@ -643,6 +658,12 @@ func (a *pollingDERPClient) pollDERP() {
 				return
 			case a.ch <- newDerpMap:
 			}
+		}
+
+		select {
+		case <-a.ctx.Done():
+			return
+		case <-ticker.C:
 		}
 	}
 }

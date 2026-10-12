@@ -1,6 +1,6 @@
 import { isAxiosError } from "axios";
 import { ArrowLeftIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	Link,
@@ -41,7 +41,7 @@ import { OAuth2AppForm } from "./OAuth2AppForm";
 
 const BACK_HREF = "/deployment/oauth2-provider/apps";
 
-export const EditOAuth2AppPageView: FC = () => {
+export const EditOAuth2AppPageView: React.FC = () => {
 	const { appId } = useParams<{ appId: string }>();
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
@@ -191,6 +191,12 @@ export const EditOAuth2AppPageView: FC = () => {
 						value={app.endpoints.authorization}
 					/>
 					<EndpointField label="Token URL" value={app.endpoints.token} />
+					<div className="flex items-center gap-2">
+						<dt className="text-sm">Registration</dt>
+						<dd className="m-0 text-sm text-content-secondary">
+							{app.dynamically_registered ? "Self-registered" : "Admin-created"}
+						</dd>
+					</div>
 				</dl>
 
 				{secretsQuery.error ? (
@@ -202,6 +208,7 @@ export const EditOAuth2AppPageView: FC = () => {
 					<OAuth2AppForm
 						key={app.id}
 						app={app}
+						clientType={app.client_type}
 						onSubmit={async (req) => {
 							try {
 								const updated = await putAppMutation.mutateAsync({
@@ -385,7 +392,7 @@ type EndpointFieldProps = {
 	value: string;
 };
 
-const EndpointField: FC<EndpointFieldProps> = ({ label, value }) => {
+const EndpointField: React.FC<EndpointFieldProps> = ({ label, value }) => {
 	return (
 		<div className="flex items-center gap-2">
 			<dt className="text-sm">{label}</dt>
@@ -412,7 +419,7 @@ type OAuth2SecretRowProps = {
 	isDeleting: boolean;
 };
 
-const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
+const OAuth2SecretRow: React.FC<OAuth2SecretRowProps> = ({
 	secret,
 	onDelete,
 	isDeleting,

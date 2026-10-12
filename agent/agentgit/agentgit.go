@@ -33,13 +33,6 @@ func WithClock(c quartz.Clock) Option {
 	}
 }
 
-// WithGitBinary overrides the git binary path (for testing).
-func WithGitBinary(path string) Option {
-	return func(h *Handler) {
-		h.gitBin = path
-	}
-}
-
 const (
 	// scanCooldown is the minimum interval between successive scans.
 	scanCooldown = 1 * time.Second

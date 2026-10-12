@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/url"
 	"slices"
@@ -690,6 +691,11 @@ func TestAcquireJob(t *testing.T) {
 
 				<-startPublished
 
+				if wk, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+					slices.SortFunc(wk.WorkspaceBuild.Metadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
+						return strings.Compare(a.Name+a.OrgId, b.Name+b.OrgId)
+					})
+				}
 				got, err := json.Marshal(job.Type)
 				require.NoError(t, err)
 
@@ -723,7 +729,7 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
 					WorkspaceBuildId:              build.ID.String(),
 					WorkspaceOwnerLoginType:       string(user.LoginType),
-					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}, {Name: rbac.RoleOrgWorkspaceAccess(), OrgId: pd.OrganizationID.String()}},
+					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}, {Name: rbac.RoleOrgWorkspaceAccess(), OrgId: pd.OrganizationID.String()}, {Name: rbac.RoleAgentsAccess(), OrgId: pd.OrganizationID.String()}},
 				}
 				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 					// For claimed prebuilds, we expect the prebuild state to be set to CLAIM
@@ -5315,4 +5321,62 @@ func TestDownloadFile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, moduleData, data)
 	})
+}
+
+func TestWorkspaceSessionTokenName(t *testing.T) {
+	t.Parallel()
+
+	ownerID, workspaceID := uuid.New(), uuid.New()
+
+	for _, tc := range []struct {
+		name              string
+		tokenName         string
+		expectOwnerID     string
+		expectWorkspaceID string
+		expectOK          bool
+	}{
+		{
+			name:              "valid",
+			tokenName:         provisionerdserver.WorkspaceSessionTokenName(ownerID, workspaceID),
+			expectOwnerID:     ownerID.String(),
+			expectWorkspaceID: workspaceID.String(),
+			expectOK:          true,
+		},
+		{
+			name:              "missing suffix",
+			tokenName:         fmt.Sprintf("%s_%s", ownerID, workspaceID),
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+		{
+			name:              "only one uuid",
+			tokenName:         fmt.Sprintf("%s_session_token", ownerID),
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+		{
+			name:              "invalid",
+			tokenName:         "invalid_invalid_session_token",
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+		{
+			name:              "empty",
+			tokenName:         "",
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ownerID, workspaceID, ok := provisionerdserver.ParseWorkspaceSessionTokenName(tc.tokenName)
+			require.Equal(t, tc.expectOwnerID, ownerID.String())
+			require.Equal(t, tc.expectWorkspaceID, workspaceID.String())
+			require.Equal(t, tc.expectOK, ok)
+		})
+	}
 }

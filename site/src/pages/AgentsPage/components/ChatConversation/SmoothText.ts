@@ -255,22 +255,32 @@ export class SmoothTextEngine {
 		this.stopLoop();
 		this.listeners.clear();
 	}
+
+	/**
+	 * Restart the reveal loop after a dispose that turned out not to be
+	 * final, such as StrictMode's simulated unmount.
+	 */
+	resume() {
+		if (this.isStreaming && !this.bypassSmoothing && !this.isCaughtUp) {
+			this.startLoop();
+		}
+	}
 }
 
 // ── Hook ────────────────────────────────────────────────────────────
 
-interface UseSmoothStreamingTextOptions {
+type UseSmoothStreamingTextOptions = {
 	fullText: string;
 	isStreaming: boolean;
 	bypassSmoothing: boolean;
 	/** Changing this resets the engine (new stream). */
 	streamKey: string;
-}
+};
 
-interface UseSmoothStreamingTextResult {
+type UseSmoothStreamingTextResult = {
 	visibleText: string;
 	isCaughtUp: boolean;
-}
+};
 
 // Module-scoped grapheme segmenter, created once and shared across
 // all hook instances. Falls back to codepoint iteration when the
@@ -278,14 +288,14 @@ interface UseSmoothStreamingTextResult {
 
 // Minimal type for the Intl.Segmenter API which is widely supported
 // at runtime but not included in all TypeScript lib bundles.
-interface GraphemeSegment {
+type GraphemeSegment = {
 	index: number;
 	segment: string;
-}
+};
 
-interface GraphemeSegmenterInstance {
+type GraphemeSegmenterInstance = {
 	segment(input: string): Iterable<GraphemeSegment>;
-}
+};
 
 const graphemeSegmenter: GraphemeSegmenterInstance | null = (() => {
 	try {
@@ -313,7 +323,7 @@ const graphemeSegmenter: GraphemeSegmenterInstance | null = (() => {
  * handling; otherwise the function falls back to iterating by
  * codepoint which still avoids splitting surrogate pairs.
  */
-function sliceAtGraphemeBoundary(
+export function sliceAtGraphemeBoundary(
 	text: string,
 	maxCodeUnitLength: number,
 ): string {
@@ -359,6 +369,17 @@ function sliceAtGraphemeBoundary(
 	return text.slice(0, safeEnd);
 }
 
+/**
+ * Slice a string to its first {@link maxGraphemes} grapheme clusters,
+ * counting codepoints when the `Intl.Segmenter` API is unavailable.
+ */
+export function sliceGraphemes(text: string, maxGraphemes: number): string {
+	const graphemes = graphemeSegmenter
+		? Array.from(graphemeSegmenter.segment(text), ({ segment }) => segment)
+		: Array.from(text);
+	return graphemes.slice(0, maxGraphemes).join("");
+}
+
 export function useSmoothStreamingText(
 	options: UseSmoothStreamingTextOptions,
 ): UseSmoothStreamingTextResult {
@@ -386,8 +407,11 @@ export function useSmoothStreamingText(
 		);
 	}
 
-	// Dispose on unmount.
+	// Dispose on unmount. StrictMode runs this cleanup once on mount too,
+	// which would leave a block that mounted mid-stream frozen until its next
+	// delta re-rendered it, so setup re-arms the loop.
 	useEffect(() => {
+		engine.resume();
 		return () => engine.dispose();
 	}, [engine]);
 

@@ -22,6 +22,14 @@ type SetFamilyArchivedInput struct {
 	// Archived is the desired post-call archived value for every
 	// family member.
 	Archived bool
+	// Precondition, when set, runs inside the transaction after the
+	// root and every family member row are locked (root first, then
+	// children in GetChatFamilyIDsByRootID order) and before any
+	// member is updated. A non-nil error aborts the call and rolls
+	// back the transaction. Reads issued through tx observe every
+	// change committed before the locks were acquired, and writers
+	// that lock a family row cannot commit until this call finishes.
+	Precondition func(ctx context.Context, tx database.Store) error
 }
 
 // SetFamilyArchived runs Update for every chat in the root chat's
@@ -83,6 +91,21 @@ func SetFamilyArchived(
 		}
 		if len(ids) == 0 {
 			return ErrChatNotFound
+		}
+		if input.Precondition != nil {
+			// Lock the remaining members in the same order the update
+			// loop below uses, so the precondition sees a stable family.
+			for _, id := range ids {
+				if id == input.RootID {
+					continue
+				}
+				if _, err := tx.GetChatByIDForUpdate(ctx, id); err != nil {
+					return xerrors.Errorf("lock family chat for archive: %w", err)
+				}
+			}
+			if err := input.Precondition(ctx, tx); err != nil {
+				return err
+			}
 		}
 		familyChats = make([]database.Chat, 0, len(ids))
 		for _, id := range ids {

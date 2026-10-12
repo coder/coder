@@ -207,7 +207,7 @@ provisionerDaemon:
 
   # provisionerDaemon.keySecretName -- The name of the Kubernetes
   # secret that contains a provisioner key to use to authenticate with Coder.
-  # See: https://coder.com/docs/admin/provisioners#authentication
+  # See: https://coder.com/docs/install/operate/provisioners#authentication
   # NOTE: it is not permitted to specify both provisionerDaemon.keySecretName
   # and provisionerDaemon.pskSecretName. An exception is made for the purposes
   # of backwards-compatibility: if provisionerDaemon.pskSecretName is unchanged
@@ -222,7 +222,7 @@ provisionerDaemon:
 
   # provisionerDaemon.tags -- If using a PSK, specify the set of provisioner
   # job tags for which this provisioner daemon is responsible.
-  # See: https://coder.com/docs/admin/provisioners#provisioner-tags
+  # See: https://coder.com/docs/install/operate/provisioners#provisioner-tags
   # NOTE: it is not permitted to specify both provisionerDaemon.tags and
   # provsionerDaemon.keySecretName.
   tags:

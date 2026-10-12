@@ -26,7 +26,7 @@ export function getPersistedDraftInputValue(
 	).text;
 }
 
-export interface ParsedDraft {
+export type ParsedDraft = {
 	/** Plain text content for inputValueRef / send-button checks. */
 	text: string;
 	/**
@@ -35,7 +35,7 @@ export interface ParsedDraft {
 	 * legacy plain-text drafts.
 	 */
 	editorState: string | undefined;
-}
+};
 
 /**
  * Read a draft from localStorage and determine whether it is a

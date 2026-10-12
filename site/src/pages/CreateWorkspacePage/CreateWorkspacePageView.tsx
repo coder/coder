@@ -1,13 +1,6 @@
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useId,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -29,16 +22,13 @@ import {
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 import { useDebouncedFunction } from "#/hooks/debounce";
 import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
 import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
@@ -56,7 +46,7 @@ import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
-interface CreateWorkspacePageViewProps {
+type CreateWorkspacePageViewProps = {
 	autofillParameters: AutofillBuildParameter[];
 	canUpdateTemplate?: boolean;
 	creatingWorkspace: boolean;
@@ -72,7 +62,7 @@ interface CreateWorkspacePageViewProps {
 	mode: CreateWorkspaceMode;
 	parameters: PreviewParameter[];
 	permissions: CreateWorkspacePermissions;
-	presets: TypesGen.Preset[];
+	presets: readonly TypesGen.Preset[];
 	template: TypesGen.Template;
 	urlPreset?: TypesGen.Preset;
 	urlPresetError?: string;
@@ -88,9 +78,11 @@ interface CreateWorkspacePageViewProps {
 	startPollingExternalAuth: (providerId: string) => void;
 	owner: TypesGen.MinimalUser;
 	setOwner: (user: TypesGen.MinimalUser) => void;
-}
+};
 
-export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
+export const CreateWorkspacePageView: React.FC<
+	CreateWorkspacePageViewProps
+> = ({
 	autofillParameters,
 	canUpdateTemplate,
 	creatingWorkspace,
@@ -175,6 +167,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				onSubmit(request, owner);
 			},
 		});
+	// Formik keeps these stable across renders, unlike `form` itself.
+	const { setFieldValue, setFieldTouched } = form;
 
 	useEffect(() => {
 		if (error) {
@@ -213,7 +207,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		if (urlPreset) {
 			const idx = presets.findIndex((p) => p.ID === urlPreset.ID) + 1;
 			setSelectedPresetIndex(idx);
-			form.setFieldValue("template_version_preset_id", urlPreset.ID);
+			setFieldValue("template_version_preset_id", urlPreset.ID);
 			return;
 		}
 
@@ -221,12 +215,12 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		if (defaultPreset) {
 			const idx = presets.indexOf(defaultPreset) + 1; // +1 for "None"
 			setSelectedPresetIndex(idx);
-			form.setFieldValue("template_version_preset_id", defaultPreset.ID);
+			setFieldValue("template_version_preset_id", defaultPreset.ID);
 		} else {
 			setSelectedPresetIndex(0); // Explicitly set to "None"
-			form.setFieldValue("template_version_preset_id", undefined);
+			setFieldValue("template_version_preset_id", undefined);
 		}
-	}, [presets, form.setFieldValue, urlPreset]);
+	}, [presets, setFieldValue, urlPreset]);
 
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
@@ -327,8 +321,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 		if (updates.length > 0) {
 			for (const update of updates) {
-				form.setFieldValue(update.field, update.fieldValue);
-				form.setFieldTouched(update.parameter.name, true);
+				setFieldValue(update.field, update.fieldValue);
+				setFieldTouched(update.parameter.name, true);
 			}
 
 			sendDynamicParamsRequest(
@@ -342,8 +336,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		presetOptions,
 		selectedPresetIndex,
 		presets,
-		form.setFieldValue,
-		form.setFieldTouched,
+		setFieldValue,
+		setFieldTouched,
 		parameters,
 		form.values.rich_parameter_values,
 		sendDynamicParamsRequest,
@@ -440,29 +434,29 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
 
-						<HelpPopover>
-							<HelpPopoverIconTrigger />
-							<HelpPopoverContent className="max-w-xs text-sm">
+						<InfoTooltip>
+							<TooltipMessage>
 								Dynamic Parameters enhances Coder's existing parameter system
 								with real-time validation, conditional parameter behavior, and
 								richer input types.
 								<br />
 								<Link
+									size="sm"
 									href={docs(
 										"/admin/templates/extending-templates/dynamic-parameters",
 									)}
 								>
 									View docs
 								</Link>
-							</HelpPopoverContent>
-						</HelpPopover>
+							</TooltipMessage>
+						</InfoTooltip>
 					</span>
 				</header>
 
 				<form
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
-					className="flex flex-col gap-10 w-full border border-border-default border-solid rounded-lg p-6"
+					className="flex flex-col gap-10 w-full border border-border border-solid rounded-lg p-6"
 					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}

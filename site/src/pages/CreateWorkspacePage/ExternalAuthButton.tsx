@@ -1,5 +1,4 @@
 import { CheckIcon, RedoIcon } from "lucide-react";
-import type { FC } from "react";
 import type { TemplateVersionExternalAuth } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -11,7 +10,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-interface ExternalAuthButtonProps {
+type ExternalAuthButtonProps = {
 	auth: TemplateVersionExternalAuth;
 	displayRetry: boolean;
 	isLoading: boolean;
@@ -22,9 +21,9 @@ interface ExternalAuthButtonProps {
 	 * workspace for someone else should just be shown the status.
 	 */
 	canAuthenticate?: boolean;
-}
+};
 
-export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
+export const ExternalAuthButton: React.FC<ExternalAuthButtonProps> = ({
 	auth,
 	displayRetry,
 	isLoading,

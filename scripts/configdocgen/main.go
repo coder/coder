@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
@@ -22,25 +23,28 @@ import (
 	"github.com/coder/serpent"
 )
 
-const header = `<!-- DO NOT EDIT | GENERATED CONTENT -->
+const header = `---
+toc_depth: 2
+---
+
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # Configuration reference
 
-Coder server is configured primarily through environment variables. This page
-lists every option so you can search by environment variable name, CLI flag, or
-YAML key. For first-time setup guidance and worked examples, see
-[Configure Control Plane Access](./index.md).
+Coder server is configured primarily through environment variables.
+This page lists every option so you can search by environment variable name, CLI flag, or YAML key.
+For first-time setup guidance and worked examples, see [Configure Control Plane Access](./index.md).
 
-Each option can be set through one or more of the methods below. An option lists
-only the methods that apply to it.
+Each option can be set through one or more of the methods below.
+An option lists only the methods that apply to it.
 
-- An environment variable (recommended for production deployments running as a
-  system service, container, or Helm chart).
-- A CLI flag passed to ` + "`coder server`" + ` (useful for one-off invocations
-  and local development).
+- An environment variable (recommended for production deployments running as a system service, container, or Helm chart).
+- A CLI flag passed to ` + "`coder server`" + ` (useful for one-off invocations and local development).
 - A key in a YAML configuration file passed with ` + "`--config`" + `.
 
-For a full description of each option's accepted values and behavior, follow the
-flag link into the [` + "`coder server`" + ` CLI reference](../../reference/cli/server.md).
+For a full description of each option's accepted values and behavior, follow the flag link into the [` + "`coder server`" + ` CLI reference](../../reference/cli/server/index.md).
+
+An option that holds a secret is marked as such.
+Coder never writes those options to a YAML configuration file.
 
 Deprecated options are listed at the end of each section.
 
@@ -51,15 +55,18 @@ const generalSection = "General"
 
 // option is the normalized data needed to render one deployment option.
 type option struct {
-	title      string // short, sentence-case heading text
-	env        string
-	flagName   string
-	flagAnchor string
-	yaml       string
-	defValue   string
-	desc       string
-	deprecated bool
-	sortKey    string // original serpent name, for stable ordering
+	title       string   // short, sentence-case heading text
+	typeName    string   // reader-facing value type, e.g. bool, duration, string-array
+	typeChoices []string // allowed values when typeName is enum or enum-array
+	env         string
+	flagName    string
+	flagAnchor  string
+	yaml        string
+	defValue    string
+	desc        string
+	deprecated  bool
+	secret      bool
+	sortKey     string // original serpent name, for stable ordering
 }
 
 // node is one section of the reference: a serpent group (or the synthetic
@@ -194,17 +201,48 @@ func toOption(opt serpent.Option) option {
 		def = "(computed at runtime)"
 	}
 
+	typeName, typeChoices := valueType(opt)
+
 	return option{
-		title:      shortTitle(opt),
-		env:        opt.Env,
-		flagName:   flagName,
-		flagAnchor: flagAnchor,
-		yaml:       opt.YAMLPath(),
-		defValue:   def,
-		desc:       collapse(opt.Description),
-		deprecated: isDeprecated(opt),
-		sortKey:    opt.Name,
+		title:       shortTitle(opt),
+		typeName:    typeName,
+		typeChoices: typeChoices,
+		env:         opt.Env,
+		flagName:    flagName,
+		flagAnchor:  flagAnchor,
+		yaml:        opt.YAMLPath(),
+		defValue:    def,
+		desc:        collapse(opt.Description),
+		deprecated:  isDeprecated(opt),
+		secret:      codersdk.IsSecretDeploymentOption(opt),
+		sortKey:     opt.Name,
 	}
+}
+
+// valueType reports the option's reader-facing value type and, for enums, the
+// values it accepts. Structured values accept YAML input, so their Go generic
+// type names are not useful in the configuration reference.
+func valueType(opt serpent.Option) (name string, choices []string) {
+	if opt.Value == nil {
+		return "", nil
+	}
+	switch value := opt.Value.(type) {
+	case *serpent.Enum:
+		return "enum", value.Choices
+	case *serpent.EnumArray:
+		return "enum-array", value.Choices
+	}
+	if raw := opt.Value.Type(); strings.HasPrefix(raw, "struct[") {
+		switch {
+		case strings.HasPrefix(raw, "struct[[]"):
+			return "YAML sequence", nil
+		case strings.HasPrefix(raw, "struct[map["):
+			return "YAML mapping", nil
+		default:
+			return "YAML object", nil
+		}
+	}
+	return opt.Value.Type(), nil
 }
 
 // isDeprecated reports whether an option is deprecated. serpent tracks
@@ -255,6 +293,11 @@ func sectionRank(name string) int {
 	}
 }
 
+// dangerousCaution is the fallback GitHub alert body for the Dangerous
+// section, used when the group has no description of its own in codersdk.
+const dangerousCaution = "These options can break your deployment or weaken its security. " +
+	"Change them only when you understand the consequences."
+
 func render(root *node) string {
 	var b strings.Builder
 	for _, sec := range root.children {
@@ -264,9 +307,22 @@ func render(root *node) string {
 }
 
 func renderNode(b *strings.Builder, n *node, level int) {
-	_, _ = fmt.Fprintf(b, "%s %s\n\n", strings.Repeat("#", level), sentenceCase(n.name))
-	if n.intro != "" {
-		_, _ = b.WriteString(n.intro)
+	_, _ = fmt.Fprintf(b, "%s %s\n\n", strings.Repeat("#", level), sentenceCase(stripLeadingSymbol(n.name)))
+
+	intro := n.intro
+	// The Dangerous group's own product-facing name carries a warning emoji
+	// (see sectionRank); docs render that as a GitHub alert instead, using
+	// the group's description if codersdk sets one.
+	if level == 2 && isDangerousSection(n.name) {
+		text := intro
+		if text == "" {
+			text = dangerousCaution
+		}
+		_, _ = fmt.Fprintf(b, "> [!CAUTION]\n> %s\n\n", strings.ReplaceAll(splitSentences(text), "\n", "\n> "))
+		intro = ""
+	}
+	if intro != "" {
+		_, _ = b.WriteString(splitSentences(intro))
 		_, _ = b.WriteString("\n\n")
 	}
 	for _, opt := range n.options {
@@ -277,6 +333,29 @@ func renderNode(b *strings.Builder, n *node, level int) {
 	}
 }
 
+// isDangerousSection reports whether a top-level section is the Dangerous
+// group, regardless of its emoji prefix. Mirrors sectionRank's check.
+func isDangerousSection(name string) bool {
+	return strings.HasSuffix(name, "Dangerous")
+}
+
+// stripLeadingSymbol removes leading words that carry no letters (emoji,
+// warning glyphs, and similar symbols) from a heading, so the generated docs
+// use one heading style instead of the product's own icon vocabulary. Words
+// are checked with hasLetter so multi-rune emoji sequences (e.g. "⚠️") are
+// treated as a single symbol token.
+func stripLeadingSymbol(s string) string {
+	words := strings.Fields(s)
+	i := 0
+	for i < len(words) && !hasLetter(words[i]) {
+		i++
+	}
+	if i == len(words) {
+		return s
+	}
+	return strings.Join(words[i:], " ")
+}
+
 func renderOption(b *strings.Builder, opt option, level int) {
 	_, _ = fmt.Fprintf(b, "%s %s\n\n", strings.Repeat("#", level), opt.title)
 
@@ -285,15 +364,31 @@ func renderOption(b *strings.Builder, opt option, level int) {
 		desc = emphasizeDeprecation(desc)
 	}
 	if desc != "" {
-		_, _ = b.WriteString(desc)
+		_, _ = b.WriteString(splitSentences(desc))
 		_, _ = b.WriteString("\n\n")
 	}
 
+	if opt.typeName != "" {
+		_, _ = fmt.Fprintf(b, "- Type: `%s`", opt.typeName)
+		if len(opt.typeChoices) > 0 {
+			choiceLead := ""
+			choiceQualifier := "one of "
+			if len(opt.typeChoices) == 1 {
+				choiceLead = "must be "
+				choiceQualifier = ""
+			}
+			if opt.typeName == "enum-array" {
+				choiceLead = "each value must be "
+			}
+			_, _ = fmt.Fprintf(b, ", %s%s%s", choiceLead, choiceQualifier, codeList(opt.typeChoices))
+		}
+		_, _ = b.WriteString("\n")
+	}
 	if opt.env != "" {
 		_, _ = fmt.Fprintf(b, "- Environment variable: `%s`\n", opt.env)
 	}
 	if opt.flagName != "" {
-		_, _ = fmt.Fprintf(b, "- CLI flag: [`%s`](../../reference/cli/server.md#%s)\n", opt.flagName, opt.flagAnchor)
+		_, _ = fmt.Fprintf(b, "- CLI flag: [`%s`](../../reference/cli/server/index.md#%s)\n", opt.flagName, opt.flagAnchor)
 	}
 	if opt.yaml != "" {
 		_, _ = fmt.Fprintf(b, "- YAML key: `%s`\n", opt.yaml)
@@ -301,7 +396,66 @@ func renderOption(b *strings.Builder, opt option, level int) {
 	if opt.defValue != "" {
 		_, _ = fmt.Fprintf(b, "- Default value: `%s`\n", opt.defValue)
 	}
+	if opt.secret {
+		_, _ = b.WriteString("- Holds a secret: Coder never writes this option to a YAML configuration file.")
+		if opt.env != "" {
+			_, _ = b.WriteString("\n  Set it through the environment variable above.")
+		}
+		_, _ = b.WriteString("\n")
+	}
 	_, _ = b.WriteString("\n")
+}
+
+// abbreviations end in a period without ending a sentence.
+var abbreviations = map[string]bool{
+	"e.g.": true,
+	"i.e.": true,
+	"etc.": true,
+	"vs.":  true,
+	"aka.": true,
+}
+
+// splitSentences puts each sentence of a paragraph on its own line, matching
+// the docs' one-sentence-per-line convention. A sentence ends at '.', '!', or
+// '?' followed by a space and an uppercase letter, unless the word is a known
+// abbreviation. Requiring an uppercase letter keeps a line from starting with
+// Markdown block syntax such as a list marker.
+func splitSentences(s string) string {
+	words := strings.Split(s, " ")
+	var b strings.Builder
+	for i, w := range words {
+		if i > 0 {
+			if endsSentence(words[i-1]) && startsSentence(w) {
+				_, _ = b.WriteString("\n")
+			} else {
+				_, _ = b.WriteString(" ")
+			}
+		}
+		_, _ = b.WriteString(w)
+	}
+	return b.String()
+}
+
+func endsSentence(w string) bool {
+	if abbreviations[strings.ToLower(w)] {
+		return false
+	}
+	core := strings.TrimRight(w, "\"')`*")
+	return strings.HasSuffix(core, ".") || strings.HasSuffix(core, "!") || strings.HasSuffix(core, "?")
+}
+
+func startsSentence(w string) bool {
+	r, _ := utf8.DecodeRuneInString(w)
+	return unicode.IsUpper(r)
+}
+
+// codeList renders values as a comma-separated list of inline code spans.
+func codeList(values []string) string {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = "`" + v + "`"
+	}
+	return strings.Join(quoted, ", ")
 }
 
 // emphasizeDeprecation bolds the leading "Deprecated" marker in a description

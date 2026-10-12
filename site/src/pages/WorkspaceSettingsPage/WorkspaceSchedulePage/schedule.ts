@@ -14,7 +14,7 @@ import type { WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-interface AutostartSchedule {
+type AutostartSchedule = {
 	sunday: boolean;
 	monday: boolean;
 	tuesday: boolean;
@@ -24,7 +24,7 @@ interface AutostartSchedule {
 	saturday: boolean;
 	startTime: string;
 	timezone: string;
-}
+};
 
 type Autostart = {
 	autostartEnabled: boolean;

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { API } from "#/api/api";
 import type { Organization } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -64,14 +63,14 @@ export const useTemplatesFilter = ({
 	};
 };
 
-interface TemplatesFilterProps {
+type TemplatesFilterProps = {
 	filter: UseFilterResult;
 	error?: unknown;
 
 	userMenu?: UserFilterMenu;
-}
+};
 
-export const TemplatesFilter: FC<TemplatesFilterProps> = ({
+export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 	filter,
 	error,
 	userMenu,

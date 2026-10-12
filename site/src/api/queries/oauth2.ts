@@ -1,6 +1,7 @@
 import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { disabledRefetchOptions } from "./util";
 
 const oauth2ProviderKey = ["oauth2-provider"];
 export const oauth2ProviderAppsKey = oauth2ProviderKey.concat("apps");
@@ -11,6 +12,7 @@ export const oauth2ProviderAppSecretsKey = (appId: string) =>
 
 const userAppsKey = (userId: string) => oauth2ProviderAppsKey.concat(userId);
 export const oauth2ProviderSettingsKey = oauth2ProviderKey.concat("settings");
+export const externalScopesKey = oauth2ProviderKey.concat("external-scopes");
 
 export const getGitHubDevice = () => {
 	return {
@@ -37,6 +39,16 @@ export const getApp = (id: string) => {
 	return {
 		queryKey: oauth2ProviderAppKey(id),
 		queryFn: () => API.getOAuth2ProviderApp(id),
+	};
+};
+
+// The catalog is fixed for a deployment's binary, so a successful fetch is
+// kept for the session. A failed one still retries on the next mount.
+export const getExternalScopes = () => {
+	return {
+		...disabledRefetchOptions,
+		queryKey: externalScopesKey,
+		queryFn: () => API.getExternalAPIKeyScopes(),
 	};
 };
 

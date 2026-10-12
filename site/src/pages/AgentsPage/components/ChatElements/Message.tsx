@@ -1,7 +1,6 @@
 import { cn } from "cn";
-import type { ComponentPropsWithRef } from "react";
 
-type MessageProps = ComponentPropsWithRef<"div">;
+type MessageProps = React.ComponentProps<"div">;
 
 export const Message = ({ className, ref, ...props }: MessageProps) => {
 	return (
@@ -9,7 +8,7 @@ export const Message = ({ className, ref, ...props }: MessageProps) => {
 	);
 };
 
-type MessageContentProps = ComponentPropsWithRef<"div">;
+type MessageContentProps = React.ComponentProps<"div">;
 
 export const MessageContent = ({
 	className,

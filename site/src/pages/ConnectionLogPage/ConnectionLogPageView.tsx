@@ -1,4 +1,3 @@
-import type { ComponentProps, FC } from "react";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -22,17 +21,17 @@ import { ConnectionLogFilter } from "./ConnectionLogFilter";
 import { ConnectionLogHelpPopover } from "./ConnectionLogHelpPopover";
 import { ConnectionLogRow } from "./ConnectionLogRow/ConnectionLogRow";
 
-interface ConnectionLogPageViewProps {
+type ConnectionLogPageViewProps = {
 	connectionLogs?: readonly ConnectionLog[];
 	isNonInitialPage: boolean;
 	isConnectionLogVisible: boolean;
 	error?: unknown;
-	filterProps: ComponentProps<typeof ConnectionLogFilter>;
+	filterProps: React.ComponentProps<typeof ConnectionLogFilter>;
 	connectionLogsQuery: PaginationResult;
 	permissions: Permissions;
-}
+};
 
-export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
+export const ConnectionLogPageView: React.FC<ConnectionLogPageViewProps> = ({
 	connectionLogs,
 	isNonInitialPage,
 	isConnectionLogVisible,
@@ -103,15 +102,15 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 	);
 };
 
-interface ConnectionLogTableBodyProps {
+type ConnectionLogTableBodyProps = {
 	connectionLogs: readonly ConnectionLog[] | undefined;
 	error: unknown;
 	isLoading: boolean;
 	isEmpty: boolean;
 	isNonInitialPage: boolean;
-}
+};
 
-const ConnectionLogTableBody: FC<ConnectionLogTableBodyProps> = ({
+const ConnectionLogTableBody: React.FC<ConnectionLogTableBodyProps> = ({
 	connectionLogs,
 	error,
 	isLoading,

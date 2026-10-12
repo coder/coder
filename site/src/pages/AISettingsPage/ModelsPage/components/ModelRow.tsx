@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
 import type { ChatModel } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
@@ -29,7 +28,7 @@ const formatContextLimit = (contextLimit: number): string => {
 	return `${contextLimit.toLocaleString("en-US")} tokens`;
 };
 
-export const ModelRow: FC<ModelRowProps> = ({
+export const ModelRow: React.FC<ModelRowProps> = ({
 	model,
 	providerLabel,
 	providerTypeByID,
@@ -47,7 +46,7 @@ export const ModelRow: FC<ModelRowProps> = ({
 			? "The provider connected to this model is disabled."
 			: null;
 
-	// Keep tooltip activation from triggering the clickable row's navigation.
+	// Keep tooltip clicks from triggering the clickable row's navigation.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};
@@ -97,8 +96,6 @@ export const ModelRow: FC<ModelRowProps> = ({
 										variant="warning"
 										className="shrink-0"
 										onClick={stopPropagation}
-										onKeyDown={stopPropagation}
-										onKeyUp={stopPropagation}
 									>
 										<button type="button">Unavailable</button>
 									</Badge>

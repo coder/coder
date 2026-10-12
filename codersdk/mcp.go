@@ -9,6 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// MCPEndpoint is the remote MCP HTTP endpoint path.
+const MCPEndpoint = "/api/experimental/mcp/http"
+
 // MCPServerOAuth2ConnectURL returns the URL the user should visit to
 // start the OAuth2 flow for an MCP server. The frontend opens this
 // in a new window/popup.
@@ -95,6 +98,7 @@ type MCPServerConfig struct {
 	// MCP server on every request. Off by default to avoid leaking
 	// chat identity to third-party servers.
 	ForwardCoderHeaders bool      `json:"forward_coder_headers"`
+	HasSigningSecret    bool      `json:"has_signing_secret"`
 	CreatedAt           time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt           time.Time `json:"updated_at" format:"date-time"`
 
@@ -174,6 +178,9 @@ type CreateMCPServerConfigRequest struct {
 	// ForwardCoderHeaders, when true, forwards Coder identity
 	// headers on every outgoing MCP request. See MCPServerConfig.
 	ForwardCoderHeaders bool `json:"forward_coder_headers"`
+	// SigningSecret signs forwarded identity headers and request bodies.
+	// Configure the same secret on the MCP server. It is never returned.
+	SigningSecret string `json:"signing_secret,omitempty"`
 }
 
 // UpdateMCPServerConfigRequest is the request to update an MCP server config.
@@ -210,6 +217,9 @@ type UpdateMCPServerConfigRequest struct {
 	// ForwardCoderHeaders, when set, updates whether Coder identity
 	// headers are forwarded on every outgoing MCP request.
 	ForwardCoderHeaders *bool `json:"forward_coder_headers,omitempty"`
+	// SigningSecret replaces the shared signing key. Omit to preserve it;
+	// an empty string clears it. It is never returned.
+	SigningSecret *string `json:"signing_secret,omitempty"`
 }
 
 func (c *Client) MCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error) {

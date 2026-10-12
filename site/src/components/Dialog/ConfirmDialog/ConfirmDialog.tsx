@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import {
 	Dialog,
 	DialogActions,
@@ -11,10 +10,10 @@ import {
 
 type ConfirmDialogType = "delete" | "info" | "success";
 
-interface ConfirmDialogTypeConfig {
-	confirmText: ReactNode;
+type ConfirmDialogTypeConfig = {
+	confirmText: React.ReactNode;
 	hideCancel: boolean;
-}
+};
 
 const CONFIRM_DIALOG_DEFAULTS: Record<
 	ConfirmDialogType,
@@ -34,13 +33,13 @@ const CONFIRM_DIALOG_DEFAULTS: Record<
 	},
 };
 
-export interface ConfirmDialogProps {
+export type ConfirmDialogProps = {
 	readonly title: string;
 	readonly open: boolean;
 	readonly onClose: () => void;
-	readonly description: ReactNode;
+	readonly description: React.ReactNode;
 	readonly cancelText?: string;
-	readonly confirmText?: ReactNode;
+	readonly confirmText?: React.ReactNode;
 	readonly confirmLoading?: boolean;
 	readonly disabled?: boolean;
 	/**
@@ -60,12 +59,12 @@ export interface ConfirmDialogProps {
 	 * and focus that control instead.
 	 */
 	readonly onCloseAutoFocus?: (event: Event) => void;
-}
+};
 
 /**
  * Quick-use dialog for yes/no style confirmations without custom layout.
  */
-export const ConfirmDialog: FC<ConfirmDialogProps> = ({
+export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 	cancelText = "Cancel",
 	confirmLoading = false,
 	confirmText,

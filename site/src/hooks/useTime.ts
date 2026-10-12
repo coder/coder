@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useState } from "react";
 
-interface UseTimeOptions {
+type UseTimeOptions = {
 	/**
 	 * Can be set to `true` to disable checking for updates in circumstances where it is known
 	 * that there is no work to do.
@@ -11,7 +11,7 @@ interface UseTimeOptions {
 	 * The amount of time in milliseconds that should pass between checking for updates.
 	 */
 	interval?: number;
-}
+};
 
 /**
  * useTime allows a component to rerender over time without a corresponding state change.

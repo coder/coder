@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
@@ -7,11 +6,11 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { isUUID } from "#/utils/uuid";
 
-interface PillListProps {
+type PillListProps = {
 	roles: readonly string[];
-}
+};
 
-export const IdpPillList: FC<PillListProps> = ({ roles }) => {
+export const IdpPillList: React.FC<PillListProps> = ({ roles }) => {
 	return (
 		<div className="flex flex-row gap-2">
 			{roles.length > 0 ? (
@@ -30,11 +29,11 @@ export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	);
 };
 
-interface OverflowPillProps {
+type OverflowPillProps = {
 	roles: string[];
-}
+};
 
-const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
+const OverflowPill: React.FC<OverflowPillProps> = ({ roles }) => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>

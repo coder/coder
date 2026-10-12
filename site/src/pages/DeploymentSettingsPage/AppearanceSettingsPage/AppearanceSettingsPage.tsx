@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -17,7 +16,7 @@ import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 // implements a form, whereas the others are read-only. We make this
 // exception because the Service Banner is visual, and configuring it from
 // the command line would be a significantly worse user experience.
-const AppearanceSettingsPage: FC = () => {
+const AppearanceSettingsPage: React.FC = () => {
 	const { appearance, entitlements } = useDashboard();
 	const queryClient = useQueryClient();
 	const updateAppearanceMutation = useMutation(updateAppearance(queryClient));

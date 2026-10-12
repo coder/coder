@@ -294,10 +294,10 @@ export const setOptimisticWorkspaceListBuildStatus = (
 	};
 };
 
-interface WorkspaceMutationInvalidationOptions {
+type WorkspaceMutationInvalidationOptions = {
 	organizationName: string;
 	username: string;
-}
+};
 
 export async function invalidateWorkspaceMutationQueries(
 	queryClient: QueryClient,
@@ -536,12 +536,12 @@ export const agentListeningPorts = (agentId: string) => {
 };
 
 // workspace usage options
-interface WorkspaceUsageOptions {
+type WorkspaceUsageOptions = {
 	usageApp: UsageAppName;
 	connectionStatus: ConnectionStatus;
 	workspaceId: string | undefined;
 	agentId: string | undefined;
-}
+};
 
 export const workspaceUsage = (options: WorkspaceUsageOptions) => {
 	return {

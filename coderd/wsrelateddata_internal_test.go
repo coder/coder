@@ -6,10 +6,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
-	"github.com/coder/coder/v2/coderd/wsrelated"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -269,4 +270,65 @@ func TestWorkspaceDataQueryGating(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// TestSingleWorkspaceData asserts the strict template-authorization behavior
+// layered on top of workspaceData: a requested-but-absent template is reported
+// as errWorkspaceTemplateUnauthorized, while an omitted template or a real
+// query failure are handled distinctly.
+func TestSingleWorkspaceData(t *testing.T) {
+	t.Parallel()
+
+	workspace := database.Workspace{ID: uuid.New(), TemplateID: uuid.New()}
+
+	t.Run("TemplateReadable", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
+			Return([]database.Template{{ID: workspace.TemplateID}}, nil)
+
+		api := &API{Options: &Options{Database: db}}
+		data, err := api.singleWorkspaceData(ctx, workspace, wsrelated.Config{Template: true})
+		require.NoError(t, err)
+		require.Len(t, data.templates, 1)
+	})
+
+	t.Run("TemplateUnauthorized", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		// The actor cannot read the template, so the query omits it.
+		db.EXPECT().GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
+			Return([]database.Template{}, nil)
+
+		api := &API{Options: &Options{Database: db}}
+		_, err := api.singleWorkspaceData(ctx, workspace, wsrelated.Config{Template: true})
+		require.ErrorIs(t, err, errWorkspaceTemplateUnauthorized)
+	})
+
+	t.Run("TemplateNotRequested", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		// No template query is expected, and an absent template is not an error.
+		db := dbmock.NewMockStore(gomock.NewController(t))
+
+		api := &API{Options: &Options{Database: db}}
+		_, err := api.singleWorkspaceData(ctx, workspace, wsrelated.Config{})
+		require.NoError(t, err)
+	})
+
+	t.Run("QueryError", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
+			Return(nil, xerrors.New("boom"))
+
+		api := &API{Options: &Options{Database: db}}
+		_, err := api.singleWorkspaceData(ctx, workspace, wsrelated.Config{Template: true})
+		require.Error(t, err)
+		// A real query failure must not be mistaken for an authorization denial.
+		require.NotErrorIs(t, err, errWorkspaceTemplateUnauthorized)
+	})
 }
