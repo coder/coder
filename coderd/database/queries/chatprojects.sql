@@ -223,6 +223,8 @@ SELECT EXISTS (
 )::boolean;
 
 -- name: DeleteEmptyDeletedChatProjects :execrows
+-- Memories cascade with the row, so they follow chat retention too; nothing
+-- can read them after the tombstone.
 WITH empty AS (
     SELECT chat_projects.id
     FROM chat_projects

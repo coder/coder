@@ -186,6 +186,8 @@ type sqlcQuerier interface {
 	DeleteChatQueuedMessagesOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
+	// Memories cascade with the row, so they follow chat retention too; nothing
+	// can read them after the tombstone.
 	DeleteEmptyDeletedChatProjects(ctx context.Context, limitCount int32) (int64, error)
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
 	DeleteExternalAuthLink(ctx context.Context, arg DeleteExternalAuthLinkParams) error

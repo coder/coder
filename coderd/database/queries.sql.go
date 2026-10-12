@@ -7890,6 +7890,8 @@ DELETE FROM chat_projects
 WHERE id IN (SELECT id FROM empty)
 `
 
+// Memories cascade with the row, so they follow chat retention too; nothing
+// can read them after the tombstone.
 func (q *sqlQuerier) DeleteEmptyDeletedChatProjects(ctx context.Context, limitCount int32) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteEmptyDeletedChatProjects, limitCount)
 	if err != nil {

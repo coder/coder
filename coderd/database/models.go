@@ -5394,7 +5394,7 @@ type ChatProject struct {
 	UserACL ChatACL `db:"user_acl" json:"user_acl"`
 	// Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.
 	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
-	// Irreversible. Chat retention deletes the project's archived chats; dbpurge then deletes the row.
+	// Irreversible. The project's archived chats follow chat retention (kept forever when retention is 0); dbpurge deletes the row, and its memories by cascade, once none are left.
 	Deleted bool `db:"deleted" json:"deleted"`
 }
 
