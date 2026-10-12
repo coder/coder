@@ -42,12 +42,12 @@ func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) AgentConn {
 		Conn: conn,
 		opts: opts,
 	}
-	if opts.APIIdleConnTimeout > 0 {
-		c.apiTransport = &http.Transport{
-			DialContext:         c.dialAPI,
-			MaxIdleConnsPerHost: 1,
-			IdleConnTimeout:     opts.APIIdleConnTimeout,
-		}
+	c.apiClient = &http.Client{
+		// Redirects are blocked to prevent misuse.
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: newAPITransport(c.dialAPI, opts.APIIdleConnTimeout),
 	}
 	return c
 }
@@ -153,7 +153,7 @@ type AgentConn interface {
 type agentConn struct {
 	*tailnet.Conn
 	opts         AgentConnOptions
-	apiTransport *http.Transport // Nil unless opts.APIIdleConnTimeout is positive.
+	apiClient    *http.Client // For the agent's HTTP API server.
 	headersMu    sync.RWMutex
 	extraHeaders http.Header
 }
@@ -175,8 +175,8 @@ type AgentConnOptions struct {
 	Logger    slog.Logger
 	// APIIdleConnTimeout, if positive, keeps one connection to the agent's
 	// HTTP API server open between requests, for up to this long while idle.
-	// Only resendable requests use it (see resendable); other requests use a
-	// new connection each. Close closes it.
+	// Only resendable requests use it; other requests use a new connection
+	// each (see apiTransport). Close closes it.
 	APIIdleConnTimeout time.Duration
 }
 
@@ -205,9 +205,7 @@ func (c *agentConn) Ping(ctx context.Context) (time.Duration, bool, *ipnstate.Pi
 func (c *agentConn) Close() error {
 	// The idle API connection is this conn's, also when CloseFunc keeps the
 	// tailnet open.
-	if c.apiTransport != nil {
-		c.apiTransport.CloseIdleConnections()
-	}
+	c.apiClient.CloseIdleConnections()
 	var cerr error
 	if c.opts.CloseFunc != nil {
 		cerr = c.opts.CloseFunc()
@@ -275,7 +273,7 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 	c.headersMu.RUnlock()
 
 	addr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
-	conn, err := DialTCPUpgrade(ctx, addr.String(), c.apiClient(ctx), extraHeaders, AgentReconnectingPTYPort)
+	conn, err := DialTCPUpgrade(ctx, addr.String(), c.apiClient, extraHeaders, AgentReconnectingPTYPort)
 	if errors.Is(err, ErrAgentTCPUpgradeUnsupported) {
 		// Fall back to dialing the port directly.
 		conn, err = c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
@@ -333,7 +331,7 @@ func (c *agentConn) SSHTCPConn(ctx context.Context) (TCPConn, error) {
 	c.headersMu.RUnlock()
 
 	addr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
-	conn, err := DialTCPUpgrade(ctx, addr.String(), c.apiClient(ctx), extraHeaders, AgentStandardSSHPort)
+	conn, err := DialTCPUpgrade(ctx, addr.String(), c.apiClient, extraHeaders, AgentStandardSSHPort)
 	if errors.Is(err, ErrAgentTCPUpgradeUnsupported) {
 		// Fall back to dialing the port directly.
 		return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentStandardSSHPort))
@@ -772,7 +770,7 @@ func (c *agentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 	url := fmt.Sprintf("http://%s%s", host, "/api/v0/containers/watch")
 
 	conn, res, err := websocket.Dial(ctx, url, &websocket.DialOptions{
-		HTTPClient: c.apiClient(ctx),
+		HTTPClient: c.apiClient,
 
 		// We want `NoContextTakeover` compression to balance improving
 		// bandwidth cost/latency with minimal memory usage overhead.
@@ -808,7 +806,7 @@ func (c *agentConn) WatchGit(ctx context.Context, logger slog.Logger, chatID uui
 	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
 
 	dialOpts := &websocket.DialOptions{
-		HTTPClient:      c.apiClient(ctx),
+		HTTPClient:      c.apiClient,
 		CompressionMode: websocket.CompressionNoContextTakeover,
 	}
 	c.headersMu.RLock()
@@ -850,7 +848,7 @@ func (c *agentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
 	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
 
 	dialOpts := &websocket.DialOptions{
-		HTTPClient:      c.apiClient(ctx),
+		HTTPClient:      c.apiClient,
 		CompressionMode: websocket.CompressionDisabled,
 	}
 	c.headersMu.RLock()
@@ -963,7 +961,7 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 	}
 	c.headersMu.RUnlock()
 
-	resp, err := c.apiClient(ctx).Do(req)
+	resp, err := c.apiClient.Do(req)
 	if err != nil {
 		return DesktopActionResponse{}, xerrors.Errorf("action request: %w", err)
 	}
@@ -1169,11 +1167,11 @@ func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSRespo
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	// Listing is read-only. An Idempotency-Key with no value marks the request
-	// as resendable without sending the header.
+	header := http.Header{}
+	markResendable(header) // Listing is read-only.
 	res, err := c.apiRequestWithHeader(ctx, http.MethodPost, agentAPIPath("/api/v0/list-directory", neturl.Values{
 		"path": []string{path},
-	}), req, http.Header{idempotencyKeyHeader: nil})
+	}), req, header)
 	if err != nil {
 		return LSResponse{}, xerrors.Errorf("do request: %w", err)
 	}
@@ -1513,8 +1511,9 @@ func readStartProcessResponse(res *http.Response) (StartProcessResponse, error) 
 func (c *agentConn) CancelToolCall(ctx context.Context, id uuid.UUID) (CancelToolCallResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequestWithHeader(ctx, http.MethodPost, "/api/v0/tool-calls/"+id.String()+"/cancel", nil,
-		http.Header{idempotencyKeyHeader: {id.String()}}) // Canceling twice returns the same result.
+	header := http.Header{}
+	markResendable(header) // Canceling twice returns the same result.
+	res, err := c.apiRequestWithHeader(ctx, http.MethodPost, "/api/v0/tool-calls/"+id.String()+"/cancel", nil, header)
 	if err != nil {
 		return CancelToolCallResponse{}, xerrors.Errorf("do request: %w", err)
 	}
@@ -1665,7 +1664,9 @@ func (c *agentConn) toolCallRequest(ctx context.Context, method, path string, bo
 	header := http.Header{}
 	if id, ok := ToolCallIDFromContext(ctx); ok {
 		header.Set(CoderToolCallIDHeader, id.String())
-		header.Set(idempotencyKeyHeader, id.String())
+		// The agent runs a tool call ID once and answers repeats with the
+		// saved response.
+		markResendable(header)
 	}
 	return c.apiRequestWithHeader(ctx, method, path, body, header)
 }
@@ -1714,7 +1715,7 @@ func (c *agentConn) apiRequestWithHeader(ctx context.Context, method, path strin
 		req.Header[key] = values
 	}
 
-	return c.apiClient(ctx).Do(req)
+	return c.apiClient.Do(req)
 }
 
 // decodeAgentJSON decodes an agent-direct HTTP response body. Agent
@@ -1723,62 +1724,88 @@ func (c *agentConn) apiRequestWithHeader(ctx context.Context, method, path strin
 // the response and codersdk.ReadBodyAsJSON's proxy/SSO-oriented error
 // guidance would be misleading here.
 //
-// It reads the body to EOF: http.Transport reuses a connection only after
-// its response body was read to EOF, and the decoder can stop before the
-// end of a chunked body.
-//
 //nolint:gocritic // See doc comment.
 func decodeAgentJSON(res *http.Response, v any) error {
 	if err := json.NewDecoder(res.Body).Decode(v); err != nil {
 		return err
 	}
-	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 4<<10)) // The encoder's trailing newline.
+	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, maxJSONTrailerBytes))
 	return nil
 }
 
-// apiClient returns an HTTP client that can be used to make
-// requests to the workspace agent's HTTP API server. Its transport
-// cancels in-flight dials once reqCtx ends.
-func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
-	return &http.Client{
-		// Redirects are blocked to prevent misuse.
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
+// maxJSONTrailerBytes is how much of a response body decodeAgentJSON reads
+// after the decoded value. http.Transport reuses a connection only after its
+// response body was read to EOF, and the JSON decoder can stop before the end
+// of a chunked body. The agent's JSON encoder writes one newline after the
+// value.
+const maxJSONTrailerBytes = 4 << 10
+
+// apiTransport sends requests to the agent's HTTP API server. With
+// keepAlive set, it sends resendable requests on a connection it keeps open
+// between requests, and every other request on a new connection: the agent
+// may close a kept connection while it is idle, and http.Transport resends
+// only resendable requests when a reused connection fails.
+type apiTransport struct {
+	keepAlive *http.Transport // Nil if no connection is kept open.
+	// noKeepAlive closes each connection after its request, so it holds no
+	// idle connections and their goroutines.
+	noKeepAlive *http.Transport
+}
+
+func newAPITransport(dial func(ctx context.Context, network, addr string) (net.Conn, error), idleConnTimeout time.Duration) *apiTransport {
+	t := &apiTransport{
+		noKeepAlive: &http.Transport{
+			DisableKeepAlives: true,
+			DialContext:       dial,
 		},
-		Transport: apiRoundTripper{conn: c, reqCtx: reqCtx},
+	}
+	if idleConnTimeout > 0 {
+		t.keepAlive = &http.Transport{
+			DialContext:         dial,
+			MaxIdleConnsPerHost: 1,
+			IdleConnTimeout:     idleConnTimeout,
+		}
+	}
+	return t
+}
+
+type dialRequestContextKey struct{}
+
+func (t *apiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// http.Transport dials with a context that keeps the request context's
+	// values but not its cancellation. dialAPI ends the dial with the
+	// request through this value.
+	req = req.WithContext(context.WithValue(req.Context(), dialRequestContextKey{}, req.Context()))
+	if t.keepAlive != nil && resendable(req) {
+		return t.keepAlive.RoundTrip(req)
+	}
+	return t.noKeepAlive.RoundTrip(req)
+}
+
+func (t *apiTransport) CloseIdleConnections() {
+	if t.keepAlive != nil {
+		t.keepAlive.CloseIdleConnections()
 	}
 }
 
-type apiRequestContextKey struct{}
+// idempotencyKeyHeader is a header http.Transport reads to treat a request as
+// idempotent, as documented on http.Transport.
+const idempotencyKeyHeader = "Idempotency-Key"
 
-// apiRoundTripper sends a request on the conn's pooled API transport if it
-// has one and the request is resendable, and otherwise on a transport for
-// that request only.
-type apiRoundTripper struct {
-	conn   *agentConn
-	reqCtx context.Context
-}
-
-func (t apiRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = req.WithContext(context.WithValue(req.Context(), apiRequestContextKey{}, t.reqCtx))
-	if t.conn.apiTransport != nil && resendable(req) {
-		return t.conn.apiTransport.RoundTrip(req)
-	}
-	transport := &http.Transport{
-		// Disable keep alives as we're usually only making a single
-		// request, and this triggers goleak in tests
-		DisableKeepAlives: true,
-		DialContext:       t.conn.dialAPI,
-	}
-	return transport.RoundTrip(req)
+// markResendable makes http.Transport treat a request with header h as
+// idempotent, so it resends the request on a new connection when a reused
+// connection fails before the response arrives. Use it only for requests
+// the agent handles the same when they arrive twice. It sets
+// Idempotency-Key with no value, which http.Transport does not send.
+func markResendable(h http.Header) {
+	h[idempotencyKeyHeader] = nil
 }
 
 // resendable reports whether http.Transport resends req on a new connection
-// when a reused connection fails before the response arrives: the method is
-// idempotent or an Idempotency-Key or X-Idempotency-Key header is present,
-// even with no value, and the body is empty or has GetBody. This is the rule
-// of the unexported (*http.Request).isReplayable. Any other request on a
-// pooled connection fails if the agent closed that connection while idle.
+// when a reused connection fails before the response arrives, by the rule
+// documented on http.Transport: the method is GET, HEAD, OPTIONS or TRACE,
+// or an Idempotency-Key or X-Idempotency-Key header is present, and the body
+// is empty or has GetBody.
 func resendable(req *http.Request) bool {
 	if req.Body != nil && req.Body != http.NoBody && req.GetBody == nil {
 		return false
@@ -1814,12 +1841,10 @@ func (c *agentConn) dialAPI(ctx context.Context, network, addr string) (net.Conn
 		return nil, xerrors.Errorf("request host %q does not match intended agent %q", host, agentAddr.Addr())
 	}
 
-	// http.Transport detaches ctx from the request context so a
-	// pending dial can outlive its request and serve future
-	// requests. Without re-linking cancellation, a canceled request
-	// would leave the dial blocked in AwaitReachable until the agent
-	// becomes reachable, which may be never.
-	if reqCtx, ok := ctx.Value(apiRequestContextKey{}).(context.Context); ok {
+	// Without the request's cancellation, a canceled request would leave
+	// the dial blocked in AwaitReachable until the agent becomes
+	// reachable, which may be never.
+	if reqCtx, ok := ctx.Value(dialRequestContextKey{}).(context.Context); ok {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithCancel(ctx)
 		defer cancel()
