@@ -70,7 +70,9 @@ export const AutomationWebhookFields: React.FC<
 				<RadioOption value="single" label="Single-use" />
 			</RadioGroup>
 			<span id={useHelpId} className="text-xs text-content-secondary">
-				A single-use webhook accepts one event.
+				{webhookUse === "single"
+					? "A single-use webhook accepts one event, then rejects the rest."
+					: "A multi-use webhook accepts every event while the automation is on."}
 			</span>
 		</div>
 	);

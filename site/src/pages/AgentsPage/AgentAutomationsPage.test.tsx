@@ -1827,6 +1827,23 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		});
 	});
 
+	it("describes the webhook use that is selected", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const dialog = await openCreateDialog(user);
+
+		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
+		const use = within(dialog).getByRole("radiogroup", { name: "Use" });
+		expect(use).toHaveAccessibleDescription(
+			"A multi-use webhook accepts every event while the automation is on.",
+		);
+
+		await user.click(within(dialog).getByRole("radio", { name: "Single-use" }));
+		expect(use).toHaveAccessibleDescription(
+			"A single-use webhook accepts one event, then rejects the rest.",
+		);
+	});
+
 	it("tells a viewer who turned another owner's automation off that only the owner can undo it", async () => {
 		const user = userEvent.setup();
 		const toastSuccess = vi.spyOn(toast, "success");
