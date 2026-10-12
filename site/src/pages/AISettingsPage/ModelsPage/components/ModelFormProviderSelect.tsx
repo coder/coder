@@ -30,6 +30,11 @@ export const ModelFormProviderSelect: React.FC<{
 			ps.providerDescriptor.enabled ||
 			(isEditing && ps.key === selectedProviderKey),
 	);
+	// Model prices are keyed by provider type, so surface the exact type
+	// string for use with `coder exp ai-model-prices update --provider`.
+	const selectedProviderType = providerStates.find(
+		(ps) => ps.key === selectedProviderKey,
+	)?.provider;
 	return (
 		<div className="grid gap-1.5">
 			<Label
@@ -59,14 +64,17 @@ export const ModelFormProviderSelect: React.FC<{
 							<span className="flex items-center gap-2">
 								<ProviderIcon provider={ps.provider} />
 								{ps.label}
-								<span className="font-mono text-xs text-content-secondary">
-									{ps.provider}
-								</span>
 							</span>
 						</SelectItem>
 					))}
 				</SelectContent>
 			</Select>
+			{selectedProviderType && (
+				<p className="m-0 text-xs text-content-secondary">
+					Provider type:{" "}
+					<code className="font-mono">{selectedProviderType}</code>
+				</p>
+			)}
 		</div>
 	);
 };

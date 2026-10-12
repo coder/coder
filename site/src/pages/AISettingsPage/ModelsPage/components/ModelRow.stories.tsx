@@ -44,12 +44,19 @@ export const WithProvider: Story = {
 	},
 };
 
-// An unmapped provider type falls back to the generic icon, so the raw type
-// text is what distinguishes it from other providers.
+// An unmapped provider type falls back to the generic icon, so the icon's
+// tooltip is what tells it apart from other providers.
 export const UnmappedProviderType: Story = {
 	args: {
 		providerLabel: "Internal Gateway",
 		providerTypeByID: new Map([["prov-openai", "openai-compat"]]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("img", { name: "Provider type: openai-compat" }),
+		);
+		await within(document.body).findByRole("tooltip");
 	},
 };
 

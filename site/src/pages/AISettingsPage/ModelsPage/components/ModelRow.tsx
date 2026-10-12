@@ -63,7 +63,25 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 							!model.enabled && "opacity-50",
 						)}
 					>
-						<ProviderIcon provider={providerType} />
+						{providerType ? (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span
+										role="img"
+										aria-label={`Provider type: ${providerType}`}
+										className="flex items-center justify-center"
+									>
+										<ProviderIcon provider={providerType} />
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="bottom">
+									Provider type:{" "}
+									<code className="font-mono">{providerType}</code>
+								</TooltipContent>
+							</Tooltip>
+						) : (
+							<ProviderIcon provider={providerType} />
+						)}
 					</Avatar>
 					<div className="flex min-w-0 items-center gap-2">
 						<span
@@ -109,27 +127,17 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 			</TableCell>
 			<TableCell className="min-w-0">
 				{hasProvider ? (
-					<div className="flex min-w-0 items-baseline gap-2">
-						<span
-							className={cn(
-								"truncate text-sm font-medium leading-6",
-								model.enabled
-									? "text-content-secondary"
-									: "text-content-disabled",
-							)}
-							title={providerLabel}
-						>
-							{providerLabel}
-						</span>
-						{providerType && (
-							<span
-								className="shrink-0 font-mono text-xs text-content-secondary"
-								title={providerType}
-							>
-								{providerType}
-							</span>
+					<span
+						className={cn(
+							"block truncate text-sm font-medium leading-6",
+							model.enabled
+								? "text-content-secondary"
+								: "text-content-disabled",
 						)}
-					</div>
+						title={providerLabel}
+					>
+						{providerLabel}
+					</span>
 				) : (
 					<span className="truncate text-sm font-medium leading-6 text-content-secondary">
 						Unset
