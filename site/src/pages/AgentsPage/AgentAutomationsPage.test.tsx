@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent, {
 	PointerEventsCheckLevel,
 } from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { delay, HttpResponse, http } from "msw";
 import type { QueryClient } from "react-query";
 import type { To } from "react-router";
 import { toast } from "sonner";
@@ -246,18 +246,28 @@ describe("AgentAutomationsPage", () => {
 			owner_id: "another-user",
 			owner: { id: "another-user", username: "bob", name: "Bob" },
 		};
-		const { requests } = setup({
+		const { requests, router } = setup({
 			automations: [otherOwners],
 			route: `/agents/automations/${mockAutomation.id}`,
 		});
 		const deletePath = `${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`;
+		let deleted = false;
 		server.use(
 			http.post("/api/v2/authcheck", () =>
 				HttpResponse.json({ canDeleteAny: true }),
 			),
 			http.delete(deletePath, ({ request }) => {
 				requests.push(request);
+				deleted = true;
 				return new HttpResponse(null, { status: 204 });
+			}),
+			// A real refetch takes a round trip, so the emptied cache renders
+			// before it returns.
+			http.get(automationsPath(MockDefaultOrganization.id), async () => {
+				if (deleted) {
+					await delay(50);
+				}
+				return HttpResponse.json(deleted ? [] : [otherOwners]);
 			}),
 		);
 
@@ -274,6 +284,11 @@ describe("AgentAutomationsPage", () => {
 
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(`DELETE ${deletePath}`);
+		});
+		// The delete drops the automation from the cache, which unmounts the
+		// editor. The page must still leave for the list.
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/agents/automations");
 		});
 	});
 

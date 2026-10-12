@@ -364,19 +364,23 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 		if (!automation) {
 			return;
 		}
-		deleteMutation.mutate(automation.id, {
-			onSuccess: () => {
+		// The delete drops the automation from the cache, so the route renders
+		// "not found" and unmounts this editor before mutate() callbacks run.
+		// mutateAsync settles regardless, so the toast and redirect still happen.
+		deleteMutation.mutateAsync(automation.id).then(
+			() => {
 				toast.success(`Deleted ${automation.name}.`);
 				leaveToList();
 			},
-			onError: (error) => {
+			(error: unknown) => {
 				// Someone else deleted it first, so there is nothing to retry.
+				// Other errors stay in the dialog through deleteMutation.error.
 				if (getErrorStatus(error) === 404) {
 					toast.message(`${automation.name} was already deleted.`);
 					leaveToList();
 				}
 			},
-		});
+		);
 	};
 
 	const runNowBlocked = automation ? runNowBlockedReason(automation) : "";
