@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { buildEagerUserMessage } from "./chatMessageEdits";
+import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 
 const makeUserMessage = (
 	content: readonly TypesGen.ChatMessagePart[] = [
@@ -14,11 +14,11 @@ const makeUserMessage = (
 	content,
 });
 
-describe("buildEagerUserMessage", () => {
+describe("buildOptimisticEditedMessage", () => {
 	it("preserves image MIME types for newly attached files", () => {
-		const message = buildEagerUserMessage({
+		const message = buildOptimisticEditedMessage({
 			requestContent: [{ type: "file", file_id: "image-1" }],
-			baseMessage: makeUserMessage(),
+			originalMessage: makeUserMessage(),
 			attachmentMediaTypes: new Map([["image-1", "image/png"]]),
 		});
 
@@ -33,9 +33,9 @@ describe("buildEagerUserMessage", () => {
 			file_id: "existing-1",
 			media_type: "image/jpeg",
 		};
-		const message = buildEagerUserMessage({
+		const message = buildOptimisticEditedMessage({
 			requestContent: [{ type: "file", file_id: "existing-1" }],
-			baseMessage: makeUserMessage([existingFilePart]),
+			originalMessage: makeUserMessage([existingFilePart]),
 			attachmentMediaTypes: new Map([["existing-1", "text/plain"]]),
 		});
 

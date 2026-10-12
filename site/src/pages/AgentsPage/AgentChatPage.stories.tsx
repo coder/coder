@@ -3478,7 +3478,7 @@ export const SendShowsPromptAtSubmit: Story = {
 			{
 				id: CHAT_ID,
 				...baseChatFields,
-				title: "Send at submit",
+				title: "Durable send",
 				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
@@ -3504,10 +3504,10 @@ export const SendShowsPromptAtSubmit: Story = {
 
 		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);
-		await userEvent.type(editor, "New prompt");
+		await userEvent.type(editor, "Durable prompt");
 		const sendButton = canvas.getByRole("button", { name: "Send" });
 		await waitFor(() => {
-			expect(editor).toHaveTextContent("New prompt");
+			expect(editor).toHaveTextContent("Durable prompt");
 			expect(sendButton).toBeEnabled();
 		});
 		await userEvent.click(sendButton);
@@ -3516,7 +3516,7 @@ export const SendShowsPromptAtSubmit: Story = {
 		});
 
 		const timeline = within(await canvas.findByTestId("conversation-timeline"));
-		expect(await timeline.findByText("New prompt")).toBeVisible();
+		expect(await timeline.findByText("Durable prompt")).toBeVisible();
 		expect(canvas.getByTestId("live-activity-slot")).toBeVisible();
 		releaseSend?.();
 	},

@@ -1,6 +1,6 @@
 import type { CreateChatMessageRequestWithClearablePlanMode } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
-import { buildEagerUserMessage } from "#/api/queries/chatMessageEdits";
+import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import { planModeFieldsForCreateMessage } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -236,9 +236,9 @@ export async function submitChatTurn(
 			editedMessageID,
 			message:
 				originalEditedMessage &&
-				buildEagerUserMessage({
+				buildOptimisticEditedMessage({
 					requestContent: request.content,
-					baseMessage: originalEditedMessage,
+					originalMessage: originalEditedMessage,
 					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
 				}),
 		});
@@ -270,9 +270,9 @@ export async function submitChatTurn(
 
 	const pendingID = store.addPendingAction({
 		kind: "send",
-		message: buildEagerUserMessage({
+		message: buildOptimisticEditedMessage({
 			requestContent: content,
-			baseMessage: {
+			originalMessage: {
 				id: 0,
 				chat_id: agentId,
 				created_at: new Date().toISOString(),
