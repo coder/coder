@@ -196,7 +196,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		handlePromoteQueuedMessage: fn(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
-		isHydratingMessages: false,
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(async () => {}),
 		mcpServers: [] as React.ComponentProps<
@@ -217,7 +216,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		onImplementPlan: fn(),
 		onSendAskUserQuestionResponse: fn(),
 		urlTransform: (url: string) => url,
-		initialMessages: [],
 		...overrides,
 		store,
 		editing: buildEditing(editing),

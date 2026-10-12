@@ -19,7 +19,6 @@ import {
 	chatDiffContentsKey,
 	chatEntityKey,
 	chatListKey,
-	chatMessagesKey,
 	chatPromptsKey,
 	mcpServerConfigsKey,
 	organizationChatModelOverridesKey,
@@ -62,6 +61,7 @@ import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import {
 	buildLongConversation,
+	loadedChatStoreQuery,
 	MockWorkingMessages,
 } from "../components/ChatConversation/storyFixtures";
 import { RIGHT_PANEL_OPEN_KEY } from "../components/RightPanel/RightPanel";
@@ -332,10 +332,7 @@ const buildQueries = (
 	};
 	return [
 		{ key: chatEntityKey(CHAT_ID), data: mockChatWithDiffStatus },
-		{
-			key: chatMessagesKey(CHAT_ID),
-			data: messagesData,
-		},
+		loadedChatStoreQuery(CHAT_ID, messagesData),
 		{
 			key: chatPromptsKey(CHAT_ID),
 			data: {
@@ -3351,14 +3348,11 @@ export const SendResponseAfterChatSwitch: Story = {
 				{ diffUrl: undefined },
 			),
 			{ key: chatEntityKey(SWITCHED_CHAT_ID), data: switchedChat },
-			{
-				key: chatMessagesKey(SWITCHED_CHAT_ID),
-				data: {
-					messages: [switchedChatMessage],
-					queued_messages: [],
-					has_more: false,
-				},
-			},
+			loadedChatStoreQuery(SWITCHED_CHAT_ID, {
+				messages: [switchedChatMessage],
+				queued_messages: [],
+				has_more: false,
+			}),
 			{
 				key: chatPromptsKey(SWITCHED_CHAT_ID),
 				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,

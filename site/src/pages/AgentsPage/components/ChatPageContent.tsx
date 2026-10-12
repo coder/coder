@@ -119,7 +119,6 @@ type ChatPageTimelineProps = {
 	initialActiveTurnMaxMessageId?: number;
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => void;
 	onEditUserMessage?: (
@@ -144,7 +143,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	initialActiveTurnMaxMessageId,
 	hasMoreMessages,
 	isFetchingMoreMessages,
-	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
 	onEditUserMessage,
@@ -204,17 +202,15 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
-		<ACPContext value={acpSessions}>
-			<Profiler id="AgentChat" onRender={onRenderProfiler}>
-				<ChatMessageScroller
-					hasMoreMessages={hasMoreMessages}
-					isFetchingMoreMessages={isFetchingMoreMessages}
-					isHydratingMessages={isHydratingMessages}
-					hasFetchMoreError={hasFetchMoreError}
-					hasTranscriptRows={parsedMessages.length > 0}
-					onFetchMoreMessages={onFetchMoreMessages}
-				>
-					{/* VNC sessions for completed agents may already be
+		<Profiler id="AgentChat" onRender={onRenderProfiler}>
+			<ChatMessageScroller
+				hasMoreMessages={hasMoreMessages}
+				isFetchingMoreMessages={isFetchingMoreMessages}
+				hasFetchMoreError={hasFetchMoreError}
+				hasTranscriptRows={parsedMessages.length > 0}
+				onFetchMoreMessages={onFetchMoreMessages}
+			>
+				{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
 					   via showDesktopPreviews={false} to avoid a perpetual
 					   "disconnected" state. The MonitorIcon variant still

@@ -53,7 +53,6 @@ import {
 	chatEntityKey,
 	chatListFamilyKey,
 	chatListKey,
-	chatMessagesKey,
 	chatModel,
 	chatModelACL,
 	chatModelACLAvailable,
@@ -128,6 +127,10 @@ import {
 	updateInfiniteChatsCache,
 	updateMCPServerConfigACL,
 } from "./chats";
+
+// A per-chat sub-key: chat invalidations must not reach it.
+const chatMessagesKey = (chatId: string) =>
+	[...chatEntityKey(chatId), "messages"] as const;
 
 vi.mock("#/api/api", () => ({
 	API: {

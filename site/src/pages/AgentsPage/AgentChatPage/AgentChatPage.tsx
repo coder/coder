@@ -13,7 +13,6 @@ import {
 import { chatProject } from "#/api/queries/chatProjects";
 import {
 	chatModels,
-	chatNewestMessages,
 	clearChat,
 	compactChat,
 	createChatMessage,
@@ -157,7 +156,6 @@ const AgentChatPage: React.FC = () => {
 		refetchIntervalInBackground: false,
 	});
 	const chatOrganizationId = chatQuery.data?.organization_id ?? "";
-	const chatMessagesQuery = useQuery(chatNewestMessages(agentId));
 	const workspaceId = chatQuery.data?.workspace_id;
 	const chatAgentId = chatQuery.data?.agent_id;
 	const workspaceQuery = useQuery({
@@ -261,10 +259,6 @@ const AgentChatPage: React.FC = () => {
 		return getDefaultMCPSelection(mcpServers);
 	})();
 
-	// The newest page seeds the chat's store; the API returns it newest first.
-	const chatMessagesData = chatMessagesQuery.data;
-	const chatMessagesList = chatMessagesData?.messages.toReversed();
-	const chatQueuedMessages = chatMessagesData?.queued_messages;
 	const chatLastModelConfigID = chat?.last_model_config_id;
 
 	// Destructure mutation results directly so the React Compiler
@@ -344,17 +338,14 @@ const AgentChatPage: React.FC = () => {
 	const { scrollToEnd } = useMessageScroller();
 	const {
 		store,
-		isHydratingMessages,
+		load,
+		retryLoad,
 		loadOlderMessages,
 		isLoadingOlderMessages,
 		hasLoadOlderMessagesError,
 	} = useChatStore({
 		chatID: agentId,
-		chatMessages: chatMessagesList,
 		chatRecord: chat,
-		chatRecordUpdatedAt: chatQuery.dataUpdatedAt,
-		chatMessagesData,
-		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
 		aiGatewayDisabled,
@@ -581,16 +572,21 @@ const AgentChatPage: React.FC = () => {
 
 	const chatTitle = chatQuery.data?.title;
 
-	// Signal ready only after the store has synced fetched messages,
-	// so the DOM actually contains them when the parent scrolls.
+	const sshCommand =
+		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
+			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
+			: undefined;
+
+	// Signal ready only after the store has loaded its messages, so the DOM
+	// actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
 	useEffect(() => {
-		if (chatReadyFiredRef.current === agentId || isHydratingMessages) {
+		if (chatReadyFiredRef.current === agentId || load.status !== "loaded") {
 			return;
 		}
 		chatReadyFiredRef.current = agentId;
 		onChatReady();
-	}, [onChatReady, isHydratingMessages, agentId]);
+	}, [onChatReady, load.status, agentId]);
 
 	// Primitives extracted from proxy/workspace so the compiler
 	// tracks stable strings, not object identity.
@@ -671,7 +667,7 @@ const AgentChatPage: React.FC = () => {
 	const isWaitingForPreferences =
 		preferencesQuery.isLoading &&
 		!chatQuery.isLoadingError &&
-		!(isHydratingMessages && chatMessagesQuery.isLoadingError);
+		load.status !== "failed";
 
 	return (
 		<>
@@ -679,7 +675,7 @@ const AgentChatPage: React.FC = () => {
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
 			{chatQuery.isLoading ||
-			(isHydratingMessages && !chatMessagesQuery.isLoadingError) ||
+			load.status === "loading" ||
 			isWaitingForPreferences ? (
 				<AgentChatPageLoadingView
 					inputRef={editing.chatInputRef}
@@ -700,8 +696,7 @@ const AgentChatPage: React.FC = () => {
 					onPlanModeToggle={handlePlanModeToggle}
 					showRightPanel={showSidebarPanel}
 				/>
-			) : chatQuery.isLoadingError ||
-				(isHydratingMessages && chatMessagesQuery.isLoadingError) ? (
+			) : chatQuery.isLoadingError || load.status === "failed" ? (
 				getErrorStatus(chatQuery.error) === 404 ? (
 					<AgentChatPageNotFoundView />
 				) : (
@@ -709,15 +704,15 @@ const AgentChatPage: React.FC = () => {
 						error={
 							chatQuery.isLoadingError
 								? chatQuery.error
-								: chatMessagesQuery.error
+								: load.status === "failed"
+									? load.error
+									: undefined
 						}
 						onRetry={() => {
 							if (chatQuery.isLoadingError) {
 								void chatQuery.refetch();
 							}
-							if (chatMessagesQuery.isLoadingError) {
-								void chatMessagesQuery.refetch();
-							}
+							retryLoad();
 						}}
 					/>
 				)
@@ -730,8 +725,7 @@ const AgentChatPage: React.FC = () => {
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
 					store={store}
-					initialMessages={chatMessagesList ?? []}
-					editing={{ ...editing, handleBeginHistoryEdit }}
+					editing={{ ...editing, handleEditUserMessage }}
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
@@ -774,7 +768,6 @@ const AgentChatPage: React.FC = () => {
 					urlTransform={urlTransform}
 					hasMoreMessages={hasMoreMessages}
 					isFetchingMoreMessages={isLoadingOlderMessages}
-					isHydratingMessages={isHydratingMessages}
 					hasFetchMoreError={hasLoadOlderMessagesError}
 					onFetchMoreMessages={loadOlderMessages}
 					desktopChatId={desktopEnabled ? agentId : undefined}
