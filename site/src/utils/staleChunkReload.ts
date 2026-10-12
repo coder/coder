@@ -9,19 +9,20 @@ let reloadPending = false;
  * longer has. A reload fetches index.html with the new filenames. A
  * sessionStorage guard prevents reload loops when the failure persists.
  */
-export function registerStaleChunkReload(): () => void {
-	const onPreloadError = () => {
+export function registerStaleChunkReload(): void {
+	window.addEventListener("vite:preloadError", () => {
 		const last = sessionStorage.getItem(lastReloadKey);
 		const now = Date.now();
+
 		if (last && now - Number(last) <= reloadGuardMs) {
 			return;
 		}
+
 		sessionStorage.setItem(lastReloadKey, String(now));
 		reloadPending = true;
+
 		location.reload();
-	};
-	window.addEventListener("vite:preloadError", onPreloadError);
-	return () => window.removeEventListener("vite:preloadError", onPreloadError);
+	});
 }
 
 /**
