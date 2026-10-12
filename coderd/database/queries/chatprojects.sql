@@ -182,7 +182,6 @@ WHERE chat_id IN (
     WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
 );
 
-
 -- name: DeleteEmptyDeletedChatProjects :execrows
 -- Memories cascade with the row, so they follow chat retention too; nothing
 -- can read them after the tombstone.
