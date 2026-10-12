@@ -30,45 +30,56 @@ func TestAutomationContextPart(t *testing.T) {
 		Kind:       database.ChatAutomationKindWebhook,
 		TargetMode: database.ChatAutomationTargetModeExistingChat,
 	}
+	const newChatShape = "Each run starts a new chat, and nothing carries over between runs"
+	const existingChatShape = "Earlier turns of this chat, including earlier runs, are above."
 
 	for _, tc := range []struct {
-		name          string
-		automation    database.ChatAutomation
-		toolAvailable bool
-		want          []string
-		notWant       []string
+		name    string
+		note    automationNote
+		want    []string
+		notWant []string
 	}{
 		{
-			// The tester's case: a scheduled briefing must deliver by
-			// replying, not refuse.
-			name:       "ScheduledBriefing",
-			automation: schedule,
-			want:       []string{`cron "0 9 * * 1-5", time zone Europe/Berlin`, "who may not be watching", "your reply is the delivery", "Do not say you cannot run scheduled tasks"},
-			notWant:    []string{"manage_automations", "untrusted"},
+			// The tester's case: a scheduled briefing in a new chat must
+			// deliver by replying and must not promise memory (D2-03).
+			name: "ScheduledBriefingNewChat",
+			note: automationNote{automation: schedule},
+			want: []string{
+				`ran on its schedule (cron "0 9 * * 1-5", time zone Europe/Berlin)`,
+				"who may not be watching", "your reply is the delivery", "Do not say you cannot run scheduled tasks",
+				newChatShape, "Do not promise to remember anything", "edit the automation's prompt",
+			},
+			notWant: []string{"manage_automations", "untrusted", existingChatShape, "Run now"},
 		},
 		{
-			name:          "HeartbeatWithTool",
-			automation:    heartbeat,
-			toolAvailable: true,
-			want:          []string{`action "disable" and automation_id "` + heartbeat.ID.String() + `"`},
+			name:    "HeartbeatWithTool",
+			note:    automationNote{automation: heartbeat, toolAvailable: true},
+			want:    []string{existingChatShape, `action "disable" and automation_id "` + heartbeat.ID.String() + `"`},
+			notWant: []string{newChatShape},
 		},
 		{
-			name:       "HeartbeatWithoutTool",
-			automation: heartbeat,
-			notWant:    []string{"manage_automations"},
+			name:    "HeartbeatWithoutTool",
+			note:    automationNote{automation: heartbeat},
+			notWant: []string{"manage_automations"},
 		},
 		{
-			name:          "Webhook",
-			automation:    webhook,
-			toolAvailable: true,
-			want:          []string{"on a webhook event", "untrusted"},
+			// Run now names who started it, not the schedule (D2-04).
+			name:    "RunNow",
+			note:    automationNote{automation: heartbeat, runNow: true, ownerName: "alice"},
+			want:    []string{`was started manually by "alice" with Run now`},
+			notWant: []string{"on its schedule", "cron"},
+		},
+		{
+			name: "Webhook",
+			note: automationNote{automation: webhook, toolAvailable: true},
+			want: []string{"received a webhook event", "untrusted", existingChatShape},
 			// Only schedules on an existing chat are heartbeats.
 			notWant: []string{"manage_automations"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			part := automationContextPart(tc.automation, tc.toolAvailable)
+			part := automationContextPart(tc.note)
 			require.Equal(t, codersdk.ChatMessagePartTypeHookContext, part.Type)
 			require.True(t, strings.HasPrefix(part.Text, "<automation_context>\n"))
 			require.True(t, strings.HasSuffix(part.Text, "\n</automation_context>"))

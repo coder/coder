@@ -118,7 +118,9 @@ func TestManageAutomationsAgentScenario(t *testing.T) {
 	require.Equal(t, codersdk.ChatMessagePartTypeHookContext, parts[0].Type)
 	note := parts[0].Text
 	require.Contains(t, note, `automation "CI watch"`)
-	require.Contains(t, note, `cron "0 * * * *", time zone UTC`)
+	require.Contains(t, note, "started manually by "+`"`+f.owner.Username+`" with Run now`)
+	require.NotContains(t, note, "on its schedule")
+	require.Contains(t, note, "Earlier turns of this chat")
 	require.Contains(t, note, `action "disable" and automation_id "`+id+`"`)
 	require.Contains(t, note, "Do not say you cannot run scheduled tasks")
 	require.NotContains(t, note, "untrusted")
@@ -142,6 +144,8 @@ func TestManageAutomationsAgentScenario(t *testing.T) {
 	require.Equal(t, "https://coder.example.com/api/experimental/chat-automations/"+callback.Automation.ID.String()+"/events", callback.Automation.WebhookURL)
 	require.NotEmpty(t, callback.WebhookSecret)
 	require.Equal(t, manageAutomationsSingleUseSecretNote, callback.WebhookSecretNote)
+	require.Contains(t, callback.WebhookSecretNote, "anyone who can read this chat can use the URL and secret once")
+	require.Contains(t, callback.WebhookSecretNote, "not to share this chat until the callback has been used")
 	content, isError = f.call(ctx, t, f.chat.ID, "get", callback.Automation.ID)
 	require.False(t, isError, content)
 	require.NotContains(t, content, callback.WebhookSecret, "the secret is shown only once")
@@ -160,7 +164,7 @@ func TestManageAutomationsAgentScenario(t *testing.T) {
 	parts, err = chatprompt.ParseContent(f.latestUserMessage(ctx, t))
 	require.NoError(t, err)
 	require.Len(t, parts, 3)
-	require.Contains(t, parts[0].Text, "a webhook event")
+	require.Contains(t, parts[0].Text, "received a webhook event")
 	require.Contains(t, parts[0].Text, "untrusted")
 	require.Contains(t, parts[2].Text, "<automation_event_data>")
 	require.ErrorIs(t, deliver(), ErrAutomationWebhookConsumed)
@@ -193,4 +197,20 @@ func TestManageAutomationsPromptSize(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(content), &get))
 	require.False(t, get.Automation.PromptTruncated)
 	require.Equal(t, long, get.Automation.Prompt)
+}
+
+// TestManageAutomationsLimitError covers the per-owner cap: the model gets
+// the cap and what to do, without the service's wrapped error chain.
+func TestManageAutomationsLimitError(t *testing.T) {
+	t.Parallel()
+	f := newManageAutomationsFixture(t)
+	f.server = f.newServer(t, Limits{MaxAutomationsPerOwner: 1})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	f.mustCreate(ctx, t, f.chat.ID, heartbeatArgs())
+
+	content, isError := f.callArgs(ctx, t, f.chat.ID, heartbeatArgs())
+	require.True(t, isError)
+	require.Equal(t, "You have reached the limit of 1 automations, counted across all organizations. "+
+		"Delete one you no longer need first, or update an existing one instead of creating a new one.", content)
+	require.Len(t, f.ownerAutomations(ctx, t), 1)
 }

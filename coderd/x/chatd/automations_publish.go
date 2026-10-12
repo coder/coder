@@ -254,7 +254,7 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 	_, err = p.SendMessage(ownerCtx, SendMessageOptions{
 		ChatID:    chatID,
 		CreatedBy: automation.OwnerID,
-		Content:   automationInputContent(in, automation, toolAvailable),
+		Content:   automationInputContent(in, automation, owner, toolAvailable),
 		// Automations never interrupt or steer a running turn; set it
 		// explicitly so a different chatd default cannot change that.
 		BusyBehavior: SendMessageBusyBehaviorQueue,
@@ -318,7 +318,7 @@ func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subjec
 		ReasoningEffort: reasoningEffort,
 		ClientType:      database.ChatClientTypeApi,
 		// Chats an automation creates never offer manage_automations.
-		InitialUserContent: automationInputContent(in, automation, false),
+		InitialUserContent: automationInputContent(in, automation, owner, false),
 		// No MCP servers are selected; CreateChat still adds the Force On
 		// servers the owner can read.
 		MCPServerIDs: nil,
@@ -343,8 +343,18 @@ func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subjec
 
 // automationInputContent returns the message parts of an automation
 // input: the model-only automation context note, then in.content.
-func automationInputContent(in automationPublish, automation database.ChatAutomation, toolAvailable bool) []codersdk.ChatMessagePart {
-	return append([]codersdk.ChatMessagePart{automationContextPart(automation, toolAvailable)}, in.content(automation)...)
+// owner is the automation owner, whose username names who ran Run now.
+//
+//nolint:revive // toolAvailable describes the target chat, not caller control coupling.
+func automationInputContent(in automationPublish, automation database.ChatAutomation, owner rbac.Subject, toolAvailable bool) []codersdk.ChatMessagePart {
+	note := automationContextPart(automationNote{
+		automation: automation,
+		// Only RunAutomation publishes without an occurrence or a webhook.
+		runNow:        in.occurrence == nil && !in.webhook,
+		ownerName:     owner.FriendlyName,
+		toolAvailable: toolAvailable,
+	})
+	return append([]codersdk.ChatMessagePart{note}, in.content(automation)...)
 }
 
 // logAutomationRefusal logs the refusals that depend on the target chat's

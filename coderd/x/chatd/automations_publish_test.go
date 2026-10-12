@@ -671,6 +671,7 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		require.Len(t, parts, 3)
 		require.Equal(t, codersdk.ChatMessagePartTypeHookContext, parts[0].Type)
 		require.NotContains(t, parts[0].Text, "manage_automations", "new chats never offer the tool")
+		require.Contains(t, parts[0].Text, "nothing carries over between runs")
 		require.Equal(t, codersdk.ChatMessageText("A deploy finished."), parts[1])
 		require.Contains(t, parts[2].Text, "<automation_event_data>\n{\"service\":\"api\"}\n</automation_event_data>")
 	})

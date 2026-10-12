@@ -451,11 +451,14 @@ The tool never returns the secret of a multi-use webhook, because tool results s
 To get the secret of a multi-use webhook an agent created, rotate the secret in the dashboard.
 When the agent creates a single-use webhook in a turn that you start, the result shows the secret and the endpoint once, so the agent can hand them to a job as a callback.
 The secret stops working after one delivery.
+Until then, anyone who can read the chat can use it, so don't share the chat until the callback is used.
 
 ### What the agent sees in an automation turn
 
 Each message that an automation sends starts with a note that only the model sees.
 The note names the automation and its trigger, says that the agent acts for you while you may be away, and tells the agent to reply in the chat with the result.
+It says whether a schedule, a webhook, or **Run now** started the run.
+For a new chat automation, it says that each run starts a fresh chat and nothing carries over, so lasting changes belong in the automation's prompt.
 For a heartbeat on a chat with **Manage automations** on, the note tells the agent how to turn the heartbeat off when it is no longer needed.
 For a webhook, the note repeats that the event data is untrusted.
 The dashboard doesn't show the note.

@@ -80,7 +80,10 @@ const manageAutomationsSecretNotShown = "The webhook secret is not shown. The ow
 //nolint:gosec // Explains how a secret is used; it is not a credential.
 const manageAutomationsSingleUseSecretNote = "This secret is shown once and works for one delivery: " +
 	"POST a JSON body to webhook_url with the header Authorization: Bearer <webhook_secret>. " +
-	"The delivery sends this automation's prompt and the body, marked as untrusted event data, to the target chat."
+	"The delivery sends this automation's prompt and the body, marked as untrusted event data, to the target chat. " +
+	"Warning: this result stays in the chat, so anyone who can read this chat can use the URL and secret once, until the first delivery. " +
+	"Tell the owner not to share this chat until the callback has been used, give the secret only to the job that calls back, " +
+	"and do not repeat the secret in your reply."
 
 type manageAutomationsArgs struct {
 	Action       string `json:"action" enum:"list,get,create,update,enable,disable,delete,run_now" description:"The action to perform."`
@@ -761,7 +764,7 @@ func (p *Server) automationWebhookURL(row database.ChatAutomation) string {
 // no more than the management API does. verb names the failed operation.
 // Any other error is logged with logger, which carries the chat and
 // automation fields, before it is replaced with a fixed message.
-func (*Server) manageAutomationsError(ctx context.Context, logger slog.Logger, verb string, err error) error {
+func (p *Server) manageAutomationsError(ctx context.Context, logger slog.Logger, verb string, err error) error {
 	var containmentErr *manageAutomationsContainmentError
 	var validationErr *AutomationValidationError
 	var denied *chathooks.UserPromptDeniedError
@@ -777,7 +780,10 @@ func (*Server) manageAutomationsError(ctx context.Context, logger slog.Logger, v
 	case errors.As(err, &denied):
 		return denied
 	case errors.Is(err, ErrAutomationLimitReached):
-		return err
+		// The service error is wrapped for logs; the model gets the cap
+		// and what to do. The cap counts every organization.
+		return xerrors.Errorf("You have reached the limit of %d automations, counted across all organizations. "+
+			"Delete one you no longer need first, or update an existing one instead of creating a new one.", p.chatLimits.MaxAutomationsPerOwner)
 	case errors.Is(err, ErrAutomationDisabled):
 		return xerrors.New("the automation is disabled: enable it before running it")
 	case errors.Is(err, ErrAutomationChatBusy):

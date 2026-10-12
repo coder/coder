@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -618,6 +619,16 @@ WHERE id = $1`, automation.ID, edited)
 					// Missed runs are not replayed: the cursor moves to the
 					// first run after now.
 					require.Equal(t, nextRun(t, tc.spec, "UTC", f.clock.Now()), f.cursor(ctx, t, automation.ID))
+				}
+				if tc.accepted > 0 {
+					// A scheduled run is described as one, not as Run now.
+					messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: f.chat.ID})
+					require.NoError(t, err)
+					require.NotEmpty(t, messages)
+					parts, err := chatprompt.ParseContent(messages[len(messages)-1])
+					require.NoError(t, err)
+					require.Contains(t, parts[0].Text, "ran on its schedule")
+					require.NotContains(t, parts[0].Text, "Run now")
 				}
 			})
 		}
