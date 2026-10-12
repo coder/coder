@@ -1,6 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import { createChatStore } from "./chatStore";
 import {
 	type DeriveLiveStatusParams,
 	deriveLiveStatus,
@@ -13,7 +14,24 @@ import type {
 	RetryState,
 	StreamState,
 } from "./types";
+import { chatStoreKey } from "./useChatStore";
 import type { WorkingBlock } from "./workingBlockGrouping";
+
+/**
+ * A `parameters.queries` entry that gives the chat a store already loaded
+ * with page. The data is a function, so each render gets a new store.
+ */
+export const loadedChatStoreQuery = (
+	chatID: string,
+	page: TypesGen.ChatMessagesResponse,
+) => ({
+	key: chatStoreKey(chatID),
+	data: () => {
+		const store = createChatStore();
+		store.seed(page);
+		return store;
+	},
+});
 
 export type StoryStreamRenderState = {
 	streamState: StreamState | null;

@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import {
+	fetchNewestChatMessages,
 	fetchOlderChatMessages,
 	invalidateChatPrompts,
 	invalidateChatSearches,
@@ -16,11 +17,13 @@ import {
 import { type ChatDetailError, normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
+	type ChatStoreLoad,
 	type ChatStoreState,
 	createChatStore,
 	isActiveChatStatus,
 	selectChatStatus,
-	selectIsSeeded,
+	selectIsLoaded,
+	selectLoad,
 	selectRetryState,
 	selectStreamError,
 	selectStreamState,
@@ -42,15 +45,11 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		selectRetryState(state) !== null ||
 		isActiveChatStatus(selectChatStatus(state)));
 
-const chatStoreKey = (chatID: string) => ["chatStore", chatID] as const;
+export const chatStoreKey = (chatID: string) => ["chatStore", chatID] as const;
 
 type UseChatStoreOptions = {
 	chatID: string;
-	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
-	chatRecordUpdatedAt: number;
-	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
-	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 	aiGatewayDisabled?: boolean;
@@ -60,7 +59,8 @@ export const useChatStore = (
 	options: UseChatStoreOptions,
 ): {
 	store: ChatStore;
-	isHydratingMessages: boolean;
+	load: ChatStoreLoad;
+	retryLoad: () => void;
 	clearStreamError: () => void;
 	loadOlderMessages: () => void;
 	isLoadingOlderMessages: boolean;
@@ -68,46 +68,27 @@ export const useChatStore = (
 } => {
 	const {
 		chatID,
-		chatMessages,
 		chatRecord,
-		chatMessagesData,
-		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
 		aiGatewayDisabled = false,
 	} = options;
 
 	const queryClient = useQueryClient();
-	const seedFromPage = (target: ChatStore) => {
-		if (!chatMessagesData) {
-			return;
-		}
-		target.seed({
-			messages: chatMessages ?? chatMessagesData.messages,
-			queuedMessages: chatQueuedMessages ?? chatMessagesData.queued_messages,
-			hasMore: chatMessagesData.has_more,
-			historyVersion: chatMessagesData.history_version ?? 0,
-		});
-	};
 	// A chat keeps its store as long as the query cache keeps an unused query,
 	// so reopening it shows the chat as it was left and the stream resumes
-	// from the store's history version. A page already cached seeds the new
-	// store before the first render.
+	// from the store's history version.
 	const { data: store } = useQuery({
 		queryKey: chatStoreKey(chatID),
 		queryFn: () =>
 			queryClient.getQueryData<ChatStore>(chatStoreKey(chatID)) ??
 			createChatStore(),
-		initialData: () => {
-			const created = createChatStore();
-			seedFromPage(created);
-			created.setChatStatus(chatRecord?.status ?? null);
-			return created;
-		},
+		initialData: createChatStore,
 		staleTime: Number.POSITIVE_INFINITY,
 		structuralSharing: false,
 	});
-	const seeded = useChatSelector(store, selectIsSeeded);
+	const load = useChatSelector(store, selectLoad);
+	const loaded = useChatSelector(store, selectIsLoaded);
 
 	// Wrap error-reason callbacks so the WebSocket effect can call
 	// them without including them in its dependency array.
@@ -124,10 +105,10 @@ export const useChatStore = (
 		},
 	);
 
-	// The newest page seeds a store once; afterwards only the stream writes it.
+	// A store loads its newest page once; afterwards only the stream writes it.
 	useEffect(() => {
-		seedFromPage(store);
-	});
+		store.load(() => fetchNewestChatMessages(chatID));
+	}, [chatID, store]);
 
 	// The chat record supplies the status until the stream reports one.
 	useEffect(() => {
@@ -174,7 +155,7 @@ export const useChatStore = (
 
 		store.resetTransientState();
 
-		if (!seeded || aiGatewayDisabled) {
+		if (!loaded || aiGatewayDisabled) {
 			return;
 		}
 
@@ -539,11 +520,12 @@ export const useChatStore = (
 				clearTimeout(partsFlushTimer);
 			}
 		};
-	}, [aiGatewayDisabled, chatID, seeded, queryClient, store]);
+	}, [aiGatewayDisabled, chatID, loaded, queryClient, store]);
 
 	return {
 		store,
-		isHydratingMessages: !seeded,
+		load,
+		retryLoad: () => store.load(() => fetchNewestChatMessages(chatID)),
 		clearStreamError: () => {
 			store.clearStreamError();
 		},
