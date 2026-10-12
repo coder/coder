@@ -2,13 +2,19 @@ package agentcontext_test
 
 import (
 	"context"
+	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"storj.io/drpc/drpcerr"
 
 	"github.com/coder/coder/v2/agent/agentcontext"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // fakeDRPCClient stubs out the DRPCAgentClient210 surface for
@@ -192,4 +198,157 @@ func TestDRPCPusher_NilClientErrors(t *testing.T) {
 	pusher := agentcontext.NewDRPCPusher(nil)
 	_, err := pusher.PushContextState(context.Background(), &agentcontext.PushRequest{})
 	require.Error(t, err)
+}
+
+// pluginPushRequest returns a request carrying every plugin-related
+// field the wire can express.
+func pluginPushRequest() *agentcontext.PushRequest {
+	return &agentcontext.PushRequest{
+		Version:       3,
+		AggregateHash: [32]byte{0xaa},
+		Resources: []agentcontext.Resource{
+			{
+				ID:            "plugin:/tmp/plugins/p",
+				Kind:          agentcontext.KindPlugin,
+				Source:        "/tmp/plugins/p",
+				Name:          "p",
+				PluginVersion: "1.0.0",
+				Description:   "A plugin",
+				Status:        agentcontext.StatusOK,
+				ContentHash:   [32]byte{0x07},
+				SizeBytes:     42,
+			},
+			{
+				ID:          "skill:/tmp/plugins/p/skills/s",
+				Kind:        agentcontext.KindSkill,
+				Source:      "/tmp/plugins/p/skills/s",
+				Name:        "s",
+				PluginName:  "p",
+				Description: "Plugin skill",
+				Payload:     []byte("---\nname: s\n---\n"),
+				Status:      agentcontext.StatusOK,
+			},
+			{
+				ID:         "mcp_server:p/srv",
+				Kind:       agentcontext.KindMCPServer,
+				Source:     "p/srv",
+				Name:       "srv",
+				PluginName: "p",
+				Status:     agentcontext.StatusOK,
+				Tools:      []agentcontext.MCPTool{{Name: "echo"}},
+			},
+			{
+				ID:     "skill:/tmp/skills/plain",
+				Kind:   agentcontext.KindSkill,
+				Source: "/tmp/skills/plain",
+				Name:   "plain",
+				Status: agentcontext.StatusOK,
+			},
+		},
+	}
+}
+
+func TestDRPCPusher_PluginsEnabledEncodesPluginData(t *testing.T) {
+	t.Parallel()
+	client := &fakeDRPCClient{}
+	pusher := agentcontext.NewDRPCPusher(client, agentcontext.WithPluginsEnabled(true))
+
+	_, err := pusher.PushContextState(context.Background(), pluginPushRequest())
+	require.NoError(t, err)
+
+	pb := client.lastReq
+	require.Len(t, pb.Resources, 4)
+
+	plugin := pb.Resources[0]
+	require.Equal(t, "/tmp/plugins/p", plugin.Source)
+	require.Equal(t, agentproto.ContextResource_OK, plugin.Status)
+	require.Equal(t, uint64(42), plugin.SizeBytes)
+	body := plugin.GetPlugin()
+	require.NotNil(t, body, "plugin body must be set")
+	require.Equal(t, "p", body.GetName())
+	require.Equal(t, "1.0.0", body.GetVersion())
+	require.Equal(t, "A plugin", body.GetDescription())
+
+	skill := pb.Resources[1].GetSkill()
+	require.NotNil(t, skill)
+	require.Equal(t, "s", skill.GetName())
+	require.Equal(t, "p", skill.GetPluginName())
+
+	srv := pb.Resources[2].GetMcpServer()
+	require.NotNil(t, srv)
+	require.Equal(t, "srv", srv.GetServerName())
+	require.Equal(t, "p", srv.GetPluginName())
+
+	plain := pb.Resources[3].GetSkill()
+	require.NotNil(t, plain)
+	require.Empty(t, plain.GetPluginName())
+}
+
+func TestDRPCPusher_PluginsDisabledDropsPluginData(t *testing.T) {
+	t.Parallel()
+	client := &fakeDRPCClient{}
+	pusher := agentcontext.NewDRPCPusher(client)
+
+	_, err := pusher.PushContextState(context.Background(), pluginPushRequest())
+	require.NoError(t, err)
+
+	pb := client.lastReq
+	require.Len(t, pb.Resources, 1, "plugin and plugin-attributed resources must be dropped")
+	require.Equal(t, "/tmp/skills/plain", pb.Resources[0].Source)
+	require.Empty(t, pb.Resources[0].GetSkill().GetPluginName())
+
+	// The hash describes the resources actually sent, so it is the
+	// drift hash of the request without its plugin data.
+	req := pluginPushRequest()
+	sent := slices.DeleteFunc(req.Resources, func(r agentcontext.Resource) bool {
+		return r.Kind == agentcontext.KindPlugin || r.PluginName != ""
+	})
+	want := agentcontext.ComputeAggregateHash(agentcontext.HashedResources(sent))
+	require.Equal(t, want[:], pb.AggregateHash)
+	require.NotEqual(t, req.AggregateHash[:], pb.AggregateHash)
+}
+
+// coderd rejects a push whose resource error exceeds 4096 bytes, so the
+// pusher truncates every Error on a UTF-8 boundary.
+func TestDRPCPusher_TruncatesResourceError(t *testing.T) {
+	t.Parallel()
+	client := &fakeDRPCClient{}
+	pusher := agentcontext.NewDRPCPusher(client)
+
+	long := "a" + strings.Repeat("é", 3000)
+	_, err := pusher.PushContextState(context.Background(), &agentcontext.PushRequest{
+		Resources: []agentcontext.Resource{
+			{ID: "instruction_file:/tmp/AGENTS.md", Kind: agentcontext.KindInstructionFile, Source: "/tmp/AGENTS.md", Status: agentcontext.StatusInvalid, Error: long},
+			{ID: "instruction_file:/tmp/CLAUDE.md", Kind: agentcontext.KindInstructionFile, Source: "/tmp/CLAUDE.md", Status: agentcontext.StatusInvalid, Error: "short"},
+		},
+	})
+	require.NoError(t, err)
+
+	got := client.lastReq.Resources[0].Error
+	require.Len(t, got, 4095, "a two-byte rune straddling the cap is dropped")
+	require.True(t, utf8.ValidString(got))
+	require.True(t, strings.HasPrefix(long, got))
+	require.Equal(t, "short", client.lastReq.Resources[1].Error)
+}
+
+// proto3 string fields must be valid UTF-8, so a resource error built
+// from file content with invalid UTF-8 must not fail the push.
+func TestDRPCPusher_ResourceErrorInvalidUTF8(t *testing.T) {
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	mustWriteFile(t, filepath.Join(root, ".agents", "plugins", "x", "plugin.json"), "{\"$schema\": \"\xff\", \"name\": \"x\"}")
+	snap := resolvePlugins(agentcontext.ScanRoot{Path: root})
+	require.Len(t, snap.Resources, 1)
+	require.False(t, utf8.ValidString(snap.Resources[0].Error), "the fixture must produce an invalid UTF-8 error")
+
+	client := &fakeDRPCClient{}
+	pusher := agentcontext.NewDRPCPusher(client, agentcontext.WithPluginsEnabled(true))
+	_, err := pusher.PushContextState(context.Background(), &agentcontext.PushRequest{Resources: snap.Resources})
+	require.NoError(t, err)
+
+	got := client.lastReq.Resources[0].Error
+	require.True(t, utf8.ValidString(got))
+	require.Contains(t, got, "is not an Agent Plugins schema")
+	_, err = proto.Marshal(client.lastReq)
+	require.NoError(t, err)
 }
