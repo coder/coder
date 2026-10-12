@@ -134,9 +134,7 @@ func TestRunnerAgentConn_ForgetsConnectionOfStaleBinding(t *testing.T) {
 	step := f.step(f.chat(w, stale), &runnerAgentConn)
 	_, err := step.getWorkspaceConn(ctx)
 	require.NoError(t, err)
-	_, latestAgentID, err := step.workspaceAgentIDForConn(ctx)
-	require.NoError(t, err)
-	require.Equal(t, latest, latestAgentID)
+	require.NoError(t, step.checkWorkspaceAgentBinding(ctx))
 	step.close()
 
 	step = f.step(f.chat(w, stale), &runnerAgentConn)
