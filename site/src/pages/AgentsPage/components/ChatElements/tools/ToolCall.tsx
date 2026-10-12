@@ -469,6 +469,7 @@ const Scrollable: React.FC<ToolCallScrollableProps> = ({
 }) => {
 	const viewportRef = useRef<HTMLDivElement>(null);
 	const contentRef = useRef<HTMLDivElement>(null);
+
 	// A ResizeObserver also sees growth from children that rerender on
 	// their own, such as smoothly streamed text.
 	useLayoutEffect(() => {
