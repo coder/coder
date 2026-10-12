@@ -95,8 +95,6 @@ type AgentChatPageViewProps = {
 
 	// Store handle.
 	store: ChatStoreHandle;
-	/** Messages as first loaded; read once at mount for the initial anchor. */
-	initialMessages: readonly TypesGen.ChatMessage[];
 
 	// Editing state.
 	editing: EditingState;
@@ -155,7 +153,6 @@ type AgentChatPageViewProps = {
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => void;
 
@@ -176,7 +173,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	workspaceAgent,
 	workspace,
 	store,
-	initialMessages,
 	editing,
 	effectiveSelectedModel,
 	setSelectedModel,
@@ -215,7 +211,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	onSendAskUserQuestionResponse,
 	hasMoreMessages,
 	isFetchingMoreMessages,
-	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
 	urlTransform,
@@ -243,7 +238,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	// promotions, edit re-sends) has an id above the initial maximum.
 	const [initialActiveTurnMaxMessageId] = useState<number | undefined>(() =>
 		chat.status === "running" || chat.status === "interrupting"
-			? (initialMessages.at(-1)?.id ?? -1)
+			? (store.getSnapshot().orderedMessageIDs.at(-1) ?? -1)
 			: undefined,
 	);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
@@ -628,7 +623,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								persistedError={persistedError}
 								hasMoreMessages={hasMoreMessages}
 								isFetchingMoreMessages={isFetchingMoreMessages}
-								isHydratingMessages={isHydratingMessages}
 								hasFetchMoreError={hasFetchMoreError}
 								onFetchMoreMessages={onFetchMoreMessages}
 								onEditUserMessage={
