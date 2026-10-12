@@ -627,7 +627,7 @@ WHERE id = $1`, automation.ID, edited)
 					require.NotEmpty(t, messages)
 					parts, err := chatprompt.ParseContent(messages[len(messages)-1])
 					require.NoError(t, err)
-					require.Contains(t, parts[0].Text, "ran on its schedule")
+					require.Contains(t, parts[0].Text, "sent this message on its schedule")
 					require.NotContains(t, parts[0].Text, "Run now")
 				}
 			})

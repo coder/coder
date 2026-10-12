@@ -34,26 +34,32 @@ func automationContextPart(n automationNote) codersdk.ChatMessagePart {
 	a := n.automation
 	// json.Marshal quotes names and escapes quotes, <, and >.
 	name, _ := json.Marshal(a.Name)
-	var trigger string
+	var b strings.Builder
+	_, _ = b.WriteString("<automation_context>\n")
 	switch {
 	case n.runNow:
-		owner, _ := json.Marshal(n.ownerName)
-		trigger = fmt.Sprintf("was started manually by %s with Run now, outside any schedule", owner)
+		owner := "The chat owner"
+		if n.ownerName != "" {
+			quoted, _ := json.Marshal(n.ownerName)
+			owner += " " + string(quoted)
+		}
+		_, _ = fmt.Fprintf(&b, "%s started the automation %s (id %s) manually with Run now, outside its schedule. "+
+			"It sent this message on the owner's behalf, and the owner may not be watching.", owner, name, a.ID)
 	case a.Kind == database.ChatAutomationKindSchedule:
-		trigger = fmt.Sprintf("ran on its schedule (cron %q, time zone %s)", a.ScheduleCron.String, a.ScheduleTimeZone.String)
+		_, _ = fmt.Fprintf(&b, "The automation %s (id %s) sent this message on its schedule (cron %q, time zone %s). "+
+			"It acts on the chat owner's behalf, and the owner may not be watching.", name, a.ID, a.ScheduleCron.String, a.ScheduleTimeZone.String)
 	default:
-		trigger = "received a webhook event"
+		_, _ = fmt.Fprintf(&b, "The automation %s (id %s) sent this message because its webhook received an event. "+
+			"It acts on the chat owner's behalf, and the owner may not be watching.", name, a.ID)
 	}
-	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "<automation_context>\nThe automation %s (id %s) %s and sent this message on behalf of the chat owner, who may not be watching. "+
-		"Do the task now and reply in this chat with the result: your reply is the delivery. "+
-		"Do not say you cannot run scheduled tasks.", name, a.ID, trigger)
+	_, _ = b.WriteString(" Do the task now and reply in this chat with the result: your reply is the delivery. " +
+		"Do not say you cannot run scheduled or automated tasks.")
 	if a.TargetMode == database.ChatAutomationTargetModeNewChat {
 		// Agents otherwise offer to remember replies for "future runs".
-		_, _ = b.WriteString(" Each run starts a new chat, and nothing carries over between runs: the saved prompt is the only input. " +
-			"Do not promise to remember anything for later runs. For a lasting change, tell the owner to edit the automation's prompt.")
+		_, _ = b.WriteString(" Each run starts a new chat with only the saved prompt, and nothing carries over between runs, " +
+			"so do not promise to remember anything. For a lasting change, tell the owner to edit the automation's prompt.")
 	} else {
-		_, _ = b.WriteString(" Earlier turns of this chat, including earlier runs, are above.")
+		_, _ = b.WriteString(" This chat's earlier messages, including earlier runs, are above.")
 	}
 	heartbeat := a.Kind == database.ChatAutomationKindSchedule && a.TargetMode == database.ChatAutomationTargetModeExistingChat
 	if heartbeat && n.toolAvailable {

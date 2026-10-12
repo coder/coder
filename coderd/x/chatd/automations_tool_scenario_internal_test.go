@@ -118,11 +118,11 @@ func TestManageAutomationsAgentScenario(t *testing.T) {
 	require.Equal(t, codersdk.ChatMessagePartTypeHookContext, parts[0].Type)
 	note := parts[0].Text
 	require.Contains(t, note, `automation "CI watch"`)
-	require.Contains(t, note, "started manually by "+`"`+f.owner.Username+`" with Run now`)
+	require.Contains(t, note, `The chat owner "`+f.owner.Username+`" started the automation "CI watch" (id `+id+`) manually with Run now, outside its schedule.`)
 	require.NotContains(t, note, "on its schedule")
-	require.Contains(t, note, "Earlier turns of this chat")
+	require.Contains(t, note, "This chat's earlier messages, including earlier runs, are above.")
 	require.Contains(t, note, `action "disable" and automation_id "`+id+`"`)
-	require.Contains(t, note, "Do not say you cannot run scheduled tasks")
+	require.Contains(t, note, "Do not say you cannot run scheduled or automated tasks")
 	require.NotContains(t, note, "untrusted")
 	require.Equal(t, codersdk.ChatMessageText("Check whether CI on main is green."), parts[1])
 	for _, part := range db2sdk.ChatMessage(message).Content {
@@ -164,7 +164,7 @@ func TestManageAutomationsAgentScenario(t *testing.T) {
 	parts, err = chatprompt.ParseContent(f.latestUserMessage(ctx, t))
 	require.NoError(t, err)
 	require.Len(t, parts, 3)
-	require.Contains(t, parts[0].Text, "received a webhook event")
+	require.Contains(t, parts[0].Text, "its webhook received an event")
 	require.Contains(t, parts[0].Text, "untrusted")
 	require.Contains(t, parts[2].Text, "<automation_event_data>")
 	require.ErrorIs(t, deliver(), ErrAutomationWebhookConsumed)
