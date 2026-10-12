@@ -1168,6 +1168,11 @@ describe("ChatsSidebar filters", () => {
 							title: "Idle chat",
 							status: "waiting",
 						}),
+						buildChat({
+							id: "paused-chat",
+							title: "Paused chat",
+							status: "paused",
+						}),
 					]}
 					sidebarFilters={{
 						...defaultSidebarFilters,
@@ -1193,6 +1198,8 @@ describe("ChatsSidebar filters", () => {
 			"agents-tree-node-interrupting-chat",
 		);
 		const idleNode = screen.getByTestId("agents-tree-node-idle-chat");
+		const pausedSection = screen.getByTestId("agents-section-toggle-Paused");
+		const pausedNode = screen.getByTestId("agents-tree-node-paused-chat");
 
 		expect(
 			screen.queryByTestId("agents-section-toggle-Today"),
@@ -1207,6 +1214,8 @@ describe("ChatsSidebar filters", () => {
 			[interruptingSection, interruptingNode],
 			[interruptingNode, idleSection],
 			[idleSection, idleNode],
+			[idleNode, pausedSection],
+			[pausedSection, pausedNode],
 		] as const) {
 			expect(
 				before.compareDocumentPosition(after) &

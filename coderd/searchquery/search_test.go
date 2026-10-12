@@ -1109,6 +1109,7 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 		{name: "Archived", query: "archived:true"},
 		{name: "PRStatuses", query: "pr_status:open,merged"},
 		{name: "ChatStatuses", query: "status:error,running"},
+		{name: "ChatStatusesPaused", query: "status:waiting,paused"},
 		{name: "PRStatusNone", query: "pr_status:none"},
 		{name: "DiffURL", query: `diff_url:"https://github.com/coder/coder/pull/1"`},
 		{name: "FilterAndSearch", query: `has_unread:true search:"fix auth"`},
@@ -1227,6 +1228,15 @@ func TestSearchChats(t *testing.T) {
 				Archived:     sql.NullBool{Bool: false, Valid: true},
 				OwnedOnly:    true,
 				ChatStatuses: []string{"waiting", "error"},
+			},
+		},
+		{
+			Name:  "ChatStatusPaused",
+			Query: "status:waiting,paused",
+			Expected: database.GetChatsParams{
+				Archived:     sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:    true,
+				ChatStatuses: []string{"waiting", "paused"},
 			},
 		},
 		{
