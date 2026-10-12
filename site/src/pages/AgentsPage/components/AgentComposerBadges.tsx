@@ -360,16 +360,24 @@ const ComposerBadge = ({
 	badge: ToolBadgeData;
 	placement: BadgePlacement;
 }) => {
-	const { workspaceSelection, mcp, isViewOnly } = useAgentComposerOptions();
+	const { workspaceSelection, mcp, isViewOnly, changeWorkspace } =
+		useAgentComposerOptions();
 	const { state } = useAgentComposer();
 	const isDisabled = state.isDisabled;
 	const inPopover = placement === "popover";
 	const isRowHidden = placement === "row-hidden";
 
-	const onWorkspaceChange = workspaceSelection?.onChange;
-	let removeWorkspace: (() => void) | undefined;
-	if (onWorkspaceChange && !isViewOnly) {
-		removeWorkspace = () => onWorkspaceChange(null);
+	// Badges keep the workspace X while a change is offered and disable it
+	// only while workspace selection loads, not while the composer is
+	// disabled.
+	const isWorkspaceRemovalOffered =
+		workspaceSelection?.onChange !== undefined && !isViewOnly;
+	const canChangeWorkspace = changeWorkspace !== undefined;
+	const removeWorkspace = () => changeWorkspace?.(null);
+	let removeLinkedWorkspace: (() => void) | undefined;
+
+	if (isWorkspaceRemovalOffered && canChangeWorkspace) {
+		removeLinkedWorkspace = removeWorkspace;
 	}
 
 	if (badge.kind === "linked-workspace") {
@@ -387,7 +395,7 @@ const ComposerBadge = ({
 					chatId={badge.chatId}
 					sshCommand={badge.sshCommand}
 					folder={badge.folder}
-					onRemoveWorkspace={removeWorkspace}
+					onRemoveWorkspace={removeLinkedWorkspace}
 					inOverflowPopover={inPopover}
 				/>
 			</span>
@@ -422,11 +430,11 @@ const ComposerBadge = ({
 							{badge.statusIcon}
 							<span className="truncate">{badge.name}</span>
 						</Link>
-						{removeWorkspace && (
+						{isWorkspaceRemovalOffered && (
 							<BadgeDismissButton
 								onClick={removeWorkspace}
 								ariaLabel={`Remove workspace ${badge.name}`}
-								isDisabled={isDisabled}
+								isDisabled={!canChangeWorkspace}
 							/>
 						)}
 					</span>
@@ -447,11 +455,11 @@ const ComposerBadge = ({
 			<span className={badgeCls}>
 				<MonitorIcon className="size-3" />
 				<span className="truncate">{badge.name}</span>
-				{removeWorkspace && (
+				{isWorkspaceRemovalOffered && (
 					<BadgeDismissButton
 						onClick={removeWorkspace}
 						ariaLabel={`Remove workspace ${badge.name}`}
-						isDisabled={isDisabled}
+						isDisabled={!canChangeWorkspace}
 					/>
 				)}
 			</span>

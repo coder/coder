@@ -23,9 +23,22 @@ import { AgentComposerOptionsMenu } from "./AgentComposerOptionsMenu";
 const AgentComposerOptionsProvider = ({
 	children,
 	...data
-}: AgentComposerOptionsData & { children: React.ReactNode }) => (
-	<OptionsContext value={data}>{children}</OptionsContext>
-);
+}: AgentComposerOptionsData & { children: React.ReactNode }) => {
+	const onWorkspaceChange = data.workspaceSelection?.onChange;
+	const isWorkspaceSelectionLoading =
+		data.workspaceSelection?.isLoading === true;
+	let changeWorkspace: ((id: string | null) => void) | undefined;
+
+	if (!isWorkspaceSelectionLoading) {
+		changeWorkspace = onWorkspaceChange;
+	}
+
+	return (
+		<OptionsContext value={{ ...data, changeWorkspace }}>
+			{children}
+		</OptionsContext>
+	);
+};
 
 const AgentComposerOptionsFrame = ({
 	children,

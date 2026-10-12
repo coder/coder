@@ -13,6 +13,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockWorkspace } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
@@ -327,6 +328,44 @@ describe("ChatComposer", () => {
 		);
 		expect(onMCPSelectionChange).not.toHaveBeenCalled();
 	});
+
+	it.each([
+		{ isDisabled: true, isWorkspaceSelectionLoading: false, removes: true },
+		{ isDisabled: false, isWorkspaceSelectionLoading: true, removes: false },
+	])(
+		"gates workspace removal on workspace selection, not the composer (%o)",
+		async ({ isDisabled, isWorkspaceSelectionLoading, removes }) => {
+			const user = userEvent.setup();
+			const onWorkspaceChange = vi.fn();
+			renderInput(
+				<ChatComposer
+					{...inputProps}
+					bindings={{ ...inputProps.bindings, isDisabled }}
+					tools={{
+						...inputProps.tools,
+						workspaceSelection: {
+							options: [MockWorkspace],
+							selectedId: MockWorkspace.id,
+							onChange: onWorkspaceChange,
+							isLoading: isWorkspaceSelectionLoading,
+						},
+					}}
+				/>,
+			);
+
+			await user.click(
+				screen.getByRole("button", {
+					name: `Remove workspace ${MockWorkspace.name}`,
+				}),
+			);
+
+			if (removes) {
+				expect(onWorkspaceChange).toHaveBeenCalledExactlyOnceWith(null);
+			} else {
+				expect(onWorkspaceChange).not.toHaveBeenCalled();
+			}
+		},
+	);
 
 	it("swaps Stop for the Queue button once a draft is entered while streaming", async () => {
 		const user = userEvent.setup();
