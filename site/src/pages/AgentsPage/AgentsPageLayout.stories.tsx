@@ -848,10 +848,7 @@ const watchedChatQueries = (chat: Chat) => [
 	{ key: chatEntityKey(chat.id), data: chat },
 	{
 		key: chatMessagesKey(chat.id),
-		data: {
-			pages: [{ messages: [], queued_messages: [], has_more: false }],
-			pageParams: [undefined],
-		},
+		data: { messages: [], queued_messages: [], has_more: false },
 	},
 	{ key: chatPromptsKey(chat.id), data: { prompts: [] } },
 	{ key: preferenceSettingsKey, data: MockUserPreferenceSettings },

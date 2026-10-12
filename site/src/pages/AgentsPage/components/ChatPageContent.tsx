@@ -121,8 +121,13 @@ type ChatPageTimelineProps = {
 	isFetchingMoreMessages: boolean;
 	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
-	onFetchMoreMessages: () => Promise<unknown>;
-	onEditUserMessage?: (messageId: number) => void;
+	onFetchMoreMessages: () => void;
+	onEditUserMessage?: (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		editorState?: string,
+	) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
