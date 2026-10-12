@@ -209,8 +209,6 @@ func sendStreamEvent(ctx context.Context, ch chan<- codersdk.ChatStreamEvent, ev
 	}
 }
 
-// Subscribe loads the chat as the caller and subscribes it to stream
-// updates. Setup failures return an error instead of a stream.
 func (p *Server) Subscribe(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -233,8 +231,7 @@ func (p *Server) Subscribe(
 	return p.SubscribeAuthorized(ctx, chat, requestHeader, cursor)
 }
 
-// SubscribeAuthorized subscribes an already-authorized chat to stream
-// updates. Setup failures return an error instead of a stream.
+// SubscribeAuthorized subscribes an already-authorized chat to stream updates.
 func (p *Server) SubscribeAuthorized(
 	ctx context.Context,
 	chat database.Chat,
