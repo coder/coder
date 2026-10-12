@@ -536,7 +536,7 @@ export const AutomationScheduleFields: React.FC<
 			{/* The cron is what is saved. It stays editable in place, so any
 			    schedule the shortcuts cannot write is still one edit away. */}
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-				<span className="flex items-center gap-1">
+				<span className="flex min-w-0 max-w-full items-center gap-1">
 					<label htmlFor={cronId} className="sr-only">
 						Cron expression (required)
 					</label>
@@ -567,12 +567,13 @@ export const AutomationScheduleFields: React.FC<
 						]
 							.filter(Boolean)
 							.join(" ")}
-						// As wide as the expression, so it reads as text in the line.
+						// As wide as the expression, up to the card's width. A long
+						// expression scrolls inside the input.
 						style={{ width: `${Math.max(cron.length, 9) + 3}ch` }}
 						className={cn(
-							"h-7 rounded border border-solid bg-transparent px-1.5 font-mono text-xs text-content-primary",
-							"hover:border-border focus:border-border-secondary focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
-							cronError ? "border-border-destructive" : "border-transparent",
+							"h-7 min-w-0 max-w-full rounded border border-solid bg-transparent px-1.5 font-mono text-xs text-content-primary",
+							"hover:border-border-secondary focus:border-border-secondary focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+							cronError ? "border-border-destructive" : "border-border",
 						)}
 					/>
 					<InfoTooltip size="small" ariaLabel="About Cron expression">
