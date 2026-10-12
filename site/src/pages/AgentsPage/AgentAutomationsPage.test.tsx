@@ -1205,7 +1205,8 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		const cron = within(dialog).getByLabelText(/^Cron expression/);
 
 		await user.clear(cron);
-		await user.type(cron, "bad");
+		// Five fields with no numbers, so the form keeps the server's words.
+		await user.type(cron, "x x x x x");
 		await waitFor(() => {
 			expect(cron).toHaveAccessibleDescription(
 				expect.stringContaining("Expected exactly five fields."),
@@ -1224,14 +1225,45 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 				expect.stringContaining("Must be a valid cron expression."),
 			);
 		});
-		expect(within(dialog).queryByRole("alert")).toBeNull();
+		// The alert by the Save buttons points at the field, not repeat it.
+		const alert = within(dialog).getByRole("alert");
+		expect(alert).toHaveTextContent("Fix Cron expression above.");
+		expect(alert).not.toHaveTextContent("Must be a valid cron expression.");
 
 		await user.type(cron, "x");
 		expect(cron).toHaveAccessibleDescription(
 			expect.not.stringContaining("Must be a valid cron expression."),
 		);
+		expect(within(dialog).queryByRole("alert")).toBeNull();
 		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
 		expect(within(dialog).queryByRole("alert")).toBeNull();
+	});
+
+	it("names the cron field that is out of range instead of the parser text", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.post(`${automationsPath(":organizationId")}/schedule-preview`, () =>
+				validationError(
+					"schedule_cron",
+					"parse schedule: end of range (61) above maximum (59): 61",
+				),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+		const cron = within(dialog).getByLabelText(/^Cron expression/);
+
+		await user.clear(cron);
+		await user.type(cron, "61 * * * *");
+
+		await waitFor(() => {
+			expect(cron).toHaveAccessibleDescription(
+				expect.stringContaining("Minute must be 0-59."),
+			);
+		});
+		expect(cron).toHaveAccessibleDescription(
+			expect.not.stringContaining("parse schedule"),
+		);
 	});
 
 	it("asks the server for chats from the automation's organization", async () => {

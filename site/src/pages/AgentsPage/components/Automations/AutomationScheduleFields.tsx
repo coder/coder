@@ -166,6 +166,45 @@ export const describeSchedule = (cron: string): string => {
 	return `${option.label} at ${formatTime({ hour: shortcut.hour, minute: shortcut.minute })}`;
 };
 
+const cronFieldRanges = [
+	{ label: "Minute", min: 0, max: 59 },
+	{ label: "Hour", min: 0, max: 23 },
+	{ label: "Day of month", min: 1, max: 31 },
+	{ label: "Month", min: 1, max: 12 },
+	{ label: "Day of week", min: 0, max: 6 },
+] as const;
+
+/**
+ * Names a problem in a cron string in words, such as "Minute must be 0-59.",
+ * so the form does not show the server's parser text. It checks only the
+ * field count and the numbers in each field, and returns undefined when it
+ * finds nothing.
+ */
+export const describeCronProblem = (cron: string): string | undefined => {
+	const fields = cron.trim().split(/\s+/).filter(Boolean);
+	if (fields.length === 0) {
+		return undefined;
+	}
+	if (fields.length !== cronFieldRanges.length) {
+		const descriptor = fields[0].startsWith("@")
+			? ` Shortcuts such as ${fields[0]} are not supported.`
+			: "";
+		return `Use five fields: minute, hour, day of month, month, and day of week, such as 0 9 * * 1-5.${descriptor}`;
+	}
+	for (const [index, field] of fields.entries()) {
+		const { label, min, max } = cronFieldRanges[index];
+		// A number after "/" is a step, not a value in the field's range.
+		const values = field.match(/(^|[^/\d])\d+/g) ?? [];
+		for (const value of values) {
+			const number = Number(value.replace(/^\D/, ""));
+			if (number < min || number > max) {
+				return `${label} must be ${min}-${max}.`;
+			}
+		}
+	}
+	return undefined;
+};
+
 // Unlike a cron field, the Minute input accepts a leading zero ("05").
 const parseMinuteInput = (text: string): number | undefined => {
 	const trimmed = text.trim();
@@ -276,7 +315,12 @@ export const AutomationScheduleFields: React.FC<
 			? getValidationErrorMessage(previewQuery.error) ||
 				getErrorMessage(previewQuery.error, "Could not preview the schedule.")
 			: undefined;
-	const cronError = cronField.error ? cronField.helperText : cronPreviewError;
+	const rawCronError = cronField.error
+		? cronField.helperText
+		: cronPreviewError;
+	const cronError = rawCronError
+		? (describeCronProblem(cron) ?? rawCronError)
+		: undefined;
 	// Only the run list renders the warning, so the cron input refers to it
 	// only when that list is shown.
 	const intervalWarning =

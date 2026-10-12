@@ -347,10 +347,21 @@ export const AutomationEditorForm: React.FC<AutomationEditorFormProps> = ({
 			!renderedFields.includes(validation.field) &&
 			serverErrorApplies(validation.field),
 	);
+	// Fields above that show their own server error. The alert names them so
+	// a failed save explains itself next to the Save buttons.
+	const inlineErrorLabels = (apiError?.validations ?? [])
+		.filter(
+			(validation) =>
+				renderedFields.includes(validation.field) &&
+				serverErrorApplies(validation.field),
+		)
+		.map((validation) => SERVER_FIELDS[validation.field]?.label);
 	const isPending = isSubmitting || isRotatingSecret;
 	const showAlert =
 		Boolean(error) &&
-		(!apiError?.validations?.length || alertValidations.length > 0);
+		(!apiError?.validations?.length ||
+			alertValidations.length > 0 ||
+			inlineErrorLabels.length > 0);
 
 	return (
 		<form
@@ -444,9 +455,16 @@ export const AutomationEditorForm: React.FC<AutomationEditorFormProps> = ({
 						<AlertTitle>
 							{getErrorMessage(error, "Could not save the automation.")}
 						</AlertTitle>
-						{(apiError?.detail || alertValidations.length > 0) && (
+						{(apiError?.detail ||
+							alertValidations.length > 0 ||
+							inlineErrorLabels.length > 0) && (
 							<AlertDescription>
 								{apiError?.detail}
+								{inlineErrorLabels.length > 0 && (
+									<span className="block">
+										Fix {inlineErrorLabels.join(", ")} above.
+									</span>
+								)}
 								{alertValidations.map((validation) => (
 									<span key={validation.field} className="block">
 										{SERVER_FIELDS[validation.field]

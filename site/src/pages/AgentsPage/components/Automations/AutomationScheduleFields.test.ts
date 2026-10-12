@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	describeCronProblem,
 	describeSchedule,
 	matchRepeatShortcut,
 } from "./AutomationScheduleFields";
@@ -49,5 +50,30 @@ describe("describeSchedule", () => {
 		{ cron: "*/10 9 * * *", expected: "*/10 9 * * *" },
 	])("describes $cron as $expected", ({ cron, expected }) => {
 		expect(describeSchedule(cron)).toBe(expected);
+	});
+});
+
+describe("describeCronProblem", () => {
+	it.each([
+		{ cron: "61 * * * *", expected: "Minute must be 0-59." },
+		{ cron: "0 24 * * *", expected: "Hour must be 0-23." },
+		{ cron: "0 9 0 * *", expected: "Day of month must be 1-31." },
+		{ cron: "0 9 * 1-13 *", expected: "Month must be 1-12." },
+		{ cron: "0 9 * * 1-8", expected: "Day of week must be 0-6." },
+		{
+			cron: "@daily",
+			expected:
+				"Use five fields: minute, hour, day of month, month, and day of week, such as 0 9 * * 1-5. Shortcuts such as @daily are not supported.",
+		},
+		{
+			cron: "0 9 * *",
+			expected:
+				"Use five fields: minute, hour, day of month, month, and day of week, such as 0 9 * * 1-5.",
+		},
+		{ cron: "*/90 * * * *", expected: undefined },
+		{ cron: "0,30 9-17 1 1 MON-FRI", expected: undefined },
+		{ cron: "", expected: undefined },
+	])("describes $cron", ({ cron, expected }) => {
+		expect(describeCronProblem(cron)).toBe(expected);
 	});
 });
