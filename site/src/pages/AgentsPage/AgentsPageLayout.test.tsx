@@ -129,6 +129,37 @@ describe("AgentsPageLayout New chat", () => {
 	);
 });
 
+describe("AgentsPageLayout chat watch reconnect", () => {
+	it("refetches the open chat when the chat watch socket opens", async () => {
+		let chatWatchServer: MockWebSocketServer | undefined;
+		vi.spyOn(apiModule, "watchChats").mockImplementation(
+			() =>
+				new OneWayWebSocket<ChatWatchEvent>({
+					apiRoute: "/api/v2/chats/watch",
+					websocketInit: (url, protocol) => {
+						const [socket, server] = createMockWebSocket(url, protocol);
+						chatWatchServer = server;
+						return socket;
+					},
+				}),
+		);
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([MockChat]);
+		const getChat = vi
+			.spyOn(API.experimental, "getChat")
+			.mockResolvedValue(MockChat);
+
+		renderLayout(`/agents/${MockChat.id}`);
+		await waitFor(() => expect(getChat).toHaveBeenCalledTimes(1));
+		await waitFor(() => expect(chatWatchServer).toBeDefined());
+
+		// Events missed while disconnected are only recovered by a
+		// refetch, so every (re)connect must refetch the open chat.
+		act(() => chatWatchServer?.publishOpen(new Event("open")));
+		await waitFor(() => expect(getChat).toHaveBeenCalledTimes(2));
+		expect(getChat.mock.lastCall?.[0]).toBe(MockChat.id);
+	});
+});
+
 describe("AgentsPageLayout manual read state", () => {
 	it("keeps a pending toggle scoped to its chat after the row remounts", async () => {
 		const user = userEvent.setup();
