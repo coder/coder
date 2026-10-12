@@ -333,7 +333,7 @@ func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []data
 func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatStreamEvent {
 	chat := snapshot.chat
 	events := make([]codersdk.ChatStreamEvent, 0)
-	historyChanged := chat.HistoryVersion > l.state.historyVersion || snapshot.historyReset
+	historyChanged := chat.HistoryVersion > l.state.historyVersion
 	generationChanged := chat.GenerationAttempt != l.state.generationAttempt
 	initialSync := !l.state.initialMessageSyncDone
 
