@@ -111,3 +111,9 @@ type DRPCAgentClient211 interface {
 type DRPCAgentClient212 interface {
 	DRPCAgentClient211
 }
+
+// DRPCAgentClient213 is the Agent API at v2.13. It adds resource_address and
+// dependencies to WorkspaceAgentScript in the manifest. No new RPCs.
+type DRPCAgentClient213 interface {
+	DRPCAgentClient212
+}
