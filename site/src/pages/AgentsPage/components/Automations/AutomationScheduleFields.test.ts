@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	cronFixedTime,
 	describeCronProblem,
 	describeSchedule,
 	matchRepeatShortcut,
@@ -77,5 +78,18 @@ describe("describeCronProblem", () => {
 		{ cron: "", expected: undefined },
 	])("describes $cron", ({ cron, expected }) => {
 		expect(describeCronProblem(cron)).toBe(expected);
+	});
+});
+
+describe("cronFixedTime", () => {
+	it.each([
+		{ cron: "0 10 15 * *", expected: "10:00" },
+		{ cron: "5 7 * * 1-5", expected: "07:05" },
+		{ cron: "*/5 * * * *", expected: undefined },
+		{ cron: "0 9,17 * * *", expected: undefined },
+		{ cron: "0 9 * *", expected: undefined },
+		{ cron: "61 9 * * *", expected: undefined },
+	])("reads $cron as $expected", ({ cron, expected }) => {
+		expect(cronFixedTime(cron)).toBe(expected);
 	});
 });

@@ -104,6 +104,21 @@ const parseCronNumber = (field: string | undefined, max: number) => {
 	return value <= max ? value : undefined;
 };
 
+/**
+ * Returns "HH:MM" when the cron runs at one fixed time of day, such as
+ * "0 10 15 * *", so a disabled Time box can show it. Steps, lists and
+ * ranges in the minute or hour have no single time.
+ */
+export const cronFixedTime = (cron: string): string | undefined => {
+	const [minuteField, hourField, ...rest] = cron.trim().split(/\s+/);
+	const minute = parseCronNumber(minuteField, 59);
+	const hour = parseCronNumber(hourField, 23);
+	if (rest.length !== 3 || minute === undefined || hour === undefined) {
+		return undefined;
+	}
+	return formatTime({ hour, minute });
+};
+
 type RepeatShortcut = {
 	repeat: (typeof repeatOptions)[number]["value"];
 	/** Set when the shortcut fixes the hour. */
@@ -498,9 +513,11 @@ export const AutomationScheduleFields: React.FC<
 						<Input
 							id={timeId}
 							type="time"
-							// Custom and every-N-minutes schedules have no single
-							// time, so the last time stays, disabled.
-							value={time}
+							// Without a shortcut the box is read only: it shows the
+							// cron's time of day, or stays empty when it has none.
+							value={
+								repeatOption?.usesTime ? time : (cronFixedTime(cron) ?? "")
+							}
 							disabled={!repeatOption?.usesTime}
 							aria-invalid={Boolean(timeError)}
 							aria-describedby={timeError ? timeErrorId : undefined}

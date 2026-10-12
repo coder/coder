@@ -1508,20 +1508,23 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		);
 	});
 
-	it("shows the time disabled for a schedule that has no single time", async () => {
+	it.each([
+		// The cron's own time, not a leftover default.
+		{ cron: "0 10 15 * *", time: "10:00" },
+		{ cron: "*/5 * * * *", time: "" },
+		{ cron: "0 9-17 * * *", time: "" },
+	])("shows the disabled time of $cron as '$time'", async ({ cron, time }) => {
 		const user = userEvent.setup();
 		setupEditor();
 		const dialog = await openCreateDialog(user);
-		await user.click(within(dialog).getByRole("combobox", { name: "Repeat" }));
-		await user.click(
-			await screen.findByRole("option", { name: "Every 5 minutes" }),
-		);
+		const cronInput = within(dialog).getByLabelText(/^Cron expression/);
+		await user.clear(cronInput);
+		await user.type(cronInput, cron);
 
-		const time = within(dialog).getByLabelText("Time");
-		expect(time).toBeDisabled();
-		expect(time).toHaveValue("09:00");
+		const timeInput = within(dialog).getByLabelText("Time");
+		expect(timeInput).toBeDisabled();
+		expect(timeInput).toHaveValue(time);
 	});
-
 	it("asks the server for chats from the automation's organization", async () => {
 		const user = userEvent.setup();
 		// A non-default organization, so the term cannot come from a default.
