@@ -113,19 +113,23 @@ const JumpRow: React.FC = () => {
 	const { scrollToMessage } = useMessageScroller();
 	return (
 		<MessageScroller.Item messageId="jump" data-height={0}>
-			<button type="button" onClick={() => scrollToMessage("history-2")}>
-				Jump to history-2
+			<button type="button" onClick={() => scrollToMessage("history-9")}>
+				Jump to history-9
 			</button>
 		</MessageScroller.Item>
 	);
 };
 
-const revealTranscript = (expandedHeight: number) => [
-	history,
-	<BlockRow key="block" expandedHeight={expandedHeight} />,
-	row("answer", 100),
-	<JumpRow key="jump" />,
-];
+const RevealTranscript: React.FC<{ expandedHeight: number }> = ({
+	expandedHeight,
+}) => (
+	<>
+		{history}
+		<BlockRow expandedHeight={expandedHeight} />
+		{row("answer", 100)}
+		<JumpRow />
+	</>
+);
 
 describe("WorkingBlockDisclosure in a MessageScroller", () => {
 	setupMessageScrollerLayout();
@@ -145,39 +149,59 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 
 	it("keeps the end of a revealed block in view as its steps finish loading", async () => {
 		const user = userEvent.setup();
-		const update = renderTranscript(revealTranscript(300));
+		const update = renderTranscript(<RevealTranscript expandedHeight={300} />);
 		await user.click(summaryButton());
 		await flushLayout();
 
-		// A lazy image in one of the steps loads.
-		await update(revealTranscript(500));
+		// Lazy images in two of the steps load, one after the other.
+		await update(<RevealTranscript expandedHeight={320} />);
+		await flushLayout();
+		await update(<RevealTranscript expandedHeight={500} />);
 
 		expect(await visibleRowsAfterLayout()).toEqual(["block"]);
 	});
 
 	it.each([
 		[
-			"scrolls",
+			"the reader presses a scroll key",
+			(user: UserEvent) => user.keyboard("{PageUp}"),
+		],
+		[
+			"the view scrolls up without a gesture",
 			() => {
-				fireEvent.wheel(viewport());
 				viewport().scrollTop = 800;
 				fireEvent.scroll(viewport());
 			},
 		],
 		[
-			"jumps to another row",
+			"the reader jumps to another row",
 			(user: UserEvent) =>
-				user.click(screen.getByRole("button", { name: "Jump to history-2" })),
+				user.click(screen.getByRole("button", { name: "Jump to history-9" })),
 		],
-	])("stops revealing a block once the reader %s", async (_name, intervene) => {
+	])("stops revealing a block once %s", async (_name, intervene) => {
 		const user = userEvent.setup();
-		const update = renderTranscript(revealTranscript(300));
+		const update = renderTranscript(<RevealTranscript expandedHeight={300} />);
 		await user.click(summaryButton());
 		await flushLayout();
 		await intervene(user);
 		const before = await visibleRowsAfterLayout();
 
-		await update(revealTranscript(500));
+		await update(<RevealTranscript expandedHeight={500} />);
+
+		expect(await visibleRowsAfterLayout()).toEqual(before);
+	});
+
+	it("does not scroll back up to the end of a revealed block that grows in view", async () => {
+		const user = userEvent.setup();
+		const update = renderTranscript(<RevealTranscript expandedHeight={300} />);
+		await user.click(summaryButton());
+		await flushLayout();
+		// Find in page scrolls past the block's end.
+		viewport().scrollTop = 1000;
+		fireEvent.scroll(viewport());
+		const before = await visibleRowsAfterLayout();
+
+		await update(<RevealTranscript expandedHeight={350} />);
 
 		expect(await visibleRowsAfterLayout()).toEqual(before);
 	});

@@ -70,13 +70,12 @@ function nudgeScroll(viewport: HTMLElement) {
   }
 }
 
-// LOCAL CHANGE: where the element ends in the viewport's scrolled content, so
-// a scroll does not move it.
-function getScrollBottom(element: Element, viewport: HTMLElement) {
+// LOCAL CHANGE
+function endsBelowView(element: Element, viewport: HTMLElement) {
   return (
     element.getBoundingClientRect().bottom -
-    viewport.getBoundingClientRect().top +
-    viewport.scrollTop
+      viewport.getBoundingClientRect().bottom >
+    SCROLL_POSITION_EPSILON
   )
 }
 
@@ -189,6 +188,12 @@ function useMessageScrollerController({
         scrollTop < lastScrollTopRef.current - SCROLL_POSITION_EPSILON
 
       lastScrollTopRef.current = scrollTop
+
+      // LOCAL CHANGE: a reveal only scrolls down, so a scroll up ends it, even
+      // one with no gesture, such as a focus move or find in page.
+      if (scrolledUp) {
+        revealedItemRef.current = null
+      }
 
       if (
         autoScrollRef.current &&
@@ -543,6 +548,8 @@ function useMessageScrollerController({
       return
     }
 
+    const viewport = viewportRef.current // LOCAL CHANGE
+
     // Hold the anchored turn in place as content below it resizes (a reply
     // streaming in, or a transient marker collapsing) — otherwise the shrinking
     // content lets the browser clamp scrollTop and the turn drops.
@@ -558,8 +565,6 @@ function useMessageScrollerController({
       // LOCAL CHANGE: and only if the end is in the handoff band,
       // max(threshold, margin + peek), so a code block or log box that lands
       // at once keeps the turn held. followSuppressedRef covers toggles.
-      const viewport = viewportRef.current
-
       if (
         autoScrollRef.current &&
         !followSuppressedRef.current &&
@@ -578,10 +583,9 @@ function useMessageScrollerController({
       return
     }
 
-    // LOCAL CHANGE: until the reader scrolls, a revealed row that grows (a
-    // step's image loading) keeps its end in view.
+    // LOCAL CHANGE: until its jump ends, a revealed row that grows its end out
+    // of view (a step's image loading) scrolls it back into view.
     const revealed = revealedItemRef.current
-    const viewport = viewportRef.current
 
     if (
       modeRef.current === "settling-jump" &&
@@ -589,12 +593,14 @@ function useMessageScrollerController({
       revealed.element.isConnected &&
       viewport !== null
     ) {
-      const bottom = getScrollBottom(revealed.element, viewport)
+      const height = revealed.element.getBoundingClientRect().height
 
-      if (bottom - revealed.bottom > SCROLL_POSITION_EPSILON) {
+      if (
+        height - revealed.height > SCROLL_POSITION_EPSILON &&
+        endsBelowView(revealed.element, viewport)
+      ) {
         scrollToElement(revealed.element, { align: "end", behavior: "smooth" })
-        revealedItemRef.current = { element: revealed.element, bottom }
-        return
+        revealedItemRef.current = { element: revealed.element, height }
       }
     }
 
@@ -755,16 +761,11 @@ function useMessageScrollerController({
         return
       }
 
-      const endsBelowView =
-        item.getBoundingClientRect().bottom -
-          viewport.getBoundingClientRect().bottom >
-        SCROLL_POSITION_EPSILON
-
       if (item === items[items.length - 1]) {
         // The anchor hold hands off to following when the reply uses up the
         // tail spacer, so leave it in place only while some spacer is left.
         if (
-          !endsBelowView &&
+          !endsBelowView(item, viewport) &&
           modeRef.current === "anchored-to-message" &&
           spacerHeightRef.current > 0
         ) {
@@ -778,12 +779,12 @@ function useMessageScrollerController({
         return
       }
 
-      if (endsBelowView) {
+      if (endsBelowView(item, viewport)) {
         followSuppressedRef.current = false
         scrollToElement(item, { align: "end", behavior: "smooth" })
         revealedItemRef.current = {
           element: item,
-          bottom: getScrollBottom(item, viewport),
+          height: item.getBoundingClientRect().height,
         }
       }
     },
