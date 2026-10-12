@@ -1,5 +1,4 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -32,17 +31,14 @@ const lineText = (c: Chat) =>
 	render(<ChatStatusLine chat={c} />).container.textContent ?? "";
 
 describe("ChatStatusLine", () => {
-	it("ends with the age when the chat is idle, and carries no diff counts", () => {
+	it("ends with the age when the chat is idle, and carries no PRs", () => {
 		const idle = chat({ status: "waiting", has_unread: true });
 		const text = lineText(idle);
 
 		expect(text.endsWith(shortRelativeTime(idle.updated_at))).toBe(true);
 		expect(text).toContain("Fixed the build");
 		expect(text).not.toContain("+12");
-		expect(text).not.toContain("−3");
-		expect(
-			screen.getByRole("link", { name: "#12, Pull request open" }),
-		).toHaveAttribute("href", "https://github.com/coder/coder/pull/12");
+		expect(text).not.toContain("#12");
 	});
 
 	it("omits the age while the chat is working", () => {
@@ -53,7 +49,7 @@ describe("ChatStatusLine", () => {
 		expect(text.endsWith("Fixed the build")).toBe(true);
 	});
 
-	it("renders nothing for a working chat with no PR and no last turn", () => {
+	it("renders nothing for a working chat with no last turn", () => {
 		expect(
 			lineText(
 				chat({
@@ -63,25 +59,5 @@ describe("ChatStatusLine", () => {
 				}),
 			),
 		).toBe("");
-	});
-
-	it("counts several PRs per state and opens a menu linking every PR", async () => {
-		const user = userEvent.setup();
-		render(
-			<ChatStatusLine
-				chat={chat({
-					diff_statuses: [pr(12, "merged"), pr(13), pr(14, "merged")],
-				})}
-			/>,
-		);
-		await user.click(
-			screen.getByRole("button", { name: "1 open, 2 merged pull requests" }),
-		);
-		const links = await screen.findAllByRole("menuitem");
-		expect(links.map((link) => link.getAttribute("href"))).toEqual([
-			"https://github.com/coder/coder/pull/12",
-			"https://github.com/coder/coder/pull/13",
-			"https://github.com/coder/coder/pull/14",
-		]);
 	});
 });
