@@ -3,6 +3,8 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	type ChatStore,
 	createChatStore,
+	type PendingAction,
+	type SyncedUpdates,
 	selectChatStatus,
 	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
@@ -727,17 +729,23 @@ const seededStore = (
 	return store;
 };
 
-// What a viewer sees: the transcript texts, the queue IDs and the status.
+const textOf = (content: readonly TypesGen.ChatMessagePart[] | undefined) => {
+	const part = content?.[0];
+	return part?.type === "text" ? part.text : "";
+};
+
+// What a viewer sees: the transcript, the queue texts and the status.
 const visible = (store: ChatStore) => {
 	const state = store.getSnapshot();
 	const byID = selectMessagesByID(state);
 	return {
 		transcript: selectOrderedMessageIDs(state).map((id) => {
 			const message = byID.get(id);
-			const part = message?.content?.[0];
-			return `${message?.role}:${part?.type === "text" ? part.text : ""}`;
+			return `${message?.role}:${textOf(message?.content)}`;
 		}),
-		queue: selectQueuedMessages(state).map((message) => message.id),
+		queue: selectQueuedMessages(state).map((message) =>
+			textOf(message.content),
+		),
 		status: selectChatStatus(state),
 		error: selectStreamError(state)?.message ?? null,
 	};
@@ -748,9 +756,21 @@ const chatError = {
 	kind: "generic",
 } as const;
 
-describe("promoteQueued overlay", () => {
+// A user message as submitChatTurn builds it at the click.
+const eagerSend = (text: string): PendingAction => ({
+	kind: "send",
+	message: {
+		id: 0,
+		chat_id: "chat-1",
+		created_at: "2025-01-01T00:00:00.000Z",
+		role: "user",
+		content: [{ type: "text", text }],
+	},
+});
+
+describe("pending actions", () => {
 	it.each(["error", "requires_action"] as const)(
-		"from %s shows the row as the next prompt of a running turn",
+		"promote from %s shows the row as the next prompt of a running turn",
 		(status) => {
 			const store = seededStore(
 				[makeMessage(1, "user", "first"), makeMessage(2, "assistant", "a")],
@@ -763,7 +783,7 @@ describe("promoteQueued overlay", () => {
 
 			expect(visible(store)).toEqual({
 				transcript: ["user:first", "assistant:a", "user:q11"],
-				queue: [10],
+				queue: ["q10"],
 				status: "running",
 				error: null,
 			});
@@ -771,7 +791,7 @@ describe("promoteQueued overlay", () => {
 	);
 
 	it.each(["running", "interrupting"] as const)(
-		"from %s moves the row to the head and shows the turn stopping",
+		"promote from %s moves the row to the head and shows the turn stopping",
 		(status) => {
 			const store = seededStore(
 				[makeMessage(1, "user", "first")],
@@ -783,52 +803,92 @@ describe("promoteQueued overlay", () => {
 
 			expect(visible(store)).toEqual({
 				transcript: ["user:first"],
-				queue: [11, 10],
+				queue: ["q11", "q10"],
 				status: "interrupting",
 				error: null,
 			});
 		},
 	);
 
-	it("shows the promoted row once when the stream already holds its message", () => {
+	it("places a promote by the status an earlier pending action shows", () => {
 		const store = seededStore(
-			[makeMessage(1, "user", "first")],
-			[makeQueuedMessage(11, "q11")],
+			[makeMessage(1, "user", "first"), makeMessage(2, "assistant", "a")],
+			[makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
 			"error",
 		);
+		store.addPendingAction({ kind: "compact" });
+
+		// The compaction turn runs when the promote reaches the server.
 		store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 11 });
 
-		// A sync can span frames: its message arrives before its queue_update.
-		store.upsertDurableMessage({
-			...makeMessage(2, "user", "q11"),
-			queued_message_id: 11,
+		expect(visible(store)).toMatchObject({
+			transcript: ["user:first", "assistant:a"],
+			queue: ["q11", "q10"],
+			status: "interrupting",
 		});
+	});
+
+	it("queues a send made while an earlier send is pending", () => {
+		const store = seededStore([makeMessage(1, "user", "first")], [], "waiting");
+
+		store.addPendingAction(eagerSend("second"));
+		store.addPendingAction(eagerSend("third"));
 
 		expect(visible(store)).toMatchObject({
-			transcript: ["user:first", "user:q11"],
-			queue: [],
+			transcript: ["user:first", "user:second"],
+			queue: ["third"],
 		});
+	});
+
+	it("keeps a pending message through a sync without user messages", () => {
+		const store = seededStore([makeMessage(1, "user", "first")], [], "waiting");
+		store.addPendingAction(eagerSend("second"));
+
+		store.upsertDurableMessages([makeMessage(2, "assistant", "late")]);
+		store.applyCheckpoint(checkpointAt(2, { status: "waiting" }));
+
+		expect(visible(store)).toEqual({
+			transcript: ["user:first", "assistant:late", "user:second"],
+			queue: [],
+			status: "waiting",
+			error: null,
+		});
+	});
+
+	it("removes a failed action's overlay", () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "first")],
+			[makeQueuedMessage(10, "q10")],
+			"running",
+		);
+		const pendingID = store.addPendingAction({
+			kind: "deleteQueued",
+			queuedMessageID: 10,
+		});
+		expect(visible(store).queue).toEqual([]);
+
+		store.removePendingAction(pendingID);
+
+		expect(visible(store).queue).toEqual(["q10"]);
 	});
 });
 
-// Each scenario runs the same stream events on a store that acted (with its
-// overlay) and on one that did not; once a checkpoint reaches the action's
-// version, both must show the same chat.
+// Each scenario applies the same sync to a store that acted (with its
+// pending action) and to one that did not; after the sync both must show the
+// same chat.
 type ConvergenceScenario = {
 	name: string;
 	messages: readonly TypesGen.ChatMessage[];
 	queue: readonly TypesGen.ChatQueuedMessage[];
 	status: TypesGen.ChatStatus;
-	action: Parameters<ChatStore["addPendingAction"]>[0];
-	// The stream's events for the action's commit, and the status its
-	// checkpoint reports.
+	action: PendingAction;
+	// The sync's updates, and the status its checkpoint reports.
 	stream: (store: ChatStore) => void;
+	updates: SyncedUpdates;
 	statusAfter: TypesGen.ChatStatus;
-	// Another viewer's commit lands first, so the overlay cannot predict it.
+	// Another viewer's commit lands first, so the action cannot predict it.
 	unpredictable?: boolean;
 };
-
-const W = 5;
 
 const convergenceScenarios: ConvergenceScenario[] = [
 	{
@@ -836,23 +896,36 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		messages: [makeMessage(1, "user", "first")],
 		queue: [],
 		status: "waiting",
-		action: { kind: "send", messages: [makeMessage(2, "user", "second")] },
+		action: eagerSend("second"),
 		stream: (store) => {
-			store.upsertDurableMessage(makeMessage(2, "user", "second"));
+			store.upsertDurableMessages([makeMessage(2, "user", "second")]);
 		},
+		updates: { userMessage: true },
 		statusAfter: "running",
 	},
 	{
-		name: "queued send",
+		name: "send to a running chat",
 		messages: [makeMessage(1, "user", "first")],
 		queue: [],
 		status: "running",
-		action: {
-			kind: "send",
-			messages: [],
-			queuedMessage: makeQueuedMessage(10, "q10"),
-		},
+		action: eagerSend("q10"),
 		stream: (store) => store.setQueuedMessages([makeQueuedMessage(10, "q10")]),
+		updates: { queueUpdate: true },
+		statusAfter: "running",
+	},
+	{
+		name: "send to an errored chat with a queue",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [makeQueuedMessage(10, "q10")],
+		status: "error",
+		action: eagerSend("q11"),
+		stream: (store) => {
+			store.upsertDurableMessages([
+				{ ...makeMessage(2, "user", "q10"), queued_message_id: 10 },
+			]);
+			store.setQueuedMessages([makeQueuedMessage(11, "q11")]);
+		},
+		updates: { userMessage: true, queueUpdate: true },
 		statusAfter: "running",
 	},
 	{
@@ -867,13 +940,14 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		action: {
 			kind: "edit",
 			editedMessageID: 3,
-			message: makeMessage(4, "user", "new"),
+			message: makeMessage(3, "user", "new"),
 		},
 		stream: (store) => {
 			store.resetHistoryFrom(3);
 			store.upsertDurableMessages([makeMessage(4, "user", "new")]);
 			store.setQueuedMessages([]);
 		},
+		updates: { historyReset: true, userMessage: true, queueUpdate: true },
 		statusAfter: "running",
 	},
 	{
@@ -883,6 +957,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		status: "running",
 		action: { kind: "deleteQueued", queuedMessageID: 10 },
 		stream: (store) => store.setQueuedMessages([makeQueuedMessage(11, "q11")]),
+		updates: { queueUpdate: true },
 		statusAfter: "running",
 	},
 	{
@@ -892,12 +967,12 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		status: "error",
 		action: { kind: "promoteQueued", queuedMessageID: 11 },
 		stream: (store) => {
-			store.upsertDurableMessage({
-				...makeMessage(2, "user", "q11"),
-				queued_message_id: 11,
-			});
+			store.upsertDurableMessages([
+				{ ...makeMessage(2, "user", "q11"), queued_message_id: 11 },
+			]);
 			store.setQueuedMessages([makeQueuedMessage(10, "q10")]);
 		},
+		updates: { userMessage: true, queueUpdate: true },
 		statusAfter: "running",
 	},
 	{
@@ -912,6 +987,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 				makeQueuedMessage(10, "q10"),
 			]);
 		},
+		updates: { queueUpdate: true },
 		statusAfter: "interrupting",
 	},
 	{
@@ -921,18 +997,33 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		status: "waiting",
 		action: { kind: "compact" },
 		stream: () => {},
+		updates: {},
 		statusAfter: "running",
+	},
+	{
+		name: "another tab's message replaces the pending one",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [],
+		status: "waiting",
+		action: eagerSend("mine"),
+		stream: (store) => {
+			store.upsertDurableMessages([makeMessage(2, "user", "theirs")]);
+		},
+		updates: { userMessage: true },
+		statusAfter: "running",
+		unpredictable: true,
 	},
 	{
 		name: "another tab's edit deletes the pending send",
 		messages: [makeMessage(1, "user", "first")],
 		queue: [],
 		status: "waiting",
-		action: { kind: "send", messages: [makeMessage(2, "user", "mine")] },
+		action: eagerSend("mine"),
 		stream: (store) => {
 			store.resetHistoryFrom(1);
 			store.upsertDurableMessages([makeMessage(3, "user", "theirs")]);
 		},
+		updates: { historyReset: true, userMessage: true },
 		statusAfter: "running",
 		unpredictable: true,
 	},
@@ -950,56 +1041,25 @@ describe("pending actions converge with the stream", () => {
 			scenario.queue,
 			scenario.status,
 		);
-		const pendingID = actor.addPendingAction(scenario.action);
-		actor.updatePendingAction(pendingID, { untilVersion: W });
-
-		// A stream that lags the response keeps the overlay.
-		for (const store of [actor, observer]) {
-			store.applyCheckpoint(checkpointAt(W - 1, { status: scenario.status }));
-		}
-		expect(actor.getSnapshot().pendingActions).toHaveLength(1);
-		const shownBeforeCommit = visible(actor);
+		actor.addPendingAction(scenario.action);
+		const shownBeforeSync = visible(actor);
 
 		for (const store of [actor, observer]) {
-			scenario.stream(store);
-			store.applyCheckpoint(checkpointAt(W, { status: scenario.statusAfter }));
+			store.batch(() => {
+				scenario.stream(store);
+				store.applyCheckpoint(
+					checkpointAt(2, { status: scenario.statusAfter }),
+					scenario.updates,
+				);
+			});
 		}
+
 		expect(actor.getSnapshot().pendingActions).toEqual([]);
 		expect(visible(actor)).toEqual(visible(observer));
-		// The overlay showed the committed state, so nothing moves when it ends.
+		// The action showed the committed state, so nothing moves when it ends.
 		if (!scenario.unpredictable) {
-			expect(shownBeforeCommit).toEqual(visible(observer));
+			expect(shownBeforeSync).toEqual(visible(observer));
 		}
-	});
-
-	it("adds no overlay for an action the stream already reached", () => {
-		const store = seededStore([makeMessage(1, "user", "first")], [], "waiting");
-		store.upsertDurableMessage(makeMessage(2, "user", "second"));
-		store.applyCheckpoint(checkpointAt(W, { status: "running" }));
-
-		store.addPendingAction(
-			{ kind: "send", messages: [makeMessage(2, "user", "second")] },
-			W,
-		);
-
-		expect(store.getSnapshot().pendingActions).toEqual([]);
-	});
-
-	it("removes a failed action's overlay", () => {
-		const store = seededStore(
-			[makeMessage(1, "user", "first")],
-			[makeQueuedMessage(10, "q10")],
-			"running",
-		);
-		const pendingID = store.addPendingAction({
-			kind: "deleteQueued",
-			queuedMessageID: 10,
-		});
-		expect(visible(store).queue).toEqual([]);
-
-		store.removePendingAction(pendingID);
-
-		expect(visible(store).queue).toEqual([10]);
 	});
 });
 

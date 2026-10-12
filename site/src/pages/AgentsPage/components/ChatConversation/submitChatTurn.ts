@@ -1,9 +1,6 @@
-import type {
-	ChatActionVersion,
-	CreateChatMessageRequestWithClearablePlanMode,
-} from "#/api/api";
+import type { CreateChatMessageRequestWithClearablePlanMode } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
-import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
+import { buildEagerUserMessage } from "#/api/queries/chatMessageEdits";
 import { planModeFieldsForCreateMessage } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -42,7 +39,7 @@ export type SubmitChatTurnParams = {
 	organizationSkills: readonly { name: string }[] | undefined;
 	projectSkills: readonly { name: string }[] | undefined;
 	workspaceSkills: readonly { name: string }[] | undefined;
-	compact: () => Promise<ChatActionVersion>;
+	compact: () => Promise<unknown>;
 	clearChatContext: () => Promise<unknown>;
 	store: ChatStore;
 	agentId: string;
@@ -54,10 +51,10 @@ export type SubmitChatTurnParams = {
 	editMessage: (args: {
 		messageId: number;
 		req: TypesGen.EditChatMessageRequest;
-	}) => Promise<TypesGen.EditChatMessageResponse & ChatActionVersion>;
+	}) => Promise<unknown>;
 	sendMessage: (
 		req: CreateChatMessageRequestWithClearablePlanMode,
-	) => Promise<TypesGen.CreateChatMessageResponse & ChatActionVersion>;
+	) => Promise<TypesGen.CreateChatMessageResponse>;
 	onRequestError: (error: unknown) => void;
 	invalidateChat: (chatId: string) => void;
 	scrollToEnd: (options: { behavior: "smooth" }) => void;
@@ -126,23 +123,19 @@ const runBuiltInChatCommand = async ({
 }: {
 	command: (typeof CHAT_SLASH_COMMANDS)[number];
 	store: ChatStore;
-	compact: () => Promise<ChatActionVersion>;
+	compact: () => Promise<unknown>;
 	clearChatContext: () => Promise<unknown>;
 }): Promise<void> => {
 	switch (command.name) {
 		case COMPACT_SLASH_COMMAND.name: {
 			const pendingID = store.addPendingAction({ kind: "compact" });
-			let compacted: ChatActionVersion;
 			try {
-				compacted = await compact();
+				await compact();
 			} catch (error) {
 				store.removePendingAction(pendingID);
 				toast.error(getErrorMessage(error, "Failed to compact chat."));
 				throw error;
 			}
-			store.updatePendingAction(pendingID, {
-				untilVersion: compacted.snapshotVersion,
-			});
 			return;
 		}
 		case CLEAR_SLASH_COMMAND.name:
@@ -243,21 +236,19 @@ export async function submitChatTurn(
 				: undefined,
 			mcp_server_ids: [...mcpServerIds],
 		};
-		const optimisticMessage = originalEditedMessage
-			? buildOptimisticEditedMessage({
-					requestContent: request.content,
-					originalMessage: originalEditedMessage,
-					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
-				})
-			: undefined;
 		const pendingID = store.addPendingAction({
 			kind: "edit",
 			editedMessageID,
-			message: optimisticMessage,
+			message:
+				originalEditedMessage &&
+				buildEagerUserMessage({
+					requestContent: request.content,
+					baseMessage: originalEditedMessage,
+					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+				}),
 		});
-		let response: TypesGen.EditChatMessageResponse & ChatActionVersion;
 		try {
-			response = await editMessage({
+			await editMessage({
 				messageId: editedMessageID,
 				req: request,
 			});
@@ -267,10 +258,6 @@ export async function submitChatTurn(
 			invalidateChat(agentId);
 			throw error;
 		}
-		store.updatePendingAction(pendingID, {
-			untilVersion: response.snapshotVersion,
-			message: response.message,
-		});
 		scrollToEnd({ behavior: "smooth" });
 		return;
 	}
@@ -286,26 +273,28 @@ export async function submitChatTurn(
 	clearChatErrorReason(agentId);
 	store.clearStreamError();
 
-	let response: TypesGen.CreateChatMessageResponse & ChatActionVersion;
+	const pendingID = store.addPendingAction({
+		kind: "send",
+		message: buildEagerUserMessage({
+			requestContent: content,
+			baseMessage: {
+				id: 0,
+				chat_id: agentId,
+				created_at: new Date().toISOString(),
+				role: "user",
+				model_config_id: selectedModelConfigID,
+			},
+			attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+		}),
+	});
 	try {
-		response = await sendMessage(request);
+		await sendMessage(request);
 	} catch (error) {
+		store.removePendingAction(pendingID);
 		onRequestError(error);
 		invalidateChat(agentId);
 		throw error;
 	}
-	// Every inserted message, not only response.message: a send can also
-	// insert cancellations and a promoted queue head.
-	const insertedMessages =
-		response.messages ?? (response.message ? [response.message] : []);
-	store.addPendingAction(
-		{
-			kind: "send",
-			messages: insertedMessages,
-			queuedMessage: response.queued_message,
-		},
-		response.snapshotVersion,
-	);
 	if (clearPlanMode) {
 		setCachedChatPlanMode(agentId, undefined);
 	}
