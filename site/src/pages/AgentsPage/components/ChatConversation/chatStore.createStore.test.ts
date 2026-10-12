@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	type ChatStore,
@@ -741,7 +741,12 @@ const seededStore = (
 	status: TypesGen.ChatStatus,
 ): ChatStore => {
 	const store = createChatStore();
-	store.seed({ messages, queuedMessages, hasMore: false, historyVersion: 1 });
+	store.seed({
+		messages,
+		queued_messages: queuedMessages,
+		has_more: false,
+		history_version: 1,
+	});
 	store.applyServerChatStatus(status);
 	store.applyCheckpoint(1, 1);
 	return store;
@@ -1020,9 +1025,9 @@ describe("prependOlderMessages", () => {
 		const store = createChatStore();
 		store.seed({
 			messages: [makeMessage(3, "user", "c")],
-			queuedMessages: [],
-			hasMore: true,
-			historyVersion: 1,
+			queued_messages: [],
+			has_more: true,
+			history_version: 1,
 		});
 		const resetCount = store.getHistoryResetCount();
 
@@ -1040,9 +1045,9 @@ describe("prependOlderMessages", () => {
 		const store = createChatStore();
 		store.seed({
 			messages: [makeMessage(3, "user", "c")],
-			queuedMessages: [],
-			hasMore: true,
-			historyVersion: 1,
+			queued_messages: [],
+			has_more: true,
+			history_version: 1,
 		});
 		const resetCount = store.getHistoryResetCount();
 		store.replaceMessagesFrom(undefined, [makeMessage(4, "user", "new")]);
@@ -1054,5 +1059,29 @@ describe("prependOlderMessages", () => {
 		);
 
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([4]);
+	});
+});
+
+describe("load", () => {
+	it("fetches the newest page once, however often it is asked", async () => {
+		const store = createChatStore();
+		const fetchPage = vi.fn(async () => ({
+			messages: [makeMessage(2, "assistant", "b"), makeMessage(1, "user", "a")],
+			queued_messages: [],
+			has_more: true,
+			history_version: 4,
+		}));
+
+		store.load(fetchPage);
+		store.load(fetchPage);
+		await vi.waitFor(() => {
+			expect(store.getSnapshot().load).toEqual({ status: "loaded" });
+		});
+		store.load(fetchPage);
+
+		expect(fetchPage).toHaveBeenCalledTimes(1);
+		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
+		expect(store.getSnapshot().hasMoreMessages).toBe(true);
+		expect(store.getSyncedHistoryVersion()).toBe(4);
 	});
 });

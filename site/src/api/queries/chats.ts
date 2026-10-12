@@ -1353,9 +1353,6 @@ const MAX_MESSAGES_PER_REQUEST = 200;
 // that turn.
 const MAX_MESSAGES_PER_PAGE = 1000;
 
-export const chatMessagesKey = (chatId: string) =>
-	[...chatEntityKey(chatId), "messages"] as const;
-
 // Extends a page back to the prompt that starts the turn containing its
 // oldest message.
 const fetchMessagesPage = async (
@@ -1410,12 +1407,9 @@ const fetchMessagesPage = async (
 	return { ...page, messages };
 };
 
-// Seeds a chat's store; after that the chat stream keeps the store current.
-export const chatNewestMessages = (chatId: string) => ({
-	queryKey: chatMessagesKey(chatId),
-	queryFn: ({ signal }: { signal: AbortSignal }) =>
-		fetchMessagesPage(chatId, undefined, signal),
-});
+// A chat's store loads this once; afterwards the chat stream keeps it current.
+export const fetchNewestChatMessages = (chatId: string) =>
+	fetchMessagesPage(chatId, undefined);
 
 export const fetchOlderChatMessages = (chatId: string, beforeId: number) =>
 	fetchMessagesPage(chatId, beforeId);

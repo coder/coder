@@ -118,7 +118,6 @@ type ChatPageTimelineProps = {
 	initialActiveTurnMaxMessageId?: number;
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => void;
 	onEditUserMessage?: (
@@ -142,7 +141,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	initialActiveTurnMaxMessageId,
 	hasMoreMessages,
 	isFetchingMoreMessages,
-	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
 	onEditUserMessage,
@@ -215,7 +213,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 			<ChatMessageScroller
 				hasMoreMessages={hasMoreMessages}
 				isFetchingMoreMessages={isFetchingMoreMessages}
-				isHydratingMessages={isHydratingMessages}
 				hasFetchMoreError={hasFetchMoreError}
 				hasTranscriptRows={parsedMessages.length > 0}
 				onFetchMoreMessages={onFetchMoreMessages}

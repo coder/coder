@@ -120,6 +120,12 @@ export type PendingAction =
 
 type PendingEntry = PendingAction & { id: number; untilVersion?: number };
 
+/** Progress of loading a store's newest messages page. */
+export type ChatStoreLoad =
+	| { status: "loading" }
+	| { status: "loaded" }
+	| { status: "failed"; error: unknown };
+
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
 	orderedMessageIDs: readonly number[];
@@ -132,7 +138,7 @@ export type ChatStoreState = {
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	// Whether older messages exist below the oldest held one.
 	hasMoreMessages: boolean;
-	seeded: boolean;
+	load: ChatStoreLoad;
 	// Display only; the selectors apply them in request order.
 	pendingActions: readonly PendingEntry[];
 };
@@ -141,13 +147,10 @@ export type ChatStore = {
 	getSnapshot: () => ChatStoreState;
 	subscribe: (listener: () => void) => () => void;
 	batch: (fn: () => void) => void;
-	// Fills a store that has not been seeded from the newest messages page.
-	seed: (page: {
-		messages: readonly TypesGen.ChatMessage[];
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[];
-		hasMore: boolean;
-		historyVersion: number;
-	}) => void;
+	// Fills a store that has not loaded yet with the newest messages page.
+	seed: (page: TypesGen.ChatMessagesResponse) => void;
+	// Seeds the store from fetchPage unless it is loaded or loading.
+	load: (fetchPage: () => Promise<TypesGen.ChatMessagesResponse>) => void;
 	replaceMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	// Applies a history_reset: keeps messages below fromID, or none.
 	replaceMessagesFrom: (
@@ -210,7 +213,7 @@ const createInitialState = (): ChatStoreState => ({
 	queuedMessages: [],
 	subagentStatusOverrides: new Map(),
 	hasMoreMessages: false,
-	seeded: false,
+	load: { status: "loading" },
 	pendingActions: [],
 });
 
@@ -222,6 +225,7 @@ export const createChatStore = (): ChatStore => {
 	let syncedHistoryVersion = 0;
 	let serverStatusReceived = false;
 	let nextPendingActionID = 1;
+	let loadInFlight = false;
 	const listeners = new Set<() => void>();
 
 	const emit = (): void => {
@@ -391,7 +395,7 @@ export const createChatStore = (): ChatStore => {
 		});
 	};
 
-	return {
+	const store: ChatStore = {
 		getSnapshot: () => state,
 		subscribe: (listener) => {
 			listeners.add(listener);
@@ -416,18 +420,42 @@ export const createChatStore = (): ChatStore => {
 			});
 		},
 		seed: (page) => {
-			if (state.seeded) {
+			if (state.load.status === "loaded") {
 				return;
 			}
-			syncedHistoryVersion = page.historyVersion;
+			syncedHistoryVersion = page.history_version ?? 0;
 			setState((current) => ({
 				...current,
 				messagesByID: buildMessageMap(page.messages),
 				orderedMessageIDs: buildOrderedMessageIDs(page.messages),
-				queuedMessages: page.queuedMessages,
-				hasMoreMessages: page.hasMore,
-				seeded: true,
+				queuedMessages: page.queued_messages,
+				hasMoreMessages: page.has_more,
+				load: { status: "loaded" },
 			}));
+		},
+		load: (fetchPage) => {
+			if (loadInFlight || state.load.status === "loaded") {
+				return;
+			}
+			loadInFlight = true;
+			setState((current) =>
+				current.load.status === "loading"
+					? current
+					: { ...current, load: { status: "loading" } },
+			);
+			fetchPage().then(
+				(page) => {
+					loadInFlight = false;
+					store.seed(page);
+				},
+				(error: unknown) => {
+					loadInFlight = false;
+					setState((current) => ({
+						...current,
+						load: { status: "failed", error },
+					}));
+				},
+			);
 		},
 		replaceMessagesFrom: (fromID, messages) => {
 			historyResets++;
@@ -671,6 +699,7 @@ export const createChatStore = (): ChatStore => {
 			}));
 		},
 	};
+	return store;
 };
 
 type ChatView = Pick<
@@ -830,7 +859,9 @@ export const selectReconnectState = (state: ChatStoreState) =>
 	state.reconnectState;
 export const selectHasMoreMessages = (state: ChatStoreState) =>
 	state.hasMoreMessages;
-export const selectIsSeeded = (state: ChatStoreState) => state.seeded;
+export const selectLoad = (state: ChatStoreState) => state.load;
+export const selectIsLoaded = (state: ChatStoreState) =>
+	state.load.status === "loaded";
 
 export const selectIsAwaitingFirstStreamChunk = (
 	state: ChatStoreState,
