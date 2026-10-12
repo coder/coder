@@ -19,7 +19,6 @@ import { isBelowMdViewport } from "#/utils/mobile";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { chatAttachmentAcceptAttribute } from "../utils/chatAttachments";
 import { useAgentComposer } from "./AgentComposer/context";
-import { FrameEventBoundary } from "./AgentComposer/Frame";
 import {
 	enabledMcpServers,
 	MCPServerMenuItem,
@@ -264,18 +263,16 @@ export const AgentComposerOptionsMenu = () => {
 					className="hidden"
 				/>
 			)}
-			<FrameEventBoundary className="hidden">
-				<ConfirmDialog
-					open={disconnectTarget !== null}
-					title={`Disconnect ${disconnectTarget?.display_name ?? "MCP server"}?`}
-					description="This removes your credentials for this MCP server from Coder. You can authenticate again later."
-					type="delete"
-					confirmText="Disconnect"
-					confirmLoading={disconnectMutation.isPending}
-					onConfirm={confirmDisconnect}
-					onClose={() => setDisconnectTarget(null)}
-				/>
-			</FrameEventBoundary>
+			<ConfirmDialog
+				open={disconnectTarget !== null}
+				title={`Disconnect ${disconnectTarget?.display_name ?? "MCP server"}?`}
+				description="This removes your credentials for this MCP server from Coder. You can authenticate again later."
+				type="delete"
+				confirmText="Disconnect"
+				confirmLoading={disconnectMutation.isPending}
+				onConfirm={confirmDisconnect}
+				onClose={() => setDisconnectTarget(null)}
+			/>
 		</>
 	);
 };
