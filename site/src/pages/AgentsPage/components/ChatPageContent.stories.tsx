@@ -47,7 +47,6 @@ const StoryChatPageTimeline: React.FC<{
 			persistedError={undefined}
 			hasMoreMessages={false}
 			isFetchingMoreMessages={false}
-			isHydratingMessages={false}
 			hasFetchMoreError={false}
 			onFetchMoreMessages={async () => {}}
 			urlTransform={(url) => url}
@@ -439,7 +438,6 @@ export const InterruptingShowsBusyComposer: Story = {
 						persistedError={undefined}
 						hasMoreMessages={false}
 						isFetchingMoreMessages={false}
-						isHydratingMessages={false}
 						hasFetchMoreError={false}
 						onFetchMoreMessages={async () => {}}
 						urlTransform={(url) => url}
