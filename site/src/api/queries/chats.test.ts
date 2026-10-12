@@ -13,7 +13,10 @@ import {
 	ERROR_STATUSES,
 	SUCCESS_STATUSES,
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
-import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import {
+	MockChatMessage,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
@@ -68,6 +71,8 @@ import {
 	deleteChatModel,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	fetchNewestChatMessages,
+	fetchOlderChatMessages,
 	findChatInListCaches,
 	getChatListQueryString,
 	getOpenChatPollInterval,
@@ -5192,4 +5197,135 @@ describe("archive mutation entity retention", () => {
 			expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeDefined();
 		},
 	);
+});
+
+describe("chat message pages", () => {
+	type History = { newestId: number; turnStartId: number | undefined };
+
+	// Serves IDs 1..newestId newest-first, with before_id and after_id as
+	// exclusive bounds.
+	const historyPage = (
+		{ newestId, turnStartId }: History,
+		opts: Parameters<typeof API.experimental.getChatMessages>[1],
+	): TypesGen.ChatMessagesResponse => {
+		const top = (opts?.before_id ?? newestId + 1) - 1;
+		const floor = (opts?.after_id ?? 0) + 1;
+		const bottom = Math.max(floor, top - (opts?.limit ?? 50) + 1);
+		const messages: TypesGen.ChatMessage[] = [];
+		for (let id = top; id >= bottom; id--) {
+			messages.push({ ...MockChatMessage, id });
+		}
+		return {
+			messages,
+			queued_messages: [],
+			has_more: bottom > floor,
+			turn_start_id: turnStartId,
+		};
+	};
+
+	const serveHistory = (history: History) =>
+		vi
+			.mocked(API.experimental.getChatMessages)
+			.mockImplementation(async (_chatId, opts) => historyPage(history, opts));
+
+	// The store loads older messages from before the oldest one it holds.
+	const nextCursor = (page: TypesGen.ChatMessagesResponse) =>
+		page.messages.at(-1)?.id;
+
+	it.each([
+		{ name: "the page starts at its turn prompt", turnStartId: 51 },
+		{ name: "the server omits turn_start_id", turnStartId: undefined },
+	])("makes one request when $name", async ({ turnStartId }) => {
+		const getChatMessages = serveHistory({ newestId: 100, turnStartId });
+
+		const page = await fetchNewestChatMessages("chat-1");
+
+		expect(getChatMessages).toHaveBeenCalledTimes(1);
+		expect(getChatMessages).toHaveBeenCalledWith("chat-1", {
+			before_id: undefined,
+			limit: 50,
+		});
+		expect(page.messages.map((m) => m.id)).toEqual(
+			Array.from({ length: 50 }, (_, i) => 100 - i),
+		);
+	});
+
+	it("extends a mid-turn page back to the turn prompt", async () => {
+		const getChatMessages = serveHistory({ newestId: 300, turnStartId: 10 });
+
+		const page = await fetchNewestChatMessages("chat-1");
+
+		expect(getChatMessages.mock.calls.map(([, opts]) => opts)).toEqual([
+			{ before_id: undefined, limit: 50 },
+			{ after_id: 9, before_id: 251, limit: 200 },
+			{ after_id: 9, before_id: 51, limit: 200 },
+		]);
+		expect(page.messages.map((m) => m.id)).toEqual(
+			Array.from({ length: 291 }, (_, i) => 300 - i),
+		);
+		expect(page.has_more).toBe(true);
+		expect(nextCursor(page)).toBe(10);
+	});
+
+	it("extends an older page back to its turn prompt", async () => {
+		const getChatMessages = serveHistory({ newestId: 300, turnStartId: 10 });
+
+		const page = await fetchOlderChatMessages("chat-1", 101);
+
+		expect(getChatMessages.mock.calls.map(([, opts]) => opts)).toEqual([
+			{ before_id: 101, limit: 50 },
+			{ after_id: 9, before_id: 51, limit: 200 },
+		]);
+		expect(nextCursor(page)).toBe(10);
+	});
+
+	it("stops at the per-page cap with the next page cursor mid-turn", async () => {
+		const getChatMessages = serveHistory({ newestId: 2000, turnStartId: 1 });
+
+		const page = await fetchNewestChatMessages("chat-1");
+
+		expect(getChatMessages).toHaveBeenCalledTimes(6);
+		expect(getChatMessages).toHaveBeenLastCalledWith("chat-1", {
+			after_id: 0,
+			before_id: 1151,
+			limit: 150,
+		});
+		expect(page.messages).toHaveLength(1000);
+		expect(nextCursor(page)).toBe(1001);
+	});
+
+	it.each<{ name: string; fill: () => Promise<unknown> }>([
+		{
+			name: "a fill request fails",
+			fill: () => Promise.reject(new Error("fill failed")),
+		},
+		{
+			name: "a fill response is not a messages page",
+			fill: async () => ({ oops: true }),
+		},
+		{
+			name: "an empty fill response reports has_more",
+			fill: async () => ({ messages: [], queued_messages: [], has_more: true }),
+		},
+	])("keeps the loaded messages when $name", async ({ fill }) => {
+		const history = { newestId: 300, turnStartId: 10 };
+		const getChatMessages = vi
+			.mocked(API.experimental.getChatMessages)
+			.mockReset()
+			.mockResolvedValueOnce(historyPage(history, { limit: 50 }))
+			.mockResolvedValueOnce(
+				historyPage(history, { after_id: 9, before_id: 251, limit: 200 }),
+			)
+			// The client returns the response body unchecked, so a fill can
+			// resolve to anything.
+			.mockImplementationOnce(
+				fill as () => Promise<TypesGen.ChatMessagesResponse>,
+			);
+
+		const page = await fetchNewestChatMessages("chat-1");
+
+		expect(getChatMessages).toHaveBeenCalledTimes(3);
+		expect(page.messages).toHaveLength(250);
+		expect(nextCursor(page)).toBe(51);
+	});
 });
