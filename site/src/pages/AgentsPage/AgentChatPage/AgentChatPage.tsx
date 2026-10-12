@@ -340,7 +340,6 @@ const AgentChatPage: React.FC = () => {
 		hasLoadOlderMessagesError,
 	} = useChatStore({
 		chatID: agentId,
-		chatRecord: chat,
 		setChatErrorReason,
 		clearChatErrorReason,
 		aiGatewayDisabled,
