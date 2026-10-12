@@ -251,9 +251,6 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 			setWebhookSecret({ automationId, secret }),
 		),
 	);
-	const disableMutation = useMutation(
-		updateChatAutomation(queryClient, organizationId),
-	);
 	const editMutation = useMutation(
 		updateChatAutomation(queryClient, organizationId),
 	);
@@ -283,40 +280,18 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 	}
 
 	const handleCreate = (req: CreateChatAutomationRequest, enable: boolean) => {
-		createMutation.mutate(req, {
+		// One request, so a disabled automation never runs before it is off.
+		createMutation.mutate(enable ? req : { ...req, enabled: false }, {
 			onSuccess: ({ automation: created }) => {
-				const finish = () => {
-					toast.success(
-						enable
-							? `Created ${created.name}.`
-							: `Created ${created.name}. It is turned off.`,
-					);
-					// A webhook stays until the user closes its secret dialog.
-					if (created.kind === "schedule") {
-						leaveToList();
-					}
-				};
-				if (enable) {
-					finish();
-					return;
-				}
-				// The create API has no enabled field, so Save as disabled
-				// turns the new automation off right after it is created.
-				disableMutation.mutate(
-					{ automationId: created.id, req: { enabled: false } },
-					{
-						onSuccess: finish,
-						onError: (error) => {
-							toast.error(
-								`Created ${created.name}, but could not turn it off.`,
-								{ description: getErrorMessage(error, "") },
-							);
-							if (created.kind === "schedule") {
-								leaveToList();
-							}
-						},
-					},
+				toast.success(
+					created.enabled
+						? `Created ${created.name}.`
+						: `Created ${created.name}. It is turned off.`,
 				);
+				// A webhook stays until the user closes its secret dialog.
+				if (created.kind === "schedule") {
+					leaveToList();
+				}
 			},
 		});
 	};
@@ -536,9 +511,7 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 							runsAsName={ownerName}
 							error={automation ? editMutation.error : createMutation.error}
 							isSubmitting={
-								automation
-									? editMutation.isPending
-									: createMutation.isPending || disableMutation.isPending
+								automation ? editMutation.isPending : createMutation.isPending
 							}
 							onCreate={handleCreate}
 							onUpdate={handleUpdate}

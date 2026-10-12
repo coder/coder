@@ -1815,11 +1815,11 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 	);
 
 	it.each([
-		{ button: "Save and enable", updates: [] },
-		{ button: "Save as disabled", updates: [{ enabled: false }] },
+		{ button: "Save and enable", enabled: {} },
+		{ button: "Save as disabled", enabled: { enabled: false } },
 	])(
-		"creates a schedule with $button and returns to the list",
-		async ({ button, updates }) => {
+		"creates a schedule with $button in one request and returns to the list",
+		async ({ button, enabled }) => {
 			const user = userEvent.setup();
 			const { createBodies, updateBodies, router } = setupEditor();
 			const form = await openCreateDialog(user);
@@ -1829,10 +1829,53 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 			await waitFor(() => {
 				expect(router.state.location.pathname).toBe("/agents/automations");
 			});
-			expect(createBodies).toHaveLength(1);
-			expect(updateBodies).toEqual(updates);
+			expect(createBodies).toEqual([
+				expect.objectContaining({ target_chat_id: mockTargetChat.id }),
+			]);
+			expect(createBodies[0]).toEqual(
+				button === "Save as disabled"
+					? expect.objectContaining(enabled)
+					: expect.not.objectContaining({ enabled: expect.anything() }),
+			);
+			expect(updateBodies).toEqual([]);
 		},
 	);
+
+	it("shows the server's reasoning effort error on the effort field", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.post(automationsPath(":organizationId"), () =>
+				validationError(
+					"reasoning_effort",
+					"This model does not offer reasoning effort low.",
+				),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+
+		await pickNewChatModel(user, dialog);
+		await user.click(
+			within(dialog).getByRole("combobox", { name: "Reasoning effort" }),
+		);
+		await user.click(await screen.findByRole("option", { name: "Low" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("combobox", { name: "Reasoning effort" }),
+			).toHaveAccessibleDescription(
+				expect.stringContaining(
+					"This model does not offer reasoning effort low.",
+				),
+			);
+		});
+		expect(within(dialog).getByRole("alert")).toHaveTextContent(
+			"Fix Reasoning effort above.",
+		);
+	});
 
 	it("turns an automation off from the editor without saving the form", async () => {
 		const user = userEvent.setup();
