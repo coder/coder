@@ -587,15 +587,13 @@ export const AutomationScheduleFields: React.FC<
 						]
 							.filter(Boolean)
 							.join(" ")}
-						// As wide as the expression plus one character, at least 12
-						// characters, up to the card's width: the input shrinks in
-						// the line and a long expression scrolls inside it. The
-						// calc adds the padding and border to the text width.
-						style={{
-							width: `calc(${Math.max(cron.length + 1, 12)}ch + 0.75rem + 2px)`,
-						}}
+						// A fixed width that fits every common five-field cron, such
+						// as "0 9-17 * * 1-5", without following the typed text: a
+						// width that tracks the value lags while typing. A longer
+						// expression scrolls inside the input, which shrinks to the
+						// card's width on narrow screens.
 						className={cn(
-							"h-7 min-w-[calc(12ch+0.75rem+2px)] max-w-full shrink rounded border border-solid bg-transparent px-1.5 font-mono text-xs text-content-primary",
+							"h-7 w-[calc(22ch+0.75rem+2px)] max-w-full shrink rounded border border-solid bg-transparent px-1.5 font-mono text-xs text-content-primary",
 							"hover:border-border-secondary focus:border-border-secondary focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 							cronError ? "border-border-destructive" : "border-border",
 						)}
