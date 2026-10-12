@@ -3249,6 +3249,7 @@ func TestMCPServerOAuth2ResourceIndicator(t *testing.T) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"error":"invalid_target","error_description":"MCP OAuth requests must include resource"}`))
 	}
+	var redeemedCodes sync.Map
 	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/authorize":
@@ -3262,12 +3263,17 @@ func TestMCPServerOAuth2ResourceIndicator(t *testing.T) {
 				return
 			}
 			q := redirect.Query()
-			q.Set("code", "resource-auth-code")
+			q.Set("code", "code-"+r.URL.Query().Get("state"))
 			q.Set("state", r.URL.Query().Get("state"))
 			redirect.RawQuery = q.Encode()
 			http.Redirect(w, r, redirect.String(), http.StatusFound)
 		case "/token":
-			if err := r.ParseForm(); err != nil || r.PostForm.Get("resource") != resource {
+			if err := r.ParseForm(); err != nil {
+				invalidTarget(w)
+				return
+			}
+			redeemedCodes.Store(r.PostForm.Get("code"), struct{}{})
+			if r.PostForm.Get("resource") != resource {
 				invalidTarget(w)
 				return
 			}
@@ -3321,6 +3327,33 @@ func TestMCPServerOAuth2ResourceIndicator(t *testing.T) {
 		return location, res.Cookies()
 	}
 
+	authorize := func(ctx context.Context, t *testing.T, authorizeURL *url.URL) *url.URL {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, authorizeURL.String(), nil)
+		require.NoError(t, err)
+		res, err := memberClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusFound, res.StatusCode, "strict authorization server rejected the authorize request")
+		callbackURL, err := res.Location()
+		require.NoError(t, err)
+		return callbackURL
+	}
+
+	callback := func(ctx context.Context, t *testing.T, callbackURL *url.URL, cookies []*http.Cookie) int {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, callbackURL.String(), nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: memberClient.SessionToken()})
+		for _, c := range cookies {
+			req.AddCookie(&http.Cookie{Name: c.Name, Value: c.Value})
+		}
+		res, err := memberClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		return res.StatusCode
+	}
+
 	t.Run("ConfiguredResourceIsSent", func(t *testing.T) {
 		t.Parallel()
 
@@ -3329,29 +3362,31 @@ func TestMCPServerOAuth2ResourceIndicator(t *testing.T) {
 		authorizeURL, cookies := connect(ctx, t, config)
 		require.Equal(t, resource, authorizeURL.Query().Get("resource"))
 
-		authReq, err := http.NewRequestWithContext(ctx, http.MethodGet, authorizeURL.String(), nil)
-		require.NoError(t, err)
-		authRes, err := memberClient.HTTPClient.Do(authReq)
-		require.NoError(t, err)
-		defer authRes.Body.Close()
-		require.Equal(t, http.StatusFound, authRes.StatusCode, "strict authorization server rejected the authorize request")
-		callbackURL, err := authRes.Location()
-		require.NoError(t, err)
-
-		callbackReq, err := http.NewRequestWithContext(ctx, http.MethodGet, callbackURL.String(), nil)
-		require.NoError(t, err)
-		callbackReq.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: memberClient.SessionToken()})
-		for _, c := range cookies {
-			callbackReq.AddCookie(&http.Cookie{Name: c.Name, Value: c.Value})
-		}
-		callbackRes, err := memberClient.HTTPClient.Do(callbackReq)
-		require.NoError(t, err)
-		defer callbackRes.Body.Close()
-		require.Equal(t, http.StatusOK, callbackRes.StatusCode, "strict authorization server rejected the code exchange")
+		callbackURL := authorize(ctx, t, authorizeURL)
+		require.Equal(t, http.StatusOK, callback(ctx, t, callbackURL, cookies), "callback must exchange the code for the authorized resource")
 
 		fetched, err := memberClient.MCPServerConfigByID(ctx, config.OrganizationID, config.ID)
 		require.NoError(t, err)
 		require.True(t, fetched.AuthConnected, "callback must store the exchanged token")
+	})
+
+	t.Run("ResourceChangedAfterConnectIsRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config := createConfig(ctx, t, "resource-changed", resource)
+		authorizeURL, cookies := connect(ctx, t, config)
+		callbackURL := authorize(ctx, t, authorizeURL)
+
+		movedResource := "https://mcp.example.com/moved"
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigRequest{
+			OAuth2Resource: &movedResource,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusConflict, callback(ctx, t, callbackURL, cookies))
+		_, redeemed := redeemedCodes.Load(callbackURL.Query().Get("code"))
+		require.False(t, redeemed, "a code authorized for one resource must not be redeemed for another")
 	})
 
 	t.Run("ManualConfigWithoutResourceSendsNone", func(t *testing.T) {

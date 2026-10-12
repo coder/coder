@@ -3,7 +3,9 @@ package coderd
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1137,6 +1139,16 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	}))
+	// Always overwrite the binding so a cookie left by an abandoned flow
+	// cannot fail this one.
+	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
+		Name:     "mcp_oauth2_resource_" + config.ID.String(),
+		Value:    mcpOAuth2ResourceBinding(config.OAuth2Resource),
+		Path:     callbackPath,
+		MaxAge:   600, // 10 minutes
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}))
 
 	oauth2Config := &oauth2.Config{
 		ClientID:     config.OAuth2ClientID,
@@ -1280,6 +1292,27 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		SameSite: http.SameSiteLaxMode,
 	}))
 
+	// RFC 8707 binds the code to the resource named in the authorization
+	// request. When an admin changed the resource since connect, fail before
+	// the exchange so the code is never redeemed for a resource the user did
+	// not authorize.
+	resourceBinding := ""
+	if resourceCookie, err := r.Cookie("mcp_oauth2_resource_" + config.ID.String()); err == nil {
+		resourceBinding = resourceCookie.Value
+	}
+	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
+		Name:     "mcp_oauth2_resource_" + config.ID.String(),
+		Value:    "",
+		Path:     callbackPath,
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}))
+	if resourceBinding != mcpOAuth2ResourceBinding(config.OAuth2Resource) {
+		writeMCPConfigSupersededDuringAuth(ctx, rw)
+		return
+	}
+
 	// Exchange the authorization code for tokens.
 	oauth2Config := &oauth2.Config{
 		ClientID:     config.OAuth2ClientID,
@@ -1348,10 +1381,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return err
 	}, nil)
 	if errors.Is(err, errMCPConfigSupersededDuringAuth) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "MCP server configuration changed during authorization.",
-			Detail:  "The server's destination or OAuth settings were updated while the connection was in progress. Reconnect to authorize against the current configuration.",
-		})
+		writeMCPConfigSupersededDuringAuth(ctx, rw)
 		return
 	}
 	if err != nil {
@@ -1374,6 +1404,13 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 			document.body.innerText = "Authentication successful. You may close this window.";
 		}
 	</script></body></html>`))
+}
+
+func writeMCPConfigSupersededDuringAuth(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+		Message: "MCP server configuration changed during authorization.",
+		Detail:  "The server's destination or OAuth settings were updated while the connection was in progress. Reconnect to authorize against the current configuration.",
+	})
 }
 
 // Removes the user's stored OAuth2 token for an MCP server.
@@ -1773,6 +1810,18 @@ func validateMCPOAuth2ResourceRequest(ctx context.Context, rw http.ResponseWrite
 		return false
 	}
 	return true
+}
+
+// mcpOAuth2ResourceBinding returns the callback cookie value that ties an
+// authorization flow to the resource indicator it requested. A digest keeps
+// the cookie short and cookie-safe for any URI. No resource maps to an empty
+// value, which a missing cookie also matches.
+func mcpOAuth2ResourceBinding(resource string) string {
+	if resource == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(resource))
+	return hex.EncodeToString(sum[:])
 }
 
 // mcpOAuth2ResourceIndicator picks the RFC 8707 resource indicator for
