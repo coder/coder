@@ -13,6 +13,7 @@ import {
 	rotateChatAutomationSecret,
 	runChatAutomation,
 	updateChatAutomation,
+	webhookOrigin,
 	webhookPublishEndpoint,
 } from "#/api/queries/chatAutomations";
 import type {
@@ -180,8 +181,7 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 	const { user } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	// Senders must reach the configured URL, not the address this tab uses.
-	const origin = new URL(buildInfo.dashboard_url).origin;
+	const origin = webhookOrigin(buildInfo.dashboard_url, window.location.origin);
 	const isOwner = !automation || automation.owner_id === user.id;
 	const ownerName = automation?.owner
 		? automation.owner.name || automation.owner.username

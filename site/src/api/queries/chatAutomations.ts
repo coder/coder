@@ -78,6 +78,30 @@ export const invalidateChatAutomationReferences = (
 export const invalidateChatAutomations = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({ queryKey: chatAutomationsFamilyKey });
 
+const isLoopbackHostname = (hostname: string) =>
+	hostname === "localhost" ||
+	hostname.endsWith(".localhost") ||
+	hostname === "[::1]" ||
+	/^127(\.\d{1,3}){3}$/.test(hostname);
+
+/**
+ * Returns the origin webhook senders must use. Senders must reach the
+ * configured access URL, not the address this tab uses, unless the access
+ * URL is a loopback address while the page is served from elsewhere, for
+ * example through a port share: no outside sender can reach loopback.
+ */
+export const webhookOrigin = (accessURL: string, pageOrigin: string) => {
+	const access = new URL(accessURL);
+	const page = new URL(pageOrigin);
+	if (
+		isLoopbackHostname(access.hostname) &&
+		!isLoopbackHostname(page.hostname)
+	) {
+		return page.origin;
+	}
+	return access.origin;
+};
+
 export const webhookPublishEndpoint = (origin: string, automationId: string) =>
 	`${origin}/api/experimental/chat-automations/${encodeURIComponent(automationId)}/events`;
 
