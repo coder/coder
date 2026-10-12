@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -1210,4 +1211,98 @@ func TestJustFilesSystem(t *testing.T) {
 	resp = httptest.NewRecorder()
 	mux.ServeHTTP(resp, httptest.NewRequest("GET", "/onlyfiles/dir/", nil))
 	require.Equal(t, http.StatusNotFound, resp.Code, "onlyfiles does not serve the directory")
+}
+
+func TestWebManifest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		path          string
+		appName       string
+		accessURL     string
+		wantID        string
+		wantName      string
+		wantShortName string
+	}{
+		{
+			name:          "Dashboard",
+			path:          "/manifest.webmanifest",
+			accessURL:     "https://dev.coder.com",
+			wantID:        "/",
+			wantName:      "Coder (dev.coder.com)",
+			wantShortName: "Coder",
+		},
+		{
+			name:          "Agents",
+			path:          "/agents/manifest.webmanifest",
+			accessURL:     "https://dev.coder.com",
+			wantID:        "/agents",
+			wantName:      "Coder Agents (dev.coder.com)",
+			wantShortName: "Agents",
+		},
+		{
+			name:          "ApplicationName",
+			path:          "/manifest.webmanifest",
+			appName:       "Acme Dev Cloud",
+			accessURL:     "https://dev.acme.com:8443",
+			wantID:        "/",
+			wantName:      "Acme Dev Cloud (dev.acme.com:8443)",
+			wantShortName: "Acme Dev Cloud",
+		},
+		{
+			name:          "NoAccessURL",
+			path:          "/manifest.webmanifest",
+			wantID:        "/",
+			wantName:      "Coder",
+			wantShortName: "Coder",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var appearanceFetcher atomic.Pointer[appearance.Fetcher]
+			fetcher := appearance.Fetcher(staticAppearanceFetcher{cfg: codersdk.AppearanceConfig{
+				ApplicationName: tt.appName,
+			}})
+			appearanceFetcher.Store(&fetcher)
+
+			var accessURL *url.URL
+			if tt.accessURL != "" {
+				var err error
+				accessURL, err = url.Parse(tt.accessURL)
+				require.NoError(t, err)
+			}
+
+			handler, err := site.New(&site.Options{
+				Telemetry:         telemetry.NewNoop(),
+				SiteFS:            fstest.MapFS{"index.html": &fstest.MapFile{}},
+				AccessURL:         accessURL,
+				AppearanceFetcher: &appearanceFetcher,
+			})
+			require.NoError(t, err)
+
+			rw := httptest.NewRecorder()
+			handler.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, tt.path, nil))
+			require.Equal(t, http.StatusOK, rw.Code)
+			require.Equal(t, "application/manifest+json", rw.Header().Get("Content-Type"))
+			require.Equal(t, "no-cache", rw.Header().Get("Cache-Control"))
+
+			var manifest struct {
+				ID        string `json:"id"`
+				Name      string `json:"name"`
+				ShortName string `json:"short_name"`
+				StartURL  string `json:"start_url"`
+				Display   string `json:"display"`
+			}
+			require.NoError(t, json.Unmarshal(rw.Body.Bytes(), &manifest))
+			require.Equal(t, tt.wantID, manifest.ID)
+			require.Equal(t, tt.wantID, manifest.StartURL)
+			require.Equal(t, tt.wantName, manifest.Name)
+			require.Equal(t, tt.wantShortName, manifest.ShortName)
+			require.Equal(t, "standalone", manifest.Display)
+		})
+	}
 }
