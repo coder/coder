@@ -34,9 +34,6 @@ const MessageScrollerUserLayoutIntentContext = React.createContext<
  * Returns the callback for a user's expand or collapse. Pass the toggled
  * element, because a toggle above the anchored turn releases the anchor. It
  * stops following new output, so do not use it for other layout changes.
- * With `revealEnd: true`, the toggle's commit then brings the end of the
- * toggled row into view, and at the last row it lets the view follow new
- * output again.
  */
 function useMessageScrollerUserLayoutIntent() {
   return React.useContext(MessageScrollerUserLayoutIntentContext)

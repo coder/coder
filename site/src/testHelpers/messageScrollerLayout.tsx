@@ -51,7 +51,6 @@ const VisibleRows: React.FC = () => {
 	return null;
 };
 
-/** Returns the rows the scroller last published as visible. */
 export const currentVisibleRows = () => visibleRows;
 
 // Same Provider props as AgentChatPage.
@@ -128,7 +127,7 @@ export const setupMessageScrollerLayout = () => {
 		MockResizeObserver.reset();
 		vi.stubGlobal("ResizeObserver", MockResizeObserver);
 		// jsdom runs requestAnimationFrame on the global setInterval. A frame
-		// requested under fake timers, as framer-motion does, leaves that loop on
+		// requested under fake timers, as motion does, leaves that loop on
 		// the fake clock and stalls every later frame in the same file.
 		vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
 			setTimeout(() => callback(performance.now()), 16),

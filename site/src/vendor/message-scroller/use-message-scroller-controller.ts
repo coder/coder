@@ -546,7 +546,8 @@ function useMessageScrollerController({
       // spacer) held instead of yanked to the end.
       // LOCAL CHANGE: and only if the end is in the handoff band,
       // max(threshold, margin + peek), so a code block or log box that lands
-      // at once keeps the turn held. followSuppressedRef covers toggles.
+      // at once keeps the turn held. followSuppressedRef covers toggles, but
+      // revealing the end of the last row clears it so the hold hands off.
       const viewport = viewportRef.current
 
       if (
