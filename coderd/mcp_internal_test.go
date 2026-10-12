@@ -388,6 +388,17 @@ func TestMCPOAuth2ResourceIndicator(t *testing.T) {
 			want:       "https://mcp.example.com/mcp",
 		},
 		{
+			name:       "EscapedDotSegmentsAreRemoved",
+			serverURL:  "https://mcp.example.com/mcp",
+			advertised: []string{"https://mcp.example.com/a/%2E%2E/mcp"},
+			want:       "https://mcp.example.com/a/%2E%2E/mcp",
+		},
+		{
+			name:      "InvalidFallbackIsEmpty",
+			serverURL: "https://mcp.example.com/a[b]",
+			want:      "",
+		},
+		{
 			name:       "IPLiteralHost",
 			serverURL:  "https://[::1]:8443/mcp",
 			advertised: []string{"https://[::1]:8443/"},

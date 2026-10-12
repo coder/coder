@@ -1901,7 +1901,8 @@ func mcpOAuth2ResourceBinding(resource string) string {
 // mcpOAuth2ResourceIndicator picks the RFC 8707 resource indicator for
 // an MCP server: the most specific advertised Protected Resource
 // Metadata resource that covers the server URL, stored verbatim, else
-// the server URL in canonical form. As in the MCP Python SDK, a resource
+// the server URL in canonical form, or "" when that is not a valid
+// resource indicator. As in the MCP Python SDK, a resource
 // covers URLs on its origin under its path. Paths and queries compare in
 // RFC 3986 normal form, where "%2F" does not end a segment. Unlike the
 // SDK, a resource with a query covers only URLs with the same query,
@@ -1946,14 +1947,24 @@ func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string 
 	canonical.User = nil
 	canonical.Fragment = ""
 	canonical.RawFragment = ""
-	return canonical.String()
+	fallback := canonical.String()
+	// url.Parse accepts server URLs that are not valid resource
+	// indicators, and sending none beats sending an invalid one.
+	if _, err := parseMCPOAuth2Resource(fallback); err != nil {
+		return ""
+	}
+	return fallback
 }
 
-// comparableURIPath returns u's escaped path with dot segments removed
-// and percent-encodings normalized.
+// comparableURIPath returns u's escaped path with percent-encodings
+// normalized and then dot segments removed, so "%2E%2E" is a dot segment.
 func comparableURIPath(u *url.URL) string {
-	// Resolving u against itself removes dot segments and keeps escapes.
-	return normalizePercentEncoding(u.ResolveReference(u).EscapedPath())
+	normalized := *u
+	// Normalizing escapes leaves the unescaped Path unchanged, so this
+	// RawPath stays a valid encoding of it.
+	normalized.RawPath = normalizePercentEncoding(u.EscapedPath())
+	// Resolving a URL against itself removes dot segments and keeps escapes.
+	return normalized.ResolveReference(&normalized).EscapedPath()
 }
 
 // sameOrigin reports whether two URLs have the same scheme, host, and
