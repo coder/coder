@@ -46,3 +46,13 @@ If your workspaces don't appear in Claude Desktop, check the following:
 
 If the workspace still doesn't appear, see
 [Access your workspace](./index.md#configure-ssh) to verify your SSH setup.
+
+## Next steps
+
+To explore other ways to use Claude with Coder:
+
+- [Agent Relay for Claude Code](../../ai-coder/agent-relay/claude-code.md):
+  run Claude Code's cloud sessions inside self-hosted Coder workspaces. See the
+  [Agent Relay overview](../../ai-coder/agent-relay/index.md) for how it works.
+- [Claude Code with AI Gateway](../../ai-coder/ai-gateway/clients/claude-code.md):
+  route Claude Code running in a workspace through AI Gateway.
