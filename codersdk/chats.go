@@ -514,6 +514,15 @@ type ChatMessagePart struct {
 	// because a model config's model can change after the message was
 	// written. Internal only: stripped before API responses.
 	ProviderModel string `json:"provider_model,omitempty" typescript:"-"`
+	// ProviderCredential records whether a reasoning part was produced
+	// with the deployment's credential or the user's personal API key,
+	// because encrypted reasoning only decrypts for the organization
+	// behind that credential. Internal only: stripped before API responses.
+	ProviderCredential string `json:"provider_credential,omitempty" typescript:"-"`
+	// ReasoningEpoch records how many times the producing provider had
+	// rejected the chat's encrypted reasoning before this reasoning part
+	// was produced. Internal only: stripped before API responses.
+	ReasoningEpoch int `json:"reasoning_epoch,omitempty" typescript:"-"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
@@ -602,6 +611,8 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
 	p.ProviderIdentity = ""
 	p.ProviderModel = ""
+	p.ProviderCredential = ""
+	p.ReasoningEpoch = 0
 	if p.FileID.Valid {
 		p.Data = nil
 	}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"charm.land/fantasy"
@@ -73,6 +74,9 @@ type generationPrepared struct {
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
 	ResolvedProvider    string
 	ReasoningProvenance reasoningProvenance
+	// ReasoningRejected reports whether the provider rejected the
+	// encrypted reasoning replayed into this step's model call.
+	ReasoningRejected *atomic.Bool
 
 	StageModel chatloop.StageModel
 
@@ -92,6 +96,17 @@ type generationPrepared struct {
 	Cleanup func()
 
 	Debug *generationDebug
+}
+
+// stepReasoningProvenance returns the provenance to stamp on the step's
+// reasoning. A rejection starts the provider's next epoch, so later steps
+// leave out the reasoning the rejected call replayed.
+func (p generationPrepared) stepReasoningProvenance() reasoningProvenance {
+	provenance := p.ReasoningProvenance
+	if p.ReasoningRejected != nil && p.ReasoningRejected.Load() {
+		provenance.Epoch++
+	}
+	return provenance
 }
 
 // generationCompaction contains compaction inputs prepared for generation.
@@ -967,7 +982,7 @@ func (s *taskStarter) generateAssistant(
 		logger:                 s.opts.Logger,
 		contentVersion:         chatprompt.CurrentContentVersion,
 		hookRewrittenToolCalls: preflight.Overrides,
-		reasoningProvenance:    prepared.ReasoningProvenance,
+		reasoningProvenance:    prepared.stepReasoningProvenance(),
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -1202,7 +1217,7 @@ func (s *taskStarter) executeLocalTools(
 		toolNameToConfigID:  prepared.ToolNameToConfigID,
 		logger:              s.opts.Logger,
 		contentVersion:      chatprompt.CurrentContentVersion,
-		reasoningProvenance: prepared.ReasoningProvenance,
+		reasoningProvenance: prepared.stepReasoningProvenance(),
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))

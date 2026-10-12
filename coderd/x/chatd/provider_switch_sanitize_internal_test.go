@@ -332,6 +332,65 @@ func TestStripForeignProviderStateRows(t *testing.T) {
 		require.Equal(t, rows, got)
 		require.Zero(t, stats)
 	})
+
+	stampedFull := func(source reasoningProvenance) codersdk.ChatMessagePart {
+		p := stampedReasoning(source)
+		p.ProviderCredential = source.Credential
+		p.ReasoningEpoch = source.Epoch
+		return p
+	}
+
+	t.Run("stamped reasoning from another credential dropped", func(t *testing.T) {
+		t.Parallel()
+		deployment := openAIInstance
+		deployment.Credential = reasoningCredentialDeployment
+		user := openAIInstance
+		user.Credential = reasoningCredentialUser
+		rows := []database.ChatMessage{
+			assistantRow(t, openAIInstanceCfg, stampedFull(deployment), text("deployment")),
+			assistantRow(t, openAIInstanceCfg, stampedFull(user), text("user")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, user, resolver)
+		require.Len(t, got, 2)
+		require.Equal(t, []codersdk.ChatMessagePart{text("deployment")}, partsOf(t, got[0]))
+		require.Equal(t, rows[1], got[1])
+		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 1}, stats)
+	})
+
+	t.Run("reasoning from an earlier epoch dropped", func(t *testing.T) {
+		t.Parallel()
+		current := openAIInstance
+		current.Epoch = 1
+		rows := []database.ChatMessage{
+			assistantRow(t, openAIInstanceCfg, openAIReasoning, text("unstamped")),
+			assistantRow(t, openAIInstanceCfg, stampedFull(openAIInstance), text("rejected")),
+			assistantRow(t, openAIInstanceCfg, stampedFull(current), text("current")),
+		}
+		got, stats := stripForeignProviderStateRows(rows, current, resolver)
+		require.Len(t, got, 3)
+		require.Equal(t, []codersdk.ChatMessagePart{text("unstamped")}, partsOf(t, got[0]))
+		require.Equal(t, []codersdk.ChatMessagePart{text("rejected")}, partsOf(t, got[1]))
+		require.Equal(t, rows[2], got[2])
+		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 2}, stats)
+	})
+
+	t.Run("current epoch is per provider", func(t *testing.T) {
+		t.Parallel()
+		epoch := func(source reasoningProvenance, n int) reasoningProvenance {
+			source.Epoch = n
+			return source
+		}
+		otherModelAhead := epoch(openAIInstanceOtherModel, 3)
+		rows := []database.ChatMessage{
+			userRow(t, "hi"),
+			assistantRow(t, openAIInstanceCfg, stampedFull(epoch(openAIInstance, 2)), openAIReasoning),
+			assistantRow(t, openAIInstanceOtherModelCfg, stampedFull(otherModelAhead), text("done")),
+			assistantRow(t, openAIInstanceCfg, stampedFull(epoch(otherOpenAIInstance, 5))),
+		}
+		require.Equal(t, 3, currentReasoningEpoch(rows, openAIInstance.ProviderIdentity))
+		require.Equal(t, 5, currentReasoningEpoch(rows, otherOpenAIInstance.ProviderIdentity))
+		require.Zero(t, currentReasoningEpoch(rows, vllm.ProviderIdentity))
+	})
 }
 
 func TestModelConfigProviderIdentity(t *testing.T) {

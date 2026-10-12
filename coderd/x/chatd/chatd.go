@@ -211,11 +211,6 @@ type Server struct {
 	// model that accepted Anthropic's thinking drop_block control.
 	thinkingDropBlock sync.Map
 
-	// rejectedReasoning holds the rejectedReasoningKey of each OpenAI
-	// reasoning item whose encrypted content a provider rejected. It grows
-	// only on rejections, which follow a credential change.
-	rejectedReasoning sync.Map
-
 	// Configuration
 	inFlightChatStaleAfter time.Duration
 	streamSilenceTimeout   time.Duration

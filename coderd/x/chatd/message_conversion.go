@@ -55,6 +55,8 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		if assistantParts[i].Type == codersdk.ChatMessagePartTypeReasoning {
 			assistantParts[i].ProviderIdentity = input.reasoningProvenance.ProviderIdentity
 			assistantParts[i].ProviderModel = input.reasoningProvenance.Model
+			assistantParts[i].ProviderCredential = input.reasoningProvenance.Credential
+			assistantParts[i].ReasoningEpoch = input.reasoningProvenance.Epoch
 		}
 	}
 

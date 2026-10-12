@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"charm.land/fantasy"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -137,29 +136,14 @@ func dropOpenAIReasoningParts(
 	logger slog.Logger,
 	messages []fantasy.Message,
 ) []fantasy.Message {
-	return dropOpenAIReasoningItems(ctx, logger, messages, func(string) bool { return true })
-}
-
-// dropOpenAIReasoningItems removes the OpenAI reasoning parts whose item ID
-// satisfies drop from a copy of messages. Messages emptied by the drop are
-// removed.
-func dropOpenAIReasoningItems(
-	ctx context.Context,
-	logger slog.Logger,
-	messages []fantasy.Message,
-	drop func(itemID string) bool,
-) []fantasy.Message {
 	dropped := 0
 	out := make([]fantasy.Message, 0, len(messages))
 	for _, msg := range messages {
 		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
 		for _, part := range msg.Content {
-			if reasoning, ok := part.(fantasy.ReasoningPart); ok {
-				metadata := fantasyopenai.GetReasoningMetadata(reasoning.ProviderOptions)
-				if metadata != nil && metadata.ItemID != "" && drop(metadata.ItemID) {
-					dropped++
-					continue
-				}
+			if reasoning, ok := part.(fantasy.ReasoningPart); ok && chatsanitize.HasOpenAIReasoningState(reasoning.ProviderOptions) {
+				dropped++
+				continue
 			}
 			parts = append(parts, part)
 		}

@@ -21311,6 +21311,10 @@ const docTemplate = `{
                         }
                     }
                 },
+                "provider_credential": {
+                    "description": "ProviderCredential records whether a reasoning part was produced\nwith the deployment's credential or the user's personal API key,\nbecause encrypted reasoning only decrypts for the organization\nbehind that credential. Internal only: stripped before API responses.",
+                    "type": "string"
+                },
                 "provider_executed": {
                     "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
                     "type": "boolean"
@@ -21332,6 +21336,10 @@ const docTemplate = `{
                 },
                 "reasoning_delta": {
                     "type": "string"
+                },
+                "reasoning_epoch": {
+                    "description": "ReasoningEpoch records how many times the producing provider had\nrejected the chat's encrypted reasoning before this reasoning part\nwas produced. Internal only: stripped before API responses.",
+                    "type": "integer"
                 },
                 "result": {
                     "type": "array",

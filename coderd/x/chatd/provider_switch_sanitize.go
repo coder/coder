@@ -38,13 +38,62 @@ func modelConfigProviderIdentity(modelConfig database.ChatModelConfig, normalize
 	return normalizedProvider
 }
 
-// reasoningProvenance identifies the provider instance and model that
-// produced OpenAI reasoning state. Reasoning item IDs only resolve on the
-// issuing provider instance, and encrypted content can be rejected by a
-// different model.
+const (
+	reasoningCredentialDeployment = "deployment"
+	reasoningCredentialUser       = "user"
+)
+
+// reasoningProvenance identifies where OpenAI reasoning state was produced.
+// Reasoning item IDs only resolve on the issuing provider instance, and
+// encrypted content can be rejected by a different model or by the
+// organization behind a different credential. Epoch counts the provider's
+// rejections of the chat's encrypted reasoning, so reasoning replayed into
+// a rejected call is never replayed again.
 type reasoningProvenance struct {
 	ProviderIdentity string
 	Model            string
+	Credential       string
+	Epoch            int
+}
+
+// reasoningCredential names the credential an AI Gateway route sends.
+func reasoningCredential(auth aiGatewayProviderAuth) string {
+	if len(auth.Headers) > 0 {
+		return reasoningCredentialUser
+	}
+	return reasoningCredentialDeployment
+}
+
+// unstampedReasoningProvenance is the provenance assumed for reasoning saved
+// without a stamp: the row's model config, the target's credential, and the
+// first epoch.
+func unstampedReasoningProvenance(rowOrigin, target reasoningProvenance) reasoningProvenance {
+	return reasoningProvenance{
+		ProviderIdentity: rowOrigin.ProviderIdentity,
+		Model:            rowOrigin.Model,
+		Credential:       target.Credential,
+	}
+}
+
+// currentReasoningEpoch returns the highest epoch stamped on providerIdentity's
+// reasoning in rows.
+func currentReasoningEpoch(rows []database.ChatMessage, providerIdentity string) int {
+	epoch := 0
+	for _, row := range rows {
+		if row.Role != database.ChatMessageRoleAssistant || !bytes.Contains(row.Content.RawMessage, []byte(`"reasoning_epoch"`)) {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(row)
+		if err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeReasoning && part.ProviderIdentity == providerIdentity {
+				epoch = max(epoch, part.ReasoningEpoch)
+			}
+		}
+	}
+	return epoch
 }
 
 // stripForeignProviderStateRows drops provider-executed tool blocks (calls and
@@ -76,7 +125,7 @@ func stripForeignProviderStateRows(
 		origin := originOf(row.ModelConfigID)
 		nativeRow := origin.ProviderIdentity == target.ProviderIdentity
 		// Only stamped reasoning parts can be foreign when the row origin matches.
-		if origin == target && !bytes.Contains(row.Content.RawMessage, []byte(`"provider_identity"`)) {
+		if unstampedReasoningProvenance(origin, target) == target && !bytes.Contains(row.Content.RawMessage, []byte(`"provider_identity"`)) {
 			out = append(out, row)
 			continue
 		}
@@ -126,9 +175,14 @@ func stripForeignProviderStateRows(
 }
 
 func isForeignReasoning(part codersdk.ChatMessagePart, rowOrigin, target reasoningProvenance) bool {
-	source := rowOrigin
+	source := unstampedReasoningProvenance(rowOrigin, target)
 	if part.ProviderIdentity != "" {
-		source = reasoningProvenance{ProviderIdentity: part.ProviderIdentity, Model: part.ProviderModel}
+		source = reasoningProvenance{
+			ProviderIdentity: part.ProviderIdentity,
+			Model:            part.ProviderModel,
+			Credential:       part.ProviderCredential,
+			Epoch:            part.ReasoningEpoch,
+		}
 	}
 	return source != target && hasOpenAIReasoningState(part)
 }

@@ -3,7 +3,7 @@ package chatd
 import (
 	"context"
 	"errors"
-	"sync"
+	"sync/atomic"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -18,45 +18,35 @@ func isInvalidEncryptedContentError(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.Code == "invalid_encrypted_content"
 }
 
-type rejectedReasoningKey struct {
-	chatID uuid.UUID
-	itemID string
-}
-
 // withEncryptedReasoningFallback wraps OpenAI Responses models in an
-// encryptedReasoningFallbackModel.
-func (p *Server) withEncryptedReasoningFallback(model chatprovider.Model, chatID uuid.UUID) chatprovider.Model {
+// encryptedReasoningFallbackModel that sets rejected when it retries.
+func (p *Server) withEncryptedReasoningFallback(model chatprovider.Model, chatID uuid.UUID, rejected *atomic.Bool) chatprovider.Model {
 	if !model.Transport().UsesResponses() {
 		return model
 	}
 	return model.WithLanguageModel(&encryptedReasoningFallbackModel{
 		LanguageModel: model.LanguageModel(),
 		logger:        p.logger.With(slog.F("chat_id", chatID)),
-		rejected:      &p.rejectedReasoning,
-		chatID:        chatID,
+		rejected:      rejected,
 	})
 }
 
 // encryptedReasoningFallbackModel retries a request without OpenAI reasoning
 // when the provider rejects its encrypted content. Encrypted reasoning only
 // decrypts for the OpenAI organization that produced it, which can change
-// without a provider or model change, for example when a user adds or
-// removes a personal API key. The rejected reasoning stays in the chat
-// history, so the model remembers its item IDs and leaves them out of later
-// requests, while reasoning produced after the change still replays.
+// without a provider, model, or credential change, for example when an admin
+// replaces the deployment key with one from another organization. The
+// rejected reasoning stays in the chat history, so the step stamps its new
+// reasoning with the next epoch, and later steps leave out reasoning from
+// earlier epochs.
 type encryptedReasoningFallbackModel struct {
 	fantasy.LanguageModel
 	logger   slog.Logger
-	rejected *sync.Map
-	chatID   uuid.UUID
+	rejected *atomic.Bool
 }
 
 // Stream retries only when the rejection arrives before any output.
 func (m *encryptedReasoningFallbackModel) Stream(ctx context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
-	call.Prompt = dropOpenAIReasoningItems(ctx, m.logger, call.Prompt, func(itemID string) bool {
-		_, rejected := m.rejected.Load(rejectedReasoningKey{chatID: m.chatID, itemID: itemID})
-		return rejected
-	})
 	stream, err := m.LanguageModel.Stream(ctx, call)
 	if err != nil {
 		return nil, err
@@ -77,19 +67,9 @@ func (m *encryptedReasoningFallbackModel) Stream(ctx context.Context, call fanta
 		if rejection == nil {
 			return
 		}
-		// The error names a single item, but a credential change
-		// invalidates all earlier reasoning, so every remaining item
-		// counts as rejected.
-		remembered := 0
-		call.Prompt = dropOpenAIReasoningItems(ctx, m.logger, call.Prompt, func(itemID string) bool {
-			m.rejected.Store(rejectedReasoningKey{chatID: m.chatID, itemID: itemID}, struct{}{})
-			remembered++
-			return true
-		})
-		m.logger.Warn(ctx, "retrying model call without rejected encrypted reasoning",
-			slog.F("rejected_items", remembered),
-			slogError(rejection),
-		)
+		m.rejected.Store(true)
+		m.logger.Warn(ctx, "retrying model call without rejected encrypted reasoning", slogError(rejection))
+		call.Prompt = dropOpenAIReasoningParts(ctx, m.logger, call.Prompt)
 		retry, err := m.LanguageModel.Stream(ctx, call)
 		if err != nil {
 			yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeError, Error: err})

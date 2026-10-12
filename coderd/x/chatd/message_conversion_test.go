@@ -30,10 +30,15 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 	startedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	completedAt := startedAt.Add(2 * time.Second)
 	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:       modelConfigID,
-		contentVersion:      chatprompt.CurrentContentVersion,
-		logger:              slog.Make(),
-		reasoningProvenance: reasoningProvenance{ProviderIdentity: "provider-a", Model: "model-a"},
+		modelConfigID:  modelConfigID,
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		reasoningProvenance: reasoningProvenance{
+			ProviderIdentity: "provider-a",
+			Model:            "model-a",
+			Credential:       reasoningCredentialUser,
+			Epoch:            2,
+		},
 		step: stepData{
 			Content: []fantasy.Content{
 				fantasy.ReasoningContent{Text: "thinking"},
@@ -59,10 +64,14 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 	require.Equal(t, completedAt, requireNotNilTime(t, parts[0].CompletedAt))
 	require.Equal(t, "provider-a", parts[0].ProviderIdentity)
 	require.Equal(t, "model-a", parts[0].ProviderModel)
+	require.Equal(t, reasoningCredentialUser, parts[0].ProviderCredential)
+	require.Equal(t, 2, parts[0].ReasoningEpoch)
 	require.Equal(t, codersdk.ChatMessagePartTypeText, parts[1].Type)
 	require.Equal(t, "hello", parts[1].Text)
 	require.Empty(t, parts[1].ProviderIdentity)
 	require.Empty(t, parts[1].ProviderModel)
+	require.Empty(t, parts[1].ProviderCredential)
+	require.Zero(t, parts[1].ReasoningEpoch)
 }
 
 func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T) {

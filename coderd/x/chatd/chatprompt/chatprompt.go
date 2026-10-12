@@ -1903,6 +1903,7 @@ var partNulFields = []partNulField{
 	{name: "ParsedCommands", policy: nulReject, grid: func(p *codersdk.ChatMessagePart) [][]string { return p.ParsedCommands }},
 	{name: "ProviderIdentity", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ProviderIdentity }},
 	{name: "ProviderModel", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ProviderModel }},
+	{name: "ProviderCredential", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ProviderCredential }},
 	{name: "SourceID", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SourceID }},
 	{name: "URL", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.URL }},
 	{name: "MediaType", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.MediaType }},

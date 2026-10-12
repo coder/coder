@@ -376,9 +376,26 @@ func TestOpenAIResponsesRetriesWithoutRejectedEncryptedReasoning(t *testing.T) {
 	model := insertChatModelConfigWithCallConfig(t, db, user.ID, "openai", "gpt-4o",
 		codersdk.ChatModelCallConfig{})
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-	})
+	newServer := func() *chatd.Server {
+		return newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		})
+	}
+	server := newServer()
+	sendMessage := func(server *chatd.Server, chatID uuid.UUID, text string) {
+		t.Helper()
+		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chatID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(text),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatProcessed(ctx, t, db, chatID, server)
+		requireResponsesChatWaiting(ctx, t, db, chatID)
+	}
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -392,8 +409,94 @@ func TestOpenAIResponsesRetriesWithoutRejectedEncryptedReasoning(t *testing.T) {
 	require.NoError(t, err)
 	waitForChatProcessed(ctx, t, db, chat.ID, server)
 	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+	sendMessage(server, chat.ID, "list the templates")
 
-	for _, text := range []string{"list the templates", "thanks"} {
+	// The next turn runs on a server that never saw the rejection, like
+	// a restarted or different replica.
+	require.NoError(t, server.Close())
+	sendMessage(newServer(), chat.ID, "thanks")
+
+	// Only the first request after the change is rejected.
+	requests := recorder.all()
+	require.Len(t, requests, 5)
+	requireInlineReasoningItem(t, requests[1].Prompt, staleID, staleBlob, "")
+	retry := requests[2]
+	require.NotEmpty(t, retry.Prompt)
+	require.NotContains(t, promptItemTypes(retry.Prompt), "reasoning")
+	// requests[3] is the step after the tool call; requests[4] is the next
+	// turn on the fresh server.
+	for _, request := range requests[3:] {
+		requireInlineReasoningItem(t, request.Prompt, freshID, freshBlob, "")
+		requireNoResponsesProviderItemReplay(t, request.Prompt, staleID)
+	}
+}
+
+func TestOpenAIResponsesReasoningNotReplayedAfterCredentialChange(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		userAPIKey      = "sk-user-reasoning"
+		deploymentID    = "rs_deployment_key"
+		deploymentBlob  = "encrypted-by-deployment-organization"
+		personalKeyID   = "rs_personal_key"
+		personalKeyBlob = "encrypted-by-personal-organization"
+	)
+	var (
+		recorder   responsesRequestRecorder
+		authMu     sync.Mutex
+		authByCall = map[int]string{}
+	)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		n := recorder.record(req)
+		authMu.Lock()
+		authByCall[n] = req.Header.Get("Authorization")
+		authMu.Unlock()
+		resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer")...)
+		switch n {
+		case 1:
+			resp.Reasoning = &chattest.OpenAIReasoningItem{ID: deploymentID, EncryptedContent: deploymentBlob}
+		case 2:
+			resp.Reasoning = &chattest.OpenAIReasoningItem{ID: personalKeyID, EncryptedContent: personalKeyBlob}
+		}
+		return resp
+	})
+
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	model := insertChatModelConfigWithCallConfig(t, db, user.ID, "openai", "gpt-4o",
+		codersdk.ChatModelCallConfig{})
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          uniqueResponsesTitle(t, "credential-change"),
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+
+	_, err = db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+		ID:           uuid.New(),
+		UserID:       user.ID,
+		AIProviderID: model.AIProviderID.UUID,
+		APIKey:       userAPIKey,
+	})
+	require.NoError(t, err)
+
+	for _, text := range []string{"switched keys", "thanks"} {
 		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 			ChatID:        chat.ID,
 			CreatedBy:     user.ID,
@@ -407,19 +510,18 @@ func TestOpenAIResponsesRetriesWithoutRejectedEncryptedReasoning(t *testing.T) {
 		requireResponsesChatWaiting(ctx, t, db, chat.ID)
 	}
 
-	// Only the first request after the change is rejected.
 	requests := recorder.all()
-	require.Len(t, requests, 5)
-	requireInlineReasoningItem(t, requests[1].Prompt, staleID, staleBlob, "")
-	retry := requests[2]
-	require.NotEmpty(t, retry.Prompt)
-	require.NotContains(t, promptItemTypes(retry.Prompt), "reasoning")
-	// requests[3] continues the tool step from in-memory history;
-	// requests[4] rebuilds the prompt from persisted messages.
-	for _, request := range requests[3:] {
-		requireInlineReasoningItem(t, request.Prompt, freshID, freshBlob, "")
-		requireNoResponsesProviderItemReplay(t, request.Prompt, staleID)
-	}
+	require.Len(t, requests, 3)
+	authMu.Lock()
+	require.NotEqual(t, "Bearer "+userAPIKey, authByCall[1])
+	require.Equal(t, "Bearer "+userAPIKey, authByCall[2])
+	authMu.Unlock()
+	// Reasoning from the deployment's key is left out before the
+	// personal key's organization can reject it.
+	require.NotContains(t, promptItemTypes(requests[1].Prompt), "reasoning")
+	requireNoResponsesProviderItemReplay(t, requests[1].Prompt, deploymentID)
+	requireInlineReasoningItem(t, requests[2].Prompt, personalKeyID, personalKeyBlob, "")
+	requireNoResponsesProviderItemReplay(t, requests[2].Prompt, deploymentID)
 }
 
 func TestOpenAIResponsesAdvisorPromptOmitsReasoning(t *testing.T) {

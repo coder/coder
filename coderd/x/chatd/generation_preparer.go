@@ -175,7 +175,11 @@ func (server *Server) prepareGeneration(
 	}
 	model := resolved.model
 	callConfig := resolved.callConfig
-	reasoningSource := reasoningProvenance{ProviderIdentity: providerIdentity, Model: model.ModelID()}
+	reasoningSource := reasoningProvenance{
+		ProviderIdentity: providerIdentity,
+		Model:            model.ModelID(),
+		Credential:       reasoningCredential(resolved.route.ProviderAuth),
+	}
 	modelRoute := resolved.route
 
 	currentPlanMode := chat.PlanMode
@@ -329,11 +333,12 @@ func (server *Server) prepareGeneration(
 	)
 
 	// Drop provider-executed tool history produced by a different provider,
-	// and OpenAI reasoning state produced by a different provider or model,
-	// before building the prompt. A provider that shares another's wire
-	// format (e.g. Bedrock and Anthropic) can still reject the other's
-	// provider-specific blocks, so a mid-chat provider switch must not
-	// replay them.
+	// and OpenAI reasoning state produced by a different provider, model,
+	// or credential, or before the provider's latest rejection of the
+	// chat's encrypted reasoning, before building the prompt. A provider
+	// that shares another's wire format (e.g. Bedrock and Anthropic) can
+	// still reject the other's provider-specific blocks, so a mid-chat
+	// provider switch must not replay them.
 	//
 	// The pending-user segment (trailing user rows the assistant has not
 	// answered yet) is handled separately from here through prompt
@@ -346,6 +351,7 @@ func (server *Server) prepareGeneration(
 	// sanitizing everything, since the tail is user-only and the
 	// sanitizer only rewrites assistant rows.
 	pendingRowsStart := pendingUserSegmentStart(promptRows)
+	reasoningSource.Epoch = currentReasoningEpoch(promptRows[:pendingRowsStart], providerIdentity)
 	sanitizedHead, err := server.sanitizeForeignProviderStateRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, reasoningSource)
 	if err != nil {
 		return generationPrepared{}, err
@@ -907,6 +913,7 @@ func (server *Server) prepareGeneration(
 		ModelBuildOptions:    modelOpts,
 		ResolvedProvider:     resolved.resolvedProvider,
 		ReasoningProvenance:  reasoningSource,
+		ReasoningRejected:    resolved.reasoningRejected,
 		StageModel:           resolved.stageModel(),
 		ModelConfigID:        modelConfig.ID,
 		CallTemplate:         resolved.newCall(),
