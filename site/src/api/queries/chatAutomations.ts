@@ -105,17 +105,14 @@ const isLoopbackHostname = (hostname: string) =>
 /**
  * Returns the origin webhook senders must use. Senders must reach the
  * configured access URL, not the address this tab uses, unless the access
- * URL is a loopback address while the page is served from elsewhere, for
- * example through a port share: no outside sender can reach loopback.
+ * URL is a loopback address. Only its own host reaches a loopback address,
+ * so the page, for example behind a port share or a port forward on another
+ * port, is the better guess.
  */
 export const webhookOrigin = (accessURL: string, pageOrigin: string) => {
 	const access = new URL(accessURL);
-	const page = new URL(pageOrigin);
-	if (
-		isLoopbackHostname(access.hostname) &&
-		!isLoopbackHostname(page.hostname)
-	) {
-		return page.origin;
+	if (isLoopbackHostname(access.hostname)) {
+		return new URL(pageOrigin).origin;
 	}
 	return access.origin;
 };

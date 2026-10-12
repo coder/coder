@@ -25,8 +25,13 @@ describe("webhookOrigin", () => {
 			"https://10.0.0.5:8080",
 			"https://coder.example.com",
 		],
-		// Both loopback, as in local development: keep the access URL.
-		["http://127.0.0.1:3000", "http://localhost:8080", "http://127.0.0.1:3000"],
+		// A port forward to a loopback access URL: only the page's port is
+		// reachable from this browser.
+		[
+			"http://127.0.0.1:3100",
+			"http://127.0.0.1:13491",
+			"http://127.0.0.1:13491",
+		],
 	])("uses %s seen from %s as %s", (accessURL, pageOrigin, expected) => {
 		expect(webhookOrigin(accessURL, pageOrigin)).toBe(expected);
 	});
