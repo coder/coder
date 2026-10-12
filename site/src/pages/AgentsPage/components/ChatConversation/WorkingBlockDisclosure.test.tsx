@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { useState } from "react";
 import {
 	flushLayout,
@@ -12,7 +12,7 @@ import {
 	viewport,
 	visibleRowsAfterLayout,
 } from "#/testHelpers/messageScrollerLayout";
-import { MessageScroller } from "#/vendor/message-scroller";
+import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 import { FIXTURE_NOW, MockWorkingBlock } from "./storyFixtures";
 import {
 	didPrependIntoBlock,
@@ -109,6 +109,24 @@ const BlockRow: React.FC<BlockRowProps> = ({
 const summaryButton = () =>
 	screen.getByRole("button", { name: "Worked for 12s (2 steps)" });
 
+const JumpRow: React.FC = () => {
+	const { scrollToMessage } = useMessageScroller();
+	return (
+		<MessageScroller.Item messageId="jump" data-height={0}>
+			<button type="button" onClick={() => scrollToMessage("history-2")}>
+				Jump to history-2
+			</button>
+		</MessageScroller.Item>
+	);
+};
+
+const revealTranscript = (expandedHeight: number) => [
+	history,
+	<BlockRow key="block" expandedHeight={expandedHeight} />,
+	row("answer", 100),
+	<JumpRow key="jump" />,
+];
+
 describe("WorkingBlockDisclosure in a MessageScroller", () => {
 	setupMessageScrollerLayout();
 
@@ -123,6 +141,45 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		await user.click(summaryButton());
 
 		expect(await visibleRowsAfterLayout()).toEqual(["history-9", "block"]);
+	});
+
+	it("keeps the end of a revealed block in view as its steps finish loading", async () => {
+		const user = userEvent.setup();
+		const update = renderTranscript(revealTranscript(300));
+		await user.click(summaryButton());
+		await flushLayout();
+
+		// A lazy image in one of the steps loads.
+		await update(revealTranscript(500));
+
+		expect(await visibleRowsAfterLayout()).toEqual(["block"]);
+	});
+
+	it.each([
+		[
+			"scrolls",
+			() => {
+				fireEvent.wheel(viewport());
+				viewport().scrollTop = 800;
+				fireEvent.scroll(viewport());
+			},
+		],
+		[
+			"jumps to another row",
+			(user: UserEvent) =>
+				user.click(screen.getByRole("button", { name: "Jump to history-2" })),
+		],
+	])("stops revealing a block once the reader %s", async (_name, intervene) => {
+		const user = userEvent.setup();
+		const update = renderTranscript(revealTranscript(300));
+		await user.click(summaryButton());
+		await flushLayout();
+		await intervene(user);
+		const before = await visibleRowsAfterLayout();
+
+		await update(revealTranscript(500));
+
+		expect(await visibleRowsAfterLayout()).toEqual(before);
 	});
 
 	it("stays put when an expanded block still ends in view", async () => {

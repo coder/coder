@@ -70,6 +70,16 @@ function nudgeScroll(viewport: HTMLElement) {
   }
 }
 
+// LOCAL CHANGE: where the element ends in the viewport's scrolled content, so
+// a scroll does not move it.
+function getScrollBottom(element: Element, viewport: HTMLElement) {
+  return (
+    element.getBoundingClientRect().bottom -
+    viewport.getBoundingClientRect().top +
+    viewport.scrollTop
+  )
+}
+
 // Orchestrator hook. Decides when to scroll and delegates the moves to
 // useMessageScrollerCommands; state and visibility commits are coalesced on a
 // requestAnimationFrame and torn down on cleanup for StrictMode safety.
@@ -120,6 +130,7 @@ function useMessageScrollerController({
     handledScrollAnchorsRef,
     // LOCAL CHANGE
     followSuppressedRef,
+    revealedItemRef,
   } = refs
 
   const previousDefaultScrollPositionRef = React.useRef(defaultScrollPosition)
@@ -567,12 +578,33 @@ function useMessageScrollerController({
       return
     }
 
+    // LOCAL CHANGE: until the reader scrolls, a revealed row that grows (a
+    // step's image loading) keeps its end in view.
+    const revealed = revealedItemRef.current
+    const viewport = viewportRef.current
+
+    if (
+      modeRef.current === "settling-jump" &&
+      revealed !== null &&
+      revealed.element.isConnected &&
+      viewport !== null
+    ) {
+      const bottom = getScrollBottom(revealed.element, viewport)
+
+      if (bottom - revealed.bottom > SCROLL_POSITION_EPSILON) {
+        scrollToElement(revealed.element, { align: "end", behavior: "smooth" })
+        revealedItemRef.current = { element: revealed.element, bottom }
+        return
+      }
+    }
+
     scheduleStateCommit()
     scheduleVisibilitySync()
   }, [
     reanchorToAnchoredMessage,
     scheduleStateCommit,
     scheduleVisibilitySync,
+    scrollToElement,
     scrollToEnd,
   ])
 
@@ -749,6 +781,10 @@ function useMessageScrollerController({
       if (endsBelowView) {
         followSuppressedRef.current = false
         scrollToElement(item, { align: "end", behavior: "smooth" })
+        revealedItemRef.current = {
+          element: item,
+          bottom: getScrollBottom(item, viewport),
+        }
       }
     },
     [scrollToElement, scrollToEnd]

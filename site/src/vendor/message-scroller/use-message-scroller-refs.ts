@@ -62,6 +62,12 @@ type MessageScrollerRefs = {
   // not start following. Every user scroll, scroll command, and new turn must
   // clear it. The anchor hold must not, so scrollToElement does not.
   followSuppressedRef: React.RefObject<boolean>
+  // LOCAL CHANGE: the row whose end a toggle scrolled into view, and where
+  // that end was in the content. Any other jump clears it.
+  revealedItemRef: React.RefObject<{
+    element: HTMLElement
+    bottom: number
+  } | null>
 }
 
 // Builds the per-instance ref bag: the two external stores constructed once, and
@@ -125,6 +131,10 @@ function useMessageScrollerRefs({
   const handledScrollAnchorsRef = React.useRef(new WeakSet<HTMLElement>())
   // LOCAL CHANGE
   const followSuppressedRef = React.useRef(false)
+  const revealedItemRef = React.useRef<{
+    element: HTMLElement
+    bottom: number
+  } | null>(null)
 
   if (stateStoreRef.current === null) {
     stateStoreRef.current = createMessageScrollerStore(
@@ -177,6 +187,7 @@ function useMessageScrollerRefs({
     handledScrollAnchorsRef,
     // LOCAL CHANGE
     followSuppressedRef,
+    revealedItemRef,
   }
 }
 
