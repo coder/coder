@@ -194,7 +194,7 @@ type MessageScrollerContextValue = {
   // LOCAL CHANGE: returns whether a sync at the end may resume following.
   userScrollIntent: () => boolean
   // LOCAL CHANGE
-  userLayoutIntent: (target: Element) => void
+  userLayoutIntent: (target: Element, options?: { revealEnd?: boolean }) => void
   viewportRef: React.RefObject<HTMLDivElement | null>
   visibilityStore: MessageScrollerVisibilityStore
 }

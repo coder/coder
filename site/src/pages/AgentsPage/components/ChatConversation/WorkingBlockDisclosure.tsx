@@ -175,6 +175,7 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 			hasContent
 			expanded={expanded}
 			onExpandedChange={onExpandedChange}
+			revealEndOnExpand
 		>
 			<ToolCall.HeaderButton>
 				<ToolCall.LeadingIcon>

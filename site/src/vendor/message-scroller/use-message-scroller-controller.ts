@@ -705,61 +705,111 @@ function useMessageScrollerController({
     }
   }, [])
 
-  // LOCAL CHANGE
-  const userLayoutIntent = React.useCallback((target: Element) => {
-    followSuppressedRef.current = true
+  // LOCAL CHANGE: brings the end of the row holding target into view. At the
+  // last row it resumes following, so new output below it stays in view.
+  const revealItemEnd = React.useCallback(
+    (target: Element) => {
+      const content = contentRef.current
+      const viewport = viewportRef.current
 
-    // A toggle above the anchored turn moves the turn, so holding it would
-    // scroll the toggled row away.
-    const anchor = streamingTurnRef.current
-
-    if (
-      modeRef.current === "anchored-to-message" &&
-      anchor !== null &&
-      target.compareDocumentPosition(anchor) & Node.DOCUMENT_POSITION_FOLLOWING
-    ) {
-      streamingTurnRef.current = null
-      modeRef.current = "free-scrolling"
-    }
-
-    if (
-      modeRef.current === "following-bottom" ||
-      modeRef.current === "settling-jump"
-    ) {
-      modeRef.current = "free-scrolling"
-
-      // A scroll command may still be moving the view smoothly.
-      if (viewportRef.current) {
-        nudgeScroll(viewportRef.current)
+      if (!content || !viewport) {
+        return
       }
-    }
 
-    const content = contentRef.current
+      const items = getMessageScrollerItems(content, spacerRef.current)
+      const item = items.find((element) => element.contains(target))
 
-    if (content !== null && typeof MutationObserver !== "undefined") {
-      userLayoutIntentObserverRef.current?.disconnect()
-      userLayoutIntentObserverRef.current = new MutationObserver(
-        (records, observer) => {
-          // Only the toggle's commit. Later commits wait for the resize
-          // observers, as they do with no toggle.
-          observer.disconnect()
-          handleResize()
+      if (!item) {
+        return
+      }
 
-          // A removed node can clamp scrollTop. Reset now: output that lands
-          // before the resize observers run would scroll the view back down.
-          if (records.some((record) => record.removedNodes.length > 0)) {
-            resetBrowserScrollAnchor()
-          }
+      const endsBelowView =
+        item.getBoundingClientRect().bottom -
+          viewport.getBoundingClientRect().bottom >
+        SCROLL_POSITION_EPSILON
+
+      if (item === items[items.length - 1]) {
+        // The anchor hold hands off to following as the turn fills the view.
+        if (!endsBelowView && modeRef.current === "anchored-to-message") {
+          followSuppressedRef.current = false
+          return
         }
-      )
-      userLayoutIntentObserverRef.current.observe(content, {
-        childList: true,
-        subtree: true,
-      })
-    }
 
-    scheduleStateCommit()
-  }, [handleResize, resetBrowserScrollAnchor, scheduleStateCommit])
+        scrollToEnd({ behavior: "smooth" })
+        return
+      }
+
+      if (endsBelowView) {
+        followSuppressedRef.current = false
+        scrollToElement(item, { align: "end", behavior: "smooth" })
+      }
+    },
+    [scrollToElement, scrollToEnd]
+  )
+
+  // LOCAL CHANGE
+  const userLayoutIntent = React.useCallback(
+    (target: Element, { revealEnd = false }: { revealEnd?: boolean } = {}) => {
+      followSuppressedRef.current = true
+
+      // A toggle above the anchored turn moves the turn, so holding it would
+      // scroll the toggled row away.
+      const anchor = streamingTurnRef.current
+
+      if (
+        modeRef.current === "anchored-to-message" &&
+        anchor !== null &&
+        target.compareDocumentPosition(anchor) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ) {
+        streamingTurnRef.current = null
+        modeRef.current = "free-scrolling"
+      }
+
+      if (
+        modeRef.current === "following-bottom" ||
+        modeRef.current === "settling-jump"
+      ) {
+        modeRef.current = "free-scrolling"
+
+        // A scroll command may still be moving the view smoothly.
+        if (viewportRef.current) {
+          nudgeScroll(viewportRef.current)
+        }
+      }
+
+      const content = contentRef.current
+
+      if (content !== null && typeof MutationObserver !== "undefined") {
+        userLayoutIntentObserverRef.current?.disconnect()
+        userLayoutIntentObserverRef.current = new MutationObserver(
+          (records, observer) => {
+            // Only the toggle's commit. Later commits wait for the resize
+            // observers, as they do with no toggle.
+            observer.disconnect()
+            handleResize()
+
+            // A removed node can clamp scrollTop. Reset now: output that lands
+            // before the resize observers run would scroll the view back down.
+            if (records.some((record) => record.removedNodes.length > 0)) {
+              resetBrowserScrollAnchor()
+            }
+
+            if (revealEnd) {
+              revealItemEnd(target)
+            }
+          }
+        )
+        userLayoutIntentObserverRef.current.observe(content, {
+          childList: true,
+          subtree: true,
+        })
+      }
+
+      scheduleStateCommit()
+    },
+    [handleResize, resetBrowserScrollAnchor, revealItemEnd, scheduleStateCommit]
+  )
 
   const mirrorStateAttributes = React.useCallback(
     () => writeStateAttributes(stateStore.getSnapshot()),
