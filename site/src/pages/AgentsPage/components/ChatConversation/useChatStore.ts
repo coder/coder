@@ -77,7 +77,7 @@ export const useChatStore = (
 		structuralSharing: false,
 	});
 	const load = useChatSelector(store, selectLoad);
-	const loaded = useChatSelector(store, selectIsLoaded);
+	const initialDataLoaded = useChatSelector(store, selectIsLoaded);
 
 	// Wrap error-reason callbacks so the WebSocket effect can call
 	// them without including them in its dependency array.
@@ -137,7 +137,7 @@ export const useChatStore = (
 
 		store.resetTransientState();
 
-		if (!loaded || aiGatewayDisabled) {
+		if (!initialDataLoaded || aiGatewayDisabled) {
 			return;
 		}
 
@@ -170,8 +170,10 @@ export const useChatStore = (
 			}, 0);
 		};
 
-		// Discard buffered parts without applying them, so parts from before
-		// a preview_reset or from a closed socket never reach the store.
+		// Discard buffered parts without applying them. Used when
+		// the preview is reset or the stream is no longer active
+		// so stale buffered parts are not applied after the
+		// boundary event.
 		const discardBufferedParts = () => {
 			partsBuf.length = 0;
 			if (partsFlushTimer !== null) {
@@ -282,10 +284,14 @@ export const useChatStore = (
 				return;
 			}
 
-			// Wrap all store mutations in a batch so subscribers are notified
-			// once per frame, not per event.
+			const streamEvents = payload.parsedMessage;
+			if (streamEvents.length === 0) {
+				return;
+			}
+			// Wrap all store mutations in a batch so subscribers
+			// are notified exactly once at the end, not per event.
 			store.batch(() => {
-				for (const streamEvent of payload.parsedMessage ?? []) {
+				for (const streamEvent of streamEvents) {
 					if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 						const nextStatus = streamEvent.status?.status;
 						if (streamEvent.type === "status" && nextStatus) {
@@ -356,8 +362,7 @@ export const useChatStore = (
 				clearTimeout(partsFlushTimer);
 			}
 		};
-	}, [aiGatewayDisabled, chatID, loaded, queryClient, store]);
-
+	}, [aiGatewayDisabled, chatID, initialDataLoaded, queryClient, store]);
 	return {
 		store,
 		load,
