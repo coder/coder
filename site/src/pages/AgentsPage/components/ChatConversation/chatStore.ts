@@ -182,12 +182,12 @@ export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
 	orderedMessageIDs: readonly number[];
 	streamState: StreamState | null;
-	// The turn the server reported last: status, error and pending retry.
 	chatStatus: TypesGen.ChatStatus | null;
-	turnError: ChatDetailError | null;
-	retryState: RetryState | null;
 	// A failure of this client, such as a rejected request.
 	streamError: ChatDetailError | null;
+	retryState: RetryState | null;
+	// The error the chat's last reported turn ended with.
+	turnError: ChatDetailError | null;
 	reconnectState: ReconnectState | null;
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
@@ -254,9 +254,9 @@ const createInitialState = (): ChatStoreState => ({
 	orderedMessageIDs: [],
 	streamState: null,
 	chatStatus: null,
-	turnError: null,
-	retryState: null,
 	streamError: null,
+	retryState: null,
+	turnError: null,
 	reconnectState: null,
 	queuedMessages: [],
 	subagentStatusOverrides: new Map(),
@@ -267,7 +267,8 @@ const createInitialState = (): ChatStoreState => ({
 
 export const createChatStore = (): ChatStore => {
 	let state = createInitialState();
-	// Bookkeeping, deliberately outside the rendered state.
+	// Bookkeeping, deliberately outside the rendered state so observing a
+	// server event cannot trigger a re-render.
 	let historyResets = 0;
 	let syncedSnapshotVersion = 0;
 	let nextPendingActionID = 1;
@@ -935,19 +936,28 @@ export const selectLoad = (state: ChatStoreState) => state.load;
 export const selectIsLoaded = (state: ChatStoreState) =>
 	state.load.status === "loaded";
 
+const selectLatestMessage = (
+	state: ChatView,
+): TypesGen.ChatMessage | undefined => {
+	const latestMessageID =
+		state.orderedMessageIDs[state.orderedMessageIDs.length - 1];
+	return latestMessageID === undefined
+		? undefined
+		: state.messagesByID.get(latestMessageID);
+};
+
 export const selectIsAwaitingFirstStreamChunk = (
 	state: ChatStoreState,
 ): boolean => {
 	const view = selectView(state);
-	const latestMessageID =
-		view.orderedMessageIDs[view.orderedMessageIDs.length - 1];
-	const latestMessage =
-		latestMessageID === undefined
-			? undefined
-			: view.messagesByID.get(latestMessageID);
-	// Show the Thinking indicator while the chat runs, no stream output is
-	// shown, and the latest shown message is not an assistant's.
-	if (view.streamState !== null || latestMessage?.role === "assistant") {
+	const latestMessage = selectLatestMessage(view);
+	const latestMessageNeedsAssistantResponse =
+		latestMessage?.role !== "assistant";
+	// Show the Thinking indicator when the store has no stream
+	// data yet, the chat is running, and the conversation is
+	// waiting for an assistant response (any non-assistant latest
+	// message).
+	if (view.streamState !== null || !latestMessageNeedsAssistantResponse) {
 		return false;
 	}
 	return view.chatStatus === "running";
