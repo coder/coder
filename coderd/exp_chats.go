@@ -3735,13 +3735,21 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 
 	// Subscribe before accepting the WebSocket so that failures
 	// can still be reported as normal HTTP errors.
-	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, cursor)
-	// Defensive against future SubscribeAuthorized failure modes.
-	if !ok {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Chat streaming is not available.",
-			Detail:  "Chat stream state is not configured.",
-		})
+	snapshot, events, cancelSub, err := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, cursor)
+	if err != nil {
+		switch {
+		case ctx.Err() != nil:
+			// The client went away during setup.
+		case errors.Is(err, sql.ErrNoRows):
+			// The chat was deleted after the route loaded it.
+			httpapi.ResourceNotFound(rw)
+		default:
+			logger.Error(ctx, "failed to subscribe to chat stream", slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to open chat stream.",
+				Detail:  err.Error(),
+			})
+		}
 		return
 	}
 	defer cancelSub()
