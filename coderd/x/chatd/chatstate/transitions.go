@@ -21,8 +21,8 @@ import (
 
 // CreateChatInput configures [CreateChat].
 type CreateChatInput struct {
-	OrganizationID    uuid.UUID
-	OwnerID           uuid.UUID
+	OrganizationID uuid.UUID
+	OwnerID        uuid.UUID
 	// ProjectID is ignored for sub-chats, which take their root's project.
 	ProjectID         uuid.NullUUID
 	WorkspaceID       uuid.NullUUID

@@ -215,7 +215,7 @@ func deleteChatProjectTx(ctx context.Context, store database.Store, publisher Pu
 	buffer := NewPublishBuffer(publisher)
 	var deleted DeletedChatProject
 	err := store.InTx(func(tx database.Store) error {
-		// FOR UPDATE waits for root chat creations in the project, which
+		// The project lock waits for root chat creations in the project, which
 		// hold it FOR SHARE, and makes a concurrent delete find no project.
 		if _, err := tx.GetChatProjectByIDForUpdate(ctx, projectID); err != nil {
 			return xerrors.Errorf("lock project: %w", err)

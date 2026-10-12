@@ -348,6 +348,7 @@ func TestChatProjectSharing(t *testing.T) {
 			OrganizationID:    project.OrganizationID,
 			OwnerID:           shareeUser.ID,
 			LastModelConfigID: shareeChat.LastModelConfigID,
+			ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
 			ParentChatID:      uuid.NullUUID{UUID: shareeChat.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: shareeChat.ID, Valid: true},
 		})
