@@ -6,13 +6,8 @@ import {
 	PaperclipIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
-import type {
-	ChatQueuedMessage,
-	ChatSkillInvocationPart,
-	ChatTextPart,
-} from "#/api/typesGenerated";
-import { Badge } from "#/components/Badge/Badge";
+import { useState } from "react";
+import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -20,7 +15,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { SkillChip } from "./ChatMessageInput/SkillChip";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
@@ -29,10 +23,8 @@ type QueuedMessagesListProps = {
 	className?: string;
 };
 
-type QueuedMessagePreviewPart = ChatTextPart | ChatSkillInvocationPart;
-
 type QueuedMessageInfo = {
-	previewParts: QueuedMessagePreviewPart[];
+	displayText: string;
 	attachmentCount: number;
 	hookNotices: string[];
 };
@@ -41,75 +33,24 @@ export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
 ): QueuedMessageInfo => {
 	let attachmentCount = 0;
-	const previewParts: QueuedMessagePreviewPart[] = [];
+	const textParts: string[] = [];
 	const hookNotices: string[] = [];
 	for (const part of message.content) {
 		if (part.type === "file" || part.type === "workspace-file-reference") {
 			attachmentCount++;
-		} else if (
-			part.type === "text" &&
-			// A blank line after a chip still ends the preview's first line.
-			(part.text?.trim() ||
-				(previewParts.length > 0 && part.text?.includes("\n")))
-		) {
-			previewParts.push({ type: "text", text: part.text });
-		} else if (part.type === "skill-invocation") {
-			previewParts.push(part);
+		} else if (part.type === "text" && part.text?.trim()) {
+			textParts.push(part.text);
 		} else if (part.type === "hook-notice" && part.text?.trim()) {
 			hookNotices.push(part.text);
 		}
 	}
+	const rawText = textParts.join(" ").trim();
 
-	return { previewParts, attachmentCount, hookNotices };
-};
-
-/** Cuts preview parts at the first line break, trimming text only after the cut. */
-export const getFirstLinePreview = (
-	parts: readonly QueuedMessagePreviewPart[],
-): { parts: QueuedMessagePreviewPart[]; isTruncated: boolean } => {
-	const firstLine: QueuedMessagePreviewPart[] = [];
-	for (const [index, part] of parts.entries()) {
-		if (part.type !== "text") {
-			firstLine.push(part);
-			continue;
-		}
-		const text = firstLine.length === 0 ? part.text.trimStart() : part.text;
-		const lineBreakIndex = text.indexOf("\n");
-		const line = lineBreakIndex === -1 ? text : text.slice(0, lineBreakIndex);
-		if (line.trim()) {
-			firstLine.push({ ...part, text: line.trim() });
-		}
-		if (lineBreakIndex !== -1) {
-			const isTruncated =
-				Boolean(text.slice(lineBreakIndex).trim()) || index < parts.length - 1;
-			return { parts: firstLine, isTruncated };
-		}
-	}
-	return { parts: firstLine, isTruncated: false };
-};
-
-const QueuedMessagePreview: React.FC<{
-	parts: readonly QueuedMessagePreviewPart[];
-}> = ({ parts }) => {
-	if (parts.length === 0) {
-		return "[Queued message]";
-	}
-	const firstLine = getFirstLinePreview(parts);
-	return (
-		<>
-			{firstLine.parts.map((part, index) => (
-				<Fragment key={index}>
-					{index > 0 && " "}
-					{part.type === "skill-invocation" ? (
-						<SkillChip source={part.skill_source} name={part.skill_name} />
-					) : (
-						part.text
-					)}
-				</Fragment>
-			))}
-			{firstLine.isTruncated && "…"}
-		</>
-	);
+	return {
+		displayText: rawText || "[Queued message]",
+		attachmentCount,
+		hookNotices,
+	};
 };
 
 type QueuedMessageAction = "delete" | "promote";
@@ -164,29 +105,10 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	onPromote,
 	className,
 }) => {
-	const underEditIndex = messages.findIndex((message) => message.editing_since);
-	const items = messages.map((message, index) => {
-		const isUnderEdit = Boolean(message.editing_since);
-		const isWaitingBehindEdit = underEditIndex !== -1 && index > underEditIndex;
-		let badge: { label: string; tooltip: string } | undefined;
-		if (isUnderEdit) {
-			badge = {
-				label: "Editing",
-				tooltip: "Not sent until you finish editing.",
-			};
-		} else if (isWaitingBehindEdit) {
-			badge = {
-				label: "Waiting",
-				tooltip: "Waits for the edit above to finish.",
-			};
-		}
-		return {
-			id: message.id,
-			...getQueuedMessageInfo(message),
-			isUnderEdit,
-			isWaitingBehindEdit,
-			badge,
-		};
+	const items = messages.map((message) => {
+		const { displayText, attachmentCount, hookNotices } =
+			getQueuedMessageInfo(message);
+		return { id: message.id, displayText, attachmentCount, hookNotices };
 	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
@@ -195,72 +117,27 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 		id: number;
 		action: QueuedMessageAction;
 	} | null>(null);
-	const [optimisticallyHiddenIDs, setOptimisticallyHiddenIDs] = useState<
-		ReadonlySet<number>
-	>(new Set());
-
-	const hideItemOptimistically = (id: number) => {
-		setOptimisticallyHiddenIDs((current) => {
-			if (current.has(id)) {
-				return current;
-			}
-			const next = new Set(current);
-			next.add(id);
-			return next;
-		});
-	};
-
-	const restoreHiddenItem = (id: number) => {
-		setOptimisticallyHiddenIDs((current) => {
-			if (!current.has(id)) {
-				return current;
-			}
-			const next = new Set(current);
-			next.delete(id);
-			return next;
-		});
-	};
-
-	useEffect(() => {
-		const liveIDs = new Set(messages.map((message) => message.id));
-		setOptimisticallyHiddenIDs((current) => {
-			if (current.size === 0) {
-				return current;
-			}
-			let didChange = false;
-			const next = new Set<number>();
-			for (const id of current) {
-				if (liveIDs.has(id)) {
-					next.add(id);
-					continue;
-				}
-				didChange = true;
-			}
-			return didChange ? next : current;
-		});
-	}, [messages]);
-
-	// Both actions remove the row, so it is hidden optimistically.
-	const runAction = async (
-		id: number,
-		action: QueuedMessageAction,
-		run: (id: number) => Promise<void> | void,
-	) => {
-		setPendingAction({ id, action });
-		hideItemOptimistically(id);
+	const handleDelete = async (id: number) => {
+		setBusyItem({ id, action: "delete" });
 		try {
 			await run(id);
 		} catch {
-			restoreHiddenItem(id);
+			setBusyItem((current) => (current?.id === id ? null : current));
+		}
+	};
+
+	const handlePromote = async (id: number) => {
+		setBusyItem({ id, action: "promote" });
+		try {
+			await onPromote(id);
+			setBusyItem((current) => (current?.id === id ? null : current));
+		} catch {
+			setBusyItem((current) => (current?.id === id ? null : current));
 		}
 		setPendingAction((current) => (current?.id === id ? null : current));
 	};
 
-	const visibleItems = items.filter(
-		(item) => !optimisticallyHiddenIDs.has(item.id),
-	);
-
-	if (visibleItems.length === 0) {
+	if (items.length === 0) {
 		return null;
 	}
 
@@ -273,7 +150,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 				className,
 			)}
 		>
-			{visibleItems.map((item, index) => {
+			{items.map((item, index) => {
 				const isFirst = index === 0;
 				const isRowPending =
 					pendingAction !== null && pendingAction.id === item.id;
@@ -295,7 +172,8 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 					>
 						<div className="flex items-center gap-2 rounded-lg border border-solid border-border bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
 							<span className="min-w-0 flex-1 truncate">
-								<QueuedMessagePreview parts={item.previewParts} />
+								{item.displayText.split("\n")[0]}
+								{item.displayText.includes("\n") ? "…" : ""}
 							</span>
 							{item.badge && (
 								<Tooltip>
