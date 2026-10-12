@@ -497,7 +497,7 @@ func TestAgentConn_APIIdleConnTimeout(t *testing.T) {
 	var keySent atomic.Bool
 	handler := jsonHandler(nil)
 	clientConn, agentID := newAPIPeers(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v0/list-directory" && len(r.Header.Values("Idempotency-Key")) > 0 {
+		if _, ok := r.Header["Idempotency-Key"]; ok {
 			keySent.Store(true)
 		}
 		handler.ServeHTTP(w, r)
@@ -541,7 +541,7 @@ func TestAgentConn_APIIdleConnTimeout(t *testing.T) {
 	})
 
 	t.Cleanup(func() {
-		require.False(t, keySent.Load(), "LS marks itself resendable without sending a key")
+		require.False(t, keySent.Load(), "requests are marked resendable without sending Idempotency-Key")
 	})
 }
 
