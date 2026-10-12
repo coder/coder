@@ -86,9 +86,9 @@ const seededStore = (messages: readonly ChatMessage[]) => {
 	const store = createChatStore();
 	store.seed({
 		messages,
-		queuedMessages: [],
-		hasMore: false,
-		historyVersion: 1,
+		queued_messages: [],
+		has_more: false,
+		history_version: 1,
 	});
 	store.setChatStatus("waiting");
 	return store;
