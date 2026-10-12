@@ -174,8 +174,9 @@ export type ChatStore = {
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	) => void;
-	applyCheckpoint: (snapshotVersion: number, historyVersion?: number) => void;
-	getSyncedHistoryVersion: () => number;
+	applyCheckpoint: (snapshotVersion: number) => void;
+	// The snapshot version of the last applied page or checkpoint.
+	getSyncedSnapshotVersion: () => number;
 	// Adds nothing when the stream already synced past untilVersion.
 	addPendingAction: (action: PendingAction, untilVersion?: number) => number;
 	updatePendingAction: (
@@ -222,7 +223,6 @@ export const createChatStore = (): ChatStore => {
 	// Bookkeeping, deliberately outside the rendered state.
 	let historyResets = 0;
 	let syncedSnapshotVersion = 0;
-	let syncedHistoryVersion = 0;
 	let serverStatusReceived = false;
 	let nextPendingActionID = 1;
 	let loadInFlight = false;
@@ -423,7 +423,7 @@ export const createChatStore = (): ChatStore => {
 			if (state.load.status === "loaded") {
 				return;
 			}
-			syncedHistoryVersion = page.history_version ?? 0;
+			syncedSnapshotVersion = page.snapshot_version ?? 0;
 			setState((current) => ({
 				...current,
 				messagesByID: buildMessageMap(page.messages),
@@ -482,11 +482,8 @@ export const createChatStore = (): ChatStore => {
 					: { ...current, hasMoreMessages: hasMore },
 			);
 		},
-		applyCheckpoint: (snapshotVersion, historyVersion) => {
+		applyCheckpoint: (snapshotVersion) => {
 			syncedSnapshotVersion = Math.max(syncedSnapshotVersion, snapshotVersion);
-			if (historyVersion !== undefined) {
-				syncedHistoryVersion = historyVersion;
-			}
 			setState((current) => {
 				const remaining = current.pendingActions.filter(
 					(entry) =>
@@ -498,7 +495,7 @@ export const createChatStore = (): ChatStore => {
 					: { ...current, pendingActions: remaining };
 			});
 		},
-		getSyncedHistoryVersion: () => syncedHistoryVersion,
+		getSyncedSnapshotVersion: () => syncedSnapshotVersion,
 		addPendingAction: (action, untilVersion) => {
 			const id = nextPendingActionID++;
 			if (untilVersion !== undefined && untilVersion <= syncedSnapshotVersion) {
