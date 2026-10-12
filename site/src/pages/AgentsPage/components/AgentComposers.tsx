@@ -31,6 +31,7 @@ type ComposerConfiguration = {
 
 type NewAgentComposerProps = ComposerConfiguration & {
 	bindings: ComposerDraftBindings & {
+		onSend: (message: string) => void;
 		files: ComposerFileBindings;
 	};
 };
@@ -86,6 +87,7 @@ export const NewAgentComposer = ({
 type ChatComposerProps = ComposerConfiguration & {
 	bindings: ComposerDraftBindings &
 		ComposerChatBindings & {
+			onSend: (message: string) => void;
 			files: ComposerFileBindings;
 		};
 	queue?: Omit<React.ComponentProps<typeof QueuedMessagesList>, "className">;
@@ -188,27 +190,21 @@ export const ChatComposer = ({
 };
 
 type LoadingChatComposerProps = {
-	bindings: ComposerEditorBindings & {
-		isDisabled: boolean;
-		hasModelOptions: boolean;
-	};
+	bindings: ComposerEditorBindings & { isDisabled: boolean };
 	model: AgentComposerModelProps;
 	tools: { planning: AgentComposerOptionsData["planning"] };
 };
 
-// The chat cannot accept messages until it loads; the composer only
-// records the draft.
-const ignoreSend = () => {};
-
-/** Composer that records draft changes while the chat loads. */
+/**
+ * Composer that records draft changes while the chat loads. It has no send
+ * or file capabilities because the chat cannot accept messages yet.
+ */
 export const LoadingChatComposer = ({
 	bindings,
 	model,
 	tools,
 }: LoadingChatComposerProps) => (
-	<AgentComposer.RuntimeProvider
-		bindings={{ ...bindings, onSend: ignoreSend, files: { attachments: [] } }}
-	>
+	<AgentComposer.RuntimeProvider bindings={bindings}>
 		<AgentComposerOptions.Provider {...tools}>
 			<AgentComposerContainer>
 				<AgentComposer.Frame>

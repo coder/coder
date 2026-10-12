@@ -63,10 +63,16 @@ const inputProps = {
 		onSend: vi.fn(),
 		isDisabled: false,
 		isLoading: false,
-		hasModelOptions: true,
 		initialValue: "",
 		onContentChange: vi.fn(),
-		files: { attachments: [] },
+		files: {
+			attachments: [],
+			onRemoveAttachment: vi.fn(),
+			uploadStates: new Map(),
+			previewUrls: new Map(),
+			textContents: new Map(),
+			workspaceUploads: { uploads: [], onRemove: vi.fn() },
+		},
 	},
 	model: {
 		selectedModel: modelOptions[0].id,
@@ -192,13 +198,13 @@ describe("ChatComposer", () => {
 		expect(onSend).not.toHaveBeenCalled();
 	});
 
-	it("attaches supported dropped files and reports unsupported ones", () => {
+	it("attaches chat files and asks for a running workspace for other dropped files", () => {
 		const onAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");
 
 		renderInput(
 			<ChatComposer
-				{...withBindings({ files: { attachments: [], onAttach } })}
+				{...withBindings({ files: { ...inputProps.bindings.files, onAttach } })}
 			/>,
 		);
 
@@ -210,7 +216,7 @@ describe("ChatComposer", () => {
 
 		expect(onAttach).toHaveBeenCalledWith([svg]);
 		expect(toastError).toHaveBeenCalledWith(
-			"Unsupported file type: archive.zip",
+			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
 		);
 	});
 
@@ -491,16 +497,16 @@ describe("ChatComposer", () => {
 				{...withBindings({
 					inputRef,
 					onSend: vi.fn(),
-					files: { attachments: [], onAttach },
+					files: { ...inputProps.bindings.files, onAttach },
 				})}
 			/>,
 		);
 
 		const target = screen.getByRole("textbox", { name: "Chat message" });
 		target.focus();
-		// Clipboard carrying both a file and a text payload. Without
-		// workspaceUploads the zip cannot be routed anywhere, so the
-		// paste must fall back to inserting the clipboard text.
+		// Clipboard carrying both a file and a text payload. Without a
+		// running workspace the zip cannot be uploaded, so the paste must
+		// fall back to inserting the clipboard text.
 		fireEvent.paste(target, {
 			clipboardData: {
 				files: [createMockFile("dataset.zip", "application/zip")],
@@ -525,6 +531,7 @@ describe("ChatComposer", () => {
 				{...withBindings({
 					onSend: vi.fn(),
 					files: {
+						...inputProps.bindings.files,
 						attachments: [],
 						onAttach,
 						workspaceUploads: {
@@ -556,6 +563,7 @@ describe("ChatComposer", () => {
 				{...withBindings({
 					onSend: vi.fn(),
 					files: {
+						...inputProps.bindings.files,
 						attachments: [],
 						onAttach,
 						workspaceUploads: {
@@ -592,6 +600,7 @@ describe("ChatComposer", () => {
 				{...withBindings({
 					onSend: vi.fn(),
 					files: {
+						...inputProps.bindings.files,
 						attachments: [],
 						onAttach,
 						workspaceUploads: {
@@ -631,6 +640,7 @@ describe("ChatComposer", () => {
 				{...withBindings({
 					onSend: vi.fn(),
 					files: {
+						...inputProps.bindings.files,
 						attachments: [],
 						onAttach,
 						workspaceUploads: {
@@ -668,6 +678,7 @@ describe("ChatComposer", () => {
 				{...withBindings({
 					onSend: vi.fn(),
 					files: {
+						...inputProps.bindings.files,
 						attachments: [],
 						onAttach,
 						workspaceUploads: {

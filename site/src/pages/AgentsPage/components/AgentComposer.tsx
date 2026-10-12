@@ -113,6 +113,10 @@ function Attachments() {
 	const { files } = state;
 	const isPreviewOpen = previewImage !== null || previewText !== null;
 
+	if (!files) {
+		return null;
+	}
+
 	const handleTextPreview = (
 		content: string,
 		fileName: string,
@@ -123,24 +127,20 @@ function Attachments() {
 
 	return (
 		<>
-			{actions.removeAttachment && (
-				<AttachmentPreview
-					attachments={files.attachments}
-					onRemove={actions.removeAttachment}
-					uploadStates={files.uploadStates}
-					previewUrls={files.previewUrls}
-					onPreview={setPreviewImage}
-					textContents={files.textContents}
-					onTextPreview={handleTextPreview}
-					onInlineText={actions.inlineText}
-				/>
-			)}
-			{files.workspaceUploads && (
-				<WorkspaceUploadPreview
-					uploads={files.workspaceUploads.uploads}
-					onRemove={actions.removeWorkspaceUpload}
-				/>
-			)}
+			<AttachmentPreview
+				attachments={files.attachments}
+				onRemove={actions.removeAttachment}
+				uploadStates={files.uploadStates}
+				previewUrls={files.previewUrls}
+				onPreview={setPreviewImage}
+				textContents={files.textContents}
+				onTextPreview={handleTextPreview}
+				onInlineText={actions.inlineText}
+			/>
+			<WorkspaceUploadPreview
+				uploads={files.workspaceUploads.uploads}
+				onRemove={actions.removeWorkspaceUpload}
+			/>
 			{isPreviewOpen && (
 				<FrameEventBoundary>
 					{previewImage && (

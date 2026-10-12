@@ -17,7 +17,6 @@ import {
 import { Separator } from "#/components/Separator/Separator";
 import { isBelowMdViewport } from "#/utils/mobile";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
-import { chatAttachmentAcceptAttribute } from "../utils/chatAttachments";
 import { useAgentComposer } from "./AgentComposer/context";
 import { FrameEventBoundary } from "./AgentComposer/Frame";
 import {
@@ -246,20 +245,14 @@ export const AgentComposerOptionsMenu = () => {
 					)}
 				</PopoverContent>
 			</Popover>
-			{/* When workspace uploads are wired, every file type stays
-			selectable even while no workspace is ready: iOS silently greys
-			out filtered types, so actions.attachFiles explains the refusal. */}
+			{/* Every file type stays selectable: iOS silently greys out
+			filtered types, so actions.attachFiles explains any refusal. */}
 			{state.canAttachFiles && (
 				<input
 					ref={fileInputRef}
 					type="file"
 					data-testid="chat-attachment-file-input"
 					multiple
-					accept={
-						state.files.workspaceUploads
-							? undefined
-							: chatAttachmentAcceptAttribute
-					}
 					onChange={handleFileSelect}
 					className="hidden"
 				/>

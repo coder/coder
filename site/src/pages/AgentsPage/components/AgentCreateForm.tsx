@@ -967,7 +967,6 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 							Boolean(aiGatewayDisabled),
 						isReadOnly: isForbidden,
 						isLoading: isSubmitPending,
-						hasModelOptions,
 						initialValue: initialInputValue,
 						initialEditorState,
 						onContentChange: (content, serializedEditorState, hasRefs) => {

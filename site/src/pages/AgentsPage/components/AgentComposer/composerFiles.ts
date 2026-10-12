@@ -1,9 +1,6 @@
 import { toast } from "sonner";
 import { isWorkspaceUploadInProgress } from "../../hooks/useWorkspaceFileUploads";
-import {
-	isChatAttachmentFile,
-	shouldRouteFileToWorkspace,
-} from "../../utils/chatAttachments";
+import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import { isUploadInProgress } from "../AttachmentPreview";
 import type { AgentComposerBindings } from "./context";
 
@@ -18,17 +15,26 @@ export function composerFiles(
 	resetPromptCycle: () => void,
 ) {
 	const { isDisabled, isLoading = false, files } = bindings;
+
+	if (!files) {
+		return {
+			hasActiveUploads: false,
+			hasUploadedAttachments: false,
+			attachFiles: () => false,
+		};
+	}
+
 	const { attachments, onAttach, uploadStates, workspaceUploads } = files;
-	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
+	const workspaceUploadEntries = workspaceUploads.uploads;
 
 	const hasAttachmentUploads = attachments.some((file) =>
-		isUploadInProgress(uploadStates?.get(file)),
+		isUploadInProgress(uploadStates.get(file)),
 	);
 	const hasWorkspaceUploads = workspaceUploadEntries.some(
 		isWorkspaceUploadInProgress,
 	);
 	const hasUploadedChatFiles = attachments.some(
-		(file) => uploadStates?.get(file)?.status === "uploaded",
+		(file) => uploadStates.get(file)?.status === "uploaded",
 	);
 	const hasUploadedWorkspaceFiles = workspaceUploadEntries.some((upload) => {
 		if (upload.status === "uploaded" || upload.status === "deferred") {
@@ -36,19 +42,19 @@ export function composerFiles(
 		}
 
 		// Deferred failures retry on the next send; eager failures cannot be sent.
-		return workspaceUploads?.deferred === true && upload.status === "error";
+		return workspaceUploads.deferred === true && upload.status === "error";
 	});
 
 	// Workspace uploads eagerly write bytes into the workspace, so a
 	// disabled (read-only) composer must not route files to them. The
 	// same holds while a send is pending: the post-send reset would drop
 	// the chip after the bytes already landed in the workspace.
-	const hasWorkspaceAttach = workspaceUploads?.onAttach !== undefined;
+	const hasWorkspaceAttach = workspaceUploads.onAttach !== undefined;
 	const workspaceAttachBlockedBySend = isLoading && hasWorkspaceAttach;
 	let onWorkspaceAttach: ((files: File[]) => void) | undefined;
 
 	if (!isDisabled && !isLoading) {
-		onWorkspaceAttach = workspaceUploads?.onAttach;
+		onWorkspaceAttach = workspaceUploads.onAttach;
 	}
 
 	// Splits files between the attachment pipeline and the workspace
@@ -57,31 +63,25 @@ export function composerFiles(
 	const attachFiles = (incoming: File[]): boolean => {
 		const attachable: File[] = [];
 		const forWorkspace: File[] = [];
-		const rejected: File[] = [];
-		// Workspace-routable files that arrived while the workspace
-		// upload feature is wired but currently unavailable (no
-		// connected agent, read-only composer, pending send). They need
-		// a workspace, not a different file type, so they get their own
-		// toast.
+		// Workspace files that arrived while workspace uploads are
+		// unavailable (no connected agent, read-only composer, pending
+		// send). They need a workspace, not a different file type, so
+		// they get their own toast.
 		const workspaceRequired: File[] = [];
 
 		for (const file of incoming) {
-			const routesToWorkspace = shouldRouteFileToWorkspace(file);
-
-			if (onWorkspaceAttach && routesToWorkspace) {
-				forWorkspace.push(file);
-			} else if (isChatAttachmentFile(file)) {
+			if (isChatAttachmentFile(file)) {
 				attachable.push(file);
-			} else if (workspaceUploads && routesToWorkspace) {
-				workspaceRequired.push(file);
+			} else if (onWorkspaceAttach) {
+				forWorkspace.push(file);
 			} else {
-				rejected.push(file);
+				workspaceRequired.push(file);
 			}
 		}
 
 		if (workspaceRequired.length > 0) {
 			let message =
-				workspaceUploads?.unavailableMessage ??
+				workspaceUploads.unavailableMessage ??
 				workspaceRequiredAttachmentMessage;
 
 			if (workspaceAttachBlockedBySend) {
@@ -89,11 +89,6 @@ export function composerFiles(
 			}
 
 			toast.error(message);
-		}
-
-		if (rejected.length > 0) {
-			const names = rejected.map((file) => file.name).join(", ");
-			toast.error(`Unsupported file type: ${names}`);
 		}
 
 		if (attachable.length === 0 && forWorkspace.length === 0) {

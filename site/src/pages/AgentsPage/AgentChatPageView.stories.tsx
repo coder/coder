@@ -123,7 +123,6 @@ type ComposerOverrides = Partial<
 	Pick<
 		ChatPageInputProps,
 		| "isInputDisabled"
-		| "hasModelOptions"
 		| "modelOptions"
 		| "canConfigureAgentSetup"
 		| "providerCount"
@@ -191,7 +190,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 	chat,
 	isInputDisabled = false,
 	isSubmissionPending = false,
-	hasModelOptions = true,
 	modelOptions = defaultModelOptions,
 	canConfigureAgentSetup = true,
 	providerCount = 1,
@@ -246,7 +244,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 					isInputDisabled={isInputDisabled}
 					isSendPending={isSubmissionPending}
 					isInterruptPending={false}
-					hasModelOptions={hasModelOptions}
 					canConfigureAgentSetup={canConfigureAgentSetup}
 					providerCount={providerCount}
 					modelCount={modelCount}
@@ -293,7 +290,6 @@ const StoryLoadingComposer: React.FC<{ isDisabled: boolean }> = ({
 			remountKey: 0,
 			onContentChange: fn(),
 			isDisabled,
-			hasModelOptions: true,
 		}}
 		model={{
 			selectedModel: defaultModelID,
@@ -684,13 +680,7 @@ export const SidebarCollapsed: Story = {
 
 /** No model options available — shows a disabled status message. */
 export const NoModelOptions: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			hasModelOptions={false}
-			modelOptions={[]}
-			isInputDisabled
-		/>
-	),
+	render: () => <StoryAgentChatPageView modelOptions={[]} isInputDisabled />,
 };
 
 export const MissingProviderAndModelSetup: Story = {
@@ -700,7 +690,6 @@ export const MissingProviderAndModelSetup: Story = {
 			chat={{ organization_id: MockDefaultOrganization.id }}
 			providerCount={0}
 			modelCount={0}
-			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
 		/>
@@ -714,7 +703,6 @@ export const MissingModelSetup: Story = {
 			chat={{ organization_id: MockDefaultOrganization.id }}
 			providerCount={1}
 			modelCount={0}
-			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
 		/>
@@ -737,7 +725,6 @@ export const MemberNoModelsAvailable: Story = {
 			canConfigureAgentSetup={false}
 			providerCount={0}
 			modelCount={0}
-			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
 		/>

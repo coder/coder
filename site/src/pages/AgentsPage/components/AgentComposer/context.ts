@@ -11,7 +11,8 @@ type WorkspaceUploadsProps = {
 	uploads: readonly WorkspaceFileUpload[];
 	/**
 	 * Present only when the chat has a bound workspace with a connected
-	 * agent; its absence hides the whole affordance.
+	 * agent. Without it, workspace files are refused with
+	 * unavailableMessage.
 	 */
 	onAttach?: (files: File[]) => void;
 	onRemove: (id: string) => void;
@@ -32,12 +33,13 @@ type WorkspaceUploadsProps = {
 /** File data and operations supplied by the draft's upload owner. */
 export type ComposerFileBindings = {
 	attachments: readonly File[];
+	/** Absent when the upload owner does not accept new files. */
 	onAttach?: (files: File[]) => void;
-	onRemoveAttachment?: (attachment: number | File) => void;
-	uploadStates?: Map<File, UploadState>;
-	previewUrls?: Map<File, string>;
-	textContents?: Map<File, string>;
-	workspaceUploads?: WorkspaceUploadsProps;
+	onRemoveAttachment: (attachment: number | File) => void;
+	uploadStates: Map<File, UploadState>;
+	previewUrls: Map<File, string>;
+	textContents: Map<File, string>;
+	workspaceUploads: WorkspaceUploadsProps;
 };
 
 /** Initial document and change notifications for the uncontrolled editor. */
@@ -56,12 +58,11 @@ export type ComposerEditorBindings = {
 
 /** Submission capabilities shared by new and existing chat drafts. */
 export type ComposerDraftBindings = ComposerEditorBindings & {
-	onSend: (message: string) => void;
+	/** Absent when the composer only records a draft and cannot send it. */
+	onSend?: (message: string) => void;
 	isDisabled: boolean;
 	isReadOnly?: boolean;
 	isLoading?: boolean;
-	/** Sending is refused until at least one model is available. */
-	hasModelOptions: boolean;
 	warning?: string;
 };
 
@@ -76,10 +77,10 @@ export type ComposerChatBindings = {
 	userPromptHistory?: readonly string[];
 };
 
-/** Draft inputs for the default runtime. */
+/** Draft inputs for the default runtime. Files are absent when the draft cannot hold any. */
 export type AgentComposerBindings = ComposerDraftBindings &
 	ComposerChatBindings & {
-		files: ComposerFileBindings;
+		files?: ComposerFileBindings;
 		queuedMessages?: readonly ChatQueuedMessage[];
 		onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
 	};
@@ -103,11 +104,12 @@ export type ComposerContextValue = {
 		speechRecording: boolean;
 		speechError: string | null;
 		needsSetup: boolean;
-		files: Pick<
+		/** Absent when the draft cannot hold files. */
+		files?: Pick<
 			ComposerFileBindings,
 			"attachments" | "uploadStates" | "previewUrls" | "textContents"
 		> & {
-			workspaceUploads?: { uploads: readonly WorkspaceFileUpload[] };
+			workspaceUploads: { uploads: readonly WorkspaceFileUpload[] };
 		};
 	};
 	actions: {
@@ -120,8 +122,7 @@ export type ComposerContextValue = {
 		cancelHistoryEdit?: () => void;
 		/** Returns whether any file was routed to an upload owner. */
 		attachFiles: (files: File[]) => boolean;
-		/** Absent when the upload owner does not support removing attachments. */
-		removeAttachment?: (attachment: number | File) => void;
+		removeAttachment: (attachment: number | File) => void;
 		removeWorkspaceUpload: (id: string) => void;
 		inlineText: (file: File, nextContent?: string) => void;
 		contentChange: ComposerEditorBindings["onContentChange"];

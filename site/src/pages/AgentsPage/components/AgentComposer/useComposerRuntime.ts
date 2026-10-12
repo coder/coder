@@ -22,7 +22,6 @@ export function useComposerRuntime(
 		isDisabled,
 		isReadOnly = false,
 		isLoading = false,
-		hasModelOptions,
 		isStreaming = false,
 		onInterrupt,
 		isInterruptPending = false,
@@ -45,11 +44,14 @@ export function useComposerRuntime(
 		null,
 	);
 
-	const workspaceUploads = bindings.files.workspaceUploads;
-	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
-	const hasAttachments = bindings.files.attachments.length > 0;
-	const hasWorkspaceFiles = workspaceUploadEntries.length > 0;
-	const hasDraftFiles = hasAttachments || hasWorkspaceFiles;
+	let hasDraftFiles = false;
+
+	if (bindings.files) {
+		const hasAttachments = bindings.files.attachments.length > 0;
+		const hasWorkspaceFiles =
+			bindings.files.workspaceUploads.uploads.length > 0;
+		hasDraftFiles = hasAttachments || hasWorkspaceFiles;
+	}
 
 	const editor = useComposerEditor(bindings, editorRef, hasDraftFiles);
 	const files = composerFiles(bindings, editor.resetPromptCycle);
@@ -63,7 +65,7 @@ export function useComposerRuntime(
 		isDisabled || isReadOnly || isLoading || files.hasActiveUploads;
 
 	let canSend = false;
-	if (!submissionBlocked && hasModelOptions) {
+	if (!submissionBlocked && onSend) {
 		canSend = hasSendableContent;
 	}
 
@@ -113,7 +115,7 @@ export function useComposerRuntime(
 		const hasSubmissionContent =
 			Boolean(text) || files.hasUploadedAttachments || editor.hasFileReferences;
 
-		if (submissionBlocked) {
+		if (submissionBlocked || !onSend) {
 			return;
 		}
 
@@ -128,10 +130,6 @@ export function useComposerRuntime(
 			return;
 		}
 
-		if (!hasModelOptions) {
-			return;
-		}
-
 		onSend(text);
 		editor.resetPromptCycle();
 
@@ -141,7 +139,7 @@ export function useComposerRuntime(
 	};
 
 	const inlineText = (file: File, nextContent?: string) => {
-		const content = nextContent ?? bindings.files.textContents?.get(file);
+		const content = nextContent ?? bindings.files?.textContents.get(file);
 		const input = editorRef.current;
 
 		if (content === undefined || !input) {
@@ -150,8 +148,20 @@ export function useComposerRuntime(
 
 		editor.resetPromptCycle();
 		input.insertText(content);
-		bindings.files.onRemoveAttachment?.(file);
+		bindings.files?.onRemoveAttachment(file);
 	};
+
+	let stateFiles: ComposerContextValue["state"]["files"];
+
+	if (bindings.files) {
+		stateFiles = {
+			attachments: bindings.files.attachments,
+			uploadStates: bindings.files.uploadStates,
+			previewUrls: bindings.files.previewUrls,
+			textContents: bindings.files.textContents,
+			workspaceUploads: { uploads: bindings.files.workspaceUploads.uploads },
+		};
+	}
 
 	const context: ComposerContextValue = {
 		state: {
@@ -166,16 +176,8 @@ export function useComposerRuntime(
 			canSend,
 			showSendButton,
 			showStopButton,
-			canAttachFiles: bindings.files.onAttach !== undefined,
-			files: {
-				attachments: bindings.files.attachments,
-				uploadStates: bindings.files.uploadStates,
-				previewUrls: bindings.files.previewUrls,
-				textContents: bindings.files.textContents,
-				workspaceUploads: workspaceUploads && {
-					uploads: workspaceUploads.uploads,
-				},
-			},
+			canAttachFiles: bindings.files?.onAttach !== undefined,
+			files: stateFiles,
 			speechSupported: editor.speech.isSupported,
 			speechRecording: editor.speech.isRecording,
 			speechError: editor.speech.error,
@@ -184,8 +186,9 @@ export function useComposerRuntime(
 		actions: {
 			attachFiles: files.attachFiles,
 			inlineText,
-			removeAttachment: bindings.files.onRemoveAttachment,
-			removeWorkspaceUpload: (id) => workspaceUploads?.onRemove(id),
+			removeAttachment: (file) => bindings.files?.onRemoveAttachment(file),
+			removeWorkspaceUpload: (id) =>
+				bindings.files?.workspaceUploads.onRemove(id),
 			resetPromptCycle: editor.resetPromptCycle,
 			submit,
 			startRecording: editor.startRecording,
