@@ -4075,11 +4075,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 ### Parameters
 
-| Name               | In    | Type         | Required | Description                                                                                                                                                                                                                          |
-|--------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `chat`             | path  | string(uuid) | true     | Chat ID                                                                                                                                                                                                                              |
-| `after_id`         | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set                                                                                                                                        |
-| `snapshot_version` | query | integer      | false    | Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event. The stream then sends the turn in checkpoint events instead of status, error, retry and action_required events |
+| Name               | In    | Type         | Required | Description                                                                                                                                                                                                                                              |
+|--------------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat`             | path  | string(uuid) | true     | Chat ID                                                                                                                                                                                                                                                  |
+| `after_id`         | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set                                                                                                                                                            |
+| `snapshot_version` | query | integer      | false    | Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event. The stream then sends the turn in checkpoint events instead of status, error and retry events, and sends no action_required events |
 
 ### Example responses
 
