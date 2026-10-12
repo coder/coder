@@ -3124,6 +3124,11 @@ export interface ChatMessagesResponse {
 	 * before_id or after_id.
 	 */
 	readonly snapshot_version?: number;
+	/**
+	 * Turn is the chat's turn at SnapshotVersion. It is set only on pages
+	 * requested without before_id or after_id.
+	 */
+	readonly turn?: ChatStreamTurn;
 }
 
 // From codersdk/chats.go
@@ -3842,6 +3847,11 @@ export interface ChatStreamCheckpoint {
 	 * reconnects with the value of the last checkpoint it received.
 	 */
 	readonly snapshot_version: number;
+	/**
+	 * Turn is the chat's turn at SnapshotVersion. It replaces the turn the
+	 * client holds.
+	 */
+	readonly turn: ChatStreamTurn;
 }
 
 // From codersdk/chats.go
@@ -3974,6 +3984,23 @@ export interface ChatStreamToolCall {
 	readonly tool_call_id: string;
 	readonly tool_name: string;
 	readonly args: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatStreamTurn is the state of a chat's turn.
+ */
+export interface ChatStreamTurn {
+	readonly status: ChatStatus;
+	/**
+	 * Error is set while the status is error.
+	 */
+	readonly error?: ChatError;
+	/**
+	 * Retry is set while the status is running and a retry of the failed
+	 * attempt is pending.
+	 */
+	readonly retry?: ChatStreamRetry;
 }
 
 // From codersdk/chats.go

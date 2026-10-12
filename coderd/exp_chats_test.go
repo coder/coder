@@ -15261,6 +15261,9 @@ type chatTab struct {
 
 func newChatTab(page codersdk.ChatMessagesResponse) *chatTab {
 	tab := &chatTab{ids: map[int64]bool{}, version: page.SnapshotVersion, queue: []int64{}}
+	if page.Turn != nil {
+		tab.status = page.Turn.Status
+	}
 	tab.hold(page.Messages...)
 	for _, queued := range page.QueuedMessages {
 		tab.queue = append(tab.queue, queued.ID)
@@ -15327,8 +15330,6 @@ func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan 
 				maps.DeleteFunc(tab.ids, func(id int64, _ bool) bool { return id >= fromID })
 			case codersdk.ChatStreamEventTypeMessage:
 				tab.hold(*event.Message)
-			case codersdk.ChatStreamEventTypeStatus:
-				tab.status = event.Status.Status
 			case codersdk.ChatStreamEventTypeQueueUpdate:
 				tab.queue = make([]int64, 0, len(event.QueuedMessages))
 				for _, queued := range event.QueuedMessages {
@@ -15337,6 +15338,7 @@ func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan 
 			case codersdk.ChatStreamEventTypeCheckpoint:
 				if event.Checkpoint != nil {
 					tab.version = event.Checkpoint.SnapshotVersion
+					tab.status = event.Checkpoint.Turn.Status
 				}
 			}
 			if done(event) {
