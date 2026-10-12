@@ -12,7 +12,6 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -28,112 +27,69 @@ func TestStreamLoopSyncHintDecision(t *testing.T) {
 
 	workerA := uuid.New()
 	workerB := uuid.New()
-	chatID := uuid.New()
-	newLoop := func(t *testing.T, db database.Store) *streamLoop {
-		return &streamLoop{
-			chatID: chatID,
-			db:     db,
-			logger: slogtest.Make(t, nil),
-			state: streamLocalState{
-				snapshotVersion:           5,
-				historyVersion:            2,
-				queueVersion:              3,
-				retryVersion:              4,
-				status:                    database.ChatStatusRunning,
-				workerID:                  uuid.NullUUID{UUID: workerA, Valid: true},
-				generationAttempt:         1,
-				knownMessages:             make(map[int64]int64),
-				initialMessageSyncDone:    true,
-				openedWithSnapshotVersion: true,
-			},
-		}
-	}
-	unchanged := streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 4, status: database.ChatStatusRunning, workerID: uuid.NullUUID{UUID: workerA, Valid: true}, generationAttempt: 1}
-
-	// A hint at or below the stream's snapshot version emits nothing and
-	// reads nothing: the mock store fails the test on any call.
-	for _, hint := range []streamSyncHint{
-		{snapshotVersion: 5, historyVersion: 3},
-		{snapshotVersion: 4, historyVersion: 3},
-		{snapshotVersion: 5},
-	} {
-		loop := newLoop(t, dbmock.NewMockStore(gomock.NewController(t)))
-		events, _, changed, err := loop.sync(context.Background(), hint)
-		require.NoError(t, err)
-		require.False(t, changed)
-		require.Empty(t, events, "hint %+v", hint)
+	loop := &streamLoop{
+		state: streamLocalState{
+			snapshotVersion:   5,
+			historyVersion:    2,
+			queueVersion:      3,
+			retryVersion:      4,
+			status:            database.ChatStatusRunning,
+			workerID:          uuid.NullUUID{UUID: workerA, Valid: true},
+			generationAttempt: 1,
+		},
 	}
 
-	// A new snapshot version whose tracked fields are unchanged, such as an
-	// archive, emits one checkpoint at that version without a database read,
-	// whether the hint came from pubsub or from the poller.
-	pollRow := database.GetChatStreamSyncRowsRow{
-		ID:                chatID,
-		SnapshotVersion:   unchanged.snapshotVersion,
-		HistoryVersion:    unchanged.historyVersion,
-		QueueVersion:      unchanged.queueVersion,
-		RetryStateVersion: unchanged.retryVersion,
-		Status:            unchanged.status,
-		WorkerID:          unchanged.workerID,
-		GenerationAttempt: unchanged.generationAttempt,
-	}
-	for name, hint := range map[string]streamSyncHint{
-		"pubsub": unchanged,
-		"poller": streamSyncHintFromPollRow(pollRow),
-	} {
-		loop := newLoop(t, dbmock.NewMockStore(gomock.NewController(t)))
-		events, _, _, err := loop.sync(context.Background(), hint)
-		require.NoError(t, err, name)
-		require.Equal(t, []codersdk.ChatStreamEvent{{
-			Type:   codersdk.ChatStreamEventTypeCheckpoint,
-			ChatID: chatID,
-			Checkpoint: &codersdk.ChatStreamCheckpoint{
-				SnapshotVersion: 6,
-			},
-		}}, events, name)
-
-		// The checkpoint advanced the stream, so the same hint is stale.
-		events, _, _, err = loop.sync(context.Background(), hint)
-		require.NoError(t, err, name)
-		require.Empty(t, events, name)
-	}
-
-	errRead := xerrors.New("database read")
 	for _, tt := range []struct {
 		name string
 		hint streamSyncHint
+		want bool
 	}{
+		{
+			name: "stale snapshot ignored even with higher history",
+			hint: streamSyncHint{snapshotVersion: 5, historyVersion: 3},
+		},
+		{
+			name: "duplicate snapshot ignored",
+			hint: streamSyncHint{snapshotVersion: 5},
+		},
+		{
+			name: "new snapshot with no changed fields is ignored",
+			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 4, status: database.ChatStatusRunning, workerID: uuid.NullUUID{UUID: workerA, Valid: true}, generationAttempt: 1},
+		},
 		{
 			name: "new history fetches",
 			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 3},
+			want: true,
 		},
 		{
 			name: "new queue fetches",
 			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 4},
+			want: true,
 		},
 		{
 			name: "new retry fetches",
 			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 5},
+			want: true,
 		},
 		{
 			name: "new status fetches",
 			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 4, status: database.ChatStatusWaiting, workerID: uuid.NullUUID{UUID: workerA, Valid: true}, generationAttempt: 1},
+			want: true,
 		},
 		{
 			name: "new worker fetches",
 			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 4, status: database.ChatStatusRunning, workerID: uuid.NullUUID{UUID: workerB, Valid: true}, generationAttempt: 1},
+			want: true,
 		},
 		{
 			name: "new generation attempt fetches",
 			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 4, status: database.ChatStatusRunning, workerID: uuid.NullUUID{UUID: workerA, Valid: true}, generationAttempt: 2},
+			want: true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			db := dbmock.NewMockStore(gomock.NewController(t))
-			db.EXPECT().InTx(gomock.Any(), gomock.Any()).Return(errRead)
-			_, _, _, err := newLoop(t, db).sync(context.Background(), tt.hint)
-			require.ErrorIs(t, err, errRead, "the hint must trigger a database read")
+			require.Equal(t, tt.want, loop.shouldFetch(tt.hint))
 		})
 	}
 }

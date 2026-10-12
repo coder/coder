@@ -1273,7 +1273,6 @@ The stream loop stores:
 - latest `generation_attempt`;
 - last accepted preview part `seq`;
 - whether the current generation attempt is retired (`attempt_retired`);
-- the turn sent in the last `checkpoint`;
 
 Initial null state:
 
@@ -1322,7 +1321,7 @@ The loop processes one operation at a time. It must not process another input ha
     - `status != local.status`;
     - `worker_id != local.worker_id`;
     - `generation_attempt != local.generation_attempt`.
-3. If none of the above conditions indicate that local state may be stale, set `local.snapshot_version = snapshot_version`, emit `checkpoint`, and return without fetching. Notifications and poller rows carry the post-commit row, so unchanged tracked fields mean the client-visible state at that `snapshot_version` equals what the stream already sent. Every committed `snapshot_version` therefore reaches every open stream as a checkpoint, including transitions such as archiving that change no tracked field.
+3. If none of the above conditions indicate that local state may be stale, return no-op.
 4. Otherwise fetch from the database.
 
 After fetching, if `db.snapshot_version <= local.snapshot_version`, return no-op. Otherwise apply the database result.
@@ -1341,7 +1340,7 @@ Applying the database result means, in deterministic order:
 8. If this is the first sync, `db.history_version > local.history_version`, (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), or step 7 changed `attempt_retired` from false to true, set last accepted preview part `seq = 0` and emit `preview_reset`. The first sync emits it because the client's preview parts came from an earlier connection, and this one relays the current attempt's parts from the start. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
 9. Emit `checkpoint` with `db.snapshot_version` and the turn of the chat row.
 10. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
-11. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, `generation_attempt`, and the turn from the db to local state.
+11. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
 
 Steps 3 to 6 run only on streams opened without `snapshot_version`.
 
@@ -1369,7 +1368,7 @@ Each field is optional. Missing fields are ignored. `worker_id` uses a tri-state
 - present with a null worker means compare against a null worker;
 - present with a worker ID means compare against that worker ID.
 
-Notification fields cause no client event other than the `checkpoint` of step 3 above, emitted when they show no tracked change. Otherwise they only decide that `Sync` fetches from the database, and only the database result decides what to emit.
+Notification fields do not directly cause client events. They only help decide whether `Sync` should fetch from the database. Only the database result decides what to emit.
 
 ### How the sync poller triggers sync
 
