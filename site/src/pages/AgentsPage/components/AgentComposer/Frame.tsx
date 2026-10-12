@@ -232,15 +232,25 @@ export function Frame({
 		}
 	};
 
+	// File drags are always claimed so a composer that cannot attach still
+	// keeps the browser from navigating to the dropped file.
 	const handleDragOver = (event: React.DragEvent) => {
+		if (!event.dataTransfer.types.includes("Files")) {
+			return;
+		}
+
 		event.preventDefault();
 
-		if (event.dataTransfer.types.includes("Files")) {
+		if (state.canAttachFiles) {
 			setIsDragging(true);
 		}
 	};
 
 	const handleDragLeave = (event: React.DragEvent) => {
+		if (!state.canAttachFiles) {
+			return;
+		}
+
 		const { relatedTarget } = event;
 		const leftFrame =
 			!(relatedTarget instanceof Node) ||
@@ -252,14 +262,16 @@ export function Frame({
 	};
 
 	const handleDrop = (event: React.DragEvent) => {
-		event.preventDefault();
-		setIsDragging(false);
-
 		if (event.dataTransfer.files.length === 0) {
 			return;
 		}
 
-		actions.attachFiles(Array.from(event.dataTransfer.files));
+		event.preventDefault();
+		setIsDragging(false);
+
+		if (state.canAttachFiles) {
+			actions.attachFiles(Array.from(event.dataTransfer.files));
+		}
 	};
 
 	return (
@@ -275,9 +287,9 @@ export function Frame({
 				className,
 			)}
 			onKeyDown={handleKeyDown}
-			onDragOver={state.canAttachFiles ? handleDragOver : undefined}
-			onDragLeave={state.canAttachFiles ? handleDragLeave : undefined}
-			onDrop={state.canAttachFiles ? handleDrop : undefined}
+			onDragOver={handleDragOver}
+			onDragLeave={handleDragLeave}
+			onDrop={handleDrop}
 		>
 			{children}
 		</div>
