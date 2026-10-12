@@ -5239,3 +5239,115 @@ describe("parse errors", () => {
 		});
 	});
 });
+
+describe("chat stream syncs", () => {
+	const chatID = "chat-sync";
+	const checkpoint = (
+		snapshotVersion: number,
+		turn: TypesGen.ChatStreamTurn = { status: "running" },
+	): TypesGen.ChatStreamEvent => ({
+		type: "checkpoint",
+		chat_id: chatID,
+		checkpoint: { snapshot_version: snapshotVersion, turn },
+	});
+	const renderChat = (page: TypesGen.ChatMessagesResponse) => {
+		mockNewestPage(chatID, page);
+		return renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatRecord: buildChat(chatID),
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					messageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					queuedIDs: useChatSelector(store, selectQueuedMessages).map(
+						(message) => message.id,
+					),
+				};
+			},
+			{ wrapper: createWrapper(createTestQueryClient()) },
+		);
+	};
+
+	it("shows a sync only at its checkpoint", async () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat({
+			messages: [
+				buildMessage(chatID, 1, "user", "prompt"),
+				buildMessage(chatID, 2, "assistant", "answer"),
+			],
+			queued_messages: [buildQueuedMessage(chatID, 10, "next")],
+			has_more: false,
+			snapshot_version: 4,
+		});
+		await waitFor(() => expect(sockets).toHaveLength(1));
+
+		// The turn ends and the queued message is promoted. The sync arrives
+		// in two frames.
+		act(() => {
+			sockets[0].emitDataBatch([
+				{
+					type: "message",
+					chat_id: chatID,
+					message: {
+						...buildMessage(chatID, 3, "user", "next"),
+						queued_message_id: 10,
+					},
+				},
+			]);
+		});
+		expect(result.current).toEqual({ messageIDs: [1, 2], queuedIDs: [10] });
+
+		act(() => {
+			sockets[0].emitDataBatch([
+				{ type: "queue_update", chat_id: chatID, queued_messages: [] },
+				{ type: "preview_reset", chat_id: chatID },
+				checkpoint(5),
+			]);
+		});
+		expect(result.current).toEqual({ messageIDs: [1, 2, 3], queuedIDs: [] });
+	});
+
+	it("drops a sync that the connection lost before its checkpoint", async () => {
+		vi.spyOn(Math, "random").mockReturnValue(0.5);
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat({
+			messages: [buildMessage(chatID, 1, "user", "prompt")],
+			queued_messages: [],
+			has_more: false,
+			snapshot_version: 4,
+		});
+		await waitFor(() => expect(sockets).toHaveLength(1));
+
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitData({
+				type: "message",
+				chat_id: chatID,
+				message: buildMessage(chatID, 2, "assistant", "partial sync"),
+			});
+			sockets[0].emitError();
+		});
+		expect(result.current.messageIDs).toEqual([1]);
+
+		// The reconnect resumes from the last checkpoint and sends the sync
+		// again.
+		await waitFor(() => expect(sockets).toHaveLength(2), { timeout: 3_000 });
+		expect(watchChat).toHaveBeenLastCalledWith(chatID, 4);
+		act(() => {
+			sockets[1].emitOpen();
+			sockets[1].emitDataBatch([
+				{
+					type: "message",
+					chat_id: chatID,
+					message: buildMessage(chatID, 2, "assistant", "answer"),
+				},
+				{ type: "preview_reset", chat_id: chatID },
+				checkpoint(5),
+			]);
+		});
+		expect(result.current.messageIDs).toEqual([1, 2]);
+	});
+});

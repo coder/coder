@@ -152,11 +152,8 @@ export type ChatStore = {
 	// Seeds the store from fetchPage unless it is loaded or loading.
 	load: (fetchPage: () => Promise<TypesGen.ChatMessagesResponse>) => void;
 	replaceMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
-	// Applies a history_reset: keeps messages below fromID, or none.
-	replaceMessagesFrom: (
-		fromID: number | undefined,
-		messages: readonly TypesGen.ChatMessage[],
-	) => void;
+	// Applies a history_reset: drops the messages with IDs at or above fromID.
+	resetHistoryFrom: (fromID: number) => void;
 	getHistoryResetCount: () => number;
 	// Drops the page if a history reset was applied since resetCount.
 	prependOlderMessages: (
@@ -457,15 +454,13 @@ export const createChatStore = (): ChatStore => {
 				},
 			);
 		},
-		replaceMessagesFrom: (fromID, messages) => {
+		resetHistoryFrom: (fromID) => {
 			historyResets++;
-			const kept =
-				fromID === undefined
-					? []
-					: [...state.messagesByID.values()].filter(
-							(message) => message.id < fromID,
-						);
-			replaceMessages([...kept, ...messages]);
+			replaceMessages(
+				[...state.messagesByID.values()].filter(
+					(message) => message.id < fromID,
+				),
+			);
 		},
 		getHistoryResetCount: () => historyResets,
 		prependOlderMessages: (messages, hasMore, resetCount) => {

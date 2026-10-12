@@ -378,7 +378,8 @@ describe("submitChatTurn", () => {
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
 
 		// The stream applies the edit, then its checkpoint ends the overlay.
-		store.replaceMessagesFrom(3, [textMessage(9, "user", "new")]);
+		store.resetHistoryFrom(3);
+		store.upsertDurableMessages([textMessage(9, "user", "new")]);
 		store.setQueuedMessages([]);
 		store.setChatStatus("running");
 		store.applyCheckpoint(6);
