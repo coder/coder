@@ -60,11 +60,9 @@ type sqlcQuerier interface {
 	// from error; once step 5 clears the queue these are StateXW and StateXE0.
 	// It publishes nothing, so callers publish chat:update per chat. Clearing
 	// the runner makes heartbeat renewal stop matching, so workers stop;
-	// archived roots refuse new sub-chats. Sub-chats get the project ID so they
-	// stay in the deleted project if retention deletes their root first. Run it
-	// before clearing the queue, so a send waiting on a chat lock reads the
-	// archived state and is refused. Keep the SET list in sync with
-	// UpdateChatExecutionState.
+	// archived roots refuse new sub-chats. Run it before clearing the queue, so
+	// a send waiting on a chat lock reads the archived state and is refused.
+	// Keep the SET list in sync with UpdateChatExecutionState.
 	ArchiveChatsOfDeletedChatProject(ctx context.Context, projectID uuid.UUID) error
 	// Archiving templates is a soft delete action, so is reversible.
 	// Archiving prevents the version from being used and discovered
@@ -564,6 +562,7 @@ type sqlcQuerier interface {
 	// this return no rows.
 	GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error)
+	// Sub-chats carry their root's project_id, so this returns whole families.
 	GetChatProjectChatFamilies(ctx context.Context, projectID uuid.UUID) ([]Chat, error)
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)

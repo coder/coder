@@ -126,16 +126,10 @@ WHERE id = @id::uuid AND NOT deleted
 FOR SHARE;
 
 -- name: GetChatProjectChatFamilies :many
+-- Sub-chats carry their root's project_id, so this returns whole families.
 SELECT *
 FROM chats_expanded
-WHERE id IN (
-    SELECT chats.id FROM chats WHERE chats.project_id = @project_id::uuid
-    UNION ALL
-    SELECT child.id
-    FROM chats child
-    JOIN chats root ON root.id = child.root_chat_id
-    WHERE root.project_id = @project_id::uuid
-)
+WHERE project_id = @project_id::uuid
 ORDER BY id;
 
 -- name: LockChatProjectRootChats :exec
@@ -154,27 +148,12 @@ FOR UPDATE;
 -- from error; once step 5 clears the queue these are StateXW and StateXE0.
 -- It publishes nothing, so callers publish chat:update per chat. Clearing
 -- the runner makes heartbeat renewal stop matching, so workers stop;
--- archived roots refuse new sub-chats. Sub-chats get the project ID so they
--- stay in the deleted project if retention deletes their root first. Run it
--- before clearing the queue, so a send waiting on a chat lock reads the
--- archived state and is refused. Keep the SET list in sync with
--- UpdateChatExecutionState.
-WITH family AS (
-    SELECT chats.id
-    FROM chats
-    JOIN chat_projects ON chat_projects.id = chats.project_id
-    WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
-    UNION ALL
-    SELECT child.id
-    FROM chats child
-    JOIN chats root ON root.id = child.root_chat_id
-    JOIN chat_projects ON chat_projects.id = root.project_id
-    WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
-)
+-- archived roots refuse new sub-chats. Run it before clearing the queue, so
+-- a send waiting on a chat lock reads the archived state and is refused.
+-- Keep the SET list in sync with UpdateChatExecutionState.
 UPDATE chats
 SET
     archived = true,
-    project_id = @project_id::uuid,
     pin_order = 0,
     status = CASE WHEN status = 'error'::chat_status THEN 'error'::chat_status ELSE 'waiting'::chat_status END,
     worker_id = NULL,
@@ -184,7 +163,10 @@ SET
     retry_state = NULL,
     snapshot_version = snapshot_version + 1,
     updated_at = now()
-WHERE id IN (SELECT id FROM family);
+FROM chat_projects
+WHERE chats.project_id = @project_id::uuid
+    AND chat_projects.id = chats.project_id
+    AND chat_projects.deleted;
 
 -- name: DeleteChatQueuedMessagesOfDeletedChatProject :exec
 -- Lives here rather than with the other queue queries because it is a step
@@ -195,20 +177,13 @@ WHERE chat_id IN (
     FROM chats
     JOIN chat_projects ON chat_projects.id = chats.project_id
     WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
-    UNION ALL
-    SELECT child.id
-    FROM chats child
-    JOIN chats root ON root.id = child.root_chat_id
-    JOIN chat_projects ON chat_projects.id = root.project_id
-    WHERE chat_projects.id = @project_id::uuid AND chat_projects.deleted
 );
 
 -- name: IsChatInDeletedChatProject :one
 SELECT EXISTS (
     SELECT 1
     FROM chats c
-    JOIN chats root ON root.id = COALESCE(c.root_chat_id, c.parent_chat_id, c.id)
-    JOIN chat_projects ON chat_projects.id = root.project_id
+    JOIN chat_projects ON chat_projects.id = c.project_id
     WHERE c.id = @chat_id::uuid AND chat_projects.deleted
 )::boolean;
 

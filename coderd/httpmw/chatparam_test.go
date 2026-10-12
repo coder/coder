@@ -174,6 +174,7 @@ func TestChatParam(t *testing.T) {
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			LastModelConfigID: seed.LastModelConfigID,
+			ProjectID:         root.ProjectID,
 			ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
 		})
@@ -194,6 +195,7 @@ func TestChatParam(t *testing.T) {
 		require.Equal(t, http.StatusOK, status(child.ID))
 
 		require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
+		require.NoError(t, db.ArchiveChatsOfDeletedChatProject(ctx, project.ID))
 		require.Equal(t, http.StatusNotFound, status(root.ID))
 		require.Equal(t, http.StatusNotFound, status(child.ID))
 	})

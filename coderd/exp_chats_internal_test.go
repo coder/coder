@@ -127,7 +127,6 @@ func TestGetChatCostQueriesRootChat(t *testing.T) {
 	}
 
 	dbm.EXPECT().GetChatByID(gomock.Any(), child.ID).Return(child, nil)
-	dbm.EXPECT().IsChatInDeletedChatProject(gomock.Any(), child.ID).Return(false, nil)
 	dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), rootID).Return(
 		database.GetAIBridgeChatCostRow{
 			TotalCostMicros:      250,
@@ -170,7 +169,6 @@ func TestGetChatCostFallsBackToParentChat(t *testing.T) {
 	}
 
 	dbm.EXPECT().GetChatByID(gomock.Any(), child.ID).Return(child, nil)
-	dbm.EXPECT().IsChatInDeletedChatProject(gomock.Any(), child.ID).Return(false, nil)
 	dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), parentID).Return(
 		database.GetAIBridgeChatCostRow{TotalCostMicros: 125, RequestCount: 1},
 		nil,

@@ -48,8 +48,9 @@ const (
 	// log batches because chat_files rows carry bytea blobs.
 	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
-	// Deleted project rows are small; the batch only bounds one tick.
-	deletedChatProjectsBatchSize = 1000
+	// Each deleted project cascades up to 200 memories of up to 8 KiB, so
+	// the batch stays small.
+	deletedChatProjectsBatchSize = 100
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000

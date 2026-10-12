@@ -2980,13 +2980,13 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				deleteProject := func(project database.ChatProject, archivedAt time.Time) {
 					require.NoError(t, db.UpdateChatProjectDeletedByID(ctx, project.ID))
 					require.NoError(t, db.ArchiveChatsOfDeletedChatProject(ctx, project.ID))
-					_, err := rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $2 WHERE project_id = $1 OR root_chat_id IN (SELECT id FROM chats WHERE project_id = $1)", project.ID, archivedAt)
+					_, err := rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $2 WHERE project_id = $1", project.ID, archivedAt)
 					require.NoError(t, err)
 				}
 
 				agedProject := newProject()
 				agedRoot := newChat(uuid.NullUUID{UUID: agedProject.ID, Valid: true}, uuid.NullUUID{})
-				agedChild := newChat(uuid.NullUUID{}, uuid.NullUUID{UUID: agedRoot.ID, Valid: true})
+				agedChild := newChat(uuid.NullUUID{UUID: agedProject.ID, Valid: true}, uuid.NullUUID{UUID: agedRoot.ID, Valid: true})
 				deleteProject(agedProject, now.Add(-31*24*time.Hour))
 				recentProject := newProject()
 				recentRoot := newChat(uuid.NullUUID{UUID: recentProject.ID, Valid: true}, uuid.NullUUID{})

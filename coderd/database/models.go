@@ -5477,7 +5477,7 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
-	// Optional project that groups a root chat with related chats.
+	// Project the chat belongs to. Sub-chats carry their root chat's project.
 	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
 	// Rows from before this column existed are fallback regardless of who set their title.
 	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`

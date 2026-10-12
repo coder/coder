@@ -1,17 +1,13 @@
 -- The chat_project:share enum value cannot be dropped.
 
--- Sub-chats carry no project_id; deleting only the roots would turn them
--- into top-level chats.
-WITH roots AS (
-    SELECT chats.id
-    FROM chats
-    JOIN chat_projects ON chat_projects.id = chats.project_id
-    WHERE chat_projects.deleted
-)
+-- Sub-chats carry their root's project_id, so this deletes whole families.
 DELETE FROM chats
-WHERE id IN (SELECT id FROM roots)
-    OR root_chat_id IN (SELECT id FROM roots);
+USING chat_projects
+WHERE chats.project_id = chat_projects.id AND chat_projects.deleted;
 DELETE FROM chat_projects WHERE deleted;
+
+COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat with related chats.';
+UPDATE chats SET project_id = NULL WHERE parent_chat_id IS NOT NULL;
 ALTER TABLE chat_projects DROP COLUMN deleted;
 
 DROP INDEX IF EXISTS idx_chat_projects_group_acl;
