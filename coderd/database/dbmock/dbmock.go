@@ -10609,6 +10609,21 @@ func (mr *MockStoreMockRecorder) UpdateChatAutomationIDByID(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAutomationIDByID", reflect.TypeOf((*MockStore)(nil).UpdateChatAutomationIDByID), ctx, arg)
 }
 
+// UpdateChatAutomationLastRunByID mocks base method.
+func (m *MockStore) UpdateChatAutomationLastRunByID(ctx context.Context, arg database.UpdateChatAutomationLastRunByIDParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatAutomationLastRunByID", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatAutomationLastRunByID indicates an expected call of UpdateChatAutomationLastRunByID.
+func (mr *MockStoreMockRecorder) UpdateChatAutomationLastRunByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAutomationLastRunByID", reflect.TypeOf((*MockStore)(nil).UpdateChatAutomationLastRunByID), ctx, arg)
+}
+
 // UpdateChatAutomationWebhookSecretByID mocks base method.
 func (m *MockStore) UpdateChatAutomationWebhookSecretByID(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
 	m.ctrl.T.Helper()

@@ -156,7 +156,7 @@ const docTemplate = `{
         },
         "/api/experimental/chat-automations/{automation}/events": {
             "post": {
-                "description": "Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The event data must also be at most 256 KiB after HTML escaping, which counts each \u003c, \u003e, \u0026, U+2028, and U+2029 in a JSON string as six bytes. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.",
+                "description": "Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to the deployment's webhook body limit, 64 KiB by default. The event data must also fit that limit after HTML escaping, which counts each \u003c, \u003e, \u0026, U+2028, and U+2029 in a JSON string as six bytes. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.",
                 "consumes": [
                     "application/json"
                 ],
@@ -185,7 +185,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Event data: any JSON value up to 256 KiB, also after HTML escaping",
+                        "description": "Event data: any JSON value up to the webhook body limit, also after HTML escaping",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -799,7 +799,7 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.",
+                "description": "Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind, target mode, and webhook use of an automation cannot change: a request that sets one of them, or any unknown field, fails with 400. A request that changes nothing leaves updated_at as it was.",
                 "consumes": [
                     "application/json"
                 ],
@@ -21232,6 +21232,14 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "last_run": {
+                    "description": "LastRun is the outcome of the latest run, null until the first one.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationLastRun"
+                        }
+                    ]
+                },
                 "name": {
                     "type": "string"
                 },
@@ -21399,6 +21407,57 @@ const docTemplate = `{
                 "ChatAutomationKindSchedule"
             ]
         },
+        "codersdk.ChatAutomationLastRun": {
+            "type": "object",
+            "properties": {
+                "at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "chat_id": {
+                    "description": "ChatID is the chat the run went to, or was meant for when the target\nchat was known. The chat can be deleted since.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "outcome": {
+                    "enum": [
+                        "accepted",
+                        "skipped",
+                        "refused"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationRunOutcome"
+                        }
+                    ]
+                },
+                "reason": {
+                    "description": "Reason is set for skipped and refused runs.",
+                    "enum": [
+                        "chat_busy",
+                        "queue_full",
+                        "missed",
+                        "hook_denied",
+                        "owner_inactive",
+                        "forbidden",
+                        "model_unavailable",
+                        "target_unavailable",
+                        "experiment_disabled",
+                        "disabled",
+                        "single_use_consumed",
+                        "body_too_large",
+                        "invalid_body",
+                        "no_default_model",
+                        "error"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationRunReason"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.ChatAutomationPausedReason": {
             "type": "string",
             "enum": [
@@ -21438,6 +21497,56 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.ChatAutomationRunOutcome": {
+            "type": "string",
+            "enum": [
+                "accepted",
+                "skipped",
+                "refused"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationRunOutcomeAccepted",
+                "ChatAutomationRunOutcomeSkipped",
+                "ChatAutomationRunOutcomeRefused"
+            ]
+        },
+        "codersdk.ChatAutomationRunReason": {
+            "type": "string",
+            "enum": [
+                "chat_busy",
+                "queue_full",
+                "missed",
+                "hook_denied",
+                "owner_inactive",
+                "forbidden",
+                "model_unavailable",
+                "target_unavailable",
+                "experiment_disabled",
+                "disabled",
+                "single_use_consumed",
+                "body_too_large",
+                "invalid_body",
+                "no_default_model",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationRunReasonChatBusy",
+                "ChatAutomationRunReasonQueueFull",
+                "ChatAutomationRunReasonMissed",
+                "ChatAutomationRunReasonHookDenied",
+                "ChatAutomationRunReasonOwnerInactive",
+                "ChatAutomationRunReasonForbidden",
+                "ChatAutomationRunReasonModelUnavailable",
+                "ChatAutomationRunReasonTargetUnavailable",
+                "ChatAutomationRunReasonExperimentDisabled",
+                "ChatAutomationRunReasonDisabled",
+                "ChatAutomationRunReasonSingleUseConsumed",
+                "ChatAutomationRunReasonBodyTooLarge",
+                "ChatAutomationRunReasonInvalidBody",
+                "ChatAutomationRunReasonNoDefaultModel",
+                "ChatAutomationRunReasonError"
+            ]
         },
         "codersdk.ChatAutomationRunResponse": {
             "type": "object",
@@ -21542,6 +21651,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "acquire_batch_size": {
+                    "type": "integer"
+                },
+                "automation_webhook_max_body_bytes": {
+                    "description": "AutomationWebhookMaxBodyBytes is the maximum size in bytes of a chat\nautomation webhook body and of its escaped event data.",
                     "type": "integer"
                 },
                 "debug_logging_enabled": {

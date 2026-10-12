@@ -75,7 +75,13 @@ func TestChatAutomationRuns(t *testing.T) {
 
 		after, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), id)
 		require.NoError(t, err)
-		require.Equal(t, before, after, "running now must not write the automation, so the schedule cursor and revision stay")
+		// Running now records only the last run, so the schedule cursor,
+		// revision, and updated_at stay.
+		require.True(t, after.LastRunAt.Valid)
+		require.Equal(t, database.ChatAutomationRunOutcomeAccepted, after.LastRunOutcome.ChatAutomationRunOutcome)
+		require.Equal(t, uuid.NullUUID{UUID: env.memberChat.ID, Valid: true}, after.LastRunChatID)
+		after.LastRunAt, after.LastRunOutcome, after.LastRunChatID = before.LastRunAt, before.LastRunOutcome, before.LastRunChatID
+		require.Equal(t, before, after, "running now must not change the automation")
 	})
 
 	t.Run("OnlyOwnerCanRun", func(t *testing.T) {

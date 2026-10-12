@@ -591,6 +591,19 @@ If not provided, the system certificate pool is used.
 
 Configure the background chat processing daemon.
 
+### Automation webhook max body bytes
+
+Maximum size in bytes of a chat automation webhook body, and of its event data after escaping.
+Larger deliveries fail with HTTP 413.
+The whole body becomes part of the chat's next prompt, so one large body can use up much of a model's context window.
+Must be between 1024 (1 KiB) and 262144 (256 KiB), the request body limit of the chat endpoints.
+
+- Type: `int`
+- Environment variable: `CODER_CHAT_AUTOMATION_WEBHOOK_MAX_BODY_BYTES`
+- CLI flag: [`--chat-automation-webhook-max-body-bytes`](../../reference/cli/server/index.md#--chat-automation-webhook-max-body-bytes)
+- YAML key: `chat.automationWebhookMaxBodyBytes`
+- Default value: `65536`
+
 ### Debug logging enabled
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.

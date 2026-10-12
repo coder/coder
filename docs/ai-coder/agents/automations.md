@@ -170,6 +170,10 @@ Other management requests use the same base path:
 Changing the prompt doesn't change messages that the automation already queued: they keep the prompt they were sent with.
 To remove those messages, turn the automation off or delete it.
 
+The kind, target mode, and webhook use of an automation can't change.
+A `PATCH` that sets one of them, or a field that doesn't exist, returns `400` and names the field in `validations`.
+A `PATCH` that changes nothing leaves `updated_at` as it was.
+
 ### Read why an automation can't run
 
 List and get responses include `paused_reasons` when a condition stops an automation from running while it's turned on.
@@ -186,6 +190,37 @@ The Automations page shows a **Paused** badge with the reason, and **Run now** e
 
 The field is a snapshot, not a guarantee.
 A response without `paused_reasons` can still be refused, for example when the target chat is busy or its queue is full.
+
+### Read the outcome of the last run
+
+List and get responses include `last_run`, the outcome of the latest schedule occurrence, **Run now**, or webhook delivery.
+It's `null` until the first run, and each run replaces it: it's not a run history.
+
+```json
+{
+  "last_run": {
+    "at": "2026-10-12T09:00:01Z",
+    "outcome": "skipped",
+    "reason": "chat_busy",
+    "chat_id": "4d6a3b2e-0f6c-4c39-9a8e-7a1f2d3c4b5a"
+  }
+}
+```
+
+| Field     | Meaning                                                                                                                                             |
+|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `at`      | When Coder decided the run.                                                                                                                         |
+| `outcome` | `accepted`: the prompt was sent or queued. `skipped`: the target chat was busy or full, or the occurrence was missed. `refused`: see `reason`.      |
+| `reason`  | Missing for accepted runs. One of the reasons below.                                                                                                |
+| `chat_id` | The chat the run went to, or was meant for when Coder knew the target chat. Missing when a new-chat run was refused. The chat can be deleted since. |
+
+Skipped runs have the reason `chat_busy`, `queue_full`, or `missed`.
+Refused runs have the reason `hook_denied`, `owner_inactive`, `forbidden`, `model_unavailable`, `target_unavailable`, `experiment_disabled`, `disabled`, `single_use_consumed`, `body_too_large`, `invalid_body`, `no_default_model`, or `error`.
+
+Coder records webhook deliveries only after the secret matches, so requests with a wrong secret never change `last_run`.
+Coder doesn't start scheduled runs while the automation has `paused_reasons`, so those occurrences don't change `last_run` either.
+
+### Read the referenced chats and owner
 
 Responses also include `target_chat` and `created_by_chat` with the `id` and `title` of the target chat and of the chat that created the automation.
 They're included only when you can read that chat, so they're missing for deleted chats and for chats you can't read.
@@ -205,8 +240,9 @@ curl -X POST "$CODER_URL/api/experimental/chat-automations/$AUTOMATION_ID/events
 The endpoint path carries the `/api/experimental` prefix.
 Experimental API paths can change in a later release, so keep the URL configurable in your senders.
 
-The body must be valid JSON of at most 256&nbsp;KiB.
-The event data must also be at most 256&nbsp;KiB after escaping.
+The body must be valid JSON of at most 64&nbsp;KiB by default.
+An administrator can change the limit with `--chat-automation-webhook-max-body-bytes`, up to 256&nbsp;KiB.
+The event data must also fit the limit after escaping.
 Coder escapes each `<`, `>`, `&`, U+2028, and U+2029 in a JSON string as a six-byte `\u` sequence, so a body with many of these characters can exceed the limit.
 Any JSON value is accepted.
 A successful delivery returns `202` with the ID of the saved input and the chat that received it:
@@ -236,7 +272,7 @@ If the automation was deleted, the card reads **deleted automation**. Its ID sta
 | `403`  | The automation is turned off, its owner isn't active, its owner can't send messages to the target chat or create chats, or a [chat lifecycle hook](../../admin/setup/chat-lifecycle-hooks.md) denied it. |
 | `404`  | The experiment is off for the automation owner.                                                                                                                                                          |
 | `409`  | A single-use webhook was already used, the target chat is unavailable, the chat is busy and **When busy** is set to **Skip the run**, or the model is unavailable.                                       |
-| `413`  | The body is larger than 256&nbsp;KiB, or the event data is larger than 256&nbsp;KiB after escaping.                                                                                                      |
+| `413`  | The body, or the event data after escaping, is larger than the webhook body limit (64&nbsp;KiB by default).                                                                                              |
 | `429`  | Automations already fill their share of the chat's queue, the chat's queue is full, or the sender hit the rate limit.                                                                                    |
 | `502`  | Coder couldn't reach a chat lifecycle hook.                                                                                                                                                              |
 
@@ -471,14 +507,14 @@ To set one up, turn on **Manage automations** and ask the agent to check in on t
 
 ## Limits
 
-| Limit                         | Value                                                                                                                          |
-|-------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| Automations per owner         | 50 by default, counted across all organizations. Creating one more returns `409`. Set with `--chat-max-automations-per-owner`. |
-| Time between schedule runs    | At least 5&nbsp;minutes by default. Set with `--chat-min-automation-schedule-interval`.                                        |
-| Queued messages per chat      | 20 by default. Set with `--chat-max-queued-messages-per-chat`.                                                                 |
-| Automation share of the queue | Half of the queue limit, rounded down and at least one.                                                                        |
-| Webhook body                  | 256&nbsp;KiB of valid JSON, also after escaping `<`, `>`, `&`, U+2028, and U+2029.                                             |
-| Name                          | 1 to 128 characters.                                                                                                           |
+| Limit                         | Value                                                                                                                                                                              |
+|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Automations per owner         | 50 by default, counted across all organizations. Creating one more returns `409`. Set with `--chat-max-automations-per-owner`.                                                     |
+| Time between schedule runs    | At least 5&nbsp;minutes by default. Set with `--chat-min-automation-schedule-interval`.                                                                                            |
+| Queued messages per chat      | 20 by default. Set with `--chat-max-queued-messages-per-chat`.                                                                                                                     |
+| Automation share of the queue | Half of the queue limit, rounded down and at least one.                                                                                                                            |
+| Webhook body                  | 64&nbsp;KiB of valid JSON by default, also after escaping `<`, `>`, `&`, U+2028, and U+2029. Set with `--chat-automation-webhook-max-body-bytes`, from 1&nbsp;KiB to 256&nbsp;KiB. |
+| Name                          | 1 to 128 characters.                                                                                                                                                               |
 
 Refer to the [configuration reference](../../admin/setup/configuration-reference.md#max-automations-per-owner) for the `coder server` options.
 

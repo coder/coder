@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -61,18 +62,14 @@ var (
 	// chat-automations experiment is off for the automation owner.
 	ErrAutomationsExperimentDisabled = xerrors.New("chat automations are disabled for the automation owner")
 	// ErrAutomationEventTooLarge is returned when the escaped event data
-	// of a webhook delivery exceeds MaxAutomationEventDataBytes.
+	// of a webhook delivery exceeds Limits.AutomationWebhookMaxBodyBytes.
 	ErrAutomationEventTooLarge = xerrors.New("chat automation event data is too large")
 )
 
-// MaxChatRequestBodyBytes is the request body limit of coderd's chat
-// endpoints, including the automation webhook event endpoint.
-const MaxChatRequestBodyBytes = 256 * 1024
-
-// MaxAutomationEventDataBytes caps the escaped event data a webhook
-// delivery adds to a message. It is the chat request body limit, so a
-// webhook never produces a message larger than the body the endpoint reads.
-const MaxAutomationEventDataBytes = MaxChatRequestBodyBytes
+// MaxChatRequestBodyBytes is the hard request body limit of coderd's chat
+// endpoints. The webhook body limit, Limits.AutomationWebhookMaxBodyBytes,
+// is at most this value.
+const MaxChatRequestBodyBytes = codersdk.MaxChatRequestBodyBytes
 
 // AutomationEventTooLargeError carries the escaped size of the event data
 // and the cap so HTTP endpoints can include them in their response detail.
@@ -104,6 +101,12 @@ func (e *AutomationQueueShareFullError) Error() string {
 
 // Unwrap returns [ErrAutomationQueueShareFull].
 func (*AutomationQueueShareFullError) Unwrap() error { return ErrAutomationQueueShareFull }
+
+// AutomationWebhookMaxBodyBytes is the deployment's limit on a webhook
+// body and on its escaped event data.
+func (p *Server) AutomationWebhookMaxBodyBytes() int {
+	return cmp.Or(p.chatLimits.AutomationWebhookMaxBodyBytes, codersdk.DefaultChatAutomationWebhookMaxBodyBytes)
+}
 
 // PublishAutomationWebhookParams are the inputs of
 // PublishAutomationWebhook.
@@ -143,15 +146,18 @@ type automationPublish struct {
 // PublishAutomationWebhook delivers a webhook event to the automation's
 // target. The caller must have verified the webhook secret; ctx needs no
 // authorization, because the delivery runs as the automation owner. Event
-// data larger than MaxAutomationEventDataBytes after escaping is refused
+// data larger than Limits.AutomationWebhookMaxBodyBytes after escaping, the
+// same limit as the body, is refused
 // with an [AutomationEventTooLargeError] before anything is admitted.
 func (p *Server) PublishAutomationWebhook(ctx context.Context, params PublishAutomationWebhookParams) (PublishAutomationResult, error) {
 	if !json.Valid(params.Body) {
 		return PublishAutomationResult{}, xerrors.New("publish automation webhook: body must be valid JSON")
 	}
 	escaped := escapeAutomationEventData(params.Body)
-	if len(escaped) > MaxAutomationEventDataBytes {
-		return PublishAutomationResult{}, &AutomationEventTooLargeError{Size: len(escaped), Max: MaxAutomationEventDataBytes}
+	if limit := p.AutomationWebhookMaxBodyBytes(); len(escaped) > limit {
+		err := &AutomationEventTooLargeError{Size: len(escaped), Max: limit}
+		p.recordAutomationRunResult(ctx, params.AutomationID, uuid.Nil, err)
+		return PublishAutomationResult{}, err
 	}
 	return p.publishAutomation(ctx, automationPublish{
 		automationID: params.AutomationID,
@@ -167,12 +173,20 @@ func (p *Server) PublishAutomationWebhook(ctx context.Context, params PublishAut
 }
 
 // publishAutomation sends the automation's input to its target as the
-// automation owner. Checks made before the send are repeated under the
-// chat and automation locks by admitAutomation, which decides.
+// automation owner and records the outcome as the automation's last run.
+// Checks made before the send are repeated under the chat and automation
+// locks by admitAutomation, which decides.
 func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (PublishAutomationResult, error) {
+	// A misconfigured server runs nothing, so there is no run to record.
 	if p.authorizer == nil {
 		return PublishAutomationResult{}, xerrors.New("publish automation: authorizer is not configured")
 	}
+	result, err := p.publishAutomationInput(ctx, in)
+	p.recordAutomationRunResult(ctx, in.automationID, result.ChatID, err)
+	return result, err
+}
+
+func (p *Server) publishAutomationInput(ctx context.Context, in automationPublish) (PublishAutomationResult, error) {
 	//nolint:gocritic // Publishers are not users; the automation owner's permissions apply once the row is loaded.
 	automation, err := p.db.GetChatAutomationByID(dbauthz.AsChatd(ctx), in.automationID)
 	if errors.Is(err, sql.ErrNoRows) {

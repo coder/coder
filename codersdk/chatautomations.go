@@ -69,6 +69,61 @@ const (
 	ChatAutomationPausedReasonOwnerNotMember ChatAutomationPausedReason = "owner_not_member"
 )
 
+// ChatAutomationRunOutcome is how the latest run of an automation ended.
+type ChatAutomationRunOutcome string
+
+const (
+	// ChatAutomationRunOutcomeAccepted means the input was delivered or
+	// queued.
+	ChatAutomationRunOutcomeAccepted ChatAutomationRunOutcome = "accepted"
+	// ChatAutomationRunOutcomeSkipped means the input was dropped because
+	// of the target's state at that moment: a busy chat that skips, a full
+	// queue, or a missed schedule occurrence. Later runs can succeed
+	// without a change.
+	ChatAutomationRunOutcomeSkipped ChatAutomationRunOutcome = "skipped"
+	// ChatAutomationRunOutcomeRefused means a condition of the automation,
+	// its owner, or the input refused the run. Later runs fail the same
+	// way until someone fixes it.
+	ChatAutomationRunOutcomeRefused ChatAutomationRunOutcome = "refused"
+)
+
+// ChatAutomationRunReason is the machine reason of a skipped or refused
+// run.
+type ChatAutomationRunReason string
+
+const (
+	ChatAutomationRunReasonChatBusy           ChatAutomationRunReason = "chat_busy"
+	ChatAutomationRunReasonQueueFull          ChatAutomationRunReason = "queue_full"
+	ChatAutomationRunReasonMissed             ChatAutomationRunReason = "missed"
+	ChatAutomationRunReasonHookDenied         ChatAutomationRunReason = "hook_denied"
+	ChatAutomationRunReasonOwnerInactive      ChatAutomationRunReason = "owner_inactive"
+	ChatAutomationRunReasonForbidden          ChatAutomationRunReason = "forbidden"
+	ChatAutomationRunReasonModelUnavailable   ChatAutomationRunReason = "model_unavailable"
+	ChatAutomationRunReasonTargetUnavailable  ChatAutomationRunReason = "target_unavailable"
+	ChatAutomationRunReasonExperimentDisabled ChatAutomationRunReason = "experiment_disabled"
+	ChatAutomationRunReasonDisabled           ChatAutomationRunReason = "disabled"
+	ChatAutomationRunReasonSingleUseConsumed  ChatAutomationRunReason = "single_use_consumed"
+	ChatAutomationRunReasonBodyTooLarge       ChatAutomationRunReason = "body_too_large"
+	ChatAutomationRunReasonInvalidBody        ChatAutomationRunReason = "invalid_body"
+	ChatAutomationRunReasonNoDefaultModel     ChatAutomationRunReason = "no_default_model"
+	ChatAutomationRunReasonError              ChatAutomationRunReason = "error"
+)
+
+// ChatAutomationLastRun is the outcome of an automation's latest schedule
+// occurrence, Run now, or authenticated webhook delivery. It is one record,
+// not a run history: each run replaces it. Schedule occurrences that never
+// start, because the automation is paused (see PausedReasons), leave it
+// unchanged.
+type ChatAutomationLastRun struct {
+	At      time.Time                `json:"at" format:"date-time"`
+	Outcome ChatAutomationRunOutcome `json:"outcome" enums:"accepted,skipped,refused"`
+	// Reason is set for skipped and refused runs.
+	Reason *ChatAutomationRunReason `json:"reason,omitempty" enums:"chat_busy,queue_full,missed,hook_denied,owner_inactive,forbidden,model_unavailable,target_unavailable,experiment_disabled,disabled,single_use_consumed,body_too_large,invalid_body,no_default_model,error"`
+	// ChatID is the chat the run went to, or was meant for when the target
+	// chat was known. The chat can be deleted since.
+	ChatID *uuid.UUID `json:"chat_id,omitempty" format:"uuid"`
+}
+
 // ChatAutomationChat identifies a chat that a chat automation refers to.
 // Archived lets clients show an archived target, which refuses runs,
 // without reading the chat.
@@ -138,9 +193,11 @@ type ChatAutomation struct {
 	// often than the deployment's minimum interval between runs. Such
 	// automations keep running, but a change to their schedule must meet
 	// the minimum.
-	ScheduleIntervalBelowMinimum bool      `json:"schedule_interval_below_minimum"`
-	CreatedAt                    time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt                    time.Time `json:"updated_at" format:"date-time"`
+	ScheduleIntervalBelowMinimum bool `json:"schedule_interval_below_minimum"`
+	// LastRun is the outcome of the latest run, null until the first one.
+	LastRun   *ChatAutomationLastRun `json:"last_run"`
+	CreatedAt time.Time              `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time              `json:"updated_at" format:"date-time"`
 }
 
 // CreateChatAutomationRequest creates a chat automation owned by the
@@ -174,7 +231,9 @@ type CreateChatAutomationResponse struct {
 }
 
 // UpdateChatAutomationRequest changes the set fields of a chat automation.
-// The kind and target mode of an automation cannot change.
+// The kind, target mode, and webhook use of an automation cannot change:
+// the API rejects a request that sets one of them, or any unknown field,
+// with 400. A request that changes nothing leaves updated_at unchanged.
 type UpdateChatAutomationRequest struct {
 	// Enabled disables or re-enables the automation. Disabling removes the
 	// messages the automation queued that have not started. Re-enabling a

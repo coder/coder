@@ -290,6 +290,9 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 		// The occurrence is older than the grace window, so the first
 		// cron time within the window is after the cursor.
 		next, moved := skip(automationScheduleGrace, "chat automation schedule occurrence missed")
+		if moved {
+			p.recordAutomationRun(ctx, row.ID, database.ChatAutomationRunOutcomeSkipped, codersdk.ChatAutomationRunReasonMissed, uuid.Nil)
+		}
 		if !moved || next.IsZero() || next.After(dbtime.Time(p.clock.Now())) {
 			return
 		}

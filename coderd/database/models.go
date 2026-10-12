@@ -1522,6 +1522,67 @@ func AllChatAutomationKindValues() []ChatAutomationKind {
 	}
 }
 
+type ChatAutomationRunOutcome string
+
+const (
+	ChatAutomationRunOutcomeAccepted ChatAutomationRunOutcome = "accepted"
+	ChatAutomationRunOutcomeSkipped  ChatAutomationRunOutcome = "skipped"
+	ChatAutomationRunOutcomeRefused  ChatAutomationRunOutcome = "refused"
+)
+
+func (e *ChatAutomationRunOutcome) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationRunOutcome(s)
+	case string:
+		*e = ChatAutomationRunOutcome(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationRunOutcome: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationRunOutcome struct {
+	ChatAutomationRunOutcome ChatAutomationRunOutcome `json:"chat_automation_run_outcome"`
+	Valid                    bool                     `json:"valid"` // Valid is true if ChatAutomationRunOutcome is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationRunOutcome) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationRunOutcome, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationRunOutcome.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationRunOutcome) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationRunOutcome), nil
+}
+
+func (e ChatAutomationRunOutcome) Valid() bool {
+	switch e {
+	case ChatAutomationRunOutcomeAccepted,
+		ChatAutomationRunOutcomeSkipped,
+		ChatAutomationRunOutcomeRefused:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationRunOutcomeValues() []ChatAutomationRunOutcome {
+	return []ChatAutomationRunOutcome{
+		ChatAutomationRunOutcomeAccepted,
+		ChatAutomationRunOutcomeSkipped,
+		ChatAutomationRunOutcomeRefused,
+	}
+}
+
 type ChatAutomationTargetMode string
 
 const (
@@ -5471,6 +5532,14 @@ type ChatAutomation struct {
 	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
 	// Lease on the occurrence at schedule_next_run_at: the replica that set it runs the prompt hooks and publishes that occurrence. NULL or a past time means unclaimed.
 	ScheduleClaimedUntil sql.NullTime `db:"schedule_claimed_until" json:"schedule_claimed_until"`
+	// When the latest schedule occurrence, Run now, or authenticated webhook delivery was decided. NULL until the first one.
+	LastRunAt sql.NullTime `db:"last_run_at" json:"last_run_at"`
+	// Outcome of the latest run: accepted, skipped (the target was busy or full, or the occurrence was missed), or refused.
+	LastRunOutcome NullChatAutomationRunOutcome `db:"last_run_outcome" json:"last_run_outcome"`
+	// Short machine reason for a skipped or refused run, such as chat_busy or owner_inactive. NULL for accepted runs.
+	LastRunReason sql.NullString `db:"last_run_reason" json:"last_run_reason"`
+	// Chat the latest run went to or was meant for. No foreign key by design.
+	LastRunChatID uuid.NullUUID `db:"last_run_chat_id" json:"last_run_chat_id"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.

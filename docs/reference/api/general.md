@@ -217,6 +217,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       },
       "chat": {
         "acquire_batch_size": 0,
+        "automation_webhook_max_body_bytes": 0,
         "debug_logging_enabled": true,
         "hook_allow_insecure": true,
         "hook_enabled": true,

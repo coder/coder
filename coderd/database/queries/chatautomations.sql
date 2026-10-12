@@ -337,3 +337,21 @@ WHERE
     chat_automations.organization_id = chats.organization_id
 ORDER BY
     chat_automations.id;
+
+-- name: UpdateChatAutomationLastRunByID :execrows
+-- Records the outcome of a run. It leaves updated_at alone, because a run
+-- does not change the automation, and it keeps a later run that another
+-- instance already recorded.
+UPDATE
+    chat_automations
+SET
+    last_run_at = @last_run_at::timestamptz,
+    last_run_outcome = @last_run_outcome::chat_automation_run_outcome,
+    last_run_reason = sqlc.narg('last_run_reason')::text,
+    -- Without a chat from the run, record the target chat of an
+    -- existing_chat automation, the chat the run was meant for. new_chat
+    -- automations have no target chat.
+    last_run_chat_id = COALESCE(sqlc.narg('last_run_chat_id')::uuid, target_chat_id)
+WHERE
+    id = @id::uuid
+    AND (last_run_at IS NULL OR last_run_at <= @last_run_at::timestamptz);

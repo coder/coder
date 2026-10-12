@@ -56,6 +56,16 @@ const (
 	// DefaultChatMinAutomationScheduleInterval is the default minimum time
 	// between two runs of a chat schedule automation.
 	DefaultChatMinAutomationScheduleInterval = 5 * time.Minute
+	// DefaultChatAutomationWebhookMaxBodyBytes is the default maximum size
+	// of a chat automation webhook body.
+	DefaultChatAutomationWebhookMaxBodyBytes = 64 * 1024
+	// MinChatAutomationWebhookMaxBodyBytes is the lowest webhook body limit
+	// an administrator can set.
+	MinChatAutomationWebhookMaxBodyBytes = 1024
+	// MaxChatRequestBodyBytes is the hard request body limit of the chat
+	// endpoints, and so the highest webhook body limit an administrator
+	// can set.
+	MaxChatRequestBodyBytes = 256 * 1024
 )
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat

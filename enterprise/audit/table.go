@@ -530,6 +530,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"schedule_next_run_at":     ActionIgnore, // Internal schedule cursor.
 		"schedule_claimed_until":   ActionIgnore, // Internal schedule occurrence claim.
 		"queue_generation":         ActionIgnore, // Internal queued-message invalidation counter.
+		"last_run_at":              ActionIgnore, // Run outcome, not a configuration change.
+		"last_run_outcome":         ActionIgnore,
+		"last_run_reason":          ActionIgnore,
+		"last_run_chat_id":         ActionIgnore,
 		"created_at":               ActionIgnore,
 		"updated_at":               ActionIgnore,
 	},

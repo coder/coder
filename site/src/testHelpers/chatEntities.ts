@@ -194,6 +194,7 @@ export const MockChatAutomation: ChatAutomation = {
 	schedule_time_zone: "UTC",
 	next_run_times: [],
 	schedule_interval_below_minimum: false,
+	last_run: null,
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
 };

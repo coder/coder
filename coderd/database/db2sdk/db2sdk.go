@@ -1839,6 +1839,17 @@ func ChatAutomation(row database.ChatAutomation, nextRuns []time.Time) codersdk.
 		webhookUse := codersdk.ChatAutomationWebhookUse(row.WebhookUse.ChatAutomationWebhookUse)
 		automation.WebhookUse = &webhookUse
 	}
+	if row.LastRunOutcome.Valid && row.LastRunAt.Valid {
+		automation.LastRun = &codersdk.ChatAutomationLastRun{
+			At:      row.LastRunAt.Time,
+			Outcome: codersdk.ChatAutomationRunOutcome(row.LastRunOutcome.ChatAutomationRunOutcome),
+			ChatID:  nullUUIDPtr(row.LastRunChatID),
+		}
+		if row.LastRunReason.Valid {
+			reason := codersdk.ChatAutomationRunReason(row.LastRunReason.String)
+			automation.LastRun.Reason = &reason
+		}
+	}
 	return automation
 }
 

@@ -23,6 +23,7 @@ const (
 	CheckAPIKeysAllowListNotEmpty                            CheckConstraint = "api_keys_allow_list_not_empty"                             // api_keys
 	CheckBoundaryLogsSequenceNumberCheck                     CheckConstraint = "boundary_logs_sequence_number_check"                       // boundary_logs
 	CheckChatAutomationsKindShape                            CheckConstraint = "chat_automations_kind_shape"                               // chat_automations
+	CheckChatAutomationsLastRunShape                         CheckConstraint = "chat_automations_last_run_shape"                           // chat_automations
 	CheckChatAutomationsNameLength                           CheckConstraint = "chat_automations_name_length"                              // chat_automations
 	CheckChatAutomationsProjectTargetMode                    CheckConstraint = "chat_automations_project_target_mode"                      // chat_automations
 	CheckChatAutomationsTargetShape                          CheckConstraint = "chat_automations_target_shape"                             // chat_automations

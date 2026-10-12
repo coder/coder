@@ -351,6 +351,12 @@ CREATE TYPE chat_automation_kind AS ENUM (
     'schedule'
 );
 
+CREATE TYPE chat_automation_run_outcome AS ENUM (
+    'accepted',
+    'skipped',
+    'refused'
+);
+
 CREATE TYPE chat_automation_target_mode AS ENUM (
     'existing_chat',
     'new_chat'
@@ -2043,7 +2049,12 @@ CREATE TABLE chat_automations (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     project_id uuid,
     schedule_claimed_until timestamp with time zone,
+    last_run_at timestamp with time zone,
+    last_run_outcome chat_automation_run_outcome,
+    last_run_reason text,
+    last_run_chat_id uuid,
     CONSTRAINT chat_automations_kind_shape CHECK ((((kind = 'webhook'::chat_automation_kind) AND (webhook_use IS NOT NULL) AND (schedule_cron IS NULL) AND (schedule_time_zone IS NULL) AND (schedule_next_run_at IS NULL)) OR ((kind = 'schedule'::chat_automation_kind) AND (webhook_use IS NULL) AND (webhook_secret_hash IS NULL) AND (webhook_consumed_at IS NULL) AND (schedule_cron IS NOT NULL) AND (schedule_time_zone IS NOT NULL)))),
+    CONSTRAINT chat_automations_last_run_shape CHECK ((((last_run_at IS NULL) = (last_run_outcome IS NULL)) AND ((last_run_at IS NOT NULL) OR ((last_run_reason IS NULL) AND (last_run_chat_id IS NULL))))),
     CONSTRAINT chat_automations_name_length CHECK (((char_length(name) >= 1) AND (char_length(name) <= 128))),
     CONSTRAINT chat_automations_project_target_mode CHECK (((project_id IS NULL) OR (target_mode = 'new_chat'::chat_automation_target_mode))),
     CONSTRAINT chat_automations_target_shape CHECK ((((target_mode = 'existing_chat'::chat_automation_target_mode) AND (new_chat_model_config_id IS NULL) AND (when_busy IS NOT NULL)) OR ((target_mode = 'new_chat'::chat_automation_target_mode) AND (target_chat_id IS NULL) AND (new_chat_model_config_id IS NOT NULL) AND (when_busy IS NULL))))
@@ -2068,6 +2079,14 @@ COMMENT ON COLUMN chat_automations.queue_generation IS 'Incremented to invalidat
 COMMENT ON COLUMN chat_automations.project_id IS 'Project for chats a new_chat automation creates. NULL when the automation has no project or after the project is deleted.';
 
 COMMENT ON COLUMN chat_automations.schedule_claimed_until IS 'Lease on the occurrence at schedule_next_run_at: the replica that set it runs the prompt hooks and publishes that occurrence. NULL or a past time means unclaimed.';
+
+COMMENT ON COLUMN chat_automations.last_run_at IS 'When the latest schedule occurrence, Run now, or authenticated webhook delivery was decided. NULL until the first one.';
+
+COMMENT ON COLUMN chat_automations.last_run_outcome IS 'Outcome of the latest run: accepted, skipped (the target was busy or full, or the occurrence was missed), or refused.';
+
+COMMENT ON COLUMN chat_automations.last_run_reason IS 'Short machine reason for a skipped or refused run, such as chat_busy or owner_inactive. NULL for accepted runs.';
+
+COMMENT ON COLUMN chat_automations.last_run_chat_id IS 'Chat the latest run went to or was meant for. No foreign key by design.';
 
 CREATE TABLE chat_context_resources (
     chat_id uuid NOT NULL,

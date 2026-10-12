@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -464,7 +465,7 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 		// on a replica whose clock is behind, and a publish that observed
 		// that cursor before the disable must then fail its recheck instead
 		// of running its prompt hooks a second time.
-		if row.Kind == database.ChatAutomationKindSchedule && (invalidatesPendingRuns || disabling || enabling) {
+		if row.Kind == database.ChatAutomationKindSchedule && (invalidatesPendingRuns || (disabling && row.Enabled) || enabling) {
 			arg.ScheduleRevision = row.ScheduleRevision + 1
 		}
 		switch {
@@ -491,6 +492,19 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 		if guard != nil {
 			if err := guard(tx, automationAfterUpdate(row, arg)); err != nil {
 				return err
+			}
+		}
+		// A request that changes nothing a reader can see keeps updated_at,
+		// so clients and agents do not read a change into it. Disabling a
+		// disabled automation still bumps the queue generation to retry
+		// the cleanup, which is not a visible change.
+		visible := automationAfterUpdate(row, arg)
+		visible.QueueGeneration, visible.UpdatedAt = row.QueueGeneration, row.UpdatedAt
+		if reflect.DeepEqual(visible, row) {
+			arg.UpdatedAt = row.UpdatedAt
+			if arg.QueueGeneration == row.QueueGeneration {
+				updated = row
+				return nil
 			}
 		}
 		updated, err = tx.UpdateChatAutomationByID(ctx, arg)

@@ -7,10 +7,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestAutomationNewChatTitle(t *testing.T) {
@@ -87,17 +92,28 @@ func TestPublishAutomationWebhookEventSize(t *testing.T) {
 	body := func(size int) []byte {
 		return []byte(`"` + strings.Repeat("a", size-2) + `"`)
 	}
-	p := &Server{}
+	const limit = 4096
+	automationID := uuid.New()
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	// Only the refused oversized delivery is recorded as a run.
+	db.EXPECT().UpdateChatAutomationLastRunByID(gomock.Any(), gomock.Cond(func(arg database.UpdateChatAutomationLastRunByIDParams) bool {
+		return arg.ID == automationID && arg.LastRunOutcome == database.ChatAutomationRunOutcomeRefused &&
+			arg.LastRunReason.String == string(codersdk.ChatAutomationRunReasonBodyTooLarge)
+	})).Return(int64(1), nil).Times(1)
+	p := &Server{chatLimits: Limits{AutomationWebhookMaxBodyBytes: limit}, db: db, clock: quartz.NewMock(t)}
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	_, err := p.PublishAutomationWebhook(ctx, PublishAutomationWebhookParams{Body: body(MaxAutomationEventDataBytes)})
+	_, err := p.PublishAutomationWebhook(ctx, PublishAutomationWebhookParams{AutomationID: automationID, Body: body(limit)})
 	require.Error(t, err)
 	require.NotErrorIs(t, err, ErrAutomationEventTooLarge)
 
-	_, err = p.PublishAutomationWebhook(ctx, PublishAutomationWebhookParams{Body: body(MaxAutomationEventDataBytes + 1)})
+	_, err = p.PublishAutomationWebhook(ctx, PublishAutomationWebhookParams{AutomationID: automationID, Body: body(limit + 1)})
 	var tooLarge *AutomationEventTooLargeError
 	require.ErrorAs(t, err, &tooLarge)
 	require.ErrorIs(t, err, ErrAutomationEventTooLarge)
-	require.Equal(t, MaxAutomationEventDataBytes+1, tooLarge.Size)
-	require.Equal(t, MaxAutomationEventDataBytes, tooLarge.Max)
+	require.Equal(t, limit+1, tooLarge.Size)
+	require.Equal(t, limit, tooLarge.Max)
+
+	// An unset limit is the default.
+	require.Equal(t, codersdk.DefaultChatAutomationWebhookMaxBodyBytes, (&Server{}).AutomationWebhookMaxBodyBytes())
 }

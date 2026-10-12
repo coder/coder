@@ -33,6 +33,9 @@ type Limits struct {
 	// of a schedule automation that creating or changing a schedule
 	// accepts.
 	MinAutomationScheduleInterval time.Duration
+	// AutomationWebhookMaxBodyBytes is the maximum size of a webhook body
+	// and of its escaped event data.
+	AutomationWebhookMaxBodyBytes int
 }
 
 // LimitsFromConfig converts the deployment chat configuration to Limits.
@@ -46,6 +49,7 @@ func LimitsFromConfig(cfg codersdk.ChatConfig) Limits {
 		MaxConcurrentRecordingUploads: int(cfg.MaxConcurrentRecordingUploads.Value()),
 		MaxAutomationsPerOwner:        int(cfg.MaxAutomationsPerOwner.Value()),
 		MinAutomationScheduleInterval: cfg.MinAutomationScheduleInterval.Value(),
+		AutomationWebhookMaxBodyBytes: int(cfg.AutomationWebhookMaxBodyBytes.Value()),
 	}
 }
 
@@ -60,5 +64,6 @@ func (l Limits) withDefaults() Limits {
 		MaxConcurrentRecordingUploads: cmp.Or(l.MaxConcurrentRecordingUploads, codersdk.DefaultChatMaxConcurrentRecordingUploads),
 		MaxAutomationsPerOwner:        cmp.Or(l.MaxAutomationsPerOwner, codersdk.DefaultChatMaxAutomationsPerOwner),
 		MinAutomationScheduleInterval: cmp.Or(l.MinAutomationScheduleInterval, codersdk.DefaultChatMinAutomationScheduleInterval),
+		AutomationWebhookMaxBodyBytes: cmp.Or(l.AutomationWebhookMaxBodyBytes, codersdk.DefaultChatAutomationWebhookMaxBodyBytes),
 	}
 }

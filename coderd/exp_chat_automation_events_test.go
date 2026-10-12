@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -216,6 +218,101 @@ func TestChatAutomationEvents(t *testing.T) {
 		require.Equal(t, http.StatusRequestEntityTooLarge, status)
 	})
 
+	t.Run("LastRun", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req := env.webhookRequest()
+		req.WebhookUse = ptr.Ref(codersdk.ChatAutomationWebhookUseSingle)
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, req)
+		require.NoError(t, err)
+		require.Nil(t, created.Automation.LastRun)
+		lastRun := func(t *testing.T) *codersdk.ChatAutomationLastRun {
+			t.Helper()
+			got, err := env.member.ChatAutomation(ctx, env.orgID, created.Automation.ID)
+			require.NoError(t, err)
+			list, err := env.member.ChatAutomations(ctx, env.orgID)
+			require.NoError(t, err)
+			require.Len(t, list, 1)
+			require.Equal(t, got.LastRun, list[0].LastRun, "list and get agree")
+			return got.LastRun
+		}
+
+		// Unauthenticated requests never write.
+		status, _ := postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret+"x", event)
+		require.Equal(t, http.StatusUnauthorized, status)
+		require.Nil(t, lastRun(t))
+
+		// An authenticated delivery that coderd refuses is recorded.
+		status, _ = postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, []byte("not json"))
+		require.Equal(t, http.StatusBadRequest, status)
+		got := lastRun(t)
+		require.NotNil(t, got)
+		require.Equal(t, codersdk.ChatAutomationRunOutcomeRefused, got.Outcome)
+		require.Equal(t, ptr.Ref(codersdk.ChatAutomationRunReasonInvalidBody), got.Reason)
+		require.Equal(t, &env.memberChat.ID, got.ChatID)
+
+		status, body := postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, event)
+		require.Equal(t, http.StatusAccepted, status, string(body))
+		got = lastRun(t)
+		require.Equal(t, codersdk.ChatAutomationRunOutcomeAccepted, got.Outcome)
+		require.Nil(t, got.Reason)
+		require.Equal(t, &env.memberChat.ID, got.ChatID)
+
+		// The used single-use webhook refuses the next delivery.
+		status, _ = postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, event)
+		require.Equal(t, http.StatusConflict, status)
+		got = lastRun(t)
+		require.Equal(t, codersdk.ChatAutomationRunOutcomeRefused, got.Outcome)
+		require.Equal(t, ptr.Ref(codersdk.ChatAutomationRunReasonSingleUseConsumed), got.Reason)
+
+		// The JSON shape clients render.
+		raw, err := env.member.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chat-automations/%s", env.orgID, created.Automation.ID), nil)
+		require.NoError(t, err)
+		defer raw.Body.Close()
+		var shape struct {
+			LastRun map[string]any `json:"last_run"`
+		}
+		require.NoError(t, json.NewDecoder(raw.Body).Decode(&shape))
+		require.ElementsMatch(t, []string{"at", "outcome", "reason", "chat_id"}, slices.Collect(maps.Keys(shape.LastRun)))
+	})
+
+	t.Run("BodyLimit", func(t *testing.T) {
+		t.Parallel()
+		jsonString := func(size int) []byte {
+			return []byte(`"` + strings.Repeat("a", size-2) + `"`)
+		}
+		requireTooLarge := func(t *testing.T, status int, body []byte, limit int) {
+			t.Helper()
+			require.Equal(t, http.StatusRequestEntityTooLarge, status, string(body))
+			var resp codersdk.Response
+			require.NoError(t, json.Unmarshal(body, &resp))
+			require.Equal(t, "Request body too large.", resp.Message)
+			require.Contains(t, resp.Detail, fmt.Sprintf("%d bytes", limit))
+		}
+
+		// The default is 64 KiB.
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
+		require.NoError(t, err)
+		status, body := postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, jsonString(codersdk.DefaultChatAutomationWebhookMaxBodyBytes+1))
+		requireTooLarge(t, status, body, codersdk.DefaultChatAutomationWebhookMaxBodyBytes)
+		status, body = postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, jsonString(codersdk.DefaultChatAutomationWebhookMaxBodyBytes))
+		require.Equal(t, http.StatusAccepted, status, string(body))
+
+		// An administrator can lower it.
+		const lowered = 2048
+		small := newChatAutomationTestEnv(t, nil, func(opts *coderdtest.Options) {
+			opts.DeploymentValues.AI.Chat.AutomationWebhookMaxBodyBytes = lowered
+		})
+		created, err = small.member.CreateChatAutomation(ctx, small.orgID, small.webhookRequest())
+		require.NoError(t, err)
+		status, body = postChatAutomationEvent(t, small.member, created.Automation.ID, created.WebhookSecret, jsonString(lowered+1))
+		requireTooLarge(t, status, body, lowered)
+		require.Empty(t, small.userMessages(t, small.memberChat.ID))
+	})
+
 	t.Run("EscapedEventTooLarge", func(t *testing.T) {
 		t.Parallel()
 		env := newChatAutomationTestEnv(t, nil, nil)
@@ -225,8 +322,9 @@ func TestChatAutomationEvents(t *testing.T) {
 		created, err := env.member.CreateChatAutomation(ctx, env.orgID, req)
 		require.NoError(t, err)
 
-		// About 50 KB raw, but each < escapes to six bytes, so the event
-		// data would exceed 256 KiB in the message.
+		// About 50 KB raw, within the 64 KiB body limit, but each <
+		// escapes to six bytes, so the event data would exceed the limit
+		// in the message.
 		large := []byte(`"` + strings.Repeat("<", 50_000) + `"`)
 		status, body := postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, large)
 		require.Equal(t, http.StatusRequestEntityTooLarge, status, string(body))

@@ -10,7 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -292,7 +295,7 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Update chat automation
-// @Description Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.
+// @Description Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind, target mode, and webhook use of an automation cannot change: a request that sets one of them, or any unknown field, fails with 400. A request that changes nothing leaves updated_at as it was.
 // @ID update-chat-automation
 // @Security CoderSessionToken
 // @Accept json
@@ -323,27 +326,12 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = automation
 	defer commitAudit()
 
-	var req struct {
-		codersdk.UpdateChatAutomationRequest
-		// Kind and TargetMode are decoded only to reject them: they are
-		// fixed at create time.
-		Kind       json.RawMessage `json:"kind"`
-		TargetMode json.RawMessage `json:"target_mode"`
-	}
-	if !httpapi.Read(ctx, rw, r, &req) {
+	req, ok := readChatAutomationUpdate(ctx, rw, r)
+	if !ok {
 		return
 	}
-	for _, fixed := range []struct {
-		field string
-		value json.RawMessage
-	}{{"kind", req.Kind}, {"target_mode", req.TargetMode}} {
-		if fixed.value != nil {
-			api.writeChatAutomationError(ctx, rw, &chatd.AutomationValidationError{Field: fixed.field, Detail: "cannot be changed after the automation is created"})
-			return
-		}
-	}
 
-	old, updated, err := api.chatDaemon.UpdateAutomation(ctx, apiKey.UserID, automation.ID, req.UpdateChatAutomationRequest, nil)
+	old, updated, err := api.chatDaemon.UpdateAutomation(ctx, apiKey.UserID, automation.ID, req, nil)
 	if err != nil {
 		api.writeChatAutomationError(ctx, rw, err)
 		return
@@ -355,6 +343,75 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 
 	response := api.chatAutomationWriteResponse(ctx, updated)
 	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+// chatAutomationFixedFields cannot change after an automation is created.
+var chatAutomationFixedFields = []string{"kind", "target_mode", "webhook_use"}
+
+// chatAutomationUpdateFields are the JSON fields of an update request.
+var chatAutomationUpdateFields = func() map[string]bool {
+	fields := make(map[string]bool)
+	typ := reflect.TypeFor[codersdk.UpdateChatAutomationRequest]()
+	for i := range typ.NumField() {
+		name, _, _ := strings.Cut(typ.Field(i).Tag.Get("json"), ",")
+		if name != "" && name != "-" {
+			fields[name] = true
+		}
+	}
+	return fields
+}()
+
+// chatAutomationUpdateBody keeps the raw fields of an update request, so
+// readChatAutomationUpdate can name a field it rejects. httpapi.Read
+// validates a struct, not a map.
+type chatAutomationUpdateBody struct {
+	fields map[string]json.RawMessage
+}
+
+func (b *chatAutomationUpdateBody) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &b.fields)
+}
+
+// readChatAutomationUpdate decodes an update request. A field fixed at
+// create time and an unknown field are rejected with 400 naming the field,
+// so a request never reports success for a change it did not make.
+func readChatAutomationUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Request) (codersdk.UpdateChatAutomationRequest, bool) {
+	var body chatAutomationUpdateBody
+	if !httpapi.Read(ctx, rw, r, &body) {
+		return codersdk.UpdateChatAutomationRequest{}, false
+	}
+	raw := body.fields
+	// Report fields in a stable order.
+	names := slices.Sorted(maps.Keys(raw))
+	for _, name := range names {
+		detail := ""
+		switch {
+		case slices.Contains(chatAutomationFixedFields, name):
+			detail = "cannot be changed after the automation is created"
+		case !chatAutomationUpdateFields[name]:
+			detail = "is not a field of a chat automation update"
+		default:
+			continue
+		}
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid chat automation.",
+			Validations: []codersdk.ValidationError{{Field: name, Detail: detail}},
+		})
+		return codersdk.UpdateChatAutomationRequest{}, false
+	}
+	var req codersdk.UpdateChatAutomationRequest
+	encoded, err := json.Marshal(raw)
+	if err == nil {
+		err = json.Unmarshal(encoded, &req)
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Request body must be a valid chat automation update.",
+			Detail:  err.Error(),
+		})
+		return codersdk.UpdateChatAutomationRequest{}, false
+	}
+	return req, true
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -597,14 +654,14 @@ func (api *API) writeChatAutomationRunError(ctx context.Context, rw http.Respons
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Deliver chat automation webhook event
-// @Description Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The event data must also be at most 256 KiB after HTML escaping, which counts each <, >, &, U+2028, and U+2029 in a JSON string as six bytes. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.
+// @Description Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to the deployment's webhook body limit, 64 KiB by default. The event data must also fit that limit after HTML escaping, which counts each <, >, &, U+2028, and U+2029 in a JSON string as six bytes. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.
 // @ID deliver-chat-automation-event
 // @Accept json
 // @Produce json
 // @Tags Chats
 // @Param automation path string true "Automation ID" format(uuid)
 // @Param Authorization header string true "Bearer followed by the webhook secret"
-// @Param request body interface{} true "Event data: any JSON value up to 256 KiB, also after HTML escaping"
+// @Param request body interface{} true "Event data: any JSON value up to the webhook body limit, also after HTML escaping"
 // @Success 202 {object} codersdk.ChatAutomationEventResponse
 // @Failure 400 {object} codersdk.Response
 // @Failure 401 {object} codersdk.Response
@@ -647,14 +704,18 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 		writeChatAutomationUnauthorized(ctx, rw)
 		return
 	}
+	// The caller proved the secret, so refusals from here on are recorded
+	// as the automation's last run.
 	if !chatd.AutomationsEnabled(ctx, api.ExperimentEvaluator, automation.OwnerID) {
+		api.chatDaemon.RecordAutomationWebhookRefusal(ctx, automation.ID, codersdk.ChatAutomationRunReasonExperimentDisabled)
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
-	body, err := io.ReadAll(http.MaxBytesReader(rw, r.Body, maxChatRequestBodyBytes))
+	body, err := io.ReadAll(http.MaxBytesReader(rw, r.Body, int64(api.chatDaemon.AutomationWebhookMaxBodyBytes())))
 	if err != nil {
 		if mbe, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			api.chatDaemon.RecordAutomationWebhookRefusal(ctx, automation.ID, codersdk.ChatAutomationRunReasonBodyTooLarge)
 			httpapi.RecordRequestBodyLimit(ctx, mbe.Limit)
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "Request body too large.",
@@ -671,6 +732,7 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 	// Unmarshal instead of json.Valid so the detail names the cause, such
 	// as a value nested deeper than the parser accepts.
 	if err := json.Unmarshal(body, new(json.RawMessage)); err != nil {
+		api.chatDaemon.RecordAutomationWebhookRefusal(ctx, automation.ID, codersdk.ChatAutomationRunReasonInvalidBody)
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Request body must be valid JSON.",
 			Detail:  err.Error(),

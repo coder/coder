@@ -1888,6 +1888,17 @@ Maximum number of chat automations one user can own across all organizations. Cr
 
 Minimum time between two runs of a chat schedule automation. Creating a schedule, or changing one, that runs more often fails with HTTP 400. Existing schedules that run more often keep running, and the API marks them. Must be between 1m and 24h.
 
+### --chat-automation-webhook-max-body-bytes
+
+|             |                                                            |
+|-------------|------------------------------------------------------------|
+| Type        | <code>int</code>                                           |
+| Environment | <code>$CODER_CHAT_AUTOMATION_WEBHOOK_MAX_BODY_BYTES</code> |
+| YAML        | <code>chat.automationWebhookMaxBodyBytes</code>            |
+| Default     | <code>65536</code>                                         |
+
+Maximum size in bytes of a chat automation webhook body, and of its event data after escaping. Larger deliveries fail with HTTP 413. The whole body becomes part of the chat's next prompt, so one large body can use up much of a model's context window. Must be between 1024 (1 KiB) and 262144 (256 KiB), the request body limit of the chat endpoints.
+
 ### --chat-stream-silence-timeout
 
 |             |                                                 |

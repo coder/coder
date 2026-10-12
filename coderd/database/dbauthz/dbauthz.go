@@ -7872,6 +7872,17 @@ func (q *querier) UpdateChatAutomationIDByID(ctx context.Context, arg database.U
 	return q.db.UpdateChatAutomationIDByID(ctx, arg)
 }
 
+func (q *querier) UpdateChatAutomationLastRunByID(ctx context.Context, arg database.UpdateChatAutomationLastRunByIDParams) (int64, error) {
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateChatAutomationLastRunByID(ctx, arg)
+}
+
 // UpdateChatAutomationWebhookSecretByID authorizes only RBAC update, which
 // organization admins and site owners also hold. The rule that only the
 // owner can rotate the webhook secret lives only in chatd

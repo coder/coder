@@ -117,6 +117,10 @@ func (q *sqlQuerier) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Co
 			&i.UpdatedAt,
 			&i.ProjectID,
 			&i.ScheduleClaimedUntil,
+			&i.LastRunAt,
+			&i.LastRunOutcome,
+			&i.LastRunReason,
+			&i.LastRunChatID,
 		); err != nil {
 			return nil, err
 		}

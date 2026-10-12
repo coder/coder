@@ -2270,6 +2270,10 @@ export interface ChatAutomation {
 	 * the minimum.
 	 */
 	readonly schedule_interval_below_minimum: boolean;
+	/**
+	 * LastRun is the outcome of the latest run, null until the first one.
+	 */
+	readonly last_run: ChatAutomationLastRun | null;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -2306,6 +2310,28 @@ export const ChatAutomationKinds: ChatAutomationKind[] = [
 ];
 
 // From codersdk/chatautomations.go
+/**
+ * ChatAutomationLastRun is the outcome of an automation's latest schedule
+ * occurrence, Run now, or authenticated webhook delivery. It is one record,
+ * not a run history: each run replaces it. Schedule occurrences that never
+ * start, because the automation is paused (see PausedReasons), leave it
+ * unchanged.
+ */
+export interface ChatAutomationLastRun {
+	readonly at: string;
+	readonly outcome: ChatAutomationRunOutcome;
+	/**
+	 * Reason is set for skipped and refused runs.
+	 */
+	readonly reason?: ChatAutomationRunReason;
+	/**
+	 * ChatID is the chat the run went to, or was meant for when the target
+	 * chat was known. The chat can be deleted since.
+	 */
+	readonly chat_id?: string;
+}
+
+// From codersdk/chatautomations.go
 export type ChatAutomationPausedReason =
 	| "experiment_disabled"
 	| "model_unavailable"
@@ -2332,6 +2358,51 @@ export interface ChatAutomationReference {
 	readonly name: string;
 	readonly kind: ChatAutomationKind;
 }
+
+// From codersdk/chatautomations.go
+export type ChatAutomationRunOutcome = "accepted" | "refused" | "skipped";
+
+export const ChatAutomationRunOutcomes: ChatAutomationRunOutcome[] = [
+	"accepted",
+	"refused",
+	"skipped",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationRunReason =
+	| "body_too_large"
+	| "chat_busy"
+	| "disabled"
+	| "error"
+	| "experiment_disabled"
+	| "forbidden"
+	| "hook_denied"
+	| "invalid_body"
+	| "missed"
+	| "model_unavailable"
+	| "no_default_model"
+	| "owner_inactive"
+	| "queue_full"
+	| "single_use_consumed"
+	| "target_unavailable";
+
+export const ChatAutomationRunReasons: ChatAutomationRunReason[] = [
+	"body_too_large",
+	"chat_busy",
+	"disabled",
+	"error",
+	"experiment_disabled",
+	"forbidden",
+	"hook_denied",
+	"invalid_body",
+	"missed",
+	"model_unavailable",
+	"no_default_model",
+	"owner_inactive",
+	"queue_full",
+	"single_use_consumed",
+	"target_unavailable",
+];
 
 // From codersdk/chatautomations.go
 /**
@@ -2488,6 +2559,11 @@ export interface ChatConfig {
 	 * runs more often fails; existing schedules keep running.
 	 */
 	readonly min_automation_schedule_interval: number;
+	/**
+	 * AutomationWebhookMaxBodyBytes is the maximum size in bytes of a chat
+	 * automation webhook body and of its escaped event data.
+	 */
+	readonly automation_webhook_max_body_bytes: number;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -5309,6 +5385,14 @@ export const DefaultChatAutoArchiveDays = 0;
 
 // From codersdk/chats.go
 /**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatAutomationWebhookMaxBodyBytes is the default maximum size
+ * of a chat automation webhook body.
+ */
+export const DefaultChatAutomationWebhookMaxBodyBytes = 65536;
+
+// From codersdk/chats.go
+/**
  * DefaultChatDebugRetentionDays is the default chat debug run retention
  * window, in days, applied when no site config row exists. Set the
  * config value to zero to disable the purge.
@@ -6983,6 +7067,15 @@ export const MaxChatFileSizeBytes = 10485760;
 
 // From codersdk/chats.go
 /**
+ * Defaults for the chat limits in [ChatConfig].
+ * MaxChatRequestBodyBytes is the hard request body limit of the chat
+ * endpoints, and so the highest webhook body limit an administrator
+ * can set.
+ */
+export const MaxChatRequestBodyBytes = 262144;
+
+// From codersdk/chats.go
+/**
  * MaxChatTitleRunes is the longest title accepted at creation or rename,
  * counted in Unicode code points after trimming.
  */
@@ -7147,6 +7240,14 @@ export const MaxUserSecretsPerUserCount = 50;
  * math behind all three caps.
  */
 export const MaxUserSecretsTotalValueBytes = 204800; // 200 KiB
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * MinChatAutomationWebhookMaxBodyBytes is the lowest webhook body limit
+ * an administrator can set.
+ */
+export const MinChatAutomationWebhookMaxBodyBytes = 1024;
 
 // From codersdk/organizations.go
 export interface MinimalOrganization {
@@ -10847,7 +10948,9 @@ export interface UpdateChatAutoArchiveDaysRequest {
 // From codersdk/chatautomations.go
 /**
  * UpdateChatAutomationRequest changes the set fields of a chat automation.
- * The kind and target mode of an automation cannot change.
+ * The kind, target mode, and webhook use of an automation cannot change:
+ * the API rejects a request that sets one of them, or any unknown field,
+ * with 400. A request that changes nothing leaves updated_at unchanged.
  */
 export interface UpdateChatAutomationRequest {
 	/**

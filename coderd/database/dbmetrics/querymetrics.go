@@ -5592,6 +5592,14 @@ func (m queryMetricsStore) UpdateChatAutomationIDByID(ctx context.Context, arg d
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateChatAutomationLastRunByID(ctx context.Context, arg database.UpdateChatAutomationLastRunByIDParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatAutomationLastRunByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatAutomationLastRunByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatAutomationLastRunByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateChatAutomationWebhookSecretByID(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatAutomationWebhookSecretByID(ctx, arg)

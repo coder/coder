@@ -1050,6 +1050,34 @@ func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
 	}
 }
 
+func TestDeploymentValues_Validate_ChatAutomationWebhookMaxBodyBytes(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		value int64
+		valid bool
+	}{
+		{value: 0},
+		{value: codersdk.MinChatAutomationWebhookMaxBodyBytes - 1},
+		{value: codersdk.MinChatAutomationWebhookMaxBodyBytes, valid: true},
+		{value: codersdk.DefaultChatAutomationWebhookMaxBodyBytes, valid: true},
+		{value: codersdk.MaxChatRequestBodyBytes, valid: true},
+		{value: codersdk.MaxChatRequestBodyBytes + 1},
+	} {
+		t.Run(fmt.Sprint(tc.value), func(t *testing.T) {
+			t.Parallel()
+			dv := defaultDeploymentValues(t)
+			dv.AI.Chat.AutomationWebhookMaxBodyBytes = serpent.Int64(tc.value)
+			err := dv.Validate()
+			if tc.valid {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, "--chat-automation-webhook-max-body-bytes")
+		})
+	}
+}
+
 func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 	t.Parallel()
 

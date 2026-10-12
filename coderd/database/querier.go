@@ -1609,6 +1609,10 @@ type sqlcQuerier interface {
 	// Marks a chat as created by an automation. The mark is set once, when the
 	// automation creates the chat, and never changes afterwards.
 	UpdateChatAutomationIDByID(ctx context.Context, arg UpdateChatAutomationIDByIDParams) (int64, error)
+	// Records the outcome of a run. It leaves updated_at alone, because a run
+	// does not change the automation, and it keeps a later run that another
+	// instance already recorded.
+	UpdateChatAutomationLastRunByID(ctx context.Context, arg UpdateChatAutomationLastRunByIDParams) (int64, error)
 	// Replaces the webhook secret hash and increments the secret version. The
 	// single-use marker webhook_consumed_at is intentionally kept.
 	UpdateChatAutomationWebhookSecretByID(ctx context.Context, arg UpdateChatAutomationWebhookSecretByIDParams) (ChatAutomation, error)

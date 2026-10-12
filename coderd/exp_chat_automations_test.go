@@ -565,6 +565,9 @@ func TestChatAutomations(t *testing.T) {
 			{name: "DisabledModel", id: schedule.Automation.ID, field: "new_chat_model_config_id", req: codersdk.UpdateChatAutomationRequest{NewChatModelConfigID: &disabledModel.ID}},
 			{name: "Kind", id: webhook.Automation.ID, field: "kind", rawReq: map[string]any{"kind": "schedule"}},
 			{name: "TargetMode", id: webhook.Automation.ID, field: "target_mode", rawReq: map[string]any{"target_mode": "new_chat"}},
+			{name: "WebhookUse", id: webhook.Automation.ID, field: "webhook_use", rawReq: map[string]any{"webhook_use": "single"}},
+			{name: "UnknownField", id: webhook.Automation.ID, field: "bogus", rawReq: map[string]any{"bogus": 1}},
+			{name: "UnknownBesideKnown", id: schedule.Automation.ID, field: "bogus", rawReq: map[string]any{"name": "Renamed", "bogus": 1}},
 		} {
 			var body any = tc.req
 			if tc.rawReq != nil {
@@ -580,6 +583,26 @@ func TestChatAutomations(t *testing.T) {
 
 		// Rejected updates change nothing.
 		stored, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), schedule.Automation.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(1), stored.ScheduleRevision)
+		require.True(t, stored.UpdatedAt.Equal(schedule.Automation.UpdatedAt))
+		storedWebhook, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), webhook.Automation.ID)
+		require.NoError(t, err)
+		require.True(t, storedWebhook.UpdatedAt.Equal(webhook.Automation.UpdatedAt))
+
+		// An update that sets every field to its current value, or enables
+		// an enabled automation, changes nothing: no new updated_at and no
+		// new schedule revision.
+		for _, req := range []codersdk.UpdateChatAutomationRequest{
+			{Name: &schedule.Automation.Name, Prompt: &schedule.Automation.Prompt, ScheduleCron: schedule.Automation.ScheduleCron, ScheduleTimeZone: schedule.Automation.ScheduleTimeZone},
+			{Enabled: ptr.Ref(true)},
+			{},
+		} {
+			unchanged, err := env.member.UpdateChatAutomation(ctx, env.orgID, schedule.Automation.ID, req)
+			require.NoError(t, err)
+			require.True(t, unchanged.UpdatedAt.Equal(schedule.Automation.UpdatedAt), "updated_at moved for %+v", req)
+		}
+		stored, err = env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), schedule.Automation.ID)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), stored.ScheduleRevision)
 

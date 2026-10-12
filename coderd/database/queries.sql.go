@@ -5627,7 +5627,7 @@ func (q *sqlQuerier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID)
 
 const getChatAutomationByID = `-- name: GetChatAutomationByID :one
 SELECT
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id
 FROM
     chat_automations
 WHERE
@@ -5664,6 +5664,10 @@ func (q *sqlQuerier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (C
 		&i.UpdatedAt,
 		&i.ProjectID,
 		&i.ScheduleClaimedUntil,
+		&i.LastRunAt,
+		&i.LastRunOutcome,
+		&i.LastRunReason,
+		&i.LastRunChatID,
 	)
 	return i, err
 }
@@ -5823,7 +5827,7 @@ func (q *sqlQuerier) GetChatAutomationRunStatusesByIDs(ctx context.Context, ids 
 
 const getChatAutomationsByIDsForUpdate = `-- name: GetChatAutomationsByIDsForUpdate :many
 SELECT
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id
 FROM
     chat_automations
 WHERE
@@ -5872,6 +5876,10 @@ func (q *sqlQuerier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids [
 			&i.UpdatedAt,
 			&i.ProjectID,
 			&i.ScheduleClaimedUntil,
+			&i.LastRunAt,
+			&i.LastRunOutcome,
+			&i.LastRunReason,
+			&i.LastRunChatID,
 		); err != nil {
 			return nil, err
 		}
@@ -5888,7 +5896,7 @@ func (q *sqlQuerier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids [
 
 const getChatAutomationsByOrganizationID = `-- name: GetChatAutomationsByOrganizationID :many
 SELECT
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id
 FROM
     chat_automations
 WHERE
@@ -5937,6 +5945,10 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, org
 			&i.UpdatedAt,
 			&i.ProjectID,
 			&i.ScheduleClaimedUntil,
+			&i.LastRunAt,
+			&i.LastRunOutcome,
+			&i.LastRunReason,
+			&i.LastRunChatID,
 		); err != nil {
 			return nil, err
 		}
@@ -5953,7 +5965,7 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, org
 
 const getChatAutomationsByOrganizationIDAndOwnerID = `-- name: GetChatAutomationsByOrganizationIDAndOwnerID :many
 SELECT
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id
 FROM
     chat_automations
 WHERE
@@ -6005,6 +6017,10 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationIDAndOwnerID(ctx context.Co
 			&i.UpdatedAt,
 			&i.ProjectID,
 			&i.ScheduleClaimedUntil,
+			&i.LastRunAt,
+			&i.LastRunOutcome,
+			&i.LastRunReason,
+			&i.LastRunChatID,
 		); err != nil {
 			return nil, err
 		}
@@ -6021,7 +6037,7 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationIDAndOwnerID(ctx context.Co
 
 const getDueChatAutomationSchedules = `-- name: GetDueChatAutomationSchedules :many
 SELECT
-    chat_automations.id, chat_automations.organization_id, chat_automations.owner_id, chat_automations.name, chat_automations.created_by_chat_id, chat_automations.kind, chat_automations.enabled, chat_automations.target_mode, chat_automations.target_chat_id, chat_automations.new_chat_model_config_id, chat_automations.reasoning_effort, chat_automations.when_busy, chat_automations.webhook_use, chat_automations.webhook_secret_hash, chat_automations.webhook_secret_version, chat_automations.webhook_consumed_at, chat_automations.prompt, chat_automations.schedule_cron, chat_automations.schedule_time_zone, chat_automations.schedule_revision, chat_automations.schedule_next_run_at, chat_automations.queue_generation, chat_automations.created_at, chat_automations.updated_at, chat_automations.project_id, chat_automations.schedule_claimed_until
+    chat_automations.id, chat_automations.organization_id, chat_automations.owner_id, chat_automations.name, chat_automations.created_by_chat_id, chat_automations.kind, chat_automations.enabled, chat_automations.target_mode, chat_automations.target_chat_id, chat_automations.new_chat_model_config_id, chat_automations.reasoning_effort, chat_automations.when_busy, chat_automations.webhook_use, chat_automations.webhook_secret_hash, chat_automations.webhook_secret_version, chat_automations.webhook_consumed_at, chat_automations.prompt, chat_automations.schedule_cron, chat_automations.schedule_time_zone, chat_automations.schedule_revision, chat_automations.schedule_next_run_at, chat_automations.queue_generation, chat_automations.created_at, chat_automations.updated_at, chat_automations.project_id, chat_automations.schedule_claimed_until, chat_automations.last_run_at, chat_automations.last_run_outcome, chat_automations.last_run_reason, chat_automations.last_run_chat_id
 FROM
     chat_automations
     JOIN users ON users.id = chat_automations.owner_id
@@ -6103,6 +6119,10 @@ func (q *sqlQuerier) GetDueChatAutomationSchedules(ctx context.Context, arg GetD
 			&i.UpdatedAt,
 			&i.ProjectID,
 			&i.ScheduleClaimedUntil,
+			&i.LastRunAt,
+			&i.LastRunOutcome,
+			&i.LastRunReason,
+			&i.LastRunChatID,
 		); err != nil {
 			return nil, err
 		}
@@ -6168,7 +6188,7 @@ INSERT INTO chat_automations (
     $22
 )
 RETURNING
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id
 `
 
 type InsertChatAutomationParams struct {
@@ -6249,6 +6269,10 @@ func (q *sqlQuerier) InsertChatAutomation(ctx context.Context, arg InsertChatAut
 		&i.UpdatedAt,
 		&i.ProjectID,
 		&i.ScheduleClaimedUntil,
+		&i.LastRunAt,
+		&i.LastRunOutcome,
+		&i.LastRunReason,
+		&i.LastRunChatID,
 	)
 	return i, err
 }
@@ -6309,7 +6333,7 @@ SET
 WHERE
     id = $15::uuid
 RETURNING
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id
 `
 
 type UpdateChatAutomationByIDParams struct {
@@ -6376,8 +6400,53 @@ func (q *sqlQuerier) UpdateChatAutomationByID(ctx context.Context, arg UpdateCha
 		&i.UpdatedAt,
 		&i.ProjectID,
 		&i.ScheduleClaimedUntil,
+		&i.LastRunAt,
+		&i.LastRunOutcome,
+		&i.LastRunReason,
+		&i.LastRunChatID,
 	)
 	return i, err
+}
+
+const updateChatAutomationLastRunByID = `-- name: UpdateChatAutomationLastRunByID :execrows
+UPDATE
+    chat_automations
+SET
+    last_run_at = $1::timestamptz,
+    last_run_outcome = $2::chat_automation_run_outcome,
+    last_run_reason = $3::text,
+    -- Without a chat from the run, record the target chat of an
+    -- existing_chat automation, the chat the run was meant for. new_chat
+    -- automations have no target chat.
+    last_run_chat_id = COALESCE($4::uuid, target_chat_id)
+WHERE
+    id = $5::uuid
+    AND (last_run_at IS NULL OR last_run_at <= $1::timestamptz)
+`
+
+type UpdateChatAutomationLastRunByIDParams struct {
+	LastRunAt      time.Time                `db:"last_run_at" json:"last_run_at"`
+	LastRunOutcome ChatAutomationRunOutcome `db:"last_run_outcome" json:"last_run_outcome"`
+	LastRunReason  sql.NullString           `db:"last_run_reason" json:"last_run_reason"`
+	LastRunChatID  uuid.NullUUID            `db:"last_run_chat_id" json:"last_run_chat_id"`
+	ID             uuid.UUID                `db:"id" json:"id"`
+}
+
+// Records the outcome of a run. It leaves updated_at alone, because a run
+// does not change the automation, and it keeps a later run that another
+// instance already recorded.
+func (q *sqlQuerier) UpdateChatAutomationLastRunByID(ctx context.Context, arg UpdateChatAutomationLastRunByIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateChatAutomationLastRunByID,
+		arg.LastRunAt,
+		arg.LastRunOutcome,
+		arg.LastRunReason,
+		arg.LastRunChatID,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateChatAutomationWebhookSecretByID = `-- name: UpdateChatAutomationWebhookSecretByID :one
@@ -6390,7 +6459,7 @@ SET
 WHERE
     id = $3::uuid
 RETURNING
-    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id
 `
 
 type UpdateChatAutomationWebhookSecretByIDParams struct {
@@ -6431,6 +6500,10 @@ func (q *sqlQuerier) UpdateChatAutomationWebhookSecretByID(ctx context.Context, 
 		&i.UpdatedAt,
 		&i.ProjectID,
 		&i.ScheduleClaimedUntil,
+		&i.LastRunAt,
+		&i.LastRunOutcome,
+		&i.LastRunReason,
+		&i.LastRunChatID,
 	)
 	return i, err
 }

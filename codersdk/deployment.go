@@ -4564,6 +4564,18 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name: "Chat: Automation Webhook Max Body Bytes",
+			Description: "Maximum size in bytes of a chat automation webhook body, and of its event data after escaping. Larger deliveries fail with HTTP 413. " +
+				"The whole body becomes part of the chat's next prompt, so one large body can use up much of a model's context window. " +
+				"Must be between 1024 (1 KiB) and 262144 (256 KiB), the request body limit of the chat endpoints.",
+			Flag:    "chat-automation-webhook-max-body-bytes",
+			Env:     "CODER_CHAT_AUTOMATION_WEBHOOK_MAX_BODY_BYTES",
+			Value:   &c.AI.Chat.AutomationWebhookMaxBodyBytes,
+			Default: strconv.Itoa(DefaultChatAutomationWebhookMaxBodyBytes),
+			Group:   &deploymentGroupChat,
+			YAML:    "automationWebhookMaxBodyBytes",
+		},
+		{
 			Name:        "Chat: AI Gateway Routing Enabled",
 			Description: "Deprecated: AI Gateway routing is now the only routing path. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "chat-ai-gateway-routing-enabled",
@@ -5123,6 +5135,9 @@ type ChatConfig struct {
 	// of a chat schedule automation. Creating or changing a schedule that
 	// runs more often fails; existing schedules keep running.
 	MinAutomationScheduleInterval serpent.Duration `json:"min_automation_schedule_interval" typescript:",notnull"`
+	// AutomationWebhookMaxBodyBytes is the maximum size in bytes of a chat
+	// automation webhook body and of its escaped event data.
+	AutomationWebhookMaxBodyBytes serpent.Int64 `json:"automation_webhook_max_body_bytes" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -5291,6 +5306,10 @@ func (c *DeploymentValues) Validate() error {
 
 	if interval := c.AI.Chat.MinAutomationScheduleInterval.Value(); interval < time.Minute || interval > 24*time.Hour {
 		return xerrors.Errorf("chat min automation schedule interval (%s) must be between 1m and 24h; set --chat-min-automation-schedule-interval to a valid duration", interval)
+	}
+
+	if size := c.AI.Chat.AutomationWebhookMaxBodyBytes.Value(); size < MinChatAutomationWebhookMaxBodyBytes || size > MaxChatRequestBodyBytes {
+		return xerrors.Errorf("--chat-automation-webhook-max-body-bytes (%d) must be between %d and %d, the request body limit of the chat endpoints", size, MinChatAutomationWebhookMaxBodyBytes, MaxChatRequestBodyBytes)
 	}
 
 	for _, limit := range []struct {

@@ -264,6 +264,10 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>enabled</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
 <tr><td><code>kind</code></td><td>Yes</td></tr>
+<tr><td><code>last_run_at</code></td><td>No</td></tr>
+<tr><td><code>last_run_chat_id</code></td><td>No</td></tr>
+<tr><td><code>last_run_outcome</code></td><td>No</td></tr>
+<tr><td><code>last_run_reason</code></td><td>No</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>new_chat_model_config_id</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
