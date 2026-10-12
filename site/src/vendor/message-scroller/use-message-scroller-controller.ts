@@ -729,13 +729,20 @@ function useMessageScrollerController({
         SCROLL_POSITION_EPSILON
 
       if (item === items[items.length - 1]) {
-        // The anchor hold hands off to following as the turn fills the view.
-        if (!endsBelowView && modeRef.current === "anchored-to-message") {
+        // The anchor hold hands off to following when the reply uses up the
+        // tail spacer, so leave it in place only while some spacer is left.
+        if (
+          !endsBelowView &&
+          modeRef.current === "anchored-to-message" &&
+          spacerHeightRef.current > 0
+        ) {
           followSuppressedRef.current = false
           return
         }
 
-        scrollToEnd({ behavior: "smooth" })
+        // Following pins the end with instant scrolls, which would cut a
+        // smooth one short.
+        scrollToEnd({ behavior: "auto" })
         return
       }
 

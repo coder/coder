@@ -175,6 +175,19 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 		expect(await visibleRowsAfterLayout()).toContain("next");
 	});
 
+	it("follows new output after the last block of an anchored turn expands to fill the view", async () => {
+		const user = userEvent.setup();
+		const update = renderTranscript([history]);
+		// Ends at the bottom of the view, using up the tail spacer.
+		const blockRow = <BlockRow key="block" expandedHeight={296} />;
+		await update([history, prompt, blockRow]);
+
+		await user.click(summaryButton());
+		await update([history, prompt, blockRow, nextRow]);
+
+		expect(await visibleRowsAfterLayout()).toContain("next");
+	});
+
 	it("keeps the reader in place when the last block collapses", async () => {
 		const user = userEvent.setup();
 		const blockRow = (
