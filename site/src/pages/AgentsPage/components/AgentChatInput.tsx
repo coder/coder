@@ -1,25 +1,21 @@
 import { cn } from "cn";
 import {
 	ArrowLeftIcon,
-	ArrowUpIcon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	InfoIcon,
 	LockIcon,
-	MicIcon,
 	MonitorIcon,
 	PaperclipIcon,
 	PencilIcon,
 	PlusIcon,
 	ServerIcon,
-	SquareIcon,
-	TriangleAlertIcon,
 	UnlinkIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -27,7 +23,6 @@ import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
 	Command,
@@ -66,23 +61,18 @@ import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { chatAttachmentAcceptAttribute } from "../utils/chatAttachments";
 import type { ChatSlashCommand } from "../utils/slashCommands";
+import { AgentComposer } from "./AgentComposer";
 import type { ComposerFileBindings } from "./AgentComposer/context";
 import { useComposerRuntime } from "./AgentComposer/useComposerRuntime";
 import { AgentSetupNotice } from "./AgentSetupNotice";
-import { AttachmentPreview, type UploadState } from "./AttachmentPreview";
-import {
-	ChatMessageInput,
-	type ChatMessageInputRef,
-} from "./ChatMessageInput/ChatMessageInput";
+import type { UploadState } from "./AttachmentPreview";
+import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
-import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
 import { QueuedMessagesList } from "./QueuedMessagesList";
-import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
-import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
 
 export {
 	ImageThumbnail,
@@ -521,45 +511,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	slashCommands,
 	fillWidth = false,
 }) => {
-	const { state, actions, meta } = useComposerRuntime({
-		onSend,
-		isDisabled,
-		isReadOnly,
-		isLoading,
-		hasModelOptions,
-		warning,
-		inputRef,
-		initialValue,
-		initialEditorState,
-		remountKey,
-		onContentChange,
-		isStreaming,
-		onInterrupt,
-		isInterruptPending,
-		isEditingHistoryMessage,
-		onCancelHistoryEdit,
-		userPromptHistory,
-		files: {
-			attachments,
-			onAttach,
-			onRemoveAttachment,
-			uploadStates,
-			previewUrls,
-			textContents,
-			workspaceUploads,
-		},
-		queuedMessages,
-		onPromoteQueuedMessage,
-	});
-	const {
-		editorRef,
-		warningId,
-		composerElement,
-		setComposerElement,
-		sendShortcut,
-		sendShortcutLabel,
-		sendButtonKeyShortcuts,
-	} = meta;
 	const [chatFullWidth] = useChatFullWidth();
 	const { organizations } = useDashboard();
 	const chatOrganization = organizations.find(
@@ -572,14 +523,39 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				modelCount !== undefined &&
 				(providerCount === 0 || modelCount === 0)
 			: modelCount !== undefined && modelCount === 0);
-	const [previewImage, setPreviewImage] = useState<string | null>(null);
-	const [previewText, setPreviewText] = useState<string | null>(null);
-	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
-		null,
+	const { state, actions, meta } = useComposerRuntime(
+		{
+			onSend,
+			isDisabled,
+			isReadOnly,
+			isLoading,
+			hasModelOptions,
+			warning,
+			inputRef,
+			initialValue,
+			initialEditorState,
+			remountKey,
+			onContentChange,
+			isStreaming,
+			onInterrupt,
+			isInterruptPending,
+			isEditingHistoryMessage,
+			onCancelHistoryEdit,
+			userPromptHistory,
+			files: {
+				attachments,
+				onAttach,
+				onRemoveAttachment,
+				uploadStates,
+				previewUrls,
+				textContents,
+				workspaceUploads,
+			},
+			queuedMessages,
+			onPromoteQueuedMessage,
+		},
+		showAgentSetupNotice,
 	);
-	const [previewTextMediaType, setPreviewTextMediaType] = useState<
-		string | null
-	>(null);
 	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
 	const [plusMenuView, setPlusMenuView] = useState<"main" | "workspace">(
 		"main",
@@ -726,142 +702,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		: () => onPlanModeToggle(false);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	useEffect(() => {
-		if (!composerElement) return;
-		// Radix popover wrappers are fixed-positioned, so their
-		// inset values need to be in layout-viewport coordinates.
-		// The visual viewport can be offset inside the layout
-		// viewport when the mobile keyboard is open. Treat
-		// `visualViewport.offsetTop` as a clamp only when it yields
-		// a positive height, since mobile WebKit can report mixed
-		// coordinate systems while the keyboard is settling.
-		const viewport = globalThis.visualViewport;
-		const root = document.documentElement;
-		const fixedProbe = document.createElement("div");
-		Object.assign(fixedProbe.style, {
-			position: "fixed",
-			bottom: "0",
-			left: "0",
-			width: "0",
-			height: "0",
-			pointerEvents: "none",
-			visibility: "hidden",
-		});
-		document.body.appendChild(fixedProbe);
-		const composerGap = 8;
-		const viewportPadding = 16;
-		const minimumMenuHeight = 96;
-		const update = () => {
-			const rect = composerElement.getBoundingClientRect();
-			const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
-			const visibleViewportTop = viewport?.offsetTop ?? 0;
-			const bottom = Math.max(0, fixedViewportBottom - rect.bottom);
-			// Keep the dropdown's bottom edge above the software keyboard,
-			// which covers the bottom of the layout viewport without moving
-			// fixed-positioned elements.
-			const keyboardInset = viewport
-				? Math.max(
-						0,
-						fixedViewportBottom - (viewport.offsetTop + viewport.height),
-					)
-				: 0;
-			const aboveComposerBottom = Math.max(
-				0,
-				fixedViewportBottom - rect.top + composerGap,
-				keyboardInset + composerGap,
-			);
-			const dropdownBottomEdgeTop = fixedViewportBottom - aboveComposerBottom;
-			const maxHeightCandidates = [
-				dropdownBottomEdgeTop - visibleViewportTop - viewportPadding,
-				dropdownBottomEdgeTop - viewportPadding,
-			].filter((height) => height > 0);
-			const aboveComposerMaxHeight = Math.max(
-				minimumMenuHeight,
-				maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
-			);
-			root.style.setProperty("--mobile-dropdown-bottom", `${bottom}px`);
-			root.style.setProperty("--mobile-dropdown-left", `${rect.left}px`);
-			root.style.setProperty("--mobile-dropdown-width", `${rect.width}px`);
-			root.style.setProperty(
-				"--mobile-dropdown-above-composer-bottom",
-				`${aboveComposerBottom}px`,
-			);
-			root.style.setProperty(
-				"--mobile-dropdown-above-composer-max-height",
-				`${aboveComposerMaxHeight}px`,
-			);
-		};
-		const animationFrameIDs = new Set<number>();
-		const timeoutIDs = new Set<ReturnType<typeof setTimeout>>();
-		const cancelScheduledUpdates = () => {
-			for (const id of animationFrameIDs) {
-				cancelAnimationFrame(id);
-			}
-			animationFrameIDs.clear();
-			for (const id of timeoutIDs) {
-				clearTimeout(id);
-			}
-			timeoutIDs.clear();
-		};
-		const queueAnimationFrame = (callback: () => void) => {
-			const id = requestAnimationFrame(() => {
-				animationFrameIDs.delete(id);
-				callback();
-			});
-			animationFrameIDs.add(id);
-		};
-		const scheduleUpdate = () => {
-			cancelScheduledUpdates();
-			update();
-			// Mobile WebKit can finish keyboard panning after focus and
-			// input events. Re-read geometry after the viewport settles so
-			// the first slash-menu render is not stuck under the composer.
-			queueAnimationFrame(() => {
-				update();
-				queueAnimationFrame(update);
-			});
-			for (const delay of [50, 150, 300]) {
-				const id = setTimeout(() => {
-					timeoutIDs.delete(id);
-					update();
-				}, delay);
-				timeoutIDs.add(id);
-			}
-		};
-		scheduleUpdate();
-		const ro = new ResizeObserver(scheduleUpdate);
-		ro.observe(composerElement);
-		addEventListener("resize", scheduleUpdate);
-		addEventListener("scroll", scheduleUpdate, { passive: true });
-		addEventListener("focusin", scheduleUpdate);
-		addEventListener("focusout", scheduleUpdate);
-		composerElement.addEventListener("input", scheduleUpdate);
-		composerElement.addEventListener("keyup", scheduleUpdate);
-		document.addEventListener("selectionchange", scheduleUpdate);
-		viewport?.addEventListener("resize", scheduleUpdate);
-		viewport?.addEventListener("scroll", scheduleUpdate);
-		viewport?.addEventListener("scrollend", scheduleUpdate);
-		return () => {
-			ro.disconnect();
-			cancelScheduledUpdates();
-			removeEventListener("resize", scheduleUpdate);
-			removeEventListener("scroll", scheduleUpdate);
-			removeEventListener("focusin", scheduleUpdate);
-			removeEventListener("focusout", scheduleUpdate);
-			composerElement.removeEventListener("input", scheduleUpdate);
-			composerElement.removeEventListener("keyup", scheduleUpdate);
-			document.removeEventListener("selectionchange", scheduleUpdate);
-			viewport?.removeEventListener("resize", scheduleUpdate);
-			viewport?.removeEventListener("scroll", scheduleUpdate);
-			viewport?.removeEventListener("scrollend", scheduleUpdate);
-			fixedProbe.remove();
-			root.style.removeProperty("--mobile-dropdown-bottom");
-			root.style.removeProperty("--mobile-dropdown-left");
-			root.style.removeProperty("--mobile-dropdown-width");
-			root.style.removeProperty("--mobile-dropdown-above-composer-bottom");
-			root.style.removeProperty("--mobile-dropdown-above-composer-max-height");
-		};
-	}, [composerElement]);
 
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files?.length) {
@@ -870,68 +710,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		// Reset so the same file can be selected again.
 		e.target.value = "";
 	};
-
-	const handleFilePaste = (file: File) => actions.attachFiles([file]);
-
-	const handleTextPreview = (
-		content: string,
-		fileName: string,
-		mediaType: string,
-	) => {
-		if (onTextPreview) {
-			onTextPreview(content, fileName, mediaType);
-		} else {
-			setPreviewText(content);
-			setPreviewTextFileName(fileName);
-			setPreviewTextMediaType(mediaType);
-		}
-	};
-
-	// Drag-and-drop support for any chat-supported file type.
-	const [isDragging, setIsDragging] = useState(false);
-
-	const handleDragOver = (e: React.DragEvent) => {
-		e.preventDefault();
-		if (e.dataTransfer.types.includes("Files")) {
-			setIsDragging(true);
-		}
-	};
-
-	const handleDragLeave = (e: React.DragEvent) => {
-		if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-			setIsDragging(false);
-		}
-	};
-
-	const handleDrop = (e: React.DragEvent) => {
-		e.preventDefault();
-		setIsDragging(false);
-		if (!e.dataTransfer.files.length) return;
-		actions.attachFiles(Array.from(e.dataTransfer.files));
-	};
-
-	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === "Escape") {
-			if (isEditingHistoryMessage) {
-				e.preventDefault();
-				onCancelHistoryEdit?.();
-			} else if (isStreaming && onInterrupt && !isInterruptPending) {
-				e.preventDefault();
-				onInterrupt();
-			}
-		}
-	};
-
-	const sendButtonLabel = isEditingHistoryMessage
-		? "Save Edit"
-		: isStreaming
-			? "Queue"
-			: "Send";
-	const showStopButton = !isReadOnlyView && state.showStopButton;
-	const showSendButton = !isReadOnlyView && state.showSendButton;
-	const sendButtonTooltip = sendShortcutLabel
-		? `${sendButtonLabel}: ${sendShortcutLabel}`
-		: sendButtonLabel;
 
 	const content = (
 		<div
@@ -972,69 +750,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					)}
 				</div>
 			)}
-			<div
-				ref={setComposerElement}
-				data-testid="chat-composer"
-				className={cn(
-					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
-					showAgentSetupNotice && "sm:bg-surface-secondary",
-					isDragging && "ring-2 ring-content-link/40",
-					(isEditingHistoryMessage || warning) &&
-						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
-					isReadOnlyView && "border border-solid border-border",
-				)}
-				onKeyDown={handleComposerKeyDown}
-				onDragOver={state.canAttachFiles ? handleDragOver : undefined}
-				onDragLeave={state.canAttachFiles ? handleDragLeave : undefined}
-				onDrop={state.canAttachFiles ? handleDrop : undefined}
+			<AgentComposer.Frame
+				className={
+					isReadOnlyView ? "border border-solid border-border" : undefined
+				}
 			>
-				{warning && (
-					<div
-						id={warningId}
-						className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs font-medium text-content-warning"
-					>
-						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
-						{warning}
-					</div>
-				)}
-				{isEditingHistoryMessage && (
-					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
-						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
-							<PencilIcon className="size-3.5" />
-							Editing will delete all subsequent messages and restart the
-							conversation here.
-						</span>
-						<Button
-							type="button"
-							variant="subtle"
-							size="icon"
-							aria-label="Cancel editing"
-							onClick={onCancelHistoryEdit}
-							disabled={isLoading}
-							className="size-6 rounded text-content-warning hover:text-content-primary"
-						>
-							<XIcon className="size-3.5" />
-						</Button>
-					</div>
-				)}
-				{onRemoveAttachment && (
-					<AttachmentPreview
-						attachments={state.files.attachments}
-						onRemove={actions.removeAttachment}
-						uploadStates={state.files.uploadStates}
-						previewUrls={state.files.previewUrls}
-						onPreview={setPreviewImage}
-						textContents={state.files.textContents}
-						onTextPreview={handleTextPreview}
-						onInlineText={actions.inlineText}
-					/>
-				)}
-				{state.files.workspaceUploads && (
-					<WorkspaceUploadPreview
-						uploads={state.files.workspaceUploads.uploads}
-						onRemove={actions.removeWorkspaceUpload}
-					/>
-				)}
+				<AgentComposer.Warning />
+				{isEditingHistoryMessage && <AgentComposer.EditBanner />}
+				<AgentComposer.Attachments onTextPreview={onTextPreview} />
 				{isReadOnlyView ? (
 					<div
 						role="status"
@@ -1044,49 +767,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						{readOnlyNotice}
 					</div>
 				) : (
-					<ChatMessageInput
-						ref={editorRef}
-						onFilePaste={state.canAttachFiles ? handleFilePaste : undefined}
-						acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
-						onPaste={actions.resetPromptCycle}
-						aria-label="Chat message"
-						aria-describedby={warning ? warningId : undefined}
-						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+					<AgentComposer.Editor
 						placeholder={placeholder}
-						initialValue={initialValue}
-						initialEditorState={initialEditorState}
-						remountKey={remountKey}
-						onChange={actions.contentChange}
-						onKeyDown={actions.editorKeyDown}
-						onEnter={actions.submit}
-						sendShortcut={sendShortcut}
-						disabled={isReadOnly || isLoading}
 						hasWorkspace={hasSkillsWorkspace}
 						workspaceSkills={workspaceSkills}
 						slashCommands={slashCommands}
-						skillsMenuAnchor={composerElement}
 					/>
 				)}
-				{/* Warn about invisible Unicode in the message text.
-				 * Unlike the admin/user prompt textareas (which strip
-				 * invisible chars server-side on save), the chat input
-				 * is the user's free-form message; we don't silently
-				 * mutate it. Instead we surface a warning so the user
-				 * can make an informed decision. This guards against
-				 * social engineering attacks where a user is tricked
-				 * into pasting a "prompt" containing hidden LLM
-				 * instructions encoded as zero-width characters. */}
-				{state.invisibleCharCount > 0 && (
-					<div className="px-3 pb-1">
-						<Alert severity="warning">
-							<AlertDescription>
-								This message contains {state.invisibleCharCount} invisible
-								Unicode character{state.invisibleCharCount !== 1 ? "s" : ""}{" "}
-								that could hide content. Review carefully before sending.
-							</AlertDescription>
-						</Alert>
-					</div>
-				)}
+				<AgentComposer.InvisibleCharacterWarning />
 				{/* Hidden file input for attaching files. When workspace
 				uploads are wired, every file type stays selectable even
 				while no workspace is ready: iOS silently greys out
@@ -1104,7 +792,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						className="hidden"
 					/>
 				)}
-				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
+				<AgentComposer.Toolbar>
 					{/* flex-1 routes free row space to the growing pills. */}
 					<div className="flex min-w-0 flex-1 items-center gap-1">
 						{/* Plus menu */}
@@ -1511,41 +1199,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-2">
-						{state.speechSupported && !isReadOnlyView && (
-							<>
-								<Button
-									type="button"
-									variant="subtle"
-									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
-									onClick={
-										state.speechRecording
-											? actions.cancelRecording
-											: actions.startRecording
-									}
-									disabled={isDisabled}
-									aria-label={
-										state.speechRecording ? "Cancel voice input" : "Voice input"
-									}
-								>
-									{state.speechRecording ? (
-										<XIcon />
-									) : (
-										<MicIcon strokeWidth={1.5} />
-									)}
-								</Button>
-								{state.speechError && !state.speechRecording && (
-									<span
-										className="text-2xs text-content-destructive"
-										role="alert"
-									>
-										{state.speechError === "not-allowed"
-											? "Mic access denied"
-											: "Voice input failed"}
-									</span>
-								)}
-							</>
-						)}
+						{!isReadOnlyView && <AgentComposer.VoiceInput />}
 						{contextUsage !== undefined && (
 							<div
 								className={cn(
@@ -1560,94 +1214,20 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								/>
 							</div>
 						)}
-						{showSendButton && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										size="icon"
-										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
-										onClick={
-											state.speechRecording
-												? actions.acceptRecording
-												: actions.submit
-										}
-										disabled={state.speechRecording ? false : !state.canSend}
-										aria-keyshortcuts={sendButtonKeyShortcuts}
-									>
-										{isLoading && !isInterruptPending ? (
-											<Spinner size="sm" loading aria-hidden="true" />
-										) : state.speechRecording ? (
-											<CheckIcon />
-										) : (
-											<ArrowUpIcon />
-										)}
-										<span className="sr-only">
-											{state.speechRecording
-												? "Accept voice input"
-												: sendButtonLabel}
-										</span>
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent side="top">
-									{state.speechRecording
-										? "Accept voice input"
-										: sendButtonTooltip}
-								</TooltipContent>
-							</Tooltip>
-						)}
-						{showStopButton && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										size="icon"
-										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:size-3! [&>svg]:p-0"
-										onClick={onInterrupt}
-										disabled={isInterruptPending}
-									>
-										<SquareIcon className="fill-current" />
-										<span className="sr-only">Stop</span>
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent side="top">
-									{isInterruptPending ? "Interrupting…" : "Stop"}
-								</TooltipContent>
-							</Tooltip>
-						)}
-						{isInterruptPending && isStreaming && (
-							// Live region announcing the pending interruption.
-							<span role="status" className="sr-only">
-								Interrupting. Waiting for the agent to stop.
-							</span>
-						)}
+						{!isReadOnlyView && <AgentComposer.Submit />}
+						{!isReadOnlyView && <AgentComposer.Stop />}
+						<AgentComposer.InterruptStatus />
 					</div>
-				</div>
-			</div>
+				</AgentComposer.Toolbar>
+			</AgentComposer.Frame>
 		</div>
 	);
 
 	return (
 		<>
-			{content}
-			{previewImage && (
-				<ImageLightbox
-					src={previewImage}
-					onClose={() => setPreviewImage(null)}
-				/>
-			)}
-			{previewText !== null && (
-				<TextPreviewDialog
-					content={previewText}
-					fileName={previewTextFileName ?? undefined}
-					mediaType={previewTextMediaType ?? undefined}
-					onClose={() => {
-						setPreviewText(null);
-						setPreviewTextFileName(null);
-						setPreviewTextMediaType(null);
-					}}
-				/>
-			)}
+			<AgentComposer.Provider state={state} actions={actions} meta={meta}>
+				{content}
+			</AgentComposer.Provider>
 			<ConfirmDialog
 				open={mcpDisconnectTarget !== null}
 				title={`Disconnect ${mcpDisconnectTarget?.display_name ?? "MCP server"}?`}
