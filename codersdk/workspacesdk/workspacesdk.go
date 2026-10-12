@@ -48,10 +48,10 @@ const (
 	// gathering agent statistics.
 	AgentHTTPAPIServerPort = 4
 	// AgentHTTPAPIServerIdleTimeout is how long the agent's HTTP API server
-	// keeps an idle connection open. chatd keeps one idle connection per chat
-	// turn for as long; on dogfood, 99.96% of gaps between workspace tool
-	// calls in a turn were shorter. Older agents close idle connections after
-	// 20 seconds.
+	// keeps an idle connection open. A client that closes its idle
+	// connections sooner avoids sending requests on connections the agent
+	// has closed. Agents built before this setting close idle connections
+	// after 20 seconds.
 	AgentHTTPAPIServerIdleTimeout = 5 * time.Minute
 
 	// AgentMinimumListeningPort is the minimum port that the listening-ports
