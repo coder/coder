@@ -519,9 +519,12 @@ type ChatMessagePart struct {
 	// because encrypted reasoning only decrypts for the organization
 	// behind that credential. Internal only: stripped before API responses.
 	ProviderCredential string `json:"provider_credential,omitempty" typescript:"-"`
-	// ReasoningEpoch records how many times the producing provider had
-	// rejected the chat's encrypted reasoning before this reasoning part
-	// was produced. Internal only: stripped before API responses.
+	// ReasoningEpoch records how many times the provider had rejected the
+	// chat's encrypted reasoning from this provider, model, and credential
+	// before this reasoning part was produced. A step that produced no
+	// reasoning after a rejection records its epoch, provider, model, and
+	// credential on its first part instead. Internal only: stripped before
+	// API responses.
 	ReasoningEpoch int `json:"reasoning_epoch,omitempty" typescript:"-"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).

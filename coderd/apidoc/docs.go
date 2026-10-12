@@ -21338,7 +21338,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "reasoning_epoch": {
-                    "description": "ReasoningEpoch records how many times the producing provider had\nrejected the chat's encrypted reasoning before this reasoning part\nwas produced. Internal only: stripped before API responses.",
+                    "description": "ReasoningEpoch records how many times the provider had rejected the\nchat's encrypted reasoning from this provider, model, and credential\nbefore this reasoning part was produced. A step that produced no\nreasoning after a rejection records its epoch, provider, model, and\ncredential on its first part instead. Internal only: stripped before\nAPI responses.",
                     "type": "integer"
                 },
                 "result": {

@@ -334,8 +334,8 @@ func (server *Server) prepareGeneration(
 
 	// Drop provider-executed tool history produced by a different provider,
 	// and OpenAI reasoning state produced by a different provider, model,
-	// or credential, or before the provider's latest rejection of the
-	// chat's encrypted reasoning, before building the prompt. A provider
+	// or credential, or before the latest rejection of that source's
+	// encrypted reasoning, before building the prompt. A provider
 	// that shares another's wire format (e.g. Bedrock and Anthropic) can
 	// still reject the other's provider-specific blocks, so a mid-chat
 	// provider switch must not replay them.
@@ -351,7 +351,7 @@ func (server *Server) prepareGeneration(
 	// sanitizing everything, since the tail is user-only and the
 	// sanitizer only rewrites assistant rows.
 	pendingRowsStart := pendingUserSegmentStart(promptRows)
-	reasoningSource.Epoch = currentReasoningEpoch(promptRows[:pendingRowsStart], providerIdentity)
+	reasoningSource.Epoch = currentReasoningEpoch(promptRows[:pendingRowsStart], reasoningSource)
 	sanitizedHead, err := server.sanitizeForeignProviderStateRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, reasoningSource)
 	if err != nil {
 		return generationPrepared{}, err

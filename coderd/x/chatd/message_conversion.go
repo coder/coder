@@ -36,6 +36,13 @@ type buildCommitStepMessagesInput struct {
 	reasoningProvenance    reasoningProvenance
 }
 
+func stampReasoningProvenance(part *codersdk.ChatMessagePart, provenance reasoningProvenance) {
+	part.ProviderIdentity = provenance.ProviderIdentity
+	part.ProviderModel = provenance.Model
+	part.ProviderCredential = provenance.Credential
+	part.ReasoningEpoch = provenance.Epoch
+}
+
 type stepMessagesForCommit struct {
 	Messages []chatstate.Message
 	// ConsumeCompactionRequest clears the manual compaction marker
@@ -51,13 +58,18 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 
 	assistantBlocks, toolResults := splitStepContent(input.step.Content)
 	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID, input.hookRewrittenToolCalls)
+	stamped := false
 	for i := range assistantParts {
 		if assistantParts[i].Type == codersdk.ChatMessagePartTypeReasoning {
-			assistantParts[i].ProviderIdentity = input.reasoningProvenance.ProviderIdentity
-			assistantParts[i].ProviderModel = input.reasoningProvenance.Model
-			assistantParts[i].ProviderCredential = input.reasoningProvenance.Credential
-			assistantParts[i].ReasoningEpoch = input.reasoningProvenance.Epoch
+			stampReasoningProvenance(&assistantParts[i], input.reasoningProvenance)
+			stamped = true
 		}
+	}
+	// Without a stamp, a step that produced no reasoning would lose the
+	// rejection epoch, and the next step would replay the rejected
+	// reasoning again.
+	if !stamped && input.reasoningProvenance.Epoch > 0 && len(assistantParts) > 0 {
+		stampReasoningProvenance(&assistantParts[0], input.reasoningProvenance)
 	}
 
 	messages := make([]chatstate.Message, 0, 1+len(toolResults))

@@ -46,14 +46,31 @@ const (
 // reasoningProvenance identifies where OpenAI reasoning state was produced.
 // Reasoning item IDs only resolve on the issuing provider instance, and
 // encrypted content can be rejected by a different model or by the
-// organization behind a different credential. Epoch counts the provider's
-// rejections of the chat's encrypted reasoning, so reasoning replayed into
-// a rejected call is never replayed again.
+// organization behind a different credential. Epoch counts rejections of
+// the chat's encrypted reasoning from the same provider, model, and
+// credential, so reasoning replayed into a rejected call is never replayed
+// again.
 type reasoningProvenance struct {
 	ProviderIdentity string
 	Model            string
 	Credential       string
 	Epoch            int
+}
+
+// sameSource reports whether p and o name the same provider, model, and
+// credential, regardless of epoch.
+func (p reasoningProvenance) sameSource(o reasoningProvenance) bool {
+	return p.ProviderIdentity == o.ProviderIdentity && p.Model == o.Model && p.Credential == o.Credential
+}
+
+// stampedReasoningProvenance returns the provenance recorded on part.
+func stampedReasoningProvenance(part codersdk.ChatMessagePart) reasoningProvenance {
+	return reasoningProvenance{
+		ProviderIdentity: part.ProviderIdentity,
+		Model:            part.ProviderModel,
+		Credential:       part.ProviderCredential,
+		Epoch:            part.ReasoningEpoch,
+	}
 }
 
 // reasoningCredential names the credential an AI Gateway route sends.
@@ -75,9 +92,11 @@ func unstampedReasoningProvenance(rowOrigin, target reasoningProvenance) reasoni
 	}
 }
 
-// currentReasoningEpoch returns the highest epoch stamped on providerIdentity's
-// reasoning in rows.
-func currentReasoningEpoch(rows []database.ChatMessage, providerIdentity string) int {
+// currentReasoningEpoch returns the highest epoch recorded in rows for the
+// provider, model, and credential of target. A rejected request only
+// replayed reasoning from that source, so the rejection says nothing about
+// reasoning from other models or credentials.
+func currentReasoningEpoch(rows []database.ChatMessage, target reasoningProvenance) int {
 	epoch := 0
 	for _, row := range rows {
 		if row.Role != database.ChatMessageRoleAssistant || !bytes.Contains(row.Content.RawMessage, []byte(`"reasoning_epoch"`)) {
@@ -88,8 +107,8 @@ func currentReasoningEpoch(rows []database.ChatMessage, providerIdentity string)
 			continue
 		}
 		for _, part := range parts {
-			if part.Type == codersdk.ChatMessagePartTypeReasoning && part.ProviderIdentity == providerIdentity {
-				epoch = max(epoch, part.ReasoningEpoch)
+			if source := stampedReasoningProvenance(part); source.sameSource(target) {
+				epoch = max(epoch, source.Epoch)
 			}
 		}
 	}
@@ -177,12 +196,7 @@ func stripForeignProviderStateRows(
 func isForeignReasoning(part codersdk.ChatMessagePart, rowOrigin, target reasoningProvenance) bool {
 	source := unstampedReasoningProvenance(rowOrigin, target)
 	if part.ProviderIdentity != "" {
-		source = reasoningProvenance{
-			ProviderIdentity: part.ProviderIdentity,
-			Model:            part.ProviderModel,
-			Credential:       part.ProviderCredential,
-			Epoch:            part.ReasoningEpoch,
-		}
+		source = stampedReasoningProvenance(part)
 	}
 	return source != target && hasOpenAIReasoningState(part)
 }

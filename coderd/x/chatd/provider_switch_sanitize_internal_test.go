@@ -374,22 +374,30 @@ func TestStripForeignProviderStateRows(t *testing.T) {
 		require.Equal(t, providerSwitchStripStats{RemovedReasoning: 2}, stats)
 	})
 
-	t.Run("current epoch is per provider", func(t *testing.T) {
+	t.Run("current epoch is per provider model and credential", func(t *testing.T) {
 		t.Parallel()
-		epoch := func(source reasoningProvenance, n int) reasoningProvenance {
-			source.Epoch = n
+		at := func(source reasoningProvenance, credential string, epoch int) reasoningProvenance {
+			source.Credential = credential
+			source.Epoch = epoch
 			return source
 		}
-		otherModelAhead := epoch(openAIInstanceOtherModel, 3)
+		deployment := at(openAIInstance, reasoningCredentialDeployment, 0)
+		// A step with no reasoning records its epoch on its first part.
+		marker := text("no reasoning")
+		stampReasoningProvenance(&marker, at(openAIInstance, reasoningCredentialDeployment, 3))
 		rows := []database.ChatMessage{
 			userRow(t, "hi"),
-			assistantRow(t, openAIInstanceCfg, stampedFull(epoch(openAIInstance, 2)), openAIReasoning),
-			assistantRow(t, openAIInstanceOtherModelCfg, stampedFull(otherModelAhead), text("done")),
-			assistantRow(t, openAIInstanceCfg, stampedFull(epoch(otherOpenAIInstance, 5))),
+			assistantRow(t, openAIInstanceCfg, stampedFull(at(openAIInstance, reasoningCredentialDeployment, 2)), openAIReasoning),
+			assistantRow(t, openAIInstanceCfg, marker),
+			assistantRow(t, openAIInstanceOtherModelCfg, stampedFull(at(openAIInstanceOtherModel, reasoningCredentialDeployment, 4))),
+			assistantRow(t, openAIInstanceCfg, stampedFull(at(openAIInstance, reasoningCredentialUser, 5))),
+			assistantRow(t, openAIInstanceCfg, stampedFull(at(otherOpenAIInstance, reasoningCredentialDeployment, 6))),
 		}
-		require.Equal(t, 3, currentReasoningEpoch(rows, openAIInstance.ProviderIdentity))
-		require.Equal(t, 5, currentReasoningEpoch(rows, otherOpenAIInstance.ProviderIdentity))
-		require.Zero(t, currentReasoningEpoch(rows, vllm.ProviderIdentity))
+		require.Equal(t, 3, currentReasoningEpoch(rows, deployment))
+		require.Equal(t, 4, currentReasoningEpoch(rows, at(openAIInstanceOtherModel, reasoningCredentialDeployment, 0)))
+		require.Equal(t, 5, currentReasoningEpoch(rows, at(openAIInstance, reasoningCredentialUser, 0)))
+		require.Equal(t, 6, currentReasoningEpoch(rows, at(otherOpenAIInstance, reasoningCredentialDeployment, 0)))
+		require.Zero(t, currentReasoningEpoch(rows, at(vllm, reasoningCredentialDeployment, 0)))
 	})
 }
 

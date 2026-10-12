@@ -332,102 +332,119 @@ func TestOpenAIResponsesReasoningNotReplayedAfterModelConfigChange(t *testing.T)
 func TestOpenAIResponsesRetriesWithoutRejectedEncryptedReasoning(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	for _, tc := range []struct {
+		name string
+		// freshReasoningAt is the request whose response carries the
+		// first reasoning produced after the rejection.
+		freshReasoningAt int
+	}{
+		{name: "RetryReturnsReasoning", freshReasoningAt: 3},
+		{name: "RetryReturnsNoReasoning", freshReasoningAt: 4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	const (
-		staleID   = "rs_rejected_reasoning"
-		staleBlob = "encrypted-by-another-organization"
-		freshID   = "rs_fresh_reasoning"
-		freshBlob = "encrypted-by-current-organization"
-	)
-	var recorder responsesRequestRecorder
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-		n := recorder.record(req)
-		// Later turns reach an organization that cannot decrypt the
-		// reasoning from the first turn.
-		if n > 1 && slices.ContainsFunc(req.Prompt, func(item interface{}) bool {
-			itemMap, ok := item.(map[string]interface{})
-			return ok && chattest.StringResponseField(itemMap, "id") == staleID
-		}) {
-			resp := chattest.OpenAIErrorResponse(http.StatusBadRequest, "invalid_request_error",
-				"The encrypted content could not be verified.")
-			resp.Error.Code = "invalid_encrypted_content"
-			return resp
-		}
-		switch n {
-		case 1:
-			resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer")...)
-			resp.Reasoning = &chattest.OpenAIReasoningItem{ID: staleID, EncryptedContent: staleBlob}
-			return resp
-		case 3:
-			resp := chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("list_templates", `{}`))
-			resp.Reasoning = &chattest.OpenAIReasoningItem{ID: freshID, EncryptedContent: freshBlob}
-			return resp
-		default:
-			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
-		}
-	})
+			db, ps := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 
-	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
-	model := insertChatModelConfigWithCallConfig(t, db, user.ID, "openai", "gpt-4o",
-		codersdk.ChatModelCallConfig{})
-	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	newServer := func() *chatd.Server {
-		return newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
-			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+			const (
+				staleID   = "rs_rejected_reasoning"
+				staleBlob = "encrypted-by-another-organization"
+				freshID   = "rs_fresh_reasoning"
+				freshBlob = "encrypted-by-current-organization"
+			)
+			var recorder responsesRequestRecorder
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				n := recorder.record(req)
+				// Later turns reach an organization that cannot decrypt the
+				// reasoning from the first turn.
+				if n > 1 && slices.ContainsFunc(req.Prompt, func(item interface{}) bool {
+					itemMap, ok := item.(map[string]interface{})
+					return ok && chattest.StringResponseField(itemMap, "id") == staleID
+				}) {
+					resp := chattest.OpenAIErrorResponse(http.StatusBadRequest, "invalid_request_error",
+						"The encrypted content could not be verified.")
+					resp.Error.Code = "invalid_encrypted_content"
+					return resp
+				}
+				resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+				if n == 3 {
+					resp = chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("list_templates", `{}`))
+				}
+				switch n {
+				case 1:
+					resp.Reasoning = &chattest.OpenAIReasoningItem{ID: staleID, EncryptedContent: staleBlob}
+				case tc.freshReasoningAt:
+					resp.Reasoning = &chattest.OpenAIReasoningItem{ID: freshID, EncryptedContent: freshBlob}
+				}
+				return resp
+			})
+
+			user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+			model := insertChatModelConfigWithCallConfig(t, db, user.ID, "openai", "gpt-4o",
+				codersdk.ChatModelCallConfig{})
+			factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+			newServer := func() *chatd.Server {
+				return newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+					cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+				})
+			}
+			server := newServer()
+			sendMessage := func(server *chatd.Server, chatID uuid.UUID, text string) {
+				t.Helper()
+				_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+					ChatID:        chatID,
+					CreatedBy:     user.ID,
+					ModelConfigID: model.ID,
+					Content: []codersdk.ChatMessagePart{
+						codersdk.ChatMessageText(text),
+					},
+				})
+				require.NoError(t, err)
+				waitForChatProcessed(ctx, t, db, chatID, server)
+				requireResponsesChatWaiting(ctx, t, db, chatID)
+			}
+
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				Title:          uniqueResponsesTitle(t, "rejected-reasoning"),
+				ModelConfigID:  model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("hello"),
+				},
+			})
+			require.NoError(t, err)
+			waitForChatProcessed(ctx, t, db, chat.ID, server)
+			requireResponsesChatWaiting(ctx, t, db, chat.ID)
+			sendMessage(server, chat.ID, "list the templates")
+
+			// The next turn runs on a server that never saw the rejection,
+			// like a restarted or different replica.
+			require.NoError(t, server.Close())
+			sendMessage(newServer(), chat.ID, "thanks")
+
+			// Only the first request after the change is rejected.
+			requests := recorder.all()
+			require.Len(t, requests, 5)
+			requireInlineReasoningItem(t, requests[1].Prompt, staleID, staleBlob, "")
+			retry := requests[2]
+			require.NotEmpty(t, retry.Prompt)
+			require.NotContains(t, promptItemTypes(retry.Prompt), "reasoning")
+			// requests[3] is the step after the tool call; requests[4] is
+			// the next turn on the fresh server.
+			for i, request := range requests[3:] {
+				requireNoResponsesProviderItemReplay(t, request.Prompt, staleID)
+				if i+3 < tc.freshReasoningAt {
+					require.NotContains(t, promptItemTypes(request.Prompt), "reasoning")
+					continue
+				}
+				requireInlineReasoningItem(t, request.Prompt, freshID, freshBlob, "")
+			}
 		})
-	}
-	server := newServer()
-	sendMessage := func(server *chatd.Server, chatID uuid.UUID, text string) {
-		t.Helper()
-		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-			ChatID:        chatID,
-			CreatedBy:     user.ID,
-			ModelConfigID: model.ID,
-			Content: []codersdk.ChatMessagePart{
-				codersdk.ChatMessageText(text),
-			},
-		})
-		require.NoError(t, err)
-		waitForChatProcessed(ctx, t, db, chatID, server)
-		requireResponsesChatWaiting(ctx, t, db, chatID)
-	}
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          uniqueResponsesTitle(t, "rejected-reasoning"),
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("hello"),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatProcessed(ctx, t, db, chat.ID, server)
-	requireResponsesChatWaiting(ctx, t, db, chat.ID)
-	sendMessage(server, chat.ID, "list the templates")
-
-	// The next turn runs on a server that never saw the rejection, like
-	// a restarted or different replica.
-	require.NoError(t, server.Close())
-	sendMessage(newServer(), chat.ID, "thanks")
-
-	// Only the first request after the change is rejected.
-	requests := recorder.all()
-	require.Len(t, requests, 5)
-	requireInlineReasoningItem(t, requests[1].Prompt, staleID, staleBlob, "")
-	retry := requests[2]
-	require.NotEmpty(t, retry.Prompt)
-	require.NotContains(t, promptItemTypes(retry.Prompt), "reasoning")
-	// requests[3] is the step after the tool call; requests[4] is the next
-	// turn on the fresh server.
-	for _, request := range requests[3:] {
-		requireInlineReasoningItem(t, request.Prompt, freshID, freshBlob, "")
-		requireNoResponsesProviderItemReplay(t, request.Prompt, staleID)
 	}
 }
 
