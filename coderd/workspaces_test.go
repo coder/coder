@@ -612,37 +612,39 @@ func TestWorkspace(t *testing.T) {
 
 		goodClient, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
 
+		// When a user with workspace-creation-ban
+		client, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgWorkspaceCreationBan(first.OrganizationID))
+
 		// Ensure a similar user can create a workspace
 		coderdtest.CreateWorkspace(t, goodClient, template.ID)
 
-		// When: a user has a workspace and is then given workspace-creation-ban
-		client, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
-		wrk := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
-
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := owner.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, user.ID.String(), codersdk.UpdateRoles{
-			Roles: []string{codersdk.RoleOrganizationWorkspaceCreationBan},
+		// Then: Cannot create a workspace
+		_, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID:        template.ID,
+			TemplateVersionID: uuid.UUID{},
+			Name:              "random",
+		})
+		require.Error(t, err)
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+
+		// When: workspace-ban use has a workspace
+		wrk, err := owner.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID:        template.ID,
+			TemplateVersionID: uuid.UUID{},
+			Name:              "random",
 		})
 		require.NoError(t, err)
-
-		// Then: Cannot create a workspace, not even by an admin on their behalf
-		for _, c := range []*codersdk.Client{client, owner} {
-			_, err = c.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
-				TemplateID: template.ID,
-				Name:       "random",
-			})
-			var apiError *codersdk.Error
-			require.ErrorAs(t, err, &apiError)
-			require.Equal(t, http.StatusForbidden, apiError.StatusCode())
-		}
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
 
 		// Then: They cannot delete said workspace
 		_, err = client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
 			Transition:       codersdk.WorkspaceTransitionDelete,
 			ProvisionerState: []byte{},
 		})
-		var apiError *codersdk.Error
+		require.Error(t, err)
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
 	})
@@ -742,42 +744,65 @@ func TestWorkspace(t *testing.T) {
 			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
 			require.NoError(t, createAs(t, owner, member, template))
 		})
-		t.Run("Suspended", func(t *testing.T) {
-			t.Parallel()
-			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
-			_, err := owner.UpdateUserStatus(testutil.Context(t, testutil.WaitLong), member.ID.String(), codersdk.UserStatusSuspended)
-			require.NoError(t, err)
-			msg := fmt.Sprintf("User %q is not active.", member.Username)
-			requireForbidden(t, createAs(t, owner, member, template), msg)
-			requireForbidden(t, createViaOrgRoute(t, member, template), msg)
-		})
-		t.Run("Dormant", func(t *testing.T) {
-			t.Parallel()
-			// Dormant accounts are not active until they log in, so nobody can
-			// create workspaces for them.
-			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
-			setStatus(t, member, database.UserStatusDormant)
-			requireForbidden(t, createAs(t, owner, member, template), fmt.Sprintf("User %q is not active.", member.Username))
-		})
 		t.Run("OrgRoute", func(t *testing.T) {
 			t.Parallel()
 			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
 			require.NoError(t, createViaOrgRoute(t, member, template))
 		})
-		t.Run("NotInOrganization", func(t *testing.T) {
+		t.Run("SuspendedOwner", func(t *testing.T) {
 			t.Parallel()
-			// The owner is evaluated against the template's organization, so an
-			// admin cannot create a workspace for a user outside of it.
+			// A suspended user keeps their workspaces, so an admin can still
+			// create one on their behalf.
+			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+			_, err := owner.UpdateUserStatus(testutil.Context(t, testutil.WaitLong), member.ID.String(), codersdk.UserStatusSuspended)
+			require.NoError(t, err)
+			require.NoError(t, createAs(t, owner, member, template))
+			require.NoError(t, createViaOrgRoute(t, member, template))
+		})
+		t.Run("DormantOwner", func(t *testing.T) {
+			t.Parallel()
+			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+			setStatus(t, member, database.UserStatusDormant)
+			require.NoError(t, createAs(t, owner, member, template))
+		})
+		t.Run("NewlyCreatedOwner", func(t *testing.T) {
+			t.Parallel()
+			// Users created without an explicit status are dormant until they
+			// log in, which is the pre-provisioning case.
+			newUser, err := owner.CreateUserWithOrgs(testutil.Context(t, testutil.WaitLong), codersdk.CreateUserRequestWithOrgs{
+				Email:           fmt.Sprintf("%s@coder.com", testutil.GetRandomNameHyphenated(t)),
+				Username:        testutil.GetRandomNameHyphenated(t),
+				Password:        "SomeSecurePassword!",
+				UserLoginType:   codersdk.LoginTypePassword,
+				OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.UserStatusDormant, newUser.Status)
+			require.NoError(t, createAs(t, owner, newUser, template))
+		})
+		t.Run("CreationBannedOwner", func(t *testing.T) {
+			t.Parallel()
+			// The ban stops the user from creating workspaces themselves, not
+			// from owning one created for them.
+			banned, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgWorkspaceCreationBan(first.OrganizationID))
+			requireForbidden(t, createAs(t, banned, member, template), "Unauthorized to create workspace.")
+			require.NoError(t, createAs(t, owner, member, template))
+		})
+		t.Run("NonMemberOwner", func(t *testing.T) {
+			t.Parallel()
+			// Creating for a user outside the template's organization is
+			// allowed for callers with permission, as before.
 			other := dbgen.Organization(t, api.Database, database.Organization{})
 			_, outsider := coderdtest.CreateAnotherUser(t, owner, other.ID)
-			requireForbidden(t, createAs(t, owner, outsider, template),
-				fmt.Sprintf("User %q is not allowed to create workspaces in this organization.", outsider.Username))
+			require.NoError(t, createAs(t, owner, outsider, template))
 		})
 		t.Run("NoTemplateAccess", func(t *testing.T) {
 			t.Parallel()
 			_, member := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
 			tpl := privateTemplate(t)
 			requireForbidden(t, createAs(t, owner, member, tpl),
+				fmt.Sprintf("User %q is not allowed to use template %q.", member.Username, tpl.Name))
+			requireForbidden(t, createViaOrgRoute(t, member, tpl),
 				fmt.Sprintf("User %q is not allowed to use template %q.", member.Username, tpl.Name))
 		})
 		t.Run("OrgCustomRole", func(t *testing.T) {
