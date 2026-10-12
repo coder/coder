@@ -855,6 +855,24 @@ describe("pending actions", () => {
 		});
 	});
 
+	it("shows the turn stopping when a running chat's head is promoted", () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "first")],
+			[makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
+			"running",
+		);
+
+		store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 10 });
+		expect(visible(store)).toMatchObject({
+			queue: ["q10", "q11"],
+			status: "interrupting",
+		});
+
+		// The head does not move, so the commit sends only a checkpoint.
+		store.applyCheckpoint(checkpointAt(2, { status: "interrupting" }));
+		expect(store.getSnapshot().pendingActions).toEqual([]);
+	});
+
 	it("removes a failed action's overlay", () => {
 		const store = seededStore(
 			[makeMessage(1, "user", "first")],

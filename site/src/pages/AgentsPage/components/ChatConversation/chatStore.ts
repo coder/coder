@@ -777,11 +777,15 @@ const pendingEntry = (
 			if (!target) {
 				return { id };
 			}
-			// A running chat moves the row to the head and stops the turn.
+			// A running chat moves the row to the head and stops the turn. A row
+			// already at the head does not move and sends no queue update.
 			if (running) {
 				return {
 					id,
-					queue: (rows) => [target, ...withoutRow(target.id)(rows)],
+					queue:
+						shown.queuedMessages[0] === target
+							? undefined
+							: (rows) => [target, ...withoutRow(target.id)(rows)],
 					turn: "interrupting",
 				};
 			}
