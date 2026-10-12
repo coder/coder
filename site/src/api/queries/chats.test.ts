@@ -34,7 +34,7 @@ import {
 	applyChatArchiveStateToCaches,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
-	applyWatchedChatHardDeleted,
+	applyWatchedChatRemoved,
 	archiveAndDeleteChat,
 	archiveChat,
 	type ChatListInput,
@@ -4650,7 +4650,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			context_dirty: false,
 			created: false,
 			deleted: false,
-			hard_deleted: false,
+			removed: false,
 			diff_status_change: false,
 			status_change: true,
 			summary_change: false,
@@ -4730,7 +4730,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			context_dirty: false,
 			created: false,
 			deleted: false,
-			hard_deleted: false,
+			removed: false,
 			diff_status_change: true,
 			status_change: true,
 			summary_change: false,
@@ -5481,7 +5481,7 @@ describe("applyChatArchiveStateToCaches search rows", () => {
 	});
 });
 
-describe("applyWatchedChatHardDeleted", () => {
+describe("applyWatchedChatRemoved", () => {
 	it("evicts the chat from every list, archived ones included", () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(chatProjectsKey, []);
@@ -5497,7 +5497,7 @@ describe("applyWatchedChatHardDeleted", () => {
 		});
 		queryClient.setQueryData(chatEntityKey(chatId), makeChat(chatId));
 
-		applyWatchedChatHardDeleted(queryClient, chatId);
+		applyWatchedChatRemoved(queryClient, chatId);
 
 		expect(readInfiniteChats(queryClient)?.map((c) => c.id)).toEqual([
 			other.id,
@@ -5532,7 +5532,7 @@ describe("applyWatchedChatHardDeleted", () => {
 		);
 
 		for (const chatId of ["chat-1", "chat-2", "chat-3"]) {
-			applyWatchedChatHardDeleted(queryClient, chatId);
+			applyWatchedChatRemoved(queryClient, chatId);
 		}
 		refetch.resolve([]);
 		await vi.waitFor(() =>
@@ -5560,7 +5560,7 @@ describe("applyWatchedChatHardDeleted", () => {
 		});
 		const unsubscribe = observer.subscribe(() => {});
 
-		applyWatchedChatHardDeleted(queryClient, chatId);
+		applyWatchedChatRemoved(queryClient, chatId);
 		first.resolve(makeChat(chatId));
 		await vi.waitFor(() =>
 			expect(observer.getCurrentResult().isError).toBe(true),

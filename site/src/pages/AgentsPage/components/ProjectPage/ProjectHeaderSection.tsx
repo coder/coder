@@ -164,7 +164,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 				entity="project"
 				name={project.name}
 				confirmLoading={deleteMutation.isPending}
-				info="Every chat in this project, including chats started by people it is shared with, is removed right away and permanently deleted once the chat retention period passes. Running chats are stopped."
+				info="Every chat in this project, including chats started by people it is shared with, is hidden right away, and running chats are stopped. If conversation retention is enabled, the chats are permanently deleted when the retention period passes."
 			/>
 		</>
 	);

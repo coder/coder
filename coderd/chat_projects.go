@@ -257,13 +257,13 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = project
 
-	var deleted []database.Chat
+	var deleted chatstate.DeletedChatProject
 	var err error
 	if api.chatDaemon != nil {
 		deleted, err = api.chatDaemon.DeleteChatProject(ctx, project.ID)
 	} else {
 		deleted, err = chatstate.DeleteChatProject(ctx, api.Database, api.Pubsub, project.ID)
-		if err != nil && deleted != nil {
+		if errors.Is(err, chatstate.ErrChatUpdatePublishFailed) {
 			api.Logger.Warn(ctx, "publish chat:update for deleted project chats failed; their runners stop at the next heartbeat renewal",
 				slog.F("project_id", project.ID), slog.Error(err))
 			err = nil
@@ -273,6 +273,12 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+	if errors.Is(err, chatstate.ErrChatProjectDeleteConflict) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat project delete conflicted with concurrent chat changes. Try again.",
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat project.",
@@ -280,7 +286,7 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	api.auditChatProjectChatDeletes(ctx, r, project, deleted)
+	api.auditChatProjectChatDeletes(ctx, r, project, deleted.Before)
 	rw.WriteHeader(http.StatusNoContent)
 }
 

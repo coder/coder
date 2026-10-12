@@ -2642,7 +2642,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			if writeChatInvalidState(ctx, rw, err) {
 				return
 			}
-			// The chat's project was deleted after the request loaded it.
+			// The chat was purged, or its project was deleted, after the request loaded it.
 			if errors.Is(err, chatstate.ErrChatNotFound) {
 				httpapi.ResourceNotFound(rw)
 				return

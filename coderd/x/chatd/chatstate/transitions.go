@@ -23,6 +23,7 @@ import (
 type CreateChatInput struct {
 	OrganizationID    uuid.UUID
 	OwnerID           uuid.UUID
+	// ProjectID is ignored for sub-chats, which take their root's project.
 	ProjectID         uuid.NullUUID
 	WorkspaceID       uuid.NullUUID
 	BuildID           uuid.NullUUID
@@ -131,6 +132,7 @@ func insertChat(
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
+		projectID := input.ProjectID
 		if input.RootChatID.Valid {
 			// Lock the family root before inserting the child so this
 			// transaction serializes with SetFamilyArchived, which also
@@ -149,12 +151,14 @@ func insertChat(
 			if root.Archived {
 				return ErrChatFamilyArchived
 			}
-		}
-		if input.ProjectID.Valid {
+			// A project delete locks the project's roots, so the root lock
+			// also covers the project.
+			projectID = root.ProjectID
+		} else if projectID.Valid {
 			// Held until commit so a concurrent project delete, which locks
 			// the project FOR UPDATE, either archives this chat or is seen
 			// here as a missing project.
-			if _, err := store.GetChatProjectByIDForShare(ctx, input.ProjectID.UUID); err != nil {
+			if _, err := store.GetChatProjectByIDForShare(ctx, projectID.UUID); err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					return ErrChatProjectNotFound
 				}
@@ -165,7 +169,7 @@ func insertChat(
 			ID:                chatID,
 			OrganizationID:    input.OrganizationID,
 			OwnerID:           input.OwnerID,
-			ProjectID:         input.ProjectID,
+			ProjectID:         projectID,
 			WorkspaceID:       input.WorkspaceID,
 			BuildID:           input.BuildID,
 			AgentID:           input.AgentID,

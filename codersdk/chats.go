@@ -2173,10 +2173,10 @@ const (
 	ChatWatchEventKindCreated     ChatWatchEventKind = "created"
 	// ChatWatchEventKindDeleted is published when a chat is archived.
 	ChatWatchEventKindDeleted ChatWatchEventKind = "deleted"
-	// ChatWatchEventKindHardDeleted is published when a chat can no longer be
-	// read or unarchived, for example because its project was deleted. The
-	// row stays until chat retention deletes it.
-	ChatWatchEventKindHardDeleted      ChatWatchEventKind = "hard_deleted"
+	// ChatWatchEventKindRemoved is published when a chat's project is
+	// deleted. The chat can no longer be read or unarchived. Chat retention
+	// deletes the row, or keeps it when retention is disabled.
+	ChatWatchEventKindRemoved          ChatWatchEventKind = "removed"
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned

@@ -405,11 +405,11 @@ func TestChatProjectSharing(t *testing.T) {
 		for len(pending) > 0 {
 			select {
 			case event := <-events:
-				if event.Kind == codersdk.ChatWatchEventKindHardDeleted {
+				if event.Kind == codersdk.ChatWatchEventKindRemoved {
 					delete(pending, event.Chat.ID)
 				}
 			case <-ctx.Done():
-				t.Fatalf("missing hard_deleted events for %v", pending)
+				t.Fatalf("missing removed events for %v", pending)
 			}
 		}
 	})

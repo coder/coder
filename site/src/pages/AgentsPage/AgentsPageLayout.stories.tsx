@@ -924,7 +924,7 @@ export const HardDeleteWatchEventRemovesOpenChat: Story = {
 		return mockAgentChatPageAPIs();
 	},
 	parameters: watchedChatPageParameters(watchedChat(), [
-		chatWatchEvent("hard_deleted", watchedChat()),
+		chatWatchEvent("removed", watchedChat()),
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

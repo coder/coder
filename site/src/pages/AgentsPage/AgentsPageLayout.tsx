@@ -21,7 +21,7 @@ import {
 	addChildToParentInCache,
 	applyWatchedChatArchived,
 	applyWatchedChatCreatedOrUnarchived,
-	applyWatchedChatHardDeleted,
+	applyWatchedChatRemoved,
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
@@ -344,8 +344,8 @@ const AgentsPageLayout: React.FC = () => {
 						);
 					}
 
-					if (chatEvent.kind === "hard_deleted") {
-						applyWatchedChatHardDeleted(queryClient, updatedChat.id);
+					if (chatEvent.kind === "removed") {
+						applyWatchedChatRemoved(queryClient, updatedChat.id);
 						return;
 					}
 					if (chatEvent.kind === "deleted") {

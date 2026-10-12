@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -13,18 +14,21 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// DeleteChatProject deletes a project and publishes events for its chats.
-// See [chatstate.DeleteChatProject].
-func (p *Server) DeleteChatProject(ctx context.Context, projectID uuid.UUID) ([]database.Chat, error) {
+// DeleteChatProject runs [chatstate.DeleteChatProject], publishes a removed
+// watch event per chat, and schedules the chats' debug-data cleanup. It
+// returns a nil error once the delete commits; a failed chat:update
+// publish is logged, and those chats' runners stop at their next heartbeat
+// renewal.
+func (p *Server) DeleteChatProject(ctx context.Context, projectID uuid.UUID) (chatstate.DeletedChatProject, error) {
 	deleted, err := chatstate.DeleteChatProject(ctx, p.db, p.pubsub, projectID)
-	if err != nil && deleted == nil {
-		return nil, err
-	}
-	if err != nil {
+	if errors.Is(err, chatstate.ErrChatUpdatePublishFailed) {
 		p.logger.Warn(ctx, "publish chat:update for deleted project chats failed; their runners stop at the next heartbeat renewal",
 			slog.F("project_id", projectID), slog.Error(err))
+	} else if err != nil {
+		return chatstate.DeletedChatProject{}, err
 	}
-	p.publishChatPubsubEvents(deleted, codersdk.ChatWatchEventKindHardDeleted)
+	p.publishChatPubsubEvents(deleted.Archived, codersdk.ChatWatchEventKindRemoved)
+	p.scheduleArchiveDebugCleanup(ctx, deleted.Archived)
 	return deleted, nil
 }
 

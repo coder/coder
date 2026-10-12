@@ -15,6 +15,13 @@ func IsSerializedError(err error) bool {
 	return false
 }
 
+// IsDeadlockError reports whether Postgres aborted the transaction to break
+// a deadlock.
+func IsDeadlockError(err error) bool {
+	pqErr, ok := errors.AsType[*pq.Error](err)
+	return ok && pqErr.Code.Name() == "deadlock_detected"
+}
+
 // IsUniqueViolation checks if the error is due to a unique violation.
 // If one or more specific unique constraints are given as arguments,
 // the error must be caused by one of them. If no constraints are given,

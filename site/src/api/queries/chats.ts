@@ -560,7 +560,7 @@ export const applyWatchedChatArchived = (
  * Evicts the chat from every list, archived lists included, and resets its
  * entity so an open route refetches and gets 404.
  */
-export const applyWatchedChatHardDeleted = (
+export const applyWatchedChatRemoved = (
 	queryClient: QueryClient,
 	chatId: string,
 ) => {
