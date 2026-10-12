@@ -142,7 +142,7 @@ You can develop in your Coder workspace remotely with
 [VS Code](https://code.visualstudio.com/download).
 We support connecting with the desktop client and VS Code in the browser with [code-server](#code-server).
 
-![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
+![Demo](https://github.com/coder/vscode-coder/raw/main/media/demo.gif?raw=true)
 
 Read more details on [using VS Code in your workspace](./vscode.md).
 
