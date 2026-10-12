@@ -1704,9 +1704,8 @@ describe("mutation invalidation scope", () => {
 				`${label} should NOT be invalidated by createChatMessage`,
 			).not.toBe(true);
 		}
-		// The send path invalidates searches through
-		// useChatStore.upsertCacheMessages; doing it here too would
-		// double-invalidate every send.
+		// useChatStore invalidates searches when the stream delivers the
+		// sent message; doing it here too would double-invalidate every send.
 		expect(
 			queryClient.getQueryState(chatSearch({ q: "alpha" }).queryKey)
 				?.isInvalidated,
