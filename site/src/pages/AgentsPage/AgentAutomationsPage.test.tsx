@@ -1751,10 +1751,10 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		const { updateBodies } = setupEditor();
 
 		await openRowAction(user, MockChatAutomation.name, "Edit");
+		// Wait for the editor so the click does not hit the list row's switch.
+		await screen.findByRole("form", { name: "Edit automation" });
 		await user.click(
-			await screen.findByRole("switch", {
-				name: `Enable ${MockChatAutomation.name}`,
-			}),
+			screen.getByRole("switch", { name: `Enable ${MockChatAutomation.name}` }),
 		);
 
 		await waitFor(() => {
@@ -1771,10 +1771,12 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		});
 
 		await openRowAction(user, mockAutomation.name, "View");
+		// Wait for the editor so the click does not hit the list row's switch.
+		await screen.findByText("can change this automation or turn it back on", {
+			exact: false,
+		});
 		await user.click(
-			await screen.findByRole("switch", {
-				name: `Enable ${mockAutomation.name}`,
-			}),
+			screen.getByRole("switch", { name: `Enable ${mockAutomation.name}` }),
 		);
 
 		expect(updateBodies).toEqual([]);
