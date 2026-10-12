@@ -483,29 +483,23 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 							<ColumnsIcon className="size-3.5" />
 						</button>
 					</div>
-					{/*
-					 * The shared Button applies `disabled:pointer-events-none`,
-					 * which would suppress the native `title` tooltip when the
-					 * control is disabled. Wrap it in a span so the tooltip is
-					 * still reachable on hover in the disabled state.
-					 */}
-					<span title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}>
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={handleRefresh}
-							aria-label="Refresh"
-							disabled={!hasGitContext}
-							className="size-6 text-content-secondary hover:text-content-primary"
-						>
-							<RefreshCwIcon
-								className={cn(
-									"size-3.5",
-									spinning && "motion-safe:animate-spin-once",
-								)}
-							/>
-						</Button>
-					</span>
+					{/* Refresh stays enabled without git context, since a repo
+					    created after the chat touched its path only appears
+					    once the agent re-resolves the chat's paths. */}
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={handleRefresh}
+						aria-label="Refresh"
+						className="size-6 text-content-secondary hover:text-content-primary"
+					>
+						<RefreshCwIcon
+							className={cn(
+								"size-3.5",
+								spinning && "motion-safe:animate-spin-once",
+							)}
+						/>
+					</Button>
 				</div>
 			</div>
 			{/* PR title row: truncates with a hover tooltip only when the

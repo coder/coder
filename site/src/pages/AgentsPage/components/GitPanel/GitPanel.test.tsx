@@ -109,6 +109,16 @@ function renderGitPanel(input: ChatMessageInputRef) {
 }
 
 describe("GitPanel", () => {
+	it("allows refreshing before any git context is known", async () => {
+		const user = userEvent.setup();
+		const onRefresh = vi.fn(() => true);
+		renderPanel({ onRefresh });
+
+		await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+		expect(onRefresh).toHaveBeenCalledTimes(1);
+	});
+
 	it("inserts a commit prompt for the active repo when Commit is clicked", async () => {
 		const user = userEvent.setup();
 		const input = mockComposer();

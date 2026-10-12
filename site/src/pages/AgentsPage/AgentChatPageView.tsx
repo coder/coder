@@ -3,7 +3,10 @@ import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
-import { invalidateChatDiffContents } from "#/api/queries/chats";
+import {
+	invalidateChatDiffContents,
+	invalidateChatEntity,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -332,11 +335,13 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
-	// Wrap the git watcher refresh to also invalidate the cached
-	// remote/PR diff contents so the panel re-fetches from GitHub.
+	// Wrap the git watcher refresh to also refetch the chat, whose
+	// diff statuses back the PR tabs, and the cached remote/PR diff
+	// contents, so refresh shows what a page reload would.
 	const handleRefresh = () => {
 		const sent = gitWatcher.refresh();
 		if (sent && agentId) {
+			void invalidateChatEntity(queryClient, agentId);
 			void invalidateChatDiffContents(queryClient, agentId);
 		}
 		return sent;
