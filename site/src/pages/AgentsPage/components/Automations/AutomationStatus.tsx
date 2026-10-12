@@ -296,15 +296,17 @@ export const AutomationEnabledSwitch: React.FC<
 	const control = (
 		<Switch
 			checked={checked}
-			disabled={isUpdating}
-			aria-disabled={blockedReason !== undefined}
+			// Not disabled while updating: a disabled switch drops keyboard
+			// focus. aria-busy dims it and the handler ignores presses.
+			aria-busy={isUpdating}
+			aria-disabled={blockedReason !== undefined || isUpdating}
 			aria-describedby={blockedReason ? reasonId : undefined}
 			aria-label={`Enable ${automation.name}`}
 			// A blocked off switch keeps a visible outline, so the cell does
 			// not look empty on a dark row.
-			className="aria-disabled:cursor-not-allowed aria-disabled:data-[state=unchecked]:border-border"
+			className="aria-disabled:cursor-not-allowed aria-disabled:data-[state=unchecked]:border-border aria-busy:cursor-progress aria-busy:opacity-50"
 			onCheckedChange={(enabled) => {
-				if (!blockedReason) {
+				if (!blockedReason && !isUpdating) {
 					onToggle(enabled);
 				}
 			}}

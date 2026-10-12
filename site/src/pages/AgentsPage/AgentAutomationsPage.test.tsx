@@ -341,6 +341,45 @@ describe("AgentAutomationsPage", () => {
 		});
 	});
 
+	it("keeps keyboard focus on the enabled switch while its update is pending", async () => {
+		const user = userEvent.setup();
+		const bodies: unknown[] = [];
+		let finishUpdate = () => {};
+		const updateFinished = new Promise<void>((resolve) => {
+			finishUpdate = resolve;
+		});
+		setup();
+		server.use(
+			http.patch(
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`,
+				async ({ request }) => {
+					bodies.push(await request.json());
+					await updateFinished;
+					return HttpResponse.json({ ...mockAutomation, enabled: false });
+				},
+			),
+		);
+		const toggle = await screen.findByRole("switch", {
+			name: `Enable ${mockAutomation.name}`,
+		});
+
+		toggle.focus();
+		await user.keyboard(" ");
+		await waitFor(() => {
+			expect(toggle).toHaveAttribute("aria-busy", "true");
+		});
+		expect(toggle).toHaveFocus();
+		// A second press while pending sends nothing.
+		await user.keyboard(" ");
+		finishUpdate();
+
+		await waitFor(() => {
+			expect(toggle).not.toHaveAttribute("aria-busy", "true");
+		});
+		expect(toggle).toHaveFocus();
+		expect(bodies).toEqual([{ enabled: false }]);
+	});
+
 	it("does not turn a used single-use webhook back on from its switch", async () => {
 		const user = userEvent.setup();
 		const mockUsedWebhook: ChatAutomation = {
