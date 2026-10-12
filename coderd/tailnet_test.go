@@ -53,9 +53,10 @@ func TestServerTailnet_AgentConn_OK(t *testing.T) {
 	assert.True(t, conn.AwaitReachable(ctx))
 }
 
-// TestServerTailnet_ChatAgentConn checks that chatd's connections reuse an
-// idle API connection until released, and other connections do not.
-func TestServerTailnet_ChatAgentConn(t *testing.T) {
+// TestServerTailnet_KeepAliveAgentConn checks that a connection from
+// keepAliveAgentConn reuses an idle API connection until released, and a
+// connection from AgentConn does not.
+func TestServerTailnet_KeepAliveAgentConn(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -81,10 +82,10 @@ func TestServerTailnet_ChatAgentConn(t *testing.T) {
 	require.False(t, reused(conn), "AgentConn keeps no idle API connection")
 	release()
 
-	conn, release, err = coderd.ServerTailnetChatAgentConn(serverTailnet, ctx, agentID)
+	conn, release, err = coderd.ServerTailnetKeepAliveAgentConn(serverTailnet, ctx, agentID)
 	require.NoError(t, err)
 	require.False(t, reused(conn))
-	require.True(t, reused(conn), "chatd's connection reuses the idle API connection")
+	require.True(t, reused(conn), "the connection reuses the idle API connection")
 	release()
 	require.False(t, reused(conn), "release closes the idle API connection")
 }
