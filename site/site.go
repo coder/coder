@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -275,12 +276,9 @@ type htmlState struct {
 	Permissions               string
 	Organizations             string
 
-	// HTML escaped appearance settings, rendered as data attributes on
-	// <html> so index.css can pick the theme colors for the first paint.
-	ThemeMode       string
-	ThemePreference string
-	ThemeLight      string
-	ThemeDark       string
+	// ThemeClass is the base theme class rendered on <html> so the first
+	// paint uses the user's theme before ThemeProvider mounts.
+	ThemeClass string
 }
 
 type csrfState struct {
@@ -392,6 +390,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	if tmpl == nil {
 		return nil, xerrors.Errorf("template %q not found", filePath)
 	}
+	state.ThemeClass = themeClass(codersdk.UserAppearanceSettings{})
 
 	// Cookies are sent when requesting HTML, so we can get the user
 	// and pre-populate the state for the frontend to reduce requests.
@@ -483,10 +482,7 @@ func (h *Handler) populateHTMLState(
 	userAppearance codersdk.UserAppearanceSettings,
 ) {
 	var wg sync.WaitGroup
-	state.ThemeMode = html.EscapeString(string(userAppearance.ThemeMode))
-	state.ThemePreference = html.EscapeString(userAppearance.ThemePreference)
-	state.ThemeLight = html.EscapeString(userAppearance.ThemeLight)
-	state.ThemeDark = html.EscapeString(userAppearance.ThemeDark)
+	state.ThemeClass = themeClass(userAppearance)
 	wg.Go(func() {
 		data, err := json.Marshal(db2sdk.User(user, orgIDs))
 		if err == nil {
@@ -773,6 +769,20 @@ func applicationNameOrDefault(cfg codersdk.AppearanceConfig) string {
 		return cfg.ApplicationName
 	}
 	return "Coder"
+}
+
+// themeClass returns the base theme class that ThemeProvider applies for
+// these settings (see site/src/theme/themeMode.ts). It returns "" when the
+// theme follows the OS color scheme, which the server cannot know.
+func themeClass(s codersdk.UserAppearanceSettings) string {
+	legacyAuto := slices.Contains([]string{"auto", "auto-protan-deuter", "auto-tritan"}, s.ThemePreference)
+	if s.ThemeMode == codersdk.ThemeModeSync || (s.ThemeMode != codersdk.ThemeModeSingle && legacyAuto) {
+		return ""
+	}
+	if slices.Contains([]string{"light", "light-protan-deuter", "light-tritan"}, s.ThemePreference) {
+		return "light"
+	}
+	return "dark"
 }
 
 // OnlyFiles returns a new fs.FS that only contains files. If a directory is
