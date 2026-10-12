@@ -19,11 +19,7 @@
  *
  * For example, `utils/delay` must be imported using `../utils/delay` instead.
  */
-import globalAxios, {
-	type AxiosInstance,
-	type AxiosResponse,
-	isAxiosError,
-} from "axios";
+import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { delay } from "../utils/delay";
@@ -71,17 +67,6 @@ export const watchWorkspace = (
 		apiRoute: `/api/v2/workspaces/${workspaceId}/watch-ws`,
 	});
 };
-
-/** The chat snapshot version an action committed. */
-export type ChatActionVersion = { snapshotVersion: number };
-
-// A response without the header reports 0, which every checkpoint covers.
-const chatActionVersion = (response: AxiosResponse): ChatActionVersion => ({
-	snapshotVersion:
-		Number(
-			response.headers[TypesGen.ChatSnapshotVersionHeader.toLowerCase()],
-		) || 0,
-});
 
 export const watchChat = (
 	chatId: string,
@@ -3421,24 +3406,24 @@ class ExperimentalApiMethods {
 	createChatMessage = async (
 		chatId: string,
 		req: CreateChatMessageRequestWithClearablePlanMode,
-	): Promise<TypesGen.CreateChatMessageResponse & ChatActionVersion> => {
+	): Promise<TypesGen.CreateChatMessageResponse> => {
 		const response = await this.axios.post<TypesGen.CreateChatMessageResponse>(
 			`/api/v2/chats/${chatId}/messages`,
 			req,
 		);
-		return { ...response.data, ...chatActionVersion(response) };
+		return response.data;
 	};
 
 	editChatMessage = async (
 		chatId: string,
 		messageId: number,
 		req: TypesGen.EditChatMessageRequest,
-	): Promise<TypesGen.EditChatMessageResponse & ChatActionVersion> => {
+	): Promise<TypesGen.EditChatMessageResponse> => {
 		const response = await this.axios.patch<TypesGen.EditChatMessageResponse>(
 			`/api/v2/chats/${chatId}/messages/${messageId}`,
 			req,
 		);
-		return { ...response.data, ...chatActionVersion(response) };
+		return response.data;
 	};
 	interruptChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>(
@@ -3452,13 +3437,11 @@ class ExperimentalApiMethods {
 	 * clearing any stored error. The compaction runs asynchronously
 	 * through the chat worker and bypasses the automatic usage threshold.
 	 */
-	compactChat = async (
-		chatId: string,
-	): Promise<TypesGen.Chat & ChatActionVersion> => {
+	compactChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>(
 			`/api/v2/chats/${chatId}/compact`,
 		);
-		return { ...response.data, ...chatActionVersion(response) };
+		return response.data;
 	};
 
 	clearChat = async (chatId: string): Promise<TypesGen.Chat> => {
@@ -3482,21 +3465,17 @@ class ExperimentalApiMethods {
 	deleteChatQueuedMessage = async (
 		chatId: string,
 		queuedMessageId: number,
-	): Promise<ChatActionVersion> => {
-		const response = await this.axios.delete(
-			`/api/v2/chats/${chatId}/queue/${queuedMessageId}`,
-		);
-		return chatActionVersion(response);
+	): Promise<void> => {
+		await this.axios.delete(`/api/v2/chats/${chatId}/queue/${queuedMessageId}`);
 	};
 
 	promoteChatQueuedMessage = async (
 		chatId: string,
 		queuedMessageId: number,
-	): Promise<ChatActionVersion> => {
-		const response = await this.axios.post(
+	): Promise<void> => {
+		await this.axios.post(
 			`/api/v2/chats/${chatId}/queue/${queuedMessageId}/promote`,
 		);
-		return chatActionVersion(response);
 	};
 
 	getChatDiffContents = async (
