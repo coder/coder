@@ -2203,7 +2203,7 @@ COMMENT ON COLUMN chat_projects.user_acl IS 'Users the project is shared with, k
 
 COMMENT ON COLUMN chat_projects.group_acl IS 'Groups the project is shared with, keyed by group ID. The organization ID is the Everyone group.';
 
-COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. Chat retention deletes the project''s archived chats; dbpurge then deletes the row.';
+COMMENT ON COLUMN chat_projects.deleted IS 'Irreversible. The project''s archived chats follow chat retention (kept forever when retention is 0); dbpurge deletes the row, and its memories by cascade, once none are left.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
