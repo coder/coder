@@ -219,10 +219,6 @@ type Chat struct {
 	// subagents, so nesting depth is capped at 1 and this slice is
 	// always empty for child chats.
 	Children []Chat `json:"children"`
-	// SnapshotVersion is the chat's state version, bumped once by every
-	// committed action. A stream checkpoint with an equal or higher
-	// snapshot_version has applied this state.
-	SnapshotVersion int64 `json:"snapshot_version"`
 }
 
 // ChatProject groups related chats in an organization.
@@ -899,17 +895,6 @@ type CreateChatMessageResponse struct {
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
 	Warnings      []string           `json:"warnings,omitempty"`
-	// SnapshotVersion is the chat's snapshot_version committed by the send.
-	// The stream has applied the send once a checkpoint reports at least it.
-	SnapshotVersion int64 `json:"snapshot_version"`
-}
-
-// ChatActionResponse is returned by chat actions that have no other result.
-type ChatActionResponse struct {
-	// SnapshotVersion is the chat's snapshot_version the action committed.
-	// A stream checkpoint with an equal or higher snapshot_version reflects
-	// it.
-	SnapshotVersion int64 `json:"snapshot_version"`
 }
 
 // EditChatMessageResponse is the response from editing a message in a chat.
@@ -924,9 +909,6 @@ type EditChatMessageResponse struct {
 	// Clients should drop them from local caches.
 	DeletedMessageIDs []int64  `json:"deleted_message_ids,omitempty"`
 	Warnings          []string `json:"warnings,omitempty"`
-	// SnapshotVersion is the chat's snapshot_version committed by the edit.
-	// The stream has applied the edit once a checkpoint reports at least it.
-	SnapshotVersion int64 `json:"snapshot_version"`
 }
 
 // UploadChatFileResponse is the response from uploading a chat file.
@@ -2210,17 +2192,22 @@ type ChatStreamEvent struct {
 type ChatStreamHistoryReset struct {
 	// FromMessageID is the lowest message ID the reset replaces. The client
 	// keeps its messages with lower IDs and replaces the rest with the
-	// message events that follow. A history_reset without from_message_id
-	// replaces the whole history.
+	// message events that follow.
 	FromMessageID int64 `json:"from_message_id"`
 }
+
+// ChatSnapshotVersionHeader is the response header in which a chat action
+// reports the chat's snapshot_version it committed. A stream checkpoint at
+// or above it reflects the action.
+const ChatSnapshotVersionHeader = "Coder-Chat-Snapshot-Version"
 
 // ChatStreamCheckpoint ends every applied stream sync and reports the chat
 // state the events before it reflect.
 type ChatStreamCheckpoint struct {
-	// SnapshotVersion is the chat's snapshot_version the sync applied. Every
-	// action response with an equal or lower version is reflected. A client
-	// reconnects with the value of the last checkpoint it received.
+	// SnapshotVersion is the chat's snapshot_version the sync applied. It
+	// reflects every action whose ChatSnapshotVersionHeader is at or below
+	// it. A client reconnects with the value of the last checkpoint it
+	// received.
 	SnapshotVersion int64 `json:"snapshot_version"`
 	// Turn is the chat's turn at SnapshotVersion. It replaces the turn the
 	// client holds.
@@ -3770,17 +3757,16 @@ func (c *Client) GetChatFile(ctx context.Context, fileID uuid.UUID) ([]byte, str
 
 // SubmitToolResults submits the results of dynamic tool calls for a chat
 // that is in requires_action status.
-func (c *Client) SubmitToolResults(ctx context.Context, chatID uuid.UUID, req SubmitToolResultsRequest) (ChatActionResponse, error) {
+func (c *Client) SubmitToolResults(ctx context.Context, chatID uuid.UUID, req SubmitToolResultsRequest) error {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/tool-results", chatID), req)
 	if err != nil {
-		return ChatActionResponse{}, err
+		return err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatActionResponse{}, ReadBodyAsError(res)
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
 	}
-	var resp ChatActionResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return nil
 }
 
 // GetChatsByWorkspace returns a mapping of workspace ID to the latest

@@ -219,7 +219,6 @@ const makeChat = (
 	archived: false,
 	shared: false,
 	pin_order: 0,
-	snapshot_version: 1,
 	has_unread: false,
 	client_type: "ui",
 	last_turn_summary: null,
@@ -2018,7 +2017,7 @@ describe("mutation invalidation scope", () => {
 			},
 		);
 		mutation.onSuccess(
-			{ snapshot_version: 1, message: responseMessage },
+			{ message: responseMessage },
 			{ messageId: 3, optimisticMessage, req: editReq },
 		);
 

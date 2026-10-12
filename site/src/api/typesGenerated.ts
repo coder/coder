@@ -2135,31 +2135,12 @@ export interface Chat {
 	 * always empty for child chats.
 	 */
 	readonly children: readonly Chat[];
-	/**
-	 * SnapshotVersion is the chat's state version, bumped once by every
-	 * committed action. A stream checkpoint with an equal or higher
-	 * snapshot_version has applied this state.
-	 */
-	readonly snapshot_version: number;
 }
 
 // From codersdk/chats.go
 export interface ChatACL {
 	readonly users: readonly ChatUser[];
 	readonly groups: readonly ChatGroup[];
-}
-
-// From codersdk/chats.go
-/**
- * ChatActionResponse is returned by chat actions that have no other result.
- */
-export interface ChatActionResponse {
-	/**
-	 * SnapshotVersion is the chat's snapshot_version the action committed.
-	 * A stream checkpoint with an equal or higher snapshot_version reflects
-	 * it.
-	 */
-	readonly snapshot_version: number;
 }
 
 // From codersdk/chats.go
@@ -3635,6 +3616,14 @@ export interface ChatSkillPart {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatSnapshotVersionHeader is the response header in which a chat action
+ * reports the chat's snapshot_version it committed. A stream checkpoint at
+ * or above it reflects the action.
+ */
+export const ChatSnapshotVersionHeader = "Coder-Chat-Snapshot-Version";
+
+// From codersdk/chats.go
 export interface ChatSourcePart {
 	readonly type: "source";
 	readonly url: string;
@@ -3673,9 +3662,10 @@ export interface ChatStreamActionRequired {
  */
 export interface ChatStreamCheckpoint {
 	/**
-	 * SnapshotVersion is the chat's snapshot_version the sync applied. Every
-	 * action response with an equal or lower version is reflected. A client
-	 * reconnects with the value of the last checkpoint it received.
+	 * SnapshotVersion is the chat's snapshot_version the sync applied. It
+	 * reflects every action whose ChatSnapshotVersionHeader is at or below
+	 * it. A client reconnects with the value of the last checkpoint it
+	 * received.
 	 */
 	readonly snapshot_version: number;
 	/**
@@ -3744,8 +3734,7 @@ export interface ChatStreamHistoryReset {
 	/**
 	 * FromMessageID is the lowest message ID the reset replaces. The client
 	 * keeps its messages with lower IDs and replaces the rest with the
-	 * message events that follow. A history_reset without from_message_id
-	 * replaces the whole history.
+	 * message events that follow.
 	 */
 	readonly from_message_id: number;
 }
@@ -4292,11 +4281,6 @@ export interface CreateChatMessageResponse {
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
 	readonly warnings?: readonly string[];
-	/**
-	 * SnapshotVersion is the chat's snapshot_version committed by the send.
-	 * The stream has applied the send once a checkpoint reports at least it.
-	 */
-	readonly snapshot_version: number;
 }
 
 // From codersdk/chats.go
@@ -5524,11 +5508,6 @@ export interface EditChatMessageResponse {
 	 */
 	readonly deleted_message_ids?: readonly number[];
 	readonly warnings?: readonly string[];
-	/**
-	 * SnapshotVersion is the chat's snapshot_version committed by the edit.
-	 * The stream has applied the edit once a checkpoint reports at least it.
-	 */
-	readonly snapshot_version: number;
 }
 
 // From codersdk/externalauth.go
