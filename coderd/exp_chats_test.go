@@ -10905,6 +10905,58 @@ func TestStreamChat(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
+	// A failed setup is an HTTP error before the upgrade, not an error
+	// event a client would show as the chat's state.
+	t.Run("SetupFailureReturnsHTTPError", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tt := range []struct {
+			name string
+			err  error
+			want int
+		}{
+			{name: "ChatGone", err: sql.ErrNoRows, want: http.StatusNotFound},
+			{name: "ReadFails", err: xerrors.New("read failed"), want: http.StatusInternalServerError},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				rawDB, ps := dbtestutil.NewDB(t)
+				store := &chatStreamReadFailStore{Store: rawDB, fail: &atomic.Pointer[chatStreamReadFailure]{}}
+				client := newChatClient(t, withChatWorkerDisabled, func(opts *coderdtest.Options) {
+					opts.Database = store
+					opts.Pubsub = ps
+				})
+				user := coderdtest.CreateFirstUser(t, client.Client)
+				model := createChatModel(t, client)
+				chat := dbgen.Chat(t, rawDB, database.Chat{
+					OrganizationID:    user.OrganizationID,
+					OwnerID:           user.UserID,
+					LastModelConfigID: model.ID,
+					Title:             "stream setup failure",
+					Status:            database.ChatStatusWaiting,
+				})
+				store.fail.Store(&chatStreamReadFailure{chatID: chat.ID, err: tt.err})
+
+				u, err := client.URL.Parse(fmt.Sprintf("/api/v2/chats/%s/stream", chat.ID))
+				require.NoError(t, err)
+				conn, res, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+					HTTPHeader: http.Header{codersdk.SessionTokenHeader: {client.SessionToken()}},
+				})
+				if conn != nil {
+					_ = conn.Close(websocket.StatusNormalClosure, "")
+				}
+				require.Error(t, err, "the stream upgraded despite the failed setup")
+				require.NotNil(t, res)
+				if res.Body != nil {
+					_ = res.Body.Close()
+				}
+				require.Equal(t, tt.want, res.StatusCode)
+			})
+		}
+	})
+
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
 
@@ -15051,6 +15103,37 @@ func liveChatMessageIDs(ctx context.Context, t *testing.T, client *codersdk.Expe
 	}
 	slices.Sort(ids)
 	return ids
+}
+
+// chatStreamReadFailStore fails reads of one chat inside transactions, so
+// the stream's first sync fails while the route's read, outside one,
+// succeeds.
+type chatStreamReadFailStore struct {
+	database.Store
+	fail *atomic.Pointer[chatStreamReadFailure]
+}
+
+type chatStreamReadFailure struct {
+	chatID uuid.UUID
+	err    error
+}
+
+func (s *chatStreamReadFailStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&chatStreamReadFailTx{Store: tx, fail: s.fail})
+	}, txOpts)
+}
+
+type chatStreamReadFailTx struct {
+	database.Store
+	fail *atomic.Pointer[chatStreamReadFailure]
+}
+
+func (s *chatStreamReadFailTx) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	if failure := s.fail.Load(); failure != nil && failure.chatID == id {
+		return database.Chat{}, failure.err
+	}
+	return s.Store.GetChatByID(ctx, id)
 }
 
 func createChatModelWithBaseURL(t testing.TB, client *codersdk.ExperimentalClient, baseURL string) codersdk.ChatModel {
