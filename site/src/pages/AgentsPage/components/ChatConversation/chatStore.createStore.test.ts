@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { createChatStore, selectIsAwaitingFirstStreamChunk } from "./chatStore";
+import {
+	type ChatStore,
+	createChatStore,
+	selectChatStatus,
+	selectIsAwaitingFirstStreamChunk,
+	selectMessagesByID,
+	selectOrderedMessageIDs,
+	selectQueuedMessages,
+	selectStreamError,
+} from "./chatStore";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,8 +40,6 @@ const makeQueuedMessage = (
 		created_at: "2025-01-01T00:00:00Z",
 		content: [{ type: "text", text }],
 	}) as TypesGen.ChatQueuedMessage;
-
-const testChatID = "chat-1";
 
 // ---------------------------------------------------------------------------
 // replaceMessages
@@ -431,335 +438,6 @@ describe("setQueuedMessages", () => {
 // suppressQueuedMessageID / applyAuthoritativeQueuedMessages
 // ---------------------------------------------------------------------------
 
-describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
-	it("filters suppressed IDs from authoritative writes and auto-clears", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		store.setQueuedMessages([a, b, c]);
-		store.suppressQueuedMessageID(b.id);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
-
-		// Running-case promotion only reorders the queue; the backend still reports the row.
-		store.applyAuthoritativeQueuedMessages([b, a, c]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, c.id]);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
-
-		store.applyAuthoritativeQueuedMessages([a, c]);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(
-			false,
-		);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, c.id]);
-	});
-
-	it("filters suppressed IDs from REST hydration via applyAuthoritativeQueuedMessages", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		store.suppressQueuedMessageID(b.id);
-		// REST hydration delivers the unfiltered queue [B, A, C].
-		store.applyAuthoritativeQueuedMessages([b, a, c]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, c.id]);
-	});
-
-	it("still applies newly queued messages while a suppressed message stays queued", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const d = makeQueuedMessage(4, "D");
-
-		store.setQueuedMessages([b]);
-		store.suppressQueuedMessageID(a.id);
-
-		store.applyAuthoritativeQueuedMessages([a, b, d]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, d.id]);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(true);
-	});
-
-	it("ignores stale snapshots that still list a promoted message", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		store.setQueuedMessages([b, c]);
-		store.markQueuedMessagePromoted(a.id);
-
-		store.applyAuthoritativeQueuedMessages([a, b]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, c.id]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
-
-		store.applyAuthoritativeQueuedMessages([b, c]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, c.id]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
-	});
-
-	it("records queued IDs the server has reported", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
-		store.applyAuthoritativeQueuedMessages([a, b]);
-		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
-		expect(store.hasObservedQueuedMessageID(b.id)).toBe(true);
-
-		store.applyAuthoritativeQueuedMessages([b]);
-		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
-
-		store.setQueuedMessages([b, c]);
-		expect(store.hasObservedQueuedMessageID(c.id)).toBe(false);
-
-		store.clearSuppressedQueuedMessageIDs();
-		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
-	});
-
-	it("counts every server status report, including repeats", () => {
-		const store = createChatStore();
-
-		expect(store.getServerChatStatusVersion()).toBe(0);
-
-		store.setChatStatus("running");
-		expect(store.getServerChatStatusVersion()).toBe(0);
-
-		store.applyServerChatStatus("error");
-		expect(store.getServerChatStatusVersion()).toBe(1);
-		expect(store.getSnapshot().chatStatus).toBe("error");
-
-		store.applyServerChatStatus("error");
-		expect(store.getServerChatStatusVersion()).toBe(2);
-		expect(store.getSnapshot().chatStatus).toBe("error");
-	});
-
-	it("restores a promoted head that a fresh snapshot still queues", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		expect(
-			store
-				.applyPromoteRefetchQueuedMessages(testChatID, a.id, [a, b], baseline)
-				?.map((message) => message.id),
-		).toEqual([a.id, b.id]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, b.id]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
-	});
-
-	it("ignores a promote refetch that a newer snapshot already superseded", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		store.applyAuthoritativeQueuedMessages([b, c]);
-
-		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				a.id,
-				[a, b],
-				baseline,
-			),
-		).toBeUndefined();
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, c.id]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
-	});
-
-	it("still applies a promote refetch after a stale snapshot was discarded", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		store.applyAuthoritativeQueuedMessages([a, b, c]);
-
-		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				a.id,
-				[b, c],
-				baseline,
-			),
-		).toEqual([b, c]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, c.id]);
-	});
-
-	it("ignores a promote refetch that resolves after switching chats", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		store.setActiveChatID("chat-other");
-		store.setQueuedMessages([]);
-
-		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				a.id,
-				[a, b],
-				baseline,
-			),
-		).toBeUndefined();
-		expect(store.getSnapshot().queuedMessages).toEqual([]);
-	});
-
-	it("ignores a promote refetch spanning a round trip back to the same chat", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		store.setActiveChatID("chat-other");
-		store.setActiveChatID(testChatID);
-
-		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				a.id,
-				[a, b],
-				baseline,
-			),
-		).toBeUndefined();
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id]);
-	});
-
-	it("ignores a promote refetch naming another chat even at a matching fence", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-
-		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				"chat-other",
-				a.id,
-				[a, b],
-				store.getQueueConvergenceFence(),
-			),
-		).toBeUndefined();
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id]);
-	});
-
-	it("returns the queue it applied, not the raw snapshot", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		store.suppressQueuedMessageID(c.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		expect(
-			store
-				.applyPromoteRefetchQueuedMessages(
-					testChatID,
-					a.id,
-					[a, b, c],
-					baseline,
-				)
-				?.map((message) => message.id),
-		).toEqual([a.id, b.id]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, b.id]);
-	});
-
-	it("unsuppressQueuedMessageID clears a promoted marker after a failed promotion", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-
-		store.markQueuedMessagePromoted(a.id);
-		store.unsuppressQueuedMessageID(a.id);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
-
-		store.applyAuthoritativeQueuedMessages([a, b]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, b.id]);
-	});
-
-	it("unsuppressQueuedMessageID removes IDs from the suppression set", () => {
-		const store = createChatStore();
-		store.suppressQueuedMessageID(42);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(42)).toBe(true);
-		store.unsuppressQueuedMessageID(42);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(42)).toBe(false);
-	});
-
-	it("setQueuedMessages does not auto-clear suppression", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-
-		store.suppressQueuedMessageID(99);
-		// setQueuedMessages is the optimistic path: it must not
-		// touch the suppression set, otherwise the optimistic write
-		// would lift suppression before the authoritative reordered
-		// queue arrives.
-		store.setQueuedMessages([a]);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(99)).toBe(true);
-	});
-});
-
 // ---------------------------------------------------------------------------
 // clearStreamState
 // ---------------------------------------------------------------------------
@@ -1050,5 +728,331 @@ describe("duplicate message deduplication", () => {
 		expect(state.messagesByID.size).toBe(2);
 		// orderedMessageIDs MUST also have only 2 entries.
 		expect(state.orderedMessageIDs).toEqual([1, 2]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Pending actions
+// ---------------------------------------------------------------------------
+
+const seededStore = (
+	messages: readonly TypesGen.ChatMessage[],
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+	status: TypesGen.ChatStatus,
+): ChatStore => {
+	const store = createChatStore();
+	store.seed({ messages, queuedMessages, hasMore: false, historyVersion: 1 });
+	store.applyServerChatStatus(status);
+	store.applyCheckpoint(1, 1);
+	return store;
+};
+
+// What a viewer sees: the transcript texts, the queue IDs and the status.
+const visible = (store: ChatStore) => {
+	const state = store.getSnapshot();
+	const byID = selectMessagesByID(state);
+	return {
+		transcript: selectOrderedMessageIDs(state).map((id) => {
+			const message = byID.get(id);
+			const part = message?.content?.[0];
+			return `${message?.role}:${part?.type === "text" ? part.text : ""}`;
+		}),
+		queue: selectQueuedMessages(state).map((message) => message.id),
+		status: selectChatStatus(state),
+		error: selectStreamError(state)?.message ?? null,
+	};
+};
+
+const chatError = {
+	message: "provider failed",
+	kind: "generic",
+} as const;
+
+describe("promoteQueued overlay", () => {
+	it.each(["error", "requires_action"] as const)(
+		"from %s shows the row as the next prompt of a running turn",
+		(status) => {
+			const store = seededStore(
+				[makeMessage(1, "user", "first"), makeMessage(2, "assistant", "a")],
+				[makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
+				status,
+			);
+			store.setStreamError(chatError);
+
+			store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 11 });
+
+			expect(visible(store)).toEqual({
+				transcript: ["user:first", "assistant:a", "user:q11"],
+				queue: [10],
+				status: "running",
+				error: null,
+			});
+		},
+	);
+
+	it.each(["running", "interrupting"] as const)(
+		"from %s moves the row to the head and shows the turn stopping",
+		(status) => {
+			const store = seededStore(
+				[makeMessage(1, "user", "first")],
+				[makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
+				status,
+			);
+
+			store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 11 });
+
+			expect(visible(store)).toEqual({
+				transcript: ["user:first"],
+				queue: [11, 10],
+				status: "interrupting",
+				error: null,
+			});
+		},
+	);
+
+	it("shows the promoted row once when the stream already holds its message", () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "first")],
+			[makeQueuedMessage(11, "q11")],
+			"error",
+		);
+		store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 11 });
+
+		// A sync can span frames: its message arrives before its queue_update.
+		store.upsertDurableMessage({
+			...makeMessage(2, "user", "q11"),
+			queued_message_id: 11,
+		});
+
+		expect(visible(store)).toMatchObject({
+			transcript: ["user:first", "user:q11"],
+			queue: [],
+		});
+	});
+});
+
+// Each scenario runs the same stream events on a store that acted (with its
+// overlay) and on one that did not; once a checkpoint reaches the action's
+// version, both must show the same chat.
+type ConvergenceScenario = {
+	name: string;
+	messages: readonly TypesGen.ChatMessage[];
+	queue: readonly TypesGen.ChatQueuedMessage[];
+	status: TypesGen.ChatStatus;
+	action: Parameters<ChatStore["addPendingAction"]>[0];
+	// The stream's events for the action's commit.
+	stream: (store: ChatStore) => void;
+	// Another viewer's commit lands first, so the overlay cannot predict it.
+	unpredictable?: boolean;
+};
+
+const W = 5;
+
+const convergenceScenarios: ConvergenceScenario[] = [
+	{
+		name: "send to an idle chat",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [],
+		status: "waiting",
+		action: { kind: "send", messages: [makeMessage(2, "user", "second")] },
+		stream: (store) => {
+			store.upsertDurableMessage(makeMessage(2, "user", "second"));
+			store.applyServerChatStatus("running");
+		},
+	},
+	{
+		name: "queued send",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [],
+		status: "running",
+		action: {
+			kind: "send",
+			messages: [],
+			queuedMessage: makeQueuedMessage(10, "q10"),
+		},
+		stream: (store) => store.setQueuedMessages([makeQueuedMessage(10, "q10")]),
+	},
+	{
+		name: "edit",
+		messages: [
+			makeMessage(1, "user", "first"),
+			makeMessage(2, "assistant", "a"),
+			makeMessage(3, "user", "old"),
+		],
+		queue: [makeQueuedMessage(10, "q10")],
+		status: "running",
+		action: {
+			kind: "edit",
+			editedMessageID: 3,
+			message: makeMessage(4, "user", "new"),
+		},
+		stream: (store) => {
+			store.replaceMessagesFrom(3, [makeMessage(4, "user", "new")]);
+			store.setQueuedMessages([]);
+		},
+	},
+	{
+		name: "delete queued",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
+		status: "running",
+		action: { kind: "deleteQueued", queuedMessageID: 10 },
+		stream: (store) => store.setQueuedMessages([makeQueuedMessage(11, "q11")]),
+	},
+	{
+		name: "promote from error",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
+		status: "error",
+		action: { kind: "promoteQueued", queuedMessageID: 11 },
+		stream: (store) => {
+			store.upsertDurableMessage({
+				...makeMessage(2, "user", "q11"),
+				queued_message_id: 11,
+			});
+			store.setQueuedMessages([makeQueuedMessage(10, "q10")]);
+			store.applyServerChatStatus("running");
+		},
+	},
+	{
+		name: "promote from running",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
+		status: "running",
+		action: { kind: "promoteQueued", queuedMessageID: 11 },
+		stream: (store) => {
+			store.setQueuedMessages([
+				makeQueuedMessage(11, "q11"),
+				makeQueuedMessage(10, "q10"),
+			]);
+			store.applyServerChatStatus("interrupting");
+		},
+	},
+	{
+		name: "compact",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [],
+		status: "waiting",
+		action: { kind: "compact" },
+		stream: (store) => store.applyServerChatStatus("running"),
+	},
+	{
+		name: "another tab's edit deletes the pending send",
+		messages: [makeMessage(1, "user", "first")],
+		queue: [],
+		status: "waiting",
+		action: { kind: "send", messages: [makeMessage(2, "user", "mine")] },
+		stream: (store) => {
+			store.replaceMessagesFrom(1, [makeMessage(3, "user", "theirs")]);
+			store.applyServerChatStatus("running");
+		},
+		unpredictable: true,
+	},
+];
+
+describe("pending actions converge with the stream", () => {
+	it.each(convergenceScenarios)("$name", (scenario) => {
+		const actor = seededStore(
+			scenario.messages,
+			scenario.queue,
+			scenario.status,
+		);
+		const observer = seededStore(
+			scenario.messages,
+			scenario.queue,
+			scenario.status,
+		);
+		const pendingID = actor.addPendingAction(scenario.action);
+		actor.updatePendingAction(pendingID, { untilVersion: W });
+
+		// A stream that lags the response keeps the overlay.
+		for (const store of [actor, observer]) {
+			store.applyCheckpoint(W - 1, 1);
+		}
+		expect(actor.getSnapshot().pendingActions).toHaveLength(1);
+		const shownBeforeCommit = visible(actor);
+
+		for (const store of [actor, observer]) {
+			scenario.stream(store);
+			store.applyCheckpoint(W, 2);
+		}
+		expect(actor.getSnapshot().pendingActions).toEqual([]);
+		expect(visible(actor)).toEqual(visible(observer));
+		// The overlay showed the committed state, so nothing moves when it ends.
+		if (!scenario.unpredictable) {
+			expect(shownBeforeCommit).toEqual(visible(observer));
+		}
+	});
+
+	it("adds no overlay for an action the stream already reached", () => {
+		const store = seededStore([makeMessage(1, "user", "first")], [], "waiting");
+		store.upsertDurableMessage(makeMessage(2, "user", "second"));
+		store.applyCheckpoint(W, 2);
+
+		store.addPendingAction(
+			{ kind: "send", messages: [makeMessage(2, "user", "second")] },
+			W,
+		);
+
+		expect(store.getSnapshot().pendingActions).toEqual([]);
+	});
+
+	it("removes a failed action's overlay", () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "first")],
+			[makeQueuedMessage(10, "q10")],
+			"running",
+		);
+		const pendingID = store.addPendingAction({
+			kind: "deleteQueued",
+			queuedMessageID: 10,
+		});
+		expect(visible(store).queue).toEqual([]);
+
+		store.removePendingAction(pendingID);
+
+		expect(visible(store).queue).toEqual([10]);
+	});
+});
+
+describe("prependOlderMessages", () => {
+	it("prepends an older page", () => {
+		const store = createChatStore();
+		store.seed({
+			messages: [makeMessage(3, "user", "c")],
+			queuedMessages: [],
+			hasMore: true,
+			historyVersion: 1,
+		});
+		const resetCount = store.getHistoryResetCount();
+
+		store.prependOlderMessages(
+			[makeMessage(1, "user", "a"), makeMessage(2, "assistant", "b")],
+			false,
+			resetCount,
+		);
+
+		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2, 3]);
+		expect(store.getSnapshot().hasMoreMessages).toBe(false);
+	});
+
+	it("drops a page that loaded across a history reset", () => {
+		const store = createChatStore();
+		store.seed({
+			messages: [makeMessage(3, "user", "c")],
+			queuedMessages: [],
+			hasMore: true,
+			historyVersion: 1,
+		});
+		const resetCount = store.getHistoryResetCount();
+		store.replaceMessagesFrom(undefined, [makeMessage(4, "user", "new")]);
+
+		store.prependOlderMessages(
+			[makeMessage(1, "user", "a"), makeMessage(2, "assistant", "b")],
+			false,
+			resetCount,
+		);
+
+		expect(store.getSnapshot().orderedMessageIDs).toEqual([4]);
 	});
 });
