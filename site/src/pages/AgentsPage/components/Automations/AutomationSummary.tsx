@@ -110,7 +110,8 @@ export const AutomationSummary: React.FC<AutomationSummaryProps> = ({
 			<SummarySection title="Runs in">
 				{automation.target_mode === "existing_chat" ? (
 					<>
-						<SummaryItem label="Runs in">
+						<SummaryItem label="Mode">Existing chat</SummaryItem>
+						<SummaryItem label="Chat">
 							{automation.target_chat ? (
 								<ChatTitleLink
 									chatId={automation.target_chat.id}
@@ -129,7 +130,7 @@ export const AutomationSummary: React.FC<AutomationSummaryProps> = ({
 					</>
 				) : (
 					<>
-						<SummaryItem label="Runs in">A new chat each run</SummaryItem>
+						<SummaryItem label="Mode">New chat each run</SummaryItem>
 						<SummaryItem label="Model">
 							{model?.display_name || model?.model || "Set by the owner"}
 						</SummaryItem>
