@@ -172,7 +172,6 @@ func TestConnectionLog(t *testing.T) {
 				expectedCode = sql.NullInt32{Int32: tt.status, Valid: true}
 			}
 
-			// Compare every field, since Contains skips fields left unset.
 			logs := connLogger.ConnectionLogs()
 			require.Len(t, logs, 1)
 			require.Equal(t, database.UpsertConnectionLogParams{
