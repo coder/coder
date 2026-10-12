@@ -236,19 +236,11 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 			}
 		}
 
-		if chat.Status == database.ChatStatusRequiresAction && !l.state.openedWithSnapshotVersion {
-			history, err := tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-				ChatID:  l.chatID,
-				AfterID: 0,
-			})
-			if err != nil {
-				return xerrors.Errorf("get requires_action history: %w", err)
-			}
-			actionRequired, err := l.actionRequiredFromHistory(chat, history)
+		if chat.Status == database.ChatStatusRequiresAction {
+			snapshot.actionRequired, err = StreamActionRequired(ctx, tx, chat)
 			if err != nil {
 				return err
 			}
-			snapshot.actionRequired = actionRequired
 		}
 		return nil
 	})
@@ -301,7 +293,20 @@ func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (
 	return cursor, true, nil
 }
 
-func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {
+// StreamActionRequired returns the dynamic tool calls a chat in
+// requires_action waits on, read from the chat's history.
+func StreamActionRequired(ctx context.Context, db database.Store, chat database.Chat) (*codersdk.ChatStreamActionRequired, error) {
+	history, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get requires_action history: %w", err)
+	}
+	return actionRequiredFromHistory(chat, history)
+}
+
+func actionRequiredFromHistory(chat database.Chat, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {
 	dynamicToolNames, err := parseDynamicToolNames(chat.DynamicTools)
 	if err != nil {
 		return nil, xerrors.Errorf("parse dynamic tools for stream: %w", err)
@@ -393,7 +398,7 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 		ChatID: l.chatID,
 		Checkpoint: &codersdk.ChatStreamCheckpoint{
 			SnapshotVersion: chat.SnapshotVersion,
-			Turn:            StreamTurn(l.logger, chat),
+			Turn:            StreamTurn(l.logger, chat, snapshot.actionRequired),
 		},
 	})
 }
@@ -496,8 +501,9 @@ func (l *streamLoop) turnEvents(chat database.Chat, actionRequired *codersdk.Cha
 }
 
 // StreamTurn reports the chat's turn as the stream's checkpoint carries
-// it.
-func StreamTurn(logger slog.Logger, chat database.Chat) codersdk.ChatStreamTurn {
+// it. actionRequired is the result of StreamActionRequired while the chat
+// is in requires_action.
+func StreamTurn(logger slog.Logger, chat database.Chat, actionRequired *codersdk.ChatStreamActionRequired) codersdk.ChatStreamTurn {
 	turn := codersdk.ChatStreamTurn{Status: codersdk.ChatStatus(chat.Status)}
 	switch chat.Status {
 	case database.ChatStatusError:
@@ -506,6 +512,8 @@ func StreamTurn(logger slog.Logger, chat database.Chat) codersdk.ChatStreamTurn 
 		// retry_state describes a pending retry of a running chat. A
 		// stopped chat can still hold a stale payload.
 		turn.Retry = chatStreamRetry(logger, chat)
+	case database.ChatStatusRequiresAction:
+		turn.ActionRequired = actionRequired
 	}
 	return turn
 }

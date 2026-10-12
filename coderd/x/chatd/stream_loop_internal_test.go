@@ -452,8 +452,7 @@ func TestStreamLoopActionRequiredFromHistory(t *testing.T) {
 		ToolName:   "browser",
 		Args:       json.RawMessage(`{"url":"https://example.com"}`),
 	}}, false)
-	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), StreamCursor{})
-	action, err := loop.actionRequiredFromHistory(database.Chat{
+	action, err := actionRequiredFromHistory(database.Chat{
 		ID:           chatID,
 		DynamicTools: pqtype.NullRawMessage{RawMessage: toolDefs, Valid: true},
 	}, []database.ChatMessage{assistant})
@@ -1134,6 +1133,43 @@ func TestStreamLoopSnapshotVersionWithoutStatusChange(t *testing.T) {
 		SnapshotVersion: 2,
 		Turn:            codersdk.ChatStreamTurn{Status: codersdk.ChatStatusRunning},
 	}, events[2].Checkpoint, "the sync reported no version to reconnect with")
+}
+
+// A client opened at a snapshot version gets the pending dynamic tool calls
+// only from the checkpoint's turn.
+func TestStreamLoopSnapshotVersionRequiresAction(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	toolDefs, err := json.Marshal([]codersdk.DynamicTool{{Name: "browser"}})
+	require.NoError(t, err)
+	chat := database.Chat{
+		ID:              chatID,
+		Status:          database.ChatStatusRequiresAction,
+		DynamicTools:    pqtype.NullRawMessage{RawMessage: toolDefs, Valid: true},
+		HistoryVersion:  1,
+		SnapshotVersion: 2,
+	}
+	assistant := streamMessageParts(t, chatID, 1, 1, database.ChatMessageRoleAssistant, []codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolCall,
+		ToolCallID: "call-1",
+		ToolName:   "browser",
+		Args:       json.RawMessage(`{}`),
+	}}, false)
+	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), StreamCursor{SnapshotVersion: 1})
+	events := syncAgainst(t, loop, chat, []database.ChatMessage{assistant})
+	requireEventTypes(t, events,
+		codersdk.ChatStreamEventTypePreviewReset,
+		codersdk.ChatStreamEventTypeCheckpoint,
+	)
+	require.Equal(t, codersdk.ChatStreamTurn{
+		Status: codersdk.ChatStatusRequiresAction,
+		ActionRequired: &codersdk.ChatStreamActionRequired{ToolCalls: []codersdk.ChatStreamToolCall{{
+			ToolCallID: "call-1",
+			ToolName:   "browser",
+			Args:       "{}",
+		}}},
+	}, events[1].Checkpoint.Turn)
 }
 
 func requireEventTypes(t *testing.T, events []codersdk.ChatStreamEvent, types ...codersdk.ChatStreamEventType) {
