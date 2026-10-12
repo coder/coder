@@ -79,11 +79,7 @@ function extractBlock(css: string, selector: string): string | null {
 
 		const selectors = selectorList.split(",").map((value) => value.trim());
 		if (selectors.includes(selector)) {
-			// Theme blocks share their variables through `@apply` of a utility.
-			return block.replace(
-				/@apply\s+(theme-[\w-]+)\s*;/g,
-				(_, utility: string) => extractBlock(css, `@utility ${utility}`) ?? "",
-			);
+			return block;
 		}
 	}
 	return null;

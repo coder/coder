@@ -31,6 +31,7 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({
 		if (root.dataset.embedTheme) {
 			return;
 		}
+		root.classList.remove(...CONCRETE_THEMES);
 		root.classList.add(concreteName);
 		root.classList.add(baseModeFor(concreteName));
 

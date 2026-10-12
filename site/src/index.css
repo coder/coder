@@ -428,209 +428,149 @@
 	@apply text-xs font-mono font-medium;
 }
 
-@utility theme-light-vars {
-	--content-primary: 240 10% 4%;
-	--content-secondary: 240 5% 34%;
-	--content-link: 221 83% 53%;
-	--content-invert: 0 0% 98%;
-	--content-disabled: 240 5% 65%;
-	--content-success: 142 72% 29%;
-	--content-warning: 27 96% 61%;
-	--content-destructive: 0 72.2% 50.6%;
-	--surface-primary: 0 0% 100%;
-	--surface-secondary: 240 5% 96%;
-	--surface-tertiary: 240 6% 90%;
-	--surface-quaternary: 240 5% 84%;
-	--surface-invert-primary: 240 4% 16%;
-	--surface-invert-secondary: 240 5% 26%;
-	--surface-destructive: 0 93% 94%;
-	--surface-green: 141 79% 85%;
-	--surface-grey: 240 5% 96%;
-	--surface-orange: 34 100% 92%;
-	--surface-sky: 191, 67%, 89%;
-	--surface-red: 0 93% 94%;
-	--surface-purple: 259, 100%, 95%;
-	--surface-magenta: 289 100% 98%;
-	/*
-	  Brand supergraphic used as a decorative background on premium upsell surfaces.
-	*/
-	--supergraphic-url: url("/supergraphic/supergraphic-light.webp");
-	--border-purple: 255 92% 76%;
-	--border-default: 240 6% 90%;
-	--border-success: 142 76% 36%;
-	--border-sky: 203 90% 40%;
-	--border-green: 138 82% 82%;
-	--border-magenta: 295, 68%, 46%;
-	--border-warning: 30.66, 97.16%, 72.35%;
-	--border-destructive: 0 72.2% 50.6%;
-	--border-secondary: 240 5% 65%;
-	--overlay-default: 240 5% 84% / 80%;
-	--radius: 0.5rem;
-	--highlight-purple: 271, 61%, 35%;
-	--highlight-green: 143 64% 24%;
-	--highlight-orange: 30 100% 32%;
-	--highlight-sky: 195, 61%, 22%;
-	--highlight-red: 0 74% 42%;
-	--highlight-magenta: 295, 68%, 40%;
-	--syntax-key: 211 95% 33%;
-	--syntax-string: 0 77% 36%;
-	--syntax-number: 158 88% 28%;
-	--syntax-boolean: 240 100% 50%;
-	--git-added: 142 72% 29%;
-	--git-deleted: 0 74% 42%;
-	--git-modified: 17 88% 40%;
-	--git-merged: 271 91% 65%;
-	--git-added-bright: 142 72% 29%;
-	--git-deleted-bright: 0 74% 42%;
-	--git-merged-bright: 272 72% 47%;
-	--surface-git-added: 141 84% 93%;
-	--surface-git-deleted: 0 93% 94%;
-	--surface-git-merged: 269 100% 95%;
-	--border: 240 5.9% 90%;
-	--input: 240 5.9% 90%;
-	--ring: 240 10% 3.9%;
-	/*
-	  shadcn-compatible aliases consumed by streamdown and
-	  internal components (e.g. shimmer). These names are
-	  intentionally generic so they match shadcn conventions.
-	  Do NOT rename without updating every consumer.
-	*/
-	--background: var(--surface-primary);
-	--foreground: var(--content-primary);
-	--muted: var(--surface-secondary);
-	--muted-foreground: var(--content-secondary);
-	--primary: var(--content-link);
-	--primary-foreground: var(--surface-primary);
-	--avatar-lg: 2.5rem;
-	--avatar-default: 2rem;
-	--avatar-sm: 1.5rem;
-}
-
-@utility theme-dark-vars {
-	--content-primary: 0 0% 100%;
-	--content-secondary: 240 5% 65%;
-	--content-link: 213 94% 68%;
-	--content-invert: 240 10% 4%;
-	--content-disabled: 240 5% 26%;
-	--content-success: 142 76% 36%;
-	--content-warning: 31 97% 72%;
-	--content-destructive: 0 91% 71%;
-	--surface-primary: 240 10% 4%;
-	--surface-secondary: 240 6% 10%;
-	--surface-tertiary: 240 4% 16%;
-	--surface-quaternary: 240 5% 26%;
-	--surface-invert-primary: 240 6% 90%;
-	--surface-invert-secondary: 240 5% 65%;
-	--surface-destructive: 0 75% 15%;
-	--surface-green: 145 80% 10%;
-	--surface-grey: 240 6% 10%;
-	--surface-orange: 13 81% 15%;
-	--surface-sky: 196, 67%, 12%;
-	--surface-red: 0 75% 15%;
-	--surface-purple: 268, 68%, 17%;
-	--surface-magenta: 291, 74%, 15%;
-	--supergraphic-url: url("/supergraphic/supergraphic-dark.webp");
-	--border-purple: 255 92% 76%;
-	--border-default: 240 4% 16%;
-	--border-success: 142 76% 36%;
-	--border-magenta: 292, 100%, 78%;
-	--border-warning: 30.66, 97.16%, 72.35%;
-	--border-destructive: 0 91% 71%;
-	--border-sky: 194 90% 62%;
-	--border-green: 143 77% 87%;
-	--border-secondary: 240 5% 26%;
-	--overlay-default: 240 10% 4% / 80%;
-	--highlight-purple: 269, 100%, 74%;
-	--highlight-green: 141 79% 85%;
-	--highlight-orange: 31 100% 70%;
-	--highlight-sky: 188, 75%, 80%;
-	--highlight-red: 0 91% 71%;
-	--highlight-magenta: 292, 100%, 78%;
-	--syntax-key: 201 98% 80%;
-	--syntax-string: 18 47% 64%;
-	--syntax-number: 100 28% 73%;
-	--syntax-boolean: 207 61% 59%;
-	--git-added: 142 77% 73%;
-	--git-deleted: 0 94% 82%;
-	--git-modified: 31 97% 72%;
-	--git-merged: 271 91% 65%;
-	--git-added-bright: 142 71% 45%;
-	--git-deleted-bright: 0 91% 71%;
-	--git-merged-bright: 270 95% 75%;
-	--surface-git-added: 145 80% 10%;
-	--surface-git-deleted: 0 75% 15%;
-	--surface-git-merged: 274 87% 21%;
-	--border: 240 3.7% 15.9%;
-	--input: 240 3.7% 15.9%;
-	--ring: 240 4.9% 83.9%;
-	/* shadcn-compatible aliases – see theme-light-vars for details. */
-	--background: var(--surface-primary);
-	--foreground: var(--content-primary);
-	--muted: var(--surface-secondary);
-	--muted-foreground: var(--content-secondary);
-	--primary: var(--content-link);
-	--primary-foreground: var(--surface-primary);
-}
-
 @layer base {
 	:root,
 	.light {
-		@apply theme-light-vars;
+		--content-primary: 240 10% 4%;
+		--content-secondary: 240 5% 34%;
+		--content-link: 221 83% 53%;
+		--content-invert: 0 0% 98%;
+		--content-disabled: 240 5% 65%;
+		--content-success: 142 72% 29%;
+		--content-warning: 27 96% 61%;
+		--content-destructive: 0 72.2% 50.6%;
+		--surface-primary: 0 0% 100%;
+		--surface-secondary: 240 5% 96%;
+		--surface-tertiary: 240 6% 90%;
+		--surface-quaternary: 240 5% 84%;
+		--surface-invert-primary: 240 4% 16%;
+		--surface-invert-secondary: 240 5% 26%;
+		--surface-destructive: 0 93% 94%;
+		--surface-green: 141 79% 85%;
+		--surface-grey: 240 5% 96%;
+		--surface-orange: 34 100% 92%;
+		--surface-sky: 191, 67%, 89%;
+		--surface-red: 0 93% 94%;
+		--surface-purple: 259, 100%, 95%;
+		--surface-magenta: 289 100% 98%;
+		/*
+		  Brand supergraphic used as a decorative background on premium upsell surfaces.
+		*/
+		--supergraphic-url: url("/supergraphic/supergraphic-light.webp");
+		--border-purple: 255 92% 76%;
+		--border-default: 240 6% 90%;
+		--border-success: 142 76% 36%;
+		--border-sky: 203 90% 40%;
+		--border-green: 138 82% 82%;
+		--border-magenta: 295, 68%, 46%;
+		--border-warning: 30.66, 97.16%, 72.35%;
+		--border-destructive: 0 72.2% 50.6%;
+		--border-secondary: 240 5% 65%;
+		--overlay-default: 240 5% 84% / 80%;
+		--radius: 0.5rem;
+		--highlight-purple: 271, 61%, 35%;
+		--highlight-green: 143 64% 24%;
+		--highlight-orange: 30 100% 32%;
+		--highlight-sky: 195, 61%, 22%;
+		--highlight-red: 0 74% 42%;
+		--highlight-magenta: 295, 68%, 40%;
+		--syntax-key: 211 95% 33%;
+		--syntax-string: 0 77% 36%;
+		--syntax-number: 158 88% 28%;
+		--syntax-boolean: 240 100% 50%;
+		--git-added: 142 72% 29%;
+		--git-deleted: 0 74% 42%;
+		--git-modified: 17 88% 40%;
+		--git-merged: 271 91% 65%;
+		--git-added-bright: 142 72% 29%;
+		--git-deleted-bright: 0 74% 42%;
+		--git-merged-bright: 272 72% 47%;
+		--surface-git-added: 141 84% 93%;
+		--surface-git-deleted: 0 93% 94%;
+		--surface-git-merged: 269 100% 95%;
+		--border: 240 5.9% 90%;
+		--input: 240 5.9% 90%;
+		--ring: 240 10% 3.9%;
+		/*
+		  shadcn-compatible aliases consumed by streamdown and
+		  internal components (e.g. shimmer). These names are
+		  intentionally generic so they match shadcn conventions.
+		  Do NOT rename without updating every consumer.
+		*/
+		--background: var(--surface-primary);
+		--foreground: var(--content-primary);
+		--muted: var(--surface-secondary);
+		--muted-foreground: var(--content-secondary);
+		--primary: var(--content-link);
+		--primary-foreground: var(--surface-primary);
+		--avatar-lg: 2.5rem;
+		--avatar-default: 2rem;
+		--avatar-sm: 1.5rem;
 	}
 	.dark {
-		@apply theme-dark-vars;
-	}
-	/*
-	 * Until ThemeProvider adds a theme class, choose the theme from the
-	 * appearance settings that site.go renders onto <html>, so the first paint
-	 * already uses the right colors. Mirrors migrateLegacyPreference and
-	 * resolveActiveThemeName in src/theme/themeMode.ts; themeFirstPaint.test.ts
-	 * checks that they agree. Every rule has the same specificity, so later
-	 * rules win.
-	 */
-	html:not(.light, .dark) {
-		@apply theme-dark-vars;
-	}
-	html:not(.light, .dark):where(:not([data-theme-mode="sync"])):where(
-		[data-theme-preference="light"],
-		[data-theme-preference="light-protan-deuter"],
-		[data-theme-preference="light-tritan"]
-	) {
-		@apply theme-light-vars;
-	}
-	@media (prefers-color-scheme: light) {
-		html:not(.light, .dark):where(
-				[data-theme-mode="sync"],
-				:not([data-theme-mode="single"]):is(
-					[data-theme-preference="auto"],
-					[data-theme-preference="auto-protan-deuter"],
-					[data-theme-preference="auto-tritan"]
-				)
-			):where(
-				:not(
-					[data-theme-light="dark"],
-					[data-theme-light="dark-protan-deuter"],
-					[data-theme-light="dark-tritan"]
-				)
-			) {
-			@apply theme-light-vars;
-		}
-	}
-	@media (prefers-color-scheme: dark) {
-		html:not(.light, .dark):where(
-				[data-theme-mode="sync"],
-				:not([data-theme-mode="single"]):is(
-					[data-theme-preference="auto"],
-					[data-theme-preference="auto-protan-deuter"],
-					[data-theme-preference="auto-tritan"]
-				)
-			):where(
-				[data-theme-dark="light"],
-				[data-theme-dark="light-protan-deuter"],
-				[data-theme-dark="light-tritan"]
-			) {
-			@apply theme-light-vars;
-		}
+		--content-primary: 0 0% 100%;
+		--content-secondary: 240 5% 65%;
+		--content-link: 213 94% 68%;
+		--content-invert: 240 10% 4%;
+		--content-disabled: 240 5% 26%;
+		--content-success: 142 76% 36%;
+		--content-warning: 31 97% 72%;
+		--content-destructive: 0 91% 71%;
+		--surface-primary: 240 10% 4%;
+		--surface-secondary: 240 6% 10%;
+		--surface-tertiary: 240 4% 16%;
+		--surface-quaternary: 240 5% 26%;
+		--surface-invert-primary: 240 6% 90%;
+		--surface-invert-secondary: 240 5% 65%;
+		--surface-destructive: 0 75% 15%;
+		--surface-green: 145 80% 10%;
+		--surface-grey: 240 6% 10%;
+		--surface-orange: 13 81% 15%;
+		--surface-sky: 196, 67%, 12%;
+		--surface-red: 0 75% 15%;
+		--surface-purple: 268, 68%, 17%;
+		--surface-magenta: 291, 74%, 15%;
+		--supergraphic-url: url("/supergraphic/supergraphic-dark.webp");
+		--border-purple: 255 92% 76%;
+		--border-default: 240 4% 16%;
+		--border-success: 142 76% 36%;
+		--border-magenta: 292, 100%, 78%;
+		--border-warning: 30.66, 97.16%, 72.35%;
+		--border-destructive: 0 91% 71%;
+		--border-sky: 194 90% 62%;
+		--border-green: 143 77% 87%;
+		--border-secondary: 240 5% 26%;
+		--overlay-default: 240 10% 4% / 80%;
+		--highlight-purple: 269, 100%, 74%;
+		--highlight-green: 141 79% 85%;
+		--highlight-orange: 31 100% 70%;
+		--highlight-sky: 188, 75%, 80%;
+		--highlight-red: 0 91% 71%;
+		--highlight-magenta: 292, 100%, 78%;
+		--syntax-key: 201 98% 80%;
+		--syntax-string: 18 47% 64%;
+		--syntax-number: 100 28% 73%;
+		--syntax-boolean: 207 61% 59%;
+		--git-added: 142 77% 73%;
+		--git-deleted: 0 94% 82%;
+		--git-modified: 31 97% 72%;
+		--git-merged: 271 91% 65%;
+		--git-added-bright: 142 71% 45%;
+		--git-deleted-bright: 0 91% 71%;
+		--git-merged-bright: 270 95% 75%;
+		--surface-git-added: 145 80% 10%;
+		--surface-git-deleted: 0 75% 15%;
+		--surface-git-merged: 274 87% 21%;
+		--border: 240 3.7% 15.9%;
+		--input: 240 3.7% 15.9%;
+		--ring: 240 4.9% 83.9%;
+		/* shadcn-compatible aliases – see :root block for details. */
+		--background: var(--surface-primary);
+		--foreground: var(--content-primary);
+		--muted: var(--surface-secondary);
+		--muted-foreground: var(--content-secondary);
+		--primary: var(--content-link);
+		--primary-foreground: var(--surface-primary);
 	}
 	/*
 		Colorblind-friendly variants. ThemeProvider applies these classes
