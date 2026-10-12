@@ -139,7 +139,7 @@ it("clears a stored OAuth2 resource URL on update", async () => {
 	const onUpdateServer = vi.fn(async () => undefined);
 	const server = {
 		...MockCoderMCPServer,
-		oauth2_resource: "https://dev.coder.com/api/experimental/mcp/http",
+		oauth2_resource: "https://mcp.example.com/mcp",
 	};
 	render(
 		<MCPServerForm

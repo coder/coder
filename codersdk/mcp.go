@@ -163,10 +163,8 @@ type CreateMCPServerConfigRequest struct {
 	// OAuth2RevocationURL is the provider's RFC 7009 revocation
 	// endpoint; auto-populated by OAuth2 discovery when omitted.
 	OAuth2RevocationURL string `json:"oauth2_revocation_url,omitempty" validate:"omitempty,url"`
-	// OAuth2Resource is the RFC 8707 resource indicator sent on
-	// authorization, token, and refresh requests when set. When the
-	// client ID and endpoint URLs are omitted, OAuth2 discovery fills it
-	// unless it is set.
+	// OAuth2Resource is the RFC 8707 resource indicator sent on OAuth2
+	// requests when set. Auto-discovery fills it if empty.
 	OAuth2Resource string            `json:"oauth2_resource,omitempty"`
 	OAuth2Scopes   string            `json:"oauth2_scopes,omitempty"`
 	APIKeyHeader   string            `json:"api_key_header,omitempty"`

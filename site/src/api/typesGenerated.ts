@@ -4330,10 +4330,8 @@ export interface CreateMCPServerConfigRequest {
 	 */
 	readonly oauth2_revocation_url?: string;
 	/**
-	 * OAuth2Resource is the RFC 8707 resource indicator sent on
-	 * authorization, token, and refresh requests when set. When the
-	 * client ID and endpoint URLs are omitted, OAuth2 discovery fills it
-	 * unless it is set.
+	 * OAuth2Resource is the RFC 8707 resource indicator sent on OAuth2
+	 * requests when set. Auto-discovery fills it if empty.
 	 */
 	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;

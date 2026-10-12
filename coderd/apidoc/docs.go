@@ -23219,7 +23219,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "oauth2_resource": {
-                    "description": "OAuth2Resource is the RFC 8707 resource indicator sent on\nauthorization, token, and refresh requests when set. When the\nclient ID and endpoint URLs are omitted, OAuth2 discovery fills it\nunless it is set.",
+                    "description": "OAuth2Resource is the RFC 8707 resource indicator sent on OAuth2\nrequests when set. Auto-discovery fills it if empty.",
                     "type": "string"
                 },
                 "oauth2_revocation_url": {
