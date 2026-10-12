@@ -176,6 +176,11 @@ function VoiceInput() {
 		return null;
 	}
 
+	// Dictation edits the draft, so only states that lock the draft block a
+	// new recording. A live recording can always be canceled.
+	const isDraftLocked = state.isReadOnly || state.isLoading;
+	const isStartBlocked = !state.speechRecording && isDraftLocked;
+
 	return (
 		<>
 			<Button
@@ -188,7 +193,7 @@ function VoiceInput() {
 						? actions.cancelRecording
 						: actions.startRecording
 				}
-				disabled={state.isDisabled}
+				disabled={isStartBlocked}
 				aria-label={
 					state.speechRecording ? "Cancel voice input" : "Voice input"
 				}
