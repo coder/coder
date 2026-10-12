@@ -31,6 +31,7 @@ import { EditableTitle } from "./EditableTitle";
 import { InlineEdit } from "./InlineEdit";
 import { NotesSection } from "./NotesSection";
 import { AssistantOpener, ChatOpener } from "./Openers";
+import { chatPRs, PRPills, tagPillClassName } from "./PRPills";
 
 export type DragData =
 	| { type: "card"; card: BoardCardModel }
@@ -134,6 +135,8 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 	const lead = card.primary;
 	const leadDisplay = getChatDisplayConfig(lead);
 	const LeadIcon = leadDisplay.icon;
+	// A group's PRs stay on their own rows, so the header carries none.
+	const leadPRs = single ? chatPRs(lead) : [];
 	return (
 		<article
 			ref={setRefs}
@@ -248,29 +251,31 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 						]}
 					/>
 				</div>
-				{card.efforts.length > 0 && (
-					<div className="col-start-2 col-end-[-1] mt-1 flex flex-wrap gap-1">
+				{single && (
+					<ChatStatusLine
+						chat={lead}
+						className="col-start-2 col-end-[-1] mt-0.5"
+					/>
+				)}
+				{(card.efforts.length > 0 || leadPRs.length > 0) && (
+					<div className="col-start-2 col-end-[-1] mt-1.5 flex flex-wrap gap-1">
 						{card.efforts.map((name) => (
-							// Neutral on purpose: an effort spans columns, so it must never
-							// read as a stage the way a hued ColumnTag does.
+							// Neutral and iconless on purpose: an effort spans columns, so
+							// it must never read as a stage the way a hued ColumnTag does,
+							// and an icon in this row always means PRs.
 							<button
 								key={name}
 								type="button"
 								aria-label={`Filter by ${name}`}
-								className="relative z-[1] inline-flex h-4 max-w-28 shrink-0 items-center truncate rounded border-0 bg-content-primary/5 px-1.5 text-[11px] text-content-secondary hover:text-content-primary"
+								className={cn(tagPillClassName, "max-w-28 truncate")}
 								onPointerDown={(e) => e.stopPropagation()}
 								onClick={() => onFilterEffort(name)}
 							>
 								{name}
 							</button>
 						))}
+						<PRPills prs={leadPRs} />
 					</div>
-				)}
-				{single && (
-					<ChatStatusLine
-						chat={lead}
-						className="col-start-2 col-end-[-1] mt-0.5"
-					/>
 				)}
 			</header>
 
@@ -419,6 +424,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 	const [renaming, setRenaming] = useState(false);
 	const display = getChatDisplayConfig(chat);
 	const StatusIcon = display.icon;
+	const prs = chatPRs(chat);
 
 	return (
 		<li
@@ -484,6 +490,11 @@ const ChatRow: React.FC<ChatRowProps> = ({
 				/>
 			</div>
 			<ChatStatusLine chat={chat} className="col-start-2 col-end-[-1] mt-0.5" />
+			{prs.length > 0 && (
+				<div className="col-start-2 col-end-[-1] mt-1 flex flex-wrap gap-1">
+					<PRPills prs={prs} />
+				</div>
+			)}
 		</li>
 	);
 };
