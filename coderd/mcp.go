@@ -1741,20 +1741,20 @@ func coalesceStringSlice(ss []string) []string {
 	return ss
 }
 
-// validateMCPOAuth2Resource checks a non-empty RFC 8707 resource
-// indicator: an absolute URI without a fragment (RFC 8707 section 2).
-func validateMCPOAuth2Resource(resource string) error {
+// parseMCPOAuth2Resource parses an RFC 8707 resource indicator, which
+// must be an absolute URI without a fragment (RFC 8707 section 2).
+func parseMCPOAuth2Resource(resource string) (*url.URL, error) {
 	if strings.Contains(resource, "#") {
-		return xerrors.New("oauth2_resource must not contain a fragment")
+		return nil, xerrors.New("oauth2_resource must not contain a fragment")
 	}
 	parsed, err := url.Parse(resource)
 	if err != nil {
-		return xerrors.New("oauth2_resource must be a valid URI")
+		return nil, xerrors.New("oauth2_resource must be a valid URI")
 	}
 	if !parsed.IsAbs() {
-		return xerrors.New("oauth2_resource must be an absolute URI")
+		return nil, xerrors.New("oauth2_resource must be an absolute URI")
 	}
-	return nil
+	return parsed, nil
 }
 
 // validateMCPOAuth2ResourceRequest writes a 400 response and returns
@@ -1765,7 +1765,7 @@ func validateMCPOAuth2ResourceRequest(ctx context.Context, rw http.ResponseWrite
 	if trimmed == "" {
 		return true
 	}
-	if err := validateMCPOAuth2Resource(trimmed); err != nil {
+	if _, err := parseMCPOAuth2Resource(trimmed); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid OAuth2 resource.",
 			Detail:  err.Error(),
@@ -1785,10 +1785,7 @@ func mcpOAuth2ResourceIndicator(serverURL *url.URL, advertised []string) string 
 	bestPathLen := -1
 	for _, raw := range advertised {
 		candidate := strings.TrimSpace(raw)
-		if candidate == "" || validateMCPOAuth2Resource(candidate) != nil {
-			continue
-		}
-		parsed, err := url.Parse(candidate)
+		parsed, err := parseMCPOAuth2Resource(candidate)
 		if err != nil {
 			continue
 		}
