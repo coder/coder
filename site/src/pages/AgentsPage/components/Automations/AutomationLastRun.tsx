@@ -23,11 +23,7 @@ type ReasonText = {
  * Words for every run reason the server sends. Skipped reasons resolve on
  * their own; refused reasons need someone to change something.
  */
-// previous_run_active ships in the next API change; listing it here keeps
-// the map complete once the generated type adds it.
-type KnownRunReason = ChatAutomationRunReason | "previous_run_active";
-
-export const runReasonText: Record<KnownRunReason, ReasonText> = {
+export const runReasonText: Record<ChatAutomationRunReason, ReasonText> = {
 	chat_busy: { label: "chat busy" },
 	queue_full: { label: "queue full" },
 	missed: { label: "missed" },

@@ -38,9 +38,8 @@ const renderLastRun = (lastRun: AutomationLastRunValue | null) => {
 
 describe("runReasonText", () => {
 	it("words every reason the server can send", () => {
-		// previous_run_active is listed ahead of the generated type.
 		expect(Object.keys(runReasonText).sort()).toEqual(
-			[...new Set([...ChatAutomationRunReasons, "previous_run_active"])].sort(),
+			[...ChatAutomationRunReasons].sort(),
 		);
 	});
 

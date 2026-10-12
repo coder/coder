@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { getErrorStatus } from "#/api/errors";
-import { chatAutomations } from "#/api/queries/chatAutomations";
 import { chat, chatSearch } from "#/api/queries/chats";
-import type { Chat, ChatAutomation } from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
 import {
 	Combobox,
 	ComboboxButton,
@@ -27,24 +26,9 @@ type AutomationChatPickerProps = Pick<
 	onChange: (chatId: string) => void;
 };
 
-// The server titles each new-chat run "<automation name> · <time>".
-const runTitleSeparator = " · ";
-
-/**
- * True for a chat that a new-chat automation created for one run. The chat
- * API does not say which automation created a chat yet, so this matches the
- * title the server gives run chats. Switch to the chat's automation ID once
- * the API returns it.
- */
-export const isAutomationRunChat = (
-	chat: Pick<Chat, "title">,
-	automations: readonly Pick<ChatAutomation, "name" | "target_mode">[],
-) =>
-	automations.some(
-		(automation) =>
-			automation.target_mode === "new_chat" &&
-			chat.title.startsWith(`${automation.name}${runTitleSeparator}`),
-	);
+/** True for a chat that a new-chat automation created for one run. */
+export const isAutomationRunChat = (chat: Pick<Chat, "automation_id">) =>
+	Boolean(chat.automation_id);
 
 /** Picks one of the current user's root chats as an automation target. */
 export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
@@ -75,17 +59,11 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});
-	// The list page loads the same query, so this is usually cached.
-	const automationsQuery = useQuery({
-		...chatAutomations(organizationId),
-		enabled: open && Boolean(organizationId),
-	});
 	const chats = searchQuery.data ?? [];
 	// Run chats of new-chat automations list after the user's own chats, so
 	// a busy schedule cannot push them out of view. Search finds both.
-	const automationList = automationsQuery.data ?? [];
-	const ownChats = chats.filter((c) => !isAutomationRunChat(c, automationList));
-	const runChats = chats.filter((c) => isAutomationRunChat(c, automationList));
+	const ownChats = chats.filter((c) => !isAutomationRunChat(c));
+	const runChats = chats.filter((c) => isAutomationRunChat(c));
 	const listedChat = chats.find((c) => c.id === value);
 	const selectedQuery = useQuery({
 		...chat(value),
