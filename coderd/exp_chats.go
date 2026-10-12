@@ -2845,7 +2845,6 @@ func writeCommonChatMutationError(ctx context.Context, rw http.ResponseWriter, e
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.CreateChatMessageRequest true "Create chat message request"
 // @Success 200 {object} codersdk.CreateChatMessageResponse
-// @Header 200 {integer} Coder-Chat-Snapshot-Version "The chat's snapshot_version this request committed"
 // @Router /api/v2/chats/{chat}/messages [post]
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3093,7 +3092,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		response.Messages = append(response.Messages, convertChatMessage(inserted))
 	}
 
-	writeChatSnapshotVersion(rw, sendResult.Chat)
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
@@ -3107,7 +3105,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 // @Param message path int true "Message ID"
 // @Param request body codersdk.EditChatMessageRequest true "Edit chat message request"
 // @Success 200 {object} codersdk.EditChatMessageResponse
-// @Header 200 {integer} Coder-Chat-Snapshot-Version "The chat's snapshot_version this request committed"
 // @Router /api/v2/chats/{chat}/messages/{message} [patch]
 func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3251,7 +3248,6 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		response.Messages = append(response.Messages, convertChatMessage(inserted))
 	}
 	response.DeletedMessageIDs = editResult.DeletedMessageIDs
-	writeChatSnapshotVersion(rw, editResult.Chat)
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
@@ -3262,7 +3258,6 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param queuedMessage path int true "Queued message ID"
 // @Success 204
-// @Header 204 {integer} Coder-Chat-Snapshot-Version "The chat's snapshot_version this request committed"
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage} [delete]
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3288,7 +3283,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	updatedChat, err := api.chatDaemon.DeleteQueued(ctx, chatID, queuedMessageID)
+	err = api.chatDaemon.DeleteQueued(ctx, chatID, queuedMessageID)
 	if err != nil {
 		switch {
 		case xerrors.Is(err, chatstate.ErrQueuedMessageNotFound), xerrors.Is(err, sql.ErrNoRows):
@@ -3313,7 +3308,6 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeChatSnapshotVersion(rw, updatedChat)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
@@ -3325,7 +3319,6 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 // @Param queuedMessage path int true "Queued message ID"
 // @Produce json
 // @Success 202 {object} codersdk.Response
-// @Header 202 {integer} Coder-Chat-Snapshot-Version "The chat's snapshot_version this request committed"
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage}/promote [post]
 func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3370,7 +3363,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	promoteResult, txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+	_, txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chatID,
 		QueuedMessageID: queuedMessageID,
 	})
@@ -3405,7 +3398,6 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	writeChatSnapshotVersion(rw, promoteResult.Chat)
 	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.Response{
 		Message: "Queued message promotion accepted.",
 	})
@@ -3458,12 +3450,6 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 		return xerrors.Errorf("clear chat last read message id: %w", err)
 	}
 	return nil
-}
-
-// writeChatSnapshotVersion sets ChatSnapshotVersionHeader to the snapshot
-// version of chat, which the caller read after its action committed.
-func writeChatSnapshotVersion(rw http.ResponseWriter, chat database.Chat) {
-	rw.Header().Set(codersdk.ChatSnapshotVersionHeader, strconv.FormatInt(chat.SnapshotVersion, 10))
 }
 
 // @Summary Stream chat events via WebSockets
@@ -3641,7 +3627,6 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Produce json
 // @Success 200 {object} codersdk.Chat
-// @Header 200 {integer} Coder-Chat-Snapshot-Version "The chat's snapshot_version this request committed"
 // @Router /api/v2/chats/{chat}/interrupt [post]
 func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3680,7 +3665,6 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	}
 	chat = updated
 
-	writeChatSnapshotVersion(rw, chat)
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil, nil))
 }
 
@@ -3691,7 +3675,6 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Produce json
 // @Success 200 {object} codersdk.Chat
-// @Header 200 {integer} Coder-Chat-Snapshot-Version "The chat's snapshot_version this request committed"
 // @Router /api/v2/chats/{chat}/compact [post]
 // @x-apidocgen {"skip": true}
 // @Description Requests a manual context compaction on an idle or errored
@@ -3752,7 +3735,6 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeChatSnapshotVersion(rw, updated)
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
 }
 
@@ -3763,7 +3745,6 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Produce json
 // @Success 200 {object} codersdk.Chat
-// @Header 200 {integer} Coder-Chat-Snapshot-Version "The chat's snapshot_version this request committed"
 // @Router /api/v2/chats/{chat}/clear [post]
 // @x-apidocgen {"skip": true}
 // @Description Resets the model context of an idle or errored chat,
@@ -3823,7 +3804,6 @@ func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeChatSnapshotVersion(rw, updated)
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
 }
 
@@ -3834,7 +3814,6 @@ func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.Chat
-// @Header 200 {integer} Coder-Chat-Snapshot-Version "The chat's snapshot_version this request committed"
 // @Router /api/v2/chats/{chat}/reconcile-invalid [post]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -3874,7 +3853,6 @@ func (api *API) reconcileInvalidChatState(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	writeChatSnapshotVersion(rw, updated)
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
 }
 
@@ -9171,7 +9149,6 @@ var (
 // @Accept json
 // @Param request body codersdk.SubmitToolResultsRequest true "Request body"
 // @Success 204
-// @Header 204 {integer} Coder-Chat-Snapshot-Version "The chat's snapshot_version this request committed"
 // @Router /api/v2/chats/{chat}/tool-results [post]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -9234,7 +9211,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// invalid-state response for chats that are not in a valid
 	// execution state at all.
 
-	updatedChat, err := api.chatDaemon.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+	err := api.chatDaemon.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        apiKey.UserID,
 		ModelConfigID: chat.LastModelConfigID,
@@ -9283,7 +9260,6 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeChatSnapshotVersion(rw, updatedChat)
 	rw.WriteHeader(http.StatusNoContent)
 }
 

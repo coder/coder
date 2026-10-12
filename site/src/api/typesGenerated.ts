@@ -3616,14 +3616,6 @@ export interface ChatSkillPart {
 }
 
 // From codersdk/chats.go
-/**
- * ChatSnapshotVersionHeader is the response header in which a chat action
- * reports the chat's snapshot_version it committed. A stream checkpoint at
- * or above it reflects the action.
- */
-export const ChatSnapshotVersionHeader = "Coder-Chat-Snapshot-Version";
-
-// From codersdk/chats.go
 export interface ChatSourcePart {
 	readonly type: "source";
 	readonly url: string;
@@ -3662,10 +3654,8 @@ export interface ChatStreamActionRequired {
  */
 export interface ChatStreamCheckpoint {
 	/**
-	 * SnapshotVersion is the chat's snapshot_version the sync applied. It
-	 * reflects every action whose ChatSnapshotVersionHeader is at or below
-	 * it. A client reconnects with the value of the last checkpoint it
-	 * received.
+	 * SnapshotVersion is the chat's snapshot_version the sync applied. A
+	 * client reconnects with the value of the last checkpoint it received.
 	 */
 	readonly snapshot_version: number;
 	/**
