@@ -103,10 +103,6 @@ const useToolCallContext = () => {
  * `hasContent` controls whether the header behaves like a toggle. When
  * it is false, the header stays static and content is never shown.
  *
- * `revealEndOnExpand` scrolls the chat transcript so the end of the
- * expanded row is in view. At the end of the transcript it keeps
- * following new output.
- *
  * Standard `div` attributes are forwarded to the wrapper element so
  * callers can attach semantics such as live region roles.
  */
@@ -121,6 +117,11 @@ type ToolCallRootProps = Omit<React.ComponentProps<"div">, "children"> & {
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
 	ariaLabel?: ToolCallAriaLabel;
+	/**
+	 * Scrolls the chat transcript so the end of the row is in view when it
+	 * expands. At the end of the transcript it also lets the view follow new
+	 * output again.
+	 */
 	revealEndOnExpand?: boolean;
 };
 

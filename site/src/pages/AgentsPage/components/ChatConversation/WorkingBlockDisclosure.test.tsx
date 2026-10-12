@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import {
+	flushLayout,
 	history,
 	nextRow,
 	prompt,
@@ -82,23 +83,25 @@ describe("WorkingBlockDisclosure", () => {
 	});
 });
 
-const BlockRow: React.FC<{
+type BlockRowProps = {
 	expandedHeight: number;
 	defaultExpanded?: boolean;
-}> = ({ expandedHeight, defaultExpanded = false }) => {
+};
+
+const BlockRow: React.FC<BlockRowProps> = ({
+	expandedHeight,
+	defaultExpanded = false,
+}) => {
 	const [expanded, setExpanded] = useState(defaultExpanded);
 	return (
 		<MessageScroller.Item
 			messageId="block"
 			data-height={expanded ? expandedHeight : 40}
 		>
-			<WorkingBlockDisclosure
-				block={MockWorkingBlock}
-				expanded={expanded}
+			<ControlledDisclosure
+				expanded={defaultExpanded}
 				onExpandedChange={setExpanded}
-			>
-				<div>Read src/main.ts</div>
-			</WorkingBlockDisclosure>
+			/>
 		</MessageScroller.Item>
 	);
 };
@@ -145,11 +148,11 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 	it("follows new output after expanding the last block of an anchored turn", async () => {
 		const user = userEvent.setup();
 		const update = renderTranscript([history]);
-		const block = <BlockRow key="block" expandedHeight={600} />;
-		await update([history, prompt, block]);
+		const blockRow = <BlockRow key="block" expandedHeight={600} />;
+		await update([history, prompt, blockRow]);
 
 		await user.click(summary());
-		await update([history, prompt, block, nextRow]);
+		await update([history, prompt, blockRow, nextRow]);
 
 		expect(await visibleRowsAfterLayout()).toContain("next");
 	});
@@ -157,26 +160,28 @@ describe("WorkingBlockDisclosure in a MessageScroller", () => {
 	it("follows new output after the last block of an anchored turn expands in view", async () => {
 		const user = userEvent.setup();
 		const update = renderTranscript([history]);
-		const block = <BlockRow key="block" expandedHeight={200} />;
-		await update([history, prompt, block]);
+		const blockRow = <BlockRow key="block" expandedHeight={200} />;
+		await update([history, prompt, blockRow]);
 
 		await user.click(summary());
 		// The turn grows past the tail spacer but stays in the handoff band.
 		const reply = row("reply", 140);
-		await update([history, prompt, block, reply]);
-		await visibleRowsAfterLayout();
-		await update([history, prompt, block, reply, nextRow]);
+		await update([history, prompt, blockRow, reply]);
+		await flushLayout();
+		await update([history, prompt, blockRow, reply, nextRow]);
 
 		expect(await visibleRowsAfterLayout()).toContain("next");
 	});
 
 	it("keeps the reader in place when the last block collapses", async () => {
 		const user = userEvent.setup();
-		const block = <BlockRow key="block" expandedHeight={600} defaultExpanded />;
-		const update = renderTranscript([history, block]);
+		const blockRow = (
+			<BlockRow key="block" expandedHeight={600} defaultExpanded />
+		);
+		const update = renderTranscript([history, blockRow]);
 
 		await user.click(summary());
-		await update([history, block, nextRow]);
+		await update([history, blockRow, nextRow]);
 
 		expect(await visibleRowsAfterLayout()).not.toContain("next");
 	});

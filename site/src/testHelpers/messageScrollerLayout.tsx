@@ -44,12 +44,15 @@ export const history = Array.from({ length: 10 }, (_, index) =>
 export const prompt = row("prompt", 40, true);
 export const nextRow = row("next", 100);
 
-export let visibleRows: readonly string[] = [];
+let visibleRows: readonly string[] = [];
 
 const VisibleRows: React.FC = () => {
 	visibleRows = useMessageScrollerVisibility().visibleMessageIds;
 	return null;
 };
+
+/** Returns the rows the scroller last published as visible. */
+export const currentVisibleRows = () => visibleRows;
 
 // Same Provider props as AgentChatPage.
 const Transcript: React.FC<{
@@ -84,12 +87,16 @@ export const renderTranscript = (children: React.ReactNode) => {
 
 // A browser reports layout changes to the scroller's ResizeObservers, and the
 // scroller publishes the rows the reader sees on a later animation frame.
-export const visibleRowsAfterLayout = async () => {
+export const flushLayout = async () => {
 	for (const observer of MockResizeObserver.instances) {
 		observer.simulateResize(0);
 	}
 	await act(() => new Promise(requestAnimationFrame));
 	await act(() => new Promise(requestAnimationFrame));
+};
+
+export const visibleRowsAfterLayout = async () => {
+	await flushLayout();
 	return visibleRows;
 };
 
@@ -120,9 +127,9 @@ export const setupMessageScrollerLayout = () => {
 		const scrollTops = new WeakMap<Element, number>();
 		MockResizeObserver.reset();
 		vi.stubGlobal("ResizeObserver", MockResizeObserver);
-		// framer-motion calls jsdom's own requestAnimationFrame, so a fake-timer
-		// test earlier in the file can start jsdom's frame loop on a fake
-		// interval and stall every later frame.
+		// jsdom runs requestAnimationFrame on the global setInterval. A frame
+		// requested under fake timers, as framer-motion does, leaves that loop on
+		// the fake clock and stalls every later frame in the same file.
 		vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
 			setTimeout(() => callback(performance.now()), 16),
 		);

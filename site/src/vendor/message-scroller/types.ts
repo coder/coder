@@ -168,6 +168,11 @@ type MessageScrollerRegisterMessage = (
   removedElement?: HTMLElement | null
 ) => void
 
+// LOCAL CHANGE
+type MessageScrollerUserLayoutIntentOptions = {
+  revealEnd: boolean
+}
+
 // Internal context wiring the parts together. Not part of the public API.
 type MessageScrollerContextValue = {
   handleContentChange: () => void
@@ -194,7 +199,10 @@ type MessageScrollerContextValue = {
   // LOCAL CHANGE: returns whether a sync at the end may resume following.
   userScrollIntent: () => boolean
   // LOCAL CHANGE
-  userLayoutIntent: (target: Element, options?: { revealEnd?: boolean }) => void
+  userLayoutIntent: (
+    target: Element,
+    options: MessageScrollerUserLayoutIntentOptions
+  ) => void
   viewportRef: React.RefObject<HTMLDivElement | null>
   visibilityStore: MessageScrollerVisibilityStore
 }
@@ -244,6 +252,7 @@ export type {
   MessageScrollerScrollOptions,
   MessageScrollerScrollable,
   MessageScrollerStore,
+  MessageScrollerUserLayoutIntentOptions,
   MessageScrollerViewportProps,
   MessageScrollerVisibilityState,
   MessageScrollerVisibilityStore,
