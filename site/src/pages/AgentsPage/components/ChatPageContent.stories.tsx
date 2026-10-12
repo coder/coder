@@ -135,7 +135,6 @@ const StoryChatPageInput: React.FC<{
 			canConfigureAgentSetup={false}
 			isEditing={false}
 			onCancelHistoryEdit={fn()}
-			isReadOnly={false}
 			onReasoningEffortChange={fn()}
 			unsupportedProviderNames={[]}
 			onPlanModeToggle={fn()}
@@ -480,7 +479,6 @@ const CompactionChatPageInput: React.FC = () => {
 				canConfigureAgentSetup={false}
 				isEditing={false}
 				onCancelHistoryEdit={fn()}
-				isReadOnly={false}
 				onReasoningEffortChange={fn()}
 				unsupportedProviderNames={[]}
 				onPlanModeToggle={fn()}

@@ -38,7 +38,6 @@ const renderChatPageInput = (
 			canConfigureAgentSetup={false}
 			isEditing={false}
 			onCancelHistoryEdit={vi.fn()}
-			isReadOnly={false}
 			onReasoningEffortChange={vi.fn()}
 			unsupportedProviderNames={[]}
 			onPlanModeToggle={vi.fn()}
