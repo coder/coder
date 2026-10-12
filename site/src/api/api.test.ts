@@ -62,16 +62,15 @@ describe("api.ts", () => {
 	});
 
 	describe("watchChat", () => {
-		const routeOf = (historyVersion: number) => {
-			const socket = watchChat("chat-1", historyVersion);
+		const routeOf = (snapshotVersion: number) => {
+			const socket = watchChat("chat-1", snapshotVersion);
 			const route = new URL(socket.url);
 			socket.close();
 			return Object.fromEntries(route.searchParams.entries());
 		};
 
-		it("opens the stream at the given history version, including zero", () => {
-			expect(routeOf(7)).toEqual({ history_version: "7" });
-			expect(routeOf(0)).toEqual({ history_version: "0" });
+		it("opens the stream at the given snapshot version", () => {
+			expect(routeOf(7)).toEqual({ snapshot_version: "7" });
 		});
 	});
 

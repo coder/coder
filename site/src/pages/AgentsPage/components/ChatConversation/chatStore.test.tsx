@@ -818,7 +818,7 @@ describe("useChatStore", () => {
 			messages: initialMessages,
 			queued_messages: [],
 			has_more: false,
-			history_version: 2,
+			snapshot_version: 2,
 		});
 		const { result } = renderHook(
 			() => {
@@ -883,7 +883,7 @@ describe("useChatStore", () => {
 			messages: initialMessages,
 			queued_messages: [],
 			has_more: false,
-			history_version: 1,
+			snapshot_version: 1,
 		});
 		const { result } = renderHook(
 			() => {
@@ -2982,11 +2982,11 @@ describe("useChatStore", () => {
 		expect(result.current.chatStatus).toBe("running");
 	});
 
-	it("opens the stream at the page's history version and reconnects at the last checkpoint version", async () => {
+	it("opens the stream at the page's snapshot version and reconnects at the last checkpoint version", async () => {
 		immediateAnimationFrame();
 		vi.spyOn(Math, "random").mockReturnValue(0.5);
 
-		const chatID = "chat-history-version";
+		const chatID = "chat-snapshot-version";
 		const mockSocket1 = createMockSocket();
 		mockWatchChatReturnOnce(mockSocket1);
 
@@ -2998,7 +2998,7 @@ describe("useChatStore", () => {
 			messages: [existingMessage],
 			queued_messages: [],
 			has_more: false,
-			history_version: 5,
+			snapshot_version: 5,
 		});
 		renderHook(
 			() => {
@@ -3035,8 +3035,7 @@ describe("useChatStore", () => {
 				type: "checkpoint",
 				chat_id: chatID,
 				checkpoint: {
-					snapshot_version: 1,
-					history_version: 7,
+					snapshot_version: 7,
 				},
 			});
 		});
@@ -3057,7 +3056,7 @@ describe("useChatStore", () => {
 
 	it("reopens a remounted chat at the last checkpoint version without fetching its page again", async () => {
 		const sockets = mockWatchChatWithFreshSockets();
-		const chatID = "chat-remount-history-version";
+		const chatID = "chat-remount-snapshot-version";
 		const queryClient = new QueryClient({
 			defaultOptions: {
 				queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
@@ -3068,7 +3067,7 @@ describe("useChatStore", () => {
 			messages: [],
 			queued_messages: [],
 			has_more: false,
-			history_version: 5,
+			snapshot_version: 5,
 		});
 		const renderChat = () =>
 			renderHook(
@@ -3093,8 +3092,7 @@ describe("useChatStore", () => {
 				type: "checkpoint",
 				chat_id: chatID,
 				checkpoint: {
-					snapshot_version: 1,
-					history_version: 7,
+					snapshot_version: 7,
 				},
 			});
 		});
@@ -3105,53 +3103,6 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenLastCalledWith(chatID, 7);
 		});
 		expect(API.experimental.getChatMessages).toHaveBeenCalledTimes(1);
-	});
-
-	it("opens a chat without a history version at version 0", async () => {
-		immediateAnimationFrame();
-		vi.spyOn(Math, "random").mockReturnValue(0.5);
-
-		const chatID = "chat-without-history-version";
-		const mockSocket1 = createMockSocket();
-		mockWatchChatReturnOnce(mockSocket1);
-
-		const wrapper = createWrapper(createTestQueryClient());
-		const existingMessage = buildMessage(chatID, 1, "user", "hello");
-
-		// An older server omits history_version.
-		mockNewestPage(chatID, {
-			messages: [existingMessage],
-			queued_messages: [],
-			has_more: false,
-		});
-		renderHook(
-			() => {
-				useChatStore({
-					chatID,
-					chatRecord: buildChat(chatID),
-					setChatErrorReason: vi.fn(),
-					clearChatErrorReason: vi.fn(),
-				});
-			},
-			{ wrapper },
-		);
-
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID, 0);
-		});
-
-		const mockSocket2 = createMockSocket();
-		mockWatchChatReturnOnce(mockSocket2);
-		act(() => {
-			mockSocket1.emitError();
-		});
-
-		await waitFor(
-			() => {
-				expect(watchChat).toHaveBeenNthCalledWith(2, chatID, 0);
-			},
-			{ timeout: 3_000 },
-		);
 	});
 
 	it("opens the stream only after the newest page has loaded", async () => {
@@ -3187,7 +3138,7 @@ describe("useChatStore", () => {
 				messages: [existingMessage],
 				queued_messages: [],
 				has_more: false,
-				history_version: 5,
+				snapshot_version: 5,
 			});
 		});
 
@@ -3207,7 +3158,7 @@ describe("useChatStore", () => {
 			messages: [buildMessage(chatID, 1, "user", "hello")],
 			queued_messages: [],
 			has_more: false,
-			history_version: 3,
+			snapshot_version: 3,
 		});
 
 		const { result } = renderHook(
@@ -3236,20 +3187,20 @@ describe("useChatStore", () => {
 		expect(result.current.load).toEqual({ status: "loaded" });
 	});
 
-	it("does not carry one chat's history version into another chat", async () => {
+	it("does not carry one chat's snapshot version into another chat", async () => {
 		mockWatchChatWithFreshSockets();
 		const wrapper = createWrapper(createTestQueryClient());
 		mockNewestPage("chat-a", {
 			messages: [buildMessage("chat-a", 1, "user", "hello")],
 			queued_messages: [],
 			has_more: false,
-			history_version: 100,
+			snapshot_version: 100,
 		});
-		// An older server omits history_version.
 		mockNewestPage("chat-b", {
 			messages: [buildMessage("chat-b", 1, "user", "hello")],
 			queued_messages: [],
 			has_more: false,
+			snapshot_version: 3,
 		});
 
 		const { rerender } = renderHook(
@@ -3269,7 +3220,7 @@ describe("useChatStore", () => {
 
 		rerender({ chatID: "chat-b" });
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenLastCalledWith("chat-b", 0);
+			expect(watchChat).toHaveBeenLastCalledWith("chat-b", 3);
 		});
 	});
 
