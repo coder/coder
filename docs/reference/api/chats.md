@@ -3022,6 +3022,15 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "snapshot_version": 0,
   "turn": {
+    "action_required": {
+      "tool_calls": [
+        {
+          "args": "string",
+          "tool_call_id": "string",
+          "tool_name": "string"
+        }
+      ]
+    },
     "error": {
       "detail": "string",
       "kind": "generic",
@@ -4075,11 +4084,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 ### Parameters
 
-| Name               | In    | Type         | Required | Description                                                                                                                                                                                                                                              |
-|--------------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `chat`             | path  | string(uuid) | true     | Chat ID                                                                                                                                                                                                                                                  |
-| `after_id`         | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set                                                                                                                                                            |
-| `snapshot_version` | query | integer      | false    | Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event. The stream then sends the turn in checkpoint events instead of status, error and retry events, and sends no action_required events |
+| Name               | In    | Type         | Required | Description                                                                                                                                                                                                                          |
+|--------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat`             | path  | string(uuid) | true     | Chat ID                                                                                                                                                                                                                              |
+| `after_id`         | query | integer      | false    | Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set                                                                                                                                        |
+| `snapshot_version` | query | integer      | false    | Send only changes made after this snapshot_version, taken from the newest messages page or the last checkpoint event. The stream then sends the turn in checkpoint events instead of status, error, retry and action_required events |
 
 ### Example responses
 
@@ -4101,6 +4110,15 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
     "checkpoint": {
       "snapshot_version": 0,
       "turn": {
+        "action_required": {
+          "tool_calls": [
+            {
+              "args": "string",
+              "tool_call_id": "string",
+              "tool_name": "string"
+            }
+          ]
+        },
         "error": {
           "detail": "string",
           "kind": "generic",
@@ -4387,6 +4405,8 @@ Status Code **200**
 | `» checkpoint`                     | [codersdk.ChatStreamCheckpoint](schemas.md#codersdkchatstreamcheckpoint)         | false    |              | Checkpoint is set on checkpoint events.                                                                                                                                                                                                                                                                                                                                                                    |
 | `»» snapshot_version`              | integer                                                                          | false    |              | Snapshot version is the chat's snapshot_version the sync applied. A client reconnects with the value of the last checkpoint it received.                                                                                                                                                                                                                                                                   |
 | `»» turn`                          | [codersdk.ChatStreamTurn](schemas.md#codersdkchatstreamturn)                     | false    |              | Turn is the chat's turn at SnapshotVersion. It replaces the turn the client holds.                                                                                                                                                                                                                                                                                                                         |
+| `»»» action_required`              | [codersdk.ChatStreamActionRequired](schemas.md#codersdkchatstreamactionrequired) | false    |              | Action required is set while the status is requires_action and lists the dynamic tool calls that wait for results.                                                                                                                                                                                                                                                                                         |
+| `»»»» tool_calls`                  | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» error`                        | [codersdk.ChatError](schemas.md#codersdkchaterror)                               | false    |              | Error is set while the status is error.                                                                                                                                                                                                                                                                                                                                                                    |
 | `»»»» detail`                      | string                                                                           | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                                                                                                                                                  |
 | `»»»» kind`                        | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)                       | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                                                                                                                                                 |

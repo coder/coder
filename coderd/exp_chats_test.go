@@ -19627,6 +19627,27 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		}
 	})
 
+	t.Run("TurnCarriesPendingToolCalls", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := setupRequiresAction(ctx, t, db, user.UserID, user.OrganizationID, modelConfig.ID, "my_dynamic_tool", []string{"call_page"})
+
+		newest, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.NotNil(t, newest.Turn)
+		require.Equal(t, codersdk.ChatStatusRequiresAction, newest.Turn.Status)
+		require.NotNil(t, newest.Turn.ActionRequired)
+		require.Len(t, newest.Turn.ActionRequired.ToolCalls, 1)
+		call := newest.Turn.ActionRequired.ToolCalls[0]
+		require.Equal(t, "call_page", call.ToolCallID)
+		require.Equal(t, "my_dynamic_tool", call.ToolName)
+		require.JSONEq(t, `{"key":"value"}`, call.Args)
+	})
+
 	t.Run("AfterIDReturnsNewerInASCOrderForMonotonicPolling", func(t *testing.T) {
 		t.Parallel()
 
