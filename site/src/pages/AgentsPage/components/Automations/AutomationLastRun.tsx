@@ -176,7 +176,15 @@ export const AutomationLastRun: React.FC<AutomationLastRunProps> = ({
 							type="button"
 							className="cursor-default border-none bg-transparent p-0 text-inherit underline decoration-dotted underline-offset-2"
 						>
-							{timeFrom(lastRun.at, now ?? Math.max(tick, Date.now()))}
+							{timeFrom(
+								lastRun.at,
+								// The server sets the time, so a browser clock that runs
+								// behind would show a past run in the future.
+								Math.max(
+									now?.getTime() ?? Math.max(tick, Date.now()),
+									new Date(lastRun.at).getTime(),
+								),
+							)}
 						</button>
 					</TooltipTrigger>
 					<TooltipContent>{formatAbsolute(lastRun.at)}</TooltipContent>

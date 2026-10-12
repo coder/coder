@@ -115,6 +115,28 @@ describe("AutomationLastRun", () => {
 	});
 });
 
+describe("AutomationLastRun with a browser clock behind the server", () => {
+	it("shows a run that just happened as past, not future", () => {
+		const router = createMemoryRouter([
+			{
+				path: "/",
+				element: (
+					<TooltipProvider>
+						<AutomationLastRun
+							lastRun={{ at: "2026-10-12T12:00:02Z", outcome: "accepted" }}
+							now={now}
+						/>
+					</TooltipProvider>
+				),
+			},
+		]);
+		render(<RouterProvider router={router} />);
+
+		expect(screen.getByText("a few seconds ago")).toBeVisible();
+		expect(screen.queryByText("in a few seconds")).toBeNull();
+	});
+});
+
 describe("AutomationLastRun without a fixed time", () => {
 	it("moves the relative time forward while the page stays open", () => {
 		vi.useFakeTimers({ now });
