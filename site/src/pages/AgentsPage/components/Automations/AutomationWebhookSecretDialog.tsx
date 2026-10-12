@@ -55,7 +55,7 @@ export const AutomationWebhookSecretDialog: React.FC<
 				<div className="flex flex-col gap-4">
 					{[
 						{
-							label: "Publish endpoint",
+							label: "Endpoint",
 							code: endpoint,
 							copyLabel: "Copy endpoint",
 						},

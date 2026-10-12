@@ -14,6 +14,10 @@ import { restoreFocusTo } from "#/hooks/useRestoreFocusOnClose";
 import { formatDate } from "#/utils/time";
 import { RadioCards } from "./RadioCards";
 
+/** How to call a webhook endpoint, wherever the endpoint is shown. */
+export const WEBHOOK_ENDPOINT_HINT =
+	"POST any JSON body with the automation secret as a Bearer token.";
+
 const webhookUseOptions = [
 	{ value: "multi", label: "Multi-use" },
 	{ value: "single", label: "Single-use" },
@@ -76,7 +80,7 @@ export const AutomationWebhookFields: React.FC<
 	);
 	const endpointHelp = (
 		<span className="text-xs text-content-secondary">
-			POST any JSON body with the automation secret as a Bearer token.
+			{WEBHOOK_ENDPOINT_HINT}
 			{automation
 				? " Rotate the secret to get a new one."
 				: " The secret is shown once after saving."}

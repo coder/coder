@@ -8,6 +8,7 @@ import { formatReasoningEffort } from "#/modules/aiModels/helpers";
 import { formatDate } from "#/utils/time";
 import { describeSchedule } from "./AutomationScheduleFields";
 import { ChatTitleLink } from "./AutomationStatus";
+import { WEBHOOK_ENDPOINT_HINT } from "./AutomationWebhookFields";
 
 type AutomationSummaryProps = {
 	automation: ChatAutomation;
@@ -97,12 +98,15 @@ export const AutomationSummary: React.FC<AutomationSummaryProps> = ({
 									},
 								)}`}
 						</SummaryItem>
-						<SummaryItem label="Publish endpoint" wide>
+						<SummaryItem label="Endpoint" wide>
 							<CodeExample
 								secret={false}
 								code={webhookPublishEndpoint(origin, automation.id)}
 								copyLabel="Copy endpoint"
 							/>
+							<span className="mt-2 block text-xs text-content-secondary">
+								{WEBHOOK_ENDPOINT_HINT}
+							</span>
 						</SummaryItem>
 					</>
 				)}
