@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	currentVisibleRows,
 	history,
 	isViewport,
 	nextRow,
@@ -13,7 +14,6 @@ import {
 	setupMessageScrollerLayout,
 	VIEWPORT_WIDTH,
 	viewport,
-	visibleRows,
 	visibleRowsAfterLayout,
 } from "#/testHelpers/messageScrollerLayout";
 import { MockResizeObserver } from "#/testHelpers/resizeObserver";
@@ -279,7 +279,7 @@ describe("ToolCall in a MessageScroller", () => {
 		await act(() => new Promise(requestAnimationFrame));
 		await act(() => new Promise(requestAnimationFrame));
 
-		expect(visibleRows).toEqual(before);
+		expect(currentVisibleRows()).toEqual(before);
 	});
 });
 

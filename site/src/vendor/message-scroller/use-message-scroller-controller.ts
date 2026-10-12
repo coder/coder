@@ -31,6 +31,7 @@ import type {
   MessageScrollerProviderProps,
   MessageScrollerRegisterMessage,
   MessageScrollerScrollable,
+  MessageScrollerUserLayoutIntentOptions, // LOCAL CHANGE
 } from "./types"
 import { useMessageScrollerCommands } from "./use-message-scroller-commands"
 import { useMessageScrollerRefs } from "./use-message-scroller-refs"
@@ -705,8 +706,8 @@ function useMessageScrollerController({
     }
   }, [])
 
-  // LOCAL CHANGE: brings the end of the row holding target into view. At the
-  // last row it resumes following, so new output below it stays in view.
+  // LOCAL CHANGE: at the last row it also lets the view follow new output
+  // again.
   const revealItemEnd = React.useCallback(
     (target: Element) => {
       const content = contentRef.current
@@ -749,7 +750,7 @@ function useMessageScrollerController({
 
   // LOCAL CHANGE
   const userLayoutIntent = React.useCallback(
-    (target: Element, { revealEnd = false }: { revealEnd?: boolean } = {}) => {
+    (target: Element, options: MessageScrollerUserLayoutIntentOptions) => {
       followSuppressedRef.current = true
 
       // A toggle above the anchored turn moves the turn, so holding it would
@@ -795,7 +796,7 @@ function useMessageScrollerController({
               resetBrowserScrollAnchor()
             }
 
-            if (revealEnd) {
+            if (options.revealEnd) {
               revealItemEnd(target)
             }
           }
