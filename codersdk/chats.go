@@ -975,6 +975,9 @@ type ChatMessagesResponse struct {
 	// snapshot_version parameter. It is set only on pages requested without
 	// before_id or after_id.
 	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
+	// Turn is the chat's turn at SnapshotVersion. It is set only on pages
+	// requested without before_id or after_id.
+	Turn *ChatStreamTurn `json:"turn,omitempty"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by
@@ -2219,6 +2222,19 @@ type ChatStreamCheckpoint struct {
 	// action response with an equal or lower version is reflected. A client
 	// reconnects with the value of the last checkpoint it received.
 	SnapshotVersion int64 `json:"snapshot_version"`
+	// Turn is the chat's turn at SnapshotVersion. It replaces the turn the
+	// client holds.
+	Turn ChatStreamTurn `json:"turn"`
+}
+
+// ChatStreamTurn is the state of a chat's turn.
+type ChatStreamTurn struct {
+	Status ChatStatus `json:"status"`
+	// Error is set while the status is error.
+	Error *ChatError `json:"error,omitempty"`
+	// Retry is set while the status is running and a retry of the failed
+	// attempt is pending.
+	Retry *ChatStreamRetry `json:"retry,omitempty"`
 }
 
 // ChatCost is the AI Gateway cost for the requested chat's whole tree.

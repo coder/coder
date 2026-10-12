@@ -3644,6 +3644,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "snapshot_version": 0,
+  "turn": {
+    "error": {
+      "detail": "string",
+      "kind": "generic",
+      "message": "string",
+      "provider": "string",
+      "retryable": true,
+      "status_code": 0
+    },
+    "retry": {
+      "attempt": 0,
+      "delay_ms": 0,
+      "error": "string",
+      "kind": "generic",
+      "provider": "string",
+      "retrying_at": "2019-08-24T14:15:22Z",
+      "status_code": 0
+    },
+    "status": "waiting"
+  },
   "turn_start_id": 0
 }
 ```
@@ -3656,6 +3676,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `messages`         | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                                                                                           |
 | `queued_messages`  | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                                                                                                                           |
 | `snapshot_version` | integer                                                           | false    |              | Snapshot version is the chat's snapshot_version, read before the messages and queue in this page. The page can hold changes made after it; a stream opened with it sends them again. Pass it as the stream's snapshot_version parameter. It is set only on pages requested without before_id or after_id. |
+| `turn`             | [codersdk.ChatStreamTurn](#codersdkchatstreamturn)                | false    |              | Turn is the chat's turn at SnapshotVersion. It is set only on pages requested without before_id or after_id.                                                                                                                                                                                              |
 | `turn_start_id`    | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message.                                                                                                                    |
 
 ## codersdk.ChatModel
@@ -5104,15 +5125,36 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "snapshot_version": 0
+  "snapshot_version": 0,
+  "turn": {
+    "error": {
+      "detail": "string",
+      "kind": "generic",
+      "message": "string",
+      "provider": "string",
+      "retryable": true,
+      "status_code": 0
+    },
+    "retry": {
+      "attempt": 0,
+      "delay_ms": 0,
+      "error": "string",
+      "kind": "generic",
+      "provider": "string",
+      "retrying_at": "2019-08-24T14:15:22Z",
+      "status_code": 0
+    },
+    "status": "waiting"
+  }
 }
 ```
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description                                                                                                                                                                                                 |
-|--------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `snapshot_version` | integer | false    |              | Snapshot version is the chat's snapshot_version the sync applied. Every action response with an equal or lower version is reflected. A client reconnects with the value of the last checkpoint it received. |
+| Name               | Type                                               | Required | Restrictions | Description                                                                                                                                                                                                 |
+|--------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `snapshot_version` | integer                                            | false    |              | Snapshot version is the chat's snapshot_version the sync applied. Every action response with an equal or lower version is reflected. A client reconnects with the value of the last checkpoint it received. |
+| `turn`             | [codersdk.ChatStreamTurn](#codersdkchatstreamturn) | false    |              | Turn is the chat's turn at SnapshotVersion. It replaces the turn the client holds.                                                                                                                          |
 
 ## codersdk.ChatStreamEvent
 
@@ -5129,7 +5171,27 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "checkpoint": {
-    "snapshot_version": 0
+    "snapshot_version": 0,
+    "turn": {
+      "error": {
+        "detail": "string",
+        "kind": "generic",
+        "message": "string",
+        "provider": "string",
+        "retryable": true,
+        "status_code": 0
+      },
+      "retry": {
+        "attempt": 0,
+        "delay_ms": 0,
+        "error": "string",
+        "kind": "generic",
+        "provider": "string",
+        "retrying_at": "2019-08-24T14:15:22Z",
+        "status_code": 0
+      },
+      "status": "waiting"
+    }
   },
   "error": {
     "detail": "string",
@@ -5556,6 +5618,39 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `args`         | string | false    |              |             |
 | `tool_call_id` | string | false    |              |             |
 | `tool_name`    | string | false    |              |             |
+
+## codersdk.ChatStreamTurn
+
+```json
+{
+  "error": {
+    "detail": "string",
+    "kind": "generic",
+    "message": "string",
+    "provider": "string",
+    "retryable": true,
+    "status_code": 0
+  },
+  "retry": {
+    "attempt": 0,
+    "delay_ms": 0,
+    "error": "string",
+    "kind": "generic",
+    "provider": "string",
+    "retrying_at": "2019-08-24T14:15:22Z",
+    "status_code": 0
+  },
+  "status": "waiting"
+}
+```
+
+### Properties
+
+| Name     | Type                                                 | Required | Restrictions | Description                                                                            |
+|----------|------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------|
+| `error`  | [codersdk.ChatError](#codersdkchaterror)             | false    |              | Error is set while the status is error.                                                |
+| `retry`  | [codersdk.ChatStreamRetry](#codersdkchatstreamretry) | false    |              | Retry is set while the status is running and a retry of the failed attempt is pending. |
+| `status` | [codersdk.ChatStatus](#codersdkchatstatus)           | false    |              |                                                                                        |
 
 ## codersdk.ChatSystemPromptResponse
 

@@ -19447,6 +19447,14 @@
 					"description": "SnapshotVersion is the chat's snapshot_version, read before the\nmessages and queue in this page. The page can hold changes made after\nit; a stream opened with it sends them again. Pass it as the stream's\nsnapshot_version parameter. It is set only on pages requested without\nbefore_id or after_id.",
 					"type": "integer"
 				},
+				"turn": {
+					"description": "Turn is the chat's turn at SnapshotVersion. It is set only on pages\nrequested without before_id or after_id.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatStreamTurn"
+						}
+					]
+				},
 				"turn_start_id": {
 					"description": "TurnStartID is the ID of the user prompt that starts the turn\ncontaining the page's oldest message. Omitted for after_id-only polls\nand when no prompt is at or before that message.",
 					"type": "integer"
@@ -20253,6 +20261,14 @@
 				"snapshot_version": {
 					"description": "SnapshotVersion is the chat's snapshot_version the sync applied. Every\naction response with an equal or lower version is reflected. A client\nreconnects with the value of the last checkpoint it received.",
 					"type": "integer"
+				},
+				"turn": {
+					"description": "Turn is the chat's turn at SnapshotVersion. It replaces the turn the\nclient holds.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatStreamTurn"
+						}
+					]
 				}
 			}
 		},
@@ -20421,6 +20437,30 @@
 				},
 				"tool_name": {
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.ChatStreamTurn": {
+			"type": "object",
+			"properties": {
+				"error": {
+					"description": "Error is set while the status is error.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatError"
+						}
+					]
+				},
+				"retry": {
+					"description": "Retry is set while the status is running and a retry of the failed\nattempt is pending.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatStreamRetry"
+						}
+					]
+				},
+				"status": {
+					"$ref": "#/definitions/codersdk.ChatStatus"
 				}
 			}
 		},

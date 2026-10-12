@@ -1840,13 +1840,18 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// load. Suppress them whenever any cursor is set so polling callers do
 	// not receive the snapshot on every page fetch.
 	var queuedMessages []database.ChatQueuedMessage
-	var snapshotVersion int64
+	var (
+		snapshotVersion int64
+		turn            *codersdk.ChatStreamTurn
+	)
 	if beforeID == 0 && afterID == 0 {
-		// Only the newest page reports a snapshot version, since a cursored
-		// page can leave out newer messages. chat was read before the messages
-		// and the queue, so a change committed in between is sent again by the
-		// stream, not lost.
+		// Only the newest page reports a snapshot version and turn, since a
+		// cursored page can leave out newer messages. chat was read before the
+		// messages and the queue, so a change committed in between is sent
+		// again by the stream, not lost.
 		snapshotVersion = chat.SnapshotVersion
+		chatTurn := chatd.StreamTurn(api.Logger, chat)
+		turn = &chatTurn
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1863,6 +1868,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		HasMore:         hasMore,
 		TurnStartID:     turnStartID,
 		SnapshotVersion: snapshotVersion,
+		Turn:            turn,
 	})
 }
 
