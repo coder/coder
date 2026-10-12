@@ -24,7 +24,7 @@ import {
 	type ComposerContextValue,
 	useAgentComposer,
 } from "./AgentComposer/context";
-import { Frame, FrameEventBoundary } from "./AgentComposer/Frame";
+import { Frame } from "./AgentComposer/Frame";
 import { useComposerRuntime } from "./AgentComposer/useComposerRuntime";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { ChatMessageInput } from "./ChatMessageInput/ChatMessageInput";
@@ -111,7 +111,6 @@ function Attachments() {
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<TextPreview | null>(null);
 	const { files } = state;
-	const isPreviewOpen = previewImage !== null || previewText !== null;
 
 	const handleTextPreview = (
 		content: string,
@@ -141,21 +140,17 @@ function Attachments() {
 					onRemove={actions.removeWorkspaceUpload}
 				/>
 			)}
-			{isPreviewOpen && (
-				<FrameEventBoundary>
-					{previewImage && (
-						<ImageLightbox
-							src={previewImage}
-							onClose={() => setPreviewImage(null)}
-						/>
-					)}
-					{previewText && (
-						<TextPreviewDialog
-							{...previewText}
-							onClose={() => setPreviewText(null)}
-						/>
-					)}
-				</FrameEventBoundary>
+			{previewImage && (
+				<ImageLightbox
+					src={previewImage}
+					onClose={() => setPreviewImage(null)}
+				/>
+			)}
+			{previewText && (
+				<TextPreviewDialog
+					{...previewText}
+					onClose={() => setPreviewText(null)}
+				/>
 			)}
 		</>
 	);

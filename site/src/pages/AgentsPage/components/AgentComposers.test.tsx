@@ -328,6 +328,34 @@ describe("ChatComposer", () => {
 		expect(onMCPSelectionChange).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		{ isEditingHistoryMessage: false },
+		{ isEditingHistoryMessage: true },
+	])(
+		"leaves the draft alone when Escape closes the plus menu (%o)",
+		async ({ isEditingHistoryMessage }) => {
+			const user = userEvent.setup();
+			const onInterrupt = vi.fn();
+			const onCancelHistoryEdit = vi.fn();
+			renderInput(
+				<ChatComposer
+					{...withBindings({
+						isStreaming: true,
+						onInterrupt,
+						isEditingHistoryMessage,
+						onCancelHistoryEdit,
+					})}
+				/>,
+			);
+
+			await user.click(screen.getByRole("button", { name: "More options" }));
+			await screen.findByRole("menuitemcheckbox", { name: "Plan first" });
+			await user.keyboard("{Escape}");
+			expect(onInterrupt).not.toHaveBeenCalled();
+			expect(onCancelHistoryEdit).not.toHaveBeenCalled();
+		},
+	);
+
 	it("swaps Stop for the Queue button once a draft is entered while streaming", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
