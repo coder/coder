@@ -67,6 +67,7 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 		DisableDirectConnections: manifest.DisableDirectConnections,
 		Metadata:                 MetadataDescriptionsFromProto(manifest.Metadata),
 		Devcontainers:            devcontainers,
+		PluginsSupported:         manifest.PluginsSupported,
 	}, nil
 }
 
@@ -98,6 +99,7 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		Apps:                     apps,
 		Metadata:                 ProtoFromMetadataDescriptions(manifest.Metadata),
 		Devcontainers:            ProtoFromDevcontainers(manifest.Devcontainers),
+		PluginsSupported:         manifest.PluginsSupported,
 	}, nil
 }
 
