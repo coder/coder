@@ -591,6 +591,19 @@ If not provided, the system certificate pool is used.
 
 Configure the background chat processing daemon.
 
+### Automation webhook max body bytes
+
+Maximum size in bytes of a chat automation webhook body, and of its event data after escaping.
+Larger deliveries fail with HTTP 413.
+The whole body becomes part of the chat's next prompt, so one large body can use up much of a model's context window.
+Must be between 1024 (1 KiB) and 262144 (256 KiB), the request body limit of the chat endpoints.
+
+- Type: `int`
+- Environment variable: `CODER_CHAT_AUTOMATION_WEBHOOK_MAX_BODY_BYTES`
+- CLI flag: [`--chat-automation-webhook-max-body-bytes`](../../reference/cli/server/index.md#--chat-automation-webhook-max-body-bytes)
+- YAML key: `chat.automationWebhookMaxBodyBytes`
+- Default value: `65536`
+
 ### Debug logging enabled
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
@@ -612,6 +625,18 @@ Must be at least 1.
 - Environment variable: `CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`
 - CLI flag: [`--chat-max-attachments-per-chat`](../../reference/cli/server/index.md#--chat-max-attachments-per-chat)
 - YAML key: `chat.maxAttachmentsPerChat`
+- Default value: `50`
+
+### Max automations per owner
+
+Maximum number of chat automations one user can own across all organizations.
+Creating one more fails with HTTP 409.
+Must be at least 1.
+
+- Type: `int`
+- Environment variable: `CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER`
+- CLI flag: [`--chat-max-automations-per-owner`](../../reference/cli/server/index.md#--chat-max-automations-per-owner)
+- YAML key: `chat.maxAutomationsPerOwner`
 - Default value: `50`
 
 ### Max concurrent recording uploads
@@ -678,6 +703,19 @@ Must be at least 1.
 - CLI flag: [`--chat-max-steps-per-turn`](../../reference/cli/server/index.md#--chat-max-steps-per-turn)
 - YAML key: `chat.maxStepsPerTurn`
 - Default value: `1200`
+
+### Min automation schedule interval
+
+Minimum time between two runs of a chat schedule automation.
+Creating a schedule, or changing one, that runs more often fails with HTTP 400.
+Existing schedules that run more often keep running, and the API marks them.
+Must be between 1m and 24h.
+
+- Type: `duration`
+- Environment variable: `CODER_CHAT_MIN_AUTOMATION_SCHEDULE_INTERVAL`
+- CLI flag: [`--chat-min-automation-schedule-interval`](../../reference/cli/server/index.md#--chat-min-automation-schedule-interval)
+- YAML key: `chat.minAutomationScheduleInterval`
+- Default value: `5m0s`
 
 ### Stream silence timeout
 

@@ -40,3 +40,15 @@ func TestTurnExperimentDecisions(t *testing.T) {
 	require.False(t, d.mcpToolSearchEnabled(0, evaluate(false)))
 	require.Equal(t, 6, calls)
 }
+
+func TestTurnExperimentDecisionsAreIndependent(t *testing.T) {
+	t.Parallel()
+
+	// Each experiment is evaluated only when the turn needs it, so one
+	// experiment's decision must not answer for another in the same turn.
+	var d turnExperimentDecisions
+	require.True(t, d.mcpToolSearchEnabled(7, func() bool { return true }))
+	require.False(t, d.chatAutomationsEnabled(7, func() bool { return false }))
+	require.True(t, d.mcpToolSearchEnabled(7, func() bool { return false }))
+	require.False(t, d.chatAutomationsEnabled(7, func() bool { return true }))
+}

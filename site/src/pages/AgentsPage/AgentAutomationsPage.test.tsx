@@ -1,0 +1,2719 @@
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent, {
+	PointerEventsCheckLevel,
+} from "@testing-library/user-event";
+import { delay, HttpResponse, http } from "msw";
+import type { QueryClient } from "react-query";
+import type { To } from "react-router";
+import { toast } from "sonner";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	chatAutomationsKey,
+	webhookPublishEndpoint,
+} from "#/api/queries/chatAutomations";
+import type {
+	Chat,
+	ChatAutomation,
+	ChatModel,
+	ChatProject,
+} from "#/api/typesGenerated";
+import {
+	MockChat,
+	MockChatAutomation,
+	MockChatProject,
+	MockWebhookChatAutomation,
+} from "#/testHelpers/chatEntities";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
+import {
+	MockBuildInfo,
+	MockDefaultOrganization,
+	MockOrganization2,
+} from "#/testHelpers/entities";
+import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
+import AgentAutomationEditorPage from "./AgentAutomationEditorPage";
+import AgentAutomationsPage from "./AgentAutomationsPage";
+import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
+
+// AgentPageHeader needs the layout's outlet context. The mock keeps its
+// mobile back link so tests can check where it leads.
+vi.mock("./components/AgentPageHeader", async () => {
+	const { Link } = await import("react-router");
+	return {
+		AgentPageHeader: ({
+			mobileBack,
+		}: {
+			mobileBack?: { to: To; label: string };
+		}) =>
+			mobileBack ? (
+				<Link to={mobileBack.to} aria-label={mobileBack.label} />
+			) : null,
+	};
+});
+
+const mockAutomation: ChatAutomation = {
+	...MockChatAutomation,
+	organization_id: MockDefaultOrganization.id,
+	target_chat_id: MockChat.id,
+};
+
+const mockWebhookAutomation: ChatAutomation = {
+	...MockWebhookChatAutomation,
+	organization_id: MockDefaultOrganization.id,
+	target_chat_id: MockChat.id,
+};
+
+// A new chat automation creates many chats, so its row opens their list.
+const mockNewChatListAutomation: ChatAutomation = {
+	...mockAutomation,
+	target_mode: "new_chat",
+	target_chat_id: undefined,
+	when_busy: undefined,
+	new_chat_model_config_id: "model-1",
+};
+
+const automationsPath = (organizationId: string) =>
+	`/api/experimental/organizations/${organizationId}/chat-automations`;
+
+const setup = ({
+	experiments = ["chat-automations"],
+	automations = [mockAutomation],
+	route,
+}: {
+	experiments?: string[];
+	automations?: ChatAutomation[];
+	route?: string;
+} = {}) => {
+	const requests: Request[] = [];
+	server.use(
+		http.get("/api/v2/experiments", () => HttpResponse.json(experiments)),
+		http.get("/api/v2/organizations", () =>
+			HttpResponse.json([MockDefaultOrganization, MockOrganization2]),
+		),
+		http.get("/api/v2/chats/:chatId", () => HttpResponse.json(MockChat)),
+		http.get("/api/v2/chats", ({ request }) => {
+			requests.push(request);
+			return HttpResponse.json([MockChat]);
+		}),
+		http.all(
+			"/api/experimental/organizations/:organizationId/chat-automations*",
+			({ request }) => {
+				requests.push(request);
+				return undefined;
+			},
+		),
+		http.get(automationsPath(":organizationId"), () =>
+			HttpResponse.json(automations),
+		),
+	);
+	const { queryClient, router } = renderWithAuth(<AgentAutomationsPage />, {
+		path: "/agents/automations",
+		route: route ?? "/agents/automations",
+		extraRoutes: [
+			{
+				path: "/agents/automations/new",
+				element: <AgentAutomationEditorPage />,
+			},
+			{
+				path: "/agents/automations/:automationId",
+				element: <AgentAutomationEditorPage />,
+			},
+			{ path: "/agents", element: <div /> },
+		],
+	});
+	return { requests, queryClient, router };
+};
+
+const requestPaths = (requests: readonly Request[]) =>
+	requests.map((request) => {
+		const url = new URL(request.url);
+		return `${request.method} ${url.pathname}${url.search}`;
+	});
+
+// The editor's submit button reads Save and enable for a new automation.
+const saveButtonName = /(Save and enable|Save changes)$/;
+
+/** Opens a row's More menu and picks Edit, View or Delete. */
+const openRowAction = async (
+	user: ReturnType<typeof userEvent.setup>,
+	automationName: string,
+	action: "Edit" | "View" | "Delete",
+) => {
+	await user.click(
+		await screen.findByRole("button", {
+			name: `More actions for ${automationName}`,
+		}),
+	);
+	await user.click(
+		await screen.findByRole("menuitem", { name: new RegExp(`^${action}`) }),
+	);
+};
+
+afterEach(() => {
+	localStorage.clear();
+	vi.restoreAllMocks();
+});
+
+describe("AgentAutomationsPage", () => {
+	it("lists the automations of the organization the Agents picker selected", async () => {
+		const user = userEvent.setup();
+		localStorage.setItem(
+			selectedOrganizationIdStorageKey,
+			MockOrganization2.id,
+		);
+		const { requests } = setup();
+
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(
+				`GET ${automationsPath(MockOrganization2.id)}?owner=me`,
+			);
+		});
+		expect(requestPaths(requests)).not.toContain(
+			`GET ${automationsPath(MockDefaultOrganization.id)}?owner=me`,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Organization: ${MockOrganization2.display_name}`,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("option", {
+				name: MockDefaultOrganization.display_name,
+			}),
+		);
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(
+				`GET ${automationsPath(MockDefaultOrganization.id)}?owner=me`,
+			);
+		});
+		expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
+			MockDefaultOrganization.id,
+		);
+	});
+
+	it("does not request automations when the experiment is off", async () => {
+		const { requests } = setup({ experiments: [] });
+
+		await screen.findByText("This page could not be found.");
+		expect(requests).toEqual([]);
+	});
+
+	it.each([
+		{
+			state: "on",
+			experiments: ["chat-automations"],
+			pageText: mockAutomation.name,
+		},
+		{
+			state: "off",
+			experiments: [],
+			pageText: "This page could not be found.",
+		},
+	])(
+		"keeps the sidebar search on the mobile back link when the experiment is $state",
+		async ({ experiments, pageText }) => {
+			setup({ experiments, route: "/agents/automations?archived=true" });
+
+			await screen.findByText(pageText);
+			expect(screen.getByRole("link", { name: "Agents" })).toHaveAttribute(
+				"href",
+				"/agents?archived=true",
+			);
+		},
+	);
+
+	it("opens an automation's page from its name", async () => {
+		const user = userEvent.setup();
+		const { router } = setup();
+
+		await user.click(
+			await screen.findByRole("link", { name: mockAutomation.name }),
+		);
+
+		expect(router.state.location.pathname).toBe(
+			`/agents/automations/${mockAutomation.id}`,
+		);
+	});
+
+	it.each([
+		{
+			enabled: false,
+			sentence:
+				"While the automation is off, it starts no runs and queues no prompts.",
+		},
+		{ enabled: true, sentence: "Turning the automation off blocks new runs" },
+	])(
+		"describes runs as the owner for an automation with enabled $enabled",
+		async ({ enabled, sentence }) => {
+			const otherOwners: ChatAutomation = {
+				...mockAutomation,
+				enabled,
+				owner_id: "another-user",
+				owner: { id: "another-user", username: "bob", name: "Bob" },
+			};
+			setup({
+				automations: [otherOwners],
+				route: `/agents/automations/${mockAutomation.id}`,
+			});
+
+			const runsAs = (await screen.findByText("Runs as Bob")).parentElement;
+			expect(runsAs).toHaveTextContent(sentence);
+		},
+	);
+
+	it("lets an admin delete another owner's automation from its page", async () => {
+		const user = userEvent.setup();
+		const otherOwners: ChatAutomation = {
+			...mockAutomation,
+			owner_id: "another-user",
+			owner: { id: "another-user", username: "bob", name: "Bob" },
+		};
+		const { requests, router } = setup({
+			automations: [otherOwners],
+			route: `/agents/automations/${mockAutomation.id}`,
+		});
+		const deletePath = `${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`;
+		let deleted = false;
+		server.use(
+			http.post("/api/v2/authcheck", () =>
+				HttpResponse.json({ canDeleteAny: true }),
+			),
+			http.delete(deletePath, ({ request }) => {
+				requests.push(request);
+				deleted = true;
+				return new HttpResponse(null, { status: 204 });
+			}),
+			// A real refetch takes a round trip, so the emptied cache renders
+			// before it returns.
+			http.get(automationsPath(MockDefaultOrganization.id), async () => {
+				if (deleted) {
+					await delay(50);
+				}
+				return HttpResponse.json(deleted ? [] : [otherOwners]);
+			}),
+		);
+
+		// The notice names every action an admin has, Delete included.
+		await screen.findByText(
+			"Only Bob can change this automation. You can turn it off, but only Bob can turn it back on. You can also delete it.",
+		);
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Delete ${mockAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		expect(dialog.textContent).toContain("This automation belongs to Bob.");
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(`DELETE ${deletePath}`);
+		});
+		// The delete drops the automation from the cache, which unmounts the
+		// editor. The page must still leave for the list.
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/agents/automations");
+		});
+	});
+
+	it("opens the target chat of an existing chat automation", async () => {
+		const user = userEvent.setup();
+		const { router } = setup({
+			automations: [
+				{
+					...mockAutomation,
+					target_chat: {
+						id: MockChat.id,
+						title: MockChat.title,
+						archived: false,
+					},
+				},
+			],
+		});
+
+		await user.click(
+			await screen.findByRole("link", {
+				name: `Open chat of ${mockAutomation.name}`,
+			}),
+		);
+
+		expect(router.state.location.pathname).toBe(`/agents/${MockChat.id}`);
+	});
+
+	it("disables an automation with the enabled switch", async () => {
+		const user = userEvent.setup();
+		let body: unknown;
+		setup();
+		server.use(
+			http.patch(
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`,
+				async ({ request }) => {
+					body = await request.json();
+					return HttpResponse.json({ ...mockAutomation, enabled: false });
+				},
+			),
+		);
+
+		await user.click(
+			await screen.findByRole("switch", {
+				name: `Enable ${mockAutomation.name}`,
+			}),
+		);
+
+		await waitFor(() => {
+			expect(body).toEqual({ enabled: false });
+		});
+	});
+
+	it("keeps keyboard focus on the enabled switch while its update is pending", async () => {
+		const user = userEvent.setup();
+		const bodies: unknown[] = [];
+		let finishUpdate = () => {};
+		const updateFinished = new Promise<void>((resolve) => {
+			finishUpdate = resolve;
+		});
+		setup();
+		server.use(
+			http.patch(
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`,
+				async ({ request }) => {
+					bodies.push(await request.json());
+					await updateFinished;
+					return HttpResponse.json({ ...mockAutomation, enabled: false });
+				},
+			),
+		);
+		const toggle = await screen.findByRole("switch", {
+			name: `Enable ${mockAutomation.name}`,
+		});
+
+		toggle.focus();
+		await user.keyboard(" ");
+		await waitFor(() => {
+			expect(toggle).toHaveAttribute("aria-busy", "true");
+		});
+		expect(toggle).toHaveFocus();
+		// A second press while pending sends nothing.
+		await user.keyboard(" ");
+		finishUpdate();
+
+		await waitFor(() => {
+			expect(toggle).not.toHaveAttribute("aria-busy", "true");
+		});
+		expect(toggle).toHaveFocus();
+		expect(bodies).toEqual([{ enabled: false }]);
+	});
+
+	it("does not turn a used single-use webhook back on from its switch", async () => {
+		const user = userEvent.setup();
+		const mockUsedWebhook: ChatAutomation = {
+			...mockAutomation,
+			kind: "webhook",
+			webhook_use: "single",
+			webhook_consumed_at: "2026-09-29T10:00:00Z",
+			enabled: false,
+		};
+		const mockSecondAutomation: ChatAutomation = {
+			...mockAutomation,
+			id: "second-automation",
+			name: "Second automation",
+		};
+		setup({ automations: [mockUsedWebhook, mockSecondAutomation] });
+		const updatedIds: string[] = [];
+		server.use(
+			http.patch<{ automationId: string }>(
+				`${automationsPath(MockDefaultOrganization.id)}/:automationId`,
+				({ params }) => {
+					updatedIds.push(params.automationId);
+					return HttpResponse.json({ ...mockSecondAutomation, enabled: false });
+				},
+			),
+		);
+
+		await user.click(
+			await screen.findByRole("switch", {
+				name: `Enable ${mockUsedWebhook.name}`,
+			}),
+		);
+		// The second row's update is sent after the used webhook's click, so
+		// once it arrives any update from the first click would have too.
+		await user.click(
+			await screen.findByRole("switch", {
+				name: `Enable ${mockSecondAutomation.name}`,
+			}),
+		);
+		await waitFor(() => {
+			expect(updatedIds).toContain(mockSecondAutomation.id);
+		});
+		expect(updatedIds).toEqual([mockSecondAutomation.id]);
+	});
+
+	it("shows the error of a failed toggle after another row was toggled", async () => {
+		const user = userEvent.setup();
+		const toastError = vi.spyOn(toast, "error");
+		const secondAutomation: ChatAutomation = {
+			...mockAutomation,
+			id: "second-automation",
+			name: "Second automation",
+		};
+		setup({ automations: [mockAutomation, secondAutomation] });
+		let failFirstUpdate = () => {};
+		const firstUpdateFailed = new Promise<void>((resolve) => {
+			failFirstUpdate = resolve;
+		});
+		server.use(
+			http.patch(
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`,
+				async () => {
+					await firstUpdateFailed;
+					return HttpResponse.json(
+						{ message: "The first update failed." },
+						{ status: 400 },
+					);
+				},
+			),
+			http.patch(
+				`${automationsPath(MockDefaultOrganization.id)}/${secondAutomation.id}`,
+				() => HttpResponse.json({ ...secondAutomation, enabled: false }),
+			),
+		);
+
+		await user.click(
+			await screen.findByRole("switch", {
+				name: `Enable ${mockAutomation.name}`,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("switch", {
+				name: `Enable ${secondAutomation.name}`,
+			}),
+		);
+		failFirstUpdate();
+
+		await waitFor(() => {
+			expect(toastError).toHaveBeenCalledWith(
+				"The first update failed.",
+				expect.anything(),
+			);
+		});
+	});
+
+	it("does not send Run now for a paused automation", async () => {
+		const user = userEvent.setup();
+		const { requests } = setup({
+			automations: [
+				{ ...mockAutomation, paused_reasons: ["model_unavailable"] },
+			],
+		});
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Run now ${mockAutomation.name}`,
+			}),
+		);
+
+		expect(
+			requestPaths(requests).filter((path) => path.endsWith("/runs")),
+		).toEqual([]);
+	});
+
+	it("sends the Run now request", async () => {
+		const user = userEvent.setup();
+		const { requests } = setup();
+		const runPath = `${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}/runs`;
+		server.use(
+			http.post(runPath, ({ request }) => {
+				requests.push(request);
+				return HttpResponse.json(
+					{ message: "The target chat is busy." },
+					{ status: 409 },
+				);
+			}),
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Run now ${mockAutomation.name}`,
+			}),
+		);
+
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(`POST ${runPath}`);
+		});
+	});
+
+	it.each([
+		{ outcome: "skipped" as const, toastText: "skipped the run: chat busy." },
+		{ outcome: "refused" as const, toastText: undefined },
+	])(
+		"shows a Run now the server $outcome as a skip only when it was one",
+		async ({ outcome, toastText }) => {
+			const user = userEvent.setup();
+			const toastMessage = vi.spyOn(toast, "message");
+			setup();
+			let ran = false;
+			server.use(
+				http.post(
+					`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}/runs`,
+					() => {
+						ran = true;
+						return HttpResponse.json(
+							{ message: "The target chat is busy." },
+							{ status: 409 },
+						);
+					},
+				),
+				http.get(automationsPath(MockDefaultOrganization.id), () =>
+					HttpResponse.json([
+						{
+							...mockAutomation,
+							last_run: ran
+								? {
+										at: "2026-10-12T12:00:00Z",
+										outcome,
+										reason: outcome === "skipped" ? "chat_busy" : "error",
+									}
+								: null,
+						},
+					]),
+				),
+			);
+
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Run now ${mockAutomation.name}`,
+				}),
+			);
+
+			if (toastText) {
+				await waitFor(() => {
+					expect(toastMessage).toHaveBeenCalledWith(
+						`${mockAutomation.name} ${toastText}`,
+					);
+				});
+				expect(
+					screen.queryByText(`Could not run ${mockAutomation.name}`),
+				).toBeNull();
+			} else {
+				await screen.findByText(`Could not run ${mockAutomation.name}`);
+				expect(toastMessage).not.toHaveBeenCalled();
+			}
+		},
+	);
+
+	it.each([
+		{ canDeleteAny: true, menuItems: ["View", "Delete…"] },
+		{ canDeleteAny: false, menuItems: ["View"] },
+	])(
+		"offers Delete on another owner's automation when canDeleteAny is $canDeleteAny",
+		async ({ canDeleteAny, menuItems }) => {
+			const user = userEvent.setup();
+			setup({ automations: [{ ...mockAutomation, owner_id: "another-user" }] });
+			server.use(
+				http.post("/api/v2/authcheck", () =>
+					HttpResponse.json({ canDeleteAny }),
+				),
+			);
+
+			await user.click(
+				await screen.findByRole("button", {
+					name: `More actions for ${mockAutomation.name}`,
+				}),
+			);
+
+			await waitFor(async () => {
+				const items = await screen.findAllByRole("menuitem");
+				expect(items.map((item) => item.textContent)).toEqual(menuItems);
+			});
+		},
+	);
+
+	it("deletes an automation after confirmation", async () => {
+		const user = userEvent.setup();
+		const toastSuccess = vi.spyOn(toast, "success");
+		const { requests } = setup();
+		const deletePath = `${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`;
+		let deleted = false;
+		server.use(
+			http.delete(deletePath, ({ request }) => {
+				requests.push(request);
+				deleted = true;
+				return new HttpResponse(null, { status: 204 });
+			}),
+			http.get(automationsPath(MockDefaultOrganization.id), () =>
+				HttpResponse.json(deleted ? [] : [mockAutomation]),
+			),
+		);
+
+		await openRowAction(user, mockAutomation.name, "Delete");
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		expect(dialog).toHaveTextContent("You cannot undo this.");
+		expect(requestPaths(requests)).not.toContain(`DELETE ${deletePath}`);
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(`DELETE ${deletePath}`);
+		});
+		await waitFor(() => {
+			expect(toastSuccess).toHaveBeenCalledWith(
+				`Deleted ${mockAutomation.name}.`,
+			);
+		});
+		// The deleted row's button is gone, so focus moves to a stable control.
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "Create automation" }),
+			).toHaveFocus();
+		});
+	});
+
+	it("keeps the delete confirmation open while the delete is pending", async () => {
+		const user = userEvent.setup();
+		setup();
+		let finishDelete = () => {};
+		const deleteFinished = new Promise<void>((resolve) => {
+			finishDelete = resolve;
+		});
+		let deleted = false;
+		server.use(
+			http.delete(
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`,
+				async () => {
+					await deleteFinished;
+					deleted = true;
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
+			http.get(automationsPath(MockDefaultOrganization.id), () =>
+				HttpResponse.json(deleted ? [] : [mockAutomation]),
+			),
+		);
+
+		await openRowAction(user, mockAutomation.name, "Delete");
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+		await user.keyboard("{Escape}");
+		finishDelete();
+
+		// Escape is ignored while pending, so the dialog still owns focus
+		// when the row disappears and hands it to a stable control.
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "Create automation" }),
+			).toHaveFocus();
+		});
+	});
+
+	it("does not delete an automation when the confirmation is canceled", async () => {
+		const user = userEvent.setup();
+		const { requests } = setup();
+
+		const moreButton = await screen.findByRole("button", {
+			name: `More actions for ${mockAutomation.name}`,
+		});
+		await openRowAction(user, mockAutomation.name, "Delete");
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => {
+			expect(moreButton).toHaveFocus();
+		});
+		expect(
+			requestPaths(requests).filter((path) => path.startsWith("DELETE")),
+		).toEqual([]);
+	});
+
+	it("closes the delete confirmation when the automation is already gone", async () => {
+		const user = userEvent.setup();
+		const toastMessage = vi.spyOn(toast, "message");
+		setup();
+		// Another tab deletes it after this page loaded the list.
+		let deleted = false;
+		server.use(
+			http.delete(
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`,
+				() => {
+					deleted = true;
+					return HttpResponse.json(
+						{ message: "Resource not found." },
+						{ status: 404 },
+					);
+				},
+			),
+			http.get(automationsPath(MockDefaultOrganization.id), () =>
+				HttpResponse.json(deleted ? [] : [mockAutomation]),
+			),
+		);
+
+		await openRowAction(user, mockAutomation.name, "Delete");
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(toastMessage).toHaveBeenCalledWith(
+				`${mockAutomation.name} was already deleted.`,
+			);
+		});
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "Create automation" }),
+			).toHaveFocus();
+		});
+	});
+
+	it("does not show a run failure on the organization picked after Run now", async () => {
+		const user = userEvent.setup();
+		setup();
+		let failRun = () => {};
+		const runFailed = new Promise<void>((resolve) => {
+			failRun = resolve;
+		});
+		server.use(
+			http.post(
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}/runs`,
+				async () => {
+					await runFailed;
+					return HttpResponse.json(
+						{ message: "The target chat is busy." },
+						{ status: 409 },
+					);
+				},
+			),
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Run now ${mockAutomation.name}`,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Organization: ${MockDefaultOrganization.display_name}`,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		failRun();
+
+		// Run now is disabled until the pending run settles.
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: `Run now ${mockAutomation.name}` }),
+			).toBeEnabled();
+		});
+		expect(
+			screen.queryByText(`Could not run ${mockAutomation.name}`),
+		).toBeNull();
+	});
+
+	it("requests an automation's archived and active chats", async () => {
+		const user = userEvent.setup();
+		const { requests } = setup({ automations: [mockNewChatListAutomation] });
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `View chats of ${mockAutomation.name}`,
+			}),
+		);
+
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(
+				`GET /api/v2/chats?automation_id=${mockAutomation.id}&q=archived%3Aany&limit=25`,
+			);
+		});
+	});
+
+	it.each([
+		{
+			via: "Escape",
+			close: (user: ReturnType<typeof userEvent.setup>) =>
+				user.keyboard("{Escape}"),
+		},
+		{
+			via: "the Close button",
+			close: async (user: ReturnType<typeof userEvent.setup>) =>
+				user.click(screen.getByRole("button", { name: "Close" })),
+		},
+	])(
+		"closes the chats dialog with $via and returns focus to View chats",
+		async ({ close }) => {
+			const user = userEvent.setup();
+			setup({ automations: [mockNewChatListAutomation] });
+
+			const viewChats = await screen.findByRole("button", {
+				name: `View chats of ${mockAutomation.name}`,
+			});
+			viewChats.focus();
+			await user.keyboard("{Enter}");
+			const dialogName = `Chats for ${mockAutomation.name}`;
+			await screen.findByRole("dialog", { name: dialogName });
+			await close(user);
+
+			await waitFor(() => {
+				expect(viewChats).toHaveFocus();
+			});
+			expect(screen.queryByRole("dialog", { name: dialogName })).toBeNull();
+		},
+	);
+
+	it("loads more of an automation's chats", async () => {
+		const user = userEvent.setup();
+		const { requests } = setup({ automations: [mockNewChatListAutomation] });
+		const mockChatPage = Array.from({ length: 25 }, (_, index) => ({
+			...MockChat,
+			id: `chat-${index}`,
+			title: `Chat ${index}`,
+		}));
+		const mockLastChat = mockChatPage[24];
+		const mockOlderChat = {
+			...MockChat,
+			id: "chat-older",
+			title: "Older chat",
+		};
+		server.use(
+			http.get("/api/v2/chats", ({ request }) => {
+				requests.push(request);
+				// A chat that moves up between requests can show on both pages.
+				return HttpResponse.json(
+					new URL(request.url).searchParams.get("after_id") === mockLastChat.id
+						? [mockLastChat, mockOlderChat]
+						: mockChatPage,
+				);
+			}),
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `View chats of ${mockAutomation.name}`,
+			}),
+		);
+		await user.click(await screen.findByRole("button", { name: "Load more" }));
+
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(
+				`GET /api/v2/chats?automation_id=${mockAutomation.id}&q=archived%3Aany&limit=25&after_id=${mockLastChat.id}`,
+			);
+		});
+		const dialog = screen.getByRole("dialog", {
+			name: `Chats for ${mockAutomation.name}`,
+		});
+		await within(dialog).findByRole("link", { name: mockOlderChat.title });
+		expect(
+			within(dialog).getAllByRole("link", { name: mockLastChat.title }),
+		).toHaveLength(1);
+	});
+});
+
+const mockTargetChat: Chat = {
+	...MockChat,
+	organization_id: MockDefaultOrganization.id,
+};
+
+const mockOtherChat: Chat = {
+	...mockTargetChat,
+	id: "chat-2",
+	title: "Release notes",
+};
+
+const mockModel: ChatModel = {
+	...MockChatModel,
+	organization_id: MockDefaultOrganization.id,
+	reasoning_efforts: ["low", "high"],
+};
+
+const mockProject: ChatProject = {
+	...MockChatProject,
+	organization_id: MockDefaultOrganization.id,
+};
+
+const mockOtherOrgProject: ChatProject = {
+	...mockProject,
+	id: "project-2",
+	organization_id: MockOrganization2.id,
+	name: "Other organization project",
+};
+
+const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+const validationError = (field: string, detail: string) =>
+	HttpResponse.json(
+		{ message: "Invalid chat automation.", validations: [{ field, detail }] },
+		{ status: 400 },
+	);
+
+const setupEditor = (options?: Parameters<typeof setup>[0]) => {
+	const previewBodies: unknown[] = [];
+	const createBodies: unknown[] = [];
+	const updateBodies: unknown[] = [];
+	const { requests, queryClient, router } = setup(options);
+	// Every published mutation state, as a cache subscriber like devtools sees it.
+	const mutationStates: string[] = [];
+	queryClient.getMutationCache().subscribe(({ mutation }) => {
+		mutationStates.push(JSON.stringify(mutation?.state));
+	});
+	server.use(
+		http.get("/api/v2/chats", ({ request }) => {
+			requests.push(request);
+			return HttpResponse.json([mockTargetChat, mockOtherChat]);
+		}),
+		http.get("/api/v2/organizations/:organizationId/chats/models", () =>
+			HttpResponse.json({
+				models: [mockModel],
+				providers: [MockChatModelProviderDescriptor],
+				unsupported_providers: [],
+			}),
+		),
+		http.post(
+			`${automationsPath(":organizationId")}/schedule-preview`,
+			async ({ request }) => {
+				const body = await request.json();
+				previewBodies.push(body);
+				return HttpResponse.json({
+					next_run_times: ["2026-10-01T09:30:00Z"],
+				});
+			},
+		),
+		http.post(automationsPath(":organizationId"), async ({ request }) => {
+			createBodies.push(await request.json());
+			return HttpResponse.json({ automation: mockAutomation }, { status: 201 });
+		}),
+		http.patch(
+			`${automationsPath(":organizationId")}/:automationId`,
+			async ({ request }) => {
+				updateBodies.push(await request.json());
+				return HttpResponse.json(mockAutomation);
+			},
+		),
+	);
+	return {
+		requests,
+		queryClient,
+		router,
+		mutationStates,
+		previewBodies,
+		createBodies,
+		updateBodies,
+	};
+};
+
+const openCreateDialog = async (user: ReturnType<typeof userEvent.setup>) => {
+	await user.click(
+		await screen.findByRole("button", { name: "Create automation" }),
+	);
+	const dialog = await screen.findByRole("form");
+	await user.click(within(dialog).getByLabelText(/^Name/));
+	await user.paste("Standup");
+	await user.click(within(dialog).getByLabelText(/^Prompt/));
+	await user.paste("Summarize yesterday.");
+	return dialog;
+};
+
+const pickChat = async (
+	user: ReturnType<typeof userEvent.setup>,
+	dialog: HTMLElement,
+	title: string,
+) => {
+	await user.click(within(dialog).getByRole("button", { name: "Chat" }));
+	await user.click(await screen.findByRole("option", { name: title }));
+};
+
+const pickNewChatModel = async (
+	user: ReturnType<typeof userEvent.setup>,
+	dialog: HTMLElement,
+) => {
+	await user.click(
+		within(dialog).getByRole("radio", { name: "New chat each run" }),
+	);
+	await user.click(
+		await within(dialog).findByRole("combobox", { name: /^Model/ }),
+	);
+	await user.click(
+		await screen.findByRole("option", {
+			name: new RegExp(mockModel.display_name),
+		}),
+	);
+};
+
+// Each editor test drives several Radix popovers, which is slow in jsdom.
+describe("AgentAutomationsPage owner filter", () => {
+	const listRequests = (requests: readonly Request[]) =>
+		requests
+			.filter((request) => request.method === "GET")
+			.map((request) => new URL(request.url))
+			.filter(
+				(url) => url.pathname === automationsPath(MockDefaultOrganization.id),
+			)
+			.map((url) => url.searchParams.get("owner"));
+
+	it("shows a member only their automations, with no owner switch", async () => {
+		const { requests } = setup();
+		server.use(
+			http.post("/api/v2/authcheck", () =>
+				HttpResponse.json({ canReadAny: false, canDeleteAny: false }),
+			),
+		);
+
+		await screen.findByText(mockAutomation.name);
+		expect(listRequests(requests)).toEqual(["me"]);
+		expect(screen.queryByRole("group", { name: "Owner" })).toBeNull();
+		expect(screen.queryByRole("columnheader", { name: "Owner" })).toBeNull();
+	});
+
+	it("says a member has no automations yet", async () => {
+		setup({ automations: [] });
+
+		await screen.findByText("You have no automations yet");
+	});
+
+	it("lets an admin list every owner's automations with an Owner column", async () => {
+		const user = userEvent.setup();
+		const otherOwners: ChatAutomation = {
+			...mockAutomation,
+			id: "other-owners-automation",
+			name: "Bob's automation",
+			owner_id: "another-user",
+			owner: { id: "another-user", username: "bob", name: "Bob" },
+		};
+		const { requests, router } = setup({
+			automations: [mockAutomation, otherOwners],
+		});
+		server.use(
+			http.post("/api/v2/authcheck", () =>
+				HttpResponse.json({ canReadAny: true, canDeleteAny: true }),
+			),
+		);
+
+		const owner = await screen.findByRole("group", { name: "Owner" });
+		expect(within(owner).getByRole("button", { name: "Mine" })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
+		await user.click(within(owner).getByRole("button", { name: "All" }));
+
+		await waitFor(() => {
+			expect(listRequests(requests)).toEqual(["me", null]);
+		});
+		expect(router.state.location.search).toBe("?owner=all");
+		await screen.findByRole("columnheader", { name: "Owner" });
+		const row = screen.getByRole("row", { name: new RegExp(otherOwners.name) });
+		within(row).getByText("Bob");
+		// The Owner column names the owner, so the name cell does not repeat it.
+		expect(within(row).queryByText("Owned by Bob")).toBeNull();
+		// The Owner column takes the width of the button labels, so the
+		// viewer's own row keeps only the icons and names them in tooltips.
+		const ownRow = screen.getByRole("row", {
+			name: new RegExp(mockAutomation.name),
+		});
+		const runNow = within(ownRow).getByRole("button", {
+			name: `Run now ${mockAutomation.name}`,
+		});
+		expect(runNow).not.toHaveTextContent("Run now");
+		await user.hover(runNow);
+		expect(await screen.findByRole("tooltip")).toHaveTextContent("Run now");
+	});
+
+	it("keeps the All view from the URL for an admin", async () => {
+		const { requests } = setup({
+			automations: [],
+			route: "/agents/automations?owner=all",
+		});
+		server.use(
+			http.post("/api/v2/authcheck", () =>
+				HttpResponse.json({ canReadAny: true, canDeleteAny: true }),
+			),
+		);
+
+		await screen.findByText("No automations in this organization");
+		expect(listRequests(requests)).toEqual([null]);
+	});
+});
+
+describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
+	it("creates an existing chat schedule from the Repeat and Time shortcuts", async () => {
+		const user = userEvent.setup();
+		const { requests, previewBodies, createBodies } = setupEditor();
+		const dialog = await openCreateDialog(user);
+
+		await user.click(within(dialog).getByRole("combobox", { name: "Repeat" }));
+		await user.click(await screen.findByRole("option", { name: "Weekdays" }));
+		const time = within(dialog).getByLabelText("Time");
+		await user.clear(time);
+		await user.type(time, "09:30");
+		expect(within(dialog).getByLabelText(/^Cron expression/)).toHaveValue(
+			"30 9 * * 1-5",
+		);
+		await waitFor(() => {
+			expect(previewBodies).toContainEqual({
+				schedule_cron: "30 9 * * 1-5",
+				schedule_time_zone: browserTimeZone,
+			});
+		});
+		await user.click(within(dialog).getByRole("button", { name: "Time zone" }));
+		await user.type(
+			await screen.findByPlaceholderText("Search time zones"),
+			"berl",
+		);
+		await user.click(
+			await screen.findByRole("option", { name: "Europe/Berlin" }),
+		);
+
+		await user.click(within(dialog).getByRole("button", { name: "Chat" }));
+		await user.type(await screen.findByPlaceholderText("Search chats"), "Rele");
+		await waitFor(() => {
+			expect(
+				requests.map((request) => new URL(request.url).searchParams.get("q")),
+			).toContain(
+				`title:"Rele" archived:false source:created_by_me organization:${MockDefaultOrganization.id}`,
+			);
+		});
+		await user.click(
+			await screen.findByRole("option", { name: mockOtherChat.title }),
+		);
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(createBodies).toEqual([
+				{
+					name: "Standup",
+					kind: "schedule",
+					target_mode: "existing_chat",
+					prompt: "Summarize yesterday.",
+					schedule_cron: "30 9 * * 1-5",
+					schedule_time_zone: "Europe/Berlin",
+					target_chat_id: mockOtherChat.id,
+					when_busy: "skip",
+				},
+			]);
+		});
+	});
+
+	it.each([
+		{ source: "the model default", effortLabel: undefined, effort: {} },
+		{
+			source: "a picked effort",
+			effortLabel: "Low",
+			effort: { reasoning_effort: "low" },
+		},
+	])(
+		"creates a new chat schedule with $source",
+		async ({ effortLabel, effort }) => {
+			const user = userEvent.setup();
+			const { createBodies } = setupEditor();
+			const dialog = await openCreateDialog(user);
+
+			await pickNewChatModel(user, dialog);
+			if (effortLabel) {
+				await user.click(
+					within(dialog).getByRole("combobox", { name: "Reasoning effort" }),
+				);
+				await user.click(
+					await screen.findByRole("option", { name: effortLabel }),
+				);
+			}
+			await user.click(
+				within(dialog).getByRole("button", { name: saveButtonName }),
+			);
+
+			await waitFor(() => {
+				expect(createBodies).toEqual([
+					{
+						name: "Standup",
+						kind: "schedule",
+						target_mode: "new_chat",
+						prompt: "Summarize yesterday.",
+						schedule_cron: "0 9 * * *",
+						schedule_time_zone: browserTimeZone,
+						new_chat_model_config_id: mockModel.id,
+						...effort,
+					},
+				]);
+			});
+		},
+	);
+
+	it("creates a new chat schedule in a project of the automation's organization", async () => {
+		const user = userEvent.setup();
+		const { createBodies } = setupEditor({
+			experiments: ["chat-automations", "chat-projects"],
+		});
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([mockProject, mockOtherOrgProject]),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+
+		await pickNewChatModel(user, dialog);
+		const project = within(dialog).getByRole("combobox", { name: /^Project/ });
+		await waitFor(() => expect(project).toBeEnabled());
+		await user.click(project);
+		await user.click(
+			await screen.findByRole("option", { name: mockProject.name }),
+		);
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(createBodies).toEqual([
+				expect.objectContaining({
+					target_mode: "new_chat",
+					project_id: mockProject.id,
+				}),
+			]);
+		});
+	});
+
+	it("removes the project with the all-zero UUID", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			experiments: ["chat-automations", "chat-projects"],
+			automations: [
+				{
+					...mockAutomation,
+					target_mode: "new_chat",
+					target_chat_id: undefined,
+					new_chat_model_config_id: mockModel.id,
+					project_id: mockProject.id,
+				},
+			],
+		});
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([mockProject]),
+			),
+		);
+
+		await openRowAction(user, MockChatAutomation.name, "Edit");
+		const dialog = await screen.findByRole("form");
+		const project = within(dialog).getByRole("combobox", { name: /^Project/ });
+		await waitFor(() => expect(project).toBeEnabled());
+		await user.click(project);
+		await user.click(await screen.findByRole("option", { name: "No project" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(updateBodies).toEqual([
+				{ project_id: "00000000-0000-0000-0000-000000000000" },
+			]);
+		});
+	});
+
+	it("shows every required field error on the first Save", async () => {
+		const user = userEvent.setup();
+		const { createBodies } = setupEditor();
+		await user.click(
+			await screen.findByRole("button", { name: "Create automation" }),
+		);
+		const dialog = await screen.findByRole("form");
+
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByLabelText(/^Name/),
+			).toHaveAccessibleDescription("Name is required.");
+		});
+		expect(
+			within(dialog).getByLabelText(/^Prompt/),
+		).toHaveAccessibleDescription("Prompt is required.");
+		expect(
+			within(dialog).getByRole("button", { name: "Chat" }),
+		).toHaveAccessibleDescription("Choose a chat.");
+
+		await user.click(
+			within(dialog).getByRole("radio", { name: "New chat each run" }),
+		);
+		expect(
+			await within(dialog).findByRole("combobox", { name: /^Model/ }),
+		).toHaveAccessibleDescription("Choose a model.");
+		expect(createBodies).toEqual([]);
+	});
+
+	it("shows the server's cron validation errors on the cron input", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.post(`${automationsPath(":organizationId")}/schedule-preview`, () =>
+				validationError("schedule_cron", "Expected exactly five fields."),
+			),
+			http.post(automationsPath(":organizationId"), () =>
+				validationError("schedule_cron", "Must be a valid cron expression."),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+		const cron = within(dialog).getByLabelText(/^Cron expression/);
+
+		await user.clear(cron);
+		// Five fields with no numbers, so the form keeps the server's words.
+		await user.type(cron, "x x x x x");
+		await waitFor(() => {
+			expect(cron).toHaveAccessibleDescription(
+				expect.stringContaining("Expected exactly five fields."),
+			);
+		});
+		expect(
+			within(dialog).getAllByText("Expected exactly five fields."),
+		).toHaveLength(1);
+
+		await pickChat(user, dialog, MockChat.title);
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+		await waitFor(() => {
+			expect(cron).toHaveAccessibleDescription(
+				expect.stringContaining("Must be a valid cron expression."),
+			);
+		});
+		// The alert by the Save buttons points at the field, not repeat it.
+		const alert = within(dialog).getByRole("alert");
+		expect(alert).toHaveTextContent("Fix Cron expression above.");
+		expect(alert).not.toHaveTextContent("Must be a valid cron expression.");
+
+		await user.type(cron, "x");
+		expect(cron).toHaveAccessibleDescription(
+			expect.not.stringContaining("Must be a valid cron expression."),
+		);
+		expect(within(dialog).queryByRole("alert")).toBeNull();
+		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
+		expect(within(dialog).queryByRole("alert")).toBeNull();
+	});
+
+	it("names the cron field that is out of range instead of the parser text", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.post(`${automationsPath(":organizationId")}/schedule-preview`, () =>
+				validationError(
+					"schedule_cron",
+					"parse schedule: end of range (61) above maximum (59): 61",
+				),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+		const cron = within(dialog).getByLabelText(/^Cron expression/);
+
+		await user.clear(cron);
+		await user.type(cron, "61 * * * *");
+
+		await waitFor(() => {
+			expect(cron).toHaveAccessibleDescription(
+				expect.stringContaining("Minute must be 0-59."),
+			);
+		});
+		expect(cron).toHaveAccessibleDescription(
+			expect.not.stringContaining("parse schedule"),
+		);
+	});
+
+	it("shows Next and cron errors only for the cron in the field", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.post(
+				`${automationsPath(":organizationId")}/schedule-preview`,
+				async ({ request }) => {
+					const { schedule_cron } = (await request.json()) as {
+						schedule_cron: string;
+					};
+					return schedule_cron.startsWith("61")
+						? validationError(
+								"schedule_cron",
+								"parse schedule: end of range (61) above maximum (59): 61",
+							)
+						: HttpResponse.json({ next_run_times: ["2026-10-01T09:30:00Z"] });
+				},
+			),
+		);
+		const dialog = await openCreateDialog(user);
+		const cron = within(dialog).getByLabelText(/^Cron expression/);
+		const upcoming = within(dialog).getByRole("region", {
+			name: "Upcoming runs",
+		});
+		await waitFor(() => {
+			expect(upcoming).toHaveTextContent(/9:30 AM/);
+		});
+
+		// The old times describe another cron, so they go at once.
+		await user.clear(cron);
+		await user.type(cron, "61 * * * *");
+		expect(upcoming).not.toHaveTextContent(/9:30 AM/);
+		await waitFor(() => {
+			expect(cron).toHaveAccessibleDescription(
+				expect.stringContaining("Minute must be 0-59."),
+			);
+		});
+
+		// The server's error is about the old cron, so it goes at once too.
+		await user.clear(cron);
+		await user.type(cron, "1 * * * *");
+		expect(cron).toHaveAccessibleDescription(
+			expect.not.stringContaining("parse schedule"),
+		);
+		expect(cron).toHaveAccessibleDescription(
+			expect.not.stringContaining("Minute must be"),
+		);
+	});
+
+	it("says the schedule is invalid, not empty, for an hourly minute out of range", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const dialog = await openCreateDialog(user);
+		await user.click(within(dialog).getByRole("combobox", { name: "Repeat" }));
+		await user.click(await screen.findByRole("option", { name: "Hourly" }));
+		const minute = within(dialog).getByLabelText("Minute");
+		await user.clear(minute);
+		await user.type(minute, "75");
+
+		const upcoming = within(dialog).getByRole("region", {
+			name: "Upcoming runs",
+		});
+		expect(upcoming).toHaveTextContent(
+			"Upcoming runs appear when the schedule is valid.",
+		);
+		expect(upcoming).not.toHaveTextContent("Enter a cron expression");
+	});
+
+	it("shows at most three upcoming runs with the chosen time zone", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.post(`${automationsPath(":organizationId")}/schedule-preview`, () =>
+				HttpResponse.json({
+					next_run_times: [
+						"2026-10-01T09:00:00Z",
+						"2026-10-02T09:00:00Z",
+						"2026-10-03T09:00:00Z",
+						"2026-10-04T09:00:00Z",
+						"2026-10-05T09:00:00Z",
+					],
+					clock_change_note: "Clocks change on Oct 25.",
+				}),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+		const upcoming = within(dialog).getByRole("region", {
+			name: "Upcoming runs",
+		});
+
+		await waitFor(() => {
+			expect(upcoming).toHaveTextContent(/Oct 3/);
+		});
+		expect(upcoming).not.toHaveTextContent(/Oct 4/);
+		expect(upcoming).toHaveTextContent(`(${browserTimeZone})`);
+		// The clock-change note moves into the cron's info tooltip.
+		expect(within(dialog).queryByText("Clocks change on Oct 25.")).toBeNull();
+		await user.hover(
+			within(dialog).getByRole("button", { name: "About Cron expression" }),
+		);
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			"Clocks change on Oct 25.",
+		);
+	});
+
+	it.each([
+		// The cron's own time, not a leftover default.
+		{ cron: "0 10 15 * *", time: "10:00" },
+		{ cron: "*/5 * * * *", time: "" },
+		{ cron: "0 9-17 * * *", time: "" },
+	])("shows the disabled time of $cron as '$time'", async ({ cron, time }) => {
+		const user = userEvent.setup();
+		setupEditor();
+		const dialog = await openCreateDialog(user);
+		const cronInput = within(dialog).getByLabelText(/^Cron expression/);
+		await user.clear(cronInput);
+		await user.type(cronInput, cron);
+
+		const timeInput = within(dialog).getByLabelText("Time");
+		expect(timeInput).toBeDisabled();
+		expect(timeInput).toHaveValue(time);
+	});
+	it("asks the server for chats from the automation's organization", async () => {
+		const user = userEvent.setup();
+		// A non-default organization, so the term cannot come from a default.
+		localStorage.setItem(
+			selectedOrganizationIdStorageKey,
+			MockOrganization2.id,
+		);
+		const { requests } = setupEditor();
+		const dialog = await openCreateDialog(user);
+
+		await user.click(within(dialog).getByRole("button", { name: "Chat" }));
+		await screen.findByRole("option", { name: mockOtherChat.title });
+		const chatQueries = requests
+			.map((request) => new URL(request.url))
+			.filter((url) => url.pathname === "/api/v2/chats")
+			.map((url) => url.searchParams.get("q"));
+		expect(chatQueries).toContain(
+			`archived:false source:created_by_me organization:${MockOrganization2.id}`,
+		);
+		expect(chatQueries.join("\n")).not.toContain(MockDefaultOrganization.id);
+	});
+
+	it("saves a name of 128 code points that spans more UTF-16 units", async () => {
+		const user = userEvent.setup();
+		const { createBodies } = setupEditor();
+		await user.click(
+			await screen.findByRole("button", { name: "Create automation" }),
+		);
+		const dialog = await screen.findByRole("form");
+		const name = "\u{1F600}".repeat(65) + "x".repeat(63);
+		await user.click(within(dialog).getByLabelText(/^Name/));
+		await user.paste(name);
+		await user.click(within(dialog).getByLabelText(/^Prompt/));
+		await user.paste("Summarize yesterday.");
+		await pickChat(user, dialog, mockTargetChat.title);
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(createBodies).toEqual([expect.objectContaining({ name })]);
+		});
+	});
+
+	it("shows a time zone preview error on the time zone field", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.post(`${automationsPath(":organizationId")}/schedule-preview`, () =>
+				validationError("schedule_time_zone", "Unknown time zone."),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("button", { name: "Time zone" }),
+			).toHaveAccessibleDescription("Unknown time zone.");
+		});
+		expect(
+			within(dialog).getByLabelText(/^Cron expression/),
+		).toHaveAccessibleDescription(
+			"Five fields: minute, hour, day of month, month, day of week.",
+		);
+	});
+
+	it("names the empty model catalog on the model selector", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.get("/api/v2/organizations/:organizationId/chats/models", () =>
+				HttpResponse.json({
+					models: [],
+					providers: [],
+					unsupported_providers: [],
+				}),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+
+		await user.click(
+			within(dialog).getByRole("radio", { name: "New chat each run" }),
+		);
+		expect(
+			await within(dialog).findByRole("combobox", {
+				name: "Model, No Models Configured",
+			}),
+		).toBeDisabled();
+	});
+
+	it("edits a stored schedule through the shortcut that wrote it", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [{ ...mockAutomation, schedule_cron: "30 9 * * 1-5" }],
+		});
+
+		await openRowAction(user, MockChatAutomation.name, "Edit");
+		const dialog = await screen.findByRole("form");
+		const repeat = within(dialog).getByRole("combobox", { name: "Repeat" });
+		const time = within(dialog).getByLabelText("Time");
+		const cron = within(dialog).getByLabelText(/^Cron expression/);
+		// A new time keeps the days of the shortcut that wrote the stored cron.
+		await user.clear(time);
+		await user.type(time, "10:15");
+		expect(cron).toHaveValue("15 10 * * 1-5");
+
+		await user.clear(cron);
+		await user.type(cron, "0 8 * * 1");
+		await user.clear(time);
+		await user.type(time, "07:00");
+		expect(cron).toHaveValue("0 7 * * 1");
+		await user.type(cron, ",3");
+		expect(time).toBeDisabled();
+
+		await user.click(repeat);
+		await user.click(await screen.findByRole("option", { name: "Hourly" }));
+		const minute = within(dialog).getByLabelText("Minute");
+		expect(minute).toHaveValue(0);
+		await user.clear(minute);
+		await user.type(minute, "15");
+		expect(cron).toHaveValue("15 * * * *");
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ schedule_cron: "15 * * * *" }]);
+		});
+	});
+
+	it("never saves a cron that differs from an invalid Minute or Time", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [{ ...mockAutomation, schedule_cron: "30 9 * * 1-5" }],
+		});
+
+		await openRowAction(user, MockChatAutomation.name, "Edit");
+		const dialog = await screen.findByRole("form");
+		const repeat = within(dialog).getByRole("combobox", { name: "Repeat" });
+		const cron = within(dialog).getByLabelText(/^Cron expression/);
+
+		await user.click(repeat);
+		await user.click(await screen.findByRole("option", { name: "Hourly" }));
+		const minute = within(dialog).getByLabelText("Minute");
+		await user.clear(minute);
+		await user.type(minute, "60");
+		expect(cron).toHaveValue("");
+		expect(minute).toHaveAccessibleDescription("Enter a minute from 0 to 59.");
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+		await within(dialog).findByText("Cron expression is required.");
+		expect(updateBodies).toEqual([]);
+		await user.clear(minute);
+		await user.type(minute, "05");
+		expect(cron).toHaveValue("5 * * * *");
+
+		await user.click(repeat);
+		await user.click(await screen.findByRole("option", { name: "Daily" }));
+		const time = within(dialog).getByLabelText("Time");
+		await user.clear(time);
+		expect(cron).toHaveValue("");
+		expect(time).toHaveAccessibleDescription("Enter a time.");
+		await user.click(repeat);
+		await user.click(await screen.findByRole("option", { name: "Weekdays" }));
+		expect(cron).toHaveValue("");
+
+		await user.type(time, "07:45");
+		expect(cron).toHaveValue("45 7 * * 1-5");
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ schedule_cron: "45 7 * * 1-5" }]);
+		});
+	});
+
+	it("defaults to UTC when the browser reports an unknown zone", async () => {
+		const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+		vi.spyOn(
+			Intl.DateTimeFormat.prototype,
+			"resolvedOptions",
+		).mockImplementation(function (this: Intl.DateTimeFormat) {
+			return { ...resolvedOptions.call(this), timeZone: "Etc/Unknown" };
+		});
+		const user = userEvent.setup();
+		const { previewBodies, createBodies } = setupEditor();
+		const dialog = await openCreateDialog(user);
+
+		await waitFor(() => {
+			expect(previewBodies).toEqual([
+				{ schedule_cron: "0 9 * * *", schedule_time_zone: "UTC" },
+			]);
+		});
+		await pickChat(user, dialog, mockTargetChat.title);
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(createBodies).toEqual([
+				expect.objectContaining({ schedule_time_zone: "UTC" }),
+			]);
+		});
+	});
+
+	it("shows upcoming runs in UTC when the browser does not know the zone", async () => {
+		const user = userEvent.setup();
+		setupEditor({
+			automations: [{ ...mockAutomation, schedule_time_zone: "Mars/Olympus" }],
+		});
+
+		await openRowAction(user, MockChatAutomation.name, "Edit");
+		const dialog = await screen.findByRole("form");
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("region", { name: "Upcoming runs" }),
+			).toHaveTextContent(/9:30 AM UTC/);
+		});
+	});
+
+	it.each([{ trigger: "Schedule" }, { trigger: "Webhook" }])(
+		"keeps the editor open while a $trigger save is pending",
+		async ({ trigger }) => {
+			const user = userEvent.setup();
+			setupEditor();
+			let releaseSave = () => {};
+			server.use(
+				http.post(automationsPath(":organizationId"), async () => {
+					await new Promise<void>((resolve) => {
+						releaseSave = resolve;
+					});
+					return HttpResponse.json(
+						{ automation: mockAutomation },
+						{ status: 201 },
+					);
+				}),
+			);
+			const dialog = await openCreateDialog(user);
+			await user.click(within(dialog).getByRole("radio", { name: trigger }));
+			await pickChat(user, dialog, mockTargetChat.title);
+			await user.click(
+				within(dialog).getByRole("button", { name: saveButtonName }),
+			);
+
+			await waitFor(() => {
+				expect(
+					within(dialog).getByRole("button", { name: "Cancel" }),
+				).toBeDisabled();
+			});
+			expect(within(dialog).getByLabelText(/^Name/)).toBeDisabled();
+			releaseSave();
+		},
+	);
+
+	it("keeps the reasoning effort when the same model is picked again", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [
+				{
+					...mockAutomation,
+					target_mode: "new_chat",
+					target_chat_id: undefined,
+					new_chat_model_config_id: mockModel.id,
+					reasoning_effort: "low",
+				},
+			],
+		});
+
+		await openRowAction(user, MockChatAutomation.name, "Edit");
+		const dialog = await screen.findByRole("form");
+		await user.click(
+			await within(dialog).findByRole("combobox", {
+				name: `Model, ${mockModel.display_name}`,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("option", {
+				name: new RegExp(mockModel.display_name),
+			}),
+		);
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(screen.queryByRole("form")).toBeNull();
+		});
+		expect(updateBodies).toEqual([]);
+	});
+
+	it("clears a stored reasoning effort with Model default", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [
+				{
+					...mockAutomation,
+					target_mode: "new_chat",
+					target_chat_id: undefined,
+					new_chat_model_config_id: mockModel.id,
+					reasoning_effort: "low",
+				},
+			],
+		});
+
+		await openRowAction(user, MockChatAutomation.name, "Edit");
+		const dialog = await screen.findByRole("form");
+		await user.click(
+			await within(dialog).findByRole("combobox", { name: "Reasoning effort" }),
+		);
+		await user.click(
+			await screen.findByRole("option", { name: "Model default" }),
+		);
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ reasoning_effort: "" }]);
+		});
+	});
+
+	it.each([
+		{ label: "a schedule", automation: mockAutomation },
+		{ label: "a webhook", automation: mockWebhookAutomation },
+	])(
+		"sends only the changed fields when editing $label",
+		async ({ automation }) => {
+			const user = userEvent.setup();
+			const { updateBodies } = setupEditor({ automations: [automation] });
+
+			await openRowAction(user, automation.name, "Edit");
+			const dialog = await screen.findByRole("form");
+			await pickChat(user, dialog, mockOtherChat.title);
+			await user.click(
+				within(dialog).getByRole("button", { name: saveButtonName }),
+			);
+
+			await waitFor(() => {
+				expect(updateBodies).toEqual([{ target_chat_id: mockOtherChat.id }]);
+			});
+		},
+	);
+
+	it.each([
+		{ status: 404, label: "Chat not found" },
+		{ status: 500, label: "Could not load chat" },
+	])(
+		"labels a target chat that fails with $status as $label",
+		async ({ status, label }) => {
+			const user = userEvent.setup();
+			setupEditor();
+			server.use(
+				http.get("/api/v2/chats/:chatId", () =>
+					HttpResponse.json({ message: "Chat error." }, { status }),
+				),
+			);
+
+			await openRowAction(user, MockChatAutomation.name, "Edit");
+			const dialog = await screen.findByRole("form");
+			await waitFor(() => {
+				expect(
+					within(dialog).getByRole("button", { name: "Chat" }),
+				).toHaveTextContent(label);
+			});
+		},
+	);
+
+	it.each([
+		{
+			failure: "forbidden",
+			response: () =>
+				HttpResponse.json(
+					{ message: "Only the owner of a chat automation can change it." },
+					{ status: 403 },
+				),
+			alertText: "Only the owner of a chat automation can change it.",
+		},
+		{
+			// A validation on a field the form does not render has no field to
+			// show on, so the alert lists it under the field's label.
+			failure: "rejected on a field the form does not show",
+			response: () =>
+				validationError("reasoning_effort", "Unsupported reasoning effort."),
+			alertText:
+				"Invalid chat automation.Reasoning effort: Unsupported reasoning effort.",
+		},
+		{
+			failure: "rejected on a field the form has no label for",
+			response: () => validationError("kind", "Kind cannot change."),
+			alertText: "Invalid chat automation.Kind cannot change.",
+		},
+	])(
+		"keeps the editor open with the server message when saving is $failure",
+		async ({ response, alertText }) => {
+			const user = userEvent.setup();
+			setupEditor();
+			server.use(
+				http.patch(
+					`${automationsPath(":organizationId")}/:automationId`,
+					response,
+				),
+			);
+
+			await openRowAction(user, MockChatAutomation.name, "Edit");
+			const dialog = await screen.findByRole("form");
+			const name = within(dialog).getByLabelText(/^Name/);
+			await user.clear(name);
+			await user.type(name, "Renamed");
+			await user.click(
+				within(dialog).getByRole("button", { name: saveButtonName }),
+			);
+
+			const alert = await within(dialog).findByRole("alert");
+			expect(alert.textContent).toBe(alertText);
+			expect(within(dialog).getByLabelText(/^Name/)).toHaveValue("Renamed");
+		},
+	);
+
+	it.each([mockAutomation, mockWebhookAutomation])(
+		"shows a $kind owned by someone else read-only",
+		async (automation) => {
+			const user = userEvent.setup();
+			const { updateBodies } = setupEditor({
+				automations: [{ ...automation, owner_id: "another-user" }],
+			});
+			// Other owners' chats are usually unreadable, so the view must not
+			// look up the target and report a valid private chat as missing.
+			const chatLookups: string[] = [];
+			server.use(
+				http.get("/api/v2/chats/:chatId", ({ params }) => {
+					chatLookups.push(String(params.chatId));
+					return HttpResponse.json({ message: "Not found." }, { status: 404 });
+				}),
+			);
+
+			await screen.findByRole("button", {
+				name: `More actions for ${automation.name}`,
+			});
+			expect(
+				screen.queryByRole("button", { name: `Run now ${automation.name}` }),
+			).toBeNull();
+			await openRowAction(user, automation.name, "View");
+			await screen.findByRole("heading", { level: 1, name: automation.name });
+			// The viewer reads a summary, so there is nothing to edit or save.
+			expect(screen.queryByRole("form")).toBeNull();
+			expect(screen.queryByRole("textbox")).toBeNull();
+			expect(
+				screen.queryByRole("button", { name: "Rotate secret" }),
+			).toBeNull();
+			await user.click(
+				screen.getByRole("link", { name: "Back to automations" }),
+			);
+			await screen.findByRole("table", { name: "Automations" });
+			expect(updateBodies).toEqual([]);
+			expect(chatLookups).toEqual([]);
+		},
+	);
+
+	it.each([
+		{ button: "Save and enable", enabled: {} },
+		{ button: "Save as disabled", enabled: { enabled: false } },
+	])(
+		"creates a schedule with $button in one request and returns to the list",
+		async ({ button, enabled }) => {
+			const user = userEvent.setup();
+			const { createBodies, updateBodies, router } = setupEditor();
+			const form = await openCreateDialog(user);
+			await pickChat(user, form, mockTargetChat.title);
+			await user.click(within(form).getByRole("button", { name: button }));
+
+			await waitFor(() => {
+				expect(router.state.location.pathname).toBe("/agents/automations");
+			});
+			expect(createBodies).toEqual([
+				expect.objectContaining({ target_chat_id: mockTargetChat.id }),
+			]);
+			expect(createBodies[0]).toEqual(
+				button === "Save as disabled"
+					? expect.objectContaining(enabled)
+					: expect.not.objectContaining({ enabled: expect.anything() }),
+			);
+			expect(updateBodies).toEqual([]);
+		},
+	);
+
+	it("marks the fixed choices of a saved automation, not its chat picker", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+
+		await openRowAction(user, MockChatAutomation.name, "Edit");
+		const form = await screen.findByRole("form", { name: "Edit automation" });
+
+		// A saved automation shows no kind choice, only the badge.
+		const trigger = within(form).getByRole("region", { name: "Trigger" });
+		expect(trigger).toHaveAccessibleDescription(
+			"What starts a run. Schedule trigger, fixed at creation",
+		);
+		expect(
+			within(trigger).queryByRole("radio", { name: "Webhook" }),
+		).toBeNull();
+		const runsIn = within(form).getByRole("radiogroup", { name: "Runs in" });
+		expect(runsIn).toHaveAccessibleDescription(
+			"Existing chat, fixed at creation",
+		);
+		expect(
+			within(runsIn).getByRole("radio", { name: "Existing chat" }),
+		).toBeDisabled();
+		// The target chat stays editable.
+		expect(within(runsIn).getByRole("button", { name: /^Chat/ })).toBeEnabled();
+	});
+
+	it("moves Shift+Tab from the chat picker back out of the Runs in cards", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const dialog = await openCreateDialog(user);
+		const runsIn = within(dialog).getByRole("radiogroup", { name: "Runs in" });
+		const existingChat = within(runsIn).getByRole("radio", {
+			name: "Existing chat",
+		});
+		await user.click(existingChat);
+		expect(existingChat).toHaveAccessibleDescription(
+			"Each run sends the prompt to the chosen chat.",
+		);
+
+		within(runsIn).getByRole("button", { name: /^Chat/ }).focus();
+		await user.tab({ shift: true });
+		expect(existingChat).toHaveFocus();
+		await user.tab({ shift: true });
+		expect(runsIn).not.toContainElement(
+			document.activeElement as HTMLElement | null,
+		);
+	});
+
+	it("clears Choose a model once a model is chosen after a failed save", async () => {
+		const user = userEvent.setup();
+		const { createBodies } = setupEditor();
+		const dialog = await openCreateDialog(user);
+		await user.click(
+			within(dialog).getByRole("radio", { name: "New chat each run" }),
+		);
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+		const model = await within(dialog).findByRole("combobox", {
+			name: /^Model/,
+		});
+		await waitFor(() => {
+			expect(model).toHaveAccessibleDescription("Choose a model.");
+		});
+
+		await pickNewChatModel(user, dialog);
+
+		await waitFor(() => {
+			expect(model).not.toHaveAccessibleDescription("Choose a model.");
+		});
+		expect(within(dialog).queryByText("Choose a model.")).toBeNull();
+		expect(createBodies).toEqual([]);
+	});
+
+	it("shows the server's reasoning effort error on the effort field", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.post(automationsPath(":organizationId"), () =>
+				validationError(
+					"reasoning_effort",
+					"This model does not offer reasoning effort low.",
+				),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+
+		await pickNewChatModel(user, dialog);
+		await user.click(
+			within(dialog).getByRole("combobox", { name: "Reasoning effort" }),
+		);
+		await user.click(await screen.findByRole("option", { name: "Low" }));
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("combobox", { name: "Reasoning effort" }),
+			).toHaveAccessibleDescription(
+				expect.stringContaining(
+					"This model does not offer reasoning effort low.",
+				),
+			);
+		});
+		expect(within(dialog).getByRole("alert")).toHaveTextContent(
+			"Fix Reasoning effort above.",
+		);
+	});
+
+	it("turns an automation off from the editor without saving the form", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor();
+
+		await openRowAction(user, MockChatAutomation.name, "Edit");
+		// Wait for the editor so the click does not hit the list row's switch.
+		await screen.findByRole("form", { name: "Edit automation" });
+		await user.click(
+			screen.getByRole("switch", { name: `Enable ${MockChatAutomation.name}` }),
+		);
+
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ enabled: false }]);
+		});
+	});
+
+	it("lets a viewer turn another owner's automation off but not back on", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [
+				{ ...mockAutomation, owner_id: "another-user", enabled: false },
+			],
+		});
+
+		await openRowAction(user, mockAutomation.name, "View");
+		// Wait for the editor so the click does not hit the list row's switch.
+		await screen.findByText("can change this automation or turn it back on", {
+			exact: false,
+		});
+		await user.click(
+			screen.getByRole("switch", { name: `Enable ${mockAutomation.name}` }),
+		);
+
+		expect(updateBodies).toEqual([]);
+	});
+
+	it("goes from a deleted automation's editor to the list without a not-found screen", async () => {
+		const user = userEvent.setup();
+		const { router } = setupEditor();
+		let deleted = false;
+		let finishRefetch = () => {};
+		const refetchFinished = new Promise<void>((resolve) => {
+			finishRefetch = resolve;
+		});
+		server.use(
+			http.delete(`${automationsPath(":organizationId")}/:automationId`, () => {
+				deleted = true;
+				return new HttpResponse(null, { status: 204 });
+			}),
+			http.get(automationsPath(":organizationId"), async () => {
+				if (!deleted) {
+					return HttpResponse.json([mockAutomation]);
+				}
+				// Holds the refetch after the delete, while the cache no
+				// longer has the automation.
+				await refetchFinished;
+				return HttpResponse.json([]);
+			}),
+		);
+
+		await openRowAction(user, mockAutomation.name, "Edit");
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Delete ${mockAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: `Delete ${mockAutomation.name}?`,
+		});
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+		// The editor leaves once the cache drops the automation.
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("form", { name: "Edit automation" }),
+			).toBeNull();
+		});
+		expect(screen.queryByText("Automation not found")).toBeNull();
+		finishRefetch();
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/agents/automations");
+		});
+	});
+
+	it("describes the webhook use that is selected", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const dialog = await openCreateDialog(user);
+
+		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
+		const use = within(dialog).getByRole("radiogroup", { name: "Use" });
+		expect(use).toHaveAccessibleDescription(
+			"A multi-use webhook accepts every event while the automation is on.",
+		);
+
+		await user.click(within(dialog).getByRole("radio", { name: "Single-use" }));
+		expect(use).toHaveAccessibleDescription(
+			"A single-use webhook accepts one event, then rejects the rest.",
+		);
+	});
+
+	it("tells a viewer who turned another owner's automation off that only the owner can undo it", async () => {
+		const user = userEvent.setup();
+		const toastSuccess = vi.spyOn(toast, "success");
+		const otherOwners: ChatAutomation = {
+			...mockAutomation,
+			owner_id: "another-user",
+			owner: { id: "another-user", username: "bob", name: "Bob" },
+		};
+		setupEditor({ automations: [otherOwners] });
+		server.use(
+			http.patch(`${automationsPath(":organizationId")}/:automationId`, () =>
+				HttpResponse.json({ ...otherOwners, enabled: false }),
+			),
+		);
+
+		await openRowAction(user, mockAutomation.name, "View");
+		// Wait for the editor so the click does not hit the list row's switch.
+		await screen.findByText(
+			"Only Bob can change this automation. You can turn it off, but only Bob can turn it back on.",
+		);
+		await user.click(
+			screen.getByRole("switch", { name: `Enable ${mockAutomation.name}` }),
+		);
+
+		await waitFor(() => {
+			expect(toastSuccess).toHaveBeenCalledWith(
+				`${mockAutomation.name} is off. Only Bob can turn it back on.`,
+			);
+		});
+	});
+});
+
+const webhookSecret = "test-webhook-secret-5f3a";
+
+const rotatePath = `${automationsPath(MockDefaultOrganization.id)}/${mockWebhookAutomation.id}/secret/rotate`;
+
+// A stray click outside keeps the secret; Done drops every copy of it.
+const dismissSecret = async (
+	user: ReturnType<typeof userEvent.setup>,
+	secretDialog: HTMLElement,
+	queryClient: QueryClient,
+	mutationStates: readonly string[],
+) => {
+	expect(secretDialog).toHaveTextContent(webhookSecret);
+	// The modal sets pointer-events: none on the body, but Radix still sees this outside press.
+	await userEvent
+		.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never })
+		.pointer({ keys: "[MouseLeft]", target: document.body });
+	await user.click(screen.getByRole("button", { name: "Done" }));
+	await waitFor(() => {
+		expect(document.body.innerHTML).not.toContain(webhookSecret);
+		expect(
+			JSON.stringify([
+				queryClient
+					.getQueryCache()
+					.getAll()
+					.map((query) => query.state.data),
+				mutationStates,
+			]),
+		).not.toContain(webhookSecret);
+	});
+	expect(JSON.stringify(Object.entries(localStorage))).not.toContain(
+		webhookSecret,
+	);
+	expect(JSON.stringify(Object.entries(sessionStorage))).not.toContain(
+		webhookSecret,
+	);
+};
+
+const openWebhookEditor = async (user: ReturnType<typeof userEvent.setup>) => {
+	await openRowAction(user, mockWebhookAutomation.name, "Edit");
+	return screen.findByRole("form");
+};
+
+const confirmRotate = async (
+	user: ReturnType<typeof userEvent.setup>,
+	dialog: HTMLElement,
+	button: "Cancel" | "Rotate secret",
+) => {
+	await user.click(
+		within(dialog).getByRole("button", { name: "Rotate secret" }),
+	);
+	const confirm = await screen.findByRole("dialog", {
+		name: "Rotate the webhook secret?",
+	});
+	await user.click(within(confirm).getByRole("button", { name: button }));
+};
+
+describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
+	it("creates a single-use webhook and shows its secret only once", async () => {
+		const user = userEvent.setup();
+		const { queryClient, router, mutationStates, createBodies } = setupEditor();
+		server.use(
+			http.post(automationsPath(":organizationId"), async ({ request }) => {
+				createBodies.push(await request.json());
+				return HttpResponse.json(
+					{ automation: mockWebhookAutomation, webhook_secret: webhookSecret },
+					{ status: 201 },
+				);
+			}),
+		);
+		const dialog = await openCreateDialog(user);
+
+		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
+		await user.click(within(dialog).getByRole("radio", { name: "Single-use" }));
+		await pickChat(user, dialog, MockChat.title);
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		const secretDialog = await screen.findByRole("dialog", {
+			name: "Copy the webhook secret",
+		});
+		expect(createBodies).toEqual([
+			{
+				name: "Standup",
+				kind: "webhook",
+				target_mode: "existing_chat",
+				prompt: "Summarize yesterday.",
+				webhook_use: "single",
+				target_chat_id: MockChat.id,
+				when_busy: "queue",
+			},
+		]);
+		expect(
+			within(secretDialog).getByRole("button", { name: "Done" }),
+		).toHaveFocus();
+		// Escape would lose the only copy of the secret.
+		await user.keyboard("{Escape}");
+		expect(
+			screen.getByRole("dialog", { name: "Copy the webhook secret" }),
+		).toBe(secretDialog);
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		await user.click(
+			within(secretDialog).getByRole("button", { name: "Copy endpoint" }),
+		);
+		expect(writeText).toHaveBeenCalledWith(
+			webhookPublishEndpoint(
+				new URL(MockBuildInfo.dashboard_url).origin,
+				mockWebhookAutomation.id,
+			),
+		);
+		// Leaving before Done loses the secret, so the guard stays armed.
+		const unload = new Event("beforeunload", { cancelable: true });
+		window.dispatchEvent(unload);
+		expect(unload.defaultPrevented).toBe(true);
+		void router.navigate("/agents");
+		const leaveDialog = await screen.findByRole("dialog", {
+			name: "Leave without copying the secret?",
+		});
+		await user.click(within(leaveDialog).getByRole("button", { name: "Stay" }));
+		await waitFor(() => {
+			expect(
+				within(secretDialog).getByRole("button", { name: "Copy endpoint" }),
+			).toHaveFocus();
+		});
+		expect(router.state.location.pathname).toMatch(/^\/agents\/automations\/./);
+		await dismissSecret(user, secretDialog, queryClient, mutationStates);
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/agents/automations");
+		});
+	});
+
+	const scheduleBody = {
+		kind: "schedule",
+		schedule_cron: "0 9 * * *",
+		schedule_time_zone: browserTimeZone,
+		when_busy: "skip",
+	};
+	it.each([
+		{
+			label: "switching to webhook and back",
+			whenBusy: "",
+			triggers: ["Webhook", "Schedule"],
+			body: scheduleBody,
+		},
+		{
+			label: "picking When busy, then switching to webhook and back",
+			whenBusy: "Queue the prompt",
+			triggers: ["Webhook", "Schedule"],
+			body: { ...scheduleBody, when_busy: "queue" },
+		},
+		{
+			label: "picking webhook without a use",
+			whenBusy: "",
+			triggers: ["Webhook"],
+			body: { kind: "webhook", webhook_use: "multi", when_busy: "queue" },
+		},
+	])(
+		"sends the create body after $label",
+		async ({ triggers, whenBusy, body }) => {
+			const user = userEvent.setup();
+			const { createBodies } = setupEditor();
+			const dialog = await openCreateDialog(user);
+
+			if (whenBusy) {
+				await user.click(
+					within(dialog).getByRole("combobox", { name: "When busy" }),
+				);
+				await user.click(await screen.findByRole("option", { name: whenBusy }));
+			}
+			for (const trigger of triggers) {
+				await user.click(within(dialog).getByRole("radio", { name: trigger }));
+			}
+			await pickChat(user, dialog, MockChat.title);
+			await user.click(
+				within(dialog).getByRole("button", { name: saveButtonName }),
+			);
+
+			await waitFor(() => {
+				expect(createBodies).toEqual([
+					{
+						name: "Standup",
+						target_mode: "existing_chat",
+						prompt: "Summarize yesterday.",
+						target_chat_id: MockChat.id,
+						...body,
+					},
+				]);
+			});
+		},
+	);
+
+	it("closes a leave prompt opened before the secret arrived once it arrives", async () => {
+		const user = userEvent.setup();
+		const { router } = setupEditor();
+		let releaseSave = () => {};
+		server.use(
+			http.post(automationsPath(":organizationId"), async () => {
+				await new Promise<void>((resolve) => {
+					releaseSave = resolve;
+				});
+				return HttpResponse.json(
+					{ automation: mockWebhookAutomation, webhook_secret: webhookSecret },
+					{ status: 201 },
+				);
+			}),
+		);
+		const dialog = await openCreateDialog(user);
+		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
+		await pickChat(user, dialog, MockChat.title);
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+		// The name includes the spinner's title while saving.
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("button", { name: saveButtonName }),
+			).toBeDisabled();
+		});
+
+		void router.navigate("/agents");
+		const leaveName = "Leave before the secret arrives?";
+		await user.click(
+			within(await screen.findByRole("dialog", { name: leaveName })).getByRole(
+				"button",
+				{ name: "Stay" },
+			),
+		);
+		void router.navigate("/agents");
+		await screen.findByRole("dialog", { name: leaveName });
+		releaseSave();
+
+		await screen.findByRole("dialog", { name: "Copy the webhook secret" });
+		await waitFor(() => {
+			expect(screen.queryByRole("dialog", { name: leaveName })).toBeNull();
+		});
+		expect(router.state.location.pathname).toMatch(/^\/agents\/automations\/./);
+	});
+
+	it("re-enables the editor when a webhook create fails while the list refetches", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const dialog = await openCreateDialog(user);
+		server.use(
+			http.get(automationsPath(":organizationId"), () => new Promise(() => {})),
+			http.post(automationsPath(":organizationId"), () =>
+				validationError("name", "Name is taken."),
+			),
+		);
+		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
+		await pickChat(user, dialog, MockChat.title);
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByLabelText(/^Name/),
+			).toHaveAccessibleDescription("Name is taken.");
+		});
+		expect(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		).toBeEnabled();
+	});
+
+	it("follows a list refetch without resetting the user's input", async () => {
+		const user = userEvent.setup();
+		const mockUnusedWebhook: ChatAutomation = {
+			...mockWebhookAutomation,
+			webhook_use: "single",
+		};
+		const { queryClient, updateBodies } = setupEditor({
+			automations: [mockUnusedWebhook],
+		});
+		const dialog = await openWebhookEditor(user);
+		const name = within(dialog).getByLabelText(/^Name/);
+		await user.clear(name);
+		await user.type(name, "Renamed");
+
+		server.use(
+			http.get(automationsPath(":organizationId"), () =>
+				HttpResponse.json([
+					{
+						...mockUnusedWebhook,
+						prompt: "Changed in another tab.",
+						webhook_consumed_at: "2026-09-30T10:15:00Z",
+					},
+				]),
+			),
+		);
+		await queryClient.invalidateQueries({
+			queryKey: chatAutomationsKey(MockDefaultOrganization.id),
+		});
+		await within(dialog).findByText(/^Used on/);
+		expect(
+			within(dialog).queryByRole("button", { name: "Rotate secret" }),
+		).toBeNull();
+		expect(name).toHaveValue("Renamed");
+		await user.click(
+			within(dialog).getByRole("button", { name: saveButtonName }),
+		);
+
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ name: "Renamed" }]);
+		});
+	});
+
+	it("returns focus to Rotate secret when a click did not focus it", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.get(automationsPath(":organizationId"), () =>
+				HttpResponse.json([mockWebhookAutomation]),
+			),
+		);
+		const dialog = await openWebhookEditor(user);
+		within(dialog).getByLabelText(/^Name/).focus();
+
+		// Safari on macOS does not focus a button on click.
+		fireEvent.click(
+			within(dialog).getByRole("button", { name: "Rotate secret" }),
+		);
+		const confirm = await screen.findByRole("dialog", {
+			name: "Rotate the webhook secret?",
+		});
+		await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("button", { name: "Rotate secret" }),
+			).toHaveFocus();
+		});
+	});
+
+	it("rotates the secret only after confirmation and shows it once", async () => {
+		const user = userEvent.setup();
+		const { queryClient, router, mutationStates } = setupEditor();
+		const rotateRequests: Request[] = [];
+		let releaseRotate = () => {};
+		server.use(
+			http.get(automationsPath(":organizationId"), () =>
+				HttpResponse.json([mockWebhookAutomation]),
+			),
+			http.post(rotatePath, async ({ request }) => {
+				rotateRequests.push(request);
+				await new Promise<void>((resolve) => {
+					releaseRotate = resolve;
+				});
+				return HttpResponse.json({
+					webhook_secret: webhookSecret,
+					webhook_secret_version: 2,
+				});
+			}),
+		);
+		const dialog = await openWebhookEditor(user);
+
+		await confirmRotate(user, dialog, "Cancel");
+		expect(rotateRequests).toEqual([]);
+		await confirmRotate(user, dialog, "Rotate secret");
+		await waitFor(() => {
+			expect(rotateRequests).toHaveLength(1);
+		});
+		// The name includes the spinner's title while rotating.
+		const rotatingButton = within(dialog).getByRole("button", {
+			name: /Rotate secret/,
+		});
+		expect(rotatingButton).toHaveFocus();
+		await user.click(rotatingButton);
+		expect(
+			screen.queryByRole("dialog", { name: "Rotate the webhook secret?" }),
+		).toBeNull();
+		// The editor stays open mid-rotation so focus can return to the button.
+		await user.keyboard("{Escape}");
+		const unload = new Event("beforeunload", { cancelable: true });
+		window.dispatchEvent(unload);
+		expect(unload.defaultPrevented).toBe(true);
+		void router.navigate("/agents");
+		const leaveDialog = await screen.findByRole("dialog", {
+			name: "Leave before the secret arrives?",
+		});
+		await user.click(within(leaveDialog).getByRole("button", { name: "Stay" }));
+		await waitFor(() => {
+			expect(rotatingButton).toHaveFocus();
+		});
+		expect(router.state.location.pathname).toMatch(/^\/agents\/automations\/./);
+		releaseRotate();
+
+		const secretDialog = await screen.findByRole("dialog", {
+			name: "Copy the webhook secret",
+		});
+		await dismissSecret(user, secretDialog, queryClient, mutationStates);
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("button", { name: "Rotate secret" }),
+			).toHaveFocus();
+		});
+	});
+
+	it.each([
+		{
+			status: 403,
+			message: "Only the owner of a chat automation can change it.",
+			detail: "",
+		},
+		{
+			status: 409,
+			message: "This single-use webhook was already used.",
+			detail: "Its secret can no longer be rotated.",
+		},
+	])(
+		"reports the error and shows no secret when rotating the secret fails with $status",
+		async ({ status, message, detail }) => {
+			const user = userEvent.setup();
+			setupEditor();
+			let rotatePosts = 0;
+			server.use(
+				http.get(automationsPath(":organizationId"), () =>
+					HttpResponse.json([mockWebhookAutomation]),
+				),
+				http.post(rotatePath, () => {
+					rotatePosts++;
+					return HttpResponse.json({ message, detail }, { status });
+				}),
+			);
+			const dialog = await openWebhookEditor(user);
+
+			await confirmRotate(user, dialog, "Rotate secret");
+
+			await within(dialog).findByRole("alert");
+			expect(rotatePosts).toBe(1);
+			expect(
+				screen.queryByRole("dialog", { name: "Copy the webhook secret" }),
+			).toBeNull();
+		},
+	);
+});

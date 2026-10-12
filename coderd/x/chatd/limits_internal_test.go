@@ -19,6 +19,7 @@ func TestLimitsFromConfig(t *testing.T) {
 		MaxAttachmentsPerChat:         serpent.Int64(9),
 		MaxPromptBytes:                serpent.Int64(1024),
 		MaxConcurrentRecordingUploads: serpent.Int64(1),
+		MaxAutomationsPerOwner:        serpent.Int64(4),
 	}
 	require.Equal(t, Limits{
 		MaxStepsPerTurn:               7,
@@ -27,5 +28,6 @@ func TestLimitsFromConfig(t *testing.T) {
 		MaxAttachmentsPerChat:         9,
 		MaxPromptBytes:                1024,
 		MaxConcurrentRecordingUploads: 1,
+		MaxAutomationsPerOwner:        4,
 	}, LimitsFromConfig(cfg))
 }

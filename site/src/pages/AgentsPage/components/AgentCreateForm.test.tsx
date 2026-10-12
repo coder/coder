@@ -53,7 +53,12 @@ import {
 	selectedWorkspaceIdStorageKey,
 } from "./AgentCreateForm";
 
-const dashboard = vi.hoisted(() => ({ showOrganizations: false }));
+const dashboard = vi.hoisted(
+	(): { showOrganizations: boolean; experiments: string[] } => ({
+		showOrganizations: false,
+		experiments: [],
+	}),
+);
 
 vi.mock("#/modules/dashboard/useDashboard", async () => {
 	const { MockDefaultOrganization, MockOrganization2 } = await import(
@@ -63,6 +68,7 @@ vi.mock("#/modules/dashboard/useDashboard", async () => {
 		useDashboard: () => ({
 			organizations: [MockDefaultOrganization, MockOrganization2],
 			showOrganizations: dashboard.showOrganizations,
+			experiments: dashboard.experiments,
 		}),
 	};
 });
@@ -768,6 +774,71 @@ describe("AgentCreateForm organization lock", () => {
 		const options = submittedOptions(onCreateChat);
 		expect(options.message).toBe("typed while loading");
 		expect(options.organizationId).toBe(MockDefaultOrganization.id);
+	});
+});
+
+describe("AgentCreateForm manage automations toggle", () => {
+	beforeEach(() => {
+		localStorage.clear();
+		dashboard.showOrganizations = false;
+		dashboard.experiments = [];
+	});
+
+	it("turns the tool on by default when the experiment is on", async () => {
+		dashboard.experiments = ["chat-automations"];
+		const { onCreateChat } = renderForm();
+
+		await submitMessage("check the nightly build every morning");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(true);
+	});
+
+	it("keeps the tool off by default when the experiment is off", async () => {
+		const { onCreateChat } = renderForm();
+
+		await submitMessage("check the nightly build every morning");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(false);
+	});
+
+	it("follows the experiment when it loads after the first render", async () => {
+		const { onCreateChat, rerender } = renderForm();
+		dashboard.experiments = ["chat-automations"];
+		rerender({});
+
+		await submitMessage("check the nightly build every morning");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(true);
+	});
+
+	it("sends off after the user turns the chip off", async () => {
+		dashboard.experiments = ["chat-automations"];
+		const { onCreateChat } = renderForm();
+
+		await user().click(
+			await screen.findByRole("button", {
+				name: "Turn off Manage automations",
+			}),
+		);
+		await submitMessage("check the nightly build every morning");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(false);
+	});
+
+	it("sends the toggle as off once the chat-automations experiment turns off", async () => {
+		dashboard.experiments = ["chat-automations"];
+		const { onCreateChat, rerender } = renderForm();
+
+		dashboard.experiments = [];
+		rerender({});
+		await submitMessage("check the nightly build every morning");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(false);
 	});
 });
 

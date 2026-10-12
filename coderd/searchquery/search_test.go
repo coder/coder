@@ -1167,8 +1167,8 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 	t.Parallel()
 
 	// These query shapes must match the emitters in
-	// site/src/pages/AgentsPage/components/ChatsSidebar/dialogs/searchQuery.ts
-	// and site/src/api/queries/chats.ts.
+	// site/src/pages/AgentsPage/components/ChatsSidebar/dialogs/searchQuery.ts,
+	// site/src/api/queries/chats.ts and site/src/api/queries/chatAutomations.ts.
 	testCases := []struct {
 		name  string
 		query string
@@ -1183,6 +1183,7 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 		{name: "SearchOperatorWord", query: `search:"or"`},
 		{name: "HasUnread", query: "has_unread:true"},
 		{name: "Archived", query: "archived:true"},
+		{name: "AutomationHistory", query: "archived:any"},
 		{name: "PRStatuses", query: "pr_status:open,merged"},
 		{name: "ChatStatuses", query: "status:error,running"},
 		{name: "PRStatusNone", query: "pr_status:none"},
@@ -1199,10 +1200,11 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 		{name: "SidebarNoPR", query: "archived:false pr_status:none"},
 	}
 
+	db, _ := dbtestutil.NewDB(t)
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			_, errs := searchquery.Chats(testCase.query)
+			_, errs := searchquery.Chats(context.Background(), db, testCase.query)
 			require.Empty(t, errs)
 		})
 	}
@@ -1211,7 +1213,7 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 	for _, query := range rejectedQueries {
 		t.Run("Rejects"+query, func(t *testing.T) {
 			t.Parallel()
-			_, errs := searchquery.Chats(query)
+			_, errs := searchquery.Chats(context.Background(), db, query)
 			require.NotEmpty(t, errs)
 		})
 	}
@@ -1219,6 +1221,10 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 
 func TestSearchChats(t *testing.T) {
 	t.Parallel()
+
+	// One database serves every case. Only the organization cases read it.
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
 
 	testCases := []struct {
 		Name                  string
@@ -1263,6 +1269,25 @@ func TestSearchChats(t *testing.T) {
 				Archived:  sql.NullBool{Bool: false, Valid: true},
 				OwnedOnly: true,
 			},
+		},
+		{
+			Name:  "ArchivedAny",
+			Query: "archived:any",
+			Expected: database.GetChatsParams{
+				OwnedOnly: true,
+			},
+		},
+		{
+			Name:  "ArchivedAnyUpperCase",
+			Query: "archived:ANY",
+			Expected: database.GetChatsParams{
+				OwnedOnly: true,
+			},
+		},
+		{
+			Name:                  "ArchivedAnyRepeated",
+			Query:                 "archived:any archived:true",
+			ExpectedErrorContains: "archived",
 		},
 		{
 			Name:  "HasUnreadTrue",
@@ -1695,6 +1720,37 @@ func TestSearchChats(t *testing.T) {
 			ExpectedErrorContains: `search: "search" cannot be combined with "title"`,
 		},
 		{
+			Name:  "OrganizationByID",
+			Query: "organization:4fe722f0-49bc-4a90-a3eb-4ac439bfce20",
+			Expected: database.GetChatsParams{
+				Archived:       sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:      true,
+				OrganizationID: uuid.MustParse("4fe722f0-49bc-4a90-a3eb-4ac439bfce20"),
+			},
+		},
+		{
+			Name:  "OrganizationByName",
+			Query: "organization:" + org.Name,
+			Expected: database.GetChatsParams{
+				Archived:       sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:      true,
+				OrganizationID: org.ID,
+			},
+		},
+		{
+			Name:                  "OrganizationUnknownName",
+			Query:                 "organization:does-not-exist",
+			ExpectedErrorContains: `organization: Query param "organization" has invalid value: organization "does-not-exist" either does not exist`,
+		},
+		{
+			// The query treats the nil UUID as "no filter", so it must not
+			// be accepted as an organization.
+			Name:                  "OrganizationNilUUID",
+			Query:                 "organization:00000000-0000-0000-0000-000000000000",
+			ExpectedErrorContains: `organization: Query param "organization" must not be the nil UUID.`,
+			ExpectedErrorCount:    1,
+		},
+		{
 			Name:                  "SearchConflictsWithMultiple",
 			Query:                 "search:foo title:bar pr:12",
 			ExpectedErrorContains: `search: "search" cannot be combined with "title", "pr"`,
@@ -1717,7 +1773,7 @@ func TestSearchChats(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
-			values, errs := searchquery.Chats(c.Query)
+			values, errs := searchquery.Chats(context.Background(), db, c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				if c.ExpectedErrorCount > 0 {

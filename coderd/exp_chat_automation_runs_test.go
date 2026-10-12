@@ -1,0 +1,219 @@
+package coderd_test
+
+import (
+	"net/http"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
+)
+
+// existingChatScheduleRequest returns a schedule automation that sends to
+// chatID.
+func (e chatAutomationTestEnv) existingChatScheduleRequest(chatID uuid.UUID, whenBusy codersdk.ChatAutomationWhenBusy) codersdk.CreateChatAutomationRequest {
+	req := e.scheduleRequest()
+	req.TargetMode = codersdk.ChatAutomationTargetModeExistingChat
+	req.TargetChatID = &chatID
+	req.NewChatModelConfigID = nil
+	req.WhenBusy = ptr.Ref(whenBusy)
+	return req
+}
+
+// userMessages returns the user messages saved in chatID.
+func (e chatAutomationTestEnv) userMessages(t *testing.T, chatID uuid.UUID) []database.ChatMessage {
+	t.Helper()
+	messages, err := e.db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitShort)), database.GetChatMessagesByChatIDParams{ChatID: chatID})
+	require.NoError(t, err)
+	var users []database.ChatMessage
+	for _, message := range messages {
+		if message.Role == database.ChatMessageRoleUser {
+			users = append(users, message)
+		}
+	}
+	return users
+}
+
+func TestChatAutomationRuns(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ExistingChatKeepsSchedule", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.existingChatScheduleRequest(env.memberChat.ID, codersdk.ChatAutomationWhenBusyQueue))
+		require.NoError(t, err)
+		id := created.Automation.ID
+		before, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), id)
+		require.NoError(t, err)
+
+		res, err := env.member.RunChatAutomation(ctx, env.orgID, id)
+		require.NoError(t, err)
+		require.Equal(t, env.memberChat.ID, res.ChatID)
+
+		messages := env.userMessages(t, env.memberChat.ID)
+		require.Len(t, messages, 1)
+		require.Equal(t, uuid.NullUUID{UUID: id, Valid: true}, messages[0].AutomationID)
+		require.Equal(t, uuid.NullUUID{UUID: res.InputID, Valid: true}, messages[0].InputID)
+		sdkMessages, err := env.member.GetChatMessages(ctx, env.memberChat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, sdkMessages.Messages, 1)
+		require.Len(t, sdkMessages.Messages[0].Content, 1, "only the saved prompt is sent")
+		require.Equal(t, "Summarize yesterday.", sdkMessages.Messages[0].Content[0].Text)
+
+		after, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), id)
+		require.NoError(t, err)
+		// Running now records only the last run, so the schedule cursor,
+		// revision, and updated_at stay.
+		require.True(t, after.LastRunAt.Valid)
+		require.Equal(t, database.ChatAutomationRunOutcomeAccepted, after.LastRunOutcome.ChatAutomationRunOutcome)
+		require.Equal(t, uuid.NullUUID{UUID: env.memberChat.ID, Valid: true}, after.LastRunChatID)
+		after.LastRunAt, after.LastRunOutcome, after.LastRunChatID = before.LastRunAt, before.LastRunOutcome, before.LastRunChatID
+		require.Equal(t, before, after, "running now must not change the automation")
+	})
+
+	t.Run("OnlyOwnerCanRun", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		orgAdminRaw, _ := coderdtest.CreateAnotherUser(t, env.owner.Client, env.orgID, rbac.ScopedRoleOrgAdmin(env.orgID))
+		otherRaw, _ := coderdtest.CreateAnotherUser(t, env.owner.Client, env.orgID)
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.existingChatScheduleRequest(env.memberChat.ID, codersdk.ChatAutomationWhenBusyQueue))
+		require.NoError(t, err)
+		webhook, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
+		require.NoError(t, err)
+
+		for name, client := range map[string]*codersdk.ExperimentalClient{
+			"OrgAdmin":  codersdk.NewExperimentalClient(orgAdminRaw),
+			"SiteOwner": env.owner,
+		} {
+			_, err := client.RunChatAutomation(ctx, env.orgID, created.Automation.ID)
+			sdkErr := requireSDKError(t, err, http.StatusForbidden)
+			require.Equal(t, "Only the owner of a chat automation can run it.", sdkErr.Message, name)
+			// The owner check comes first, so the kind of an automation
+			// someone else owns is not revealed.
+			_, err = client.RunChatAutomation(ctx, env.orgID, webhook.Automation.ID)
+			requireSDKError(t, err, http.StatusForbidden)
+		}
+		_, err = codersdk.NewExperimentalClient(otherRaw).RunChatAutomation(ctx, env.orgID, created.Automation.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+		require.Empty(t, env.userMessages(t, env.memberChat.ID))
+		require.Empty(t, env.queuedMessageIDs(t, env.memberChat.ID))
+	})
+
+	t.Run("Refused", func(t *testing.T) {
+		t.Parallel()
+		// A queue of 2 leaves automations a share of 1.
+		env := newChatAutomationTestEnv(t, nil, func(o *coderdtest.Options) {
+			o.DeploymentValues.AI.Chat.MaxQueuedMessagesPerChat = serpent.Int64(2)
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		busy := dbgen.Chat(t, env.db, database.Chat{
+			OrganizationID:    env.orgID,
+			OwnerID:           env.memberID,
+			LastModelConfigID: env.modelConfig.ID,
+			Status:            database.ChatStatusRunning,
+		})
+
+		webhook, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
+		require.NoError(t, err)
+		_, err = env.member.RunChatAutomation(ctx, env.orgID, webhook.Automation.ID)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Len(t, sdkErr.Validations, 1, sdkErr.Error())
+		require.Equal(t, "kind", sdkErr.Validations[0].Field)
+
+		disabled, err := env.member.CreateChatAutomation(ctx, env.orgID, env.existingChatScheduleRequest(env.memberChat.ID, codersdk.ChatAutomationWhenBusyQueue))
+		require.NoError(t, err)
+		_, err = env.member.UpdateChatAutomation(ctx, env.orgID, disabled.Automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+		require.NoError(t, err)
+		_, err = env.member.RunChatAutomation(ctx, env.orgID, disabled.Automation.ID)
+		requireSDKError(t, err, http.StatusConflict)
+		require.Empty(t, env.userMessages(t, env.memberChat.ID))
+
+		skip, err := env.member.CreateChatAutomation(ctx, env.orgID, env.existingChatScheduleRequest(busy.ID, codersdk.ChatAutomationWhenBusySkip))
+		require.NoError(t, err)
+		_, err = env.member.RunChatAutomation(ctx, env.orgID, skip.Automation.ID)
+		sdkErr = requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "The automation skips runs while the chat is busy.", sdkErr.Detail)
+		require.Empty(t, env.queuedMessageIDs(t, busy.ID))
+
+		queue, err := env.member.CreateChatAutomation(ctx, env.orgID, env.existingChatScheduleRequest(busy.ID, codersdk.ChatAutomationWhenBusyQueue))
+		require.NoError(t, err)
+		_, err = env.member.RunChatAutomation(ctx, env.orgID, queue.Automation.ID)
+		require.NoError(t, err)
+		_, err = env.member.RunChatAutomation(ctx, env.orgID, queue.Automation.ID)
+		sdkErr = requireSDKError(t, err, http.StatusTooManyRequests)
+		require.Equal(t, "Automations can queue at most 1 message in a chat.", sdkErr.Detail)
+		require.Len(t, env.queuedMessageIDs(t, busy.ID), 1)
+	})
+
+	t.Run("NewChatTarget", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		env := newChatAutomationTestEnv(t, nil, func(o *coderdtest.Options) { o.Auditor = auditor })
+		ctx := testutil.Context(t, testutil.WaitLong)
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.scheduleRequest())
+		require.NoError(t, err)
+
+		start := time.Now().Truncate(time.Minute)
+		res, err := env.member.RunChatAutomation(ctx, env.orgID, created.Automation.ID)
+		require.NoError(t, err)
+		require.NotEqual(t, env.memberChat.ID, res.ChatID)
+
+		chat, err := env.member.GetChat(ctx, res.ChatID)
+		require.NoError(t, err)
+		require.Equal(t, env.memberID, chat.OwnerID)
+		// The run's chat names the automation that created it; a chat a
+		// person created, which existing_chat runs only send to, does not.
+		require.Equal(t, &created.Automation.ID, chat.AutomationID)
+		humanChat, err := env.member.GetChat(ctx, env.memberChat.ID)
+		require.NoError(t, err)
+		require.Nil(t, humanChat.AutomationID)
+		list, err := env.member.ListChats(ctx, nil)
+		require.NoError(t, err)
+		found := false
+		for _, listed := range list {
+			if listed.ID == res.ChatID {
+				found = true
+				require.Equal(t, &created.Automation.ID, listed.AutomationID, "the chat list carries it too")
+			}
+		}
+		require.True(t, found)
+		require.True(t, strings.HasPrefix(chat.Title, "Nightly report · "), chat.Title)
+		berlin, err := time.LoadLocation("Europe/Berlin")
+		require.NoError(t, err)
+		rest := strings.TrimPrefix(chat.Title, "Nightly report · ")
+		cut := strings.LastIndex(rest, " ")
+		require.Positive(t, cut, chat.Title)
+		parsed, err := time.Parse("2 Jan 15:04", rest[:cut])
+		require.NoError(t, err, "the title ends with the run time in the schedule's time zone")
+		// The title has no year.
+		titled := time.Date(start.In(berlin).Year(), parsed.Month(), parsed.Day(), parsed.Hour(), parsed.Minute(), 0, 0, berlin)
+		require.Equal(t, titled.Format("MST"), rest[cut+1:])
+		require.False(t, titled.Before(start), "title time %s", titled)
+		require.False(t, titled.After(time.Now()), "title time %s", titled)
+		require.True(t, auditor.Contains(t, database.AuditLog{
+			Action:         database.AuditActionCreate,
+			ResourceType:   database.ResourceTypeChat,
+			ResourceID:     res.ChatID,
+			UserID:         env.memberID,
+			OrganizationID: env.orgID,
+		}), "the created chat is audited as created by the automation owner")
+
+		messages := env.userMessages(t, res.ChatID)
+		require.Len(t, messages, 1)
+		require.Equal(t, uuid.NullUUID{UUID: res.InputID, Valid: true}, messages[0].InputID)
+	})
+}

@@ -3035,6 +3035,100 @@ func TestListChats(t *testing.T) {
 			require.Equal(t, archivedWithPR.ID, chats[0].ID)
 		})
 	})
+
+	t.Run("AutomationFilter", func(t *testing.T) {
+		t.Parallel()
+
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automationID := uuid.New()
+		markCreatedBy := func(chat database.Chat) {
+			t.Helper()
+			rows, err := env.db.UpdateChatAutomationIDByID(dbauthz.AsSystemRestricted(ctx), database.UpdateChatAutomationIDByIDParams{
+				ID:           chat.ID,
+				AutomationID: automationID,
+			})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, rows)
+		}
+		newMemberChat := func() database.Chat {
+			return dbgen.Chat(t, env.db, database.Chat{
+				OrganizationID:    env.orgID,
+				OwnerID:           env.memberID,
+				LastModelConfigID: env.modelConfig.ID,
+			})
+		}
+
+		created := newMemberChat()
+		markCreatedBy(created)
+		// Archived chats stay in the automation's history when the
+		// caller asks for archived:any.
+		archivedCreated := newMemberChat()
+		markCreatedBy(archivedCreated)
+		require.NoError(t, env.member.UpdateChat(ctx, archivedCreated.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
+		// The automation only sent a message to this existing chat.
+		writtenTo := env.memberChat
+		dbgen.ChatMessage(t, env.db, database.ChatMessage{
+			ChatID:       writtenTo.ID,
+			AutomationID: uuid.NullUUID{UUID: automationID, Valid: true},
+		})
+		unrelated := newMemberChat()
+		// A deleted automation message no longer counts as writing to
+		// the chat.
+		deletedMessageChat := newMemberChat()
+		deletedMessage := dbgen.ChatMessage(t, env.db, database.ChatMessage{
+			ChatID:       deletedMessageChat.ID,
+			AutomationID: uuid.NullUUID{UUID: automationID, Valid: true},
+		})
+		require.NoError(t, env.db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), deletedMessage.ID))
+		// Another user's chat that the member may not read.
+		owner, err := env.owner.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		markCreatedBy(dbgen.Chat(t, env.db, database.Chat{
+			OrganizationID:    env.orgID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: env.modelConfig.ID,
+		}))
+
+		chatIDs := func(opts *codersdk.ListChatsOptions) []uuid.UUID {
+			t.Helper()
+			chats, err := env.member.ListChats(ctx, opts)
+			require.NoError(t, err)
+			ids := make([]uuid.UUID, 0, len(chats))
+			for _, chat := range chats {
+				ids = append(ids, chat.ID)
+			}
+			return ids
+		}
+
+		require.ElementsMatch(t, []uuid.UUID{created.ID, writtenTo.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID}))
+		require.ElementsMatch(t, []uuid.UUID{created.ID, archivedCreated.ID, writtenTo.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID, Query: "archived:any"}))
+		require.Equal(t, []uuid.UUID{archivedCreated.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID, Query: "archived:true"}))
+		require.Empty(t, chatIDs(&codersdk.ListChatsOptions{AutomationID: uuid.New()}))
+
+		for _, value := range []string{"", "not-a-uuid", uuid.Nil.String()} {
+			status, body := rawGet(t, env.member, "/api/v2/chats?automation_id="+value)
+			require.Equal(t, http.StatusBadRequest, status, body)
+			require.Contains(t, body, "automation_id")
+		}
+
+		// With the experiment off for the member, the filter is rejected:
+		// ignoring it would return every chat as the automation's chats.
+		member, err := env.member.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		_, err = env.owner.PutExperimentRule(ctx, codersdk.ExperimentChatAutomations, codersdk.PutExperimentRuleRequest{
+			Mode:      codersdk.ExperimentRuleModeCondition,
+			Condition: fmt.Sprintf("user.username != %q", member.Username),
+		})
+		require.NoError(t, err)
+		_, err = env.member.ListChats(ctx, &codersdk.ListChatsOptions{AutomationID: automationID})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "chat automations experiment is not enabled", sdkErr.Message)
+		status, body := rawGet(t, env.member, "/api/v2/chats?automation_id=not-a-uuid")
+		require.Equal(t, http.StatusBadRequest, status, body)
+		require.Contains(t, body, "chat automations experiment is not enabled")
+		require.ElementsMatch(t, []uuid.UUID{created.ID, writtenTo.ID, unrelated.ID, deletedMessageChat.ID}, chatIDs(nil))
+	})
 }
 
 func TestListChatModels(t *testing.T) {
@@ -3454,6 +3548,59 @@ func TestListChats_Search(t *testing.T) {
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "search", sdkErr.Validations[0].Field)
 		require.Contains(t, sdkErr.Validations[0].Detail, `"title"`)
+	})
+
+	t.Run("OrganizationFilter", func(t *testing.T) {
+		t.Parallel()
+		ctx, client, db, firstUser, modelConfig := setup(t)
+
+		defaultOrgChat := createChat(t, db, firstUser, modelConfig.ID, "default org chat")
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: firstUser.UserID})
+		otherModelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: otherOrg.ID})
+		otherOrgChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    otherOrg.ID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: otherModelConfig.ID,
+			Title:             "other org chat",
+		})
+
+		for _, value := range []string{otherOrg.ID.String(), otherOrg.Name} {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "organization:" + value})
+			require.NoError(t, err)
+			require.Equal(t, map[uuid.UUID]struct{}{otherOrgChat.ID: {}}, chatIDs(chats), value)
+		}
+		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "organization:" + firstUser.OrganizationID.String()})
+		require.NoError(t, err)
+		require.Equal(t, map[uuid.UUID]struct{}{defaultOrgChat.ID: {}}, chatIDs(chats))
+
+		_, err = client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "organization:does-not-exist"})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "organization", sdkErr.Validations[0].Field)
+	})
+
+	t.Run("TitleWildcardsAreLiteral", func(t *testing.T) {
+		t.Parallel()
+		ctx, client, db, firstUser, modelConfig := setup(t)
+
+		percent := createChat(t, db, firstUser, modelConfig.ID, "100% done")
+		underscore := createChat(t, db, firstUser, modelConfig.ID, "snake_case")
+		backslash := createChat(t, db, firstUser, modelConfig.ID, `C:\temp`)
+		_ = createChat(t, db, firstUser, modelConfig.ID, "plain")
+
+		for query, want := range map[string]uuid.UUID{
+			"title:%":      percent.ID,
+			"title:_":      underscore.ID,
+			`title:"0% d"`: percent.ID,
+			// Unescaped, a lone backslash would escape the trailing '%'
+			// and match titles containing '%' instead.
+			`title:\`: backslash.ID,
+		} {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: query})
+			require.NoError(t, err)
+			require.Equal(t, map[uuid.UUID]struct{}{want: {}}, chatIDs(chats), query)
+		}
 	})
 }
 

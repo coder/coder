@@ -149,6 +149,32 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 };
 
 describe("ChatsSidebar projects", () => {
+	it("says that automations in a project keep running after its delete", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+		);
+		render(
+			<Wrapper experiments={["chat-projects", "chat-automations"]}>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+
+		await screen.findByText(
+			"Automations that start chats in this project keep running",
+			{ exact: false },
+		);
+	});
+
 	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
 		const user = userEvent.setup();
 		const mockOtherProject = {

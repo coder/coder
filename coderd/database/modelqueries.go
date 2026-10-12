@@ -54,7 +54,87 @@ type customQuerier interface {
 	aibridgeQuerier
 	chatQuerier
 	chatModelConfigQuerier
+	chatAutomationQuerier
 	mcpServerConfigQuerier
+}
+
+type chatAutomationQuerier interface {
+	GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams, prepared rbac.PreparedAuthorized) ([]ChatAutomation, error)
+}
+
+// GetAuthorizedChatAutomationsByOrganizationID returns the automations in
+// the organization, of one owner when arg.OwnerID is set, that prepared
+// allows. Both filters run in SQL, so a caller who can read only their own
+// automations, or asks for one owner's, does not read the whole
+// organization.
+func (q *sqlQuerier) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams, prepared rbac.PreparedAuthorized) ([]ChatAutomation, error) {
+	// Chat automations have no ACL columns, and the query reads only
+	// chat_automations, so id, organization_id, and owner_id are unambiguous.
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.NoACLConverter(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(getChatAutomationsByOrganizationID, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedChatAutomationsByOrganizationID :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query, arg.OrganizationID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutomation
+	for rows.Next() {
+		var i ChatAutomation
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.CreatedByChatID,
+			&i.Kind,
+			&i.Enabled,
+			&i.TargetMode,
+			&i.TargetChatID,
+			&i.NewChatModelConfigID,
+			&i.ReasoningEffort,
+			&i.WhenBusy,
+			&i.WebhookUse,
+			&i.WebhookSecretHash,
+			&i.WebhookSecretVersion,
+			&i.WebhookConsumedAt,
+			&i.Prompt,
+			&i.ScheduleCron,
+			&i.ScheduleTimeZone,
+			&i.ScheduleRevision,
+			&i.ScheduleNextRunAt,
+			&i.QueueGeneration,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProjectID,
+			&i.ScheduleClaimedUntil,
+			&i.LastRunAt,
+			&i.LastRunOutcome,
+			&i.LastRunReason,
+			&i.LastRunChatID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 type chatModelConfigQuerier interface {
@@ -850,6 +930,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,
 		arg.ProjectID,
+		arg.OrganizationID,
 		arg.AfterID,
 		arg.LabelFilter,
 		arg.DiffURL,
@@ -861,6 +942,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 		arg.RepoQuery,
 		arg.PrTitleQuery,
 		arg.Search,
+		arg.AutomationID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -922,6 +1004,8 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.CompactionRequestedAt,
 			&i.Chat.TitleSource,
 			&i.Chat.TitleUpdatedAt,
+			&i.Chat.AutomationID,
+			&i.Chat.ManageAutomationsEnabled,
 			&i.HasUnread); err != nil {
 			return nil, err
 		}
@@ -1006,7 +1090,9 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 			&i.ContextError,
 			&i.CompactionRequestedAt,
 			&i.TitleSource,
-			&i.TitleUpdatedAt); err != nil {
+			&i.TitleUpdatedAt,
+			&i.AutomationID,
+			&i.ManageAutomationsEnabled); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

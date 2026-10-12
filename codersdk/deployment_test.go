@@ -54,6 +54,7 @@ func TestExperimentDisplayNames(t *testing.T) {
 		codersdk.ExperimentChatInlineMCPServers:      "Chat Inline MCP Servers",
 		codersdk.ExperimentEnableAIWorkspaceDebug:    "AI Workspace Debugging",
 		codersdk.ExperimentChatStageMetrics:          "Chat Stage Metrics",
+		codersdk.ExperimentChatAutomations:           "Chat Automations",
 	}
 
 	require.Len(t, expected, len(codersdk.ExperimentsKnown))
@@ -1019,6 +1020,7 @@ func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
 		{"chat-max-attachments-per-chat", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxAttachmentsPerChat }},
 		{"chat-max-prompt-bytes", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxPromptBytes }},
 		{"chat-max-concurrent-recording-uploads", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxConcurrentRecordingUploads }},
+		{"chat-max-automations-per-owner", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxAutomationsPerOwner }},
 	}
 	values := []struct {
 		value int64
@@ -1045,6 +1047,34 @@ func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
 				require.ErrorContains(t, err, fmt.Sprintf("--%s (%d) must be between 1 and", limit.flag, tc.value))
 			})
 		}
+	}
+}
+
+func TestDeploymentValues_Validate_ChatAutomationWebhookMaxBodyBytes(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		value int64
+		valid bool
+	}{
+		{value: 0},
+		{value: codersdk.MinChatAutomationWebhookMaxBodyBytes - 1},
+		{value: codersdk.MinChatAutomationWebhookMaxBodyBytes, valid: true},
+		{value: codersdk.DefaultChatAutomationWebhookMaxBodyBytes, valid: true},
+		{value: codersdk.MaxChatRequestBodyBytes, valid: true},
+		{value: codersdk.MaxChatRequestBodyBytes + 1},
+	} {
+		t.Run(fmt.Sprint(tc.value), func(t *testing.T) {
+			t.Parallel()
+			dv := defaultDeploymentValues(t)
+			dv.AI.Chat.AutomationWebhookMaxBodyBytes = serpent.Int64(tc.value)
+			err := dv.Validate()
+			if tc.valid {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, "--chat-automation-webhook-max-body-bytes")
+		})
 	}
 }
 
@@ -1240,6 +1270,37 @@ func TestDeploymentValues_Validate_ChatStreamSilenceTimeout(t *testing.T) {
 
 			dv := defaultDeploymentValues(t)
 			dv.AI.Chat.StreamSilenceTimeout = serpent.Duration(tt.timeout)
+
+			err := dv.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestDeploymentValues_Validate_ChatMinAutomationScheduleInterval(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		interval time.Duration
+		wantErr  string
+	}{
+		{name: "Minimum", interval: time.Minute},
+		{name: "BelowMinimum", interval: 30 * time.Second, wantErr: "--chat-min-automation-schedule-interval"},
+		{name: "Maximum", interval: 24 * time.Hour},
+		{name: "AboveMaximum", interval: 25 * time.Hour, wantErr: "--chat-min-automation-schedule-interval"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := defaultDeploymentValues(t)
+			dv.AI.Chat.MinAutomationScheduleInterval = serpent.Duration(tt.interval)
 
 			err := dv.Validate()
 			if tt.wantErr == "" {

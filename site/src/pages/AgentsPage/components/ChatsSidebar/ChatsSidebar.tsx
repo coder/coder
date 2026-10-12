@@ -19,6 +19,8 @@ import {
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { buildAgentProjectPath } from "../../utils/navigation";
 import { draftStorageKeys } from "../AgentCreateForm";
+import { AUTOMATIONS_PATH } from "../Automations/automationsFlag";
+import { useProjectDeleteInfo } from "../ProjectPage/useProjectDeleteInfo";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import type { ProjectDialogState } from "./chats/ProjectFolders";
 import { getOrganizationLabels } from "./chats/projectGrouping";
@@ -105,6 +107,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		currentUserId,
 	} = props;
 	const { organizations, experiments } = useDashboard();
+	const projectDeleteInfo = useProjectDeleteInfo();
 	const initialOrganizationId =
 		getDefaultOrganizationId(organizations) ?? organizations[0]?.id;
 	// The sidebar lists the user's projects across organizations.
@@ -291,7 +294,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isChatsActive={
 					!activeChatId &&
 					sidebarView.panel === "chats" &&
-					!sidebarView.projectId
+					!sidebarView.projectId &&
+					!location.pathname.startsWith(AUTOMATIONS_PATH)
 				}
 				location={location}
 				currentUserId={currentUserId}
@@ -345,7 +349,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 						: undefined
 				}
 				confirmLoading={deleteProjectMutation.isPending}
-				info="Chats in this project will be kept and move back to the Chats list."
+				info={projectDeleteInfo}
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

@@ -37,6 +37,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"ChatProject":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatProjectMemory":             {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"ChatModelConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatAutomation":                {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -501,6 +502,40 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
+		"automation_id":               ActionTrack,
+		"manage_automations_enabled":  ActionTrack,
+	},
+	&database.ChatAutomation{}: {
+		"id":                       ActionTrack,
+		"organization_id":          ActionTrack,
+		"owner_id":                 ActionTrack,
+		"name":                     ActionTrack,
+		"created_by_chat_id":       ActionTrack,
+		"kind":                     ActionTrack,
+		"enabled":                  ActionTrack,
+		"target_mode":              ActionTrack,
+		"target_chat_id":           ActionTrack,
+		"new_chat_model_config_id": ActionTrack,
+		"reasoning_effort":         ActionTrack,
+		"when_busy":                ActionTrack,
+		"project_id":               ActionTrack,
+		"webhook_use":              ActionTrack,
+		"webhook_secret_hash":      ActionSecret,
+		"webhook_secret_version":   ActionTrack,
+		"webhook_consumed_at":      ActionTrack,
+		"prompt":                   ActionSecret, // User-authored chat content, like chat titles.
+		"schedule_cron":            ActionTrack,
+		"schedule_time_zone":       ActionTrack,
+		"schedule_revision":        ActionIgnore, // Internal schedule bookkeeping.
+		"schedule_next_run_at":     ActionIgnore, // Internal schedule cursor.
+		"schedule_claimed_until":   ActionIgnore, // Internal schedule occurrence claim.
+		"queue_generation":         ActionIgnore, // Internal queued-message invalidation counter.
+		"last_run_at":              ActionIgnore, // Run outcome, not a configuration change.
+		"last_run_outcome":         ActionIgnore,
+		"last_run_reason":          ActionIgnore,
+		"last_run_chat_id":         ActionIgnore,
+		"created_at":               ActionIgnore,
+		"updated_at":               ActionIgnore,
 	},
 	&database.ChatProject{}: {
 		"id":              ActionTrack,

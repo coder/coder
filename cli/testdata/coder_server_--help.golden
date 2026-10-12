@@ -258,6 +258,14 @@ AI GATEWAY PROXY OPTIONS:
 CHAT OPTIONS: 
 Configure the background chat processing daemon.
 
+      --chat-automation-webhook-max-body-bytes int, $CODER_CHAT_AUTOMATION_WEBHOOK_MAX_BODY_BYTES (default: 65536)
+          Maximum size in bytes of a chat automation webhook body, and of its
+          event data after escaping. Larger deliveries fail with HTTP 413. The
+          whole body becomes part of the chat's next prompt, so one large body
+          can use up much of a model's context window. Must be between 1024 (1
+          KiB) and 262144 (256 KiB), the request body limit of the chat
+          endpoints.
+
       --chat-debug-logging-enabled bool, $CODER_CHAT_DEBUG_LOGGING_ENABLED (default: false)
           Force chat debug logging on for every chat, bypassing the runtime
           admin and user opt-in settings.
@@ -269,6 +277,11 @@ Configure the background chat processing daemon.
           earliest-uploaded files, and earlier messages show them as expired. A
           message that includes more files than the limit is rejected with HTTP
           400. Must be at least 1.
+
+      --chat-max-automations-per-owner int, $CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER (default: 50)
+          Maximum number of chat automations one user can own across all
+          organizations. Creating one more fails with HTTP 409. Must be at least
+          1.
 
       --chat-max-concurrent-recording-uploads int, $CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS (default: 25)
           Maximum number of virtual desktop recordings that each Coder server
@@ -302,6 +315,12 @@ Configure the background chat processing daemon.
           step; compaction summaries, advisor calls, and retried attempts do not
           count. A turn that reaches the limit runs the tools from the last
           response, then ends without an error. Must be at least 1.
+
+      --chat-min-automation-schedule-interval duration, $CODER_CHAT_MIN_AUTOMATION_SCHEDULE_INTERVAL (default: 5m0s)
+          Minimum time between two runs of a chat schedule automation. Creating
+          a schedule, or changing one, that runs more often fails with HTTP 400.
+          Existing schedules that run more often keep running, and the API marks
+          them. Must be between 1m and 24h.
 
       --chat-stream-silence-timeout duration, $CODER_CHAT_STREAM_SILENCE_TIMEOUT (default: 10m0s)
           Maximum time to wait for the next streamed part from the chat model

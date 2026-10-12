@@ -41,6 +41,7 @@ type Auditable interface {
 		database.ChatProject |
 		database.ChatProjectMemory |
 		database.ChatModelConfig |
+		database.ChatAutomation |
 		database.MCPServerConfig |
 		database.AuditableGroupAIBudget |
 		database.AuditableUserAIBudgetOverride |

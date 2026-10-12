@@ -40,6 +40,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		showDesktopPreviews: false,
 		hasActiveStream: false,
 		isAwaitingFirstStreamChunk: false,
+		automationReferences: { references: new Map(), status: "settled" },
 		chatStatus: null,
 		hasMoreMessages: false,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),

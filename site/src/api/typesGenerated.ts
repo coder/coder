@@ -757,6 +757,11 @@ export type APIKeyScope =
 	| "boundary_usage:read"
 	| "boundary_usage:update"
 	| "chat:*"
+	| "chat_automation:*"
+	| "chat_automation:create"
+	| "chat_automation:delete"
+	| "chat_automation:read"
+	| "chat_automation:update"
 	| "chat:create"
 	| "chat:delete"
 	| "chat_model_config:*"
@@ -1013,6 +1018,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"boundary_usage:read",
 	"boundary_usage:update",
 	"chat:*",
+	"chat_automation:*",
+	"chat_automation:create",
+	"chat_automation:delete",
+	"chat_automation:read",
+	"chat_automation:update",
 	"chat:create",
 	"chat:delete",
 	"chat_model_config:*",
@@ -2057,6 +2067,7 @@ export interface Chat {
 	readonly agent_id?: string;
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
+	readonly automation_id?: string; // The automation that created this chat (new_chat runs); unset for chats automations only send to. Kept after the automation is deleted.
 	readonly last_model_config_id: string;
 	readonly last_reasoning_effort?: string;
 	readonly title: string;
@@ -2128,6 +2139,11 @@ export interface Chat {
 	 */
 	readonly inline_mcp_servers?: readonly InlineMCPServer[];
 	/**
+	 * ManageAutomationsEnabled offers the manage_automations tool to this
+	 * chat's agent. Experimental.
+	 */
+	readonly manage_automations_enabled?: boolean;
+	/**
 	 * Children holds child (subagent) chats nested under this root
 	 * chat. Always initialized to an empty slice so the JSON field
 	 * is present as []. Child chats cannot create their own
@@ -2175,6 +2191,301 @@ export const ChatAttachmentMediaTypes: ChatAttachmentMediaType[] = [
  */
 export interface ChatAutoArchiveDaysResponse {
 	readonly auto_archive_days: number;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomation is a webhook or scheduled automation that delivers a
+ * prompt to an agent chat. It never carries the webhook secret or its
+ * hash. ProjectID is the project of the chats a new_chat automation
+ * creates; it is cleared when the project is deleted.
+ */
+export interface ChatAutomation {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	/**
+	 * Owner is the display data of the automation owner. It is set by the
+	 * chat automations API only when the caller can read the owner's
+	 * membership in the automation's organization, the same check as
+	 * GET /api/v2/organizations/{organization}/members/{user}. It is absent
+	 * otherwise, including for deleted owners and owners who left the
+	 * organization.
+	 */
+	readonly owner?: MinimalUser;
+	readonly name: string;
+	readonly created_by_chat_id?: string;
+	/**
+	 * CreatedByChat is the chat that created the automation. It is set by
+	 * the chat automations API only when the caller can read that chat, so
+	 * it is absent for automations created outside a chat, for deleted
+	 * chats, and for chats the caller cannot read.
+	 */
+	readonly created_by_chat?: ChatAutomationChat;
+	readonly kind: ChatAutomationKind;
+	readonly enabled: boolean;
+	readonly target_mode: ChatAutomationTargetMode;
+	readonly target_chat_id?: string;
+	/**
+	 * TargetChat is the target chat of an existing_chat automation. Like
+	 * CreatedByChat, it is set only when the caller can read that chat.
+	 */
+	readonly target_chat?: ChatAutomationChat;
+	readonly new_chat_model_config_id?: string;
+	readonly reasoning_effort?: string;
+	readonly when_busy?: ChatAutomationWhenBusy;
+	readonly project_id?: string;
+	readonly webhook_use?: ChatAutomationWebhookUse;
+	readonly webhook_secret_version: number;
+	readonly webhook_consumed_at?: string;
+	readonly prompt: string;
+	readonly schedule_cron?: string;
+	readonly schedule_time_zone?: string;
+	/**
+	 * ScheduleNextRunAt is the scheduler cursor, not a promise that a run
+	 * happens then. While the automation is paused it can stay in the past,
+	 * or keep moving past occurrences that are refused, for example while
+	 * its model is unavailable.
+	 */
+	readonly schedule_next_run_at?: string;
+	/**
+	 * NextRunTimes lists up to five upcoming runs of an enabled schedule.
+	 * It is empty for webhooks, disabled schedules, and schedules with any
+	 * paused reason.
+	 */
+	readonly next_run_times: readonly string[];
+	/**
+	 * PausedReasons lists conditions that stop the automation from running
+	 * even while it is enabled: schedule occurrences, Run now, and webhook
+	 * deliveries are refused. It is set by the chat automations API and
+	 * absent when none was found. It is computed independently of Enabled.
+	 * It is an advisory snapshot: admission stays authoritative, and an
+	 * empty list does not guarantee that a run is accepted, because lost
+	 * chat permissions, busy chats, and full queues are not reported.
+	 */
+	readonly paused_reasons?: readonly ChatAutomationPausedReason[];
+	/**
+	 * ScheduleIntervalBelowMinimum is true when the schedule runs more
+	 * often than the deployment's minimum interval between runs. Such
+	 * automations keep running, but a change to their schedule must meet
+	 * the minimum.
+	 */
+	readonly schedule_interval_below_minimum: boolean;
+	/**
+	 * LastRun is the outcome of the latest run, null until the first one.
+	 */
+	readonly last_run: ChatAutomationLastRun | null;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationChat identifies a chat that a chat automation refers to.
+ * Archived lets clients show an archived target, which refuses runs,
+ * without reading the chat.
+ */
+export interface ChatAutomationChat {
+	readonly id: string;
+	readonly title: string;
+	readonly archived: boolean;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationEventResponse is returned when a webhook automation
+ * accepts an event. InputID identifies the accepted input on the message
+ * it created in ChatID.
+ */
+export interface ChatAutomationEventResponse {
+	readonly input_id: string;
+	readonly chat_id: string;
+}
+
+// From codersdk/chatautomations.go
+export type ChatAutomationKind = "schedule" | "webhook";
+
+export const ChatAutomationKinds: ChatAutomationKind[] = [
+	"schedule",
+	"webhook",
+];
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationLastRun is the outcome of an automation's latest schedule
+ * occurrence, Run now, or authenticated webhook delivery. It is one record,
+ * not a run history: each run replaces it. Schedule occurrences that never
+ * start, because the automation is paused (see PausedReasons), leave it
+ * unchanged.
+ */
+export interface ChatAutomationLastRun {
+	readonly at: string;
+	readonly outcome: ChatAutomationRunOutcome;
+	/**
+	 * Reason is set for skipped and refused runs.
+	 */
+	readonly reason?: ChatAutomationRunReason;
+	/**
+	 * ChatID is the chat the run went to, or was meant for when the target
+	 * chat was known. For previous_run_active it is the chat that is still
+	 * active. The chat can be deleted since.
+	 */
+	readonly chat_id?: string;
+}
+
+// From codersdk/chatautomations.go
+export type ChatAutomationPausedReason =
+	| "experiment_disabled"
+	| "model_unavailable"
+	| "owner_inactive"
+	| "owner_not_member"
+	| "target_unavailable";
+
+export const ChatAutomationPausedReasons: ChatAutomationPausedReason[] = [
+	"experiment_disabled",
+	"model_unavailable",
+	"owner_inactive",
+	"owner_not_member",
+	"target_unavailable",
+];
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationReference names an automation that delivered into a chat.
+ * Anyone who can read the chat can read its references, so it carries no
+ * other automation fields.
+ */
+export interface ChatAutomationReference {
+	readonly id: string;
+	readonly name: string;
+	readonly kind: ChatAutomationKind;
+}
+
+// From codersdk/chatautomations.go
+export type ChatAutomationRunOutcome = "accepted" | "refused" | "skipped";
+
+export const ChatAutomationRunOutcomes: ChatAutomationRunOutcome[] = [
+	"accepted",
+	"refused",
+	"skipped",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationRunReason =
+	| "body_too_large"
+	| "chat_busy"
+	| "disabled"
+	| "error"
+	| "experiment_disabled"
+	| "forbidden"
+	| "hook_denied"
+	| "invalid_body"
+	| "missed"
+	| "model_unavailable"
+	| "no_default_model"
+	| "owner_inactive"
+	| "previous_run_active"
+	| "queue_full"
+	| "single_use_consumed"
+	| "target_unavailable";
+
+export const ChatAutomationRunReasons: ChatAutomationRunReason[] = [
+	"body_too_large",
+	"chat_busy",
+	"disabled",
+	"error",
+	"experiment_disabled",
+	"forbidden",
+	"hook_denied",
+	"invalid_body",
+	"missed",
+	"model_unavailable",
+	"no_default_model",
+	"owner_inactive",
+	"previous_run_active",
+	"queue_full",
+	"single_use_consumed",
+	"target_unavailable",
+];
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationRunResponse is returned when a schedule automation runs
+ * now. InputID identifies the accepted input on the message it created in
+ * ChatID.
+ */
+export interface ChatAutomationRunResponse {
+	readonly input_id: string;
+	readonly chat_id: string;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationSchedulePreviewRequest is a schedule to preview. It
+ * follows the same rules as the schedule of a chat automation.
+ */
+export interface ChatAutomationSchedulePreviewRequest {
+	readonly schedule_cron: string;
+	readonly schedule_time_zone: string;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationSchedulePreviewResponse lists the next runs of a previewed
+ * schedule.
+ */
+export interface ChatAutomationSchedulePreviewResponse {
+	readonly next_run_times: readonly string[];
+	/**
+	 * ClockChangeNote explains how the schedule runs across daylight
+	 * saving changes. It is set when the schedule's time zone changes its
+	 * UTC offset within a year.
+	 */
+	readonly clock_change_note?: string;
+	/**
+	 * IntervalWarning is set when the schedule runs more often than the
+	 * deployment's minimum interval. Creating such a schedule, or changing
+	 * an automation's schedule to it, fails, but an automation that
+	 * already has it keeps running.
+	 */
+	readonly interval_warning?: string;
+}
+
+// From codersdk/chatautomations.go
+export type ChatAutomationTargetMode = "existing_chat" | "new_chat";
+
+export const ChatAutomationTargetModes: ChatAutomationTargetMode[] = [
+	"existing_chat",
+	"new_chat",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationWebhookUse = "multi" | "single";
+
+export const ChatAutomationWebhookUses: ChatAutomationWebhookUse[] = [
+	"multi",
+	"single",
+];
+
+export const ChatAutomationWhenBusies: ChatAutomationWhenBusy[] = [
+	"queue",
+	"skip",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationWhenBusy = "queue" | "skip";
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationsFilter narrows the chat automation list.
+ */
+export interface ChatAutomationsFilter {
+	/**
+	 * Owner keeps only the automations of one owner: "me", a username, or
+	 * a user ID. Empty lists every automation the caller can read. The
+	 * filter never shows an automation the caller cannot read.
+	 */
+	readonly owner?: string;
 }
 
 // From codersdk/chats.go
@@ -2254,6 +2565,22 @@ export interface ChatConfig {
 	 * desktop recordings that each Coder server stores at the same time.
 	 */
 	readonly max_concurrent_recording_uploads: number;
+	/**
+	 * MaxAutomationsPerOwner is the maximum number of chat automations
+	 * one user can own across all organizations.
+	 */
+	readonly max_automations_per_owner: number;
+	/**
+	 * MinAutomationScheduleInterval is the minimum time between two runs
+	 * of a chat schedule automation. Creating or changing a schedule that
+	 * runs more often fails; existing schedules keep running.
+	 */
+	readonly min_automation_schedule_interval: number;
+	/**
+	 * AutomationWebhookMaxBodyBytes is the maximum size in bytes of a chat
+	 * automation webhook body and of its escaped event data.
+	 */
+	readonly automation_webhook_max_body_bytes: number;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -2881,6 +3208,17 @@ export interface ChatMessage {
 	 * version that did not record the link created it.
 	 */
 	readonly queued_message_id?: number;
+	/**
+	 * AutomationID is the chat automation that delivered this message,
+	 * if any. The automation may since have been deleted.
+	 */
+	readonly automation_id?: string;
+	/**
+	 * InputID identifies the automation input that produced this
+	 * message: a webhook delivery or a schedule occurrence. It is set
+	 * only when AutomationID is set.
+	 */
+	readonly input_id?: string;
 }
 
 // From codersdk/chats.go
@@ -3548,6 +3886,17 @@ export interface ChatQueuedMessage {
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
+	/**
+	 * AutomationID is the chat automation that queued this message, if
+	 * any. The automation may since have been deleted.
+	 */
+	readonly automation_id?: string;
+	/**
+	 * InputID identifies the automation input that produced this
+	 * message: a webhook delivery or a schedule occurrence. It is set
+	 * only when AutomationID is set.
+	 */
+	readonly input_id?: string;
 }
 
 // From codersdk/chats.go
@@ -4156,6 +4505,50 @@ export interface CreateAIProviderRequest {
 	readonly settings?: AIProviderSettings;
 }
 
+// From codersdk/chatautomations.go
+/**
+ * CreateChatAutomationRequest creates a chat automation owned by the
+ * caller. ProjectID applies to new_chat automations only, requires the
+ * chat-projects experiment, and puts the chats the automation creates into
+ * that project.
+ */
+export interface CreateChatAutomationRequest {
+	readonly name: string;
+	/**
+	 * Enabled creates the automation turned on (true or omitted) or off
+	 * (false). An automation created off has no pending schedule run, and
+	 * nothing runs until it is turned on.
+	 */
+	readonly enabled?: boolean;
+	readonly kind: ChatAutomationKind;
+	readonly target_mode: ChatAutomationTargetMode;
+	readonly target_chat_id?: string;
+	readonly new_chat_model_config_id?: string;
+	readonly reasoning_effort?: string;
+	readonly when_busy?: ChatAutomationWhenBusy;
+	readonly project_id?: string;
+	readonly webhook_use?: ChatAutomationWebhookUse;
+	readonly prompt: string;
+	/**
+	 * ScheduleCron is a standard five-field cron expression. As in standard
+	 * cron, when both day of month and day of week are restricted, a time
+	 * matches if either field matches.
+	 */
+	readonly schedule_cron?: string;
+	readonly schedule_time_zone?: string;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * CreateChatAutomationResponse is returned when a chat automation is
+ * created. WebhookSecret is set only for webhook automations. Only this
+ * response and RotateChatAutomationSecretResponse ever contain a secret.
+ */
+export interface CreateChatAutomationResponse {
+	readonly automation: ChatAutomation;
+	readonly webhook_secret?: string;
+}
+
 // From codersdk/chats.go
 /**
  * CreateChatMessageRequest is the request to add a message to a chat.
@@ -4281,6 +4674,14 @@ export interface CreateChatRequest {
 	readonly inline_mcp_servers?: readonly InlineMCPServerRequest[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+	/**
+	 * ManageAutomationsEnabled offers the manage_automations tool to the
+	 * chat's agent. Omitted turns it on when the chat-automations
+	 * experiment is on for the chat owner, and leaves it off otherwise.
+	 * False turns it off. True requires the experiment for the chat owner.
+	 * Experimental.
+	 */
+	readonly manage_automations_enabled?: boolean;
 }
 
 // From codersdk/users.go
@@ -5033,6 +5434,14 @@ export const DefaultChatAutoArchiveDays = 0;
 
 // From codersdk/chats.go
 /**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatAutomationWebhookMaxBodyBytes is the default maximum size
+ * of a chat automation webhook body.
+ */
+export const DefaultChatAutomationWebhookMaxBodyBytes = 65536;
+
+// From codersdk/chats.go
+/**
  * DefaultChatDebugRetentionDays is the default chat debug run retention
  * window, in days, applied when no site config row exists. Set the
  * config value to zero to disable the purge.
@@ -5046,6 +5455,14 @@ export const DefaultChatDebugRetentionDays = 30;
  * files linked to a chat.
  */
 export const DefaultChatMaxAttachmentsPerChat = 50;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxAutomationsPerOwner is the default maximum number of
+ * chat automations one user can own across all organizations.
+ */
+export const DefaultChatMaxAutomationsPerOwner = 50;
 
 // From codersdk/chats.go
 /**
@@ -5472,6 +5889,7 @@ export type Experiment =
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
 	| "chat-advisor"
+	| "chat-automations"
 	| "chat-inline-mcp-servers"
 	| "chat-projects"
 	| "chat-stage-metrics"
@@ -5552,6 +5970,7 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
 	"chat-advisor",
+	"chat-automations",
 	"chat-inline-mcp-servers",
 	"chat-projects",
 	"chat-stage-metrics",
@@ -6445,6 +6864,12 @@ export interface ListChatsOptions extends Pagination {
 	readonly Source: ChatListSource;
 	readonly Labels: Record<string, string>;
 	readonly ProjectID: string | null;
+	/**
+	 * AutomationID filters to chats the automation created or sent
+	 * messages to. The server rejects it with 400 Bad Request unless the
+	 * chat-automations experiment is enabled for the caller.
+	 */
+	readonly AutomationID: string;
 }
 
 // From codersdk/inboxnotification.go
@@ -6691,6 +7116,15 @@ export const MaxChatFileSizeBytes = 10485760;
 
 // From codersdk/chats.go
 /**
+ * Defaults for the chat limits in [ChatConfig].
+ * MaxChatRequestBodyBytes is the hard request body limit of the chat
+ * endpoints, and so the highest webhook body limit an administrator
+ * can set.
+ */
+export const MaxChatRequestBodyBytes = 262144;
+
+// From codersdk/chats.go
+/**
  * MaxChatTitleRunes is the longest title accepted at creation or rename,
  * counted in Unicode code points after trimming.
  */
@@ -6855,6 +7289,14 @@ export const MaxUserSecretsPerUserCount = 50;
  * math behind all three caps.
  */
 export const MaxUserSecretsTotalValueBytes = 204800; // 200 KiB
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * MinChatAutomationWebhookMaxBodyBytes is the lowest webhook body limit
+ * an administrator can set.
+ */
+export const MinChatAutomationWebhookMaxBodyBytes = 1024;
 
 // From codersdk/organizations.go
 export interface MinimalOrganization {
@@ -8765,6 +9207,7 @@ export type RBACResource =
 	| "boundary_log"
 	| "boundary_usage"
 	| "chat"
+	| "chat_automation"
 	| "chat_model_config"
 	| "chat_project"
 	| "chat_project_memory"
@@ -8821,6 +9264,7 @@ export const RBACResources: RBACResource[] = [
 	"boundary_log",
 	"boundary_usage",
 	"chat",
+	"chat_automation",
 	"chat_model_config",
 	"chat_project",
 	"chat_project_memory",
@@ -9248,6 +9692,17 @@ export const RoleTemplateAdmin = "template-admin";
  * Ideally these roles would be generated from the rbac/roles.go package.
  */
 export const RoleUserAdmin = "user-admin";
+
+// From codersdk/chatautomations.go
+/**
+ * RotateChatAutomationSecretResponse is returned when a webhook
+ * automation's secret is rotated. The previous secret stops working, and
+ * the new secret cannot be read again.
+ */
+export interface RotateChatAutomationSecretResponse {
+	readonly webhook_secret: string;
+	readonly webhook_secret_version: number;
+}
 
 // From codersdk/deployment.go
 /**
@@ -10539,6 +10994,42 @@ export interface UpdateChatAutoArchiveDaysRequest {
 	readonly auto_archive_days: number;
 }
 
+// From codersdk/chatautomations.go
+/**
+ * UpdateChatAutomationRequest changes the set fields of a chat automation.
+ * The kind, target mode, and webhook use of an automation cannot change:
+ * the API rejects a request that sets one of them, or any unknown field,
+ * with 400. A request that changes nothing leaves updated_at unchanged.
+ */
+export interface UpdateChatAutomationRequest {
+	/**
+	 * Enabled disables or re-enables the automation. Disabling removes the
+	 * messages the automation queued that have not started. Re-enabling a
+	 * schedule resumes at its next future occurrence; occurrences missed
+	 * while it was disabled do not run.
+	 */
+	readonly enabled?: boolean;
+	readonly name?: string;
+	readonly prompt?: string;
+	readonly schedule_cron?: string;
+	readonly schedule_time_zone?: string;
+	/**
+	 * ReasoningEffort sets the effort of new chats. An empty string clears
+	 * the override, so new chats use the model's default.
+	 */
+	readonly reasoning_effort?: string;
+	readonly when_busy?: ChatAutomationWhenBusy;
+	readonly target_chat_id?: string;
+	readonly new_chat_model_config_id?: string;
+	/**
+	 * ProjectID applies to new_chat automations only. A project ID moves the
+	 * chats the automation creates later into that project. The all-zero
+	 * UUID removes the project. Omitted or null leaves it unchanged. Chats
+	 * created earlier keep their project.
+	 */
+	readonly project_id?: string;
+}
+
 // From codersdk/chats.go
 /**
  * UpdateChatComputerUseProviderRequest is the request to update the computer use
@@ -10674,6 +11165,13 @@ export interface UpdateChatRequest {
 	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
 	 */
 	readonly plan_mode?: ChatPlanMode;
+	/**
+	 * ManageAutomationsEnabled turns the manage_automations tool on or
+	 * off for a root chat. Only the chat owner may set it. Enabling it
+	 * requires the chat-automations experiment for the owner; disabling
+	 * is always accepted. Experimental.
+	 */
+	readonly manage_automations_enabled?: boolean;
 }
 
 // From codersdk/chats.go

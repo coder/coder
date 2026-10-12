@@ -1531,6 +1531,605 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	})
 }
 
+// TestGetChatAutomationReferencesByChatID checks which automations a chat
+// references: the automation that created the chat, the automations of its
+// non-deleted user messages and of its queued messages, each once and only
+// from the chat's organization.
+func TestGetChatAutomationReferencesByChatID(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
+	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+	otherChat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+
+	newAutomation := func(orgID uuid.UUID, kind database.ChatAutomationKind) database.ChatAutomation {
+		return dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: orgID, OwnerID: owner.ID, Kind: kind})
+	}
+	addMessage := func(chatID, automationID uuid.UUID) database.ChatMessage {
+		return dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:       chatID,
+			CreatedBy:    uuid.NullUUID{UUID: owner.ID, Valid: true},
+			AutomationID: uuid.NullUUID{UUID: automationID, Valid: true},
+			InputID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		})
+	}
+	addQueued := func(automationID uuid.UUID) {
+		_, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:          chat.ID,
+			Content:         json.RawMessage("[]"),
+			CreatedBy:       owner.ID,
+			AutomationID:    uuid.NullUUID{UUID: automationID, Valid: true},
+			InputID:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			QueueGeneration: sql.NullInt64{Int64: 1, Valid: true},
+		})
+		require.NoError(t, err)
+	}
+
+	creator := newAutomation(org.ID, database.ChatAutomationKindSchedule)
+	rows, err := db.UpdateChatAutomationIDByID(ctx, database.UpdateChatAutomationIDByIDParams{AutomationID: creator.ID, ID: chat.ID})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, rows)
+
+	history := newAutomation(org.ID, database.ChatAutomationKindWebhook)
+	addMessage(chat.ID, history.ID)
+	addMessage(chat.ID, history.ID)
+
+	queued := newAutomation(org.ID, database.ChatAutomationKindSchedule)
+	addQueued(queued.ID)
+
+	historyAndQueued := newAutomation(org.ID, database.ChatAutomationKindWebhook)
+	addMessage(chat.ID, historyAndQueued.ID)
+	addQueued(historyAndQueued.ID)
+
+	deletedMessage := newAutomation(org.ID, database.ChatAutomationKindWebhook)
+	require.NoError(t, db.SoftDeleteChatMessageByID(ctx, addMessage(chat.ID, deletedMessage.ID).ID))
+
+	otherChatOnly := newAutomation(org.ID, database.ChatAutomationKindWebhook)
+	addMessage(otherChat.ID, otherChatOnly.ID)
+
+	otherOrgAutomation := newAutomation(otherOrg.ID, database.ChatAutomationKindWebhook)
+	addMessage(chat.ID, otherOrgAutomation.ID)
+
+	deletedAutomation := newAutomation(org.ID, database.ChatAutomationKindWebhook)
+	addMessage(chat.ID, deletedAutomation.ID)
+	require.NoError(t, db.DeleteChatAutomationByID(ctx, deletedAutomation.ID))
+
+	want := []database.GetChatAutomationReferencesByChatIDRow{}
+	for _, a := range []database.ChatAutomation{creator, history, queued, historyAndQueued} {
+		want = append(want, database.GetChatAutomationReferencesByChatIDRow{ID: a.ID, Name: a.Name, Kind: a.Kind})
+	}
+	slices.SortFunc(want, func(a, b database.GetChatAutomationReferencesByChatIDRow) int {
+		return strings.Compare(a.ID.String(), b.ID.String())
+	})
+
+	got, err := db.GetChatAutomationReferencesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
+// TestChatAutomationShapeConstraints checks the schema invariants that later
+// automation services rely on instead of re-validating every row.
+func TestChatAutomationShapeConstraints(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
+	otherOrgModelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: otherOrg.ID})
+
+	webhook := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: owner.ID})
+	got, err := db.GetChatAutomationByID(ctx, webhook.ID)
+	require.NoError(t, err)
+	require.Equal(t, webhook, got)
+	require.NoError(t, db.DeleteChatAutomationByID(ctx, webhook.ID))
+	_, err = db.GetChatAutomationByID(ctx, webhook.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	schedule := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+		OrganizationID:       org.ID,
+		OwnerID:              owner.ID,
+		Kind:                 database.ChatAutomationKindSchedule,
+		TargetMode:           database.ChatAutomationTargetModeNewChat,
+		NewChatModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+	})
+
+	// Referenced chats must be in the automation's organization. A trigger
+	// enforces this, so the constraint name is not generated.
+	const chatOrganization database.CheckConstraint = "chat_automations_chat_organization"
+	sameOrgChat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+	otherOrgChat := dbgen.Chat(t, db, database.Chat{OrganizationID: otherOrg.ID, OwnerID: owner.ID, LastModelConfigID: otherOrgModelCfg.ID})
+	sameOrgTarget := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+		OrganizationID:  org.ID,
+		OwnerID:         owner.ID,
+		TargetChatID:    uuid.NullUUID{UUID: sameOrgChat.ID, Valid: true},
+		CreatedByChatID: uuid.NullUUID{UUID: sameOrgChat.ID, Valid: true},
+	})
+	// The project must also be in the automation's organization.
+	const projectOrganization database.CheckConstraint = "chat_automations_project_organization"
+	sameOrgProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	otherOrgProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: otherOrg.ID, OwnerID: owner.ID})
+	newChatInProject := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+		OrganizationID:       org.ID,
+		OwnerID:              owner.ID,
+		Kind:                 database.ChatAutomationKindSchedule,
+		TargetMode:           database.ChatAutomationTargetModeNewChat,
+		NewChatModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		ProjectID:            uuid.NullUUID{UUID: sameOrgProject.ID, Valid: true},
+	})
+
+	valid := func() database.InsertChatAutomationParams {
+		return database.InsertChatAutomationParams{
+			ID:             uuid.New(),
+			OrganizationID: org.ID,
+			OwnerID:        owner.ID,
+			Name:           "automation",
+			Kind:           database.ChatAutomationKindWebhook,
+			TargetMode:     database.ChatAutomationTargetModeExistingChat,
+			WhenBusy:       database.NullChatAutomationWhenBusy{ChatAutomationWhenBusy: database.ChatAutomationWhenBusyQueue, Valid: true},
+			WebhookUse:     database.NullChatAutomationWebhookUse{ChatAutomationWebhookUse: database.ChatAutomationWebhookUseSingle, Valid: true},
+			Prompt:         "prompt",
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
+		}
+	}
+	for _, tc := range []struct {
+		name  string
+		munge func(*database.InsertChatAutomationParams)
+		check database.CheckConstraint
+		fkey  database.ForeignKeyConstraint
+	}{
+		{
+			name:  "EmptyName",
+			munge: func(p *database.InsertChatAutomationParams) { p.Name = "" },
+			check: database.CheckChatAutomationsNameLength,
+		},
+		{
+			name:  "NameTooLong",
+			munge: func(p *database.InsertChatAutomationParams) { p.Name = strings.Repeat("a", 129) },
+			check: database.CheckChatAutomationsNameLength,
+		},
+		{
+			name: "ExistingChatWithNewChatModel",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: modelCfg.ID, Valid: true}
+			},
+			check: database.CheckChatAutomationsTargetShape,
+		},
+		{
+			name: "NewChatWithWhenBusy",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetMode = database.ChatAutomationTargetModeNewChat
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: modelCfg.ID, Valid: true}
+			},
+			check: database.CheckChatAutomationsTargetShape,
+		},
+		{
+			name: "NewChatWithTargetChat",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetMode = database.ChatAutomationTargetModeNewChat
+				p.WhenBusy = database.NullChatAutomationWhenBusy{}
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: modelCfg.ID, Valid: true}
+				p.TargetChatID = uuid.NullUUID{UUID: sameOrgChat.ID, Valid: true}
+			},
+			check: database.CheckChatAutomationsTargetShape,
+		},
+		{
+			name:  "WebhookWithoutUse",
+			munge: func(p *database.InsertChatAutomationParams) { p.WebhookUse = database.NullChatAutomationWebhookUse{} },
+			check: database.CheckChatAutomationsKindShape,
+		},
+		{
+			name: "WebhookWithCron",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.ScheduleCron = sql.NullString{String: "0 9 * * *", Valid: true}
+			},
+			check: database.CheckChatAutomationsKindShape,
+		},
+		{
+			name: "WebhookWithScheduleTimeZone",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.ScheduleTimeZone = sql.NullString{String: "UTC", Valid: true}
+			},
+			check: database.CheckChatAutomationsKindShape,
+		},
+		{
+			name: "WebhookWithScheduleNextRunAt",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.ScheduleNextRunAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
+			},
+			check: database.CheckChatAutomationsKindShape,
+		},
+		{
+			name: "ScheduleWithWebhookSecret",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.Kind = database.ChatAutomationKindSchedule
+				p.WebhookUse = database.NullChatAutomationWebhookUse{}
+				p.WebhookSecretHash = []byte{0x01}
+				p.ScheduleCron = sql.NullString{String: "0 9 * * *", Valid: true}
+				p.ScheduleTimeZone = sql.NullString{String: "UTC", Valid: true}
+			},
+			check: database.CheckChatAutomationsKindShape,
+		},
+		{
+			name: "NewChatModelFromOtherOrg",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetMode = database.ChatAutomationTargetModeNewChat
+				p.WhenBusy = database.NullChatAutomationWhenBusy{}
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: otherOrgModelCfg.ID, Valid: true}
+			},
+			fkey: database.ForeignKeyChatAutomationsNewChatModelConfig,
+		},
+		{
+			name: "TargetChatFromOtherOrg",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetChatID = uuid.NullUUID{UUID: otherOrgChat.ID, Valid: true}
+			},
+			check: chatOrganization,
+		},
+		{
+			name: "CreatedByChatFromOtherOrg",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.CreatedByChatID = uuid.NullUUID{UUID: otherOrgChat.ID, Valid: true}
+			},
+			check: chatOrganization,
+		},
+		{
+			name: "ExistingChatWithProject",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.ProjectID = uuid.NullUUID{UUID: sameOrgProject.ID, Valid: true}
+			},
+			check: database.CheckChatAutomationsProjectTargetMode,
+		},
+		{
+			name: "ProjectFromOtherOrg",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetMode = database.ChatAutomationTargetModeNewChat
+				p.WhenBusy = database.NullChatAutomationWhenBusy{}
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: modelCfg.ID, Valid: true}
+				p.ProjectID = uuid.NullUUID{UUID: otherOrgProject.ID, Valid: true}
+			},
+			check: projectOrganization,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			params := valid()
+			tc.munge(&params)
+			_, err := db.InsertChatAutomation(ctx, params)
+			require.Error(t, err)
+			if tc.check != "" {
+				require.True(t, database.IsCheckViolation(err, tc.check), "want %s, got %v", tc.check, err)
+			} else {
+				require.True(t, database.IsForeignKeyViolation(err, tc.fkey), "want %s, got %v", tc.fkey, err)
+			}
+		})
+	}
+
+	// InsertChatAutomation has no webhook_consumed_at parameter, and only
+	// ConsumeChatAutomationWebhookByID sets it, for webhook rows.
+	t.Run("ScheduleWithWebhookConsumedAt", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := sqlDB.ExecContext(ctx, `UPDATE chat_automations SET webhook_consumed_at = now() WHERE id = $1`, schedule.ID)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckChatAutomationsKindShape), "got %v", err)
+	})
+
+	t.Run("MoveToOtherOrgProject", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := sqlDB.ExecContext(ctx, `UPDATE chat_automations SET project_id = $1 WHERE id = $2`, otherOrgProject.ID, newChatInProject.ID)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, projectOrganization), "got %v", err)
+	})
+
+	// Deleting the project keeps the automation and removes its reference.
+	t.Run("DeleteProject", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+		automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+			OrganizationID:       org.ID,
+			OwnerID:              owner.ID,
+			Kind:                 database.ChatAutomationKindSchedule,
+			TargetMode:           database.ChatAutomationTargetModeNewChat,
+			NewChatModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+			ProjectID:            uuid.NullUUID{UUID: project.ID, Valid: true},
+		})
+		require.NoError(t, db.DeleteChatProjectByID(ctx, project.ID))
+		got, err := db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.False(t, got.ProjectID.Valid)
+	})
+
+	t.Run("RetargetToOtherOrgChat", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := sqlDB.ExecContext(ctx, `UPDATE chat_automations SET target_chat_id = $1 WHERE id = $2`, otherOrgChat.ID, sameOrgTarget.ID)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, chatOrganization), "got %v", err)
+	})
+
+	// Deleting a chat runs one ON DELETE SET NULL update per reference. The
+	// organization check must not re-validate the other, unchanged
+	// reference, which may point at a chat deleted by the same statement.
+	t.Run("DeleteReferencedChats", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		shared := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+		target := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+		creator := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+		sameChat := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+			OrganizationID:  org.ID,
+			OwnerID:         owner.ID,
+			TargetChatID:    uuid.NullUUID{UUID: shared.ID, Valid: true},
+			CreatedByChatID: uuid.NullUUID{UUID: shared.ID, Valid: true},
+		})
+		twoChats := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+			OrganizationID:  org.ID,
+			OwnerID:         owner.ID,
+			TargetChatID:    uuid.NullUUID{UUID: target.ID, Valid: true},
+			CreatedByChatID: uuid.NullUUID{UUID: creator.ID, Valid: true},
+		})
+		_, err := sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, shared.ID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = ANY($1::uuid[])`, pq.Array([]uuid.UUID{target.ID, creator.ID}))
+		require.NoError(t, err)
+		for _, id := range []uuid.UUID{sameChat.ID, twoChats.ID} {
+			got, err := db.GetChatAutomationByID(ctx, id)
+			require.NoError(t, err)
+			require.False(t, got.TargetChatID.Valid)
+			require.False(t, got.CreatedByChatID.Valid)
+		}
+	})
+
+	// Queued-message provenance is all or nothing. No query writes these
+	// columns yet, so insert directly.
+	t.Run("QueuedMessagePartialProvenance", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+		})
+		_, err := sqlDB.ExecContext(ctx, `INSERT INTO chat_queued_messages (chat_id, content, created_by, automation_id)
+			VALUES ($1, '[]'::jsonb, $2, $3)`, chat.ID, owner.ID, uuid.New())
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckChatQueuedMessagesAutomationShape), "got %v", err)
+	})
+}
+
+// TestChatAutomationScheduleClaim checks the guards that let only one
+// instance claim a schedule occurrence, and that a moved cursor drops the
+// claim so it never blocks a later occurrence.
+func TestChatAutomationScheduleClaim(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
+	now := dbtime.Now()
+	cursor := now.Add(-time.Second)
+	const lease = 2 * time.Minute
+
+	newSchedule := func(t *testing.T) database.ChatAutomation {
+		t.Helper()
+		return dbgen.ChatAutomation(t, db, database.ChatAutomation{
+			OrganizationID:       org.ID,
+			OwnerID:              owner.ID,
+			Kind:                 database.ChatAutomationKindSchedule,
+			Enabled:              true,
+			TargetMode:           database.ChatAutomationTargetModeNewChat,
+			NewChatModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+			ScheduleNextRunAt:    sql.NullTime{Time: cursor, Valid: true},
+		})
+	}
+	claim := func(ctx context.Context, t *testing.T, automation database.ChatAutomation, revision int64, observed, at, until time.Time) int64 {
+		t.Helper()
+		count, err := db.ClaimChatAutomationScheduleOccurrence(ctx, database.ClaimChatAutomationScheduleOccurrenceParams{
+			ID:                automation.ID,
+			ScheduleRevision:  revision,
+			ObservedNextRunAt: observed,
+			ClaimedUntil:      until,
+			Now:               at,
+			// The scheduler's grace window.
+			EarliestNextRunAt: at.Add(-time.Minute),
+		})
+		require.NoError(t, err)
+		return count
+	}
+	release := func(ctx context.Context, t *testing.T, automation database.ChatAutomation, revision int64, observed, until time.Time) int64 {
+		t.Helper()
+		count, err := db.ReleaseChatAutomationScheduleClaim(ctx, database.ReleaseChatAutomationScheduleClaimParams{
+			ID:                automation.ID,
+			ScheduleRevision:  revision,
+			ObservedNextRunAt: observed,
+			ClaimedUntil:      until,
+		})
+		require.NoError(t, err)
+		return count
+	}
+	claimedUntil := func(ctx context.Context, t *testing.T, automation database.ChatAutomation) sql.NullTime {
+		t.Helper()
+		got, err := db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		return got.ScheduleClaimedUntil
+	}
+	isDue := func(ctx context.Context, t *testing.T, automation database.ChatAutomation, at time.Time) bool {
+		t.Helper()
+		rows, err := db.GetDueChatAutomationSchedules(ctx, database.GetDueChatAutomationSchedulesParams{
+			Now:        at,
+			AfterID:    uuid.Nil,
+			LimitCount: 1000,
+		})
+		require.NoError(t, err)
+		return slices.ContainsFunc(rows, func(row database.ChatAutomation) bool { return row.ID == automation.ID })
+	}
+
+	t.Run("ClaimIsExclusiveUntilExpiry", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		automation := newSchedule(t)
+		revision := automation.ScheduleRevision
+
+		require.Zero(t, claim(ctx, t, automation, revision+1, cursor, now, now.Add(lease)), "a changed schedule revision")
+		require.Zero(t, claim(ctx, t, automation, revision, cursor.Add(time.Minute), now, now.Add(lease)), "a moved cursor")
+		late := cursor.Add(time.Minute + time.Microsecond)
+		require.Zero(t, claim(ctx, t, automation, revision, cursor, late, late.Add(lease)), "an occurrence past the grace window")
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now, now.Add(lease)))
+		stored := claimedUntil(ctx, t, automation)
+		require.True(t, stored.Valid)
+		require.True(t, stored.Time.Equal(now.Add(lease)), "claimed until %s", stored.Time)
+
+		// Until the claim expires, another instance can neither claim the
+		// occurrence nor see it as due.
+		beforeExpiry := now.Add(lease - time.Microsecond)
+		require.Zero(t, claim(ctx, t, automation, revision, cursor, beforeExpiry, beforeExpiry.Add(lease)))
+		require.False(t, isDue(ctx, t, automation, beforeExpiry))
+
+		// Once it expires, the row is due again, but the occurrence is past
+		// the grace window, so it cannot be claimed.
+		expired := now.Add(lease)
+		require.True(t, isDue(ctx, t, automation, expired))
+		require.Zero(t, claim(ctx, t, automation, revision, cursor, expired, expired.Add(lease)))
+	})
+
+	t.Run("ShortClaimCanBeRetakenWithinGrace", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		automation := newSchedule(t)
+		revision := automation.ScheduleRevision
+		const shortLease = 10 * time.Second
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now, now.Add(shortLease)))
+		require.Zero(t, claim(ctx, t, automation, revision, cursor, now.Add(shortLease-time.Microsecond), now.Add(2*shortLease)))
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now.Add(shortLease), now.Add(2*shortLease)))
+	})
+
+	t.Run("ReleaseDropsOnlyOwnClaim", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		automation := newSchedule(t)
+		revision := automation.ScheduleRevision
+		until := now.Add(lease)
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now, until))
+
+		require.Zero(t, release(ctx, t, automation, revision, cursor, until.Add(time.Second)), "another instance's claim")
+		require.Zero(t, release(ctx, t, automation, revision+1, cursor, until), "a changed schedule revision")
+		require.Zero(t, release(ctx, t, automation, revision, cursor.Add(time.Minute), until), "a moved cursor")
+		require.True(t, claimedUntil(ctx, t, automation).Valid)
+
+		require.EqualValues(t, 1, release(ctx, t, automation, revision, cursor, until))
+		require.False(t, claimedUntil(ctx, t, automation).Valid)
+	})
+
+	t.Run("CursorMoveDropsClaim", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		automation := newSchedule(t)
+		revision := automation.ScheduleRevision
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, cursor, now, now.Add(lease)))
+
+		// Accepting or skipping the occurrence moves the cursor.
+		next := cursor.Add(time.Minute)
+		count, err := db.AdvanceChatAutomationScheduleCursor(ctx, database.AdvanceChatAutomationScheduleCursorParams{
+			ID:                automation.ID,
+			ScheduleRevision:  revision,
+			ObservedNextRunAt: cursor,
+			NextRunAt:         sql.NullTime{Time: next, Valid: true},
+			UpdatedAt:         now,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, count)
+		require.False(t, claimedUntil(ctx, t, automation).Valid)
+
+		update := func(t *testing.T, munge func(*database.UpdateChatAutomationByIDParams)) {
+			t.Helper()
+			row, err := db.GetChatAutomationByID(ctx, automation.ID)
+			require.NoError(t, err)
+			arg := database.UpdateChatAutomationByIDParams{
+				ID:                   row.ID,
+				Name:                 row.Name,
+				Prompt:               row.Prompt,
+				TargetChatID:         row.TargetChatID,
+				NewChatModelConfigID: row.NewChatModelConfigID,
+				ReasoningEffort:      row.ReasoningEffort,
+				WhenBusy:             row.WhenBusy,
+				ScheduleCron:         row.ScheduleCron,
+				ScheduleTimeZone:     row.ScheduleTimeZone,
+				ScheduleRevision:     row.ScheduleRevision,
+				ScheduleNextRunAt:    row.ScheduleNextRunAt,
+				Enabled:              row.Enabled,
+				QueueGeneration:      row.QueueGeneration,
+				UpdatedAt:            now,
+			}
+			munge(&arg)
+			_, err = db.UpdateChatAutomationByID(ctx, arg)
+			require.NoError(t, err)
+		}
+
+		// An occurrence that is not due yet cannot be claimed.
+		require.Zero(t, claim(ctx, t, automation, revision, next, now, now.Add(lease)))
+
+		// An edit that keeps the occurrence keeps its claim.
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision, next, next, next.Add(lease)))
+		update(t, func(arg *database.UpdateChatAutomationByIDParams) { arg.Name = "renamed" })
+		require.True(t, claimedUntil(ctx, t, automation).Valid)
+
+		// A new schedule revision drops it.
+		update(t, func(arg *database.UpdateChatAutomationByIDParams) { arg.ScheduleRevision++ })
+		require.False(t, claimedUntil(ctx, t, automation).Valid)
+
+		// So does a cursor write that does not name the claim column, as
+		// from a replica that predates it during a rolling upgrade. A write
+		// that leaves the cursor alone keeps the claim.
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision+1, next, next, next.Add(lease)))
+		_, err = sqlDB.ExecContext(ctx, "UPDATE chat_automations SET schedule_next_run_at = schedule_next_run_at WHERE id = $1", automation.ID)
+		require.NoError(t, err)
+		require.True(t, claimedUntil(ctx, t, automation).Valid)
+		_, err = sqlDB.ExecContext(ctx, "UPDATE chat_automations SET schedule_next_run_at = $1 WHERE id = $2", next.Add(time.Minute), automation.ID)
+		require.NoError(t, err)
+		require.False(t, claimedUntil(ctx, t, automation).Valid)
+
+		// So does a moved cursor, as disabling does.
+		later := next.Add(time.Minute)
+		require.EqualValues(t, 1, claim(ctx, t, automation, revision+1, later, later, later.Add(lease)))
+		update(t, func(arg *database.UpdateChatAutomationByIDParams) {
+			arg.Enabled = false
+			arg.ScheduleNextRunAt = sql.NullTime{}
+		})
+		require.False(t, claimedUntil(ctx, t, automation).Valid)
+	})
+}
+
 func TestChatContextHydration(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -1908,6 +2507,76 @@ func TestGetAuthorizedChats(t *testing.T) {
 		// All 7 member chats should be accounted for with no leakage.
 		require.Len(t, allIDs, 7, "pagination should return all member chats exactly once")
 	})
+}
+
+func TestGetAuthorizedChatAutomationsByOrganizationID(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	siteOwner := dbgen.User(t, db, database.User{RBACRoles: []string{rbac.RoleOwner().String()}})
+	member := dbgen.User(t, db, database.User{})
+	secondMember := dbgen.User(t, db, database.User{})
+	orgAdmin := dbgen.User(t, db, database.User{})
+	otherOrgAdmin := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: otherOrg.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: orgAdmin.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleOrgAdmin()}})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: otherOrgAdmin.ID, OrganizationID: otherOrg.ID, Roles: []string{rbac.RoleOrgAdmin()}})
+
+	memberAutomations := []uuid.UUID{
+		dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: member.ID}).ID,
+		dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: member.ID}).ID,
+	}
+	secondMemberAutomation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: secondMember.ID}).ID
+	// The member can read this one, but it is in another organization.
+	dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: otherOrg.ID, OwnerID: member.ID})
+	allInOrg := append([]uuid.UUID{secondMemberAutomation}, memberAutomations...)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	for _, tc := range []struct {
+		name string
+		user database.User
+		// owner filters by owner; uuid.Nil lists every owner.
+		owner uuid.UUID
+		want  []uuid.UUID
+	}{
+		{name: "Member", user: member, want: memberAutomations},
+		{name: "SecondMember", user: secondMember, want: []uuid.UUID{secondMemberAutomation}},
+		{name: "OrgAdmin", user: orgAdmin, want: allInOrg},
+		{name: "SiteOwner", user: siteOwner, want: allInOrg},
+		{name: "OtherOrgAdmin", user: otherOrgAdmin, want: nil},
+		// The owner filter narrows what RBAC allows and never widens it.
+		{name: "OrgAdminFilteredToMember", user: orgAdmin, owner: member.ID, want: memberAutomations},
+		{name: "OrgAdminFilteredToSelf", user: orgAdmin, owner: orgAdmin.ID, want: nil},
+		{name: "MemberFilteredToSelf", user: member, owner: member.ID, want: memberAutomations},
+		{name: "MemberFilteredToOther", user: member, owner: secondMember.ID, want: nil},
+	} {
+		subject, _, err := httpmw.UserRBACSubject(ctx, db, tc.user.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err, tc.name)
+		prepared, err := authorizer.Prepare(ctx, subject, policy.ActionRead, rbac.ResourceChatAutomation.Type)
+		require.NoError(t, err, tc.name)
+		rows, err := db.GetAuthorizedChatAutomationsByOrganizationID(ctx, database.GetChatAutomationsByOrganizationIDParams{
+			OrganizationID: org.ID,
+			OwnerID:        tc.owner,
+		}, prepared)
+		require.NoError(t, err, tc.name)
+		got := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			got = append(got, row.ID)
+		}
+		require.ElementsMatch(t, tc.want, got, tc.name)
+	}
 }
 
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
@@ -17832,10 +18501,10 @@ func TestGetChatsFilter(t *testing.T) {
 		{"Title/MultiWord", database.GetChatsParams{TitleQuery: "alpha project"}, []uuid.UUID{alphaProject.ID}},
 		{"Title/NoMatch", database.GetChatsParams{TitleQuery: "nonexistent"}, nil},
 		{"Title/EmptyReturnsAll", database.GetChatsParams{TitleQuery: ""}, allRootIDs},
-		// % acts as wildcard since we don't escape ILIKE metacharacters.
-		{"Title/PercentWildcard", database.GetChatsParams{TitleQuery: "100%"}, []uuid.UUID{percentComplete.ID, thousandOne.ID}},
-		// _ acts as single-char wildcard.
-		{"Title/UnderscoreWildcard", database.GetChatsParams{TitleQuery: "user_name"}, []uuid.UUID{underscoreConfig.ID, hyphenConfig.ID}},
+		// % and _ are escaped, so they match literally instead of acting as
+		// ILIKE wildcards.
+		{"Title/PercentLiteral", database.GetChatsParams{TitleQuery: "100%"}, []uuid.UUID{percentComplete.ID}},
+		{"Title/UnderscoreLiteral", database.GetChatsParams{TitleQuery: "user_name"}, []uuid.UUID{underscoreConfig.ID}},
 
 		// PR status filter.
 		{"PRStatus/Draft", database.GetChatsParams{PullRequestStatuses: []string{"draft"}}, []uuid.UUID{draftPR.ID}},

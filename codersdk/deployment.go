@@ -4543,6 +4543,39 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "maxConcurrentRecordingUploads",
 		},
 		{
+			Name:        "Chat: Max Automations Per Owner",
+			Description: "Maximum number of chat automations one user can own across all organizations. Creating one more fails with HTTP 409. Must be at least 1.",
+			Flag:        "chat-max-automations-per-owner",
+			Env:         "CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER",
+			Value:       &c.AI.Chat.MaxAutomationsPerOwner,
+			Default:     strconv.Itoa(DefaultChatMaxAutomationsPerOwner),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxAutomationsPerOwner",
+		},
+		{
+			Name:        "Chat: Min Automation Schedule Interval",
+			Description: "Minimum time between two runs of a chat schedule automation. Creating a schedule, or changing one, that runs more often fails with HTTP 400. Existing schedules that run more often keep running, and the API marks them. Must be between 1m and 24h.",
+			Flag:        "chat-min-automation-schedule-interval",
+			Env:         "CODER_CHAT_MIN_AUTOMATION_SCHEDULE_INTERVAL",
+			Value:       &c.AI.Chat.MinAutomationScheduleInterval,
+			Default:     DefaultChatMinAutomationScheduleInterval.String(),
+			Group:       &deploymentGroupChat,
+			YAML:        "minAutomationScheduleInterval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name: "Chat: Automation Webhook Max Body Bytes",
+			Description: "Maximum size in bytes of a chat automation webhook body, and of its event data after escaping. Larger deliveries fail with HTTP 413. " +
+				"The whole body becomes part of the chat's next prompt, so one large body can use up much of a model's context window. " +
+				"Must be between 1024 (1 KiB) and 262144 (256 KiB), the request body limit of the chat endpoints.",
+			Flag:    "chat-automation-webhook-max-body-bytes",
+			Env:     "CODER_CHAT_AUTOMATION_WEBHOOK_MAX_BODY_BYTES",
+			Value:   &c.AI.Chat.AutomationWebhookMaxBodyBytes,
+			Default: strconv.Itoa(DefaultChatAutomationWebhookMaxBodyBytes),
+			Group:   &deploymentGroupChat,
+			YAML:    "automationWebhookMaxBodyBytes",
+		},
+		{
 			Name:        "Chat: AI Gateway Routing Enabled",
 			Description: "Deprecated: AI Gateway routing is now the only routing path. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "chat-ai-gateway-routing-enabled",
@@ -5095,6 +5128,16 @@ type ChatConfig struct {
 	// MaxConcurrentRecordingUploads is the maximum number of virtual
 	// desktop recordings that each Coder server stores at the same time.
 	MaxConcurrentRecordingUploads serpent.Int64 `json:"max_concurrent_recording_uploads" typescript:",notnull"`
+	// MaxAutomationsPerOwner is the maximum number of chat automations
+	// one user can own across all organizations.
+	MaxAutomationsPerOwner serpent.Int64 `json:"max_automations_per_owner" typescript:",notnull"`
+	// MinAutomationScheduleInterval is the minimum time between two runs
+	// of a chat schedule automation. Creating or changing a schedule that
+	// runs more often fails; existing schedules keep running.
+	MinAutomationScheduleInterval serpent.Duration `json:"min_automation_schedule_interval" typescript:",notnull"`
+	// AutomationWebhookMaxBodyBytes is the maximum size in bytes of a chat
+	// automation webhook body and of its escaped event data.
+	AutomationWebhookMaxBodyBytes serpent.Int64 `json:"automation_webhook_max_body_bytes" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -5261,6 +5304,14 @@ func (c *DeploymentValues) Validate() error {
 		return xerrors.Errorf("chat stream silence timeout (%s) must be between 0 and 24h; set --chat-stream-silence-timeout to a valid duration", timeout)
 	}
 
+	if interval := c.AI.Chat.MinAutomationScheduleInterval.Value(); interval < time.Minute || interval > 24*time.Hour {
+		return xerrors.Errorf("chat min automation schedule interval (%s) must be between 1m and 24h; set --chat-min-automation-schedule-interval to a valid duration", interval)
+	}
+
+	if size := c.AI.Chat.AutomationWebhookMaxBodyBytes.Value(); size < MinChatAutomationWebhookMaxBodyBytes || size > MaxChatRequestBodyBytes {
+		return xerrors.Errorf("--chat-automation-webhook-max-body-bytes (%d) must be between %d and %d, the request body limit of the chat endpoints", size, MinChatAutomationWebhookMaxBodyBytes, MaxChatRequestBodyBytes)
+	}
+
 	for _, limit := range []struct {
 		flag  string
 		value int64
@@ -5271,6 +5322,7 @@ func (c *DeploymentValues) Validate() error {
 		{"chat-max-attachments-per-chat", c.AI.Chat.MaxAttachmentsPerChat.Value()},
 		{"chat-max-prompt-bytes", c.AI.Chat.MaxPromptBytes.Value()},
 		{"chat-max-concurrent-recording-uploads", c.AI.Chat.MaxConcurrentRecordingUploads.Value()},
+		{"chat-max-automations-per-owner", c.AI.Chat.MaxAutomationsPerOwner.Value()},
 	} {
 		if limit.value < 1 || limit.value > math.MaxInt32 {
 			return xerrors.Errorf("--%s (%d) must be between 1 and %d", limit.flag, limit.value, math.MaxInt32)
@@ -5515,6 +5567,7 @@ const (
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
+	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5551,6 +5604,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Inline MCP Servers"
 	case ExperimentEnableAIWorkspaceDebug:
 		return "AI Workspace Debugging"
+	case ExperimentChatAutomations:
+		return "Chat Automations"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5578,6 +5633,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatStageMetrics,
+	ExperimentChatAutomations,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -5594,6 +5650,7 @@ var ExperimentsSafe = Experiments{
 var ExperimentsUserScoped = Experiments{
 	ExperimentExample,
 	ExperimentMCPToolSearch,
+	ExperimentChatAutomations,
 }
 
 // Experiments is a list of experiments.

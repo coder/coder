@@ -154,6 +154,105 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chat-automations/{automation}/events": {
+            "post": {
+                "description": "Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to the deployment's webhook body limit, 64 KiB by default. The event data must also fit that limit after HTML escaping, which counts each \u003c, \u003e, \u0026, U+2028, and U+2029 in a JSON string as six bytes. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Deliver chat automation webhook event",
+                "operationId": "deliver-chat-automation-event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer followed by the webhook secret",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Event data: any JSON value up to the webhook body limit, also after HTML escaping",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {}
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomationEventResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/projects": {
             "get": {
                 "produces": [
@@ -171,6 +270,47 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/codersdk.ChatProject"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/chats/{chat}/automations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List automations referenced by a chat",
+                "operationId": "list-chat-automation-references",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatAutomationReference"
                             }
                         }
                     }
@@ -427,6 +567,439 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.OrganizationAISpendReport"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chat-automations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat automations",
+                "operationId": "list-chat-automations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only the automations of this owner: me, a username, or a user ID. Omitted lists every automation the caller can read.",
+                        "name": "owner",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatAutomation"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat automation",
+                "operationId": "create-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Chat automation",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatAutomationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatAutomationResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chat-automations/schedule-preview": {
+            "post": {
+                "description": "Validates a schedule like chat automation create does and returns its next run times. Nothing is stored.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Preview chat automation schedule",
+                "operationId": "preview-chat-automation-schedule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Schedule",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomationSchedulePreviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomationSchedulePreviewResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chat-automations/{automation}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat automation",
+                "operationId": "get-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat automation",
+                "operationId": "delete-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "description": "Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind, target mode, and webhook use of an automation cannot change: a request that sets one of them, or any unknown field, fails with 400. A request that changes nothing leaves updated_at as it was.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat automation",
+                "operationId": "update-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Chat automation changes",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatAutomationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chat-automations/{automation}/runs": {
+            "post": {
+                "description": "Sends the saved prompt of an enabled schedule automation to its target now, like a scheduled run, as the owner. The schedule's next run does not change. Only the owner can run an automation.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Run chat automation now",
+                "operationId": "run-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomationRunResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chat-automations/{automation}/secret/rotate": {
+            "post": {
+                "description": "Only the owner of a webhook automation can rotate its secret. The previous secret stops working, and the new secret is returned only in this response.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Rotate chat automation webhook secret",
+                "operationId": "rotate-chat-automation-secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RotateChatAutomationSecretResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -2043,7 +2616,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `status:\u003cwaiting\\|running\\|error\\|requires_action\\|interrupting\u003e` + "`" + ` (chat status, repeated or comma-separated), ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\\|none\u003e` + "`" + ` (none matches chats with no pull request) as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
+                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive literal substring; ` + "`" + `%` + "`" + ` and ` + "`" + `_` + "`" + ` match literally; quote multi-word values), ` + "`" + `organization:\u003cname\\|id\u003e` + "`" + ` (organization ID, or case-insensitive name), ` + "`" + `archived:bool` + "`" + ` (` + "`" + `archived:any` + "`" + ` matches archived and active chats), ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `status:\u003cwaiting\\|running\\|error\\|requires_action\\|interrupting\u003e` + "`" + ` (chat status, repeated or comma-separated), ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\\|none\u003e` + "`" + ` (none matches chats with no pull request) as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -2074,6 +2647,13 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Page offset",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter to chats the automation created or sent messages to. Requires the chat-automations experiment for the caller.",
+                        "name": "automation_id",
                         "in": "query"
                     },
                     {
@@ -19280,6 +19860,11 @@ const docTemplate = `{
                 "chat:read",
                 "chat:share",
                 "chat:update",
+                "chat_automation:*",
+                "chat_automation:create",
+                "chat_automation:delete",
+                "chat_automation:read",
+                "chat_automation:update",
                 "chat_model_config:*",
                 "chat_model_config:create",
                 "chat_model_config:delete",
@@ -19536,6 +20121,11 @@ const docTemplate = `{
                 "APIKeyScopeChatRead",
                 "APIKeyScopeChatShare",
                 "APIKeyScopeChatUpdate",
+                "APIKeyScopeChatAutomationAll",
+                "APIKeyScopeChatAutomationCreate",
+                "APIKeyScopeChatAutomationDelete",
+                "APIKeyScopeChatAutomationRead",
+                "APIKeyScopeChatAutomationUpdate",
                 "APIKeyScopeChatModelConfigAll",
                 "APIKeyScopeChatModelConfigCreate",
                 "APIKeyScopeChatModelConfigDelete",
@@ -20421,6 +21011,11 @@ const docTemplate = `{
                 "archived": {
                     "type": "boolean"
                 },
+                "automation_id": {
+                    "description": "The automation that created this chat (new_chat runs); unset for chats automations only send to. Kept after the automation is deleted.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "build_id": {
                     "type": "string",
                     "format": "uuid"
@@ -20501,6 +21096,10 @@ const docTemplate = `{
                 },
                 "last_turn_summary": {
                     "type": "string"
+                },
+                "manage_automations_enabled": {
+                    "description": "ManageAutomationsEnabled offers the manage_automations tool to this\nchat's agent. Experimental.",
+                    "type": "boolean"
                 },
                 "mcp_server_ids": {
                     "type": "array",
@@ -20613,6 +21212,439 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatAutomation": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by_chat": {
+                    "description": "CreatedByChat is the chat that created the automation. It is set by\nthe chat automations API only when the caller can read that chat, so\nit is absent for automations created outside a chat, for deleted\nchats, and for chats the caller cannot read.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationChat"
+                        }
+                    ]
+                },
+                "created_by_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "kind": {
+                    "enum": [
+                        "webhook",
+                        "schedule"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationKind"
+                        }
+                    ]
+                },
+                "last_run": {
+                    "description": "LastRun is the outcome of the latest run, null until the first one.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationLastRun"
+                        }
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "new_chat_model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "next_run_times": {
+                    "description": "NextRunTimes lists up to five upcoming runs of an enabled schedule.\nIt is empty for webhooks, disabled schedules, and schedules with any\npaused reason.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner": {
+                    "description": "Owner is the display data of the automation owner. It is set by the\nchat automations API only when the caller can read the owner's\nmembership in the automation's organization, the same check as\nGET /api/v2/organizations/{organization}/members/{user}. It is absent\notherwise, including for deleted owners and owners who left the\norganization.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MinimalUser"
+                        }
+                    ]
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "paused_reasons": {
+                    "description": "PausedReasons lists conditions that stop the automation from running\neven while it is enabled: schedule occurrences, Run now, and webhook\ndeliveries are refused. It is set by the chat automations API and\nabsent when none was found. It is computed independently of Enabled.\nIt is an advisory snapshot: admission stays authoritative, and an\nempty list does not guarantee that a run is accepted, because lost\nchat permissions, busy chats, and full queues are not reported.",
+                    "type": "array",
+                    "items": {
+                        "enum": [
+                            "owner_inactive",
+                            "experiment_disabled",
+                            "target_unavailable",
+                            "model_unavailable",
+                            "owner_not_member"
+                        ],
+                        "$ref": "#/definitions/codersdk.ChatAutomationPausedReason"
+                    }
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                },
+                "schedule_cron": {
+                    "type": "string"
+                },
+                "schedule_interval_below_minimum": {
+                    "description": "ScheduleIntervalBelowMinimum is true when the schedule runs more\noften than the deployment's minimum interval between runs. Such\nautomations keep running, but a change to their schedule must meet\nthe minimum.",
+                    "type": "boolean"
+                },
+                "schedule_next_run_at": {
+                    "description": "ScheduleNextRunAt is the scheduler cursor, not a promise that a run\nhappens then. While the automation is paused it can stay in the past,\nor keep moving past occurrences that are refused, for example while\nits model is unavailable.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "schedule_time_zone": {
+                    "type": "string"
+                },
+                "target_chat": {
+                    "description": "TargetChat is the target chat of an existing_chat automation. Like\nCreatedByChat, it is set only when the caller can read that chat.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationChat"
+                        }
+                    ]
+                },
+                "target_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "target_mode": {
+                    "enum": [
+                        "existing_chat",
+                        "new_chat"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationTargetMode"
+                        }
+                    ]
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "webhook_consumed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "webhook_secret_version": {
+                    "type": "integer"
+                },
+                "webhook_use": {
+                    "enum": [
+                        "single",
+                        "multi"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWebhookUse"
+                        }
+                    ]
+                },
+                "when_busy": {
+                    "enum": [
+                        "queue",
+                        "skip"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWhenBusy"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.ChatAutomationChat": {
+            "type": "object",
+            "properties": {
+                "archived": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatAutomationEventResponse": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "input_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatAutomationKind": {
+            "type": "string",
+            "enum": [
+                "webhook",
+                "schedule"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationKindWebhook",
+                "ChatAutomationKindSchedule"
+            ]
+        },
+        "codersdk.ChatAutomationLastRun": {
+            "type": "object",
+            "properties": {
+                "at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "chat_id": {
+                    "description": "ChatID is the chat the run went to, or was meant for when the target\nchat was known. For previous_run_active it is the chat that is still\nactive. The chat can be deleted since.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "outcome": {
+                    "enum": [
+                        "accepted",
+                        "skipped",
+                        "refused"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationRunOutcome"
+                        }
+                    ]
+                },
+                "reason": {
+                    "description": "Reason is set for skipped and refused runs.",
+                    "enum": [
+                        "chat_busy",
+                        "queue_full",
+                        "missed",
+                        "previous_run_active",
+                        "hook_denied",
+                        "owner_inactive",
+                        "forbidden",
+                        "model_unavailable",
+                        "target_unavailable",
+                        "experiment_disabled",
+                        "disabled",
+                        "single_use_consumed",
+                        "body_too_large",
+                        "invalid_body",
+                        "no_default_model",
+                        "error"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationRunReason"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.ChatAutomationPausedReason": {
+            "type": "string",
+            "enum": [
+                "owner_inactive",
+                "experiment_disabled",
+                "target_unavailable",
+                "model_unavailable",
+                "owner_not_member"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationPausedReasonOwnerInactive",
+                "ChatAutomationPausedReasonExperimentDisabled",
+                "ChatAutomationPausedReasonTargetUnavailable",
+                "ChatAutomationPausedReasonModelUnavailable",
+                "ChatAutomationPausedReasonOwnerNotMember"
+            ]
+        },
+        "codersdk.ChatAutomationReference": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "kind": {
+                    "enum": [
+                        "webhook",
+                        "schedule"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationKind"
+                        }
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatAutomationRunOutcome": {
+            "type": "string",
+            "enum": [
+                "accepted",
+                "skipped",
+                "refused"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationRunOutcomeAccepted",
+                "ChatAutomationRunOutcomeSkipped",
+                "ChatAutomationRunOutcomeRefused"
+            ]
+        },
+        "codersdk.ChatAutomationRunReason": {
+            "type": "string",
+            "enum": [
+                "chat_busy",
+                "queue_full",
+                "missed",
+                "previous_run_active",
+                "hook_denied",
+                "owner_inactive",
+                "forbidden",
+                "model_unavailable",
+                "target_unavailable",
+                "experiment_disabled",
+                "disabled",
+                "single_use_consumed",
+                "body_too_large",
+                "invalid_body",
+                "no_default_model",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationRunReasonChatBusy",
+                "ChatAutomationRunReasonQueueFull",
+                "ChatAutomationRunReasonMissed",
+                "ChatAutomationRunReasonPreviousRunActive",
+                "ChatAutomationRunReasonHookDenied",
+                "ChatAutomationRunReasonOwnerInactive",
+                "ChatAutomationRunReasonForbidden",
+                "ChatAutomationRunReasonModelUnavailable",
+                "ChatAutomationRunReasonTargetUnavailable",
+                "ChatAutomationRunReasonExperimentDisabled",
+                "ChatAutomationRunReasonDisabled",
+                "ChatAutomationRunReasonSingleUseConsumed",
+                "ChatAutomationRunReasonBodyTooLarge",
+                "ChatAutomationRunReasonInvalidBody",
+                "ChatAutomationRunReasonNoDefaultModel",
+                "ChatAutomationRunReasonError"
+            ]
+        },
+        "codersdk.ChatAutomationRunResponse": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "input_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatAutomationSchedulePreviewRequest": {
+            "type": "object",
+            "properties": {
+                "schedule_cron": {
+                    "type": "string"
+                },
+                "schedule_time_zone": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatAutomationSchedulePreviewResponse": {
+            "type": "object",
+            "properties": {
+                "clock_change_note": {
+                    "description": "ClockChangeNote explains how the schedule runs across daylight\nsaving changes. It is set when the schedule's time zone changes its\nUTC offset within a year.",
+                    "type": "string"
+                },
+                "interval_warning": {
+                    "description": "IntervalWarning is set when the schedule runs more often than the\ndeployment's minimum interval. Creating such a schedule, or changing\nan automation's schedule to it, fails, but an automation that\nalready has it keeps running.",
+                    "type": "string"
+                },
+                "next_run_times": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatAutomationTargetMode": {
+            "type": "string",
+            "enum": [
+                "existing_chat",
+                "new_chat"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationTargetModeExistingChat",
+                "ChatAutomationTargetModeNewChat"
+            ]
+        },
+        "codersdk.ChatAutomationWebhookUse": {
+            "type": "string",
+            "enum": [
+                "single",
+                "multi"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationWebhookUseSingle",
+                "ChatAutomationWebhookUseMulti"
+            ]
+        },
+        "codersdk.ChatAutomationWhenBusy": {
+            "type": "string",
+            "enum": [
+                "queue",
+                "skip"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationWhenBusyQueue",
+                "ChatAutomationWhenBusySkip"
+            ]
+        },
         "codersdk.ChatBusyBehavior": {
             "type": "string",
             "enum": [
@@ -20641,6 +21673,10 @@ const docTemplate = `{
                 "acquire_batch_size": {
                     "type": "integer"
                 },
+                "automation_webhook_max_body_bytes": {
+                    "description": "AutomationWebhookMaxBodyBytes is the maximum size in bytes of a chat\nautomation webhook body and of its escaped event data.",
+                    "type": "integer"
+                },
                 "debug_logging_enabled": {
                     "type": "boolean"
                 },
@@ -20663,6 +21699,10 @@ const docTemplate = `{
                     "description": "MaxAttachmentsPerChat is the maximum number of files linked to a\nchat.",
                     "type": "integer"
                 },
+                "max_automations_per_owner": {
+                    "description": "MaxAutomationsPerOwner is the maximum number of chat automations\none user can own across all organizations.",
+                    "type": "integer"
+                },
                 "max_concurrent_recording_uploads": {
                     "description": "MaxConcurrentRecordingUploads is the maximum number of virtual\ndesktop recordings that each Coder server stores at the same time.",
                     "type": "integer"
@@ -20681,6 +21721,10 @@ const docTemplate = `{
                 },
                 "max_steps_per_turn": {
                     "description": "MaxStepsPerTurn is the maximum number of steps in a chat turn.",
+                    "type": "integer"
+                },
+                "min_automation_schedule_interval": {
+                    "description": "MinAutomationScheduleInterval is the minimum time between two runs\nof a chat schedule automation. Creating or changing a schedule that\nruns more often fails; existing schedules keep running.",
                     "type": "integer"
                 },
                 "stream_silence_timeout": {
@@ -21173,6 +22217,11 @@ const docTemplate = `{
         "codersdk.ChatMessage": {
             "type": "object",
             "properties": {
+                "automation_id": {
+                    "description": "AutomationID is the chat automation that delivered this message,\nif any. The automation may since have been deleted.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -21193,6 +22242,11 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "input_id": {
+                    "description": "InputID identifies the automation input that produced this\nmessage: a webhook delivery or a schedule occurrence. It is set\nonly when AutomationID is set.",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "model_config_id": {
                     "type": "string",
@@ -22239,6 +23293,11 @@ const docTemplate = `{
         "codersdk.ChatQueuedMessage": {
             "type": "object",
             "properties": {
+                "automation_id": {
+                    "description": "AutomationID is the chat automation that queued this message, if\nany. The automation may since have been deleted.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -22255,6 +23314,11 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "input_id": {
+                    "description": "InputID identifies the automation input that produced this\nmessage: a webhook delivery or a schedule occurrence. It is set\nonly when AutomationID is set.",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "model_config_id": {
                     "type": "string",
@@ -22833,6 +23897,98 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateChatAutomationRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Enabled creates the automation turned on (true or omitted) or off\n(false). An automation created off has no pending schedule run, and\nnothing runs until it is turned on.",
+                    "type": "boolean"
+                },
+                "kind": {
+                    "enum": [
+                        "webhook",
+                        "schedule"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationKind"
+                        }
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "new_chat_model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                },
+                "schedule_cron": {
+                    "description": "ScheduleCron is a standard five-field cron expression. As in standard\ncron, when both day of month and day of week are restricted, a time\nmatches if either field matches.",
+                    "type": "string"
+                },
+                "schedule_time_zone": {
+                    "type": "string"
+                },
+                "target_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "target_mode": {
+                    "enum": [
+                        "existing_chat",
+                        "new_chat"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationTargetMode"
+                        }
+                    ]
+                },
+                "webhook_use": {
+                    "enum": [
+                        "single",
+                        "multi"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWebhookUse"
+                        }
+                    ]
+                },
+                "when_busy": {
+                    "enum": [
+                        "queue",
+                        "skip"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWhenBusy"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.CreateChatAutomationResponse": {
+            "type": "object",
+            "properties": {
+                "automation": {
+                    "$ref": "#/definitions/codersdk.ChatAutomation"
+                },
+                "webhook_secret": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateChatMessageRequest": {
             "type": "object",
             "properties": {
@@ -23002,6 +24158,10 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "manage_automations_enabled": {
+                    "description": "ManageAutomationsEnabled offers the manage_automations tool to the\nchat's agent. Omitted turns it on when the chat-automations\nexperiment is on for the chat owner, and leaves it off otherwise.\nFalse turns it off. True requires the experiment for the chat owner.\nExperimental.",
+                    "type": "boolean"
                 },
                 "mcp_server_ids": {
                     "type": "array",
@@ -24724,13 +25884,15 @@ const docTemplate = `{
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
-                "chat-stage-metrics"
+                "chat-stage-metrics",
+                "chat-automations"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatAutomations": "Enables webhook and scheduled automations that deliver prompts to agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
@@ -24762,7 +25924,8 @@ const docTemplate = `{
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
-                "Exposes chat lifecycle stage durations as Prometheus metrics."
+                "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "Enables webhook and scheduled automations that deliver prompts to agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -24781,7 +25944,8 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
-                "ExperimentChatStageMetrics"
+                "ExperimentChatStageMetrics",
+                "ExperimentChatAutomations"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -28829,6 +29993,7 @@ const docTemplate = `{
                 "boundary_log",
                 "boundary_usage",
                 "chat",
+                "chat_automation",
                 "chat_model_config",
                 "chat_project",
                 "chat_project_memory",
@@ -28885,6 +30050,7 @@ const docTemplate = `{
                 "ResourceBoundaryLog",
                 "ResourceBoundaryUsage",
                 "ResourceChat",
+                "ResourceChatAutomation",
                 "ResourceChatModelConfig",
                 "ResourceChatProject",
                 "ResourceChatProjectMemory",
@@ -29306,6 +30472,17 @@ const docTemplate = `{
                             "type": "string"
                         }
                     }
+                }
+            }
+        },
+        "codersdk.RotateChatAutomationSecretResponse": {
+            "type": "object",
+            "properties": {
+                "webhook_secret": {
+                    "type": "string"
+                },
+                "webhook_secret_version": {
+                    "type": "integer"
                 }
             }
         },
@@ -30964,6 +32141,55 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateChatAutomationRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Enabled disables or re-enables the automation. Disabling removes the\nmessages the automation queued that have not started. Re-enabling a\nschedule resumes at its next future occurrence; occurrences missed\nwhile it was disabled do not run.",
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "new_chat_model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "project_id": {
+                    "description": "ProjectID applies to new_chat automations only. A project ID moves the\nchats the automation creates later into that project. The all-zero\nUUID removes the project. Omitted or null leaves it unchanged. Chats\ncreated earlier keep their project.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "description": "ReasoningEffort sets the effort of new chats. An empty string clears\nthe override, so new chats use the model's default.",
+                    "type": "string"
+                },
+                "schedule_cron": {
+                    "type": "string"
+                },
+                "schedule_time_zone": {
+                    "type": "string"
+                },
+                "target_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "when_busy": {
+                    "enum": [
+                        "queue",
+                        "skip"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWhenBusy"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.UpdateChatDebugLoggingAllowUsersRequest": {
             "type": "object",
             "properties": {
@@ -31079,6 +32305,10 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "manage_automations_enabled": {
+                    "description": "ManageAutomationsEnabled turns the manage_automations tool on or\noff for a root chat. Only the chat owner may set it. Enabling it\nrequires the chat-automations experiment for the owner; disabling\nis always accepted. Experimental.",
+                    "type": "boolean"
                 },
                 "pin_order": {
                     "description": "PinOrder controls the chat's pinned state and position.\n- nil: no change to pin state.\n- 0: unpin the chat.\n- \u003e0 (chat is unpinned): pin the chat, appending it to\n  the end of the pinned list. The specific value is\n  ignored; the server assigns the next available position.\n- \u003e0 (chat is already pinned): move the chat to the\n  requested position, shifting neighbors as needed. The\n  value is clamped to [1, pinned_count].",

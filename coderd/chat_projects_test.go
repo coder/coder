@@ -312,7 +312,9 @@ func TestChatProjectsExperimentDisabled(t *testing.T) {
 	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
 
 	_, err = client.ListChats(ctx, &codersdk.ListChatsOptions{ProjectID: &project.ID})
-	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
+	listErr := coderdtest.SDKError(t, err)
+	require.Equal(t, 400, listErr.StatusCode())
+	require.Equal(t, "chat projects experiment is not enabled", listErr.Message)
 }
 
 func newChatProjectClient(t testing.TB) (*codersdk.ExperimentalClient, database.Store) {

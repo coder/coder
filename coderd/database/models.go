@@ -535,6 +535,11 @@ const (
 	ApiKeyScopeChatProjectRead                     APIKeyScope = "chat_project:read"
 	ApiKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
 	ApiKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
+	ApiKeyScopeChatAutomation                      APIKeyScope = "chat_automation:*"
+	ApiKeyScopeChatAutomationCreate                APIKeyScope = "chat_automation:create"
+	ApiKeyScopeChatAutomationRead                  APIKeyScope = "chat_automation:read"
+	ApiKeyScopeChatAutomationUpdate                APIKeyScope = "chat_automation:update"
+	ApiKeyScopeChatAutomationDelete                APIKeyScope = "chat_automation:delete"
 	ApiKeyScopeChatProjectMemory                   APIKeyScope = "chat_project_memory:*"
 	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
@@ -826,6 +831,11 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectRead,
 		ApiKeyScopeChatProjectUpdate,
 		ApiKeyScopeChatProjectDelete,
+		ApiKeyScopeChatAutomation,
+		ApiKeyScopeChatAutomationCreate,
+		ApiKeyScopeChatAutomationRead,
+		ApiKeyScopeChatAutomationUpdate,
+		ApiKeyScopeChatAutomationDelete,
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
@@ -1085,6 +1095,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectRead,
 		ApiKeyScopeChatProjectUpdate,
 		ApiKeyScopeChatProjectDelete,
+		ApiKeyScopeChatAutomation,
+		ApiKeyScopeChatAutomationCreate,
+		ApiKeyScopeChatAutomationRead,
+		ApiKeyScopeChatAutomationUpdate,
+		ApiKeyScopeChatAutomationDelete,
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
@@ -1446,6 +1461,299 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonSshConnection,
 		BuildReasonVscodeConnection,
 		BuildReasonJetbrainsConnection,
+	}
+}
+
+type ChatAutomationKind string
+
+const (
+	ChatAutomationKindWebhook  ChatAutomationKind = "webhook"
+	ChatAutomationKindSchedule ChatAutomationKind = "schedule"
+)
+
+func (e *ChatAutomationKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationKind(s)
+	case string:
+		*e = ChatAutomationKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationKind: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationKind struct {
+	ChatAutomationKind ChatAutomationKind `json:"chat_automation_kind"`
+	Valid              bool               `json:"valid"` // Valid is true if ChatAutomationKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationKind), nil
+}
+
+func (e ChatAutomationKind) Valid() bool {
+	switch e {
+	case ChatAutomationKindWebhook,
+		ChatAutomationKindSchedule:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationKindValues() []ChatAutomationKind {
+	return []ChatAutomationKind{
+		ChatAutomationKindWebhook,
+		ChatAutomationKindSchedule,
+	}
+}
+
+type ChatAutomationRunOutcome string
+
+const (
+	ChatAutomationRunOutcomeAccepted ChatAutomationRunOutcome = "accepted"
+	ChatAutomationRunOutcomeSkipped  ChatAutomationRunOutcome = "skipped"
+	ChatAutomationRunOutcomeRefused  ChatAutomationRunOutcome = "refused"
+)
+
+func (e *ChatAutomationRunOutcome) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationRunOutcome(s)
+	case string:
+		*e = ChatAutomationRunOutcome(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationRunOutcome: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationRunOutcome struct {
+	ChatAutomationRunOutcome ChatAutomationRunOutcome `json:"chat_automation_run_outcome"`
+	Valid                    bool                     `json:"valid"` // Valid is true if ChatAutomationRunOutcome is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationRunOutcome) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationRunOutcome, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationRunOutcome.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationRunOutcome) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationRunOutcome), nil
+}
+
+func (e ChatAutomationRunOutcome) Valid() bool {
+	switch e {
+	case ChatAutomationRunOutcomeAccepted,
+		ChatAutomationRunOutcomeSkipped,
+		ChatAutomationRunOutcomeRefused:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationRunOutcomeValues() []ChatAutomationRunOutcome {
+	return []ChatAutomationRunOutcome{
+		ChatAutomationRunOutcomeAccepted,
+		ChatAutomationRunOutcomeSkipped,
+		ChatAutomationRunOutcomeRefused,
+	}
+}
+
+type ChatAutomationTargetMode string
+
+const (
+	ChatAutomationTargetModeExistingChat ChatAutomationTargetMode = "existing_chat"
+	ChatAutomationTargetModeNewChat      ChatAutomationTargetMode = "new_chat"
+)
+
+func (e *ChatAutomationTargetMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationTargetMode(s)
+	case string:
+		*e = ChatAutomationTargetMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationTargetMode: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationTargetMode struct {
+	ChatAutomationTargetMode ChatAutomationTargetMode `json:"chat_automation_target_mode"`
+	Valid                    bool                     `json:"valid"` // Valid is true if ChatAutomationTargetMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationTargetMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationTargetMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationTargetMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationTargetMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationTargetMode), nil
+}
+
+func (e ChatAutomationTargetMode) Valid() bool {
+	switch e {
+	case ChatAutomationTargetModeExistingChat,
+		ChatAutomationTargetModeNewChat:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationTargetModeValues() []ChatAutomationTargetMode {
+	return []ChatAutomationTargetMode{
+		ChatAutomationTargetModeExistingChat,
+		ChatAutomationTargetModeNewChat,
+	}
+}
+
+type ChatAutomationWebhookUse string
+
+const (
+	ChatAutomationWebhookUseSingle ChatAutomationWebhookUse = "single"
+	ChatAutomationWebhookUseMulti  ChatAutomationWebhookUse = "multi"
+)
+
+func (e *ChatAutomationWebhookUse) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationWebhookUse(s)
+	case string:
+		*e = ChatAutomationWebhookUse(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationWebhookUse: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationWebhookUse struct {
+	ChatAutomationWebhookUse ChatAutomationWebhookUse `json:"chat_automation_webhook_use"`
+	Valid                    bool                     `json:"valid"` // Valid is true if ChatAutomationWebhookUse is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationWebhookUse) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationWebhookUse, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationWebhookUse.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationWebhookUse) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationWebhookUse), nil
+}
+
+func (e ChatAutomationWebhookUse) Valid() bool {
+	switch e {
+	case ChatAutomationWebhookUseSingle,
+		ChatAutomationWebhookUseMulti:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationWebhookUseValues() []ChatAutomationWebhookUse {
+	return []ChatAutomationWebhookUse{
+		ChatAutomationWebhookUseSingle,
+		ChatAutomationWebhookUseMulti,
+	}
+}
+
+type ChatAutomationWhenBusy string
+
+const (
+	ChatAutomationWhenBusyQueue ChatAutomationWhenBusy = "queue"
+	ChatAutomationWhenBusySkip  ChatAutomationWhenBusy = "skip"
+)
+
+func (e *ChatAutomationWhenBusy) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationWhenBusy(s)
+	case string:
+		*e = ChatAutomationWhenBusy(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationWhenBusy: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationWhenBusy struct {
+	ChatAutomationWhenBusy ChatAutomationWhenBusy `json:"chat_automation_when_busy"`
+	Valid                  bool                   `json:"valid"` // Valid is true if ChatAutomationWhenBusy is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationWhenBusy) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationWhenBusy, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationWhenBusy.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationWhenBusy) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationWhenBusy), nil
+}
+
+func (e ChatAutomationWhenBusy) Valid() bool {
+	switch e {
+	case ChatAutomationWhenBusyQueue,
+		ChatAutomationWhenBusySkip:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationWhenBusyValues() []ChatAutomationWhenBusy {
+	return []ChatAutomationWhenBusy{
+		ChatAutomationWhenBusyQueue,
+		ChatAutomationWhenBusySkip,
 	}
 }
 
@@ -5177,6 +5485,55 @@ type Chat struct {
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 	TitleSource              ChatTitleSource         `db:"title_source" json:"title_source"`
 	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
+	AutomationID             uuid.NullUUID           `db:"automation_id" json:"automation_id"`
+	ManageAutomationsEnabled bool                    `db:"manage_automations_enabled" json:"manage_automations_enabled"`
+}
+
+// Owner-authored webhook or schedule triggers that deliver a prompt to an existing chat or a new chat.
+type ChatAutomation struct {
+	ID              uuid.UUID                `db:"id" json:"id"`
+	OrganizationID  uuid.UUID                `db:"organization_id" json:"organization_id"`
+	OwnerID         uuid.UUID                `db:"owner_id" json:"owner_id"`
+	Name            string                   `db:"name" json:"name"`
+	CreatedByChatID uuid.NullUUID            `db:"created_by_chat_id" json:"created_by_chat_id"`
+	Kind            ChatAutomationKind       `db:"kind" json:"kind"`
+	Enabled         bool                     `db:"enabled" json:"enabled"`
+	TargetMode      ChatAutomationTargetMode `db:"target_mode" json:"target_mode"`
+	// Target chat for existing_chat automations. Set to NULL when the target chat is deleted.
+	TargetChatID         uuid.NullUUID                `db:"target_chat_id" json:"target_chat_id"`
+	NewChatModelConfigID uuid.NullUUID                `db:"new_chat_model_config_id" json:"new_chat_model_config_id"`
+	ReasoningEffort      NullChatReasoningEffort      `db:"reasoning_effort" json:"reasoning_effort"`
+	WhenBusy             NullChatAutomationWhenBusy   `db:"when_busy" json:"when_busy"`
+	WebhookUse           NullChatAutomationWebhookUse `db:"webhook_use" json:"webhook_use"`
+	// Hash of the webhook bearer secret. The plaintext secret is never stored.
+	WebhookSecretHash []byte `db:"webhook_secret_hash" json:"webhook_secret_hash"`
+	// Incremented each time the webhook secret is rotated.
+	WebhookSecretVersion int64 `db:"webhook_secret_version" json:"webhook_secret_version"`
+	// Single-use webhook marker. Set once when the webhook is consumed and never reset.
+	WebhookConsumedAt sql.NullTime   `db:"webhook_consumed_at" json:"webhook_consumed_at"`
+	Prompt            string         `db:"prompt" json:"prompt"`
+	ScheduleCron      sql.NullString `db:"schedule_cron" json:"schedule_cron"`
+	ScheduleTimeZone  sql.NullString `db:"schedule_time_zone" json:"schedule_time_zone"`
+	// Incremented whenever the schedule changes, so work computed from an older schedule can be detected as stale.
+	ScheduleRevision int64 `db:"schedule_revision" json:"schedule_revision"`
+	// Schedule cursor: the next occurrence to fire. NULL when no occurrence is pending.
+	ScheduleNextRunAt sql.NullTime `db:"schedule_next_run_at" json:"schedule_next_run_at"`
+	// Incremented to invalidate queued messages this automation delivered earlier; queued rows carry the generation they were created with.
+	QueueGeneration int64     `db:"queue_generation" json:"queue_generation"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+	// Project for chats a new_chat automation creates. NULL when the automation has no project or after the project is deleted.
+	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
+	// Lease on the occurrence at schedule_next_run_at: the replica that set it runs the prompt hooks and publishes that occurrence. NULL or a past time means unclaimed.
+	ScheduleClaimedUntil sql.NullTime `db:"schedule_claimed_until" json:"schedule_claimed_until"`
+	// When the latest schedule occurrence, Run now, or authenticated webhook delivery was decided. NULL until the first one.
+	LastRunAt sql.NullTime `db:"last_run_at" json:"last_run_at"`
+	// Outcome of the latest run: accepted, skipped (the target was busy or full, or the occurrence was missed), or refused.
+	LastRunOutcome NullChatAutomationRunOutcome `db:"last_run_outcome" json:"last_run_outcome"`
+	// Short machine reason for a skipped or refused run, such as chat_busy or owner_inactive. NULL for accepted runs.
+	LastRunReason sql.NullString `db:"last_run_reason" json:"last_run_reason"`
+	// Chat the latest run went to or was meant for. No foreign key by design.
+	LastRunChatID uuid.NullUUID `db:"last_run_chat_id" json:"last_run_chat_id"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5337,6 +5694,10 @@ type ChatMessage struct {
 	SearchTsvConfig NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
 	// ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.
 	QueuedMessageID sql.NullInt64 `db:"queued_message_id" json:"queued_message_id"`
+	// Automation that delivered this message. No foreign key by design.
+	AutomationID uuid.NullUUID `db:"automation_id" json:"automation_id"`
+	// Automation input (webhook delivery or schedule occurrence) that delivered this message.
+	InputID uuid.NullUUID `db:"input_id" json:"input_id"`
 }
 
 type ChatModelConfig struct {
@@ -5411,6 +5772,12 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	// Automation that queued this message. No foreign key by design.
+	AutomationID uuid.NullUUID `db:"automation_id" json:"automation_id"`
+	// Automation input (webhook delivery or schedule occurrence) that queued this message.
+	InputID uuid.NullUUID `db:"input_id" json:"input_id"`
+	// chat_automations.queue_generation at queue time. A lower value than the automation's current generation marks the message stale.
+	QueueGeneration sql.NullInt64 `db:"queue_generation" json:"queue_generation"`
 }
 
 type ChatTable struct {
@@ -5474,6 +5841,10 @@ type ChatTable struct {
 	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
 	// Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.
 	TitleUpdatedAt time.Time `db:"title_updated_at" json:"title_updated_at"`
+	// Automation that created this chat. No foreign key by design.
+	AutomationID uuid.NullUUID `db:"automation_id" json:"automation_id"`
+	// Interim per-chat switch that offers the manage_automations tool. Only the chat owner may change it after creation.
+	ManageAutomationsEnabled bool `db:"manage_automations_enabled" json:"manage_automations_enabled"`
 }
 
 type ChatUsageLimitConfig struct {

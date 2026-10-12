@@ -11,6 +11,7 @@ import {
 	useQueryClient,
 } from "react-query";
 import { watchChat } from "#/api/api";
+import { invalidateChatAutomationReferences } from "#/api/queries/chatAutomations";
 import {
 	chatMessagesKey,
 	invalidateChatPrompts,
@@ -201,6 +202,11 @@ export const useChatStore = (
 			const hasNewUserPrompt = messages.some((msg) => msg.role === "user");
 			if (hasNewUserPrompt) {
 				void invalidateChatPrompts(queryClient, chatID);
+			}
+			// New automation input can come from an automation created or
+			// renamed after the chat's automation references loaded.
+			if (messages.some((msg) => msg.automation_id !== undefined)) {
+				void invalidateChatAutomationReferences(queryClient, chatID);
 			}
 			void invalidateChatSearches(queryClient);
 		},
@@ -585,11 +591,21 @@ export const useChatStore = (
 							}
 							continue;
 						}
-						case "queue_update":
+						case "queue_update": {
 							wsQueueUpdateReceivedRef.current = true;
+							const previousQueuedIDs = new Set(
+								store.getSnapshot().queuedMessages.map((m) => m.id),
+							);
 							store.applyAuthoritativeQueuedMessages(
 								streamEvent.queued_messages,
 							);
+							const hasNewAutomationInput = streamEvent.queued_messages?.some(
+								(m) =>
+									m.automation_id !== undefined && !previousQueuedIDs.has(m.id),
+							);
+							if (hasNewAutomationInput) {
+								void invalidateChatAutomationReferences(queryClient, chatID);
+							}
 							// Cache the store's filtered queue, not the raw
 							// event, so a promoted message suppressed by the
 							// store cannot reappear on REST re-hydration.
@@ -599,6 +615,7 @@ export const useChatStore = (
 								store.getSnapshot().queuedMessages,
 							);
 							continue;
+						}
 						case "status": {
 							const nextStatus = streamEvent.status?.status;
 							if (!nextStatus) {

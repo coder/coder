@@ -9,13 +9,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/testutil"
 )
 
 // TestMigration000615RemoveChatAutomations upgrades a database that used chat
-// automations through the production migration runner, which applies 000615
-// and 000616 in one transaction. Automation data and credentials must go,
+// automations through 000615 and 000616, then restores the schema with
+// 000617. Automation data and credentials must go,
 // while the chats, their messages, ordinary queued messages, and the other
 // scopes and permissions on the same credentials must stay.
 func TestMigration000615RemoveChatAutomations(t *testing.T) {
@@ -137,7 +136,8 @@ func TestMigration000615RemoveChatAutomations(t *testing.T) {
 			VALUES ($1, $2, $2, $3, $3, $4, $5, $6, $7)`, uuid.New(), now, []byte(grant.key), grant.key, userID, mixedAppID, grant.scope)
 	}
 
-	require.NoError(t, migrations.Up(sqlDB))
+	// 000617 restores the automation schema, so stop after the removal.
+	stepTo(t, sqlDB, 616)
 
 	queryStrings := func(query string, args ...any) []string {
 		t.Helper()
@@ -248,6 +248,17 @@ func TestMigration000615RemoveChatAutomations(t *testing.T) {
 		require.NoError(t, err)
 		exec(string(query))
 	}
+	assertSchemaRemoved(t, true)
+	assertMigrated(t)
+
+	// 000617 restores the schema again with empty tables, and its down
+	// migration removes it again.
+	stepTo(t, sqlDB, 617)
+	assertSchemaRemoved(t, false)
+	require.Empty(t, queryStrings(`SELECT id::text FROM chat_automations`))
+	query, err := os.ReadFile("000617_restore_chat_automations.down.sql")
+	require.NoError(t, err)
+	exec(string(query))
 	assertSchemaRemoved(t, true)
 	assertMigrated(t)
 }

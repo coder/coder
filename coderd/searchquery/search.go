@@ -546,10 +546,11 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 // Chats parses a search query for chats.
 //
 // Supported query parameters:
-//   - title: case-insensitive title substring match via ILIKE (bare terms
-//     are rejected; use title:<value> for title filtering)
-//   - archived: boolean (default: false, excludes archived chats unless
-//     explicitly set)
+//   - title: case-insensitive literal title substring match; '%' and
+//     '_' match literally (bare terms are rejected; use title:<value>
+//     for title filtering)
+//   - archived: boolean, or any to include archived and active chats
+//     (default: false, excludes archived chats unless explicitly set)
 //   - has_unread: nullable boolean (filter by unread message status)
 //   - status: repeated or comma-separated chat_status enum value:
 //     waiting, running, error, requires_action, or interrupting
@@ -567,7 +568,8 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 //     both)
 //   - search: full-text search over chat content; mutually exclusive
 //     with title, pr_title, and pr
-func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
+//   - organization: organization ID, or name (case-insensitive)
+func Chats(ctx context.Context, db database.Store, query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{
 		// Default to hiding archived chats and chats not owned by the caller.
 		Archived:  sql.NullBool{Bool: false, Valid: true},
@@ -590,7 +592,14 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	}
 
 	parser := httpapi.NewQueryParamParser()
-	filter.Archived = parser.NullableBoolean(values, filter.Archived, "archived")
+	if archived := values["archived"]; len(archived) == 1 && strings.EqualFold(archived[0], "any") {
+		// A null filter matches archived and active chats. Deleting the
+		// term keeps ErrorExcessParams from rejecting it as unparsed.
+		filter.Archived = sql.NullBool{}
+		values.Del("archived")
+	} else {
+		filter.Archived = parser.NullableBoolean(values, filter.Archived, "archived")
+	}
 	filter.HasUnread = parser.NullableBoolean(values, filter.HasUnread, "has_unread")
 	filter.ChatStatuses = httpapi.ParseCustomList(parser, values, nil, "status", func(v string) (string, error) {
 		status := database.ChatStatus(strings.ToLower(strings.TrimSpace(v)))
@@ -619,6 +628,16 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 		}
 	}
 
+	orgErrCount := len(parser.Errors)
+	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
+	// The query treats the nil UUID as "no filter", so reject it instead of
+	// returning chats from every organization.
+	if values.Has("organization") && len(parser.Errors) == orgErrCount && filter.OrganizationID == uuid.Nil {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "organization",
+			Detail: `Query param "organization" must not be the nil UUID.`,
+		})
+	}
 	filter.TitleQuery = parser.String(values, "", "title")
 	filter.PrTitleQuery = parser.String(values, "", "pr_title")
 	filter.RepoQuery = parser.String(values, "", "repo")

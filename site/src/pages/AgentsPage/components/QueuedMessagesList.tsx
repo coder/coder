@@ -15,11 +15,18 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import {
+	AutomationLabel,
+	type ChatAutomationReferences,
+} from "./ChatConversation/AutomationLabel";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
+	automationReferences: ChatAutomationReferences;
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
+	/** Hides Send now and Remove for viewers who cannot change the chat. */
+	readOnly?: boolean;
 	className?: string;
 };
 
@@ -55,14 +62,23 @@ export const getQueuedMessageInfo = (
 
 export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
+	automationReferences,
 	onDelete,
 	onPromote,
+	readOnly = false,
 	className,
 }) => {
 	const items = messages.map((message) => {
 		const { displayText, attachmentCount, hookNotices } =
 			getQueuedMessageInfo(message);
-		return { id: message.id, displayText, attachmentCount, hookNotices };
+		return {
+			id: message.id,
+			displayText,
+			attachmentCount,
+			hookNotices,
+			automationId: message.automation_id,
+			inputId: message.input_id,
+		};
 	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
@@ -172,6 +188,19 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 							setHoveredID((current) => (current === item.id ? null : current))
 						}
 					>
+						{item.automationId && (
+							<div className="mb-1 flex">
+								<AutomationLabel
+									variant="badge"
+									automationId={item.automationId}
+									inputId={item.inputId}
+									reference={automationReferences.references.get(
+										item.automationId,
+									)}
+									nameStatus={automationReferences.status}
+								/>
+							</div>
+						)}
 						<div className="flex items-center gap-2 rounded-lg border border-solid border-border bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
 							<span className="min-w-0 flex-1 truncate">
 								{item.displayText.split("\n")[0]}
@@ -203,63 +232,70 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{isFirst && (
-								<span
-									className={cn(
-										"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
-										showActions ? "opacity-100" : "opacity-0",
+							{!readOnly && (
+								<>
+									{isFirst && (
+										<span
+											className={cn(
+												"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
+												showActions ? "opacity-100" : "opacity-0",
+											)}
+										>
+											<CornerDownLeftIcon
+												className="size-3"
+												aria-hidden="true"
+											/>
+											<span className="sr-only">Enter</span>
+											to send
+										</span>
 									)}
-								>
-									<CornerDownLeftIcon className="size-3" aria-hidden="true" />
-									<span className="sr-only">Enter</span>
-									to send
-								</span>
+									<div
+										className={cn(
+											"flex shrink-0 items-center gap-0.5 transition-opacity",
+											showActions ? "opacity-100" : "opacity-0",
+										)}
+									>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="subtle"
+													size="icon"
+													aria-label="Send now"
+													disabled={isBusy}
+													onClick={() => void handlePromote(item.id)}
+													className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
+												>
+													{isItemBusy && busyItem.action === "promote" ? (
+														<Spinner className="h-3.5 w-3.5" loading />
+													) : (
+														<ArrowUpIcon className="size-3.5" />
+													)}
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent side="top">Send now</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													variant="subtle"
+													size="icon"
+													aria-label="Remove from queue"
+													disabled={isBusy}
+													onClick={() => void handleDelete(item.id)}
+													className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
+												>
+													{isItemBusy && busyItem.action === "delete" ? (
+														<Spinner className="h-3.5 w-3.5" loading />
+													) : (
+														<Trash2Icon className="size-3.5" />
+													)}
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent side="top">Remove</TooltipContent>
+										</Tooltip>
+									</div>
+								</>
 							)}
-							<div
-								className={cn(
-									"flex shrink-0 items-center gap-0.5 transition-opacity",
-									showActions ? "opacity-100" : "opacity-0",
-								)}
-							>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Send now"
-											disabled={isBusy}
-											onClick={() => void handlePromote(item.id)}
-											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
-										>
-											{isItemBusy && busyItem.action === "promote" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<ArrowUpIcon className="size-3.5" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="top">Send now</TooltipContent>
-								</Tooltip>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Remove from queue"
-											disabled={isBusy}
-											onClick={() => void handleDelete(item.id)}
-											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
-										>
-											{isItemBusy && busyItem.action === "delete" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<Trash2Icon className="size-3.5" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="top">Remove</TooltipContent>
-								</Tooltip>
-							</div>
 						</div>
 					</div>
 				);

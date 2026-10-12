@@ -1663,6 +1663,8 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		CreatedAt:       m.CreatedAt,
 		Role:            codersdk.ChatMessageRole(m.Role),
 		QueuedMessageID: nullInt64Ptr(m.QueuedMessageID),
+		AutomationID:    nullUUIDPtr(m.AutomationID),
+		InputID:         nullUUIDPtr(m.InputID),
 	}
 	if m.Content.Valid {
 		parts, err := chatMessageParts(m)
@@ -1727,6 +1729,8 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
 		Content:       parts,
 		CreatedAt:     message.CreatedAt,
+		AutomationID:  nullUUIDPtr(message.AutomationID),
+		InputID:       nullUUIDPtr(message.InputID),
 	}
 }
 
@@ -1778,6 +1782,71 @@ func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 		CreatedAt:       dbPrice.CreatedAt,
 		UpdatedAt:       dbPrice.UpdatedAt,
 	}
+}
+
+// ChatAutomationReference converts a chat automation reference row to its
+// SDK form.
+func ChatAutomationReference(row database.GetChatAutomationReferencesByChatIDRow) codersdk.ChatAutomationReference {
+	return codersdk.ChatAutomationReference{
+		ID:   row.ID,
+		Name: row.Name,
+		Kind: codersdk.ChatAutomationKind(row.Kind),
+	}
+}
+
+// ChatAutomation converts a chat automation row to its SDK form. The
+// webhook secret hash is never included. nextRuns are the upcoming schedule
+// runs the caller computed; a nil slice is returned as empty.
+func ChatAutomation(row database.ChatAutomation, nextRuns []time.Time) codersdk.ChatAutomation {
+	automation := codersdk.ChatAutomation{
+		ID:                   row.ID,
+		OrganizationID:       row.OrganizationID,
+		OwnerID:              row.OwnerID,
+		Name:                 row.Name,
+		CreatedByChatID:      nullUUIDPtr(row.CreatedByChatID),
+		Kind:                 codersdk.ChatAutomationKind(row.Kind),
+		Enabled:              row.Enabled,
+		TargetMode:           codersdk.ChatAutomationTargetMode(row.TargetMode),
+		TargetChatID:         nullUUIDPtr(row.TargetChatID),
+		NewChatModelConfigID: nullUUIDPtr(row.NewChatModelConfigID),
+		ProjectID:            nullUUIDPtr(row.ProjectID),
+		WebhookSecretVersion: row.WebhookSecretVersion,
+		WebhookConsumedAt:    nullTimePtr(row.WebhookConsumedAt),
+		Prompt:               row.Prompt,
+		ScheduleCron:         nullStringPtr(row.ScheduleCron),
+		ScheduleTimeZone:     nullStringPtr(row.ScheduleTimeZone),
+		ScheduleNextRunAt:    nullTimePtr(row.ScheduleNextRunAt),
+		NextRunTimes:         nextRuns,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+	}
+	if automation.NextRunTimes == nil {
+		automation.NextRunTimes = []time.Time{}
+	}
+	if row.ReasoningEffort.Valid {
+		effort := string(row.ReasoningEffort.ChatReasoningEffort)
+		automation.ReasoningEffort = &effort
+	}
+	if row.WhenBusy.Valid {
+		whenBusy := codersdk.ChatAutomationWhenBusy(row.WhenBusy.ChatAutomationWhenBusy)
+		automation.WhenBusy = &whenBusy
+	}
+	if row.WebhookUse.Valid {
+		webhookUse := codersdk.ChatAutomationWebhookUse(row.WebhookUse.ChatAutomationWebhookUse)
+		automation.WebhookUse = &webhookUse
+	}
+	if row.LastRunOutcome.Valid && row.LastRunAt.Valid {
+		automation.LastRun = &codersdk.ChatAutomationLastRun{
+			At:      row.LastRunAt.Time,
+			Outcome: codersdk.ChatAutomationRunOutcome(row.LastRunOutcome.ChatAutomationRunOutcome),
+			ChatID:  nullUUIDPtr(row.LastRunChatID),
+		}
+		if row.LastRunReason.Valid {
+			reason := codersdk.ChatAutomationRunReason(row.LastRunReason.String)
+			automation.LastRun.Reason = &reason
+		}
+	}
+	return automation
 }
 
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
@@ -1933,6 +2002,8 @@ func ChatWithDiffStatuses(
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
 		LastError:         lastError,
+
+		ManageAutomationsEnabled: c.ManageAutomationsEnabled,
 	}
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String
@@ -1970,6 +2041,7 @@ func ChatWithDiffStatuses(
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
 	}
+	chat.AutomationID = nullUUIDPtr(c.AutomationID)
 	if c.ProjectID.Valid {
 		chat.ProjectID = &c.ProjectID.UUID
 	}

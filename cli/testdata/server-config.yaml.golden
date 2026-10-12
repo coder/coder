@@ -892,6 +892,23 @@ chat:
   # frees up within 90 seconds. Must be at least 1.
   # (default: 25, type: int)
   maxConcurrentRecordingUploads: 25
+  # Maximum number of chat automations one user can own across all organizations.
+  # Creating one more fails with HTTP 409. Must be at least 1.
+  # (default: 50, type: int)
+  maxAutomationsPerOwner: 50
+  # Minimum time between two runs of a chat schedule automation. Creating a
+  # schedule, or changing one, that runs more often fails with HTTP 400. Existing
+  # schedules that run more often keep running, and the API marks them. Must be
+  # between 1m and 24h.
+  # (default: 5m0s, type: duration)
+  minAutomationScheduleInterval: 5m0s
+  # Maximum size in bytes of a chat automation webhook body, and of its event data
+  # after escaping. Larger deliveries fail with HTTP 413. The whole body becomes
+  # part of the chat's next prompt, so one large body can use up much of a model's
+  # context window. Must be between 1024 (1 KiB) and 262144 (256 KiB), the request
+  # body limit of the chat endpoints.
+  # (default: 65536, type: int)
+  automationWebhookMaxBodyBytes: 65536
   # Deprecated: AI Gateway routing is now the only routing path. Setting this value
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
