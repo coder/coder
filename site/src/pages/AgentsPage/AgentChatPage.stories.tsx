@@ -1395,11 +1395,22 @@ export const WithMessageHistory: Story = {
 				canvas.getByRole("textbox", { name: "Chat message" }),
 			).toBeEnabled();
 		});
-		// The stream reports that the edit's turn ended.
-		loadedChatStore(CHAT_ID)?.applyCheckpoint({
-			snapshot_version: 2,
-			turn: { status: "waiting" },
+		// The stream delivers the edit, a replacement for messages 5 and 6, and
+		// the end of its turn.
+		const store = loadedChatStore(CHAT_ID);
+		const edited = store?.getSnapshot().messagesByID.get(5);
+		if (!store || !edited) {
+			throw new Error("the chat store holds no message 5");
+		}
+		store.batch(() => {
+			store.resetHistoryFrom(5);
+			store.upsertDurableMessages([{ ...edited, id: 7 }]);
+			store.applyCheckpoint(
+				{ snapshot_version: 2, turn: { status: "waiting" } },
+				{ historyReset: true, userMessage: true },
+			);
 		});
+		await canvas.findByTestId("chat-message-message:7");
 
 		await editLastMessage();
 		await changeReasoningEffort("{ArrowLeft}");
@@ -1416,7 +1427,7 @@ export const WithMessageHistory: Story = {
 		expect(API.experimental.editChatMessage).toHaveBeenNthCalledWith(
 			2,
 			CHAT_ID,
-			5,
+			7,
 			expect.objectContaining({ reasoning_effort: "medium" }),
 		);
 	},
