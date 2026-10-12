@@ -34,6 +34,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 import {
@@ -191,6 +192,8 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 	automation,
 	onDeleting,
 }) => {
+	// Matches the breakpoint at which the top bar shows its content.
+	const isDesktop = useMediaQuery("(min-width: 640px)");
 	const { buildInfo, experiments } = useDashboard();
 	const { user } = useAuthenticated();
 	const queryClient = useQueryClient();
@@ -402,66 +405,82 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 			: automation.name
 		: "New automation";
 
+	const deleteButton = canDelete && automation && (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					size="icon"
+					variant="outline"
+					aria-label={`Delete ${automation.name}`}
+					onClick={() => {
+						deleteMutation.reset();
+						setConfirmingDelete(true);
+					}}
+				>
+					<Trash2Icon />
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent>Delete</TooltipContent>
+		</Tooltip>
+	);
+	const pageActions = (runNowButton || deleteButton) && (
+		<div className="flex items-center gap-2">
+			{runNowButton}
+			{deleteButton}
+		</div>
+	);
+	const breadcrumb = (
+		<Breadcrumb current={automation?.name ?? "New automation"} />
+	);
+
 	return (
 		<ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
-			<AutomationsPageHeader backTo={backToList} />
+			{/* On wide screens the breadcrumb and page actions sit in the top
+			    bar. The top bar hides its content on phones, so there they
+			    sit above the title. */}
+			<AutomationsPageHeader backTo={backToList}>
+				{isDesktop && (
+					<div className="flex items-center gap-3">
+						{breadcrumb}
+						{pageActions}
+					</div>
+				)}
+			</AutomationsPageHeader>
 			<div className="px-4 pb-8 pt-2 sm:pt-6">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					{/* In the content column, not the top bar, so the breadcrumb and
-					    actions line up with the title at every width. */}
-					<div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
-						<Breadcrumb current={automation?.name ?? "New automation"} />
-						{(runNowButton || canDelete) && (
-							<div className="flex items-center gap-2">
-								{runNowButton}
-								{canDelete && automation && (
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Button
-												size="icon"
-												variant="outline"
-												aria-label={`Delete ${automation.name}`}
-												onClick={() => {
-													deleteMutation.reset();
-													setConfirmingDelete(true);
-												}}
-											>
-												<Trash2Icon />
-											</Button>
-										</TooltipTrigger>
-										<TooltipContent>Delete</TooltipContent>
-									</Tooltip>
-								)}
-							</div>
-						)}
-					</div>
-					<header className="flex flex-wrap items-start justify-between gap-4">
-						<div className="flex min-w-0 flex-col gap-1">
+					{!isDesktop && (
+						<div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
+							{breadcrumb}
+							{pageActions}
+						</div>
+					)}
+					<header className="flex flex-col gap-2">
+						<div className="flex flex-wrap items-center justify-between gap-3">
 							<h1 className="m-0 text-xl font-semibold text-content-primary wrap-anywhere">
 								{title}
 							</h1>
 							{automation && (
-								<>
-									<span className="text-sm text-content-secondary">
-										Next run: <AutomationNextRun automation={automation} />
-									</span>
-									<AutomationLastRun
-										lastRun={automation.last_run}
-										showHint={isOwner}
-										className="text-sm"
+								<div className="flex flex-wrap items-center gap-3">
+									<AutomationPausedBadge automation={automation} />
+									<AutomationEnabledSwitch
+										automation={automation}
+										isOwner={isOwner}
+										isUpdating={toggleMutation.isPending}
+										onToggle={handleToggle}
+										showLabel
 									/>
-								</>
+								</div>
 							)}
 						</div>
 						{automation && (
-							<div className="flex flex-wrap items-center gap-3">
-								<AutomationPausedBadge automation={automation} />
-								<AutomationEnabledSwitch
-									automation={automation}
-									isOwner={isOwner}
-									isUpdating={toggleMutation.isPending}
-									onToggle={handleToggle}
-									showLabel
+							<div className="flex flex-wrap items-start gap-x-6 gap-y-1 text-sm">
+								<span className="text-content-secondary">
+									Next run: <AutomationNextRun automation={automation} />
+								</span>
+								<AutomationLastRun
+									lastRun={automation.last_run}
+									showHint={isOwner}
+									className="text-sm"
 								/>
 							</div>
 						)}

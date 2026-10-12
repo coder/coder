@@ -366,7 +366,7 @@ export const AutomationEditorForm: React.FC<AutomationEditorFormProps> = ({
 	return (
 		<form
 			aria-label={isCreate ? "New automation" : "Edit automation"}
-			className="flex flex-col gap-8"
+			className="flex flex-col gap-6"
 			onSubmit={form.handleSubmit}
 			noValidate
 		>
@@ -374,7 +374,7 @@ export const AutomationEditorForm: React.FC<AutomationEditorFormProps> = ({
 			    fieldset-disabled buttons, so they get pointer-events: none. */}
 			<fieldset
 				disabled={isSubmitting}
-				className="m-0 flex min-w-0 flex-col gap-8 border-0 p-0 [&_button:disabled]:pointer-events-none"
+				className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0 [&_button:disabled]:pointer-events-none"
 			>
 				<FormField
 					field={getFieldHelpers("name")}
@@ -448,8 +448,9 @@ export const AutomationEditorForm: React.FC<AutomationEditorFormProps> = ({
 				isWebhook={form.values.kind === "webhook"}
 			/>
 			{/* Next to the buttons, so a save error such as the per-owner
-			    limit is in view where the user clicked. */}
-			<div className="flex flex-col gap-4 border-0 border-t border-solid border-border pt-6">
+			    limit is in view where the user clicked. Sticky, so the
+			    buttons stay in reach in a long form. */}
+			<div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-4 border-0 border-t border-solid border-border bg-surface-primary px-4 py-4">
 				{showAlert && (
 					<Alert severity="error" prominent>
 						<AlertTitle>

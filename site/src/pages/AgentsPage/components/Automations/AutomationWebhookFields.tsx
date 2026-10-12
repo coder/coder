@@ -9,11 +9,15 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import { RadioGroup } from "#/components/RadioGroup/RadioGroup";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { restoreFocusTo } from "#/hooks/useRestoreFocusOnClose";
 import { formatDate } from "#/utils/time";
-import { RadioOption } from "./RadioOption";
+import { RadioCards } from "./RadioCards";
+
+const webhookUseOptions = [
+	{ value: "multi", label: "Multi-use" },
+	{ value: "single", label: "Single-use" },
+] as const;
 
 type AutomationWebhookFieldsProps = {
 	/** Shows this saved webhook; shows the Use choice when unset. */
@@ -55,20 +59,14 @@ export const AutomationWebhookFields: React.FC<
 			>
 				Use
 			</span>
-			<RadioGroup
+			<RadioCards
 				aria-labelledby={useLabelId}
 				aria-describedby={useHelpId}
 				value={webhookUse}
 				disabled={Boolean(automation)}
-				onValueChange={(value) => {
-					if (value === "single" || value === "multi") {
-						onWebhookUseChange(value);
-					}
-				}}
-			>
-				<RadioOption value="multi" label="Multi-use" />
-				<RadioOption value="single" label="Single-use" />
-			</RadioGroup>
+				options={webhookUseOptions}
+				onValueChange={onWebhookUseChange}
+			/>
 			<span id={useHelpId} className="text-xs text-content-secondary">
 				{webhookUse === "single"
 					? "A single-use webhook accepts one event, then rejects the rest."
@@ -76,8 +74,30 @@ export const AutomationWebhookFields: React.FC<
 			</span>
 		</div>
 	);
+	const endpointHelp = (
+		<span className="text-xs text-content-secondary">
+			POST any JSON body with the automation secret as a Bearer token.
+			{automation
+				? " Rotate the secret to get a new one."
+				: " The secret is shown once after saving."}
+		</span>
+	);
 	if (!automation) {
-		return webhookUseField;
+		return (
+			<>
+				{webhookUseField}
+				<div className="flex flex-col gap-2">
+					<span className="text-sm font-medium text-content-primary">
+						Endpoint
+					</span>
+					{/* The ID exists only after saving, so there is nothing to copy. */}
+					<div className="break-all rounded-md border border-solid border-border bg-surface-secondary px-3 py-2.5 font-mono text-xs text-content-secondary">
+						{webhookPublishEndpoint(origin, "<automation-id>")}
+					</div>
+					{endpointHelp}
+				</div>
+			</>
+		);
 	}
 
 	// A used single-use webhook rejects every event, so a new secret is useless.
@@ -102,13 +122,14 @@ export const AutomationWebhookFields: React.FC<
 			)}
 			<div className="flex flex-col gap-2">
 				<span className="text-sm font-medium text-content-primary">
-					Publish endpoint
+					Endpoint
 				</span>
 				<CodeExample
 					secret={false}
 					code={webhookPublishEndpoint(origin, automation.id)}
 					copyLabel="Copy endpoint"
 				/>
+				{endpointHelp}
 			</div>
 			{/* Next to the button so it stays in view in a scrolled form. */}
 			{Boolean(rotateSecretError) && (

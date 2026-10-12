@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useId, useState } from "react";
 import { useQuery } from "react-query";
 import {
@@ -17,6 +18,7 @@ import {
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
 import { FormField } from "#/components/FormField/FormField";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {
@@ -378,7 +380,7 @@ export const AutomationScheduleFields: React.FC<
 		preview = "Enter a cron expression to see upcoming runs.";
 	} else if (previewQuery.isLoading) {
 		preview = (
-			<span className="flex items-center gap-2">
+			<span className="inline-flex items-center gap-2">
 				<Spinner loading size="sm" />
 				Loading upcoming runs
 			</span>
@@ -390,30 +392,22 @@ export const AutomationScheduleFields: React.FC<
 	} else {
 		preview = (
 			<>
-				<ul className="m-0 flex list-none flex-col gap-1 p-0">
-					{previewQuery.data.next_run_times.map((runTime) => (
-						<li key={runTime}>{formatRunTime(runTime, debouncedTimeZone)}</li>
-					))}
-				</ul>
-				{previewQuery.data.clock_change_note && (
-					<p className="mt-2 text-xs">{previewQuery.data.clock_change_note}</p>
-				)}
-				{intervalWarning && (
-					<p
-						id={intervalWarningId}
-						className="mt-2 text-xs text-content-warning"
-					>
-						{intervalWarning}
-					</p>
-				)}
+				Next:{" "}
+				{previewQuery.data.next_run_times
+					.map((runTime) => formatRunTime(runTime, debouncedTimeZone))
+					.join(" · ")}
 			</>
 		);
 	}
+	const clockChangeNote = previewQuery.isError
+		? undefined
+		: previewQuery.data?.clock_change_note;
 
 	return (
-		<div className="flex flex-col gap-4">
-			<div className="grid grid-cols-2 gap-4">
-				<div className="flex flex-col gap-2">
+		<div className="flex flex-col gap-3">
+			{/* One row of three on wide screens, stacked on phones. */}
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+				<div className="flex min-w-0 flex-col gap-2">
 					<Label htmlFor={repeatId}>Repeat</Label>
 					<Select
 						value={repeat}
@@ -437,7 +431,7 @@ export const AutomationScheduleFields: React.FC<
 					</Select>
 				</div>
 				{repeat === "hourly" ? (
-					<div className="flex flex-col gap-2">
+					<div className="flex min-w-0 flex-col gap-2">
 						<Label htmlFor={minuteId}>Minute</Label>
 						<Input
 							id={minuteId}
@@ -468,7 +462,7 @@ export const AutomationScheduleFields: React.FC<
 						)}
 					</div>
 				) : (
-					<div className="flex flex-col gap-2">
+					<div className="flex min-w-0 flex-col gap-2">
 						<Label htmlFor={timeId}>Time</Label>
 						<Input
 							id={timeId}
@@ -494,17 +488,33 @@ export const AutomationScheduleFields: React.FC<
 						)}
 					</div>
 				)}
+				<FormField
+					field={{
+						...timeZoneField,
+						error: Boolean(timeZoneError),
+						helperText: timeZoneError,
+					}}
+					label="Time zone"
+					control={(props) => (
+						<TimeZoneCombobox
+							{...props}
+							value={timeZone}
+							onChange={onTimeZoneChange}
+						/>
+					)}
+				/>
 			</div>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor={cronId}>
-					Cron expression{" "}
-					<span className="text-xs font-bold text-content-destructive">*</span>
-				</Label>
-				<div id={cronDescriptionId} className="text-xs text-content-secondary">
-					Five fields: minute, hour, day of month, month, day of week.
-				</div>
-				<div>
-					<Input
+			{/* The cron is what is saved. It stays editable in place, so any
+			    schedule the shortcuts cannot write is still one edit away. */}
+			<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+				<span className="flex items-center gap-1">
+					<label htmlFor={cronId} className="sr-only">
+						Cron expression (required)
+					</label>
+					<span id={cronDescriptionId} className="sr-only">
+						Five fields: minute, hour, day of month, month, day of week.
+					</span>
+					<input
 						id={cronId}
 						name={cronField.name}
 						value={cronField.value}
@@ -518,6 +528,8 @@ export const AutomationScheduleFields: React.FC<
 							setMinuteText(minuteTextFor(nextTime));
 						}}
 						required
+						spellCheck={false}
+						placeholder="* * * * *"
 						aria-invalid={Boolean(cronError)}
 						aria-describedby={[
 							cronDescriptionId,
@@ -526,45 +538,48 @@ export const AutomationScheduleFields: React.FC<
 						]
 							.filter(Boolean)
 							.join(" ")}
-						className="font-mono"
-					/>
-					{/* Always rendered so screen readers announce preview errors while typing. */}
-					<div aria-live="polite">
-						{cronError && (
-							<p
-								id={cronErrorId}
-								className="m-0 mt-2 text-xs text-content-destructive"
-							>
-								{cronError}
-							</p>
+						// As wide as the expression, so it reads as text in the line.
+						style={{ width: `${Math.max(cron.length, 9) + 3}ch` }}
+						className={cn(
+							"h-7 rounded border border-solid bg-transparent px-1.5 font-mono text-xs text-content-primary",
+							"hover:border-border focus:border-border-secondary focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+							cronError ? "border-border-destructive" : "border-transparent",
 						)}
-					</div>
-				</div>
-			</div>
-			<FormField
-				field={{
-					...timeZoneField,
-					error: Boolean(timeZoneError),
-					helperText: timeZoneError,
-				}}
-				label="Time zone"
-				control={(props) => (
-					<TimeZoneCombobox
-						{...props}
-						value={timeZone}
-						onChange={onTimeZoneChange}
 					/>
+					<InfoTooltip size="small" ariaLabel="About Cron expression">
+						The schedule that is saved. Repeat and Time fill it in. Five fields:
+						minute, hour, day of month, month, day of week.
+					</InfoTooltip>
+				</span>
+				<section
+					aria-label="Upcoming runs"
+					className="flex min-w-0 flex-col gap-1 text-content-secondary"
+				>
+					<span>{preview}</span>
+					{inactiveNotice && (
+						<span className="text-content-warning">{inactiveNotice}</span>
+					)}
+				</section>
+			</div>
+			{/* Always rendered so screen readers announce preview errors while typing. */}
+			<div
+				aria-live="polite"
+				className="flex flex-col gap-1 text-xs empty:hidden"
+			>
+				{cronError && (
+					<p id={cronErrorId} className="m-0 text-content-destructive">
+						{cronError}
+					</p>
 				)}
-			/>
-			<section aria-label="Upcoming runs" className="flex flex-col gap-2">
-				<h3 className="m-0 text-sm font-medium text-content-primary">
-					Upcoming runs
-				</h3>
-				{inactiveNotice && (
-					<p className="m-0 text-sm text-content-warning">{inactiveNotice}</p>
+				{intervalWarning && (
+					<p id={intervalWarningId} className="m-0 text-content-warning">
+						{intervalWarning}
+					</p>
 				)}
-				<div className="text-sm text-content-secondary">{preview}</div>
-			</section>
+				{clockChangeNote && (
+					<p className="m-0 text-content-secondary">{clockChangeNote}</p>
+				)}
+			</div>
 		</div>
 	);
 };

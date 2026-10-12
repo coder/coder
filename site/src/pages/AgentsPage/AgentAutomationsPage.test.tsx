@@ -1891,35 +1891,49 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		},
 	);
 
-	it("ties the Fixed at creation badge to the radios, not the fields below", async () => {
+	it("marks the fixed choices of a saved automation, not its chat picker", async () => {
 		const user = userEvent.setup();
 		setupEditor();
 
 		await openRowAction(user, MockChatAutomation.name, "Edit");
 		const form = await screen.findByRole("form", { name: "Edit automation" });
 
+		// A saved automation shows no kind choice, only the badge.
+		const trigger = within(form).getByRole("region", { name: "Trigger" });
+		expect(trigger).toHaveAccessibleDescription(
+			"What starts a run. Fixed at creation",
+		);
 		expect(
-			within(form).getByRole("radiogroup", { name: "Runs in" }),
-		).toHaveAccessibleDescription("Fixed at creation");
+			within(trigger).queryByRole("radio", { name: "Webhook" }),
+		).toBeNull();
+		const runsIn = within(form).getByRole("radiogroup", { name: "Runs in" });
+		expect(runsIn).toHaveAccessibleDescription("Fixed at creation");
 		expect(
-			within(form).getByRole("radiogroup", { name: "Trigger" }),
-		).toHaveAccessibleDescription("What starts a run. Fixed at creation");
+			within(runsIn).getByRole("radio", { name: "Existing chat" }),
+		).toBeDisabled();
+		// The target chat stays editable.
+		expect(within(runsIn).getByRole("button", { name: /^Chat/ })).toBeEnabled();
 	});
 
-	it("keeps only radios focusable in the Runs in group", async () => {
+	it("moves Shift+Tab from the chat picker back out of the Runs in cards", async () => {
 		const user = userEvent.setup();
 		setupEditor();
 		const dialog = await openCreateDialog(user);
 		const runsIn = within(dialog).getByRole("radiogroup", { name: "Runs in" });
+		const existingChat = within(runsIn).getByRole("radio", {
+			name: "Existing chat",
+		});
+		await user.click(existingChat);
+		expect(existingChat).toHaveAccessibleDescription(
+			"Each run sends the prompt to the chosen chat.",
+		);
 
-		// Any other focusable control inside a Radix radio group traps
-		// Shift+Tab: it lands on the group, which refocuses the checked
-		// radio. jsdom cannot model that hand-off, so this checks the cause.
-		expect(within(runsIn).queryAllByRole("button")).toEqual([]);
-		expect(
-			within(runsIn).getByRole("radio", { name: "New chat each run" }),
-		).toHaveAccessibleDescription(
-			"Each run starts a new chat with the model below.",
+		within(runsIn).getByRole("button", { name: /^Chat/ }).focus();
+		await user.tab({ shift: true });
+		expect(existingChat).toHaveFocus();
+		await user.tab({ shift: true });
+		expect(runsIn).not.toContainElement(
+			document.activeElement as HTMLElement | null,
 		);
 	});
 
