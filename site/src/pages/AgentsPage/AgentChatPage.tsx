@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext, useParams } from "react-router";
 import type { UrlTransform } from "streamdown";
+import type { ChatActionVersion } from "#/api/api";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
@@ -501,14 +502,12 @@ const AgentChatPage: React.FC = () => {
 	// the stream has synced past the response's snapshot version.
 	const runQueueAction = async (
 		action: PendingAction,
-		request: () => Promise<TypesGen.ChatActionResponse>,
+		request: () => Promise<ChatActionVersion>,
 	) => {
 		const pendingID = store.addPendingAction(action);
 		try {
-			const updated = await request();
-			store.updatePendingAction(pendingID, {
-				untilVersion: updated.snapshot_version,
-			});
+			const { snapshotVersion } = await request();
+			store.updatePendingAction(pendingID, { untilVersion: snapshotVersion });
 		} catch (error) {
 			store.removePendingAction(pendingID);
 			throw error;
