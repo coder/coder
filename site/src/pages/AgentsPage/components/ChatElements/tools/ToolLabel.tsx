@@ -6,6 +6,7 @@ type ToolLabelProps = {
 	name: string;
 	args: unknown;
 	result: unknown;
+	isError: boolean;
 	mcpSlug?: string;
 };
 
@@ -60,6 +61,54 @@ const AttachFileLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 	);
 };
 
+const manageAutomationsLabels: Partial<
+	Record<string, readonly [running: string, done: string, failed: string]>
+> = {
+	list: ["Listing automations", "Listed automations", "list automations"],
+	get: ["Reading automation", "Read automation", "read automation"],
+	create: ["Creating automation", "Created automation", "create automation"],
+	update: ["Updating automation", "Updated automation", "update automation"],
+	enable: ["Enabling automation", "Enabled automation", "enable automation"],
+	disable: [
+		"Disabling automation",
+		"Disabled automation",
+		"disable automation",
+	],
+	delete: ["Deleting automation", "Deleted automation", "delete automation"],
+	run_now: ["Running automation", "Ran automation", "run automation"],
+};
+
+const ManageAutomationsLabel: React.FC<ToolLabelProps> = ({
+	args,
+	result,
+	isError,
+}) => {
+	const parsed = parseArgs(args);
+	const action = asString(parsed?.action).trim();
+	// The action comes from model output, so ignore inherited keys such as
+	// "constructor" instead of reading them as label tuples.
+	const labels = Object.hasOwn(manageAutomationsLabels, action)
+		? manageAutomationsLabels[action]
+		: undefined;
+	const parsedResult = asRecord(result);
+	const automationName =
+		asString(asRecord(parsedResult?.automation)?.name) ||
+		asString(parsed?.name);
+	const suffix = automationName ? ` ${automationName}` : "";
+	let label = "Manage automations";
+	if (labels) {
+		const [running, done, failed] = labels;
+		if (isError || parsedResult?.error) {
+			label = `Failed to ${failed}${suffix}`;
+		} else if (result === undefined || result === null) {
+			label = `${running}${suffix}…`;
+		} else {
+			label = `${done}${suffix}`;
+		}
+	}
+	return <span className="truncate text-[13px]">{label}</span>;
+};
+
 export const genericToolLabels: Partial<
 	Record<string, React.FC<ToolLabelProps>>
 > = {
@@ -68,6 +117,7 @@ export const genericToolLabels: Partial<
 		<span className="truncate text-[13px]">Listing processes</span>
 	),
 	attach_file: AttachFileLabel,
+	manage_automations: ManageAutomationsLabel,
 	advisor: () => (
 		<span className="truncate text-[13px] leading-4 text-content-secondary">
 			Advisor

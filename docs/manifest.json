@@ -1133,6 +1133,12 @@
 							"path": "./ai-coder/agents/chat-sharing.md"
 						},
 						{
+							"title": "Automations",
+							"description": "Send saved prompts to Coder Agents chats from webhooks and schedules, and let agents manage their own automations.",
+							"path": "./ai-coder/agents/automations.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Conversation search syntax",
 							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
 							"path": "./ai-coder/agents/chat-search-syntax.md"

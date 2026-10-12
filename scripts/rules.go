@@ -576,7 +576,7 @@ func userScopedExperimentStaticCheck(m dsl.Matcher) {
 	m.Match(`$x.Enabled($e)`).
 		Where(
 			m["x"].Type.Is("codersdk.Experiments") &&
-				m["e"].Text.Matches(`^codersdk\.(ExperimentExample|ExperimentMCPToolSearch)$`) &&
+				m["e"].Text.Matches(`^codersdk\.(ExperimentExample|ExperimentMCPToolSearch|ExperimentChatAutomations)$`) &&
 				m.File().PkgPath.Matches(`^github\.com/coder/coder/v2/(enterprise/)?coderd(/|$)`) &&
 				!m.File().Name.Matches(`_test\.go$`),
 		).
@@ -585,7 +585,7 @@ func userScopedExperimentStaticCheck(m dsl.Matcher) {
 	m.Match(`httpmw.$f($_, $*e)`).
 		Where(
 			m["f"].Text.Matches(`^RequireExperiment`) &&
-				m["e"].Text.Matches(`(^|[\s,])codersdk\.(ExperimentExample|ExperimentMCPToolSearch)\s*(,|$)`) &&
+				m["e"].Text.Matches(`(^|[\s,])codersdk\.(ExperimentExample|ExperimentMCPToolSearch|ExperimentChatAutomations)\s*(,|$)`) &&
 				m.File().PkgPath.Matches(`^github\.com/coder/coder/v2/(enterprise/)?coderd(/|$)`) &&
 				!m.File().Name.Matches(`_test\.go$`),
 		).

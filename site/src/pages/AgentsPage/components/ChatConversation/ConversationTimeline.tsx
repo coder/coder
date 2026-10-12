@@ -27,6 +27,7 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
+import { AutomationLabel, type ChatAutomationNames } from "./AutomationLabel";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
 	emptyLiveBlockKeys,
@@ -103,6 +104,8 @@ const ChatMessageItem = memo<{
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
+	automationName?: string;
+	automationNameStatus: ChatAutomationNames["status"];
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -145,6 +148,8 @@ const ChatMessageItem = memo<{
 		organizationId,
 		renderKey,
 		message,
+		automationName,
+		automationNameStatus,
 		parsed,
 		liveStatus,
 		liveBlocks = [],
@@ -238,6 +243,16 @@ const ChatMessageItem = memo<{
 				)}
 				inert={isAfterEditingMessage ? true : undefined}
 			>
+				{message?.automation_id && (
+					<div className={cn("mb-1 flex", isUser && "justify-end")}>
+						<AutomationLabel
+							automationId={message.automation_id}
+							inputId={message.input_id}
+							automationName={automationName}
+							nameStatus={automationNameStatus}
+						/>
+					</div>
+				)}
 				<ConversationItem {...conversationItemProps}>
 					{isUser && displayState && parsed ? (
 						<UserMessageContent
@@ -415,6 +430,7 @@ type ConversationTimelineProps = {
 	chatStatus: TypesGen.ChatStatus | null;
 	organizationId: string;
 	parsedMessages: readonly ParsedMessageEntry[];
+	automationNames: ChatAutomationNames;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	initialActiveTurnMaxMessageId?: number;
 	streamState?: StreamState | null;
@@ -445,6 +461,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		chatStatus,
 		organizationId,
 		parsedMessages,
+		automationNames,
 		chatFiles,
 		initialActiveTurnMaxMessageId,
 		streamState,
@@ -610,6 +627,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						key={row.key}
 						organizationId={organizationId}
 						renderKey={row.key}
+						automationNameStatus="settled"
 						liveStatus={liveStatus}
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
@@ -637,6 +655,16 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					organizationId={organizationId}
 					renderKey={row.key}
 					message={message}
+					automationName={
+						message.automation_id
+							? automationNames.names.get(message.automation_id)
+							: undefined
+					}
+					automationNameStatus={
+						// A fixed status keeps rows without an automation from
+						// re-rendering when the automations list status changes.
+						message.automation_id ? automationNames.status : "settled"
+					}
 					parsed={parsed}
 					onEditUserMessage={isUser ? onEditUserMessage : undefined}
 					editingMessageId={editingMessageId}

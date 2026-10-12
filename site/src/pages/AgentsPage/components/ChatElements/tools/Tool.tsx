@@ -1017,6 +1017,7 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 							name={name}
 							args={args}
 							result={result}
+							isError={isError}
 							mcpSlug={mcpServer?.slug}
 						/>
 					)

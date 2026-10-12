@@ -1091,8 +1091,8 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 	t.Parallel()
 
 	// These query shapes must match the emitters in
-	// site/src/pages/AgentsPage/components/ChatsSidebar/dialogs/searchQuery.ts
-	// and site/src/api/queries/chats.ts.
+	// site/src/pages/AgentsPage/components/ChatsSidebar/dialogs/searchQuery.ts,
+	// site/src/api/queries/chats.ts and site/src/api/queries/chatAutomations.ts.
 	testCases := []struct {
 		name  string
 		query string
@@ -1107,6 +1107,7 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 		{name: "SearchOperatorWord", query: `search:"or"`},
 		{name: "HasUnread", query: "has_unread:true"},
 		{name: "Archived", query: "archived:true"},
+		{name: "AutomationHistory", query: "archived:any"},
 		{name: "PRStatuses", query: "pr_status:open,merged"},
 		{name: "ChatStatuses", query: "status:error,running"},
 		{name: "PRStatusNone", query: "pr_status:none"},
@@ -1187,6 +1188,25 @@ func TestSearchChats(t *testing.T) {
 				Archived:  sql.NullBool{Bool: false, Valid: true},
 				OwnedOnly: true,
 			},
+		},
+		{
+			Name:  "ArchivedAny",
+			Query: "archived:any",
+			Expected: database.GetChatsParams{
+				OwnedOnly: true,
+			},
+		},
+		{
+			Name:  "ArchivedAnyUpperCase",
+			Query: "archived:ANY",
+			Expected: database.GetChatsParams{
+				OwnedOnly: true,
+			},
+		},
+		{
+			Name:                  "ArchivedAnyRepeated",
+			Query:                 "archived:any archived:true",
+			ExpectedErrorContains: "archived",
 		},
 		{
 			Name:  "HasUnreadTrue",

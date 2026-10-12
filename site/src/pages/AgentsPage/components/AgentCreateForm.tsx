@@ -44,6 +44,7 @@ import {
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
 import { AgentChatInput } from "./AgentChatInput";
+import { useAutomationsEnabled } from "./Automations/automationsFlag";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
@@ -79,6 +80,7 @@ export type CreateChatOptions = {
 	/** The project the chat joins, when the form composes for one. */
 	projectId?: string;
 	planMode?: TypesGen.ChatPlanMode;
+	manageAutomationsEnabled: boolean;
 	// When present, the submit carries files destined for the chat's
 	// workspace. The page creates the chat without content, runs this
 	// callback to upload against the new chat ID, then sends the first
@@ -570,6 +572,9 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 			)
 		: undefined;
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
+	const automationsExperimentEnabled = useAutomationsEnabled();
+	const [manageAutomationsEnabled, setManageAutomationsEnabled] =
+		useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	// Treat the unsettled-organization window as pending so the model selector
@@ -724,6 +729,10 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					? [...effectiveMCPServerIds]
 					: undefined,
 			planMode: planModeEnabled ? "plan" : undefined,
+			// The experiments query refetches while the form stays mounted, so the
+			// experiment can turn off after the user enabled the toggle.
+			manageAutomationsEnabled:
+				automationsExperimentEnabled && manageAutomationsEnabled,
 			uploadWorkspaceFiles,
 		}).catch((err) => {
 			resetDraft();
@@ -987,6 +996,12 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					hasModelOptions={hasModelOptions}
 					planModeEnabled={planModeEnabled}
 					onPlanModeToggle={setPlanModeEnabled}
+					manageAutomationsEnabled={manageAutomationsEnabled}
+					onManageAutomationsToggle={
+						automationsExperimentEnabled
+							? setManageAutomationsEnabled
+							: undefined
+					}
 					attachments={attachments}
 					// Files attached before org adoption cannot upload and would be discarded
 					// when restoration completes.

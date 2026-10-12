@@ -91,6 +91,7 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 							message: "Create this chat",
 							organizationId:
 								project?.organization_id ?? MockDefaultOrganization.id,
+							manageAutomationsEnabled: false,
 						} satisfies CreateChatOptions).catch(() => {})
 					}
 				>
@@ -859,6 +860,7 @@ const submit = (options: Partial<CreateChatOptions>) => {
 			message: "inspect this archive",
 			organizationId: MockDefaultOrganization.id,
 			workspaceId: "ws-1",
+			manageAutomationsEnabled: false,
 			...options,
 		}),
 	);
@@ -931,6 +933,19 @@ describe("AgentCreatePage workspace uploads", () => {
 			}),
 		);
 		expect(router.state.location.pathname).toBe(chatPath);
+	});
+
+	it("sends manage_automations_enabled matching the toggle", async () => {
+		await renderUploadPage();
+
+		await submit({ manageAutomationsEnabled: false });
+		await submit({ manageAutomationsEnabled: true });
+
+		const [offRequest, onRequest] = vi
+			.mocked(API.experimental.createChat)
+			.mock.calls.map(([request]) => request);
+		expect(offRequest).toMatchObject({ manage_automations_enabled: false });
+		expect(onRequest).toMatchObject({ manage_automations_enabled: true });
 	});
 
 	it("archives the chat when the upload fails", async () => {

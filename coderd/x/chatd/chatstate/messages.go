@@ -38,6 +38,10 @@ type Message struct {
 	// QueuedMessageID is the chat_queued_messages row this message was
 	// promoted from. Only messageFromQueuedRow sets it.
 	QueuedMessageID sql.NullInt64
+	// Automation is the automation input that admitted this message, or
+	// nil for ordinary messages. It is written to the queued row when
+	// the message is queued and to the history row when it is inserted.
+	Automation *AutomationProvenance
 }
 
 // toInsertParams converts a batch of Messages into the parallel-array
@@ -68,6 +72,8 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		RuntimeMs:           make([]int64, n),
 		ProviderResponseID:  make([]string, n),
 		QueuedMessageID:     make([]int64, n),
+		AutomationID:        make([]uuid.UUID, n),
+		InputID:             make([]uuid.UUID, n),
 	}
 	for i, m := range messages {
 		params.CreatedBy[i] = nullUUIDOrNil(m.CreatedBy)
@@ -96,6 +102,10 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		params.RuntimeMs[i] = nullInt64Or(m.RuntimeMs, 0)
 		params.ProviderResponseID[i] = m.ProviderResponseID.String
 		params.QueuedMessageID[i] = nullInt64Or(m.QueuedMessageID, 0)
+		if m.Automation != nil {
+			params.AutomationID[i] = m.Automation.AutomationID
+			params.InputID[i] = m.Automation.InputID
+		}
 	}
 	return params
 }
