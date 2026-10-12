@@ -198,7 +198,6 @@ const baseChatFields = {
 	archived: false,
 	shared: false,
 	pin_order: 0,
-	snapshot_version: 1,
 	has_unread: false,
 	client_type: "ui",
 	last_turn_summary: null,
@@ -1364,7 +1363,6 @@ export const WithMessageHistory: Story = {
 			status: "waiting",
 		});
 		spyOn(API.experimental, "editChatMessage").mockResolvedValue({
-			snapshot_version: 1,
 			message: {
 				...MockChatMessage,
 				id: 5,
@@ -1472,7 +1470,6 @@ export const StaleEditedModelUsesUsableLocalModel: Story = {
 			last_model_config_id: STALE_MODEL_CONFIG_ID,
 		});
 		spyOn(API.experimental, "editChatMessage").mockResolvedValue({
-			snapshot_version: 1,
 			message: {
 				...MockChatMessage,
 				id: 5,
@@ -1540,7 +1537,7 @@ export const StaleHistoricalModelUsesLocalDefault: Story = {
 		const sendSpy = spyOn(
 			API.experimental,
 			"createChatMessage",
-		).mockResolvedValue({ snapshot_version: 1, queued: false, messages: [] });
+		).mockResolvedValue({ queued: false, messages: [] });
 		expect(
 			canvas.getByRole("status", {
 				name: "The model used by this chat is not available. A usable model is selected for new messages.",
@@ -3096,7 +3093,6 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 			API.experimental,
 			"createChatMessage",
 		).mockResolvedValue({
-			snapshot_version: 1,
 			queued: false,
 			message: {
 				id: 3,
@@ -3190,7 +3186,6 @@ export const QueuedSendPromotesPreviousHead: Story = {
 			API.experimental,
 			"createChatMessage",
 		).mockResolvedValue({
-			snapshot_version: 1,
 			queued: true,
 			messages: [promotedHead],
 			queued_message: followUp,
@@ -3276,7 +3271,6 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 		).mockImplementation(async () => {
 			await sendGate;
 			return {
-				snapshot_version: 1,
 				queued: false,
 				message: {
 					...MockChatMessage,
@@ -3385,7 +3379,6 @@ export const SendResponseAfterChatSwitch: Story = {
 		).mockImplementation(async () => {
 			await sendGate;
 			return {
-				snapshot_version: 1,
 				queued: false,
 				message: {
 					...MockChatMessage,
@@ -3455,7 +3448,7 @@ export const RemoveLastMCPServer: Story = {
 		const sendSpy = spyOn(
 			API.experimental,
 			"createChatMessage",
-		).mockResolvedValue({ snapshot_version: 1, queued: false });
+		).mockResolvedValue({ queued: false });
 
 		await userEvent.click(await canvas.findByRole("button", { name: "1 MCP" }));
 		const menu = await screen.findByRole("dialog");
@@ -3522,7 +3515,6 @@ export const EditAppliesMCPServerSelection: Story = {
 			API.experimental,
 			"editChatMessage",
 		).mockResolvedValue({
-			snapshot_version: 1,
 			message: { ...mcpEditableUserMessage, id: 6 },
 		});
 
@@ -3589,7 +3581,6 @@ export const SendRendersDurableUserRowBeforeAssistantOutput: Story = {
 		).mockImplementation(async () => {
 			await sendGate;
 			return {
-				snapshot_version: 1,
 				queued: false,
 				message: {
 					...MockChatMessage,

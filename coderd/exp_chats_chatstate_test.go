@@ -334,7 +334,7 @@ func TestSubmitToolResultsWrongStateReturnsConflict(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, codersdk.ChatStatusRunning, chat.Status)
 
-	_, err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+	err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 		Results: []codersdk.ToolResult{{
 			ToolCallID: "unknown-call",
 			Output:     json.RawMessage(`{}`),
@@ -369,7 +369,7 @@ func TestSubmitToolResultsRequiresActionSucceeds(t *testing.T) {
 
 	toolCallID := driveChatToRequiresAction(ctx, t, api, chat, "echo")
 
-	_, err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+	err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 		Results: []codersdk.ToolResult{{
 			ToolCallID: toolCallID,
 			Output:     json.RawMessage(`{"ok":true}`),
