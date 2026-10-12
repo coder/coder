@@ -5625,6 +5625,37 @@ func (q *sqlQuerier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID)
 	return err
 }
 
+const getActiveChatIDByAutomationID = `-- name: GetActiveChatIDByAutomationID :one
+SELECT
+    id
+FROM
+    chats
+WHERE
+    automation_id = $1::uuid
+    AND status IN ('running', 'interrupting')
+    AND id <> $2::uuid
+ORDER BY
+    created_at DESC
+LIMIT
+    1
+`
+
+type GetActiveChatIDByAutomationIDParams struct {
+	AutomationID  uuid.UUID `db:"automation_id" json:"automation_id"`
+	ExcludeChatID uuid.UUID `db:"exclude_chat_id" json:"exclude_chat_id"`
+}
+
+// Returns the newest chat that automation_id created and that is still
+// running a turn, which includes waiting for a generation retry or for a
+// capacity slot, or being interrupted. exclude_chat_id leaves out the
+// chat the caller is creating. It returns no row when there is none.
+func (q *sqlQuerier) GetActiveChatIDByAutomationID(ctx context.Context, arg GetActiveChatIDByAutomationIDParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getActiveChatIDByAutomationID, arg.AutomationID, arg.ExcludeChatID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getChatAutomationByID = `-- name: GetChatAutomationByID :one
 SELECT
     id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at, project_id, schedule_claimed_until, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id

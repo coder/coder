@@ -3152,6 +3152,15 @@ func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
 	return q.db.GetActiveAISeatCount(ctx)
 }
 
+// GetActiveChatIDByAutomationID can return a chat of any owner, so it
+// requires read access to every chat, which chatd has.
+func (q *querier) GetActiveChatIDByAutomationID(ctx context.Context, arg database.GetActiveChatIDByAutomationIDParams) (uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.GetActiveChatIDByAutomationID(ctx, arg)
+}
+
 func (q *querier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetActiveChatsByAgentID)(ctx, agentID)
 }

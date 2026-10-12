@@ -2441,6 +2441,21 @@ func (mr *MockStoreMockRecorder) GetActiveAISeatCount(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveAISeatCount", reflect.TypeOf((*MockStore)(nil).GetActiveAISeatCount), ctx)
 }
 
+// GetActiveChatIDByAutomationID mocks base method.
+func (m *MockStore) GetActiveChatIDByAutomationID(ctx context.Context, arg database.GetActiveChatIDByAutomationIDParams) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveChatIDByAutomationID", ctx, arg)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveChatIDByAutomationID indicates an expected call of GetActiveChatIDByAutomationID.
+func (mr *MockStoreMockRecorder) GetActiveChatIDByAutomationID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveChatIDByAutomationID", reflect.TypeOf((*MockStore)(nil).GetActiveChatIDByAutomationID), ctx, arg)
+}
+
 // GetActiveChatsByAgentID mocks base method.
 func (m *MockStore) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
 	m.ctrl.T.Helper()

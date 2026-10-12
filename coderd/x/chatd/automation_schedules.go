@@ -359,6 +359,7 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 			release()
 		}
 	case errors.Is(err, ErrAutomationChatBusy),
+		errors.Is(err, ErrAutomationPreviousRunActive),
 		errors.Is(err, ErrAutomationQueueShareFull),
 		errors.Is(err, chatstate.ErrMessageQueueFull),
 		errors.As(err, &denied),

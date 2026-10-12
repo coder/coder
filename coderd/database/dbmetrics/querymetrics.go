@@ -1384,6 +1384,14 @@ func (m queryMetricsStore) GetActiveAISeatCount(ctx context.Context) (int64, err
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetActiveChatIDByAutomationID(ctx context.Context, arg database.GetActiveChatIDByAutomationIDParams) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetActiveChatIDByAutomationID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetActiveChatIDByAutomationID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveChatIDByAutomationID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetActiveChatsByAgentID(ctx, agentID)

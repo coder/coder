@@ -175,6 +175,22 @@ func TestChatAutomationRuns(t *testing.T) {
 		chat, err := env.member.GetChat(ctx, res.ChatID)
 		require.NoError(t, err)
 		require.Equal(t, env.memberID, chat.OwnerID)
+		// The run's chat names the automation that created it; a chat a
+		// person created, which existing_chat runs only send to, does not.
+		require.Equal(t, &created.Automation.ID, chat.AutomationID)
+		humanChat, err := env.member.GetChat(ctx, env.memberChat.ID)
+		require.NoError(t, err)
+		require.Nil(t, humanChat.AutomationID)
+		list, err := env.member.ListChats(ctx, nil)
+		require.NoError(t, err)
+		found := false
+		for _, listed := range list {
+			if listed.ID == res.ChatID {
+				found = true
+				require.Equal(t, &created.Automation.ID, listed.AutomationID, "the chat list carries it too")
+			}
+		}
+		require.True(t, found)
 		require.True(t, strings.HasPrefix(chat.Title, "Nightly report · "), chat.Title)
 		berlin, err := time.LoadLocation("Europe/Berlin")
 		require.NoError(t, err)

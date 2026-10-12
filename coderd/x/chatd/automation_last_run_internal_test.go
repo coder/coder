@@ -167,6 +167,7 @@ func TestClassifyAutomationRun(t *testing.T) {
 		{&AutomationQueueShareFullError{Max: 1}, database.ChatAutomationRunOutcomeSkipped, codersdk.ChatAutomationRunReasonQueueFull, true},
 		{chatstate.ErrMessageQueueFull, database.ChatAutomationRunOutcomeSkipped, codersdk.ChatAutomationRunReasonQueueFull, true},
 		{ErrAutomationOccurrenceExpired, database.ChatAutomationRunOutcomeSkipped, codersdk.ChatAutomationRunReasonMissed, true},
+		{&AutomationPreviousRunActiveError{ChatID: uuid.New()}, database.ChatAutomationRunOutcomeSkipped, codersdk.ChatAutomationRunReasonPreviousRunActive, true},
 		{&chathooks.UserPromptDeniedError{UserMessage: "no"}, database.ChatAutomationRunOutcomeRefused, codersdk.ChatAutomationRunReasonHookDenied, true},
 		{ErrAutomationWebhookConsumed, database.ChatAutomationRunOutcomeRefused, codersdk.ChatAutomationRunReasonSingleUseConsumed, true},
 		{&AutomationEventTooLargeError{Size: 2, Max: 1}, database.ChatAutomationRunOutcomeRefused, codersdk.ChatAutomationRunReasonBodyTooLarge, true},

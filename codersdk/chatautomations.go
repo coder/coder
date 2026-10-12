@@ -78,8 +78,8 @@ const (
 	ChatAutomationRunOutcomeAccepted ChatAutomationRunOutcome = "accepted"
 	// ChatAutomationRunOutcomeSkipped means the input was dropped because
 	// of the target's state at that moment: a busy chat that skips, a full
-	// queue, or a missed schedule occurrence. Later runs can succeed
-	// without a change.
+	// queue, a missed schedule occurrence, or an earlier run that is still
+	// active. Later runs can succeed without a change.
 	ChatAutomationRunOutcomeSkipped ChatAutomationRunOutcome = "skipped"
 	// ChatAutomationRunOutcomeRefused means a condition of the automation,
 	// its owner, or the input refused the run. Later runs fail the same
@@ -92,9 +92,14 @@ const (
 type ChatAutomationRunReason string
 
 const (
-	ChatAutomationRunReasonChatBusy           ChatAutomationRunReason = "chat_busy"
-	ChatAutomationRunReasonQueueFull          ChatAutomationRunReason = "queue_full"
-	ChatAutomationRunReasonMissed             ChatAutomationRunReason = "missed"
+	ChatAutomationRunReasonChatBusy  ChatAutomationRunReason = "chat_busy"
+	ChatAutomationRunReasonQueueFull ChatAutomationRunReason = "queue_full"
+	ChatAutomationRunReasonMissed    ChatAutomationRunReason = "missed"
+	// ChatAutomationRunReasonPreviousRunActive skips a scheduled run of a
+	// new_chat automation while the chat of an earlier run is still
+	// running, so a stalled model cannot pile up chats. Webhook deliveries
+	// and Run now are not skipped for it.
+	ChatAutomationRunReasonPreviousRunActive  ChatAutomationRunReason = "previous_run_active"
 	ChatAutomationRunReasonHookDenied         ChatAutomationRunReason = "hook_denied"
 	ChatAutomationRunReasonOwnerInactive      ChatAutomationRunReason = "owner_inactive"
 	ChatAutomationRunReasonForbidden          ChatAutomationRunReason = "forbidden"
@@ -118,9 +123,10 @@ type ChatAutomationLastRun struct {
 	At      time.Time                `json:"at" format:"date-time"`
 	Outcome ChatAutomationRunOutcome `json:"outcome" enums:"accepted,skipped,refused"`
 	// Reason is set for skipped and refused runs.
-	Reason *ChatAutomationRunReason `json:"reason,omitempty" enums:"chat_busy,queue_full,missed,hook_denied,owner_inactive,forbidden,model_unavailable,target_unavailable,experiment_disabled,disabled,single_use_consumed,body_too_large,invalid_body,no_default_model,error"`
+	Reason *ChatAutomationRunReason `json:"reason,omitempty" enums:"chat_busy,queue_full,missed,previous_run_active,hook_denied,owner_inactive,forbidden,model_unavailable,target_unavailable,experiment_disabled,disabled,single_use_consumed,body_too_large,invalid_body,no_default_model,error"`
 	// ChatID is the chat the run went to, or was meant for when the target
-	// chat was known. The chat can be deleted since.
+	// chat was known. For previous_run_active it is the chat that is still
+	// active. The chat can be deleted since.
 	ChatID *uuid.UUID `json:"chat_id,omitempty" format:"uuid"`
 }
 

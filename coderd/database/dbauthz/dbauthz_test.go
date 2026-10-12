@@ -1716,6 +1716,12 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().AdvanceChatAutomationScheduleCursor(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(int64(1))
 	}))
+	s.Run("GetActiveChatIDByAutomationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetActiveChatIDByAutomationIDParams{AutomationID: uuid.New(), ExcludeChatID: uuid.New()}
+		chatID := uuid.New()
+		dbm.EXPECT().GetActiveChatIDByAutomationID(gomock.Any(), arg).Return(chatID, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(chatID)
+	}))
 	s.Run("UpdateChatAutomationLastRunByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
 		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()

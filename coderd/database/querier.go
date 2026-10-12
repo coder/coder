@@ -420,6 +420,11 @@ type sqlcQuerier interface {
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveAISeatCount(ctx context.Context) (int64, error)
+	// Returns the newest chat that automation_id created and that is still
+	// running a turn, which includes waiting for a generation retry or for a
+	// capacity slot, or being interrupted. exclude_chat_id leaves out the
+	// chat the caller is creating. It returns no row when there is none.
+	GetActiveChatIDByAutomationID(ctx context.Context, arg GetActiveChatIDByAutomationIDParams) (uuid.UUID, error)
 	GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]Chat, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)

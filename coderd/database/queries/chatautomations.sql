@@ -355,3 +355,21 @@ SET
 WHERE
     id = @id::uuid
     AND (last_run_at IS NULL OR last_run_at <= @last_run_at::timestamptz);
+
+-- name: GetActiveChatIDByAutomationID :one
+-- Returns the newest chat that automation_id created and that is still
+-- running a turn, which includes waiting for a generation retry or for a
+-- capacity slot, or being interrupted. exclude_chat_id leaves out the
+-- chat the caller is creating. It returns no row when there is none.
+SELECT
+    id
+FROM
+    chats
+WHERE
+    automation_id = @automation_id::uuid
+    AND status IN ('running', 'interrupting')
+    AND id <> @exclude_chat_id::uuid
+ORDER BY
+    created_at DESC
+LIMIT
+    1;

@@ -649,6 +649,8 @@ WHERE id = $1`, automation.ID, edited)
 			server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 			require.Len(t, f.createdChats(ctx, t), i+1)
 			require.Equal(t, previews[i+1], f.cursor(ctx, t, automation.ID))
+			// A run that is still active would skip the next occurrence.
+			f.finishCreatedChats(ctx, t)
 		}
 	})
 
@@ -726,6 +728,7 @@ WHERE id = $1`, automation.ID, edited)
 			f.advanceTo(ctx, t, run)
 			server.scanAutomationSchedules(ctx, defaultAutomationScheduleBatchSize)
 			require.Equal(t, nextRun(t, "0 9 * * *", "America/New_York", run), f.cursor(ctx, t, automation.ID))
+			f.finishCreatedChats(ctx, t)
 		}
 		for _, run := range runs {
 			local := run.In(newYork)

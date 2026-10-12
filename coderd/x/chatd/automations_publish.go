@@ -58,6 +58,10 @@ var (
 	// ErrAutomationQueueShareFull is returned when automation messages
 	// already fill their share of the target chat's queue.
 	ErrAutomationQueueShareFull = xerrors.New("automation messages fill their share of the chat queue")
+	// ErrAutomationPreviousRunActive is returned when a scheduled
+	// occurrence of a new_chat automation finds a chat of an earlier run
+	// still running.
+	ErrAutomationPreviousRunActive = xerrors.New("a chat of an earlier run of the chat automation is still active")
 	// ErrAutomationsExperimentDisabled is returned when the
 	// chat-automations experiment is off for the automation owner.
 	ErrAutomationsExperimentDisabled = xerrors.New("chat automations are disabled for the automation owner")
@@ -70,6 +74,21 @@ var (
 // endpoints. The webhook body limit, Limits.AutomationWebhookMaxBodyBytes,
 // is at most this value.
 const MaxChatRequestBodyBytes = codersdk.MaxChatRequestBodyBytes
+
+// AutomationPreviousRunActiveError is returned when a scheduled occurrence
+// of a new_chat automation finds a chat of an earlier run still running.
+// It wraps [ErrAutomationPreviousRunActive].
+type AutomationPreviousRunActiveError struct {
+	ChatID uuid.UUID
+}
+
+// Error implements the error interface.
+func (e *AutomationPreviousRunActiveError) Error() string {
+	return fmt.Sprintf("%s (chat %s)", ErrAutomationPreviousRunActive, e.ChatID)
+}
+
+// Unwrap returns [ErrAutomationPreviousRunActive].
+func (*AutomationPreviousRunActiveError) Unwrap() error { return ErrAutomationPreviousRunActive }
 
 // AutomationEventTooLargeError carries the escaped size of the event data
 // and the cap so HTTP endpoints can include them in their response detail.
@@ -301,6 +320,9 @@ func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subjec
 	if err := p.checkAutomationNewChat(ctx, p.db, owner, automation); err != nil {
 		return PublishAutomationResult{}, err
 	}
+	if err := checkAutomationPreviousRun(ctx, p.db, in, automation.ID, uuid.Nil); err != nil {
+		return PublishAutomationResult{}, err
+	}
 	projectID, err := p.automationNewChatProject(ctx, p.db, owner, automation)
 	if err != nil {
 		return PublishAutomationResult{}, err
@@ -486,6 +508,11 @@ func (p *Server) admitAutomationNewChat(
 		return chatstate.AutomationProvenance{}, err
 	}
 	if err := p.checkAutomationNewChat(ctx, store, owner, automation); err != nil {
+		return chatstate.AutomationProvenance{}, err
+	}
+	// Under the automation lock, so a concurrent input of the same
+	// automation, which takes the same lock, cannot slip past it.
+	if err := checkAutomationPreviousRun(ctx, store, in, automation.ID, chatID); err != nil {
 		return chatstate.AutomationProvenance{}, err
 	}
 	// The chat was created in the project selected before the create, so
@@ -737,6 +764,32 @@ func (p *Server) checkAutomationNewChat(ctx context.Context, store database.Stor
 		return ErrAutomationForbidden
 	}
 	return nil
+}
+
+// checkAutomationPreviousRun refuses a scheduled occurrence of a new_chat
+// automation while a chat that the automation created earlier is still
+// running a turn, which includes waiting for a retry or a capacity slot.
+// A stalled or unreachable model otherwise adds one stuck chat per
+// occurrence, and those chats use up the deployment's concurrent chat
+// slots. Webhook deliveries and Run now are not limited: concurrent
+// webhook runs, such as one chat per event, are intended, and Run now is
+// a person's explicit request. exclude is the chat being created, if any.
+func checkAutomationPreviousRun(ctx context.Context, store database.Store, in automationPublish, automationID, exclude uuid.UUID) error {
+	if in.occurrence == nil {
+		return nil
+	}
+	//nolint:gocritic // The earlier chats belong to the owner, and only their status is read.
+	active, err := store.GetActiveChatIDByAutomationID(dbauthz.AsChatd(ctx), database.GetActiveChatIDByAutomationIDParams{
+		AutomationID:  automationID,
+		ExcludeChatID: exclude,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("get active chat of chat automation: %w", err)
+	}
+	return &AutomationPreviousRunActiveError{ChatID: active}
 }
 
 // checkAutomationModel requires that the automation's model config is set,

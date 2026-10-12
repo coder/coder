@@ -2045,6 +2045,7 @@ func ChatWithDiffStatuses(
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
 	}
+	chat.AutomationID = nullUUIDPtr(c.AutomationID)
 	if c.ProjectID.Valid {
 		chat.ProjectID = &c.ProjectID.UUID
 	}

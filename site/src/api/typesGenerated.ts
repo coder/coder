@@ -2067,6 +2067,7 @@ export interface Chat {
 	readonly agent_id?: string;
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
+	readonly automation_id?: string; // The automation that created this chat (new_chat runs); unset for chats automations only send to. Kept after the automation is deleted.
 	readonly last_model_config_id: string;
 	readonly last_reasoning_effort?: string;
 	readonly title: string;
@@ -2326,7 +2327,8 @@ export interface ChatAutomationLastRun {
 	readonly reason?: ChatAutomationRunReason;
 	/**
 	 * ChatID is the chat the run went to, or was meant for when the target
-	 * chat was known. The chat can be deleted since.
+	 * chat was known. For previous_run_active it is the chat that is still
+	 * active. The chat can be deleted since.
 	 */
 	readonly chat_id?: string;
 }
@@ -2382,6 +2384,7 @@ export type ChatAutomationRunReason =
 	| "model_unavailable"
 	| "no_default_model"
 	| "owner_inactive"
+	| "previous_run_active"
 	| "queue_full"
 	| "single_use_consumed"
 	| "target_unavailable";
@@ -2399,6 +2402,7 @@ export const ChatAutomationRunReasons: ChatAutomationRunReason[] = [
 	"model_unavailable",
 	"no_default_model",
 	"owner_inactive",
+	"previous_run_active",
 	"queue_full",
 	"single_use_consumed",
 	"target_unavailable",

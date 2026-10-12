@@ -179,6 +179,7 @@ type Chat struct {
 	AgentID             *uuid.UUID `json:"agent_id,omitempty" format:"uuid"`
 	ParentChatID        *uuid.UUID `json:"parent_chat_id,omitempty" format:"uuid"`
 	RootChatID          *uuid.UUID `json:"root_chat_id,omitempty" format:"uuid"`
+	AutomationID        *uuid.UUID `json:"automation_id,omitempty" format:"uuid"` // The automation that created this chat (new_chat runs); unset for chats automations only send to. Kept after the automation is deleted.
 	LastModelConfigID   uuid.UUID  `json:"last_model_config_id" format:"uuid"`
 	LastReasoningEffort *string    `json:"last_reasoning_effort,omitempty"`
 	Title               string     `json:"title"`

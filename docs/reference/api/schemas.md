@@ -2279,11 +2279,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
@@ -2583,6 +2585,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------------------------|-----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `agent_id`                   | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `archived`                   | boolean                                                         | false    |              |                                                                                                                                                                                                                                                                            |
+| `automation_id`              | string                                                          | false    |              | The automation that created this chat (new_chat runs); unset for chats automations only send to. Kept after the automation is deleted.                                                                                                                                     |
 | `build_id`                   | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `children`                   | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
 | `client_type`                | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2852,19 +2855,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name      | Type                                                                   | Required | Restrictions | Description                                                                                                          |
-|-----------|------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------|
-| `at`      | string                                                                 | false    |              |                                                                                                                      |
-| `chat_id` | string                                                                 | false    |              | Chat ID is the chat the run went to, or was meant for when the target chat was known. The chat can be deleted since. |
-| `outcome` | [codersdk.ChatAutomationRunOutcome](#codersdkchatautomationrunoutcome) | false    |              |                                                                                                                      |
-| `reason`  | [codersdk.ChatAutomationRunReason](#codersdkchatautomationrunreason)   | false    |              | Reason is set for skipped and refused runs.                                                                          |
+| Name      | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                       |
+|-----------|------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `at`      | string                                                                 | false    |              |                                                                                                                                                                                   |
+| `chat_id` | string                                                                 | false    |              | Chat ID is the chat the run went to, or was meant for when the target chat was known. For previous_run_active it is the chat that is still active. The chat can be deleted since. |
+| `outcome` | [codersdk.ChatAutomationRunOutcome](#codersdkchatautomationrunoutcome) | false    |              |                                                                                                                                                                                   |
+| `reason`  | [codersdk.ChatAutomationRunReason](#codersdkchatautomationrunreason)   | false    |              | Reason is set for skipped and refused runs.                                                                                                                                       |
 
 #### Enumerated Values
 
-| Property  | Value(s)                                                                                                                                                                                                                                              |
-|-----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `outcome` | `accepted`, `refused`, `skipped`                                                                                                                                                                                                                      |
-| `reason`  | `body_too_large`, `chat_busy`, `disabled`, `error`, `experiment_disabled`, `forbidden`, `hook_denied`, `invalid_body`, `missed`, `model_unavailable`, `no_default_model`, `owner_inactive`, `queue_full`, `single_use_consumed`, `target_unavailable` |
+| Property  | Value(s)                                                                                                                                                                                                                                                                     |
+|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `outcome` | `accepted`, `refused`, `skipped`                                                                                                                                                                                                                                             |
+| `reason`  | `body_too_large`, `chat_busy`, `disabled`, `error`, `experiment_disabled`, `forbidden`, `hook_denied`, `invalid_body`, `missed`, `model_unavailable`, `no_default_model`, `owner_inactive`, `previous_run_active`, `queue_full`, `single_use_consumed`, `target_unavailable` |
 
 ## codersdk.ChatAutomationPausedReason
 
@@ -2928,9 +2931,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                              |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `body_too_large`, `chat_busy`, `disabled`, `error`, `experiment_disabled`, `forbidden`, `hook_denied`, `invalid_body`, `missed`, `model_unavailable`, `no_default_model`, `owner_inactive`, `queue_full`, `single_use_consumed`, `target_unavailable` |
+| Value(s)                                                                                                                                                                                                                                                                     |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body_too_large`, `chat_busy`, `disabled`, `error`, `experiment_disabled`, `forbidden`, `hook_denied`, `invalid_body`, `missed`, `model_unavailable`, `no_default_model`, `owner_inactive`, `previous_run_active`, `queue_full`, `single_use_consumed`, `target_unavailable` |
 
 ## codersdk.ChatAutomationRunResponse
 
@@ -5968,6 +5971,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "chat": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
     "children": [
       {}

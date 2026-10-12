@@ -48,6 +48,8 @@ func classifyAutomationRun(err error) (outcome database.ChatAutomationRunOutcome
 		return skipped(codersdk.ChatAutomationRunReasonQueueFull)
 	case errors.Is(err, ErrAutomationOccurrenceExpired):
 		return skipped(codersdk.ChatAutomationRunReasonMissed)
+	case errors.Is(err, ErrAutomationPreviousRunActive):
+		return skipped(codersdk.ChatAutomationRunReasonPreviousRunActive)
 	case errors.As(err, &denied):
 		return refused(codersdk.ChatAutomationRunReasonHookDenied)
 	case errors.Is(err, ErrAutomationOwnerInactive):
@@ -80,6 +82,10 @@ func (p *Server) recordAutomationRunResult(ctx context.Context, automationID, ch
 	outcome, reason, record := classifyAutomationRun(err)
 	if !record {
 		return
+	}
+	// The skip names the chat that is still active.
+	if active, ok := errors.AsType[*AutomationPreviousRunActiveError](err); ok {
+		chatID = active.ChatID
 	}
 	p.recordAutomationRun(ctx, automationID, outcome, reason, chatID)
 }

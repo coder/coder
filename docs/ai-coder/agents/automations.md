@@ -207,14 +207,15 @@ It's `null` until the first run, and each run replaces it: it's not a run histor
 }
 ```
 
-| Field     | Meaning                                                                                                                                             |
-|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `at`      | When Coder decided the run.                                                                                                                         |
-| `outcome` | `accepted`: the prompt was sent or queued. `skipped`: the target chat was busy or full, or the occurrence was missed. `refused`: see `reason`.      |
-| `reason`  | Missing for accepted runs. One of the reasons below.                                                                                                |
-| `chat_id` | The chat the run went to, or was meant for when Coder knew the target chat. Missing when a new-chat run was refused. The chat can be deleted since. |
+| Field     | Meaning                                                                                                                                                                        |
+|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `at`      | When Coder decided the run.                                                                                                                                                    |
+| `outcome` | `accepted`: the prompt was sent or queued. `skipped`: the target chat was busy or full, the occurrence was missed, or an earlier run is still active. `refused`: see `reason`. |
+| `reason`  | Missing for accepted runs. One of the reasons below.                                                                                                                           |
+| `chat_id` | The chat the run went to, or was meant for when Coder knew the target chat. Missing when a new-chat run was refused. The chat can be deleted since.                            |
 
-Skipped runs have the reason `chat_busy`, `queue_full`, or `missed`.
+Skipped runs have the reason `chat_busy`, `queue_full`, `missed`, or `previous_run_active`.
+For `previous_run_active`, `chat_id` is the earlier run's chat that is still active.
 Refused runs have the reason `hook_denied`, `owner_inactive`, `forbidden`, `model_unavailable`, `target_unavailable`, `experiment_disabled`, `disabled`, `single_use_consumed`, `body_too_large`, `invalid_body`, `no_default_model`, or `error`.
 
 Coder records webhook deliveries only after the secret matches, so requests with a wrong secret never change `last_run`.
@@ -377,6 +378,12 @@ When a check finds a missed occurrence, it still runs the next occurrence that i
 After a server outage, schedules continue from their next time and don't catch up on missed runs.
 With several Coder replicas, each occurrence's prompt reaches [chat lifecycle hooks](../../admin/setup/chat-lifecycle-hooks.md) once.
 If a replica stops while it sends an occurrence's prompt, that occurrence is missed.
+
+A schedule that creates a new chat for each run skips an occurrence while a chat from an earlier run is still active.
+A chat is active while it runs a turn, including while it waits to retry a failed model call or waits for a free chat slot.
+Without this, a stalled or unreachable model would add one stuck chat per occurrence, and those chats would take the deployment's chat slots from people.
+The skip has the reason `previous_run_active`.
+Webhook deliveries and **Run now** aren't limited this way.
 A hook that fails is called again when Coder retries the occurrence within the 60&nbsp;seconds.
 An edit to the automation while the hooks run also calls them again, with the edited prompt, and only the edited prompt is sent.
 

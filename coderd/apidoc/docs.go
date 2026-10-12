@@ -20999,6 +20999,11 @@ const docTemplate = `{
                 "archived": {
                     "type": "boolean"
                 },
+                "automation_id": {
+                    "description": "The automation that created this chat (new_chat runs); unset for chats automations only send to. Kept after the automation is deleted.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "build_id": {
                     "type": "string",
                     "format": "uuid"
@@ -21415,7 +21420,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "chat_id": {
-                    "description": "ChatID is the chat the run went to, or was meant for when the target\nchat was known. The chat can be deleted since.",
+                    "description": "ChatID is the chat the run went to, or was meant for when the target\nchat was known. For previous_run_active it is the chat that is still\nactive. The chat can be deleted since.",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -21437,6 +21442,7 @@ const docTemplate = `{
                         "chat_busy",
                         "queue_full",
                         "missed",
+                        "previous_run_active",
                         "hook_denied",
                         "owner_inactive",
                         "forbidden",
@@ -21517,6 +21523,7 @@ const docTemplate = `{
                 "chat_busy",
                 "queue_full",
                 "missed",
+                "previous_run_active",
                 "hook_denied",
                 "owner_inactive",
                 "forbidden",
@@ -21534,6 +21541,7 @@ const docTemplate = `{
                 "ChatAutomationRunReasonChatBusy",
                 "ChatAutomationRunReasonQueueFull",
                 "ChatAutomationRunReasonMissed",
+                "ChatAutomationRunReasonPreviousRunActive",
                 "ChatAutomationRunReasonHookDenied",
                 "ChatAutomationRunReasonOwnerInactive",
                 "ChatAutomationRunReasonForbidden",

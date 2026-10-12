@@ -71,6 +71,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
   {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
     "children": [
       {}
@@ -237,6 +238,7 @@ Status Code **200**
 | `[array item]`                 | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
 | `» agent_id`                   | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» archived`                   | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `» automation_id`              | string(uuid)                                                                       | false    |              | The automation that created this chat (new_chat runs); unset for chats automations only send to. Kept after the automation is deleted.                                                                                                                                     |
 | `» build_id`                   | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» children`                   | [codersdk.Chat](schemas.md#codersdkchat)                                           | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
 | `» client_type`                | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)                       | false    |              |                                                                                                                                                                                                                                                                            |
@@ -463,11 +465,13 @@ curl -X POST http://coder-server:8080/api/v2/chats \
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
@@ -1540,6 +1544,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
   "chat": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
+    "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
     "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
     "children": [
       {}
@@ -1734,11 +1739,13 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
@@ -2119,11 +2126,13 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
@@ -2546,11 +2555,13 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
@@ -3755,11 +3766,13 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
+  "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
+      "automation_id": "64fb5f73-6415-4f56-8e9e-ca06539f09ac",
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
