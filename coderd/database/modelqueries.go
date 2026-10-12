@@ -59,13 +59,15 @@ type customQuerier interface {
 }
 
 type chatAutomationQuerier interface {
-	GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]ChatAutomation, error)
+	GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams, prepared rbac.PreparedAuthorized) ([]ChatAutomation, error)
 }
 
 // GetAuthorizedChatAutomationsByOrganizationID returns the automations in
-// the organization that prepared allows, filtering in SQL so a caller who
-// can read only their own automations does not read the whole organization.
-func (q *sqlQuerier) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]ChatAutomation, error) {
+// the organization, of one owner when arg.OwnerID is set, that prepared
+// allows. Both filters run in SQL, so a caller who can read only their own
+// automations, or asks for one owner's, does not read the whole
+// organization.
+func (q *sqlQuerier) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams, prepared rbac.PreparedAuthorized) ([]ChatAutomation, error) {
 	// Chat automations have no ACL columns, and the query reads only
 	// chat_automations, so id, organization_id, and owner_id are unambiguous.
 	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
@@ -82,7 +84,7 @@ func (q *sqlQuerier) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Co
 
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedChatAutomationsByOrganizationID :many\n%s", filtered)
-	rows, err := q.db.QueryContext(ctx, query, organizationID)
+	rows, err := q.db.QueryContext(ctx, query, arg.OrganizationID, arg.OwnerID)
 	if err != nil {
 		return nil, err
 	}

@@ -2475,6 +2475,19 @@ export const ChatAutomationWhenBusies: ChatAutomationWhenBusy[] = [
 // From codersdk/chatautomations.go
 export type ChatAutomationWhenBusy = "queue" | "skip";
 
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationsFilter narrows the chat automation list.
+ */
+export interface ChatAutomationsFilter {
+	/**
+	 * Owner keeps only the automations of one owner: "me", a username, or
+	 * a user ID. Empty lists every automation the caller can read. The
+	 * filter never shows an automation the caller cannot read.
+	 */
+	readonly owner?: string;
+}
+
 // From codersdk/chats.go
 export type ChatBusyBehavior = "interrupt" | "queue";
 

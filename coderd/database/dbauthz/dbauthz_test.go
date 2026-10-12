@@ -1678,16 +1678,16 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args([]uuid.UUID{automation.ID}).Asserts(object, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("GetChatAutomationsByOrganizationID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		orgID := uuid.New()
-		dbm.EXPECT().GetAuthorizedChatAutomationsByOrganizationID(gomock.Any(), orgID, gomock.Any()).Return([]database.ChatAutomation{}, nil).AnyTimes()
+		arg := database.GetChatAutomationsByOrganizationIDParams{OrganizationID: uuid.New(), OwnerID: uuid.New()}
+		dbm.EXPECT().GetAuthorizedChatAutomationsByOrganizationID(gomock.Any(), arg, gomock.Any()).Return([]database.ChatAutomation{}, nil).AnyTimes()
 		// No asserts here because SQLFilter.
-		check.Args(orgID).Asserts()
+		check.Args(arg).Asserts()
 	}))
 	s.Run("GetAuthorizedChatAutomationsByOrganizationID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		orgID := uuid.New()
-		dbm.EXPECT().GetAuthorizedChatAutomationsByOrganizationID(gomock.Any(), orgID, gomock.Any()).Return([]database.ChatAutomation{}, nil).AnyTimes()
+		arg := database.GetChatAutomationsByOrganizationIDParams{OrganizationID: uuid.New()}
+		dbm.EXPECT().GetAuthorizedChatAutomationsByOrganizationID(gomock.Any(), arg, gomock.Any()).Return([]database.ChatAutomation{}, nil).AnyTimes()
 		// No asserts here because callers provide the SQL filter.
-		check.Args(orgID, emptyPreparedAuthorized{}).Asserts()
+		check.Args(arg, emptyPreparedAuthorized{}).Asserts()
 	}))
 	s.Run("GetChatAutomationsByOrganizationIDAndOwnerID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})

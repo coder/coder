@@ -322,10 +322,22 @@ func chatAutomationsPath(organizationID uuid.UUID) string {
 	return fmt.Sprintf("/api/experimental/organizations/%s/chat-automations", organizationID)
 }
 
+// ChatAutomationsFilter narrows the chat automation list.
+type ChatAutomationsFilter struct {
+	// Owner keeps only the automations of one owner: "me", a username, or
+	// a user ID. Empty lists every automation the caller can read. The
+	// filter never shows an automation the caller cannot read.
+	Owner string `json:"owner,omitempty"`
+}
+
 // ChatAutomations lists the chat automations in an organization that the
-// caller can read.
-func (c *ExperimentalClient) ChatAutomations(ctx context.Context, organizationID uuid.UUID) ([]ChatAutomation, error) {
-	res, err := c.Request(ctx, http.MethodGet, chatAutomationsPath(organizationID), nil)
+// caller can read, narrowed by filter.
+func (c *ExperimentalClient) ChatAutomations(ctx context.Context, organizationID uuid.UUID, filter ChatAutomationsFilter) ([]ChatAutomation, error) {
+	var opts []RequestOption
+	if filter.Owner != "" {
+		opts = append(opts, WithQueryParam("owner", filter.Owner))
+	}
+	res, err := c.Request(ctx, http.MethodGet, chatAutomationsPath(organizationID), nil, opts...)
 	if err != nil {
 		return nil, err
 	}

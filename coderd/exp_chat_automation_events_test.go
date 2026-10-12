@@ -231,7 +231,7 @@ func TestChatAutomationEvents(t *testing.T) {
 			t.Helper()
 			got, err := env.member.ChatAutomation(ctx, env.orgID, created.Automation.ID)
 			require.NoError(t, err)
-			list, err := env.member.ChatAutomations(ctx, env.orgID)
+			list, err := env.member.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 			require.NoError(t, err)
 			require.Len(t, list, 1)
 			require.Equal(t, got.LastRun, list[0].LastRun, "list and get agree")

@@ -501,7 +501,9 @@ type sqlcQuerier interface {
 	// lockers always acquire automation row locks in the same order.
 	// Missing ids are not returned.
 	GetChatAutomationsByIDsForUpdate(ctx context.Context, ids []uuid.UUID) ([]ChatAutomation, error)
-	GetChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ChatAutomation, error)
+	// Returns the automations of an organization, of one owner when owner_id
+	// is set. The all-zero owner_id means every owner.
+	GetChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams) ([]ChatAutomation, error)
 	GetChatAutomationsByOrganizationIDAndOwnerID(ctx context.Context, arg GetChatAutomationsByOrganizationIDAndOwnerIDParams) ([]ChatAutomation, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)

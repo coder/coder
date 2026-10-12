@@ -254,7 +254,7 @@ func TestChatAutomations(t *testing.T) {
 			require.NotContains(t, body, webhook.WebhookSecret)
 			require.NotContains(t, body, "hash")
 		}
-		list, err := env.member.ChatAutomations(ctx, env.orgID)
+		list, err := env.member.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 		require.NoError(t, err)
 		require.Len(t, list, 3)
 		require.Equal(t, skip.Automation.ID, list[0].ID, "newest first")
@@ -320,7 +320,7 @@ func TestChatAutomations(t *testing.T) {
 			_, err = client.RotateChatAutomationSecret(ctx, env.orgID, webhook.Automation.ID)
 			requireSDKError(t, err, http.StatusForbidden)
 
-			list, err := client.ChatAutomations(ctx, env.orgID)
+			list, err := client.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 			require.NoError(t, err, name)
 			require.Len(t, list, 2, name)
 			_, err = client.ChatAutomation(ctx, env.orgID, id)
@@ -973,7 +973,7 @@ func TestChatAutomations(t *testing.T) {
 		got, err := env.member.ChatAutomation(ctx, env.orgID, id)
 		require.NoError(t, err)
 		require.True(t, got.ScheduleIntervalBelowMinimum)
-		listed, err := env.member.ChatAutomations(ctx, env.orgID)
+		listed, err := env.member.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 		require.NoError(t, err)
 		require.Len(t, listed, 1)
 		require.True(t, listed[0].ScheduleIntervalBelowMinimum)
@@ -1081,7 +1081,7 @@ func TestChatAutomations(t *testing.T) {
 		// lists no upcoming runs.
 		requireStatus := func(t *testing.T, client *codersdk.ExperimentalClient, id uuid.UUID, want ...codersdk.ChatAutomationPausedReason) {
 			t.Helper()
-			list, err := client.ChatAutomations(ctx, env.orgID)
+			list, err := client.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 			require.NoError(t, err)
 			var fromList *codersdk.ChatAutomation
 			for i := range list {
@@ -1224,7 +1224,7 @@ func TestChatAutomations(t *testing.T) {
 		_, err = sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", deletedCreator.ID)
 		require.NoError(t, err)
 
-		list, err := env.member.ChatAutomations(ctx, env.orgID)
+		list, err := env.member.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 		require.NoError(t, err)
 		byID := make(map[uuid.UUID]codersdk.ChatAutomation, len(list))
 		for _, automation := range list {
@@ -1302,7 +1302,7 @@ func TestChatAutomations(t *testing.T) {
 		// The member sees their own owner data, and the site owner sees
 		// the member as owner, on both list and get.
 		for name, client := range map[string]*codersdk.ExperimentalClient{"Member": env.member, "SiteOwner": env.owner} {
-			list, err := client.ChatAutomations(ctx, env.orgID)
+			list, err := client.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 			require.NoError(t, err, name)
 			byID := make(map[uuid.UUID]codersdk.ChatAutomation, len(list))
 			for _, automation := range list {
@@ -1314,7 +1314,7 @@ func TestChatAutomations(t *testing.T) {
 			require.Equal(t, wantOwner, got.Owner, name)
 		}
 
-		list, err := env.owner.ChatAutomations(ctx, env.orgID)
+		list, err := env.owner.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 		require.NoError(t, err)
 		byID := make(map[uuid.UUID]codersdk.ChatAutomation, len(list))
 		for _, automation := range list {
@@ -1407,7 +1407,7 @@ func TestChatAutomationsExperimentGate(t *testing.T) {
 			TargetChatID:   uuid.NullUUID{UUID: env.memberChat.ID, Valid: true},
 		})
 
-		_, err := env.member.ChatAutomations(ctx, env.orgID)
+		_, err := env.member.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 		requireSDKError(t, err, http.StatusNotFound)
 		_, err = env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
 		requireSDKError(t, err, http.StatusNotFound)
@@ -1437,7 +1437,7 @@ func TestChatAutomationsExperimentGate(t *testing.T) {
 		member, err := env.member.User(ctx, codersdk.Me)
 		require.NoError(t, err)
 
-		_, err = env.member.ChatAutomations(ctx, env.orgID)
+		_, err = env.member.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 		require.NoError(t, err)
 
 		_, err = env.owner.PutExperimentRule(ctx, codersdk.ExperimentChatAutomations, codersdk.PutExperimentRuleRequest{
@@ -1446,9 +1446,9 @@ func TestChatAutomationsExperimentGate(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = env.member.ChatAutomations(ctx, env.orgID)
+		_, err = env.member.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 		requireSDKError(t, err, http.StatusNotFound)
-		_, err = other.ChatAutomations(ctx, env.orgID)
+		_, err = other.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 		require.NoError(t, err)
 	})
 
@@ -1522,7 +1522,7 @@ func TestChatAutomationReferences(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, want, got)
 
-	_, err = viewerClient.ChatAutomations(ctx, env.orgID)
+	_, err = viewerClient.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
 	requireSDKError(t, err, http.StatusNotFound)
 	got, err = viewerClient.ChatAutomationReferences(ctx, env.memberChat.ID)
 	require.NoError(t, err)

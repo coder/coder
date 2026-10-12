@@ -2547,19 +2547,29 @@ func TestGetAuthorizedChatAutomationsByOrganizationID(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		user database.User
-		want []uuid.UUID
+		// owner filters by owner; uuid.Nil lists every owner.
+		owner uuid.UUID
+		want  []uuid.UUID
 	}{
 		{name: "Member", user: member, want: memberAutomations},
 		{name: "SecondMember", user: secondMember, want: []uuid.UUID{secondMemberAutomation}},
 		{name: "OrgAdmin", user: orgAdmin, want: allInOrg},
 		{name: "SiteOwner", user: siteOwner, want: allInOrg},
 		{name: "OtherOrgAdmin", user: otherOrgAdmin, want: nil},
+		// The owner filter narrows what RBAC allows and never widens it.
+		{name: "OrgAdminFilteredToMember", user: orgAdmin, owner: member.ID, want: memberAutomations},
+		{name: "OrgAdminFilteredToSelf", user: orgAdmin, owner: orgAdmin.ID, want: nil},
+		{name: "MemberFilteredToSelf", user: member, owner: member.ID, want: memberAutomations},
+		{name: "MemberFilteredToOther", user: member, owner: secondMember.ID, want: nil},
 	} {
 		subject, _, err := httpmw.UserRBACSubject(ctx, db, tc.user.ID, rbac.ExpandableScope(rbac.ScopeAll))
 		require.NoError(t, err, tc.name)
 		prepared, err := authorizer.Prepare(ctx, subject, policy.ActionRead, rbac.ResourceChatAutomation.Type)
 		require.NoError(t, err, tc.name)
-		rows, err := db.GetAuthorizedChatAutomationsByOrganizationID(ctx, org.ID, prepared)
+		rows, err := db.GetAuthorizedChatAutomationsByOrganizationID(ctx, database.GetChatAutomationsByOrganizationIDParams{
+			OrganizationID: org.ID,
+			OwnerID:        tc.owner,
+		}, prepared)
 		require.NoError(t, err, tc.name)
 		got := make([]uuid.UUID, 0, len(rows))
 		for _, row := range rows {

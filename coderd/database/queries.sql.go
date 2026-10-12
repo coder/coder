@@ -5932,6 +5932,10 @@ FROM
     chat_automations
 WHERE
     organization_id = $1::uuid
+    AND (
+        $2::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+        OR owner_id = $2::uuid
+    )
     -- Authorize Filter clause will be injected below in
     -- GetAuthorizedChatAutomationsByOrganizationID.
     -- @authorize_filter
@@ -5940,8 +5944,15 @@ ORDER BY
     id DESC
 `
 
-func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ChatAutomation, error) {
-	rows, err := q.db.QueryContext(ctx, getChatAutomationsByOrganizationID, organizationID)
+type GetChatAutomationsByOrganizationIDParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+}
+
+// Returns the automations of an organization, of one owner when owner_id
+// is set. The all-zero owner_id means every owner.
+func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams) ([]ChatAutomation, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutomationsByOrganizationID, arg.OrganizationID, arg.OwnerID)
 	if err != nil {
 		return nil, err
 	}

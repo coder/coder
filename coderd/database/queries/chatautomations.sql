@@ -114,12 +114,18 @@ WHERE
     chat_automations.id = ANY(@ids::uuid[]);
 
 -- name: GetChatAutomationsByOrganizationID :many
+-- Returns the automations of an organization, of one owner when owner_id
+-- is set. The all-zero owner_id means every owner.
 SELECT
     *
 FROM
     chat_automations
 WHERE
     organization_id = @organization_id::uuid
+    AND (
+        @owner_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+        OR owner_id = @owner_id::uuid
+    )
     -- Authorize Filter clause will be injected below in
     -- GetAuthorizedChatAutomationsByOrganizationID.
     -- @authorize_filter

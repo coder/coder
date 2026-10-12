@@ -195,14 +195,24 @@ func (api *API) requireChatAutomations(next http.Handler) http.Handler {
 // @Produce json
 // @Tags Chats
 // @Param organization path string true "Organization ID"
+// @Param owner query string false "Only the automations of this owner: me, a username, or a user ID. Omitted lists every automation the caller can read."
 // @Success 200 {array} codersdk.ChatAutomation
+// @Failure 400 {object} codersdk.Response
 // @Router /api/experimental/organizations/{organization}/chat-automations [get]
 // @x-apidocgen {"skip": true}
 func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
 
-	rows, err := api.Database.GetChatAutomationsByOrganizationID(ctx, organization.ID)
+	ownerID, ok := api.chatAutomationOwnerFilter(rw, r, organization.ID)
+	if !ok {
+		return
+	}
+	// The owner filter and RBAC both run in SQL.
+	rows, err := api.Database.GetChatAutomationsByOrganizationID(ctx, database.GetChatAutomationsByOrganizationIDParams{
+		OrganizationID: organization.ID,
+		OwnerID:        ownerID,
+	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -213,6 +223,60 @@ func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, automations)
+}
+
+// chatAutomationOwnerFilter resolves the owner query parameter of the
+// list: "me", a user ID, or a username of a member of the organization.
+// uuid.Nil means no filter. A user ID is not looked up: one the caller
+// cannot read, or that owns nothing, lists nothing, as RBAC would. A
+// username that names no member of the organization is a bad request.
+// The lookup runs as the system, because members cannot read other users,
+// and reveals only who is a member of the organization, which the member
+// list already shows.
+func (api *API) chatAutomationOwnerFilter(rw http.ResponseWriter, r *http.Request, organizationID uuid.UUID) (uuid.UUID, bool) {
+	ctx := r.Context()
+	owner := strings.TrimSpace(r.URL.Query().Get("owner"))
+	switch owner {
+	case "":
+		return uuid.Nil, true
+	case codersdk.Me:
+		return httpmw.APIKey(r).UserID, true
+	}
+	if id, err := uuid.Parse(owner); err == nil {
+		return id, true
+	}
+	invalid := func() (uuid.UUID, bool) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid owner filter.",
+			Validations: []codersdk.ValidationError{{
+				Field:  "owner",
+				Detail: fmt.Sprintf("%q is not me, a user ID, or the username of a member of this organization", owner),
+			}},
+		})
+		return uuid.Nil, false
+	}
+	//nolint:gocritic // Members cannot read other users; only organization membership is revealed.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	user, err := api.Database.GetUserByEmailOrUsername(sysCtx, database.GetUserByEmailOrUsernameParams{Username: owner})
+	if errors.Is(err, sql.ErrNoRows) {
+		return invalid()
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return uuid.Nil, false
+	}
+	members, err := api.Database.GetOrganizationMembersByUserIDs(sysCtx, database.GetOrganizationMembersByUserIDsParams{
+		OrganizationID: organizationID,
+		UserIds:        []uuid.UUID{user.ID},
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return uuid.Nil, false
+	}
+	if len(members) == 0 {
+		return invalid()
+	}
+	return user.ID, true
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.

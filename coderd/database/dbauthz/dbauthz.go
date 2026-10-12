@@ -3347,12 +3347,12 @@ func (q *querier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids []uu
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatAutomationsByIDsForUpdate)(ctx, ids)
 }
 
-func (q *querier) GetChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatAutomation, error) {
+func (q *querier) GetChatAutomationsByOrganizationID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDParams) ([]database.ChatAutomation, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChatAutomation.Type)
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
-	return q.db.GetAuthorizedChatAutomationsByOrganizationID(ctx, organizationID, prep)
+	return q.db.GetAuthorizedChatAutomationsByOrganizationID(ctx, arg, prep)
 }
 
 func (q *querier) GetChatAutomationsByOrganizationIDAndOwnerID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDAndOwnerIDParams) ([]database.ChatAutomation, error) {
@@ -9997,8 +9997,8 @@ func (q *querier) GetAuthorizedChatModelConfigs(ctx context.Context, organizatio
 	return q.db.GetAuthorizedChatModelConfigs(ctx, organizationID, prepared)
 }
 
-func (q *querier) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.ChatAutomation, error) {
-	return q.db.GetAuthorizedChatAutomationsByOrganizationID(ctx, organizationID, prepared)
+func (q *querier) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDParams, prepared rbac.PreparedAuthorized) ([]database.ChatAutomation, error) {
+	return q.db.GetAuthorizedChatAutomationsByOrganizationID(ctx, arg, prepared)
 }
 
 func (q *querier) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {

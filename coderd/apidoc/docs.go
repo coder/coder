@@ -597,6 +597,12 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only the automations of this owner: me, a username, or a user ID. Omitted lists every automation the caller can read.",
+                        "name": "owner",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -607,6 +613,12 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/codersdk.ChatAutomation"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
