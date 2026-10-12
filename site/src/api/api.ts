@@ -70,10 +70,10 @@ export const watchWorkspace = (
 
 export const watchChat = (
 	chatId: string,
-	historyVersion: number,
+	snapshotVersion: number,
 ): OneWayWebSocketApi<TypesGen.ChatStreamEvent[]> => {
 	const params = new URLSearchParams();
-	params.set("history_version", historyVersion.toString());
+	params.set("snapshot_version", snapshotVersion.toString());
 	const token = API.getSessionToken();
 	if (token) {
 		params.set(SessionTokenCookie, token);
