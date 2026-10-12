@@ -26,7 +26,7 @@ const MessageScrollerItemContext =
 // LOCAL CHANGE: a no-op outside a Viewport, so tool rows also render
 // standalone.
 const MessageScrollerUserLayoutIntentContext = React.createContext<
-  (target: Element) => void
+  MessageScrollerContextValue["userLayoutIntent"]
 >(() => {})
 
 // LOCAL CHANGE
@@ -34,6 +34,8 @@ const MessageScrollerUserLayoutIntentContext = React.createContext<
  * Returns the callback for a user's expand or collapse. Pass the toggled
  * element, because a toggle above the anchored turn releases the anchor. It
  * stops following new output, so do not use it for other layout changes.
+ * With `revealEnd`, the toggle's commit then brings the end of the toggled
+ * row into view; at the last row it resumes following.
  */
 function useMessageScrollerUserLayoutIntent() {
   return React.useContext(MessageScrollerUserLayoutIntentContext)

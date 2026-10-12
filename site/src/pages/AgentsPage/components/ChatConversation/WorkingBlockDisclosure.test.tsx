@@ -1,6 +1,17 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import {
+	history,
+	nextRow,
+	prompt,
+	renderTranscript,
+	row,
+	setupMessageScrollerLayout,
+	viewport,
+	visibleRowsAfterLayout,
+} from "#/testHelpers/messageScrollerLayout";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { FIXTURE_NOW, MockWorkingBlock } from "./storyFixtures";
 import {
 	didPrependIntoBlock,
@@ -68,6 +79,76 @@ describe("WorkingBlockDisclosure", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+});
+
+const BlockRow: React.FC<{ expandedHeight: number }> = ({ expandedHeight }) => {
+	const [expanded, setExpanded] = useState(false);
+	return (
+		<MessageScroller.Item
+			messageId="block"
+			data-height={expanded ? expandedHeight : 40}
+		>
+			<WorkingBlockDisclosure
+				block={MockWorkingBlock}
+				expanded={expanded}
+				onExpandedChange={setExpanded}
+			>
+				<div>Read src/main.ts</div>
+			</WorkingBlockDisclosure>
+		</MessageScroller.Item>
+	);
+};
+
+const summary = () =>
+	screen.getByRole("button", { name: "Worked for 12s (2 steps)" });
+
+describe("WorkingBlockDisclosure in a MessageScroller", () => {
+	setupMessageScrollerLayout();
+
+	it("scrolls to the end of a block that expands past the view", async () => {
+		const user = userEvent.setup();
+		renderTranscript([
+			history,
+			<BlockRow key="block" expandedHeight={300} />,
+			row("answer", 100),
+		]);
+
+		await user.click(summary());
+
+		expect(await visibleRowsAfterLayout()).toEqual(["history-9", "block"]);
+	});
+
+	it("stays put when an expanded block still ends in view", async () => {
+		const user = userEvent.setup();
+		renderTranscript([
+			history,
+			<BlockRow key="block" expandedHeight={200} />,
+			Array.from({ length: 5 }, (_, index) => row(`after-${index}`, 100)),
+		]);
+		fireEvent.wheel(viewport());
+		viewport().scrollTop = 900;
+		fireEvent.scroll(viewport());
+
+		await user.click(summary());
+
+		expect(await visibleRowsAfterLayout()).toEqual([
+			"history-9",
+			"block",
+			"after-0",
+		]);
+	});
+
+	it("follows new output after expanding the last block of an anchored turn", async () => {
+		const user = userEvent.setup();
+		const update = renderTranscript([history]);
+		const block = <BlockRow key="block" expandedHeight={600} />;
+		await update([history, prompt, block]);
+
+		await user.click(summary());
+		await update([history, prompt, block, nextRow]);
+
+		expect(await visibleRowsAfterLayout()).toContain("next");
 	});
 });
 
