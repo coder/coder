@@ -7,11 +7,15 @@ vi.mock("#/components/Toaster/toast", () => ({
 	},
 }));
 
-import type { ChatMessage } from "#/api/typesGenerated";
+import type { ChatActionVersion } from "#/api/api";
+import type {
+	ChatMessage,
+	ChatStatus,
+	ChatStreamCheckpoint,
+} from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
-	MockChat,
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
@@ -49,7 +53,7 @@ const buildParams = (
 	isEditReasoningEffortDirtyRef: { current: false },
 	personalSkills: [],
 	workspaceSkills: [],
-	compact: vi.fn().mockResolvedValue(MockChat),
+	compact: vi.fn().mockResolvedValue({ snapshotVersion: 2 }),
 	clearChatContext: vi.fn().mockResolvedValue(undefined),
 	store: createChatStore(),
 	agentId: "chat-1",
@@ -60,10 +64,8 @@ const buildParams = (
 	mcpServerIds: ["mcp-1"],
 	editMessage: vi
 		.fn()
-		.mockResolvedValue({ message: MockChatMessage, snapshot_version: 2 }),
-	sendMessage: vi
-		.fn()
-		.mockResolvedValue({ queued: false, snapshot_version: 2 }),
+		.mockResolvedValue({ message: MockChatMessage, snapshotVersion: 2 }),
+	sendMessage: vi.fn().mockResolvedValue({ queued: false, snapshotVersion: 2 }),
 	onRequestError: vi.fn(),
 	invalidateChat: vi.fn(),
 	scrollToEnd: vi.fn(),
@@ -89,10 +91,18 @@ const seededStore = (messages: readonly ChatMessage[]) => {
 		queued_messages: [],
 		has_more: false,
 		snapshot_version: 1,
+		turn: { status: "waiting" },
 	});
-	store.setChatStatus("waiting");
 	return store;
 };
+
+const checkpoint = (
+	snapshotVersion: number,
+	status: ChatStatus = "waiting",
+): ChatStreamCheckpoint => ({
+	snapshot_version: snapshotVersion,
+	turn: { status },
+});
 
 const visibleTexts = (store: ReturnType<typeof createChatStore>) => {
 	const state = store.getSnapshot();
@@ -235,10 +245,10 @@ describe("submitChatTurn", () => {
 
 	it("shows a compaction as running until the stream reaches it", async () => {
 		const store = seededStore([]);
-		let resolveCompact: (chat: typeof MockChat) => void = () => {};
+		let resolveCompact: (result: ChatActionVersion) => void = () => {};
 		const compact = vi.fn(
 			() =>
-				new Promise<typeof MockChat>((resolve) => {
+				new Promise<ChatActionVersion>((resolve) => {
 					resolveCompact = resolve;
 				}),
 		);
@@ -248,11 +258,11 @@ describe("submitChatTurn", () => {
 		);
 		expect(selectChatStatus(store.getSnapshot())).toBe("running");
 
-		resolveCompact({ ...MockChat, snapshot_version: 4 });
+		resolveCompact({ snapshotVersion: 4 });
 		await submitted;
-		store.applyCheckpoint(3);
+		store.applyCheckpoint(checkpoint(3));
 		expect(selectChatStatus(store.getSnapshot())).toBe("running");
-		store.applyCheckpoint(4);
+		store.applyCheckpoint(checkpoint(4));
 		expect(selectChatStatus(store.getSnapshot())).toBe("waiting");
 	});
 
@@ -281,7 +291,7 @@ describe("submitChatTurn", () => {
 		]);
 		const editMessage = vi.fn().mockResolvedValue({
 			message: textMessage(5, "user", "new text"),
-			snapshot_version: 2,
+			snapshotVersion: 2,
 		});
 		const scrollToEnd = vi.fn();
 		const sendMessage = vi.fn();
@@ -315,7 +325,7 @@ describe("submitChatTurn", () => {
 		]);
 		const editMessage = vi.fn().mockResolvedValue({
 			message: textMessage(5, "user", "new text"),
-			snapshot_version: 2,
+			snapshotVersion: 2,
 		});
 		await submitChatTurn(
 			buildParams({
@@ -347,11 +357,11 @@ describe("submitChatTurn", () => {
 		store.setQueuedMessages([{ ...MockChatQueuedMessage, id: 8 }]);
 		let resolveEdit: (value: {
 			message: ChatMessage;
-			snapshot_version: number;
+			snapshotVersion: number;
 		}) => void = () => {};
 		const editMessage = vi.fn(
 			() =>
-				new Promise<{ message: ChatMessage; snapshot_version: number }>(
+				new Promise<{ message: ChatMessage; snapshotVersion: number }>(
 					(resolve) => {
 						resolveEdit = resolve;
 					},
@@ -372,7 +382,7 @@ describe("submitChatTurn", () => {
 
 		resolveEdit({
 			message: textMessage(9, "user", "new"),
-			snapshot_version: 6,
+			snapshotVersion: 6,
 		});
 		await submitted;
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
@@ -381,8 +391,7 @@ describe("submitChatTurn", () => {
 		store.resetHistoryFrom(3);
 		store.upsertDurableMessages([textMessage(9, "user", "new")]);
 		store.setQueuedMessages([]);
-		store.setChatStatus("running");
-		store.applyCheckpoint(6);
+		store.applyCheckpoint(checkpoint(6, "running"));
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
 		expect(store.getSnapshot().pendingActions).toEqual([]);
 	});
@@ -433,7 +442,7 @@ describe("submitChatTurn", () => {
 		const sendMessage = vi.fn().mockResolvedValue({
 			queued: false,
 			message: textMessage(9, "user", "hello"),
-			snapshot_version: 5,
+			snapshotVersion: 5,
 		});
 
 		await submitChatTurn(buildParams({ store, sendMessage }));
@@ -447,7 +456,7 @@ describe("submitChatTurn", () => {
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
 		expect(selectChatStatus(store.getSnapshot())).toBe("running");
 
-		store.applyCheckpoint(5);
+		store.applyCheckpoint(checkpoint(5));
 		expect(visibleTexts(store)).toEqual(["first"]);
 		expect(selectChatStatus(store.getSnapshot())).toBe("waiting");
 	});
@@ -455,11 +464,11 @@ describe("submitChatTurn", () => {
 	it("adds nothing for a send the stream already reached", async () => {
 		const store = seededStore([textMessage(1, "user", "first")]);
 		store.upsertDurableMessage(textMessage(9, "user", "hello"));
-		store.applyCheckpoint(5);
+		store.applyCheckpoint(checkpoint(5));
 		const sendMessage = vi.fn().mockResolvedValue({
 			queued: false,
 			message: textMessage(9, "user", "hello"),
-			snapshot_version: 5,
+			snapshotVersion: 5,
 		});
 
 		await submitChatTurn(buildParams({ store, sendMessage }));
@@ -474,13 +483,13 @@ describe("submitChatTurn", () => {
 		const sendMessage = vi.fn().mockResolvedValue({
 			queued: true,
 			queued_message: queued,
-			snapshot_version: 7,
+			snapshotVersion: 7,
 		});
 
 		await submitChatTurn(buildParams({ store, sendMessage }));
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([queued]);
 
-		store.applyCheckpoint(7);
+		store.applyCheckpoint(checkpoint(7));
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([]);
 	});
 
@@ -488,7 +497,7 @@ describe("submitChatTurn", () => {
 		const setCachedChatPlanMode = vi.fn();
 		const sendMessage = vi
 			.fn()
-			.mockResolvedValue({ queued: false, snapshot_version: 2 });
+			.mockResolvedValue({ queued: false, snapshotVersion: 2 });
 
 		await submitChatTurn(
 			buildParams({
@@ -509,7 +518,7 @@ describe("submitChatTurn", () => {
 		const setCachedChatPlanMode = vi.fn();
 		const sendMessage = vi
 			.fn()
-			.mockResolvedValue({ queued: false, snapshot_version: 2 });
+			.mockResolvedValue({ queued: false, snapshotVersion: 2 });
 
 		await submitChatTurn(buildParams({ sendMessage, setCachedChatPlanMode }));
 

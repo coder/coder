@@ -74,7 +74,10 @@ describe("ChatPageInput", () => {
 		const user = userEvent.setup();
 		const onInterrupt = vi.fn();
 		const store = createChatStore();
-		store.setChatStatus("requires_action");
+		store.applyCheckpoint({
+			snapshot_version: 1,
+			turn: { status: "requires_action" },
+		});
 
 		renderChatPageInput(store, { onInterrupt });
 
