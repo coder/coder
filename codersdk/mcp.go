@@ -164,8 +164,9 @@ type CreateMCPServerConfigRequest struct {
 	// endpoint; auto-populated by OAuth2 discovery when omitted.
 	OAuth2RevocationURL string `json:"oauth2_revocation_url,omitempty" validate:"omitempty,url"`
 	// OAuth2Resource is the RFC 8707 resource indicator sent on
-	// authorization, token, and refresh requests when set;
-	// auto-populated by OAuth2 discovery when omitted.
+	// authorization, token, and refresh requests when set. When the
+	// client ID and endpoint URLs are omitted, OAuth2 discovery fills it
+	// unless it is set.
 	OAuth2Resource string            `json:"oauth2_resource,omitempty"`
 	OAuth2Scopes   string            `json:"oauth2_scopes,omitempty"`
 	APIKeyHeader   string            `json:"api_key_header,omitempty"`
@@ -206,8 +207,8 @@ type UpdateMCPServerConfigRequest struct {
 	// OAuth2RevocationURL is validated in the handler because a
 	// validate tag would reject the pointer to "" that clears it.
 	OAuth2RevocationURL *string `json:"oauth2_revocation_url,omitempty"`
-	// OAuth2Resource is the RFC 8707 resource indicator; a pointer
-	// to "" clears it.
+	// OAuth2Resource is the RFC 8707 resource indicator. Omit it to keep
+	// the stored value; send "" to clear it.
 	OAuth2Resource *string            `json:"oauth2_resource,omitempty"`
 	OAuth2Scopes   *string            `json:"oauth2_scopes,omitempty"`
 	APIKeyHeader   *string            `json:"api_key_header,omitempty"`

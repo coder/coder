@@ -133,3 +133,32 @@ it("updates an API key server without re-entering the saved key", async () => {
 		);
 	});
 });
+
+it("clears a stored OAuth2 resource URL on update", async () => {
+	const user = userEvent.setup();
+	const onUpdateServer = vi.fn(async () => undefined);
+	const server = {
+		...MockCoderMCPServer,
+		oauth2_resource: "https://dev.coder.com/api/experimental/mcp/http",
+	};
+	render(
+		<MCPServerForm
+			server={server}
+			listPath="/servers"
+			isSaving={false}
+			isDeleting={false}
+			canSelectUserOIDC
+			onUpdateServer={onUpdateServer}
+			onCancel={vi.fn()}
+		/>,
+	);
+	await user.click(screen.getByRole("button", { name: /authentication/i }));
+	await user.clear(screen.getByLabelText("Resource URL"));
+	await user.click(screen.getByRole("button", { name: "Update server" }));
+	await waitFor(() => {
+		expect(onUpdateServer).toHaveBeenCalledWith(
+			server.id,
+			expect.objectContaining({ oauth2_resource: "" }),
+		);
+	});
+});

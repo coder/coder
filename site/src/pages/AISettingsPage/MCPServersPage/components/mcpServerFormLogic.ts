@@ -231,7 +231,7 @@ export const buildUpdateMCPServerConfigRequest = (
 	const { enabled: _enabled, ...updateFields } = base;
 	return {
 		...updateFields,
-		// Always sent: an omitted field keeps the stored value, "" clears it.
+		// Sent even when empty: an omitted field keeps the stored value, "" clears it.
 		...(values.authType === "oauth2" && {
 			oauth2_revocation_url: values.oauth2RevocationURL.trim(),
 			oauth2_resource: values.oauth2Resource.trim(),
