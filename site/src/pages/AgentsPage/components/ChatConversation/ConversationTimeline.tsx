@@ -17,7 +17,7 @@ import { TextPreviewDialog } from "../TextPreviewDialog";
 import { returnFocusTo } from "../useDialogFocusReturn";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
-import { isActiveChatStatus } from "./chatStore";
+import { isPendingRowID } from "./chatStore";
 import { FileProbeProvider } from "./FileProbeContext";
 import { FoldFocusRestorer, foldFocusItems } from "./FoldFocusRestorer";
 import {
@@ -247,12 +247,15 @@ const ChatMessageItem = memo<{
 						isAwaitingFirstStreamChunk,
 					})
 				: undefined;
-
-		const copyText =
-			displayState?.hasCopyableContent && parsed && !hideSliceActions
-				? parsed.markdown
-				: undefined;
-
+		const canEditUserMessage =
+			isUser &&
+			messageId !== undefined &&
+			!isPendingRowID(messageId) &&
+			Boolean(onEditUserMessage);
+		const canJumpBetweenUserMessages =
+			isUser &&
+			Boolean(onJumpToUserMessage) &&
+			(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
 		if (displayState?.shouldHide) {
 			return null;
 		}

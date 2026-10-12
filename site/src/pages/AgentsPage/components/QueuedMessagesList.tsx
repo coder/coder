@@ -15,6 +15,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { isPendingRowID } from "./ChatConversation/chatStore";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
@@ -152,8 +153,8 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 		>
 			{items.map((item, index) => {
 				const isFirst = index === 0;
-				const isRowPending =
-					pendingAction !== null && pendingAction.id === item.id;
+				const isItemBusy = busyItem !== null && busyItem.id === item.id;
+				const isPending = isPendingRowID(item.id);
 				const isHovered = hoveredID === item.id;
 				const showActions = isHovered || (isFirst && hoveredID === null);
 				return (
@@ -236,22 +237,44 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									showActions ? "opacity-100" : "opacity-0",
 								)}
 							>
-								<QueuedMessageActionButton
-									label="Send now"
-									icon={<ArrowUpIcon className="size-3.5" />}
-									busy={isRowPending && pendingAction.action === "promote"}
-									disabled={isBusy}
-									onClick={() => void runAction(item.id, "promote", onPromote)}
-								/>
-								<QueuedMessageActionButton
-									label="Remove from queue"
-									tooltip="Remove"
-									icon={<Trash2Icon className="size-3.5" />}
-									busy={isRowPending && pendingAction.action === "delete"}
-									disabled={isBusy}
-									destructive
-									onClick={() => void runAction(item.id, "delete", onDelete)}
-								/>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant="subtle"
+											size="icon"
+											aria-label="Send now"
+											disabled={isBusy || isPending}
+											onClick={() => void handlePromote(item.id)}
+											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
+										>
+											{isItemBusy && busyItem.action === "promote" ? (
+												<Spinner className="h-3.5 w-3.5" loading />
+											) : (
+												<ArrowUpIcon className="size-3.5" />
+											)}
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="top">Send now</TooltipContent>
+								</Tooltip>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant="subtle"
+											size="icon"
+											aria-label="Remove from queue"
+											disabled={isBusy || isPending}
+											onClick={() => void handleDelete(item.id)}
+											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
+										>
+											{isItemBusy && busyItem.action === "delete" ? (
+												<Spinner className="h-3.5 w-3.5" loading />
+											) : (
+												<Trash2Icon className="size-3.5" />
+											)}
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="top">Remove</TooltipContent>
+								</Tooltip>
 							</div>
 						</div>
 					</div>

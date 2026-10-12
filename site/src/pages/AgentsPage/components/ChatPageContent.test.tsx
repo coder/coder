@@ -272,4 +272,41 @@ describe("ChatPageInput", () => {
 			},
 		]);
 	});
+
+	it("offers no queue actions on a row a pending send draws", async () => {
+		const user = userEvent.setup();
+		const onPromoteQueuedMessage = vi.fn();
+		const onDeleteQueuedMessage = vi.fn();
+		const store = createChatStore();
+		store.seed({
+			messages: [],
+			queued_messages: [],
+			has_more: false,
+			snapshot_version: 1,
+			turn: { status: "running" },
+		});
+		store.addPendingAction({
+			kind: "send",
+			message: {
+				id: 0,
+				chat_id: "",
+				created_at: "2025-01-01T00:00:00.000Z",
+				role: "user",
+				content: [{ type: "text", text: "not stored yet" }],
+			},
+		});
+
+		renderChatPageInput(store, {
+			onPromoteQueuedMessage,
+			onDeleteQueuedMessage,
+		});
+		await screen.findByText("not stored yet");
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		await user.click(screen.getByRole("button", { name: "Remove from queue" }));
+		await user.click(screen.getByTestId("chat-message-input"));
+		await user.keyboard("{Enter}");
+
+		expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+		expect(onDeleteQueuedMessage).not.toHaveBeenCalled();
+	});
 });
