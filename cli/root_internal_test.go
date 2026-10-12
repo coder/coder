@@ -391,7 +391,7 @@ func TestPrintDeprecatedOptions(t *testing.T) {
 	})
 }
 
-func TestWarnIgnoredColumnFlag(t *testing.T) {
+func TestWarnConflictingOptions(t *testing.T) {
 	t.Parallel()
 
 	makeCmd := func() *serpent.Command {
@@ -415,7 +415,7 @@ func TestWarnIgnoredColumnFlag(t *testing.T) {
 					Value:         serpent.EnumOf(&output, "table", "json"),
 				},
 			},
-			Middleware: WarnIgnoredColumnFlag(),
+			Middleware: WarnConflictingOptions(),
 			Handler: func(_ *serpent.Invocation) error {
 				return nil
 			},
@@ -484,7 +484,7 @@ func TestWarnIgnoredColumnFlag(t *testing.T) {
 					Value:         serpent.EnumArrayOf(&columns, "foo", "bar"),
 				},
 			},
-			Middleware: WarnIgnoredColumnFlag(),
+			Middleware: WarnConflictingOptions(),
 			Handler: func(_ *serpent.Invocation) error {
 				return nil
 			},
