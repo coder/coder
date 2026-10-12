@@ -3976,6 +3976,15 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// A chat's snapshot version never decreases, so a cursor above it was
+	// never issued for this chat.
+	if cursor.SnapshotVersion > chat.SnapshotVersion {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid snapshot_version parameter.",
+			Detail:  fmt.Sprintf("snapshot_version %d is above the chat's snapshot version %d.", cursor.SnapshotVersion, chat.SnapshotVersion),
+		})
+		return
+	}
 
 	// Subscribe before accepting the WebSocket so that failures
 	// can still be reported as normal HTTP errors.
