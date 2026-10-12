@@ -160,7 +160,7 @@ export const ContextUsageAfterCompaction: Story = {
 	render: () => {
 		const store = createChatStore();
 		store.replaceMessages([MockChatCompactionMessage]);
-		store.setChatStatus("waiting");
+		store.applyCheckpoint({ snapshot_version: 0, turn: { status: "waiting" } });
 		return <StoryChatPageInput store={store} contextLimit={200000} />;
 	},
 	play: async ({ canvasElement }) => {
@@ -178,7 +178,7 @@ export const UncommittedCompactionKeepsContextUsage: Story = {
 			usage: { input_tokens: 90000, context_limit: 200000 },
 		};
 		store.replaceMessages([previousMessage]);
-		store.setChatStatus("waiting");
+		store.applyCheckpoint({ snapshot_version: 0, turn: { status: "waiting" } });
 		return <StoryChatPageInput store={store} contextLimit={200000} />;
 	},
 	play: async ({ canvasElement }) => {
@@ -217,7 +217,10 @@ const buildInterruptingStore = () => {
 			created_at: new Date(FIXTURE_NOW).toISOString(),
 		},
 	]);
-	store.setChatStatus("interrupting");
+	store.applyCheckpoint({
+		snapshot_version: 0,
+		turn: { status: "interrupting" },
+	});
 	return store;
 };
 
@@ -261,7 +264,7 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 				},
 			]),
 		]);
-		store.setChatStatus("running");
+		store.applyCheckpoint({ snapshot_version: 0, turn: { status: "running" } });
 
 		return (
 			<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
@@ -293,7 +296,7 @@ export const StreamedAdvisorResultOverlaysDurableCall: Story = {
 				},
 			]),
 		]);
-		store.setChatStatus("running");
+		store.applyCheckpoint({ snapshot_version: 0, turn: { status: "running" } });
 		store.applyMessageParts([
 			{
 				type: "tool-result",
@@ -321,7 +324,10 @@ export const ErrorClearsStreamingTool: Story = {
 		errorClearsStreamStore.replaceMessages([
 			buildMessage(1, "user", [{ type: "text", text: "Create a workspace" }]),
 		]);
-		errorClearsStreamStore.setChatStatus("running");
+		errorClearsStreamStore.applyCheckpoint({
+			snapshot_version: 0,
+			turn: { status: "running" },
+		});
 		errorClearsStreamStore.applyMessagePart({
 			type: "tool-call",
 			tool_call_id: "create-workspace-call",
@@ -337,10 +343,16 @@ export const ErrorClearsStreamingTool: Story = {
 	},
 	play: async () => {
 		errorClearsStreamStore.batch(() => {
-			errorClearsStreamStore.applyServerChatStatus("error");
-			errorClearsStreamStore.setStreamError({
-				kind: "generic",
-				message: "The chat session ended unexpectedly.",
+			errorClearsStreamStore.applyCheckpoint({
+				snapshot_version: 0,
+				turn: {
+					status: "error",
+					error: {
+						kind: "generic",
+						message: "The chat session ended unexpectedly.",
+						retryable: false,
+					},
+				},
 			});
 			errorClearsStreamStore.clearStreamState();
 		});
@@ -509,7 +521,7 @@ export const RunningShowsBusyComposer: Story = {
 	},
 	render: () => {
 		const store = buildInterruptingStore();
-		store.setChatStatus("running");
+		store.applyCheckpoint({ snapshot_version: 0, turn: { status: "running" } });
 		return <StoryChatPageInput store={store} />;
 	},
 };

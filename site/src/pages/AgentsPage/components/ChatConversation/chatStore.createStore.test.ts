@@ -176,39 +176,85 @@ describe("upsertDurableMessage", () => {
 	});
 });
 
+const checkpointAt = (
+	snapshotVersion: number,
+	turn: TypesGen.ChatStreamTurn,
+): TypesGen.ChatStreamCheckpoint => ({
+	snapshot_version: snapshotVersion,
+	turn,
+});
+
 // ---------------------------------------------------------------------------
-// setChatStatus
+// applyCheckpoint
 // ---------------------------------------------------------------------------
 
-describe("setChatStatus", () => {
-	it("updates chatStatus", () => {
+describe("applyCheckpoint", () => {
+	it("replaces the turn and the synced snapshot version", () => {
 		const store = createChatStore();
+		store.applyCheckpoint(
+			checkpointAt(3, {
+				status: "running",
+				retry: {
+					attempt: 2,
+					delay_ms: 1000,
+					error: "rate limited",
+					kind: "rate_limit",
+					retrying_at: "2025-01-01T00:00:30.000Z",
+				},
+			}),
+		);
+		expect(store.getSnapshot()).toMatchObject({
+			chatStatus: "running",
+			turnError: null,
+			retryState: { attempt: 2, error: "rate limited", kind: "rate_limit" },
+		});
 
-		store.setChatStatus("running");
-
-		expect(store.getSnapshot().chatStatus).toBe("running");
+		store.applyCheckpoint(
+			checkpointAt(4, {
+				status: "error",
+				error: { message: "provider down", kind: "generic", retryable: false },
+			}),
+		);
+		expect(store.getSnapshot()).toMatchObject({
+			chatStatus: "error",
+			turnError: { message: "provider down", kind: "generic" },
+			retryState: null,
+		});
+		expect(store.getSyncedSnapshotVersion()).toBe(4);
 	});
 
-	it("accepts null to clear the status", () => {
+	it("shows a generic error for an errored turn without a message", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
+		store.applyCheckpoint(checkpointAt(1, { status: "error" }));
 
-		store.setChatStatus(null);
-
-		expect(store.getSnapshot().chatStatus).toBeNull();
+		expect(selectStreamError(store.getSnapshot())).toEqual({
+			kind: "generic",
+			message: "Chat processing failed.",
+		});
 	});
 
-	it("does not notify when setting the same status", () => {
+	it("does not notify when the turn is unchanged", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
+		store.applyCheckpoint(checkpointAt(1, { status: "running" }));
 
 		let notified = false;
 		store.subscribe(() => {
 			notified = true;
 		});
-		store.setChatStatus("running");
+		store.applyCheckpoint(checkpointAt(2, { status: "running" }));
 
 		expect(notified).toBe(false);
+	});
+
+	it("keeps a client error that the turn does not report", () => {
+		const store = createChatStore();
+		store.setStreamError({ kind: "generic", message: "request failed" });
+
+		store.applyCheckpoint(checkpointAt(1, { status: "running" }));
+
+		expect(selectStreamError(store.getSnapshot())).toMatchObject({
+			message: "request failed",
+		});
 	});
 });
 
@@ -283,46 +329,6 @@ describe("setStreamError / clearStreamError", () => {
 			notified = true;
 		});
 		store.clearStreamError();
-
-		expect(notified).toBe(false);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// setRetryState / clearRetryState
-// ---------------------------------------------------------------------------
-
-describe("setRetryState / clearRetryState", () => {
-	it("stores and clears retry state", () => {
-		const store = createChatStore();
-
-		store.setRetryState({
-			attempt: 1,
-			error: "rate limited",
-			kind: "rate_limit",
-			provider: "anthropic",
-			retryingAt: "2025-01-01T00:00:30.000Z",
-		});
-		expect(store.getSnapshot().retryState).toEqual({
-			attempt: 1,
-			error: "rate limited",
-			kind: "rate_limit",
-			provider: "anthropic",
-			retryingAt: "2025-01-01T00:00:30.000Z",
-		});
-
-		store.clearRetryState();
-		expect(store.getSnapshot().retryState).toBeNull();
-	});
-
-	it("clearRetryState is a no-op when already null", () => {
-		const store = createChatStore();
-
-		let notified = false;
-		store.subscribe(() => {
-			notified = true;
-		});
-		store.clearRetryState();
 
 		expect(notified).toBe(false);
 	});
@@ -453,10 +459,6 @@ describe("setQueuedMessages", () => {
 });
 
 // ---------------------------------------------------------------------------
-// suppressQueuedMessageID / applyAuthoritativeQueuedMessages
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // clearStreamState
 // ---------------------------------------------------------------------------
 
@@ -541,19 +543,12 @@ describe("applyMessagePart / applyMessageParts", () => {
 // ---------------------------------------------------------------------------
 
 describe("resetTransientState", () => {
-	it("clears streamState, streamError, retryState, reconnectState, and subagentOverrides", () => {
+	it("clears streamState, streamError, reconnectState, and subagentOverrides", () => {
 		const store = createChatStore();
 		store.applyMessagePart({ type: "text", text: "stream" });
 		store.setStreamError({
 			kind: "generic",
 			message: "oops",
-		});
-		store.setRetryState({
-			attempt: 2,
-			error: "rate limit",
-			kind: "rate_limit",
-			provider: "anthropic",
-			retryingAt: "2025-01-01T00:01:00.000Z",
 		});
 		store.setReconnectState({
 			attempt: 1,
@@ -567,7 +562,6 @@ describe("resetTransientState", () => {
 		const state = store.getSnapshot();
 		expect(state.streamState).toBeNull();
 		expect(state.streamError).toBeNull();
-		expect(state.retryState).toBeNull();
 		expect(state.reconnectState).toBeNull();
 		expect(state.subagentStatusOverrides.size).toBe(0);
 	});
@@ -613,11 +607,11 @@ describe("subscribe", () => {
 			callCount += 1;
 		});
 
-		store.setChatStatus("running");
+		store.applyCheckpoint(checkpointAt(0, { status: "running" }));
 		expect(callCount).toBe(1);
 
 		unsubscribe();
-		store.setChatStatus("error");
+		store.applyCheckpoint(checkpointAt(0, { status: "error" }));
 		expect(callCount).toBe(1);
 	});
 
@@ -632,7 +626,7 @@ describe("subscribe", () => {
 			countB += 1;
 		});
 
-		store.setChatStatus("running");
+		store.applyCheckpoint(checkpointAt(0, { status: "running" }));
 
 		expect(countA).toBe(1);
 		expect(countB).toBe(1);
@@ -646,7 +640,7 @@ describe("subscribe", () => {
 describe("selectIsAwaitingFirstStreamChunk", () => {
 	it("returns true when running with no stream state and no assistant message", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
+		store.applyCheckpoint(checkpointAt(0, { status: "running" }));
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
@@ -654,7 +648,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 
 	it("returns false when the latest message is from the assistant", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
+		store.applyCheckpoint(checkpointAt(0, { status: "running" }));
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
 
@@ -663,7 +657,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 
 	it("returns false when stream state is present", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
+		store.applyCheckpoint(checkpointAt(0, { status: "running" }));
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 		store.applyMessagePart({ type: "text", text: "response" });
 
@@ -672,7 +666,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 
 	it("returns false during waiting status when latest message is from user", () => {
 		const store = createChatStore();
-		store.setChatStatus("waiting");
+		store.applyCheckpoint(checkpointAt(0, { status: "waiting" }));
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 
 		// "waiting" means the chat is idle; nothing is generating,
@@ -689,7 +683,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 
 	it("returns true when latest message is a tool result during running", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
+		store.applyCheckpoint(checkpointAt(0, { status: "running" }));
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 		store.upsertDurableMessage(makeMessage(2, "assistant", "calling tool"));
 		store.upsertDurableMessage(makeMessage(3, "tool", "tool result"));
@@ -697,35 +691,17 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
 
-	it("returns true after optimistic send: clearStreamState + setChatStatus('running') + upsertDurableMessage", () => {
+	it("returns true when a sync delivers a new prompt and a running turn", () => {
 		const store = createChatStore();
-		// Simulate a settled previous turn: assistant replied,
-		// then server transitioned to "waiting".
+		// The Thinking indicator must appear before the first stream chunk.
 		store.upsertDurableMessage(makeMessage(1, "user", "first question"));
 		store.upsertDurableMessage(makeMessage(2, "assistant", "first answer"));
-		store.setChatStatus("waiting");
-
-		// Verify baseline: not awaiting while idle.
+		store.applyCheckpoint(checkpointAt(1, { status: "waiting" }));
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 
-		// Simulate handleSend after POST returns (non-queued).
-		// This is the exact sequence from AgentChatPage.tsx.
-		store.clearStreamState();
-		store.setChatStatus("running");
 		store.upsertDurableMessage(makeMessage(3, "user", "follow-up"));
-
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
-	});
-
-	it("returns true when WS delivers user message + status:running (fresh send)", () => {
-		const store = createChatStore();
-		// Simulate the WS batch: [message(user), status:running].
-		// This is the event order from the server when the user
-		// sends a message. The Thinking indicator must appear
-		// before the first stream chunk arrives.
-		store.upsertDurableMessage(makeMessage(1, "user", "sweet ty"));
-		store.setChatStatus("running");
 		store.clearStreamState();
+		store.applyCheckpoint(checkpointAt(2, { status: "running" }));
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
@@ -764,9 +740,8 @@ const seededStore = (
 		queued_messages: queuedMessages,
 		has_more: false,
 		snapshot_version: 1,
+		turn: { status },
 	});
-	store.applyServerChatStatus(status);
-	store.applyCheckpoint(1);
 	return store;
 };
 
@@ -863,8 +838,10 @@ type ConvergenceScenario = {
 	queue: readonly TypesGen.ChatQueuedMessage[];
 	status: TypesGen.ChatStatus;
 	action: Parameters<ChatStore["addPendingAction"]>[0];
-	// The stream's events for the action's commit.
+	// The stream's events for the action's commit, and the status its
+	// checkpoint reports.
 	stream: (store: ChatStore) => void;
+	statusAfter: TypesGen.ChatStatus;
 	// Another viewer's commit lands first, so the overlay cannot predict it.
 	unpredictable?: boolean;
 };
@@ -880,8 +857,8 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		action: { kind: "send", messages: [makeMessage(2, "user", "second")] },
 		stream: (store) => {
 			store.upsertDurableMessage(makeMessage(2, "user", "second"));
-			store.applyServerChatStatus("running");
 		},
+		statusAfter: "running",
 	},
 	{
 		name: "queued send",
@@ -894,6 +871,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 			queuedMessage: makeQueuedMessage(10, "q10"),
 		},
 		stream: (store) => store.setQueuedMessages([makeQueuedMessage(10, "q10")]),
+		statusAfter: "running",
 	},
 	{
 		name: "edit",
@@ -914,6 +892,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 			store.upsertDurableMessages([makeMessage(4, "user", "new")]);
 			store.setQueuedMessages([]);
 		},
+		statusAfter: "running",
 	},
 	{
 		name: "delete queued",
@@ -922,6 +901,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		status: "running",
 		action: { kind: "deleteQueued", queuedMessageID: 10 },
 		stream: (store) => store.setQueuedMessages([makeQueuedMessage(11, "q11")]),
+		statusAfter: "running",
 	},
 	{
 		name: "promote from error",
@@ -935,8 +915,8 @@ const convergenceScenarios: ConvergenceScenario[] = [
 				queued_message_id: 11,
 			});
 			store.setQueuedMessages([makeQueuedMessage(10, "q10")]);
-			store.applyServerChatStatus("running");
 		},
+		statusAfter: "running",
 	},
 	{
 		name: "promote from running",
@@ -949,8 +929,8 @@ const convergenceScenarios: ConvergenceScenario[] = [
 				makeQueuedMessage(11, "q11"),
 				makeQueuedMessage(10, "q10"),
 			]);
-			store.applyServerChatStatus("interrupting");
 		},
+		statusAfter: "interrupting",
 	},
 	{
 		name: "compact",
@@ -958,7 +938,8 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		queue: [],
 		status: "waiting",
 		action: { kind: "compact" },
-		stream: (store) => store.applyServerChatStatus("running"),
+		stream: () => {},
+		statusAfter: "running",
 	},
 	{
 		name: "another tab's edit deletes the pending send",
@@ -969,8 +950,8 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		stream: (store) => {
 			store.resetHistoryFrom(1);
 			store.upsertDurableMessages([makeMessage(3, "user", "theirs")]);
-			store.applyServerChatStatus("running");
 		},
+		statusAfter: "running",
 		unpredictable: true,
 	},
 ];
@@ -992,14 +973,14 @@ describe("pending actions converge with the stream", () => {
 
 		// A stream that lags the response keeps the overlay.
 		for (const store of [actor, observer]) {
-			store.applyCheckpoint(W - 1, 1);
+			store.applyCheckpoint(checkpointAt(W - 1, { status: scenario.status }));
 		}
 		expect(actor.getSnapshot().pendingActions).toHaveLength(1);
 		const shownBeforeCommit = visible(actor);
 
 		for (const store of [actor, observer]) {
 			scenario.stream(store);
-			store.applyCheckpoint(W, 2);
+			store.applyCheckpoint(checkpointAt(W, { status: scenario.statusAfter }));
 		}
 		expect(actor.getSnapshot().pendingActions).toEqual([]);
 		expect(visible(actor)).toEqual(visible(observer));
@@ -1012,7 +993,7 @@ describe("pending actions converge with the stream", () => {
 	it("adds no overlay for an action the stream already reached", () => {
 		const store = seededStore([makeMessage(1, "user", "first")], [], "waiting");
 		store.upsertDurableMessage(makeMessage(2, "user", "second"));
-		store.applyCheckpoint(W, 2);
+		store.applyCheckpoint(checkpointAt(W, { status: "running" }));
 
 		store.addPendingAction(
 			{ kind: "send", messages: [makeMessage(2, "user", "second")] },
