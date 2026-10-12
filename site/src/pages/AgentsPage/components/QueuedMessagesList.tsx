@@ -17,6 +17,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { isPendingRowID } from "./ChatConversation/chatStore";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
@@ -206,8 +207,8 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 		>
 			{items.map((item, index) => {
 				const isFirst = index === 0;
-				const isRowPending =
-					pendingAction !== null && pendingAction.id === item.id;
+				const isItemBusy = busyItem !== null && busyItem.id === item.id;
+				const isPending = isPendingRowID(item.id);
 				const isHovered = hoveredID === item.id;
 				const showActions = isHovered || (isFirst && hoveredID === null);
 				return (
@@ -290,77 +291,47 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									showActions ? "opacity-100" : "opacity-0",
 								)}
 							>
-								{item.isUnderEdit && onEndEdit && (
-									<QueuedMessageActionButton
-										label="Cancel edit"
-										tooltip={
-											isChatPaused
-												? "Cancel edit and send unchanged"
-												: "Cancel edit"
-										}
-										icon={<XIcon className="size-3.5" />}
-										busy={isRowPending && pendingAction.action === "end_edit"}
-										disabled={isBusy}
-										onClick={() =>
-											void runAction(item.id, "end_edit", onEndEdit)
-										}
-									/>
-								)}
-								{onEdit && item.id !== composerQueuedMessageID && (
-									<QueuedMessageActionButton
-										label="Edit"
-										icon={<PencilIcon className="size-3.5" />}
-										busy={false}
-										disabled={isBusy}
-										disabledReason={
-											isChatPaused && underEditIndex !== -1 && !item.isUnderEdit
-												? "Finish the current edit first."
-												: undefined
-										}
-										onClick={() => onEdit(item.id)}
-									/>
-								)}
-								<QueuedMessageActionButton
-									label="Send now"
-									icon={<ArrowUpIcon className="size-3.5" />}
-									busy={isRowPending && pendingAction.action === "promote"}
-									disabled={isBusy}
-									isChatPaused={isChatPaused}
-									editDisabledReason={
-										isChatPaused && underEditIndex !== -1 && !item.isUnderEdit
-											? "Finish the current edit first."
-											: undefined
-									}
-									onMouseEnter={() => setHoveredID(item.id)}
-									onMouseLeave={() =>
-										setHoveredID((current) =>
-											current === item.id ? null : current,
-										)
-									}
-									onEdit={
-										onEdit && item.id !== composerQueuedMessageID
-											? () => onEdit(item.id)
-											: undefined
-									}
-									onEndEdit={
-										item.isUnderEdit && onEndEdit
-											? () => void runAction(item.id, "end_edit", onEndEdit)
-											: undefined
-									}
-									onPromote={
-										onPromote && canSendQueuedMessageNow(item.busyBehavior)
-											? () => void runAction(item.id, "promote", onPromote)
-											: undefined
-									}
-									onDelete={
-										onDelete
-											? () => void runAction(item.id, "delete", onDelete)
-											: undefined
-									}
-								/>
-							);
-						})}
-					</QueuedMessageGroup>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant="subtle"
+											size="icon"
+											aria-label="Send now"
+											disabled={isBusy || isPending}
+											onClick={() => void handlePromote(item.id)}
+											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
+										>
+											{isItemBusy && busyItem.action === "promote" ? (
+												<Spinner className="h-3.5 w-3.5" loading />
+											) : (
+												<ArrowUpIcon className="size-3.5" />
+											)}
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="top">Send now</TooltipContent>
+								</Tooltip>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant="subtle"
+											size="icon"
+											aria-label="Remove from queue"
+											disabled={isBusy || isPending}
+											onClick={() => void handleDelete(item.id)}
+											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
+										>
+											{isItemBusy && busyItem.action === "delete" ? (
+												<Spinner className="h-3.5 w-3.5" loading />
+											) : (
+												<Trash2Icon className="size-3.5" />
+											)}
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="top">Remove</TooltipContent>
+								</Tooltip>
+							</div>
+						</div>
+					</div>
 				);
 			})}
 		</div>
