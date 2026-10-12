@@ -52,9 +52,6 @@ type streamLocalState struct {
 	// does not come back.
 	attemptRetired bool
 
-	// turn is the turn the last checkpoint reported.
-	turn codersdk.ChatStreamTurn
-
 	afterMessageID         int64
 	initialMessageSyncDone bool
 	// openedWithSnapshotVersion reports whether the client opened the stream
@@ -142,15 +139,8 @@ func streamSyncHintFromUpdate(update coderdpubsub.ChatStateUpdateMessage) stream
 }
 
 func (l *streamLoop) sync(ctx context.Context, hint streamSyncHint) ([]codersdk.ChatStreamEvent, streamRelayTarget, bool, error) {
-	if hint.snapshotVersion <= l.state.snapshotVersion {
+	if !l.shouldFetch(hint) {
 		return nil, l.currentRelayTarget(), false, nil
-	}
-	if !l.trackedFieldsChanged(hint) {
-		// The hint carries the post-commit row, so unchanged tracked fields
-		// mean the visible state at this snapshot version equals what the
-		// stream already sent. Only the checkpoint is new.
-		l.state.snapshotVersion = hint.snapshotVersion
-		return []codersdk.ChatStreamEvent{l.checkpointEvent()}, l.currentRelayTarget(), false, nil
 	}
 	return l.syncDB(ctx)
 }
@@ -166,9 +156,10 @@ func (l *streamLoop) syncDB(ctx context.Context) ([]codersdk.ChatStreamEvent, st
 	return l.applyDBSnapshot(snapshot), l.currentRelayTarget(), true, nil
 }
 
-// trackedFieldsChanged reports whether the hint differs from the stream's
-// state in a field that decides which events a sync sends.
-func (l *streamLoop) trackedFieldsChanged(hint streamSyncHint) bool {
+func (l *streamLoop) shouldFetch(hint streamSyncHint) bool {
+	if hint.snapshotVersion <= l.state.snapshotVersion {
+		return false
+	}
 	if hint.historyVersion > l.state.historyVersion {
 		return true
 	}
@@ -355,7 +346,6 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 	if !l.state.openedWithSnapshotVersion {
 		events = append(events, l.turnEvents(chat, snapshot.actionRequired)...)
 	}
-	l.state.turn = StreamTurn(l.logger, chat)
 
 	wasRetired := l.state.attemptRetired
 	if historyChanged || generationChanged {
@@ -396,21 +386,16 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 	l.state.status = chat.Status
 	l.state.workerID = chat.WorkerID
 	l.state.generationAttempt = chat.GenerationAttempt
-	return append(events, l.checkpointEvent())
-}
-
-// checkpointEvent reports the stream's synchronized state. Clients
-// reconnect with its snapshot version and match action responses against
-// it, so it must stay the last event of every applied sync.
-func (l *streamLoop) checkpointEvent() codersdk.ChatStreamEvent {
-	return codersdk.ChatStreamEvent{
+	// Clients apply a sync and take their reconnect version at its
+	// checkpoint, so it must stay the last event of every applied sync.
+	return append(events, codersdk.ChatStreamEvent{
 		Type:   codersdk.ChatStreamEventTypeCheckpoint,
 		ChatID: l.chatID,
 		Checkpoint: &codersdk.ChatStreamCheckpoint{
-			SnapshotVersion: l.state.snapshotVersion,
-			Turn:            l.state.turn,
+			SnapshotVersion: chat.SnapshotVersion,
+			Turn:            StreamTurn(l.logger, chat),
 		},
-	}
+	})
 }
 
 func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStreamEvent {
