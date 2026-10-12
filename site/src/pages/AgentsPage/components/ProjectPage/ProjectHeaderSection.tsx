@@ -27,6 +27,7 @@ import { ChatProjectDialog } from "../ChatsSidebar/dialogs/ChatProjectDialog";
 import { normalizeLocationSearch } from "../ChatsSidebar/locationSearch";
 import { ProjectMetadataBadges } from "./ProjectMetadataBadges";
 import { ProjectPageHeader } from "./ProjectPageHeader";
+import { useProjectDeleteInfo } from "./useProjectDeleteInfo";
 
 type ProjectHeaderSectionProps = {
 	readonly project: ChatProject;
@@ -41,6 +42,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 	const location = useLocation();
 	const { user: me } = useAuthenticated();
 	const { organizations, showOrganizations } = useDashboard();
+	const projectDeleteInfo = useProjectDeleteInfo();
 	const isOwner = project.owner_id === me.id;
 	const ownerQuery = useQuery({ ...user(project.owner_id), enabled: !isOwner });
 	const ownerLabel = isOwner
@@ -158,7 +160,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 				entity="project"
 				name={project.name}
 				confirmLoading={deleteMutation.isPending}
-				info="Chats in this project will be kept and move back to the Chats list."
+				info={projectDeleteInfo}
 			/>
 		</>
 	);
