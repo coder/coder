@@ -11,6 +11,7 @@ import {
 	type ChatPlanModeOrClear,
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
+import { isWorkspaceNotFound } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
 import { authorizationKey } from "./authCheck";
@@ -19,6 +20,8 @@ import {
 	reconcileEditedMessageInCache,
 } from "./chatMessageEdits";
 import { organizationsPermissions } from "./organizations";
+import { workspaceQuotaKey } from "./workspaceQuota";
+import { invalidateWorkspaceListQueries } from "./workspaces";
 
 const chatCollectionsKey = ["chats", "collections"] as const;
 
@@ -1343,11 +1346,6 @@ type UpdateChatPlanModeVariables = {
 	planMode?: TypesGen.ChatPlanMode;
 };
 
-type UpdateChatManageAutomationsVariables = {
-	chatId: string;
-	enabled: boolean;
-};
-
 const CLEAR_PLAN_MODE_WIRE_VALUE = "" satisfies ChatPlanModeOrClear;
 
 const toChatPlanModePayload = (
@@ -1445,6 +1443,19 @@ export const infiniteChats = (input?: ChatListInput) => {
 				},
 				signal,
 			),
+		// Keep optimistic read-state changes in cache so rollback preserves
+		// ordering and cannot resurrect rows removed by a newer response.
+		select: (data: InfiniteChatsCacheData): InfiniteChatsCacheData =>
+			params.status === "all"
+				? data
+				: {
+						...data,
+						pages: data.pages.map((page) =>
+							page.filter(
+								(chat) => chat.has_unread === (params.status === "unread"),
+							),
+						),
+					},
 		refetchOnWindowFocus: true,
 		retry: 3,
 	});
@@ -1520,6 +1531,10 @@ export const chatACL = (chatId: string) => ({
 });
 
 const MESSAGES_PAGE_SIZE = 50;
+const MAX_MESSAGES_PER_REQUEST = 200;
+// Past the cap, a history page can end mid-turn; the next page continues
+// that turn.
+const MAX_MESSAGES_PER_PAGE = 1000;
 
 export const chatMessagesKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "messages"] as const;
@@ -1536,14 +1551,70 @@ export const chatQueueConvergence = (chatId: string) => ({
 	gcTime: 0,
 });
 
+// Extends a page back to the prompt that starts the turn containing its
+// oldest message.
+const fetchMessagesPage = async (
+	chatId: string,
+	beforeId: number | undefined,
+	signal: AbortSignal,
+): Promise<TypesGen.ChatMessagesResponse> => {
+	const page = await API.experimental.getChatMessages(
+		chatId,
+		{ before_id: beforeId, limit: MESSAGES_PAGE_SIZE },
+		signal,
+	);
+	const turnStartId = page.turn_start_id;
+	if (turnStartId === undefined) {
+		return page;
+	}
+
+	const messages = [...page.messages];
+	while (messages.length < MAX_MESSAGES_PER_PAGE) {
+		const oldestId = messages[messages.length - 1].id;
+		if (oldestId <= turnStartId) {
+			break;
+		}
+		try {
+			const older = await API.experimental.getChatMessages(
+				chatId,
+				{
+					// after_id is exclusive, so this keeps the prompt itself.
+					after_id: turnStartId - 1,
+					before_id: oldestId,
+					limit: Math.min(
+						MAX_MESSAGES_PER_REQUEST,
+						MAX_MESSAGES_PER_PAGE - messages.length,
+					),
+				},
+				signal,
+			);
+			messages.push(...older.messages);
+			// An empty page cannot move the cursor, whatever has_more says.
+			if (!older.has_more || older.messages.length === 0) {
+				break;
+			}
+		} catch {
+			// A failed fill keeps what loaded: the page ends mid-turn and the
+			// next page resumes from its oldest message.
+			break;
+		}
+	}
+
+	// Keep the first response's has_more; a fill's has_more covers only this
+	// turn.
+	return { ...page, messages };
+};
+
 export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
 	initialPageParam: undefined as number | undefined,
-	queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
-		API.experimental.getChatMessages(chatId, {
-			before_id: pageParam,
-			limit: MESSAGES_PAGE_SIZE,
-		}),
+	queryFn: ({
+		pageParam,
+		signal,
+	}: {
+		pageParam: number | undefined;
+		signal: AbortSignal;
+	}) => fetchMessagesPage(chatId, pageParam, signal),
 	getNextPageParam: (lastPage: TypesGen.ChatMessagesResponse) => {
 		if (!lastPage.has_more || lastPage.messages.length === 0) {
 			return undefined;
@@ -1570,6 +1641,9 @@ export const chatPromptsQuery = (chatId: string) => ({
 	staleTime: PROMPTS_STALE_MS,
 	enabled: chatId !== "",
 });
+
+export const chatArchiveMutationKey = (chatId: string) =>
+	["chats", "archive", chatId] as const;
 
 export const archiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
@@ -1688,17 +1762,87 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	},
 });
 
-type OptimisticChatUpdateContext = { previousChat?: TypesGen.Chat };
+export class ArchiveAndDeleteError extends Error {
+	readonly step: "delete" | "archive";
+	declare readonly cause: unknown;
 
-// The list rollback reads the field from the entity snapshot.
-const optimisticChatFieldUpdate = <K extends keyof TypesGen.Chat>(
-	queryClient: QueryClient,
-	field: K,
-) => ({
-	onMutate: async (
-		chatId: string,
-		value: TypesGen.Chat[K],
-	): Promise<OptimisticChatUpdateContext> => {
+	constructor(step: "delete" | "archive", cause: unknown) {
+		super(
+			step === "delete" ? "workspace delete failed" : "chat archive failed",
+			{ cause },
+		);
+		this.step = step;
+	}
+}
+
+type ArchiveAndDeleteChatVariables = {
+	chatId: string;
+	workspaceId?: string;
+};
+
+type ArchiveAndDeleteChatResult = {
+	deleteBuild: TypesGen.WorkspaceBuild | null;
+};
+
+export const archiveAndDeleteChatKey = (chatId: string) =>
+	[...chatArchiveMutationKey(chatId), "delete-workspace"] as const;
+
+// Archiving rejects active chat families before deletion. Keep the chat archived
+// on delete errors: the delete build may have committed despite a failed response.
+export const archiveAndDeleteChat = (queryClient: QueryClient) => ({
+	mutationFn: async ({
+		chatId,
+		workspaceId,
+	}: ArchiveAndDeleteChatVariables): Promise<ArchiveAndDeleteChatResult> => {
+		try {
+			await API.experimental.updateChat(chatId, { archived: true });
+		} catch (error) {
+			throw new ArchiveAndDeleteError("archive", error);
+		}
+		if (!workspaceId) {
+			return { deleteBuild: null };
+		}
+		try {
+			return { deleteBuild: await API.deleteWorkspace(workspaceId) };
+		} catch (error) {
+			if (isWorkspaceNotFound(error)) {
+				return { deleteBuild: null };
+			}
+			throw new ArchiveAndDeleteError("delete", error);
+		}
+	},
+	onSuccess: (
+		_result: ArchiveAndDeleteChatResult,
+		{ chatId, workspaceId }: ArchiveAndDeleteChatVariables,
+	) => {
+		applyChatArchiveStateToCaches(queryClient, chatId, true);
+		removeChatFromChatsByWorkspace(queryClient, chatId);
+		if (workspaceId) {
+			void invalidateWorkspaceListQueries(queryClient);
+			void queryClient.invalidateQueries({ queryKey: workspaceQuotaKey });
+		}
+	},
+	// The archive may have committed server-side even when the request
+	// appeared to fail, and on delete failures the chat stays archived, so
+	// refetch every chat collection to converge on the server.
+	onSettled: (
+		_result: ArchiveAndDeleteChatResult | undefined,
+		_error: unknown,
+		{ chatId }: ArchiveAndDeleteChatVariables,
+	) => {
+		void invalidateChatListQueries(queryClient);
+		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatsByWorkspace(queryClient);
+		void invalidateChatSearches(queryClient);
+	},
+});
+
+export const updateChatPlanMode = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
+		API.experimental.updateChat(chatId, {
+			plan_mode: toChatPlanModePayload(planMode),
+		}),
+	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
 		await cancelChatListQueries(queryClient);
 		await cancelChatEntity(queryClient, chatId);
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
@@ -1706,20 +1850,25 @@ const optimisticChatFieldUpdate = <K extends keyof TypesGen.Chat>(
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, [field]: value } : chat,
+				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
 			),
 		);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
 				...previousChat,
-				[field]: value,
+				plan_mode: planMode,
 			});
 		}
 		return { previousChat };
 	},
 	onError: (
-		chatId: string,
-		context: OptimisticChatUpdateContext | undefined,
+		_error: unknown,
+		{ chatId }: UpdateChatPlanModeVariables,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
 	) => {
 		void invalidateChatListQueries(queryClient);
 		const previousChat = context?.previousChat;
@@ -1728,49 +1877,17 @@ const optimisticChatFieldUpdate = <K extends keyof TypesGen.Chat>(
 		}
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, [field]: previousChat[field] } : chat,
+				chat.id === chatId
+					? {
+							...chat,
+							plan_mode: previousChat.plan_mode,
+						}
+					: chat,
 			),
 		);
 		patchChatEntity(queryClient, chatId, () => previousChat);
 	},
 });
-
-export const updateChatPlanMode = (queryClient: QueryClient) => {
-	const optimistic = optimisticChatFieldUpdate(queryClient, "plan_mode");
-	return {
-		mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
-			API.experimental.updateChat(chatId, {
-				plan_mode: toChatPlanModePayload(planMode),
-			}),
-		onMutate: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
-			optimistic.onMutate(chatId, planMode),
-		onError: (
-			_error: unknown,
-			{ chatId }: UpdateChatPlanModeVariables,
-			context: OptimisticChatUpdateContext | undefined,
-		) => optimistic.onError(chatId, context),
-	};
-};
-
-export const updateChatManageAutomations = (queryClient: QueryClient) => {
-	const optimistic = optimisticChatFieldUpdate(
-		queryClient,
-		"manage_automations_enabled",
-	);
-	return {
-		mutationFn: ({ chatId, enabled }: UpdateChatManageAutomationsVariables) =>
-			API.experimental.updateChat(chatId, {
-				manage_automations_enabled: enabled,
-			}),
-		onMutate: ({ chatId, enabled }: UpdateChatManageAutomationsVariables) =>
-			optimistic.onMutate(chatId, enabled),
-		onError: (
-			_error: unknown,
-			{ chatId }: UpdateChatManageAutomationsVariables,
-			context: OptimisticChatUpdateContext | undefined,
-		) => optimistic.onError(chatId, context),
-	};
-};
 
 export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) =>
@@ -1837,33 +1954,13 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	},
 });
 
-/**
- * Chat lists apply their read-status filter server-side, so a read-state
- * change can move a chat out of a list entirely. The filter params are the
- * last segment of the list query key.
- */
-const chatListStatusFromKey = (
-	queryKey: QueryKey,
-): ChatListStatusFilter | "all" => {
-	const params = queryKey[chatListFamilyKey.length];
-	if (params && typeof params === "object" && "status" in params) {
-		const { status } = params;
-		if (status === "read" || status === "unread") {
-			return status;
-		}
-	}
-	return "all";
-};
-
 type ChatListSnapshot = ReadonlyArray<
 	readonly [QueryKey, InfiniteChatsCacheData]
 >;
 
 /**
- * Applies a read-state change across every cached chat list, dropping the
- * chat from lists whose read-status filter it no longer satisfies. Returns
- * the replaced cache entries so a failed mutation can restore them without
- * depending on a refetch.
+ * Patches read state without removing roots. The list selector hides roots
+ * excluded by its read filter, keeping rollback independent of a refetch.
  */
 const applyChatReadStateToLists = (
 	queryClient: QueryClient,
@@ -1879,8 +1976,6 @@ const applyChatReadStateToLists = (
 		if (!data?.pages) {
 			continue;
 		}
-		const excluded =
-			chatListStatusFromKey(queryKey) === (read ? "unread" : "read");
 		let changed = false;
 		const pages = data.pages.map((page) => {
 			let pageChanged = false;
@@ -1888,9 +1983,7 @@ const applyChatReadStateToLists = (
 			for (const chat of page) {
 				if (chat.id === chatId) {
 					pageChanged = true;
-					if (!excluded) {
-						nextPage.push({ ...chat, has_unread: !read });
-					}
+					nextPage.push({ ...chat, has_unread: !read });
 					continue;
 				}
 				// Subagent chats are nested under their root and the list
@@ -1928,10 +2021,43 @@ const applyChatReadStateToLists = (
 
 const restoreChatLists = (
 	queryClient: QueryClient,
+	chatId: string,
 	snapshot: ChatListSnapshot,
 ) => {
 	for (const [queryKey, data] of snapshot) {
-		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, data);
+		const previousRoots = data.pages.flat();
+		const originalRoot = previousRoots.find((chat) => chat.id === chatId);
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (current) => {
+			if (!current?.pages) return current;
+			let changed = false;
+			const pages = current.pages.map((page) =>
+				page.map((chat) => {
+					if (chat.id === chatId && originalRoot) {
+						changed = true;
+						return { ...chat, has_unread: originalRoot.has_unread };
+					}
+					const previousChild = previousRoots
+						.find((parent) => parent.id === chat.id)
+						?.children?.find((child) => child.id === chatId);
+					if (
+						!previousChild ||
+						!chat.children?.some((child) => child.id === chatId)
+					) {
+						return chat;
+					}
+					changed = true;
+					return {
+						...chat,
+						children: chat.children.map((child) =>
+							child.id === chatId
+								? { ...child, has_unread: previousChild.has_unread }
+								: child,
+						),
+					};
+				}),
+			);
+			return changed ? { ...current, pages } : current;
+		});
 	}
 };
 
@@ -1940,12 +2066,19 @@ type SetChatReadStateContext = {
 	readonly previousLists: ChatListSnapshot;
 };
 
+const chatReadStateMutationPrefix = ["chats", "read-state"] as const;
+
+/** Identifies pending manual read-state updates for one chat. */
+export const chatReadStateMutationKey = (chatId: string) =>
+	[...chatReadStateMutationPrefix, chatId] as const;
+
 /**
  * Moves the owner's read cursor for a chat, which drives the sidebar's
  * unread indicator. Opening a chat marks it read on its own, so this
  * only exists for explicitly marking a chat read or unread.
  */
 const setChatReadState = (queryClient: QueryClient, read: boolean) => ({
+	mutationKey: chatReadStateMutationPrefix,
 	mutationFn: (chatId: string) => API.experimental.updateChat(chatId, { read }),
 	onMutate: async (chatId: string): Promise<SetChatReadStateContext> => {
 		await cancelChatListQueries(queryClient);
@@ -1970,15 +2103,23 @@ const setChatReadState = (queryClient: QueryClient, read: boolean) => ({
 		// Restore before invalidating so a failed refetch still leaves the
 		// rejected read state off the screen.
 		if (context) {
-			restoreChatLists(queryClient, context.previousLists);
+			restoreChatLists(queryClient, chatId, context.previousLists);
 		}
-		if (context?.previousChat) {
-			patchChatEntity(queryClient, chatId, () => context.previousChat);
+		const previousChat = context?.previousChat;
+		if (previousChat) {
+			patchChatEntity(queryClient, chatId, (current) =>
+				current ? { ...current, has_unread: previousChat.has_unread } : current,
+			);
 		}
-		void invalidateChatListQueries(queryClient);
 	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await invalidateChatListQueries(queryClient);
+		// This mutation is still pending during settlement. Refetching earlier
+		// would replace another row's optimistic read state with server data.
+		if (
+			queryClient.isMutating({ mutationKey: chatReadStateMutationPrefix }) <= 1
+		) {
+			await invalidateChatListQueries(queryClient);
+		}
 		await invalidateChatEntity(queryClient, chatId);
 	},
 });
@@ -2698,26 +2839,42 @@ export const userChatPersonalModelOverrides = (
 });
 
 type UpdateUserChatPersonalModelOverrideArgs = {
+	organizationId: string;
 	context: TypesGen.ChatPersonalModelOverrideContext;
 	req: TypesGen.UpdateUserChatPersonalModelOverrideRequest;
 };
 
 export const updateUserChatPersonalModelOverride = (
 	queryClient: QueryClient,
-	organizationId: string,
 	user = "me",
 ) => ({
-	mutationFn: ({ context, req }: UpdateUserChatPersonalModelOverrideArgs) =>
+	mutationFn: ({
+		organizationId,
+		context,
+		req,
+	}: UpdateUserChatPersonalModelOverrideArgs) =>
 		API.experimental.updateUserChatPersonalModelOverride(
 			organizationId,
 			user,
 			context,
 			req,
 		),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: userChatPersonalModelOverridesKey(organizationId, user),
-		});
+	onSuccess: async (
+		_data: unknown,
+		{ organizationId, context, req }: UpdateUserChatPersonalModelOverrideArgs,
+	) => {
+		const queryKey = userChatPersonalModelOverridesKey(organizationId, user);
+		await queryClient.cancelQueries({ queryKey });
+		// Keep the confirmed save even if the subsequent refetch fails.
+		queryClient.setQueryData<TypesGen.UserChatPersonalModelOverridesResponse>(
+			queryKey,
+			(current) =>
+				current && {
+					...current,
+					[context]: { ...req, context, is_set: true },
+				},
+		);
+		await queryClient.invalidateQueries({ queryKey });
 	},
 });
 
@@ -3016,7 +3173,7 @@ export const chatCost = (rootChatId: string) =>
 		staleTime: GATEWAY_REQUEST_STALE_MS,
 	});
 
-const organizationChatModelOverridesKey = (organizationId: string) =>
+export const organizationChatModelOverridesKey = (organizationId: string) =>
 	[...chatConfigKey, "model-overrides", organizationId] as const;
 
 export const organizationChatModelOverrides = (organizationId: string) => ({

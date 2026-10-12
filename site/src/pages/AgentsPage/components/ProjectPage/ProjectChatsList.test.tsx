@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from "react-router";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { Chat } from "#/api/typesGenerated";
@@ -11,6 +12,8 @@ import {
 	MockChatProject,
 	MockUserMember,
 	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceBuildDelete,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
@@ -54,13 +57,7 @@ const buildOutletContext = (): AgentsPageOutletContext => ({
 	chatErrorReasons: {},
 	setChatErrorReason: vi.fn(),
 	clearChatErrorReason: vi.fn(),
-	requestArchiveAgent: vi.fn(),
-	requestUnarchiveAgent: vi.fn(),
-	requestArchiveAndDeleteWorkspace: vi.fn(),
-	requestPinAgent: vi.fn(),
-	requestUnpinAgent: vi.fn(),
-	isArchiving: false,
-	archivingChatId: undefined,
+	navigateAfterArchive: vi.fn(),
 	activeChatChildren: undefined,
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: vi.fn(),
@@ -260,9 +257,157 @@ describe("ProjectChatsList", () => {
 		});
 	});
 
-	it("archives a chat through the agents page", async () => {
+	it.each([false, true])(
+		"archives and deletes a project chat workspace (confirmation: %s)",
+		async (requiresConfirmation) => {
+			const user = userEvent.setup();
+			const chat = { ...MockChat, workspace_id: MockWorkspace.id };
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([chat]);
+			vi.spyOn(API, "getWorkspace").mockResolvedValue({
+				...MockWorkspace,
+				created_at: requiresConfirmation
+					? "2000-01-01T00:00:00.000Z"
+					: chat.created_at,
+			});
+			vi.spyOn(API, "getWorkspaceBuilds").mockResolvedValue([]);
+			vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+			vi.spyOn(API, "deleteWorkspace").mockResolvedValue(
+				MockWorkspaceBuildDelete,
+			);
+			const outletContext = renderList();
+
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open chat actions for ${chat.title}`,
+				}),
+			);
+			await user.click(
+				await screen.findByRole("menuitem", {
+					name: "Archive & delete workspace",
+				}),
+			);
+			if (requiresConfirmation) {
+				const nameField = await screen.findByLabelText(
+					"Name of the workspace to delete",
+				);
+				expect(API.deleteWorkspace).not.toHaveBeenCalled();
+				await user.type(nameField, MockWorkspace.name);
+				await user.click(screen.getByRole("button", { name: "Delete" }));
+			}
+
+			await waitFor(() => {
+				expect(API.deleteWorkspace).toHaveBeenCalledWith(MockWorkspace.id);
+				expect(outletContext.navigateAfterArchive).toHaveBeenCalledWith(
+					chat.id,
+				);
+			});
+			expect(API.experimental.updateChat).toHaveBeenCalledWith(chat.id, {
+				archived: true,
+			});
+		},
+	);
+
+	it.each([
+		{ action: "Pin agent", pinOrder: 0, expectedOrder: 1 },
+		{ action: "Unpin agent", pinOrder: 1, expectedOrder: 0 },
+	])(
+		"$action from a project row uses its own mutation",
+		async ({ action, pinOrder, expectedOrder }) => {
+			const user = userEvent.setup();
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+				{ ...MockChat, pin_order: pinOrder },
+			]);
+			vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+			renderList();
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open chat actions for ${MockChat.title}`,
+				}),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: action }));
+			await waitFor(() =>
+				expect(API.experimental.updateChat).toHaveBeenCalledWith(MockChat.id, {
+					pin_order: expectedOrder,
+				}),
+			);
+		},
+	);
+
+	it.each([
+		{ action: "Pin agent", pinOrder: 0 },
+		{ action: "Unpin agent", pinOrder: 1 },
+	])(
+		"$action from a project row reports failures",
+		async ({ action, pinOrder }) => {
+			const user = userEvent.setup();
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+				{ ...MockChat, pin_order: pinOrder },
+			]);
+			vi.spyOn(API.experimental, "updateChat").mockRejectedValue(
+				new Error("Pin update rejected"),
+			);
+			const errorToast = vi.spyOn(toast, "error");
+			renderList();
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open chat actions for ${MockChat.title}`,
+				}),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: action }));
+			await waitFor(() =>
+				expect(errorToast).toHaveBeenCalledWith("Pin update rejected"),
+			);
+		},
+	);
+
+	it("restores a project row and preserves its error when archiving fails", async () => {
+		const user = userEvent.setup();
+		const getChats = vi
+			.spyOn(API.experimental, "getChats")
+			.mockResolvedValue(buildChats(1));
+		let rejectArchive!: (error: Error) => void;
+		vi.spyOn(API.experimental, "updateChat").mockImplementation(
+			() =>
+				new Promise((_resolve, reject) => {
+					rejectArchive = reject;
+				}),
+		);
+		const errorToast = vi.spyOn(toast, "error");
+		const outletContext = renderList();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open chat actions for Chat 0",
+			}),
+		);
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Archive agent" }),
+		);
+		await waitFor(() => {
+			expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
+				archived: true,
+			});
+			expect(
+				screen.queryByRole("link", { name: /Chat 0/ }),
+			).not.toBeInTheDocument();
+		});
+		getChats.mockRejectedValue(new Error("Refetch failed"));
+		rejectArchive(new Error("Archive failed"));
+
+		expect(
+			await screen.findByRole("link", { name: /Chat 0/ }),
+		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(errorToast).toHaveBeenCalledWith("Archive failed"),
+		);
+		expect(outletContext.clearChatErrorReason).not.toHaveBeenCalled();
+		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
+	});
+
+	it("archives a chat from its project row", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
+		vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
 
 		const outletContext = renderList();
 
@@ -275,6 +420,12 @@ describe("ProjectChatsList", () => {
 			await screen.findByRole("menuitem", { name: "Archive agent" }),
 		);
 
-		expect(outletContext.requestArchiveAgent).toHaveBeenCalledWith("chat-0");
+		await waitFor(() => {
+			expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
+				archived: true,
+			});
+			expect(outletContext.clearChatErrorReason).toHaveBeenCalledWith("chat-0");
+		});
+		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
 	});
 });

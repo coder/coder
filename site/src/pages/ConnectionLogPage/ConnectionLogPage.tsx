@@ -9,7 +9,10 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { useOrganizationsFilterMenu } from "#/modules/tableFiltering/options";
 import { pageTitle } from "#/utils/page";
-import { useStatusFilterMenu, useTypeFilterMenu } from "./ConnectionLogFilter";
+import {
+	useMethodFilterMenu,
+	useStatusFilterMenu,
+} from "./ConnectionLogFilter";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
 const ConnectionLogPage: React.FC = () => {
@@ -52,13 +55,14 @@ const ConnectionLogPage: React.FC = () => {
 			}),
 	});
 
-	const typeMenu = useTypeFilterMenu({
-		value: filter.values.type,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				type: option?.value,
-			}),
+	const methodMenu = useMethodFilterMenu({
+		value: filter.values.method,
+		onChange: (option) => {
+			// Saved links can carry the deprecated type filter, which the API
+			// rejects when combined with method.
+			const { type: _legacyType, ...values } = filter.values;
+			filter.update({ ...values, method: option?.value });
+		},
 	});
 
 	const organizationsMenu = useOrganizationsFilterMenu({
@@ -87,7 +91,7 @@ const ConnectionLogPage: React.FC = () => {
 					menus: {
 						user: userMenu,
 						status: statusMenu,
-						type: typeMenu,
+						method: methodMenu,
 						organization: showOrganizations ? organizationsMenu : undefined,
 					},
 				}}

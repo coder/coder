@@ -53,7 +53,6 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
-import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -116,7 +115,7 @@ type AgentChatPageViewProps = {
 	effectiveSelectedModel: string;
 	setSelectedModel: (model: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
-	models: readonly TypesGen.ChatModel[] | undefined;
+	modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: React.ReactNode;
 	modelCatalogError?: unknown;
@@ -131,7 +130,6 @@ type AgentChatPageViewProps = {
 	hasModelOptions: boolean;
 	isModelCatalogLoading: boolean;
 	onPlanModeToggle: (enabled: boolean) => void;
-	onManageAutomationsToggle?: (enabled: boolean) => void;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
@@ -279,7 +277,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	effectiveSelectedModel,
 	setSelectedModel,
 	modelOptions,
-	models,
+	modelCatalog,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
 	modelCatalogError,
@@ -294,7 +292,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	hasModelOptions,
 	isModelCatalogLoading,
 	onPlanModeToggle,
-	onManageAutomationsToggle,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
@@ -332,10 +329,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
-	const parsedPrNumber = Number(
-		parsePullRequestUrl(chat.diff_status?.url)?.number,
-	);
-	const prNumber = chat.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -672,9 +665,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			case "git":
 				return (
 					<GitPanel
-						prTab={
-							prNumber && agentId ? { prNumber, chatId: agentId } : undefined
-						}
+						chatId={agentId}
 						repositories={gitWatcher.repositories}
 						everDirty={gitWatcher.everDirty}
 						isGitStatusLoading={
@@ -683,7 +674,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						}
 						onRefresh={handleRefresh}
 						isExpanded={visualExpanded}
-						remoteDiffStats={chat.diff_status}
+						remoteDiffStats={chat.diff_statuses}
+						primaryDiffStatus={chat.diff_status}
 						chatInputRef={editing.chatInputRef}
 					/>
 				);
@@ -809,7 +801,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		chat.owner_name?.trim() ||
 		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
 	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
-	const chatOwnerWarning = isOtherUserReadOnly
+	const readOnlyNotice = isOtherUserReadOnly
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
 
@@ -871,16 +863,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									>
 										<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
 										{unavailableModelNotice}
-									</div>
-								)}
-								{chatOwnerWarning && (
-									<div
-										role="status"
-										aria-live="polite"
-										className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
-									>
-										<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
-										{chatOwnerWarning}
 									</div>
 								)}
 								{isArchived && (
@@ -945,13 +927,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									<ChatPageInput
 										chat={chat}
 										store={store}
-										models={models}
+										modelCatalog={modelCatalog}
 										onSend={editing.handleSendFromInput}
 										onDeleteQueuedMessage={handleDeleteQueuedMessage}
 										onPromoteQueuedMessage={handlePromoteQueuedMessage}
 										onInterrupt={handleInterrupt}
 										isInputDisabled={isInputDisabled}
 										isReadOnly={isOtherUserReadOnly}
+										readOnlyNotice={readOnlyNotice}
 										isSendPending={isSubmissionPending}
 										isInterruptPending={isInterruptPending}
 										hasModelOptions={hasModelOptions}
@@ -968,7 +951,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										reasoningEffort={reasoningEffort}
 										onReasoningEffortChange={onReasoningEffortChange}
 										onPlanModeToggle={onPlanModeToggle}
-										onManageAutomationsToggle={onManageAutomationsToggle}
 										isModelCatalogLoading={isModelCatalogLoading}
 										onWorkspaceChange={onWorkspaceChange}
 										isWorkspaceLoading={isWorkspaceLoading}
@@ -1090,7 +1072,7 @@ export const AgentChatPageLoadingView: React.FC<
 						onToggleSidebar: () => {},
 					}}
 				/>
-				<div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+				<div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable scrollbar-thin">
 					<div className="px-4">
 						<div
 							className={cn(

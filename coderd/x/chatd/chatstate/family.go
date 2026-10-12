@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -184,7 +185,7 @@ func DeleteChatProject(ctx context.Context, store database.Store, publisher Publ
 		return nil, xerrors.New("chatstate: DeleteChatProject called with nil publisher")
 	}
 	chats, buffer, err := deleteChatProjectTx(ctx, store, publisher, projectID)
-	if database.IsDeadlockError(err) {
+	if isDeadlock(err) {
 		chats, buffer, err = deleteChatProjectTx(ctx, store, publisher, projectID)
 	}
 	if err != nil {
@@ -241,4 +242,9 @@ func deleteChatProjectTx(ctx context.Context, store database.Store, publisher Pu
 		return nil, nil, err
 	}
 	return before, buffer, nil
+}
+
+func isDeadlock(err error) bool {
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && pqErr.Code == "40P01"
 }

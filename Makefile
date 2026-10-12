@@ -87,7 +87,8 @@ endif
 	coderd/rbac/object_gen.go \
 	coderd/rbac/scopes_constants_gen.go \
 	codersdk/rbacresources_gen.go \
-	codersdk/apikey_scopes_gen.go
+	codersdk/apikey_scopes_gen.go \
+	codersdk/dbenums_gen.go
 
 # atomic_write runs a command, captures stdout into a temp file, and
 # atomically replaces $@. An optional second argument is a formatting
@@ -1099,6 +1100,7 @@ GEN_FILES := \
 	codersdk/rbacresources_gen.go \
 	coderd/rbac/scopes_constants_gen.go \
 	codersdk/apikey_scopes_gen.go \
+	codersdk/dbenums_gen.go \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
@@ -1201,6 +1203,7 @@ gen/mark-fresh:
 		codersdk/rbacresources_gen.go \
 		coderd/rbac/scopes_constants_gen.go \
 		codersdk/apikey_scopes_gen.go \
+		codersdk/dbenums_gen.go \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
 		site/src/api/chatModelOptionsGenerated.json \
@@ -1396,6 +1399,11 @@ codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/m
 	# Write to a temp file to avoid truncating the target, which
 	# would break the codersdk package and any parallel build targets.
 	$(call atomic_write,_gen/bin/typegen rbac codersdk)
+	touch "$@"
+
+# Reads coderd/database/models.go, which generate.sh writes with querier.go.
+codersdk/dbenums_gen.go: scripts/typegen/dbenums.gotmpl scripts/typegen/main.go coderd/database/querier.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen dbenums)
 	touch "$@"
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because

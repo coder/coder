@@ -19,7 +19,6 @@ import {
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { buildAgentProjectPath } from "../../utils/navigation";
 import { draftStorageKeys } from "../AgentCreateForm";
-import { AUTOMATIONS_PATH } from "../Automations/automationsFlag";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import type { ProjectDialogState } from "./chats/ProjectFolders";
 import { getOrganizationLabels } from "./chats/projectGrouping";
@@ -39,14 +38,8 @@ type ChatsSidebarProps = {
 	chatErrorReasons: Record<string, string>;
 	modelConfigs: readonly ChatModel[];
 	isLoadingModelConfigs?: boolean;
-	onArchiveAgent: (chatId: string) => void;
-	onUnarchiveAgent: (chatId: string) => void;
-	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
-	onPinAgent: (chatId: string) => void;
-	onUnpinAgent: (chatId: string) => void;
-	onMarkChatRead: (chatId: string) => void;
-	onMarkChatUnread: (chatId: string) => void;
-	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	onArchiveSuccess?: (chatId: string) => void;
+	navigateAfterArchive: (chatId: string) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	onProposeTitle?: (chatId: string) => Promise<string>;
 	/**
@@ -61,8 +54,6 @@ type ChatsSidebarProps = {
 	isSearchDialogOpen: boolean;
 	onSearchDialogOpenChange: (open: boolean) => void;
 	isCreating: boolean;
-	isArchiving?: boolean;
-	archivingChatId?: string | null;
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
@@ -89,14 +80,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		chatErrorReasons,
 		modelConfigs,
 		isLoadingModelConfigs = false,
-		onArchiveAgent,
-		onUnarchiveAgent,
-		onArchiveAndDeleteWorkspace,
-		onPinAgent,
-		onUnpinAgent,
-		onMarkChatRead,
-		onMarkChatUnread,
-		onReorderPinnedAgent,
+		onArchiveSuccess,
+		navigateAfterArchive,
 		onRenameTitle,
 		onProposeTitle,
 		chatPendingRename: chatPendingRenameProp,
@@ -105,8 +90,6 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		isSearchDialogOpen,
 		onSearchDialogOpenChange,
 		isCreating,
-		isArchiving = false,
-		archivingChatId = null,
 		isLoading = false,
 		loadError,
 		onRetryLoad,
@@ -287,20 +270,12 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				chatErrorReasons={chatErrorReasons}
 				modelConfigs={modelConfigs}
 				isLoadingModelConfigs={isLoadingModelConfigs}
-				onArchiveAgent={onArchiveAgent}
-				onUnarchiveAgent={onUnarchiveAgent}
-				onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
-				onPinAgent={onPinAgent}
-				onUnpinAgent={onUnpinAgent}
-				onMarkChatRead={onMarkChatRead}
-				onMarkChatUnread={onMarkChatUnread}
-				onReorderPinnedAgent={onReorderPinnedAgent}
+				onArchiveSuccess={onArchiveSuccess}
+				navigateAfterArchive={navigateAfterArchive}
 				onBeforeNewAgent={onBeforeNewAgent}
 				onOpenSearchDialog={() => onSearchDialogOpenChange(true)}
 				onOpenRenameDialog={onRenameTitle ? setChatPendingRename : undefined}
 				isCreating={isCreating}
-				isArchiving={isArchiving}
-				archivingChatId={archivingChatId}
 				isLoading={isLoading}
 				loadError={loadError}
 				onRetryLoad={onRetryLoad}
@@ -316,8 +291,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isChatsActive={
 					!activeChatId &&
 					sidebarView.panel === "chats" &&
-					!sidebarView.projectId &&
-					!location.pathname.startsWith(AUTOMATIONS_PATH)
+					!sidebarView.projectId
 				}
 				location={location}
 				currentUserId={currentUserId}
