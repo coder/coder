@@ -8,6 +8,21 @@ links */}}
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Application {{.AppName}}</title>
     <style>
+      /* Mirrors the dark theme tokens and sizing used by GlobalErrorBoundary
+         (site/src/components/ErrorBoundary). This page is rendered by Go
+         and cannot load the frontend bundle, so the values are inlined. */
+      :root {
+        --surface-primary: #09090b;
+        --surface-secondary: #18181b;
+        --surface-invert-primary: #e4e4e7;
+        --surface-invert-secondary: #a1a1aa;
+        --content-primary: #ffffff;
+        --content-secondary: #a1a1aa;
+        --content-invert: #09090b;
+        --content-link: #60a5fa;
+        --border-default: #27272a;
+      }
+
       * {
         padding: 0;
         margin: 0;
@@ -16,23 +31,24 @@ links */}}
 
       html,
       body {
-        background-color: #05060b;
-        color: #f7f9fd;
+        background-color: var(--surface-primary);
+        color: var(--content-primary);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-family: sans-serif;
+        font-family: system-ui, sans-serif;
         font-size: 16px;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
         /* A fixed height would let align-items: center push a long scope list
            past both edges, leaving the top half unreachable by scrolling. */
         min-height: 100%;
       }
 
       .container {
-        --side-padding: 24px;
         width: 100%;
-        max-width: calc(320px + var(--side-padding) * 2);
-        padding: 0 var(--side-padding);
+        max-width: 65ch;
+        padding: 16px;
         text-align: center;
       }
 
@@ -40,54 +56,69 @@ links */}}
         align-items: center;
         display: flex;
         justify-content: center;
-        margin-bottom: 24px;
+        gap: 12px;
+        margin-bottom: 8px;
       }
 
       .coder-svg,
       .app-icon {
-        width: 80px;
+        width: 48px;
+        height: 48px;
       }
 
       .connect-symbol {
-        font-size: 40px;
-        font-weight: bold;
-        margin: 0 10px;
+        color: var(--content-secondary);
+        font-size: 24px;
+        font-weight: 500;
       }
 
       h1 {
-        font-weight: 700;
-        font-size: 36px;
-        margin-bottom: 8px;
+        font-size: 24px;
+        line-height: 32px;
+        font-weight: 600;
+        margin-bottom: 4px;
       }
 
       p,
       li {
-        color: #b2bfd7;
-        line-height: 140%;
+        color: var(--content-secondary);
+        font-size: 14px;
+        line-height: 24px;
       }
 
-			.user-name {
-        font-weight: bold;
+      .user-name {
+        color: var(--content-primary);
+        font-weight: 600;
       }
 
       #scope-list {
         list-style: none;
-        margin-top: 12px;
+        margin-top: 24px;
+        padding: 16px;
+        border: 1px solid var(--border-default);
+        border-radius: 6px;
         /* The container centres its text, which would stagger the left edges. */
         text-align: left;
-        padding-left: 8px;
+      }
+
+      #scope-list li {
+        color: var(--content-primary);
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        line-height: 20px;
       }
 
       #scope-disclaimer {
-        font-size: 13px;
-        margin-top: 12px;
+        font-size: 12px;
+        line-height: 16px;
+        margin-top: 8px;
       }
 
       .button-group {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 12px;
+        gap: 8px;
         margin-top: 24px;
       }
 
@@ -96,25 +127,43 @@ links */}}
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 6px 16px;
-        border-radius: 4px;
-        border: 1px solid #2c3854;
+        min-width: 128px;
+        height: 40px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--border-default);
+        background-color: transparent;
+        color: var(--content-primary);
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 24px;
         text-decoration: none;
-        background: none;
-        font-size: inherit;
-        color: inherit;
-        width: 200px;
-        height: 42px;
+        white-space: nowrap;
         cursor: pointer;
+        transition: background-color 150ms;
       }
 
       .button-group a:hover,
       .button-group button:hover {
-        border-color: hsl(222, 31%, 40%);
+        background-color: var(--surface-secondary);
+      }
+
+      .button-group a:focus-visible,
+      .button-group button:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px var(--content-link);
       }
 
       .button-group .primary-button {
-        background-color: #2c3854;
+        border-color: transparent;
+        background-color: var(--surface-invert-primary);
+        color: var(--content-invert);
+        font-weight: 600;
+      }
+
+      .button-group .primary-button:hover {
+        background-color: var(--surface-invert-secondary);
       }
     </style>
   </head>
