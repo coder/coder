@@ -518,6 +518,7 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 							<AutomationRunsAsCard
 								runsAsName={ownerName}
 								isWebhook={automation.kind === "webhook"}
+								enabled={automation.enabled}
 							/>
 							<div className="flex justify-end border-0 border-t border-solid border-border pt-6">
 								<Button asChild variant="outline">

@@ -239,6 +239,32 @@ describe("AgentAutomationsPage", () => {
 		);
 	});
 
+	it.each([
+		{
+			enabled: false,
+			sentence:
+				"While the automation is off, it starts no runs and queues no prompts.",
+		},
+		{ enabled: true, sentence: "Turning the automation off blocks new runs" },
+	])(
+		"describes runs as the owner for an automation with enabled $enabled",
+		async ({ enabled, sentence }) => {
+			const otherOwners: ChatAutomation = {
+				...mockAutomation,
+				enabled,
+				owner_id: "another-user",
+				owner: { id: "another-user", username: "bob", name: "Bob" },
+			};
+			setup({
+				automations: [otherOwners],
+				route: `/agents/automations/${mockAutomation.id}`,
+			});
+
+			const runsAs = (await screen.findByText("Runs as Bob")).parentElement;
+			expect(runsAs).toHaveTextContent(sentence);
+		},
+	);
+
 	it("lets an admin delete another owner's automation from its page", async () => {
 		const user = userEvent.setup();
 		const otherOwners: ChatAutomation = {

@@ -446,6 +446,7 @@ export const AutomationEditorForm: React.FC<AutomationEditorFormProps> = ({
 			<AutomationRunsAsCard
 				runsAsName={runsAsName}
 				isWebhook={form.values.kind === "webhook"}
+				enabled={automation?.enabled}
 			/>
 			{/* Next to the buttons, so a save error such as the per-owner
 			    limit is in view where the user clicked. Sticky on wide screens,
@@ -534,12 +535,15 @@ export const AutomationEditorForm: React.FC<AutomationEditorFormProps> = ({
 type AutomationRunsAsCardProps = {
 	runsAsName: string;
 	isWebhook: boolean;
+	/** False for a saved automation that is off; unset while creating. */
+	enabled?: boolean;
 };
 
 /** The RFC's "Runs as" warning: whose permissions runs use, and what turning it off drops. */
 export const AutomationRunsAsCard: React.FC<AutomationRunsAsCardProps> = ({
 	runsAsName,
 	isWebhook,
+	enabled,
 }) => (
 	<div className="flex gap-3 rounded-lg border border-solid border-border bg-surface-secondary p-4">
 		<TriangleAlertIcon
@@ -554,8 +558,9 @@ export const AutomationRunsAsCard: React.FC<AutomationRunsAsCardProps> = ({
 				Runs use {runsAsName}'s Coder permissions and the chat's tools.{" "}
 				{isWebhook &&
 					"Anyone who has the secret can send event data to this agent, but the prompt stays the owner's. "}
-				Turning the automation off blocks new runs and removes prompts it queued
-				that have not started. Work that already started continues.
+				{enabled === false
+					? "While the automation is off, it starts no runs and queues no prompts."
+					: "Turning the automation off blocks new runs and removes prompts it queued that have not started. Work that already started continues."}
 			</span>
 		</div>
 	</div>
