@@ -3350,9 +3350,9 @@ type StreamChatOptions struct {
 	// stream sends only changes made after it, the server ignores AfterID,
 	// and history resets carry ChatStreamEvent.HistoryReset. The stream
 	// then sends no status, error, retry or action_required events: each
-	// checkpoint carries the turn, and pending dynamic tool calls are read
-	// from the chat watch stream. When it is zero, every connection to a
-	// chat with a deleted message resends the whole history.
+	// checkpoint carries the turn, which does not include pending dynamic
+	// tool calls. When it is zero, every connection to a chat with a
+	// deleted message resends the whole history.
 	SnapshotVersion int64
 }
 
