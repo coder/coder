@@ -14,7 +14,7 @@ import {
 	createReconnectingWebSocket,
 	type ReconnectSchedule,
 } from "#/utils/reconnectingWebSocket";
-import { type ChatDetailError, normalizeChatErrorPayload } from "./chatError";
+import type { ChatDetailError } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreLoad,
@@ -29,15 +29,6 @@ import {
 	selectStreamState,
 	useChatSelector,
 } from "./chatStore";
-import type { RetryState } from "./types";
-
-const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
-	attempt: Math.max(1, retry.attempt),
-	error: retry.error.trim() || "Retrying request shortly.",
-	kind: retry.kind ?? "generic",
-	provider: retry.provider?.trim() || undefined,
-	retryingAt: retry.retrying_at.trim() || undefined,
-});
 
 const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 	selectStreamError(state) === null &&
@@ -175,14 +166,6 @@ export const useChatStore = (
 		// sync cut off by a disconnect is dropped; the reconnect sends it again.
 		const syncEvents: TypesGen.ChatStreamEvent[] = [];
 
-		// Set when the stream reports "waiting", cleared by any other
-		// stream status. While set, parts are dropped: they are late
-		// leftovers from the finished turn. REST and optimistic
-		// statuses never set it, because they can lag a live turn.
-		let streamReportedWaiting = false;
-
-		const shouldKeepMessagePart = (): boolean => !streamReportedWaiting;
-
 		const schedulePartsFlush = () => {
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
 				return;
@@ -192,41 +175,29 @@ export const useChatStore = (
 				if (disposed) {
 					return;
 				}
-				if (!shouldKeepMessagePart()) {
-					partsBuf.length = 0;
-					return;
-				}
 				store.applyMessageParts(partsBuf.splice(0));
 			}, 0);
 		};
 
-		// Immediate flush for non-message_part events that need
-		// the parts applied before they execute (e.g. a durable
-		// message commit right after the last part).
-		const flushMessageParts = () => {
-			if (partsBuf.length === 0) {
-				return;
-			}
-			if (partsFlushTimer !== null) {
-				clearTimeout(partsFlushTimer);
-				partsFlushTimer = null;
-			}
-			if (!shouldKeepMessagePart()) {
-				partsBuf.length = 0;
-				return;
-			}
-			store.applyMessageParts(partsBuf.splice(0));
-		};
-
-		// Discard buffered parts without applying them. Used when
-		// the preview is reset or the stream is no longer active
-		// so stale buffered parts are not applied after the
-		// boundary event.
+		// Discard buffered parts without applying them, so parts from before
+		// a preview_reset or from a closed socket never reach the store.
 		const discardBufferedParts = () => {
 			partsBuf.length = 0;
 			if (partsFlushTimer !== null) {
 				clearTimeout(partsFlushTimer);
 				partsFlushTimer = null;
+			}
+		};
+
+		const applyTurn = (turn: TypesGen.ChatStreamTurn) => {
+			updateSidebarChat((chat) =>
+				chat.status === turn.status ? chat : { ...chat, status: turn.status },
+			);
+			const error = store.getSnapshot().turnError;
+			if (error) {
+				setChatErrorReasonEvent(chatID, error);
+			} else {
+				clearChatErrorReasonEvent(chatID);
 			}
 		};
 
@@ -242,21 +213,12 @@ export const useChatStore = (
 				}
 			};
 			let historyReset = false;
-			let needsStreamReset = false;
+			let turn: TypesGen.ChatStreamTurn | undefined;
 
 			for (const streamEvent of events) {
 				if (streamEvent.type === "message") {
-					const message = streamEvent.message;
-					if (!message) {
-						continue;
-					}
-					// Flush buffered parts before a durable message commits
-					// them.
-					flushMessageParts();
-					store.clearRetryState();
-					pendingMessages.push(message);
-					if (message.role === "assistant") {
-						needsStreamReset = true;
+					if (streamEvent.message) {
+						pendingMessages.push(streamEvent.message);
 					}
 					continue;
 				}
@@ -264,98 +226,32 @@ export const useChatStore = (
 
 				switch (streamEvent.type) {
 					case "history_reset":
-						discardBufferedParts();
-						store.clearStreamState();
 						store.resetHistoryFrom(
 							streamEvent.history_reset?.from_message_id ?? 0,
 						);
 						historyReset = true;
-						needsStreamReset = false;
+						continue;
+					case "queue_update":
+						store.setQueuedMessages(streamEvent.queued_messages ?? []);
 						continue;
 					case "preview_reset":
 						discardBufferedParts();
 						store.clearStreamState();
 						continue;
-					case "checkpoint": {
-						const checkpoint = streamEvent.checkpoint;
-						if (checkpoint) {
-							store.applyCheckpoint(checkpoint.snapshot_version);
+					case "checkpoint":
+						if (streamEvent.checkpoint) {
+							store.applyCheckpoint(streamEvent.checkpoint);
+							turn = streamEvent.checkpoint.turn;
 						}
 						continue;
-					}
-					case "queue_update":
-						store.setQueuedMessages(streamEvent.queued_messages ?? []);
-						continue;
-					case "status": {
-						const nextStatus = streamEvent.status?.status;
-						if (!nextStatus) {
-							continue;
-						}
-
-						streamReportedWaiting = nextStatus === "waiting";
-						store.clearRetryState();
-						const prevStatus = store.getSnapshot().chatStatus;
-						store.applyServerChatStatus(nextStatus);
-						if (nextStatus === "waiting") {
-							discardBufferedParts();
-						}
-						if (nextStatus !== "error") {
-							clearChatErrorReasonEvent(chatID);
-							// Only an errored chat starting a new turn
-							// supersedes the stored error. A status from a
-							// turn that was already running must not clear
-							// an unrelated request failure.
-							if (prevStatus === "error") {
-								store.clearStreamError();
-							}
-						}
-						updateSidebarChat((chat) =>
-							chat.status === nextStatus
-								? chat
-								: { ...chat, status: nextStatus },
-						);
-						continue;
-					}
-					case "error": {
-						const reason = normalizeChatErrorPayload(streamEvent.error) ?? {
-							kind: "generic",
-							message: "Chat processing failed.",
-						};
-						// An error ends the turn. Clear the partial
-						// stream so no tool keeps spinning. Parts stay
-						// ungated because the next turn can send a part
-						// before its running status.
-						discardBufferedParts();
-						store.applyServerChatStatus("error");
-						store.setStreamError(reason);
-						store.clearStreamState();
-						store.clearRetryState();
-						setChatErrorReasonEvent(chatID, reason);
-						updateSidebarChat((chat) =>
-							chat.status === "error" ? chat : { ...chat, status: "error" },
-						);
-						continue;
-					}
-					case "retry": {
-						const retry = streamEvent.retry;
-						if (retry) {
-							discardBufferedParts();
-							store.clearStreamState();
-							store.setRetryState(normalizeRetryState(retry));
-						}
-						continue;
-					}
 					default:
 						continue;
 				}
 			}
 			flushMessages();
 
-			// Clear stream state atomically with the durable message commit so
-			// subscribers never see the committed message and the streaming
-			// output together.
-			if (needsStreamReset) {
-				store.clearStreamState();
+			if (turn) {
+				applyTurn(turn);
 			}
 			if (durable.length > 0) {
 				onDurableMessages(durable);
@@ -392,12 +288,8 @@ export const useChatStore = (
 					}
 					// The server never sends a part inside a sync.
 					if (streamEvent.type === "message_part") {
-						if (!shouldKeepMessagePart()) {
-							continue;
-						}
 						const part = streamEvent.message_part?.part;
 						if (part) {
-							store.clearRetryState();
 							partsBuf.push(part);
 						}
 						continue;

@@ -5250,21 +5250,27 @@ describe("chat stream syncs", () => {
 		chat_id: chatID,
 		checkpoint: { snapshot_version: snapshotVersion, turn },
 	});
-	const renderChat = (page: TypesGen.ChatMessagesResponse) => {
+	const renderChat = (
+		page: TypesGen.ChatMessagesResponse,
+		errorReasons = { set: vi.fn(), clear: vi.fn() },
+	) => {
 		mockNewestPage(chatID, page);
 		return renderHook(
 			() => {
 				const { store } = useChatStore({
 					chatID,
 					chatRecord: buildChat(chatID),
-					setChatErrorReason: vi.fn(),
-					clearChatErrorReason: vi.fn(),
+					setChatErrorReason: errorReasons.set,
+					clearChatErrorReason: errorReasons.clear,
 				});
 				return {
 					messageIDs: useChatSelector(store, selectOrderedMessageIDs),
 					queuedIDs: useChatSelector(store, selectQueuedMessages).map(
 						(message) => message.id,
 					),
+					status: useChatSelector(store, selectChatStatus),
+					error: useChatSelector(store, selectStreamError),
+					retry: useChatSelector(store, selectRetryState),
 				};
 			},
 			{ wrapper: createWrapper(createTestQueryClient()) },
@@ -5298,7 +5304,7 @@ describe("chat stream syncs", () => {
 				},
 			]);
 		});
-		expect(result.current).toEqual({ messageIDs: [1, 2], queuedIDs: [10] });
+		expect(result.current).toMatchObject({ messageIDs: [1, 2], queuedIDs: [10] });
 
 		act(() => {
 			sockets[0].emitDataBatch([
@@ -5307,7 +5313,10 @@ describe("chat stream syncs", () => {
 				checkpoint(5),
 			]);
 		});
-		expect(result.current).toEqual({ messageIDs: [1, 2, 3], queuedIDs: [] });
+		expect(result.current).toMatchObject({
+			messageIDs: [1, 2, 3],
+			queuedIDs: [],
+		});
 	});
 
 	it("drops a sync that the connection lost before its checkpoint", async () => {
@@ -5349,5 +5358,67 @@ describe("chat stream syncs", () => {
 			]);
 		});
 		expect(result.current.messageIDs).toEqual([1, 2]);
+	});
+
+	it("takes the turn from each checkpoint", async () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const errorReasons = { set: vi.fn(), clear: vi.fn() };
+		const { result } = renderChat(
+			{
+				messages: [buildMessage(chatID, 1, "user", "prompt")],
+				queued_messages: [],
+				has_more: false,
+				snapshot_version: 4,
+			},
+			errorReasons,
+		);
+		await waitFor(() => expect(sockets).toHaveLength(1));
+
+		act(() => {
+			sockets[0].emitData(
+				checkpoint(5, {
+					status: "running",
+					retry: {
+						attempt: 2,
+						delay_ms: 1000,
+						error: "rate limited",
+						retrying_at: "2025-01-01T00:00:01.000Z",
+					},
+				}),
+			);
+		});
+		expect(result.current).toMatchObject({
+			status: "running",
+			error: null,
+			retry: { attempt: 2, error: "rate limited" },
+		});
+
+		act(() => {
+			sockets[0].emitData(
+				checkpoint(6, {
+					status: "error",
+					error: { message: "provider down", kind: "generic" },
+				}),
+			);
+		});
+		expect(result.current).toMatchObject({
+			status: "error",
+			error: { message: "provider down" },
+			retry: null,
+		});
+		expect(errorReasons.set).toHaveBeenLastCalledWith(
+			chatID,
+			expect.objectContaining({ message: "provider down" }),
+		);
+
+		act(() => {
+			sockets[0].emitData(checkpoint(7, { status: "waiting" }));
+		});
+		expect(result.current).toMatchObject({
+			status: "waiting",
+			error: null,
+			retry: null,
+		});
+		expect(errorReasons.clear).toHaveBeenLastCalledWith(chatID);
 	});
 });
