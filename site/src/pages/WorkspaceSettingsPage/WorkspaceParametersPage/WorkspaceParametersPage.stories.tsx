@@ -212,6 +212,44 @@ export const RequireActiveVersionBlockedRunning: Story = {
 	},
 };
 
+export const RequireActiveVersionUpdating: Story = {
+	beforeEach: () => {
+		spyOn(API, "postWorkspaceBuild").mockRejectedValue(
+			new Error("would have started"),
+		);
+	},
+	parameters: {
+		reactRouter: workspaceRouterParameters(
+			MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			MockOutdatedStoppedWorkspaceRequireActiveVersion.template_active_version_id,
+		),
+		queries: workspaceQueries(
+			MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			{ updateWorkspaceVersion: false },
+		),
+		webSocket: filledWebSocketParams(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const submitButton = await canvas.findByRole("button", {
+			name: "Update and start",
+		});
+		expect(
+			canvas.queryByText(/requires automatic updates/),
+		).not.toBeInTheDocument();
+		await userEvent.click(submitButton);
+		await waitFor(() =>
+			expect(API.postWorkspaceBuild).toHaveBeenCalledWith(
+				MockOutdatedStoppedWorkspaceRequireActiveVersion.id,
+				expect.objectContaining({
+					template_version_id:
+						MockOutdatedStoppedWorkspaceRequireActiveVersion.template_active_version_id,
+				}),
+			),
+		);
+	},
+};
+
 export const RequireActiveVersionEditable: Story = {
 	parameters: {
 		reactRouter: workspaceRouterParameters(
@@ -236,13 +274,17 @@ export const RequireActiveVersionEditable: Story = {
 	},
 };
 
-function workspaceRouterParameters(workspace: Workspace) {
+function workspaceRouterParameters(
+	workspace: Workspace,
+	templateVersionId?: string,
+) {
 	return reactRouterParameters({
 		location: {
 			pathParams: {
 				username: `@${workspace.owner_name}`,
 				workspace: workspace.name,
 			},
+			searchParams: templateVersionId ? { templateVersionId } : undefined,
 		},
 		routing: reactRouterOutlet(
 			{
