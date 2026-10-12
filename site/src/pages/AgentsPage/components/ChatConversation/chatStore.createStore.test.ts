@@ -909,7 +909,8 @@ const convergenceScenarios: ConvergenceScenario[] = [
 			message: makeMessage(4, "user", "new"),
 		},
 		stream: (store) => {
-			store.replaceMessagesFrom(3, [makeMessage(4, "user", "new")]);
+			store.resetHistoryFrom(3);
+			store.upsertDurableMessages([makeMessage(4, "user", "new")]);
 			store.setQueuedMessages([]);
 		},
 	},
@@ -965,7 +966,8 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		status: "waiting",
 		action: { kind: "send", messages: [makeMessage(2, "user", "mine")] },
 		stream: (store) => {
-			store.replaceMessagesFrom(1, [makeMessage(3, "user", "theirs")]);
+			store.resetHistoryFrom(1);
+			store.upsertDurableMessages([makeMessage(3, "user", "theirs")]);
 			store.applyServerChatStatus("running");
 		},
 		unpredictable: true,
@@ -1067,7 +1069,8 @@ describe("prependOlderMessages", () => {
 			snapshot_version: 1,
 		});
 		const resetCount = store.getHistoryResetCount();
-		store.replaceMessagesFrom(undefined, [makeMessage(4, "user", "new")]);
+		store.resetHistoryFrom(0);
+		store.upsertDurableMessages([makeMessage(4, "user", "new")]);
 
 		store.prependOlderMessages(
 			[makeMessage(1, "user", "a"), makeMessage(2, "assistant", "b")],
